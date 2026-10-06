@@ -220,6 +220,10 @@ AgentsWaitProbeFile(){
 }
 
 ## The own inbox and one board state are listings of a directory, so they are the file probe over it.
+## The inbox listing is names only, deliberately: an arrival adds a name and wakes the wait, while
+## marking an item handled stamps `processed-at` in place and changes no name, so it does not --
+## marking is the waiting member's own act, never new input for it. The GC collecting a marked item
+## does remove a name and wakes it once: rare, and a wake with nothing new is harmless.
 AgentsWaitProbeInbox(){
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 2
 	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/inboxes/$2" "$3" "$4"
@@ -440,7 +444,11 @@ case "$1" in
 			fi
 		fi
 		[ -n "$waitTimeout" ] || waitTimeout=300
-		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-19}"
+		## A given interval stays fixed. Unset, the interval backs off: 5s growing by 15s
+		## every 5 minutes waited, capped at 5 minutes.
+		local waitBackoff="false"
+		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-}"
+		[ -n "$waitPoll" ] || { waitPoll=5 ; waitBackoff="true" ; }
 
 		case "$waitTimeout" in
 			''|*[!0-9]*)
@@ -733,6 +741,10 @@ case "$1" in
 			fi
 			waitRemaining=$(( waitDeadline - waitNow ))
 			waitNap="$waitPoll"
+			if [ "$waitBackoff" = "true" ] ; then
+				waitNap=$(( 5 + ( waitNow - waitStart ) / 20 ))
+				[ "$waitNap" -le 300 ] || waitNap=300
+			fi
 			[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
 			## The only thing this process does between probes. No spin, no token.
 			sleep "$waitNap"
@@ -760,7 +772,7 @@ case "$1" in
 		echo "# member: $memberName"
 		echo "# sources: ${waitSources% }"
 		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
-		echo "# waited: ${waitElapsed}s of ${waitTimeout}s bound, ${waitRound} poll round(s) at ${waitPoll}s, baseline: $waitBaselineMode"
+		echo "# waited: ${waitElapsed}s of ${waitTimeout}s bound, ${waitRound} poll round(s) at $( [ "$waitBackoff" = "true" ] && printf 'backoff from 5s' || printf '%ss' "$waitPoll" ), baseline: $waitBaselineMode"
 		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
 
 		case "$waitOutcome" in

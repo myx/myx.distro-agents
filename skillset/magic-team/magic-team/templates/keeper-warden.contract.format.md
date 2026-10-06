@@ -74,7 +74,7 @@ Named procedure blocks. Steps below call them by name. Not separate routines —
 Steps:
 1. Select one eligible idle-run routine from this member's own `## Idle-Tasks` section (weighted-random by `weight`, honoring each entry's `min-interval` cap and `scope`); the universal research-own-duties activity is always one more eligible candidate.
 2. Run that routine's own procedure — its `<member>.<name>.routine.md` file — following its Steps and Closure steps.
-3. Logging the activity and its outcome as a new dated file under `processed/` is the selected routine's own Closure step.
+3. Logging the activity and its outcome as a `note-*` in this member's own inbox is the selected routine's own Closure step.
 
 ## `<local-procedure-name>` — [goal+intent short summary]
 
@@ -83,11 +83,11 @@ Steps:
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
-- Console-session requirement: doing an actual task with this role-family's own workspace/workspace tooling requires a `--console-start`/`--console-send` session, regardless of command count. Just answering a question or looking at files (not a task) may skip it.
-- This keeper relays between `magic-coordinator` and the task, never deciding design/approach independently unless explicitly granted — full policy in `magic-team/magic-team.authority.keeper.contract.md`, cross-referenced, never restated in full.
+- [Only where this member lists the console operations below:] Console sessions batch several commands in this member's workspace; a single call goes direct.
+- Decision authority: this member relays between `magic-coordinator` and the task, never deciding design or approach unless explicitly granted — `magic-team/magic-team.authority.keeper.contract.md` (or `.warden.`).
 - [...]
 
 # Domain knowledge: <topic>
@@ -104,6 +104,7 @@ Every `magic-tooling` operation this team-member uses. Behaviour is read with `-
 
 ## DistroAgentsTools magic-tooling operations
 
+- [Only where this member batches console work:]
 - `--console-start [--override-workspace <path>] [--console DistroSourceConsole.sh|DistroDeployConsole.sh] [--ttl <seconds>]`
 - `--console-send <channel> [-- <command...>]`
 - [`--operation-name <args>`]
@@ -165,7 +166,7 @@ shape".
   - nested list of procedures, typically including a `daily-idle-task` procedure, steps:
     - select one eligible idle-run routine from this member's own `## Idle-Tasks` section, weighted by `weight`, honoring each entry's `min-interval` cap and `scope`
     - run that routine's own `<member>.<name>.routine.md` procedure
-    - log the outcome as a new dated file under `processed/`, which is the routine's own Closure step
+    - log the outcome as a `note-*` in this member's own inbox, which is the routine's own Closure step
   - Idle tasks are ordinary `.routine.md` files in the member's own folder, never a separate `idle-tasks/` directory.
   - The `## Idle-Tasks` section sits at the end of the member's `# Domain knowledge` in its `.armed.md`. It is the only thing designating which routines are idle-run, and with what weight, min-interval and scope.
   - This same `## Idle-Tasks`-designates-idle-run model applies to any member type carrying idle-run routines, not keepers alone. That covers a `magic-*` team-member and a `partner-*`/`client-*`.
@@ -174,7 +175,7 @@ shape".
   - text: "All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting."
   - nested list of rules, flat, present-tense, no dedicated sub-headings, always including:
     - "This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written."
-    - "Console-session use: this role-family may open a `--console-start`/`--console-send` session only when its own instructions explicitly require one — this member's own `.armed.md` listing those operations for its domain is that instruction. Otherwise every call goes directly via `mcp__myx_distro__execute`, whatever the command count." Stated to agree with `magic-team.armed.md`'s own keeper exception, which governs.
+    - Only where this member lists the console operations: "Console sessions batch several commands in this member's workspace; a single call goes direct." `magic-team.armed.md`'s "Execution mechanisms" governs.
     - Decision authority: this member relays between `magic-coordinator` and the task. It never decides design or approach independently unless explicitly granted. It cross-references its own `magic-team.authority.<type>.contract.md` (`keeper` or `warden`), never restated in full.
     - this member's own further limits, restrictions, decision-making guidance.
 - `# Domain knowledge: <topic>`

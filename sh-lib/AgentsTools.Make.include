@@ -35,6 +35,92 @@ case "$1" in
 		## default it resolves for itself -- the same one --make-console-command
 		## above writes its console into.
 		DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
+		## Last, so the indexes describe the settings.json and access roots every step
+		## above has just finished writing.
+		DistroAgentsTools --make-harness-indices || { set +e ; return 1 ; }
+		return 0
+	;;
+	--make-harness-indices)
+		shift
+		if [ $# -ne 0 ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: --make-harness-indices takes no arguments, got: $*" >&2
+			set +e ; return 1
+		fi
+		## The harness's own first-class indexes, read with builtins at every harness start
+		## instead of recomputing them: the access roots (AgentsHarnessRootsIndex.include)
+		## and the PreToolUse hook list (AgentsHarnessHooksLoad.include). Each is produced by
+		## the very code the harness otherwise runs, and each is used only while what it was
+		## produced from is unchanged -- so a missing or stale one costs time, never a
+		## different answer. One section per origin a harness of this workspace runs from:
+		## this one, and the installed tree a served MCP call runs from.
+		local indexDir="$MMDAPP/.local/agents" indexOrigins indexOrigin indexHere indexSection indexRoots="" indexHooks="" indexKind indexText indexFile
+		mkdir -p "$indexDir" || { set +e ; return 1 ; }
+		indexOrigins="$MDLT_ORIGIN"
+		[ "$MMDAPP/.local" = "$MDLT_ORIGIN" ] || indexOrigins="$indexOrigins"$'\n'"$MMDAPP/.local"
+		while IFS= read -r indexOrigin ; do
+			indexHere="$indexOrigin/myx/myx.distro-agents/sh-lib"
+			[ -f "$indexHere/AgentsHarnessRootsIndex.include" ] && [ -f "$indexHere/AgentsHarnessHooksLoad.include" ] || continue
+			if indexSection="$(
+				MDLT_ORIGIN="$indexOrigin" harnessHere="$indexHere"
+				. "$indexHere/AgentsTools.ClientAccessRoots.include" && . "$indexHere/AgentsHarnessRootsIndex.include" && AgentsHarnessRootsIndexSection "$MMDAPP"
+			)" ; then
+				indexRoots="$indexRoots$indexSection"$'\n'
+			fi
+			if indexSection="$(
+				MDLT_ORIGIN="$indexOrigin" harnessHere="$indexHere"
+				. "$indexHere/AgentsTools.ClientToolPolicy.include" && . "$indexHere/AgentsHarnessHooksLoad.include" \
+					&& indexText="$( AgentsToolsClientToolPolicyRerouteHookKeys )" && AgentsHarnessHooksIndexSection "$MMDAPP" "$indexText"
+			)" ; then
+				indexHooks="$indexHooks$indexSection"$'\n'
+			fi
+		done <<< "$indexOrigins"
+		## The MCP server index too, from mcp.servers.json as it stands -- the same writer
+		## --install-vscode-integrations runs beside that JSON, so this op alone, as the
+		## source-prepare build runs it, leaves every harness index current.
+		( harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" ; . "$harnessHere/AgentsHarnessMcpConfig.include" \
+			&& AgentsHarnessMcpIndexWrite "$indexDir/mcp.servers.json" "$indexDir/mcp.servers.index" ) || {
+			echo "$MDSC_CMD: ⛔ ERROR: --make-harness-indices: could not write $indexDir/mcp.servers.index" >&2
+			set +e ; return 1
+		}
+		## Each parent session's list of its children, rebuilt from the spawn records --
+		## the authority -- so that sessions spawned before the spawn op listed its own are
+		## listed too; then the mark that tells the harness the lists are complete. The mark
+		## is taken away first, so a harness never trusts a list being rebuilt.
+		local childrenDir="$MMDAPP/.local/agents/children" childLine childFile childParent
+		mkdir -p "$childrenDir" || { set +e ; return 1 ; }
+		rm -f "$childrenDir/.indexed"
+		rm -f "$childrenDir"/*
+		while IFS= read -r childLine ; do
+			[ -n "$childLine" ] || continue
+			childFile="${childLine%%:parent-session-id: *}"
+			childParent="${childLine#*:parent-session-id: }"
+			case "$childParent" in ''|*/*|.|..) continue ;; esac
+			printf '%s\n' "${childFile#"$MMDAPP/.local/agents/spawned/"}" >> "$childrenDir/$childParent" || {
+				echo "$MDSC_CMD: ⛔ ERROR: --make-harness-indices: could not list a child in $childrenDir/$childParent" >&2
+				set +e ; return 1
+			}
+		done <<< "$( LC_ALL=C grep -H '^parent-session-id: ' "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )"
+		: > "$childrenDir/.indexed" || { set +e ; return 1 ; }
+		echo "🧭 harness children lists written under .local/agents/children" >&2
+		for indexKind in roots hooks ; do
+			indexFile="$indexDir/harness.$indexKind.index"
+			case "$indexKind" in
+				roots) indexText="$indexRoots" ;;
+				hooks) indexText="$indexHooks" ;;
+			esac
+			if [ -z "$indexText" ] ; then
+				rm -f "$indexFile"
+				echo "🙋 WARNING: no harness $indexKind index -- nothing it would be produced from read cleanly here, so the harness computes it at every start" >&2
+				continue
+			fi
+			## Built beside the target and renamed over it, so a reader never meets half an index.
+			if ! { printf 'myx.distro harness.%s.index 1\n%s' "$indexKind" "$indexText" > "$indexFile.tmp.$$" && chmod 644 "$indexFile.tmp.$$" && mv -f "$indexFile.tmp.$$" "$indexFile" ; } ; then
+				rm -f "$indexFile.tmp.$$"
+				echo "$MDSC_CMD: ⛔ ERROR: --make-harness-indices: could not write $indexFile" >&2
+				set +e ; return 1
+			fi
+			echo "🧭 harness $indexKind index written: ${indexFile#$MMDAPP/}" >&2
+		done
 		return 0
 	;;
 	--make-console-command)

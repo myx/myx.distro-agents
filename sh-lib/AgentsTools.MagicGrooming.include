@@ -539,6 +539,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:track:true \
@@ -604,6 +605,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:processed-at:"$processedAt" \
@@ -669,6 +671,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:track:true \
@@ -733,6 +736,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:track:true \
@@ -797,6 +801,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit "$createState" "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--header:upsert:owner:"$owner" \
 			--header:upsert:groomed-at:"$groomedAt" \
 			--header:upsert:track:true \

@@ -11,7 +11,7 @@ managing blast radius when the run itself has real consequences.
 - The governing question: what result would have falsified this
 - Establish the failing case before the passing one
 - Verify what stores, not what sends
-- Byte-identical output over a full-grammar corpus, for a package that carries no test assets
+- Byte-identical output over a full-grammar corpus, for a package that carries no checks
 - Read the instrument before trusting the measurement
 - A system's enforcement path and its reporting path are different surfaces
 - A refusal for want of privilege reads exactly like an empty result
@@ -96,44 +96,11 @@ query against the store), and where the question concerns what a person sees,
 look at the rendered form as well. An answer to one of the three leaves the other
 two open.
 
-## Byte-identical output over a full-grammar corpus, for a package that carries no test assets
+## Byte-identical output over a full-grammar corpus, for a package that carries no checks
 
-**The established pattern in this estate is a distinct project holding the suite
-for regression testing and development**, separate from every package under test.
-Not a bucket every test must land in — a suite, and what it carries is: a
-**testbed** (the environment a test runs against), a **harness** (the machinery
-that drives it), **fake data** (fixtures standing in for the real thing), and
-**some infra** (whatever those need to exist and run). `magic-tester` runs one
-with the owning `keeper-*` in the domain that has such a suite. The
-dependency direction is why it is a project of its own: a workspace contains it,
-and it does not depend on the workspace. Test machinery placed inside a package
-inverts that.
+**A package's checks live in its own `sh-test/`** (see "Where a package's checks live" below). Where a package has none, that absence is the gap to report, and a differential run over the same input is the method meanwhile — a harness built and discarded per session.
 
-So a `myx.distro-*` or `myx.common` package carrying no test files, fixtures or
-golden outputs is not itself a gap — that is the pattern holding. **The real gap
-is that this family has no such suite**, and the cost is paid per session rather
-than once: a scratch data root, a stub console, a throwaway remote, a before/after
-driver, seeded fixtures — testbed, harness and fake data, hand-built and then
-discarded. Report it that way; do not report the empty packages as the finding.
-
-What the working example gets right transfers to any domain, Eclipse or not: every
-assertion has a self-test mode running it against an input that must trip it and
-one that must not; assertions read the produced output, not reachability, because
-a broken route can still answer 200; each case in the battery is named and carries
-a written reason it exists; fixtures are added alongside the real assets and the
-originals are never edited; each run is isolated — loopback only, unprivileged
-port, fresh working directories, a read-only overlay over the real artifact tree
-so nothing checked in is written to; and a finding is recorded with its date and
-marked stale when its premise stops holding, rather than quietly rotting. Those
-are the organising principles to carry into a new test project, not the mechanics
-of the toolchain around them.
-
-Until such a suite exists — and for a change too small or too local to belong in
-one even then — a differential run over the same input is the method. It is the
-right instrument at that scale, and the steps below stand on their own. But note
-what a differential run is: **a harness built and then discarded**, with its own
-testbed and its own fake data around it. The method is not what a suite would
-replace; rebuilding its scaffolding every session is.
+What a good suite gets right transfers to any domain: every assertion has a self-test mode running it against an input that must trip it and one that must not; assertions read the produced output, not reachability, because a broken route can still answer 200; each case is named and carries a written reason it exists; fixtures are added alongside the real assets and the originals are never edited; each run is isolated — loopback only, unprivileged port, fresh working directories, a read-only overlay over the real artifact tree so nothing checked in is written to; and a finding is recorded with its date and marked stale when its premise stops holding.
 
 For a transformation with no dedicated suite — a converter, formatter, generator,
 template renderer — a regression net is cheap to build and reusable afterwards:

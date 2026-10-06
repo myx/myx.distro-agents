@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHarnessMcpConfig.include -- how a registered MCP server resolves to a process:
+## its command, args and env, and the workspace's server names. Sourced by
+## AgentsHarnessMcpClient.sh, which launches servers, and by the installer
+## (AgentsTools.Install.include, --install-vscode-integrations), which writes the index.
+##
+## TWO SOURCES, ONE ANSWER. `.local/agents/mcp.servers.json` is a best-effort file for
+## EXTERNAL tool integrations; reading it costs an awk per field. Our own first-class
+## index, `.local/agents/mcp.servers.index`, is written by the installer in the same step
+## that writes that JSON -- on install and on every upgrade -- holding each field already
+## resolved, so the harness reads it with `read` and builtins alone.
+##
+## The index is WRITTEN BY RUNNING THE JSON READERS BELOW, so it records exactly what they
+## answer and the two cannot diverge. It is USED only while the JSON's whole content is
+## byte for byte the content it was generated from -- it carries that content -- so a
+## JSON edited, replaced or removed since (a workspace not reinstalled yet) is read the
+## slow way, and the answer is the same either way. A JSON whose reads say anything on
+## stderr (a duplicate key, say) gets no index at all: the reader's own words then stay
+## where they always were.
+##
+## Index format, version 1: one record per line, fields TAB-separated, every free-text
+## field encoded for `printf '%b'` -- backslash doubled, newline as \n, TAB as \t:
+##   myx.distro mcp.servers.index 1
+##   source <TAB> present:<the JSON's whole content>
+##   keys <TAB> <rc> <TAB> <the server names, newline-separated, as the key reader printed them>
+##   server <TAB> <name>                 then, for that server:
+##   command <TAB> <rc> <TAB> <value>
+##   args <TAB> <rc> <TAB> <count>       then <count> lines:  arg <TAB> <value>
+##   env <TAB> <rc>                      then one line per key:  envpair <TAB> <key> <TAB> <value>
+##   end
+
+agentsMcpConfigHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
+
+## What the JSON readers resolved for one server, published for the launcher.
+harnessMcpResCmdRc=0
+harnessMcpResCmd=""
+harnessMcpResArgsRc=0
+harnessMcpResArgs=()
+harnessMcpResEnvRc=0
+harnessMcpResEnvKeys=()
+harnessMcpResEnvVals=()
+harnessMcpResKeysRc=0
+harnessMcpResKeys=""
+
+## One value, encoded for `printf '%b'`, into harnessMcpEnc.
+harnessMcpEnc=""
+AgentsHarnessMcpEnc(){ ## text
+	harnessMcpEnc="${1//\\/\\\\}"
+	harnessMcpEnc="${harnessMcpEnc//$'\n'/\\n}"
+	harnessMcpEnc="${harnessMcpEnc//$'\t'/\\t}"
+}
+
+## Its inverse, into harnessMcpDec. Never `printf -v` an empty result: bash 3.2 then
+## leaves the buffer of the one before.
+harnessMcpDec=""
+AgentsHarnessMcpDec(){ ## encoded text
+	harnessMcpDec=""
+	[ -z "$1" ] || printf -v harnessMcpDec '%b' "$1"
+}
+
+## The server names, as the core has always read them: the keys of `mcpServers`.
+AgentsHarnessMcpKeysJson(){ ## config file
+	harnessMcpResKeysRc=0
+	harnessMcpResKeys="$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonSlice.awk" < "$1" 2>/dev/null )" || harnessMcpResKeysRc=$?
+}
+
+## One server's command, args and env, read field by field from the JSON exactly as the
+## launcher always read them -- each read's own status kept, since the launcher's refusals
+## are worded from them. A read the launcher would never reach is not made.
+AgentsHarnessMcpResolveJson(){ ## server name, config file
+	local resolveName="$1" resolveFile="$2" resolveCount resolveIndex resolveValue resolveKeys resolveKey
+	harnessMcpResCmdRc=0
+	harnessMcpResCmd=""
+	harnessMcpResArgsRc=0
+	harnessMcpResArgs=()
+	harnessMcpResEnvRc=0
+	harnessMcpResEnvKeys=()
+	harnessMcpResEnvVals=()
+	harnessMcpResCmd="$( LC_ALL=C awk -v path="mcpServers.$resolveName.command" -v optional=1 -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$resolveFile" )" || harnessMcpResCmdRc=$?
+	[ "$harnessMcpResCmdRc" = 0 ] || return 0
+	resolveCount="$( LC_ALL=C awk -v path="mcpServers.$resolveName.args.__count" -v optional=1 -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$resolveFile" )" || harnessMcpResArgsRc=$?
+	if [ "$harnessMcpResArgsRc" = 0 ] ; then
+		resolveIndex=0
+		while [ "$resolveIndex" -lt "$resolveCount" ] 2>/dev/null ; do
+			resolveValue="$( LC_ALL=C awk -v path="mcpServers.$resolveName.args.$resolveIndex" -v optional=1 -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$resolveFile" )" || resolveValue=""
+			harnessMcpResArgs+=( "$resolveValue" )
+			resolveIndex=$(( resolveIndex + 1 ))
+		done
+	elif [ "$harnessMcpResArgsRc" != 3 ] ; then
+		return 0
+	fi
+	resolveKeys="$( LC_ALL=C awk -v path="mcpServers.$resolveName.env" -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonSlice.awk" < "$resolveFile" 2>/dev/null )" || harnessMcpResEnvRc=$?
+	[ "$harnessMcpResEnvRc" = 0 ] || [ "$harnessMcpResEnvRc" = 3 ] || return 0
+	while IFS= read -r resolveKey ; do
+		[ -n "$resolveKey" ] || continue
+		resolveValue="$( LC_ALL=C awk -v path="mcpServers.$resolveName.env.$resolveKey" -v optional=1 -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$resolveFile" )" || resolveValue=""
+		harnessMcpResEnvKeys+=( "$resolveKey" )
+		harnessMcpResEnvVals+=( "$resolveValue" )
+	done <<< "$resolveKeys"
+}
+
+## The whole content of one file as `read -d ''` gives it, into harnessMcpFileRaw;
+## non-zero when there is no readable file.
+harnessMcpFileRaw=""
+AgentsHarnessMcpFileRaw(){ ## file
+	harnessMcpFileRaw=""
+	[ -f "$1" ] && [ -r "$1" ] || return 1
+	IFS= read -r -d '' harnessMcpFileRaw < "$1" || :
+}
+
+## Writes the index for one mcp.servers.json, atomically, from the readers above. No
+## JSON, an unparseable one, or one whose reads say anything on stderr leaves no index,
+## which every reader takes as "read the JSON". Non-zero only when writing failed.
+AgentsHarnessMcpIndexWrite(){ ## config file, index file
+	local writeJson="$1" writeIndex="$2" writeTmp writeErr writeName writeIdx
+	if ! AgentsHarnessMcpFileRaw "$writeJson" ; then
+		rm -f "$writeIndex"
+		return 0
+	fi
+	writeTmp="$writeIndex.tmp.$$"
+	writeErr="$writeIndex.err.$$"
+	: > "$writeErr" || return 1
+	{
+		printf '%s\n' "myx.distro mcp.servers.index 1"
+		AgentsHarnessMcpEnc "present:$harnessMcpFileRaw"
+		printf 'source\t%s\n' "$harnessMcpEnc"
+		AgentsHarnessMcpKeysJson "$writeJson"
+		AgentsHarnessMcpEnc "$harnessMcpResKeys"
+		printf 'keys\t%s\t%s\n' "$harnessMcpResKeysRc" "$harnessMcpEnc"
+		while IFS= read -r writeName ; do
+			[ -n "$writeName" ] || continue
+			AgentsHarnessMcpResolveJson "$writeName" "$writeJson" 2>> "$writeErr"
+			AgentsHarnessMcpEnc "$writeName"
+			printf 'server\t%s\n' "$harnessMcpEnc"
+			AgentsHarnessMcpEnc "$harnessMcpResCmd"
+			printf 'command\t%s\t%s\n' "$harnessMcpResCmdRc" "$harnessMcpEnc"
+			printf 'args\t%s\t%s\n' "$harnessMcpResArgsRc" "${#harnessMcpResArgs[@]}"
+			writeIdx=0
+			while [ "$writeIdx" -lt "${#harnessMcpResArgs[@]}" ] ; do
+				AgentsHarnessMcpEnc "${harnessMcpResArgs[$writeIdx]}"
+				printf 'arg\t%s\n' "$harnessMcpEnc"
+				writeIdx=$(( writeIdx + 1 ))
+			done
+			printf 'env\t%s\n' "$harnessMcpResEnvRc"
+			writeIdx=0
+			while [ "$writeIdx" -lt "${#harnessMcpResEnvKeys[@]}" ] ; do
+				AgentsHarnessMcpEnc "${harnessMcpResEnvKeys[$writeIdx]}"
+				printf 'envpair\t%s' "$harnessMcpEnc"
+				AgentsHarnessMcpEnc "${harnessMcpResEnvVals[$writeIdx]}"
+				printf '\t%s\n' "$harnessMcpEnc"
+				writeIdx=$(( writeIdx + 1 ))
+			done
+		done <<< "$harnessMcpResKeys"
+		printf 'end\n'
+	} > "$writeTmp" || { rm -f "$writeTmp" "$writeErr" ; return 1 ; }
+	## Nothing to index unless the JSON read cleanly and still is the content captured above.
+	writeName="$harnessMcpFileRaw"
+	AgentsHarnessMcpFileRaw "$writeJson" || harnessMcpFileRaw="${writeName}absent"
+	if [ "$harnessMcpResKeysRc" != 0 ] || [ -s "$writeErr" ] || [ "$harnessMcpFileRaw" != "$writeName" ] ; then
+		rm -f "$writeTmp" "$writeErr" "$writeIndex"
+		return 0
+	fi
+	rm -f "$writeErr"
+	chmod 644 "$writeTmp" && mv -f "$writeTmp" "$writeIndex" || { rm -f "$writeTmp" ; return 1 ; }
+}
+
+## The loaded index: valid while harnessMcpIndexRaw is the index file's content and
+## harnessMcpIndexSource the JSON content it was built from.
+harnessMcpIndexRaw=""
+harnessMcpIndexSource=""
+harnessMcpIndexKeysRc=0
+harnessMcpIndexKeys=""
+harnessMcpIndexNames=()
+harnessMcpIndexLines=()
+harnessMcpIndexAt=()
+
+## Loads the index beside the JSON (parsed only when its content changed) and answers
+## zero when it may be used: it parsed, and the JSON is now exactly what it was built from.
+AgentsHarnessMcpIndexUsable(){ ## config file
+	local usableJson="$1" usableIndex="${1%.json}.index" usableLine usableTag usableRest usableAt=0
+	AgentsHarnessMcpFileRaw "$usableIndex" || return 1
+	if [ "$harnessMcpFileRaw" != "$harnessMcpIndexRaw" ] ; then
+		harnessMcpIndexRaw="$harnessMcpFileRaw"
+		harnessMcpIndexSource=""
+		harnessMcpIndexKeysRc=0
+		harnessMcpIndexKeys=""
+		harnessMcpIndexNames=()
+		harnessMcpIndexLines=()
+		harnessMcpIndexAt=()
+		while IFS= read -r usableLine ; do
+			harnessMcpIndexLines+=( "$usableLine" )
+			usableTag="${usableLine%%$'\t'*}"
+			usableRest="${usableLine#*$'\t'}"
+			case "$usableTag" in
+				source) AgentsHarnessMcpDec "$usableRest" ; harnessMcpIndexSource="$harnessMcpDec" ;;
+				keys)
+					harnessMcpIndexKeysRc="${usableRest%%$'\t'*}"
+					AgentsHarnessMcpDec "${usableRest#*$'\t'}" ; harnessMcpIndexKeys="$harnessMcpDec"
+				;;
+				server)
+					AgentsHarnessMcpDec "$usableRest"
+					harnessMcpIndexNames+=( "$harnessMcpDec" )
+					harnessMcpIndexAt+=( "$usableAt" )
+				;;
+			esac
+			usableAt=$(( usableAt + 1 ))
+		## The here-string adds the newline the file's own last line already ends in.
+		done <<< "${harnessMcpIndexRaw%$'\n'}"
+		## A header or a tail that is not there is an index cut short: never used.
+		[ "${harnessMcpIndexLines[0]-}" = "myx.distro mcp.servers.index 1" ] && [ "${harnessMcpIndexLines[$(( usableAt - 1 ))]-}" = "end" ] || harnessMcpIndexSource=""
+	fi
+	[ -n "$harnessMcpIndexSource" ] || return 1
+	AgentsHarnessMcpFileRaw "$usableJson" || return 1
+	[ "present:$harnessMcpFileRaw" = "$harnessMcpIndexSource" ]
+}
+
+## The server names, from the index when it is usable, else from the JSON.
+AgentsHarnessMcpKeys(){ ## config file
+	if AgentsHarnessMcpIndexUsable "$1" ; then
+		harnessMcpResKeysRc="$harnessMcpIndexKeysRc"
+		harnessMcpResKeys="$harnessMcpIndexKeys"
+		return 0
+	fi
+	AgentsHarnessMcpKeysJson "$1"
+}
+
+## One server resolved, from the index when it is usable and names it, else from the JSON.
+AgentsHarnessMcpResolve(){ ## server name, config file
+	local resolveName="$1" resolveIdx=0 resolveAt="" resolveLine resolveTag resolveRest
+	if AgentsHarnessMcpIndexUsable "$2" ; then
+		while [ "$resolveIdx" -lt "${#harnessMcpIndexNames[@]}" ] ; do
+			if [ "${harnessMcpIndexNames[$resolveIdx]}" = "$resolveName" ] ; then
+				resolveAt="${harnessMcpIndexAt[$resolveIdx]}"
+				break
+			fi
+			resolveIdx=$(( resolveIdx + 1 ))
+		done
+	fi
+	if [ -z "$resolveAt" ] ; then
+		AgentsHarnessMcpResolveJson "$resolveName" "$2"
+		return 0
+	fi
+	harnessMcpResCmdRc=0
+	harnessMcpResCmd=""
+	harnessMcpResArgsRc=0
+	harnessMcpResArgs=()
+	harnessMcpResEnvRc=0
+	harnessMcpResEnvKeys=()
+	harnessMcpResEnvVals=()
+	while : ; do
+		resolveAt=$(( resolveAt + 1 ))
+		resolveLine="${harnessMcpIndexLines[$resolveAt]-end}"
+		resolveTag="${resolveLine%%$'\t'*}"
+		resolveRest="${resolveLine#*$'\t'}"
+		case "$resolveTag" in
+			command)
+				harnessMcpResCmdRc="${resolveRest%%$'\t'*}"
+				AgentsHarnessMcpDec "${resolveRest#*$'\t'}" ; harnessMcpResCmd="$harnessMcpDec"
+			;;
+			args) resolveRest="${resolveRest%%$'\t'*}" ; harnessMcpResArgsRc="$resolveRest" ;;
+			arg) AgentsHarnessMcpDec "$resolveRest" ; harnessMcpResArgs+=( "$harnessMcpDec" ) ;;
+			env) harnessMcpResEnvRc="$resolveRest" ;;
+			envpair)
+				AgentsHarnessMcpDec "${resolveRest%%$'\t'*}" ; harnessMcpResEnvKeys+=( "$harnessMcpDec" )
+				AgentsHarnessMcpDec "${resolveRest#*$'\t'}" ; harnessMcpResEnvVals+=( "$harnessMcpDec" )
+			;;
+			*) break ;;
+		esac
+	done
+}

@@ -15,7 +15,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--member-comms-slack-send-message` operation reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -25,64 +24,73 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-Routine-discuss is the named place for conversations whose actual goal is reaching agreement by the end.
+`magic-team.discuss.routine` is a conversation whose goal is a decision reached by its end.
 
 ## Goals
 
-Give the team a real, named place for conversations whose actual goal is reaching agreement in the middle of the conversation — a decision genuinely gets made by the end, not just gathered or generated. Deliberately kept distinct from `magic-team.interview.routine` (collection only, agreement sought is on captured understanding, not a decision) and `magic-team.brainstorm.routine` (idea generation, no agreement expected) — three genuinely different conversational shapes. Reach for it once there's already a board item to work from and the job is converging it toward an agreed position — typically a proposal's latest stage, past both interview's collection and brainstorm's option generation.
+- Converge a framed decision among the members it concerns, typically a `proposal-*` item past interview and brainstorm.
+- Keep collection (`magic-team.interview.routine`), idea generation (`magic-team.brainstorm.routine`) and decision distinct.
 
 ## Scope
 
-Does: convergence-focused discussion, a real decision reached by the end. Manual only — anyone asks to "discuss" a specific decision; no autonomous or scheduled trigger. One concrete, recurring trigger: a `proposal-*` board item's own triage decision — `magic-coordinator.advance.routine`'s `check-execute-board` invokes this routine over it, per that file's own `proposal-*` per-type rule.
-Doesn't do: collection-only (`magic-team.interview.routine`'s job), idea-generation-only (`magic-team.brainstorm.routine`'s job).
+- Does:
+  - Convergence on one framed decision, started by anyone asking to discuss it.
+  - The team side of a `proposal-*` item: `magic-coordinator.advance.routine` runs it over a `proposal-*` not yet in front of the human-owner. It owns that item's state changes while running.
+- Doesn't:
+  - Put a proposal to the human-owner: `magic-team.proposal.routine` does.
+  - Build what it decides.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). Items asking for a decision (an `inquiry-*`, a `note-*` handed off unresolved) — candidates for the decision **frame-the-decision** frames, and context for it. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-2. **frame-the-decision**: state plainly, up front, what needs deciding by the end of this session — a discuss session with no clear decision target risks drifting into either an interview (pure collection) or a brainstorm (pure idea generation) without anyone noticing the shift. **One topic, one thread — fork, don't absorb**: same threading discipline as `magic-team.interview.routine`'s **open-channel-and-create-item** — if an unrelated topic surfaces mid-discussion, fork it into its own new Slack thread immediately rather than letting the current thread drift off its framed decision.
-3. **surface-options-and-tradeoffs**: lay out the genuine alternatives (not a strawman single "right answer" dressed up as a discussion) — bring in `magic-architect` if the decision is structural/design-shaped, `magic-librarian` if it's a docs/convention question, or the relevant keeper/partner if it's domain-specific. Same pacing discipline as `magic-team.interview.routine`'s **collect-dont-converge**: small, minimal-assumption-gap questions/statements-to-approve, iterative — but once something is genuinely clear and agreed, go further rather than re-confirming it in smaller pieces. Inherits the team's own topic/queue/question mechanics for managing the framed decision's own sub-points.
-4. **converge-explicitly**: work toward an actual resolution, stated plainly at the end — not left as "we talked about it." If the session runs out of time/information before converging, say so explicitly rather than letting an inconclusive conversation quietly stand in for a decision.
-5. **checkpoint-decide-vs-build**: if the discussion is about to produce a real build/edit dispatch, pause once and confirm explicitly with the user — "this is now becoming build work, confirmed?" — before firing it, per `magic-coordinator`'s standing rule. A decision reached here is not automatically a mandate to also implement it.
-6. **keep-tracking-item-current**: when the framed decision has a tracking board-item behind it (its one recurring trigger — a `proposal-*` item's own triage), keep that board-item's own `# Context Detail` section current as **surface-options-and-tradeoffs**/**converge-explicitly** run — the options actually weighed, and what's settled vs. still open, so the board-item stays an accurate live snapshot rather than a stale artifact from whenever it was created. Same settled-vs-open discipline as `magic-team.interview.routine`'s own **keep-tracking-item-current** — this routine's own equivalent of that step, not a call into it, since this routine has no **open-channel-and-create-item**/**dispatch-settled-points** of its own to hang off. The item's own body stays a clean, timeless statement of the proposal itself, per `magic-team.shared.md`'s "A rule statement stays a rule statement" convention — the discussion's own investigative back-and-forth (options considered, what's settled, what's still open) belongs in `# Context Detail`, not folded into the body.
-7. **record-the-outcome**: the actual decision (and, if useful, the rejected alternatives and why) gets written down — typically a `change-*`/`note-*` board item, or folded into whatever inquiry/task prompted this discussion — not left only in this conversation's own transcript. **Filing this follows the same gate as dispatch**: propose the item (piece, type, goal) and wait for confirmation before writing it, unless the human-owner explicitly asked for that specific filing. **When the framed decision is a `proposal-*` item's own triage**, this step also resolves that item's own state as the decision's direct consequence — approved/promoted → `board-processed` plus the same unblock sweep `approval-*`/`approve-*` items use; rejected/dropped → `board-archived` — performed by `magic-coordinator` directly when it is convening; a non-`magic-coordinator` executor instead hands the resolved outcome to `magic-coordinator` to apply the move (the `--magic-board-*` family is `magic-coordinator`-exclusive), same gate as filing above.
+1. **process-own-inbox**: run `magic-team.process-inbox.routine <own-name>`, collecting items that ask for a decision.
+2. **frame-the-decision**: state what must be decided by the end. One topic, one thread: an unrelated topic is forked into its own thread.
+3. **surface-options-and-tradeoffs**: lay out the real alternatives, never one answer dressed as a discussion, steps:
+   - bring in `magic-architect` for a structural question, `magic-librarian` for docs or conventions, the owning `keeper-*`/`partner-*` for a domain question.
+   - work the sub-points as small questions or statements to approve, per **collect-dont-converge** in `magic-team.interview.routine` and `magic-team.negotiations.md`'s topic mechanics.
+4. **converge-explicitly**: state the resolution plainly. Running out of time or information: say the session did not converge.
+5. **checkpoint-decide-vs-build**: a decision about to become a build or edit dispatch is confirmed through the chain of command first. A decision is never by itself a mandate to implement.
+6. **keep-tracking-item-current**: with a tracking item behind the decision, keep its `# Context Detail` current: options weighed, settled, still open. The item's body stays a timeless statement of the proposal, per "A rule statement stays a rule statement".
+7. **record-the-outcome**: write the decision, and the rejected alternatives where useful, into the document it binds, per **decision-lands-in-the-document-it-binds**. Propose any new item (piece, type, goal) and wait for confirmation before filing it, unless the human-owner asked for it. For a `proposal-*` item, steps:
+   - a decision that binds the team, or needs the human-owner's go: put it to him with `magic-team.proposal.routine`; the item keeps its state until he closes it.
+   - otherwise, `magic-coordinator` resolves the item: to `board-processed` with the decision as its resolution, approved or rejected. An approved item's `blocks:` items with every `blocked-by` resolved move to `board-pending`.
+   - another executor hands the outcome to `magic-coordinator` with `post-inquiry`.
 
 # Closure steps
 
-Execute `magic-team.coworking.routine`'s Closure Steps.
+1. **close-session**: run `magic-team.coworking.routine`'s **close-session** group.
 
 # Routine's local procedures
 
-Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+Named procedure blocks. Steps above call them by name. Not separate routines — not visible outside this file.
 
-None currently defined.
+None.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- Whichever `magic-team` member executes this routine is permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
-- Inherits the team's own `check-restart` procedure, on any resume. The restated gist, if a nudge is warranted, is the current open decision.
-- `executors: magic-team` is deliberately wide open here: a discuss session is an internal team conversation with no special credential dependency, unlike `magic-team.interview.routine`'s Slack-credential-gated case. `magic-coordinator` is the natural default convener when the discussion spans multiple members' territory, but a single member discussing a decision within its own clear domain does not need to route through `magic-coordinator` first.
-- Unsure whether this is really a "discuss" vs. "interview" vs. "brainstorm" situation: ask what the actual goal is before starting, rather than defaulting to whichever routine happened to get invoked by name.
-- Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- When `magic-coordinator` is the executor/convener, it is obligated to keep `slack-event-track` activity tracking current as the discussion actually runs.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- The executing member is permitted and obliged to execute every step exactly as written, in order.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- Any member may run it. `magic-coordinator` convenes a discussion spanning several members' territory; a member deciding within its own domain needs no convener.
+- On any resume, apply `magic-team.negotiations.md`'s "Check-restart procedure"; a nudge restates the open decision. Waiting follows **wait-never-quit**.
+- Every exchange is kept as a `transcript-*` with `--member-append-session-transcript`.
+- Unsure whether this is a discussion, an interview or a brainstorm: ask what the goal is before starting.
+- Goal-directedness: work toward the framed decision. Off-goal items are recorded quickly, not acted on now.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation, when `magic-coordinator` is the convener)
-
-## `--member-comms-slack-send-message` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
+- `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
+- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — `magic-coordinator` only
+- `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]...` — `magic-coordinator` only
 
 # Maintainer Notes
 
@@ -101,16 +109,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.interview.routine` — collection-only, distinct purpose; threading discipline and the **keep-tracking-item-current** settled-vs-open pattern this routine borrows.
-- `magic-team.brainstorm.routine` — idea generation, distinct purpose.
-- `magic-team.process-inbox.routine` — own-inbox processing.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention.
-- `magic-team/magic-team.negotiations.md` — topic/queue/question mechanics **surface-options-and-tradeoffs** uses for a framed decision's own sub-points, and the `check-restart` procedure this routine's own Local rules inherit.
-- `magic-team/magic-team.shared.md`'s "A rule statement stays a rule statement" convention — the body-vs-`# Context Detail` split **keep-tracking-item-current** applies to a proposal's own board-item.
-- `magic-team/magic-team.conversations.md` — conversation-mechanics baseline (always in force).
-- `magic-team/magic-team.basic.md` — the propose-and-wait-for-confirmation filing gate **record-the-outcome** reuses.
-- `magic-coordinator` — decide-vs-build checkpoint (**checkpoint-decide-vs-build**).
+- `magic-team.interview.routine`, `magic-team.brainstorm.routine` — the other two conversational shapes.
+- `magic-team.proposal.routine` — puts a binding decision to the human-owner.
+- `magic-coordinator.advance.routine` — runs this routine over `proposal-*` items.
 
 ### Conventions
 
-None currently known beyond this file's own Local rules.
+- **record-the-outcome** is cited by name from `magic-coordinator.advance.routine`.

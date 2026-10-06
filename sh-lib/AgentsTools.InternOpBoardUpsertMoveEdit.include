@@ -29,7 +29,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$toState" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
 		case "$toState" in
@@ -47,7 +47,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local boardRoot="$MDAT_DATA_ROOT/board"
-		local fromState="" fromInbox="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote"
+		local fromState="" isCreate="false" sourcePath="" bodyMode="" scriptLang="" bodyModeCount=0 sourceModeCount=0 msgVerb="wrote" actingMember=""
 		## Space-delimited field names the caller named in --header:, for the move stamp's override check.
 		local callerHeaderFields=""
 		## Header ops accumulate here and are materialised once, immediately before
@@ -67,42 +67,6 @@ case "$1" in
 						;;
 					esac
 					sourcePath="$boardRoot/$fromState/$itemName"
-					if [ ! -f "$sourcePath" ] ; then
-						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: item not found: $sourcePath" >&2
-						set +e ; return 1
-					fi
-					sourceModeCount=$(( sourceModeCount + 1 ))
-					shift
-				;;
-				--from-inbox:*)
-					fromInbox="${1#--from-inbox:}"
-					AgentsToolsAssertBareName "$fromInbox" "--from-inbox: member name" board-upsert-move-edit || { set +e ; return 1 ; }
-					case "$itemName" in
-						*.md) ;;
-						*)
-							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-inbox: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
-							set +e ; return 1
-						;;
-					esac
-					local inboxBase="" inboxDirResolved=""
-					inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
-					if [ -z "$inboxBase" ] ; then
-						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
-						set +e ; return 1
-					fi
-					inboxDirResolved="$( cd "$MDAT_DATA_ROOT/inboxes/$fromInbox/processed" 2>/dev/null && pwd -P )" || inboxDirResolved=""
-					if [ -z "$inboxDirResolved" ] ; then
-						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such inbox processed directory: $MDAT_DATA_ROOT/inboxes/$fromInbox/processed" >&2
-						set +e ; return 1
-					fi
-					case "$inboxDirResolved" in
-						"$inboxBase"/*) ;;
-						*)
-							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: resolved inbox directory escapes the inbox root ($inboxBase): $inboxDirResolved" >&2
-							set +e ; return 1
-						;;
-					esac
-					sourcePath="$inboxDirResolved/$itemName"
 					if [ ! -f "$sourcePath" ] ; then
 						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: item not found: $sourcePath" >&2
 						set +e ; return 1
@@ -185,6 +149,14 @@ case "$1" in
 					msgVerb="${1#--log-verb:}"
 					shift
 				;;
+				## Who is creating the item: the `from` a --create stamps when the body names none.
+				--acting-member:*)
+					actingMember="${1#--acting-member:}"
+					## Not a bare name: no `from` is stamped, and the write goes on -- the caller's
+					## <team-member> was never validated before this stamp existed.
+					[ -z "$actingMember" ] || AgentsToolsAssertBareName "$actingMember" "--acting-member:" board-upsert-move-edit 2>/dev/null || actingMember=""
+					shift
+				;;
 				*)
 					echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
@@ -193,18 +165,20 @@ case "$1" in
 		done
 
 		if [ "$sourceModeCount" -eq 0 ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: exactly one of --from-state:<state>, --from-inbox:<member>, or --create is required" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: exactly one of --from-state:<state> or --create is required" >&2
 			set +e ; return 1
 		fi
 		if [ "$sourceModeCount" -gt 1 ] ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state:, --from-inbox:, and --create are mutually exclusive" >&2
+			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state: and --create are mutually exclusive" >&2
 			set +e ; return 1
 		fi
 		## A new item's name is <type>-<YYYYMMDD'T'HHmm'Z' or HHmmSS'Z'>[-<slug>].md. Only creation
 		## is checked, and a rename's husk keeps the name it supersedes.
-		if [ "$isCreate" = "true" ] && [ "$opContext" != "--intern-op-board-rename" ] \
-			&& ! printf '%s\n' "$itemName" | LC_ALL=C grep -Eq '^[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9._-]+)?\.md$' ; then
-			echo "$MDSC_CMD: board-upsert-move-edit: ⚠️ WARNING: --create: $itemName does not follow the naming Rule (magic-team.armed.md): \"when/if you add a date, always use \`YYYYMMDD'T'HHmm'Z'\` format. If seconds are required, use \`YYYYMMDD'T'HHmmSS'Z'\` extended variant.\" The shape is <type>-<date>-<matter>.md, for example task-$( date -u +%Y%m%dT%H%MZ )-short-matter.md. Created anyway." >&2
+		local shapeRequired="false"
+		if [ "$isCreate" = "true" ] && [ "$opContext" != "--intern-op-board-rename" ] ; then
+			shapeRequired="true"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemNameShape.include"
+			AgentsToolsItemNameShapeCheck "$itemName" board-upsert-move-edit --create
 		fi
 
 		if [ "$bodyModeCount" -gt 1 ] ; then
@@ -257,7 +231,7 @@ case "$1" in
 			processed) stampField="processed-at" ;;
 			running)   stampField="started-at" ;;
 		esac
-		## Same state is an edit, not a move. Empty fromState is --create/--from-inbox, both of which arrive.
+		## Same state is an edit, not a move. Empty fromState is --create, which arrives.
 		if [ "$fromState" = "$toState" ] ; then stampField="" ; fi
 		case " $callerHeaderFields " in
 			*" $stampField "*) stampField="" ;;
@@ -267,13 +241,33 @@ case "$1" in
 			probeState="$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName="$stampField" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" || probeState=""
 			## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
 			## HAS keeps a recorded processed-at ("never re-stamped"); started-at is per-run, so a real move restarts it.
+			## NONE on a create of a body with no `---` at all: the creation headers below
+			## give it a frontmatter, so the move stamp has one to go into as well.
 			case "$probeState:$stampField" in
 				FRONTMATTER:*|HAS:started-at) ;;
+				NONE:*)
+					{ [ "$shapeRequired" = "true" ] && [ -n "$body" ] && [ "${body%%$'\n'*}" != "---" ] ; } || stampField=""
+				;;
 				*) stampField="" ;;
 			esac
 		fi
 		if [ -n "$stampField" ] ; then
 			headerOps="${headerOps}upsert"$'\t'"$stampField"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
+		fi
+
+		## Creation headers, stamped only where neither the body nor a --header: names them:
+		## type from the name's prefix, date now, from the acting member when one is named.
+		## Ahead of the caller's ops, so they lead a new frontmatter and never win over one.
+		## A body opening a frontmatter block it never closes gets no defaults: there is
+		## nowhere to put them, and a create that wrote before must not start refusing.
+		if [ "$shapeRequired" = "true" ] && [ -n "$body" ] \
+			&& ! { [ "${body%%$'\n'*}" = "---" ] && [ "$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=type -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" = "NONE" ] ; } ; then
+			local createDefaults="" createType
+			createType="$( AgentsToolsItemNameType "$itemName" )"
+			[ -z "$createType" ] || createDefaults="default"$'\t'"type"$'\t'"$createType"$'\n'
+			[ -z "$actingMember" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$actingMember"$'\n'
+			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
+			headerOps="$createDefaults$headerOps"
 		fi
 
 		## The ops file has to be a real path -- it is the awk's own `-v opsFile=`
@@ -329,7 +323,6 @@ case "$1" in
 				set +e ; return 1
 			fi
 			local moveFrom="$fromState"
-			[ -n "$fromInbox" ] && moveFrom="inbox:$fromInbox"
 			[ "$isCreate" = "true" ] && moveFrom="create"
 			gitOut="$( git -C "$repoRoot" commit -m "* board-upsert-move-edit: $itemName $moveFrom -> $toState, $opContext" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then

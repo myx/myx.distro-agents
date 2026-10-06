@@ -4,17 +4,27 @@
 ## AgentsHarnessMcpClient.sh -- MCP server enumeration, declaration and calling for
 ## the universal harness. Sourced by AgentsUniversalHarness.sh and never executed:
 ## everything here runs in the core's process, exactly as AgentsHarnessHooks.sh does.
-## THE TOOL SET IS DYNAMIC. AgentsHarnessMcpEnumerate runs as this file loads and the
-## core runs it again before every round after the first, so $harnessMcpToolsJson is
-## whatever the registrations and the servers declare at that round. A round whose
-## enumeration matches the last one sends the same bytes. On the Anthropic wire `tools`
+## THE TOOL SET IS DYNAMIC. AgentsHarnessMcpEnumerate runs as this file loads, and the
+## core runs it again before a later round whenever AgentsHarnessMcpStale says the
+## catalogue it holds may no longer be the servers' own: mcp.servers.json is not the
+## content the last enumeration read, a server was unavailable at that enumeration, or
+## a call has since failed to reach its server. Otherwise the catalogue is kept for the
+## session -- re-spawning every server for initialize + tools/list cost over a second a
+## round -- and $harnessMcpToolsJson sends the same bytes. A round whose enumeration
+## matches the last one sends the same bytes too. On the Anthropic wire `tools`
 ## is bound by every thinking block produced after it, so a set that changes mid-leg
 ## there is a 400 at replay (AgentsAnthropicStub.sh, constraint 3).
 ## A SERVER IS SPAWNED ONLY BECAUSE harnessMcpServers HOLDS IT -- named by --mcp-server,
 ## or else the workspace's own mcp.servers.json minus myx.distro, read again by the
 ## core's AgentsHarnessMcpServerSet on every enumeration.
+## A server the catalogue still names but that has since gone is not hidden by the
+## cache: its call is an ERROR the model reads, and that failure is what re-enumerates.
 ## A run holding none starts no process, opens no file and leaves this file inert,
 ## which is also what keeps the offline checks offline.
+
+## Where a server's command, args and env come from: our installer-written index when it
+## matches mcp.servers.json byte for byte, else that JSON itself -- one answer either way.
+. "$harnessHere/AgentsHarnessMcpConfig.include"
 
 ## The same newline-delimited, TAB-separated shape harnessHooksList carries, so the
 ## per-call lookup stays builtins-only: server, tool, declared name, and the file
@@ -28,6 +38,9 @@ harnessMcpUnavailableNote=""
 harnessMcpToolsJson=""
 harnessMcpConfigFile=""
 harnessMcpConfigFault=""
+## mcp.servers.json exactly as the last enumeration found it, `absent` or `present:`
+## and its whole content, compared byte for byte with builtins -- no fork per round.
+harnessMcpConfigSeen=""
 ## Published by AgentsHarnessMcpRun/AgentsHarnessMcpReply for their callers, the way
 ## the core's own AgentsHarnessPathAllowed publishes $harnessResolvedPath.
 harnessMcpFault=""
@@ -81,7 +94,7 @@ AgentsHarnessMcpDegrade(){ ## server name, reason
 ## global: enumeration happens at spawn time before the member works and is held to
 ## seconds, while a tool call is a deliberate operation and keeps the run bound.
 AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaited request id
-	local runName="$1" runBound="$2" runWant="$3" runCommand runArgCount runArgIndex runArgValue runEnvKeys runEnvKey runEnvValue runRc=0 runPid runWatchPid
+	local runName="$1" runBound="$2" runWant="$3" runCommand runArgIndex runEnvKey runEnvValue runRc=0 runPid runWatchPid runPoll
 	local runArgs=() runEnv=()
 	harnessMcpFault=""
 	harnessMcpStatus=0
@@ -97,7 +110,11 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 		return 1
 	fi
 
-	runCommand="$( AgentsHarnessMcpField "mcpServers.$runName.command" < "$harnessMcpConfigFile" )" || runRc=$?
+	## Resolved once, from the index or field by field from the JSON; every refusal below
+	## is worded from the same read statuses either way.
+	AgentsHarnessMcpResolve "$runName" "$harnessMcpConfigFile"
+	runCommand="$harnessMcpResCmd"
+	runRc="$harnessMcpResCmdRc"
 	if [ "$runRc" = "3" ] ; then
 		harnessMcpFault="no such server under \`mcpServers\` in $harnessMcpConfigFile"
 		return 1
@@ -116,15 +133,9 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 		;;
 	esac
 
-	runRc=0
-	runArgCount="$( AgentsHarnessMcpField "mcpServers.$runName.args.__count" < "$harnessMcpConfigFile" )" || runRc=$?
+	runRc="$harnessMcpResArgsRc"
 	if [ "$runRc" = "0" ] ; then
-		runArgIndex=0
-		while [ "$runArgIndex" -lt "$runArgCount" ] 2>/dev/null ; do
-			runArgValue="$( AgentsHarnessMcpField "mcpServers.$runName.args.$runArgIndex" < "$harnessMcpConfigFile" )" || runArgValue=""
-			runArgs+=( "$runArgValue" )
-			runArgIndex=$(( runArgIndex + 1 ))
-		done
+		runArgs=( ${harnessMcpResArgs[@]+"${harnessMcpResArgs[@]}"} )
 	elif [ "$runRc" != "3" ] ; then
 		harnessMcpFault="its \`args\` did not read as an array (rc=$runRc)"
 		return 1
@@ -132,21 +143,22 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 
 	## Credentials live here and reach the child's environment; nothing from `env`
 	## ever reaches argv, where every process on the box could read it.
-	runRc=0
-	runEnvKeys="$( LC_ALL=C awk -v path="mcpServers.$runName.env" -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$harnessMcpConfigFile" 2>/dev/null )" || runRc=$?
+	runRc="$harnessMcpResEnvRc"
 	if [ "$runRc" != "0" ] && [ "$runRc" != "3" ] ; then
 		harnessMcpFault="its \`env\` did not read as an object (rc=$runRc)"
 		return 1
 	fi
-	while IFS= read -r runEnvKey ; do
-		[ -n "$runEnvKey" ] || continue
+	runArgIndex=0
+	while [ "$runArgIndex" -lt "${#harnessMcpResEnvKeys[@]}" ] ; do
+		runEnvKey="${harnessMcpResEnvKeys[$runArgIndex]}"
+		runEnvValue="${harnessMcpResEnvVals[$runArgIndex]}"
+		runArgIndex=$(( runArgIndex + 1 ))
 		if ! AgentsHarnessMcpNameOk "$runEnvKey" "_" ; then
 			printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$runName: dropped the \`env\` entry named ${harnessOff}${harnessValue}$runEnvKey${harnessOff}${harnessDim} -- an environment variable name carries letters, digits and underscore only${harnessOff}" >&2
 			continue
 		fi
-		runEnvValue="$( AgentsHarnessMcpField "mcpServers.$runName.env.$runEnvKey" < "$harnessMcpConfigFile" )" || runEnvValue=""
 		runEnv+=( "$runEnvKey=$runEnvValue" )
-	done <<< "$runEnvKeys"
+	done
 
 	## Answers go to a file, never through `$( )`: a capture returns on pipe-EOF rather
 	## than on process exit, so one child the server leaves behind would hang this leg
@@ -157,10 +169,21 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 	: > "$harnessScratch/mcp.out"
 	: > "$harnessScratch/mcp.err"
 	rm -f "$harnessScratch/mcp.timedout" "$harnessScratch/mcp.exited"
+	## Polled from 0.05s, doubling to the old 1s floor: a healthy server answers in
+	## milliseconds, and a whole second per exchange was most of what one cost. A `sleep`
+	## that takes no fraction fails at once, and the whole second stands in for it.
 	{
 		cat "$harnessScratch/mcp.req"
+		runPoll=0.05
 		while [ ! -f "$harnessScratch/mcp.exited" ] && ! AgentsHarnessMcpReply "$runWant" ; do
-			sleep 1
+			sleep "$runPoll" 2>/dev/null || sleep 1
+			case "$runPoll" in
+				0.05) runPoll=0.1 ;;
+				0.1) runPoll=0.2 ;;
+				0.2) runPoll=0.4 ;;
+				0.4) runPoll=0.8 ;;
+				*) runPoll=1 ;;
+			esac
 		done
 	} | {
 		runRc=0
@@ -203,14 +226,24 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 ## The transport is one JSON object per line, so the answers are told apart by the
 ## request id they carry rather than by their position: a banner line, a notification
 ## and a log line each sit in this stream too. Publishes $harnessMcpReply.
+## Every line is read by ONE awk -- the field reader's own engine, AgentsHarnessArgTable.awk
+## in its per-line mode -- rather than one per line, and the last line whose `id` is the
+## awaited one is the answer, as before. Only whole lines count: a last line the server
+## has not finished writing is not one yet, exactly as `read` never returned it.
 AgentsHarnessMcpReply(){ ## request id
-	local replyWant="$1" replyLine replyId
+	local replyWant="$1" replyText="" replyEnc
 	harnessMcpReply=""
-	while IFS= read -r replyLine ; do
-		[ -n "$replyLine" ] || continue
-		replyId="$( AgentsHarnessMcpField id <<< "$replyLine" 2>/dev/null )" || replyId=""
-		[ "$replyId" != "$replyWant" ] || harnessMcpReply="$replyLine"
-	done < "$harnessScratch/mcp.out"
+	IFS= read -r -d '' replyText < "$harnessScratch/mcp.out" || :
+	case "$replyText" in
+		*$'\n') ;;
+		*$'\n'*) replyText="${replyText%$'\n'*}"$'\n' ;;
+		*) replyText="" ;;
+	esac
+	[ -n "$replyText" ] || return 1
+	replyEnc="$( LC_ALL=C awk -v lineId="$replyWant" -f "$harnessHere/AgentsHarnessJsonField.awk" -f "$harnessHere/AgentsHarnessArgTable.awk" <<< "${replyText%$'\n'}" 2>/dev/null )" || replyEnc=""
+	[ -n "$replyEnc" ] || return 1
+	AgentsHarnessMcpDec "$replyEnc"
+	harnessMcpReply="$harnessMcpDec"
 	[ -n "$harnessMcpReply" ]
 }
 
@@ -219,6 +252,39 @@ AgentsHarnessMcpHandshake(){
 	printf '%s\n' \
 		'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"AgentsUniversalHarness","version":"1"}}}' \
 		'{"jsonrpc":"2.0","method":"notifications/initialized"}'
+}
+
+## The mcp.servers.json content as it stands now, in the shape harnessMcpConfigSeen holds.
+## A builtin read: this runs before every round, and a fork there is what the cache saves.
+harnessMcpConfigNow=""
+AgentsHarnessMcpConfigNow(){
+	local configPath="${MMDAPP:-}/.local/agents/mcp.servers.json" configText=""
+	harnessMcpConfigNow="absent"
+	[ -f "$configPath" ] && [ -r "$configPath" ] || return 0
+	IFS= read -r -d '' configText < "$configPath" || :
+	harnessMcpConfigNow="present:$configText"
+}
+
+## Left by a call that could not reach its server -- or named a tool no server declares
+## -- for the core to see between rounds: the call runs in a command substitution, so a
+## variable set there never reaches it, and a file does.
+AgentsHarnessMcpCallFault(){
+	: > "$harnessScratch/mcp.call.fault" 2>/dev/null || :
+}
+
+## Zero when the catalogue held may no longer be the servers' own, so the core enumerates
+## again before this round; non-zero keeps it. Consumes the call-fault marker.
+AgentsHarnessMcpStale(){
+	local staleRc=1
+	if [ -f "$harnessScratch/mcp.call.fault" ] ; then
+		rm -f "$harnessScratch/mcp.call.fault"
+		staleRc=0
+	fi
+	## A server unavailable now is tried again every round, so its return is told at once.
+	[ -z "$harnessMcpUnavailableNote" ] || staleRc=0
+	AgentsHarnessMcpConfigNow
+	[ "$harnessMcpConfigNow" = "$harnessMcpConfigSeen" ] || staleRc=0
+	return "$staleRc"
 }
 
 ## The per-call path. Its whole contract is that it always prints a tool result: a
@@ -239,6 +305,7 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 		esac
 	done <<< "$harnessMcpCatalogue"
 	if [ -z "$callServer" ] ; then
+		AgentsHarnessMcpCallFault
 		printf 'ERROR: unknown tool: %s -- no MCP server this run enumerated declares it\n' "$callName"
 		return 0
 	fi
@@ -264,10 +331,12 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 		printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"'"$callTool"'","arguments":'"$callArgs"'}}'
 	} > "$harnessScratch/mcp.req"
 	if ! AgentsHarnessMcpRun "$callServer" "$harnessRunTimeout" 3 ; then
+		AgentsHarnessMcpCallFault
 		printf 'ERROR: %s: the MCP server `%s` could not be run: %s\n' "$callName" "$callServer" "$harnessMcpFault"
 		return 0
 	fi
 	if ! AgentsHarnessMcpReply 3 ; then
+		AgentsHarnessMcpCallFault
 		printf 'ERROR: %s: the MCP server `%s` returned no answer to this call (exit status %s)%s\n' "$callName" "$callServer" "$harnessMcpStatus" "${harnessMcpDiag:+ -- it said: $harnessMcpDiag}"
 		return 0
 	fi
@@ -318,8 +387,15 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 
 ## Enumerates the server set as it stands now and rebuilds the catalogue, the
 ## declarations and the unavailable note from nothing. Run once as this file loads and
-## again by the core before every round after the first.
+## again by the core before a later round that AgentsHarnessMcpStale calls for.
 AgentsHarnessMcpEnumerate(){
+	## Taken before the set is read: a change landing in between is then seen next round.
+	## Only the model loop has rounds to compare, so a served --intern-tool call opens no file for it.
+	if [ -z "${harnessToolOnly:-}" ] ; then
+		AgentsHarnessMcpConfigNow
+		harnessMcpConfigSeen="$harnessMcpConfigNow"
+		rm -f "$harnessScratch/mcp.call.fault" 2>/dev/null || :
+	fi
 	harnessMcpCatalogue=""
 	harnessMcpUnavailableNote=""
 	harnessMcpToolsJson=""

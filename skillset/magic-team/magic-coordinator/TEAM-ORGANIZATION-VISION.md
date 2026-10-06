@@ -1,92 +1,52 @@
 # Team Organization Vision — magic-coordinator
 
-How the magic-* team is organizationally structured: execution model, operating rhythm, work
-pacing, human-owner involvement, and partner posture.
+How the magic-* team is organised: execution model, operating rhythm, work pacing, when the human-owner is needed, and partner posture.
 
 ## Contents
 
-- Execution model: UI/relay instance vs. spawned work instances
+- Execution model: the UI instance relays, spawned instances work
 - Operating rhythm: seven days a week, one continuous loop
-- Work-lifecycle pacing: staged as default, marathon as exception
-- Human-owner involvement: approval vs. routine triage
-- Partner-* activity posture, and the proposal pipeline
+- Work-lifecycle pacing: staged by default
+- When the human-owner is actually needed
+- Partner posture and the proposal pipeline
 
-## Execution model: UI/relay instance vs. spawned work instances
+## Execution model: the UI instance relays, spawned instances work
 
-- The instance a human is actually talking to (the UI/chat instance) never executes an activity's
-  real work itself.
-- Every activity — daily, grooming, retro, one-on-one, any member's own work-rounds —
-  runs in a dedicated spawned instance: its own background `Agent`, that member's own `Skill` as
-  first action.
-- The UI/chat instance stays present for the whole activity, relaying between the human and the
-  spawned instance verbatim, no re-phrasing.
-- No per-activity exception — a one-on-one spawns a dedicated instance the same as every other
-  activity, never a direct in-conversation handoff.
-- Spawned work is not gated on the human/UI session staying present — comms and iterations keep
-  advancing regardless of live presence.
-- When a spawned activity needs human input it can't decide or defer on its own, it routes through
-  an async channel (a team-channel post, a tracked-board record) rather than blocking on live
-  presence. Something needing genuine real-time back-and-forth gets its own freshly spawned
-  interactive session instead.
-- Open, not yet designed: a per-activity briefing, prepared by the documentation steward in
-  advance, that a spawned instance would coordinate against.
+- The instance a human talks to never executes an activity's real work itself.
+- Every activity — daily, grooming, retro, one-on-one, a member's own work — runs in a spawned instance of its responsible member. No activity is an exception.
+- The UI instance stays present for the whole activity and relays between the human and the spawned instance.
+- Spawned work does not depend on the human or the UI session being present. Input it needs travels the chain of command; real-time back-and-forth gets its own spawned interactive session.
+- Open, not yet designed: a per-activity briefing the documentation steward prepares in advance.
 
 ## Operating rhythm: seven days a week, one continuous loop
 
-- The team runs a continuous operating rhythm, not a per-request wake-up: comms checked promptly,
-  inboxes processed, backlog groomed once a day, the daily work-session fan-out actually happens.
-- Runs while the host loop runs — never started from a session.
-- Each iteration's behavior depends on persistent state, day of week, and today's own progress so
-  far: a first-today iteration may run a small grooming pass while context gets refreshed, then a
-  daily meeting that watches for planned work-sessions.
-- Comms/messaging sweeps are one recurring element inside the loop, not the whole thing.
-- Weekends: communications and light reactive admin (reorganizing todos, updating records) only in
-  response to an actual incoming request — no proactive work dispatch.
-- Work is organized as projects: a top-level container with its own context, goal, states, and
-  decisions. Anything triaged is assigned to an open project rather than left floating. Projects
-  stay small and short — extended with a new task rather than growing an in-progress task's own
-  scope.
-- Activity traces post to the team's shared channel throughout, not just at close-out.
-- Single-instance protection prevents the same logical iteration running twice concurrently,
-  regardless of which entry point triggered it.
+- The team runs a continuous rhythm while the host loop runs: comms checked promptly, inboxes processed, the backlog groomed once a day, the daily work session held.
+- Each pass depends on stored state, the day of the week and today's progress.
+- Weekends: communication and light reactive admin, only in answer to an actual request. No proactive dispatch.
+- Work is organised as small, short projects with their own context, goal, states and decisions. Triaged work joins an open project. A project grows by a new task, never by widening a task in progress.
+- Activity traces post to the team's channel throughout.
+- One logical pass never runs twice at once, whatever started it.
 
-## Work-lifecycle pacing: staged as default, marathon as exception
+## Work-lifecycle pacing: staged by default
 
-- Work normally moves through stages, not necessarily all of them, not necessarily in strict
-  order: triage/backlog, assignment to an activity, investigation/discussion/planning, small
-  approved tasks, single-member implementation, then a different member testing/validating it.
-- Real pause points sit between stages by default.
-- Marathon execution — continuing straight through without pausing between stages — is a
-  situational exception, granted explicitly for a specific case. It is never the default posture.
+- Work moves through stages, not necessarily all, not strictly in order: triage, assignment, investigation and planning, small approved tasks, single-member implementation, testing by a different member.
+- Real pause points sit between stages.
+- Marathon execution, straight through without pauses, is granted explicitly per case. It is never the default.
 
-## Human-owner involvement: approval vs. routine triage
+## When the human-owner is actually needed
 
-- Needs human-owner approval: work plans, goals, scope changes — decisions about what the team
-  commits to.
-- Does not need human-owner involvement: routine triage — declining, backlogging, or opening an
-  investigation on a member-raised issue or a broken pipeline. The coordination/architecture layer
-  decides and records this itself.
-- Each step is sized as one bounded assess-then-record unit, not chained into further action in
-  the same pass — the next step picks up from the recorded state, by a different member, or the
-  same member at a later, separate activity time.
+- His approval: work plans, goals, scope changes — what the team commits to.
+- Not his involvement: routine triage — declining, backlogging, or opening an investigation into a member-raised issue or a broken pipeline. The coordination and architecture layer decides and records this.
+- Questions addressed to him are tracked as board items, never left to disappear.
+- Each step is one bounded assess-then-record unit. The next step starts from the recorded state, later or by another member.
 
-## Partner-* activity posture, and the proposal pipeline
+## Partner posture and the proposal pipeline
 
-- Partner members default to present-but-non-reporting: roll call only, no automatic work-session
-  dispatch, unless a specific case is raised for a direct one-on-one.
-- Idle-day findings go through a proposal pipeline, not direct action — a finding is raised, never
-  acted on directly by the member that found it.
-- Small, obviously-safe findings get dispatched straight back to the proposing member.
-- Findings involving cross-subsystem changes, large-scale refactoring, or overlap with another
-  member's domain escalate to a joint review with everyone actually implicated, before any design
-  assessment happens.
-- Assessment weighs risk, profit, and effort — normalized scoring across profit, cost, time, and
-  dependencies, re-scored for the whole current backlog at every grooming pass, informing
-  prioritization without deciding it alone.
-- Outcomes compact into a hierarchical, cross-referenced form rather than an ever-growing flat
-  list.
-- Open, not yet built: partner members becoming workspace-dependent in activity level — more
-  active, with their own persistent log, specifically where a shared project with another team is
-  genuinely live.
-- Open, not yet decided: the documentation steward proposing adoption of validated changes into
-  other members' own definitions, not just their docs.
+- Partner members are present but non-reporting by default: roll call only, no automatic work session, unless a case is raised for a one-on-one.
+- Idle-day findings go through a proposal pipeline. The member that found one never acts on it directly.
+- A small, obviously safe finding is dispatched back to the proposing member.
+- A finding involving cross-subsystem change, large refactoring or another member's domain goes to a joint review with everyone implicated, before design assessment.
+- Assessment weighs risk, profit and effort with normalised scores, re-scored for the whole backlog at every grooming. Scores inform priority; they never decide it alone.
+- Outcomes compact into a hierarchical, cross-referenced form, never a growing flat list.
+- Open, not yet built: partner members becoming more active, with their own log, where a shared project with another team is live.
+- Open, not yet decided: the documentation steward proposing validated changes into other members' definitions, not only their docs.

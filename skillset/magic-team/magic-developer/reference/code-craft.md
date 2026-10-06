@@ -5,7 +5,7 @@ Read this before writing code in any language — it is not a per-language modul
 ## Contents
 
 - The style
-- The human-owner's standing words on this
+- Simplicity is a requirement
 - A check is code, and it is proven by its red
 - Comments: quantity and content are two separate checks
 - A requirement is a property of the result, not a structure in the code
@@ -33,27 +33,20 @@ Read this before writing code in any language — it is not a per-language modul
 - A name that earns its place is at least two words in camelCase — `doClose`, `needsClose`, `openChar`, `nestDepth`, `fieldCount`. Never a bare `close`, `depth`, `key`, `value`, `data`, `i`, `n`. Applies to every language and to every kind of name: parameter, local, field, function.
 - The rule is mechanical, not aesthetic. A bare word is the one shape that collides with a language's own vocabulary, and the diagnostic rarely says so: `close`, `index`, `length`, `split`, `sub` and `system` are AWK built-ins, and a parameter named after one is a parse error rather than a shadowing warning — `function f(s, i, open, close)` reports "4 missing }'s" and points at an unrelated construct, so the real cause is invisible in the message. Two words cannot collide. The same holds for a shell variable one `readonly` or one sourced file away from a clash it will never announce.
 
-## The human-owner's standing words on this
+## Simplicity is a requirement
 
-His own wording, held as the standard this file states:
+Standing rules from the human-owner:
 
-> "Why you create so many temp files?
-> Why you create extra variables, extra functions?
-> Why you make it more complicated than it needs to be compliant to requirements and efficient?
-> FOR JUST ONE: LOTS OF FILES COULD BE LOCAL VARS - WITH NO CLEANUP PROBLEM
-> I DONT WANT YOU TO MAKE CRAZY FRAGILE UNREADABLE COMPLICATED CODE FOR STRAIGHTFORWARD TASK
-> EVEN MORE: for `bash` scripts - bash 3.2 is the base - you may use this version's supported bash-isms since you already said that this script required bash
-> bash 3.2 - crossplatform baseline version of Darwin, FreeBSD and Linux - this is baseline for `bash` scripts. Of course, in some other projects we need all three OS emulated `sh` support - then we do the other standard and don't use any bashisms even if it would work on Linux
-> NO mapfile! I said bash 3.2 on 3 OS!
-> But there are nice redirections, expansions and arrays - BUT ONLY USE THEM WHEN THEY MAKE RESULT BETTER IN ALL:
-> - faster (executionally, less CPU time, less total time)
-> - readable (understandable, traversable by eye)
-> - simpler (logically, algorithmically solution-wise)"
+- A straightforward task gets straightforward code. Complication is a defect before any question of whether the code works.
+- A value that fits in a local variable never becomes a temp file: a variable has no cleanup problem.
+- No extra variables, functions or files beyond what the requirements and efficiency need.
+- A `bash` script is written to bash 3.2, the crossplatform baseline of Darwin, FreeBSD and Linux. A project needing all three platforms' `sh` takes the POSIX standard instead, with no bash-ism even where it works on Linux.
+- No bash 4 feature (`mapfile` among them) in a bash 3.2 file.
+- A bash 3.2 redirection, expansion or array is used only where it makes the result better on all three of faster, readable and simpler.
 
-Three things follow:
+What follows from them:
 
 - **One fault, three shapes: an unnecessary temp file, an unnecessary variable, an unnecessary function.** Each is a unit created to hold a step that did not need holding, and each adds something to create, name, track and clean up. A helper called from one place, wrapping what its single caller could have stated directly, is the function-shaped version of materialising one dataset three times. The same principle read from the other side: a stub written for one call site takes mandatory arguments and does its mechanical steps itself, rather than distributing them to its caller as options.
-- **Simplicity is a requirement, not a preference.** A straightforward task gets straightforward code. Complication is a defect in its own right, before any question of whether the code works.
 - **A shell file's standard is settled by what that file requires**, and an available construct still has to earn its place on all three of faster, readable and simpler at once. `shell.md` states the standards and the test.
 
 ## A check is code, and it is proven by its red
@@ -63,14 +56,14 @@ A checker reports green on its own counterexample as readily as on a clean subje
 - **An instrument is finished once it has been watched to fail**, against a case that violates the very assertion it makes. Reasoning that it would fail is not the demonstration, and a green first run over a clean subject establishes nothing about the instrument.
 - **A stage that cannot reach its subject fails loudly; it never passes.** A rig that fails to extract the thing under test and then prints its PASS lines is reporting on nothing, and those lines read exactly like a result. Every step that loads, extracts or selects the subject is a failure branch, not a best effort.
 - **A control is a control only once its two directions return different values.** Run it both ways before the measurement it qualifies is trusted: one case that must pass, one that must fail. Where both come back the same, the instrument is broken rather than the subject clean, and the measurement is withdrawn rather than reported with a caveat.
-- **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal; the status is the only thing a caller reads, and where the two disagree the caller is told the operation succeeded. Found live: an index generator printed `⛔ ERROR`, two layers of sourcing returned 0 unconditionally over it, and the caller's own `|| status=$?` never fired — the operation reported success while granting nothing. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on; the caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
+- **A tool that prints a hard error and still exits 0 makes every caller's status check dead code.** The message is written for a person reading a terminal; the status is the only thing a caller reads, and where the two disagree the caller is told the operation succeeded. A diagnostic is not a failure signal. Whatever prints the error exits non-zero on that same path, and every layer between it and the caller passes the status on; the caller's check is worth writing only once that chain holds. `shell.md` states the shell mechanics each layer drops it through.
 - **An axiom that keeps being violated in new code is not under-stated, it is unenforced.** Where the wording is already sound, what changes is the mechanism: the rule becomes an executable check wired into a pass that already runs, so it is met without anyone choosing to look. A stronger sentence in the same place the last violation walked past is not a fix.
 
 ## Comments: quantity and content are two separate checks
 
 - The limits are the team's existing ones, not a second set: `magic-team/magic-team.armed.md`'s "A comment is short, or it is not a comment" — an internal comment is one line, a header comment a few at most, and anything longer is documentation belonging in the package's own `MAGIC.md`. Where a package carries a `MAGIC.md`, it states the same limits for its own code.
 - **Quantity is checkable, and it is the half that gets failed.** The reviewer's question is asked of one comment at a time, against the limits above: a comment past its own limit is over it whatever those lines say.
-- **Content is the other check** — the Narration-vs-fact discipline in `magic-team/magic-team.armed.md`: a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
+- **Content is the other check** — `magic-team/magic-team.armed.md`'s "Rule/instruction/definition/description conventions" (state a durable fact, never narrate a past action): a durable fact or convention, never a narration of a past action or an explanation of what changed. The two checks are independent: a comment can be entirely factual and still be forty lines that belong in `MAGIC.md`.
 - **Volume is a runtime cost too, not only a reading cost.** A file the shell reads often is lexed in full on every pass, comments included, so comment count is paid per source on a constantly-taken path — a file can sit within the per-comment limits above and still carry the cost through sheer number. This is a separate argument from the readability limits and does not replace them; `shell.md` states the measured per-source cost on bash 3.2 and dash.
 - **A rename that makes a comment false, rather than merely stale, is reworded in the same change.** The two are different defects: a stale comment describes an older state a reader can still map onto the code, while a false one asserts something the code now contradicts — most often a contrast between two names that the rename has just collapsed into one, leaving the comment drawing a distinction that no longer exists. Renaming is what produces this, so every comment naming either side of the old distinction is read as part of the rename, not left to a later pass that has no reason to look there.
 - Volume regenerates in new code even where an existing tree has been brought within the limit. The standard holds where it is enforced, which is why this is a review step and not a one-off sweep.
@@ -84,7 +77,7 @@ A checker reports green on its own counterexample as readily as on a clean subje
 ## The habit this exists to break
 
 - Agents over-structure by default — wrapping, naming, extracting and layering because it looks professional rather than because the code needed it — and the result reads as scaffolding around a small idea.
-- That single habit is what a whole class of defect comes out of, and one package's worth of them all trace back to it: a capture bug hidden behind a helper, a scratch path no reader can resolve from the code, a convention imported from the wrong project and concealed behind a variable name, a 200-line heredoc inlined where every sibling package sources a dedicated include, a wrapper that re-sources its own file to reach a function in it.
+- That single habit is what a whole class of defect comes out of: a capture bug hidden behind a helper, a scratch path no reader can resolve from the code, a convention imported from the wrong project and concealed behind a variable name, a 200-line heredoc inlined where every sibling package sources a dedicated include, a wrapper that re-sources its own file to reach a function in it.
 - Subprocess inheritance, pipe semantics and the rest are symptoms, not the rule: write less structure and they do not arise.
 
 ## The three costs of needless work

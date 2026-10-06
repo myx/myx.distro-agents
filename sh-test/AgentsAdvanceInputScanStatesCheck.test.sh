@@ -722,9 +722,9 @@ rigPresent(){ ## path -- present or gone
 rigSp="$rigW/.local/agents/spawned"
 rigSandbox rig-orphan "$rigHost" spawn-succeeded "exit-code: 0"
 rigItem processed dispatch-rig-young.md dispatch dispatch-succeeded none rig-young ; rigDone rig-young 0 yes
-mkdir -p "$rigD/inboxes/rig-member/processed"
-printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\n---\n\nrig inbox item\n' > "$rigD/inboxes/rig-member/processed/note-rig-inbox.md"
-touch -t 202001010000 "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ; rigDone rig-inbox 0 yes
+mkdir -p "$rigD/inboxes/rig-member"
+printf -- '---\ntype: note\nowner: rig-member\nspawn-id: rig-inbox\nprocessed-at: 2020-01-01 00:00 +0000\n---\n\nrig inbox item\n' > "$rigD/inboxes/rig-member/note-rig-inbox.md"
+touch -t 202001010000 "$rigD/inboxes/rig-member/note-rig-inbox.md" ; rigDone rig-inbox 0 yes
 mkdir -p "$rigD/trash"
 printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: rig-trash\n---\n\nrig trash item\n' > "$rigD/trash/dispatch-rig-trash.md"
 touch -t 202001010000 "$rigD/trash/dispatch-rig-trash.md" ; rigDone rig-trash 0 yes
@@ -737,7 +737,7 @@ rigCheck "its sandbox folder is deleted with it"                          "$( ri
 rigCheck "the summary names one removed folder"                           "$( LC_ALL=C grep -c -F ' 1 sandbox-folders removed.' "$rigTmp/b4.g1" || : )" 1
 rigCheck "control: the orphan folder, no item, is left alone"             "$( rigPresent "$rigSp/rig-orphan/rig-orphan.md" )" present
 rigCheck "control: the young item and its folder are both kept"           "$( rigLoc dispatch-rig-young.md ) $( rigPresent "$rigSp/rig-young/rig-young.md" )" "processed present"
-rigCheck "control: an inbox item is deleted and touches no sandbox"       "$( [ -f "$rigD/inboxes/rig-member/processed/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
+rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
 rigCheck "control: a trash item is deleted and touches no sandbox"        "$( [ -f "$rigD/trash/dispatch-rig-trash.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-trash/rig-trash.md" )" "deleted present"
 echo "   another board item still links to the folder"
 rigProcessed rig-g2 rig-g2 ; rigDone rig-g2 0 yes

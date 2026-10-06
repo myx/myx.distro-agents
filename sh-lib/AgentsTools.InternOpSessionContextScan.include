@@ -1366,6 +1366,9 @@ case "$1" in
 			local inboxScanned inboxMatched=() inboxOrdered inboxScopeLine inboxFilterText inboxHeading inboxPrefix
 			local inboxSpec inboxWanted inboxWithProcessed inboxDeclined ii
 			local inboxFilterDesc inboxCandidates=() ci inboxEmit=()
+			## Paths of the root items marked `processed-at`, newline-framed so one
+			## `case` pattern tests membership; built once per inbox, not per section.
+			local inboxLF=$'\n' inboxProcessedSet inboxRootItems=()
 
 			## The acting member's own inbox first -- byte-for-byte the same sections as
 			## before this option existed -- and then one labelled group per widened
@@ -1384,6 +1387,14 @@ case "$1" in
 						"$inboxMember" "$actingMember" "$inboxMember"
 				fi
 				inboxDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
+				inboxProcessedSet="$inboxLF"
+				inboxRootItems=()
+				for f in "$inboxDir"/*.md ; do
+					[ -f "$f" ] && inboxRootItems+=( "$f" )
+				done
+				if [ ${#inboxRootItems[@]} -gt 0 ] ; then
+					inboxProcessedSet="$inboxLF$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "${inboxRootItems[@]}" | cut -f1 )$inboxLF" || inboxProcessedSet="$inboxLF"
+				fi
 
 				for inboxSpec in \
 					"Active Inbox Inquiry Items inquiry- $doInboxInquiryActive$doInboxInquiryAll $doInboxInquiryAll $noInboxInquiry" \
@@ -1420,11 +1431,11 @@ case "$1" in
 					esac
 
 					if [ "$inboxWithProcessed" = "true" ] ; then
-						inboxScopeLine="inboxes/$inboxMember/*.md -- top level plus processed/"
-						inboxFilterText="including processed/"
+						inboxScopeLine="inboxes/$inboxMember/*.md -- top level, processed items included, plus legacy processed/"
+						inboxFilterText="including processed"
 					else
-						inboxScopeLine="inboxes/$inboxMember/*.md -- top level only, excluding processed/"
-						inboxFilterText="excluding processed/"
+						inboxScopeLine="inboxes/$inboxMember/*.md -- top level, excluding items marked processed-at"
+						inboxFilterText="excluding processed"
 					fi
 					if [ "$inboxPrefix" = "-other-" ] ; then
 						inboxFilterDesc="a prefix other than inquiry-*/reflection-*/note-*"
@@ -1437,9 +1448,16 @@ case "$1" in
 					inboxScanned=0
 					inboxCandidates=()
 					if [ -d "$inboxDir" ] ; then
+						## An item marked handled carries `processed-at` and stays in the
+						## root: active scopes drop it here, before the cap counts anything.
 						for f in "$inboxDir"/*.md ; do
-							[ -f "$f" ] && inboxCandidates+=( "$f" )
+							[ -f "$f" ] || continue
+							if [ "$inboxWithProcessed" != "true" ] ; then
+								case "$inboxProcessedSet" in *"$inboxLF$f$inboxLF"*) continue ;; esac
+							fi
+							inboxCandidates+=( "$f" )
 						done
+						## Legacy layout: items drained before the in-place marker, until the GC empties it.
 						if [ "$inboxWithProcessed" = "true" ] && [ -d "$inboxDir/processed" ] ; then
 							for f in "$inboxDir/processed"/*.md ; do
 								[ -f "$f" ] && inboxCandidates+=( "$f" )
@@ -1559,6 +1577,7 @@ case "$1" in
 					if [ "${f##*/}" = "$it" ] ; then namedFound="true" ; break ; fi
 				done
 				if [ "$namedFound" = "false" ] ; then
+					## Root first, marked or not; the legacy processed/ is a read-only fallback.
 					for namedPath in "$namedInboxDir/$it" "$namedInboxDir/processed/$it" ; do
 						if [ -f "$namedPath" ] ; then
 							namedFound="true"
@@ -1583,7 +1602,7 @@ case "$1" in
 
 			ni=0
 			while [ "$ni" -lt "${#namedMissing[@]}" ] ; do
-				printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/ including processed/\n\n' \
+				printf '**NOTE:** named item not found -- %s, searched every board state and inboxes/%s/ including legacy processed/\n\n' \
 					"${namedMissing[$ni]}" "$actingMember"
 				ni=$(( ni + 1 ))
 			done

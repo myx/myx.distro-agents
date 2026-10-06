@@ -98,9 +98,14 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 ## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is no
 ## session thread, or no output file to check: a spawn with nowhere captured is not reported
 ## wrongly as silent.
-##   $1 = session thread, $2 = member, $3 = output file, $4 = workspace to retry the spawn in
+##   $1 = session thread, $2 = member, $3 = output file, $4 = workspace to retry the spawn in,
+##   $5 = session id, $6... = the launch's own console CLI args (spawnCliArgs) -- the retry
+##   gets exactly the launch's env prefix and CLI selection, never the caller's own
 AgentsToolsSpawnProxyHandbackWarn(){
-	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4"
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4" warnSessionId="$5"
+	shift 5 2>/dev/null || shift $#
+	local warnCliArgs=( "$@" )
+	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
 	[ -n "$warnThread" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
 	LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
 	## One bounded retry, mechanical rather than a reminder: the run ended
@@ -113,7 +118,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	## cannot really happen is never silently reported as one.
 	if [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
 		local warnRetryPid warnWatchPid
-		( MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" --cli-configured --non-interactive \
+		( exec env MMDAPP="$warnWorkspace" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
@@ -673,6 +678,9 @@ case "$1" in
 		## Exported beside the session id and on the same terms: both branches
 		## inherit it, and the console decides what the selected CLI can use.
 		export MDAT_SPAWN_AGENT="$callerName"
+		## Whether the caller blocks on this spawn (--wait): such a caller cannot send the
+		## dismissal, so the spawn's own wait-for-DISMISSED rule is lifted for it.
+		export MDAT_SPAWN_CALLER_WAITS="$waitMode"
 
 		## The coworking session's own id, settled here -- before the dispatch item
 		## below, which needs it too -- rather than only later beside where its own
@@ -811,6 +819,10 @@ case "$1" in
 		## The console renders the two roots from this, because a flag cannot cross that
 		## boundary -- the same reason the session id and the agent name are exported.
 		export MDAT_SPAWN_SANDBOX_ROOT="$sandboxRoot"
+		## The same directory resolved once, here, so the harness of this spawn need not
+		## resolve it again on every start; it checks the two name one directory first.
+		MDAT_SPAWN_SANDBOX_ROOT_REAL="$( cd "$sandboxRoot" 2>/dev/null && pwd -P )" || MDAT_SPAWN_SANDBOX_ROOT_REAL=""
+		export MDAT_SPAWN_SANDBOX_ROOT_REAL
 
 		## The event-track thread (agent-log-thread): one tooling-maintained Slack
 		## thread per spawn, opened here and closed by
@@ -975,6 +987,19 @@ case "$1" in
 		## sandbox root, same as the tracking file above and for the same reason.
 		[ -z "$eventTrackThread" ] || printf '%s\n' "$eventTrackThread" > "$sandboxRoot/event-track.thread"
 		[ -z "$sessionThread" ] || printf '%s\n' "$sessionThread" > "$sandboxRoot/session.thread"
+		## The parent session's own list of its children, so the harness a parent runs reads
+		## one file instead of every spawn record there is. One line per child, this record's
+		## path under spawned/, written by one append (atomic at this size); a reader
+		## de-duplicates, and still checks each record, which stays the authority. Kept out
+		## of .local/agents/sessions/: a file landing there reads as that session's activity.
+		case "$parentSessionId" in
+			''|*/*|.|..) ;;
+			*)
+				{ mkdir -p "$MMDAPP/.local/agents/children" \
+					&& printf '%s\n' "$sandboxName/$MDAT_SPAWN_SESSION_ID.md" >> "$MMDAPP/.local/agents/children/$parentSessionId" ; } 2>/dev/null \
+					|| { rm -f "$MMDAPP/.local/agents/children/.indexed" ; echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not list this spawn among its parent's children in .local/agents/children/$parentSessionId -- every harness now finds children by scanning every record, until the next install re-lists them" >&2 ; }
+			;;
+		esac
 
 		## His own instruction: the sandbox path is named in the dispatch text, or the
 		## spawned session cannot use it at all. Appended after the dispatch document was
@@ -995,6 +1020,22 @@ case "$1" in
 			sandboxItem="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
 		fi
 		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName"
+
+		## Tooling's own standing text for every spawn, beside the sandbox lines: a spawned
+		## session waits with Wait and ends only on a DISMISSED -- unless its caller blocks on
+		## it (--wait), which cannot send one: that caller's wait is the dismissal up front.
+		local stayingText
+		if [ "$waitMode" = "true" ] ; then
+			stayingText="Whoever started you is blocked until this run ends, so it cannot dismiss you: when your work is done, hand back with SubagentHandback and end your run. Until then, never end it to wait: waiting for an answer, a reply, another session or an event is done with the Wait tool (mcp__myx_distro__Wait over MCP); after a TIMEOUT wait again, and keep obeying what arrives between waits."
+		else
+			stayingText="You never end on your own, not even when your work is done. When it is done, report that to whoever started you, with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting. Waiting for an answer, a reply, another session or an event is not the end of the work either. Wait with the Wait tool (mcp__myx_distro__Wait over MCP), on your session thread by default; after a TIMEOUT wait again, and keep obeying what arrives between waits. End your run only when a Wait returns DISMISSED: whoever started you dismisses you by a message addressed to you whose body is DISMISSED."
+		fi
+		spawnContext="$( printf '%s\n' \
+			"$spawnContext" \
+			"" \
+			"## Staying on the task" \
+			"" \
+			"$stayingText" )"
 
 		## Handed over in the brief as `<channel>:<ts>`, same field name as before
 		## the session/agent-log split, so an existing reader of this line keeps
@@ -1114,7 +1155,7 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
@@ -1188,7 +1229,7 @@ case "$1" in
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""

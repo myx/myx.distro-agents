@@ -12,23 +12,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Steps
 - Closure steps
 - Routine's local procedures
-  - `check-execute-board` procedure
-    - Starting never-started `board-pending` items
-    - How to actually work an item -- a real decision tree (the missing procedure, applies before any per-type rule below decides an outcome)
-    - Continuing already-dispatched `board-running` items
-    - Per-`board-running`-item task rules, by filename prefix
+  - `check-execute-board` — work on board items' own tasks
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--magic-advance-sleep-run` operation reference
-  - `--magic-advance-batch-outcome` operation reference
-  - `--magic-advance-input-scan` operation reference
-  - `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
-  - `--magic-advance-state-and-lock-upsert` operation reference
-  - `--magic-advance-to-parked` operation reference
-  - `--magic-advance-to-running` operation reference
-  - `--magic-heartbeat-state-upsert` operation reference
-  - `--member-comms-slack-send-message` operation reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -38,359 +25,159 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-Routine-advance is a lightweight, every-iteration mechanical reconciliation between the board's recorded state and reality — closes the gap between full daily/grooming cycles — plus the board's own dependency-ordering recompute (part of `check-process-board`), bounded to once a day or on direct request.
+`magic-coordinator.advance.routine` is the every-iteration pass that brings the board's recorded state in line with reality and starts or continues decided work.
 
 ## Goals
 
-The board isn't trustworthy between daily/grooming cycles — sessions die mid-work, dispatches go stale, approvals land continuously, not on a weekly schedule. This routine runs every main-loop iteration and executes only already-decided moves, never new judgment — what makes it safe to run unattended. Same logic covers stalled spawned work (nudge, report) and deferred actions (Slack reactions, Trello updates) once their conditions are actually met. One bounded exception, inside `check-process-board`'s own dependency-recompute step: recording a dependency edge is never a risky call, since an uncertain one is flagged rather than forced — reasoning worked out ad hoc in a chat reply would otherwise evaporate the moment the conversation moves on, with nowhere to live. A second bounded exception: a `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty. The coordinator judges a trivial review from the item's Result block, the output log it names, the spawn's handback answer and the sandbox output folder, and accepts it with `--magic-board-to-processed`.
-
-**Naming note**: "Advance" names what this routine actually does: bringing the board's *recorded* state back into alignment with what's *actually* true, not re-litigating priorities or scope.
+- Keep the board trustworthy between grooming passes: sessions die, dispatches go stale, approvals land at any time.
+- Apply only moves already decided — an approval recorded, a review accepted, a completion recorded, a condition met. This is what makes the pass safe to run unattended.
+- Two bounded judgements are allowed: recording dependency edges (`check-process-board`'s **board-recompute-dependencies**), and accepting a trivial `board-review` item reviewed by this member.
 
 ## Scope
 
-**In scope**, every invocation:
-- All new incoming communication (email, Trello, Slack) — the full `magic-coordinator.communication-sweep.routine` pass (**check** + **process-each-message**, every found message, ascending timestamp order), not a narrow slice.
-- `board-running` — every item, every pass, including its own in-place testing round; no separate `board/testing/` folder.
-- `board-pending` — every item, every pass: mechanical `board-pending`→`board-running` moves, readiness-flagging only — not a full re-triage. `board-backlog` is not read here: promoting a backlog item is `magic-team.grooming.routine`'s **check-backlog-promote**.
-- `board-review`, narrowly — only items whose `review-by` is `magic-coordinator`, `advance.routine` or empty, per **advance-review-items** and the second exception in Goals.
-- `board-parked` and `board-blocked`, narrowly — only items whose `recheck-date` has arrived or which carry none (or, for `board-blocked`, an early-fire per `check-process-board`'s **board-reassess-parked-blocked**).
-- `magic-coordinator`'s own inbox, narrowly — only `pending-slack-reaction` and `pending-trello-update` records (used in `check-pending-comms-actions`). One record per deferred action, not one standing record; the input-scan surfaces them, so no filename is written down or matched here.
-- Dependency-graph recomputation (`blocks:`/`blocked-by:` edges and ordering) — bounded, not every pass (`check-process-board`'s **board-recompute-dependencies**).
-
-**`recheck-date`/`condition` convention**, on any item entering `board-parked`/`board-blocked`:
-- set at the moment it's parked/blocked, by whoever does that triage
-- extended by `check-process-board`'s **board-reassess-parked-blocked** whenever it spins off an inquiry job instead of resolving inline
-- no `recheck-date` recorded → due now, every pass: a missing `recheck-date` never defers. The item gets a real check and a report each pass that reaches `board-blocked`/`board-parked`, whatever another pass the same day already sent, until a check sets one.
-
-**`recheck-date` computation (deterministic, not mental arithmetic)**: every `recheck-date` value this routine sets — whatever offset a step below states (`check-execute-board`'s `now + 7min (jittered ±2min)` restart-session spawn, its `now + 17 minutes` spawn-proxy-failure retry, or any other) — is computed by an actual shell `date` command, run via `mcp__myx_distro__execute`, never worked out as LLM mental arithmetic. A step's stated offset (`now + 7min`, `now + 17 minutes`) names the target only; this is how it's actually produced. Required output shape: full `date-time` per `magic-team/magic-team.armed.md`'s Terminology (`YYYY-MM-DD HH:MM ±HHMM`, e.g. `2026-08-13 15:20 +0000`) — never a bare date, never dropping the UTC offset. Where a jitter window is stated (e.g. `±2min`), the jitter itself is also produced by that same shell call — a randomized offset folded into the base minutes before formatting — not eyeballed or approximated.
-
-**Explicitly out of scope** (left to `magic-team.grooming.routine`'s own cadence):
-- `board-blocked`/`board-parked`'s active-pursuit re-check — judgment-heavy, belongs to grooming's cadence. Actively resolving blockers stays excluded here. `check-execute-board`'s restart/nudge work IS in scope — not blocker-resolution, don't conflate the two.
-- RICE scoring, any of it.
-- Per-item triage verbs (keep/defer/reassign/split/drop) beyond "apply an already-decided move" and "redispatch an already-prescribed testing round".
-- Board/file state-model drift hunting — `magic-librarian.morning-review.routine`'s own job, once-per-workday.
-- The actual "go" decision itself — `approved-by`/`approved-at`, or deciding human-owner-level approval is needed — is grooming's/the authority group's/the human-owner's call, never this routine's; this routine only acts once one of those two facts is already recorded (`check-process-board`'s **board-mechanical-moves**).
-- Trello-board-content review/grooming (reading/assessing existing cards) — distinct from `check-pending-comms-actions`'s narrow, mechanical execution of an already-queued Trello write, which IS in scope.
-- Google Drive/Sheets.
-
-**No-blanket-defer rule for `board-running` follow-up**:
-- "Judgment-heavy" exclusion applies to blocker-resolution triage (`board-blocked`/`board-parked`) only.
-- It does not apply to `check-execute-board`'s own running-item continuation loop.
-- An item whose `recheck-date` is genuinely still in the future (checked against the real current date, never asserted) is skipped entirely this pass: no write, no outcome record, not touched in any way.
-- Every other `board-running` item must receive one concrete per-pass outcome, every pass: `nudged`, `respawned`, `redispatched`, `flagged-once`, or — only for an item whose prefix matches no per-type rule at all, or a temporary error this pass — `no-action`.
-- A pass-level summary like "deferred for later" is invalid for `board-running` as a class.
+- Does, every pass:
+  - Process `magic-coordinator`'s own inbox, and run the full communication sweep.
+  - Work every `board-running` and `board-pending` item, the `board-review` items this member reviews, and the `board-parked`/`board-blocked` items whose `recheck-date` has arrived or which carry none.
+  - Run the deferred comms actions (`check-pending-comms-actions`).
+  - Move an approved `board-backlog` item to `board-pending` (`magic-team.board.md`'s process flow).
+  - Dismiss spawned sessions whose work is finished.
+- Doesn't:
+  - Decide a go. Promotion and readiness are `magic-team.grooming.routine`'s (`check-backlog-promote`).
+  - Resolve blockers by judgement, score RICE, or triage (keep, defer, reassign, split, drop). Those are grooming's.
+  - Hunt state-model drift (`magic-librarian.morning-review.routine`), review Trello board content, or read Google Drive.
+  - Settle an open design question an investigation surfaced. It is flagged for grooming and `magic-architect`.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **advance-acquire-lock**: Acquire this routine's own lock — a single `--magic-advance-lock-acquire` call, before anything else in this routine runs. `ACQUIRED`, or a reclaim of a dead holder's lock, means go. Contention means another `magic-coordinator.advance.routine` is live: this pass does not start, and nothing below runs.
-2. **advance-process-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — the whole inbox, not `check-pending-comms-actions`'s narrow slice. New items get handled this pass, not only already-decided moves (a landed approval, a finished or stalled dispatch).
-3. **advance-read-board-state**: Call the `--magic-advance-input-scan` operation. This routine's own `state-and-lock` note comes back with that scan, as part of this routine's own input:
-   - goal: keep this pass's own tracking document current — the tactical status, and whatever the next iteration needs to continue.
-   - rule: holding the lock across a long pass is a separate obligation from writing content — call `--magic-advance-lock-refresh` periodically.
-   - step: write the note via the `--magic-advance-state-and-lock-upsert` operation, keeping it current as the pass proceeds rather than only at close.
-4. **advance-reconcile-sessions**: compare the scan's registries with the board, before any further work this pass. Each handler states its outcome in this pass's run output, steps:
-   - **reconcile-read**: read the spawned-sessions and pending-replies registries the scan carries, with the liveness it measured, and match each `board-running` item to its session by its `session-id`.
-   - **reconcile-dead-session**: a `board-running` item that is not a `dispatch-*` item, whose session the registry shows as not live, is a failed spawn. Steps:
-     - record the registry reading in its `execution-receipt`
-     - it declares `restart-session`: respawn that group at the item's recorded state — outcome `respawned`
-     - otherwise: move it to `board-blocked` with `condition:` naming the dead session — outcome `flagged-once`
-   - **reconcile-untracked-session**: a live session with no board item is flagged, never adopted — whether it becomes tracked work is a judgement, not a decided move. Post it to `event-track` once per session, naming its session id, member and sandbox, and create no item — outcome `flagged-once`.
-   - **reconcile-lost-reply**: a `board-blocked` item waiting on a reply the pending-replies registry no longer holds open, steps:
-     - read the item's own `communication-channel-id` thread
-     - an addressee's answer is there: apply it as the reply, and continue the item
-     - no answer is there: re-ask in that same thread with `AskUserQuestion`, to the same party, and keep the item blocked — outcome `nudged`
-     - a missing record is never consent and never a deny
-5. **advance-review-items**: for each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty, read its Result block, the output log it names, the spawn's handback answer and the sandbox output folder, steps:
-   - judged trivial and complete: accept it with `--magic-board-to-processed`
-   - judged trivial and not complete: return it to `board-running` with `--magic-advance-to-running`, your comments appended to its body
-   - anything else: it stays in `board-review`, untouched
-6. **advance-process-comms**: run `magic-coordinator.communication-sweep.routine`'s own Steps in full, inline, this same pass, against this pass's own board read from **advance-read-board-state** — messages can't be assessed without the current process-flow state, so this step never runs before the board is loaded. Reused by reference, not duplicated logic, steps:
-   - **check** (`--magic-sweep-input-scan`, every live platform, board-tracked threads plus every open thread)
-   - **process-each-message** (every found message, one at a time, ascending timestamp order, cross-referenced against this pass's own board state, including the mandatory `conversations.replies` check on every open thread)
-7. **advance-run-process-board**: Run the `check-process-board` procedure (`magic-coordinator.armed.md`) against this pass's own read.
-8. **advance-run-execute-board**: Run the `check-execute-board` procedure (below) against this pass's own read.
+1. **advance-acquire-lock**: Acquire the lock (`--magic-advance-lock-acquire`) before anything else. Contention means another pass is live: this pass does not start.
+2. **advance-process-inbox**: Run `magic-team.process-inbox.routine magic-coordinator`. This is the pass's one inbox processing.
+3. **advance-read-board-state**: Run `--magic-advance-input-scan`. Keep the pass's tracking note current as the pass proceeds (`--magic-advance-state-and-lock-upsert`), and refresh the lock during a long pass (`--magic-advance-lock-refresh`).
+4. **advance-reconcile-sessions**: Compare the scan's session registries with the board before any other work. Each handler states its outcome, steps:
+   - **reconcile-read**: Read the spawned-sessions and pending-replies registries, and match each `board-running` item to its session by `session-id`.
+   - **reconcile-dead-session**: A `board-running` item other than a `dispatch-*` whose session is not live is a failed spawn. Record the registry reading in its `execution-receipt`. It carries `restart-session`: respawn that group at the item's recorded state, outcome `respawned`. Otherwise: move it to `board-blocked` with a `condition` naming the dead session, outcome `flagged-once`.
+   - **reconcile-untracked-session**: A live session with no board item is flagged once in `event-track`, naming its session id, member and sandbox. No item is created; whether it becomes tracked work is a judgement. Outcome `flagged-once`.
+   - **reconcile-finished-session**: A live session whose tracked work reports finished and which nothing else needs is dismissed (`spawn-one-dispatch`'s **spawn-dismiss**). This covers sessions a heartbeat pass dispatched.
+   - **reconcile-lost-reply**: A `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskUserQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny.
+5. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty, read its Result block, the output log it names, the session's handback and its output folder, steps:
+   - trivial and complete: accept it (`--magic-board-to-processed`), and dismiss its session if live
+   - trivial and not complete: return it to `board-running` (`--magic-advance-to-running`), comments appended
+   - anything else: leave it in `board-review`
+6. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline, against this pass's board read.
+7. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this pass's read.
+8. **advance-run-execute-board**: Run `check-execute-board` (below) against this pass's read.
 
 # Closure steps
 
-1. **advance-report**: Post `check-execute-board`'s own findings (redispatches performed, interview threads opened/continued) to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`), carrying the per-type-checks record in the same post — that record goes in one post, never one per item.
-2. **advance-close-state-and-unlock**: release the lock, recording the pass's closing status in that same call:
-   - rule: reference the board/inbox items themselves rather than copying their content, to keep it compact.
-   - step: release the lock via `--magic-advance-close-state-and-unlock`, passing the pass's closing status inline — content, `state: advance-finished`, and the unlock all land in one call, not two.
+1. **advance-report**: Post one `event-track` record (`--member-comms-slack-send-message`): `check-execute-board`'s outcomes per item and their counts, the items left untouched, and what was started. It never repeats `check-process-board`'s **board-report**.
+2. **advance-close-state-and-unlock**: Release the lock with `--magic-advance-close-state-and-unlock`, passing the closing status in the same call. Reference items by name rather than copying them.
 
 # Routine's local procedures
 
-Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
 
-## `check-execute-board` procedure
+## `check-execute-board` — work on board items' own tasks
 
-All work on a board-item's own task — spawned or inline; continuation or initial launch. Callable only from `magic-coordinator.advance.routine`.
+All work on an item's own task, first start or continuation. Called only from this routine.
 
-### Starting never-started `board-pending` items
+### Working an item
 
-Process all `board-pending` items each pass — some, all, or none started. Not a restart of already-dispatched work (below).
+Decide what the item's gap needs, then act this pass:
+- Nothing left to decide: do the one concrete action (send, spawn, check) through its operation, verify it happened, and record what was done.
+- A real choice: list the options with their outcome and risk, pick one, record the reasoning on the item, then act.
+- Missing information: get it if one call away. Otherwise flag it once, naming the missing fact.
 
-- Detect `board-pending` items that should start:
-  - rule: never continue/restart an already-started dispatch.
-  - rule: a detected candidate that is not spawned and moved is an error.
-  - step: spawn.
-  - step: move to `board-running`.
-- Candidate set: `board-pending`, approved, no active dispatch note. Excluded: an item whose `status:` is `dispatch-succeeded` or `dispatch-failed`, which stays in `board-pending` for grooming.
-  - Carries `restart-session:` → needs a coworking-session spawn: conflict gate + spawn steps below apply.
-  - No `restart-session:` → basic task: start now, move to `board-running` via `--magic-advance-to-running`. No conflict gate, no spawn.
-- Required header on a `restart-session:` candidate: `recheck-date`. Missing → set to now first.
-- Conflict gate, any one dimension conflicting keeps the item in `board-pending`:
-  - Package/topic overlap with a currently running job.
-  - Resource contention: current MCP/machine load and concurrent complexity make a new start unsafe (no fixed max-job count; small non-intersecting no-console tasks pass).
-  - Document-lock contention: documents the candidate needs are actively locked/edited by another live session.
-- Contention-evidence rule: "was dispatched earlier today" or "liveness unknown" alone is never conflict evidence. Resource contention here needs a live signal from this pass (active lock/channel or a successful same-pass nudge/heartbeat).
-- Handling:
-  - Clear conflict evidence → keep in `board-pending`, note it, advance `recheck-date`.
-  - Ambiguous evidence → ask via `AskUserQuestion` — conflict dimension, observed signal, two options (`treat as conflict` / `allow start now`).
-- Start policy, non-conflicting `restart-session:` candidates:
-  - Spawn at most one per pass, via `spawn-one-dispatch`, move exactly that one item to `board-running`.
-  - Multiple equally ready → pick via `AskUserQuestion`, single choice list of candidate item names.
-  - One item per spawned session; never batch multiple board-items into one spawned session.
-  - Exception: `magic-coordinator.daily.routine`'s standing work-sessions take continuous task feed as each finishes.
-- Repeated conflicts: item stays `board-pending`, re-checks on `recheck-date` indefinitely — no auto-escalation here.
-- Before spawning: one last `AskUserQuestion` confirmation (`start this co-working session now?`), `yes`/`no`.
-- **Autonomous invocation** (unattended, via `magic-coordinator.heartbeat.routine`):
-  - rule: ambiguous conflict evidence defaults to `treat as conflict`.
-  - rule: default non-remote process-flow spawn sessions MUST first try the normal harness tool; use `--magic-heartbeat-spawn-proxy` only as fallback (no direct `Agent` tool).
-  - rule: proxy success in the same pass is required to move the item to `board-running`.
-  - rule: for the async (non-`--wait`) proxy call, "success" means "launched without an immediate failure signature," not "task completed" — an immediate launch-failure signature (e.g. a `⛔ ERROR:` line at the very start, before any real work output) counts as failure, its absence counts as success; this check stays bounded (seconds, not indefinite) and never blocks the pass waiting for the spawned session to finish.
-  - step: skip all three interactive prompts above.
-  - step: verify the async proxy call by waiting a few seconds after launch, then reading the resulting `output.log` for a failure signature.
-  - step: failure keeps or moves the item to `board-parked` in the same pass via `--magic-advance-to-parked` with all of:
-    - `condition: spawn required, proxy execution failed in this pass`
-    - `handoff-action: human-present harness-session retry required`
-    - `recheck-date: now + 17 minutes`
-    - `execution-receipt: <proxy-receipt-id-or-failure-marker>`
-  - step: post one `event-track` notification for this attempt.
-  - step: on each later recheck pass, retry once — success moves the item back to `board-running`; failure keeps it in `board-parked`, updates `recheck-date` to now + 17 minutes, and posts again.
-- Sole starter of never-started `board-pending` items: another place may call `spawn-one-dispatch` directly on its own instruction, but an unrequested pending dispatch only starts here.
+An outcome is done only when real state backs it: a message sent, a session spawned, a round run.
 
-### How to actually work an item -- a real decision tree (the missing procedure, applies before any per-type rule below decides an outcome)
+### Starting `board-pending` items
 
-Decision node: **what does this item's own gap actually require?**
-- **The gap is: nothing left to decide, just do it** (the next action is unambiguous) → branch A:
-  1. Identify the single concrete action (send a message, write a file, run a check) -- not "review it."
-  2. Execute it now, this pass, via the real tooling call it requires.
-  3. Verify it actually happened -- not assumed from having attempted it.
-  4. Record the outcome citing what was actually done, not a restatement of the goal.
-- **The gap is: a real choice between options exists** (which approach, which owner, proceed or park) → branch B:
-  1. Enumerate the actual options -- not one assumed path.
-  2. For each, state the real outcome/risk if chosen -- evaluate before choosing, not after.
-  3. Select one, with the reasoning recorded on the item, not just the pick.
-  4. Execute the selected option per branch A above.
-- **The gap is: missing information, not a missing decision** → branch C:
-  1. State exactly what's missing and where it would come from.
-  2. Get it this pass if it's a single tooling call away; otherwise flag it once, naming the specific missing fact, not a vague "needs more info."
+- Candidates: approved `board-pending` items with no dispatch recorded. The approval is the go; the running `main-loop` or session covers the spawn.
+- Conflict gate — any one keeps the item in `board-pending`, with `recheck-date` advanced:
+  - Package or topic overlap with a running job.
+  - Resource contention shown by a live signal this pass (an active lock or channel).
+  - A document the item needs is being edited by another live session.
+  "Dispatched earlier today" or "liveness unknown" alone is never evidence. Ambiguous evidence counts as a conflict.
+- Start at most one per pass, oldest first: spawn its `restart-session` group, or else its `owner`, through `spawn-one-dispatch`, and move it to `board-running`. One item per session.
+- A spawn that fails: move the item to `board-parked` (`--magic-advance-to-parked`) with `condition`, `handoff-action: spawn retry`, `recheck-date` now + 17 min and `execution-receipt`, and post once to `event-track`. Each recheck retries once.
+- This is the only starter of an unrequested `board-pending` item. Another routine may call `spawn-one-dispatch` only on its own instruction.
 
-A per-type rule below that reduces to "post a status/flag it" without walking one of these branches first is not doing the work, only describing that work exists.
+### Continuing `board-running` items
 
-### Continuing already-dispatched `board-running` items
+Every `board-running` item, every pass. An item whose `recheck-date` is still in the future, or below the staleness threshold, is skipped untouched: no write, no record.
 
-Continue an already-dispatched `board-running` item. Never a first-time start (see above). Team-wide name for this mechanism: `check-restart` (see `magic-coordinator.armed.md` Terminology).
-
-**General mechanism, every `board-running` item, every pass**:
-- `session-id` set: a session is already working this item.
-  - nudge it with this pass's own findings/updates, every time
-  - never spawn a second session for this same item
-  - failed nudge → treat as if `session-id` absent, continue below
-  - nudge delivered, but `started-at` is past the same "~5 main-loop iterations or ~1 hour" staleness threshold used below, with no state change across nudges this pass or the last → treat identically to a failed nudge: `session-id` absent, continue below (eligible for `restart-session:` respawn using this item's own already-recorded participant list, if present)
-- liveness unknown and no nudge path available from this pass alone → treat as if `session-id` absent (do not convert this into a pass-level blanket defer)
+- `session-id` set: nudge the session with this pass's relevant findings (`SendMessage`). Never spawn a second session for it. A failed nudge, or a session with no state change past the staleness threshold, is treated as `session-id` absent.
 - `session-id` absent:
-  - `interview-*`/`talk-*` prefix already tracking a Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass — a bounded resume-review + re-assess round over the existing Slack thread — never fall through to the `restart-session:` branch below for this case, even when `restart-session:` is also present.
-  - `interview-*`/`talk-*` prefix not tracking a Slack thread — no `communication-channel-id` at all, or one that is not a three-part `slack:<channel>:<ts>` value (a bare `slack:<channel>` tracks no thread) → apply this item's `interview-*`/`talk-*` per-type rule (below), this same pass, posting to a fresh Slack thread via `--member-comms-slack-send-message` (target `human-owner`) instead of a reply into an existing one — same bounded resume-review + re-assess round as above, never a separate pre-round message — never fall through to the `restart-session:` branch below for this case either, even when `restart-session:` is also present.
-    - Compose the returned `channel`/`ts` into one `slack:<channel>:<ts>` value and write it back as `communication-channel-id` via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:communication-channel-id:<value>` (one header, same-state patch, existing content preserved), so the item is Slack-thread-backed from the next pass onward.
-    - Post succeeded but write-back failed this pass → `flagged-once` (report the orphaned `channel:ts` via `slack-event-track`), never re-post a second backfill thread next pass.
-  - `restart-session: <team-member> [<team-member>...]` present → spawn a coworking session (`magic-coordinator` + the named member(s)) via `spawn-one-dispatch`, passing the corresponding routine, document name, context
-    - set `recheck-date` to now + 7min (jittered ±2min) and `session-id` to the new session's identifier, via `--magic-advance-to-running <team-member> <item-filename> --from-state:running --header:upsert:recheck-date:<value> --header:upsert:session-id:<value>` (same-state patch, existing content preserved)
-  - `restart-session:` absent, no per-type rule matches this item's prefix → post to `slack-event-track` via `--member-comms-slack-send-message` (target `event-track`) — "active `board-running` document with no handler: `<filename>`" — flag for `magic-team.grooming.routine`, outcome `no-action` (`no-action:no-handler-for-prefix`). Never execute anything inline for an unhandled prefix. This, and a temporary-error reason (below), are the only two valid reasons for `no-action` — see **Per-pass completion requirement**.
+  - `interview-*`: run its per-type rule, never the respawn below.
+  - `restart-session` present: respawn that group through `spawn-one-dispatch`, and set `recheck-date` to now + 7 min (±2 min) (`--magic-advance-to-running --from-state:running`).
+  - Approved, but no session, no `restart-session` and no dispatch recorded, past the threshold since `started-at`: dispatch its `participants`, else its `owner`, through `spawn-one-dispatch`. Outcome `respawned`.
+  - No per-type rule matches: post "running item with no handler: `<item>`" to `event-track` and flag it for grooming. Outcome `no-action`.
+- Staleness threshold: about 5 main-loop iterations or 1 hour, whichever comes first.
+- Console-backed work: check its channel with `--console-list`. A channel expected but gone is flagged, never restarted.
+- A live item that this pass's findings concern gets them relayed through its own channel: `SendMessage`, or `--console-send` for console-backed work.
+- At most two respawns per pass, oldest `date`/`owner-session-since` first. What started is named in **advance-report**, never in a DM.
+- Work order: by real coverage of the item's goal, then by age. A sub-task count is never the measure.
 
-- before continuing to check-restart the next `board-running` item whose handling above actually spawned/nudged/posted (a genuinely side-effecting call): execute the `--magic-advance-sleep-run` operation. A pure bookkeeping-only outcome recorded via `--magic-advance-batch-outcome` (below) needs no sleep-run at all — pacing exists to rate-limit real side effects, not frontmatter writes.
+### Per-type rules for `board-running` items
 
-**Work order**: rank by real coverage of the item's own actual goal, not a sub-task count -- sub-task count is gameable (many trivial sub-tasks can inflate a finished-ratio while covering almost none of the real scope) and is never used as the measure. Judge coverage against what the item is actually asking for; then by age.
+Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and this rule.
 
-No pass-wide blanket defer is allowed for `board-running` restart work. Apply this mechanism item-by-item within the existing per-pass concurrency caps.
+- `approval-*`: `recheck-date` due and not resolved → ask the human-owner in its tracked thread, else on his direct channel (`AskUserQuestion`, `wait: false`), leading with `NEEDS REPLY:`. Extend `recheck-date` to now + 17 min (±2 min). The ask is open, so it is not posted twice.
+- `interview-*`: run exactly one round of `magic-team.interview.routine`'s **resume-review** and **reassess-before-next-message** over its tracked thread. The round dispatches only pieces already approved, and sends at most one outward message, or one explicit close-out, then move on: the next pass continues it. With no tracked thread (`communication-channel-id` not `slack:<channel>:<ts>`), post the round to the human-owner and write the returned thread back as `communication-channel-id` (`--magic-advance-to-running --from-state:running`). A round finding every question resolved and none new moves the item to `board-processed` (`--magic-board-to-processed`).
+- `proposal-*`: carrying a `communication-channel-id`, it is in front of the human-owner (`magic-team.proposal.routine`). Read the thread root's closing reaction first: one is there, apply its outcome per that routine's **close-on-root-reaction**. None: take the `approval-*` rule. Otherwise run `magic-team.discuss.routine` over it this pass. That routine's **record-the-outcome** makes the move; approved or rejected, the item goes to `board-processed`.
+- `task-*`/`project-*`: completion claimed and no clean testing round → dispatch a `magic-tester` round in place. A stale testing round gets a fresh one. Otherwise apply the staleness checks above.
+- `dispatch-*`: nudge per the rule above, and append its report as a dated log entry (`--magic-advance-to-running --from-state:running`). The tooling moves a finished dispatch to `board-review`.
+- `change-*`: `recheck-date` due → check whether the change landed. Landed → `board-processed`. Not yet → extend `recheck-date` to now + 17 min.
+- `warning-*`: `recheck-date` due → condition no longer true: `board-processed`. Still true: re-escalate once in `event-track` and extend `recheck-date`. No `recheck-date`: set one.
+- **base restart**: a named participant cannot be spawned → move the item to `board-parked` (`--magic-advance-to-parked`) with `condition` naming that participant and a `recheck-date`, and report it.
 
-**Definition of done (a shared, explicit standard for "complete", not left to individual judgment)**: an outcome record alone does not mean an item is done -- it is done only when the outcome reflects real, verifiable state (a message actually sent, a session actually spawned, a real per-type round actually executed). A recorded outcome with no underlying action behind it is a false completion, not a valid one.
+### Per-pass outcomes
 
-**Per-pass completion requirement**:
-- An item whose `recheck-date` is genuinely still in the future, or whose staleness clock hasn't yet passed the threshold, is skipped entirely this pass: no write, no outcome record of any kind, not touched. This is not "no action" — it's "nothing due," and gets no record at all.
-- For every other `board-running` item, finish the pass with one explicit outcome record from this procedure (`nudged` / `respawned` / `redispatched` / `parked-spawn-failed` / `flagged-once` / `no-action`).
-- Every outcome record includes `execution-receipt`: spawn receipt id for spawn-proxy paths, dispatch/session id for redispatch/nudge paths, or explicit `inline:<timestamp>` / `no-action:<reason-code>` markers for non-spawn paths. **These shapes are exhaustive for this procedure's own `board-running` continuation outcomes** (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`) — no other string (an invented marker such as `no-new-signal-<date>`, or any other ad hoc receipt text) is a valid `execution-receipt` for any item, any such outcome; a conventions-check that finds anything outside these four shapes on a continuation outcome fails on sight. The separate `board-pending`→`board-parked` spawn-proxy-failure case (above, `parked-spawn-failed`) uses its own `<proxy-receipt-id-or-failure-marker>` shape instead — not one of these four, and not governed by this exhaustiveness claim.
-- **`no-action` means "no action" plus an explicit REASON — and exactly two reasons qualify, nothing else**: (1) no per-type rule matches this item's prefix at all (the unhandled-prefix case above), or (2) a temporary error occurred this pass that itself prevented the item's real handling step from running (a reason to retry next pass, never a reason to stop trying). "Not due yet," "below staleness threshold," and "no relevant updates" are not valid reasons for this outcome — those items are skipped untouched per the bullet above instead. An item whose prefix has a matching per-type rule and is actually due/stale this pass always gets a real outcome from executing that rule's steps — never `no-action` in place of executing them.
-- "Deferred" without one of these item-level outcomes is invalid.
-- **`interview-*`/`talk-*`/`proposal-*` pooled-batch-call exclusion**, rules:
-  - Unconditional, no exception: these items never enter the pooled batch call.
-  - Each carries its own per-type-specific deep-check requirement, required by the per-type rule below — the **resume-review** + **reassess-before-next-message** round for `interview-*`/`talk-*`, a full `magic-team.discuss.routine` pass over the item's own framed decision for `proposal-*`.
-  - Because of that requirement, none of the three ever qualify as "bookkeeping-only" the way the **At scale** note below allows for other prefixes.
-  - Every `interview-*`/`talk-*`/`proposal-*` outcome this pass — `nudged`/`redispatched`/`flagged-once`/`no-action` alike — is recorded as a direct consequence of actually executing that item's own per-type rule this same pass, never folded into a `--magic-advance-batch-outcome` call alongside other items' bookkeeping.
-  - Recording one of these outcomes via the pooled batch call is itself the defect this rule closes — never a valid path for these prefixes, whether or not the round genuinely ran standalone earlier in the pass.
-- **At scale** (many `board-running` items in one pass), rules:
-  - A genuine spawn/respawn/redispatch/park still goes through its own dedicated single-item op (`--magic-advance-to-running`/`--magic-advance-to-parked`), one call each, paced by `--magic-advance-sleep-run` as above.
-  - Every item whose outcome this pass is bookkeeping-only (`nudged`, `flagged-once`, `no-action`, or recording that a respawn/redispatch already happened via its own call) is recorded through one `--magic-advance-batch-outcome` call covering the whole set, instead of one sequential call per item.
-  - Exception: `interview-*`/`talk-*`/`proposal-*` items are excluded from this pooling entirely, no matter how many are in scope this pass — per the rule directly above.
+- Every due `board-running` item ends the pass with one outcome: `nudged`, `respawned`, `redispatched`, `flagged-once` or `no-action`. A spawn-failure park is `parked-spawn-failed`. "Deferred" is invalid.
+- `no-action` has exactly two valid reasons: no per-type rule matches the prefix, or a temporary error this pass stopped the real handling.
+- `execution-receipt` is one of: a spawn receipt id, a dispatch or session id, `inline:<timestamp>`, or `no-action:<reason-code>`.
+- Bookkeeping-only outcomes for several items go in one `--magic-advance-batch-outcome` call. `interview-*` and `proposal-*` outcomes never do: each comes from its own round.
+- A side-effecting call (spawn, nudge, redispatch, park) is followed by `--magic-advance-sleep-run` before the next item.
 
-**Staleness inputs feeding the mechanism above**:
-- Console-session-backed work: for any in-scope item naming/depending on a `DistroAgentsTools` workspace console session, run `--console-list`, cross-reference. Console expected but gone → flag/report it; do not autonomously restart the console.
-- Agent/Task-dispatch-backed work: for any `board-running` item other than a `dispatch-*` item, recording an unresolved dispatch note, compute how long unresolved. Treat "unresolved past ~5 main-loop iterations or ~1 hour, whichever comes first" as the staleness signal.
-  - The board-item's current state already prescribes a specific, safe, mechanical next step (e.g. a stale in-place testing round: dispatch a fresh `magic-tester` round): dispatch, record the new dispatch (id/time), report the redispatch once.
-  - Otherwise: flag and report once. Escalate-once — don't re-flag the identical stale dispatch every pass; wait for a human/grooming response.
-- Never-dispatched work: a `board-running` item, any prefix, carrying `approved-by`/`approved-at` but none of `session-id`, `restart-session:`, an active console session, or an unresolved dispatch note — no dispatch was ever actually made, whatever moved it into `board-running`. Compute elapsed time since `started-at`; the same "~5 main-loop iterations or ~1 hour, whichever comes first" threshold applies.
-  - Past threshold: dispatch a coworking session via `spawn-one-dispatch`, naming this item's own `participants` record if present, else its `owner:` header alone (mechanically read, never inferred from prose) — same shape as dispatching a prescribed mechanical next step above. Record `session-id`/`recheck-date` via `--magic-advance-to-running --from-state:running`, outcome `respawned`, report the dispatch once.
-  - Not yet past threshold: skip this item entirely this pass — no write, no outcome record; nothing is due yet.
-- For each `board-running` item confirmed alive above: check whether anything this pass did is relevant to that item.
-  - Relevant → relay via that process's own live channel: `--console-send` (command-only) for console-session-backed work, `SendMessage` for Agent/Task-dispatch-backed work.
-  - Not relevant → skip.
+### What reaches the human-owner
 
-**Restart-session spawn concurrency**:
-- At most two restart-session-driven coworking sessions per pass.
-- Multiple qualifying items (`session-id` absent, `restart-session:` present) same pass → spawn up to two, leave the rest.
-- Never batch multiple items into one spawned session.
-- Selecting which ones:
-  - Human present in `harness-session`-terminal → `AskUserQuestion`, single choice list of candidate item names; repeat once more if a second spawn is still available.
-  - **Autonomous invocation**, no human present (`headless`-session):
-    - rule: already `approved-by`/`approved-at`, no fresh judgment needed.
-    - rule: never a DM about a spawn — what started this pass is named in the per-type-checks `slack-event-track` record (below).
-    - step: select up to two, oldest `date`/`owner-session-since` first, then next-oldest.
-    - step: spawn without waiting.
-    - step: name what was started in that record.
-
-### Per-`board-running`-item task rules, by filename prefix
-
-Apply these per-`board-running`-item task rules, by filename prefix. State-only half of the same prefixes: `check-process-board` (`magic-coordinator.armed.md`).
-
-Each item here is a tracking document. Where a rule below spawns or restarts work on one, it spawns the group that item's `participants` record names, and hands each member the goal, the task, the document itself, and that prefix's own rule below. A prefix may also have a routine assigned — run it in the situations that prefix calls for. A `(placeholder) not yet defined` entry is a real deferral: complete it when that type is settled, never improvise a rule per item.
-
-- `approval-*` / `approve-*`: not resolved, `recheck-date` due → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation to human-owner; extend `recheck-date` to now + 17min (jittered ±2min), per **`recheck-date` computation** above. Re-ask leads with the `NEEDS REPLY:` marker; report `waiting on human-owner` only while that marker's occurrence stays unanswered.
-- `interview-*` / `talk-*`: run exactly one round — `magic-team.interview.routine`'s own **resume-review** + **reassess-before-next-message** — per that routine's own explicit non-blocking design, for real, over this item's own tracked thread.
-  - rule: a tracked thread (`communication-channel-id` in the three-part `slack:<channel>:<ts>` shape) always gets this round actually executed this pass before any outcome is recorded for it — never skipped in favor of a bulk/bookkeeping record (see **Per-pass completion requirement**'s `interview-*`/`talk-*` pooling exclusion above); this round's outcome is always recorded directly, never via `--magic-advance-batch-outcome`.
-  - rule: never attempt to run the interview to completion inline.
-  - rule: this round's own bound, precisely — that single outward action below is the full extent of this pass's inline work on this item, steps:
-    - `resume-review` dispatches only sub-pieces already settled from a prior pickup (mechanical, no new judgment call made inline — same "already-decided moves only" bound this whole routine runs under).
-    - `reassess-before-next-message` drafts and sends at most one next message (or records one explicit close-out).
-    - `check-execute-board` moves to the next `board-running` item immediately after, never waiting on a reply and never looping back for a second message within the same pass; the next sleep-5/respawn cycle's own `advance.routine` pass is what continues this item, not a longer inline stay here.
-  - rule: any re-ask/notification is drafted fresh from this round's own current read of context, the board (including relevant updates on other board-items/threads this topic depends on — items load and change independently, and this round is what surfaces that), and the thread itself — never a repeated, now-irrelevant question.
-  - rule: an update, an open question, or a wait that has gone on too long each require this round to produce real activity (a fresh question, a notice of what changed, or an explicit close-out) — not a static restatement of a stale prior message.
-  - rule: report `waiting on human-owner` only while a real, still-relevant open question stays unanswered.
-  - step: that round's own content already states every open question resolved and this pass raises no new one → flag it once via `slack-event-track` for `magic-team.grooming.routine`'s own `board-processed` closure (no `board-processed`-move operation is granted to this routine, so the move itself waits for grooming) — escalate-once, same as other stale-dispatch flags above, never re-flag the identical resolved item every pass.
-- `inquiry-*`: `recheck-date` due, no reply → re-ask into the thread its `communication-channel-id` tracks, or via the `--member-comms-slack-send-message` operation; extend `recheck-date` to now + 17min (jittered ±2min), per **`recheck-date` computation** above. Otherwise → no action this pass.
-- `task-*` / `project-*` / `epic-*`: apply the console-session/Agent-dispatch/never-dispatched-work stale-checks above.
-- `proposal-*`: `recheck-date` due → a `proposal-*` carrying a `communication-channel-id` is already in front of the human-owner and takes the `approval-*`/`approve-*` re-ask path above unchanged, `NEEDS REPLY:` marker included; `magic-team.discuss.routine` never closes one of those. Any other `proposal-*` → run `magic-team.discuss.routine` over this item's own framed decision, this same pass, per that routine's own Steps, rules:
-  - `magic-team.discuss.routine` owns all state changes for this item (see `check-process-board`'s Note on proposal items).
-  - That routine's own **record-the-outcome** step performs the resulting move itself — approved/promoted → `board-processed` plus the same unblock sweep `approval-*`/`approve-*` items use; rejected/dropped → `board-archived`.
-  - Never a bare re-ask outside that routine's own Steps.
-- `dispatch-*`: `session-id` set → nudge per the general mechanism above; append the report-back as a new dated log entry via `--magic-advance-to-running --from-state:running` — the item stays in `board-running`. `session-id` absent → apply the never-dispatched-work stale-check above, same as any other prefix.
-  - rule: every participant is written into the `dispatch-*` document at creation, before it is approved
-  - rule: approval adds or removes names on that list
-- `change-*`: `recheck-date` due → re-verify whether the underlying change has actually landed (the condition it was tracking); landed → move to `board-processed`, still pending → re-ask/extend `recheck-date` to now + 17min, same as `inquiry-*`.
-- `warning-*`: `recheck-date` due, condition still true → re-escalate once via `slack-event-track` (not a silent re-flag) and extend `recheck-date`; condition no longer true → move to `board-processed`. No `recheck-date` set → set one now, same as any item entering this loop without it.
-- `session-*`: the spawn includes every member the item's `participants` record names.
-- `note-*` / `reflection-*` / `transcript-*`: not expected in `board-running` → flag for `magic-team.grooming.routine`.
-- **base restart**: a named participant cannot be spawned, steps:
-  - move the item to `board-parked` via `--magic-advance-to-parked`
-  - set `condition` naming the participant that could not be spawned, via `--header:upsert:condition:<value>`
-  - set `recheck-date`, via `--header:upsert:recheck-date:<value>`
-  - report it in **advance-report**
-
-After all per-type checks, the pass's record and any message to the human-owner are two separate things.
-
-**The record goes to `slack-event-track`**, every pass, in **advance-report**'s own single post (`# Closure steps`): every item that stayed `board-running` with `recheck-date` untouched this pass (across this procedure's own pass and `check-process-board`'s already-run pass), this pass's `board-running` outcome counts (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`), and any autonomous-invocation restart-session spawns from this same pass (above). That trace is the whole record and is complete on its own — no DM carries any part of it, and none is needed to keep it.
-
-**A DM to the human-owner goes only for something he can act on**, on one of three reasons, each about a specific named thing this pass found:
-- a decision only he can make;
-- something blocked on him that he does not already know;
-- something that changes what he believed to be true.
-
-Never qualifying, however compactly phrased: an outcome tally, a `recheck-date` extension, a re-confirmed no-action, a contention note, a list of item names, and "nothing new since the last pass".
-
-**A pass finding nothing that qualifies sends nothing, and that is the step completing.** The pass's closing status at **advance-close-state-and-unlock** states that nothing qualified. Most passes end there, and a DM sent to show the step ran is the fault this rule exists to stop.
-
-**A DM that does go carries one topic and leads with what is wanted** — the item's own name and what is needed from him, per `magic-team/magic-team.shared.md`'s own "One topic per message, and the decision leads it". Two qualifying things go as two messages. The pass's findings stay in the `slack-event-track` trace and follow only if he asks for them.
-
-**Thread continuity**, for a DM that goes: read `human-owner-broadcast-thread-ts`/`human-owner-broadcast-thread-date` from the `heartbeat-state-note` first. Date matches today's real date → post this DM as a threaded reply, target `<channel>:<ts>` using that stored value, never the bare `human-owner` keyword. No match (absent, or a stale prior day) → post with the bare `human-owner` target as today's first such DM, capture `channel`/`ts` from this call's own JSON response, and write them back via `--magic-heartbeat-state-upsert` so a later qualifying DM this same day threads into it instead of starting fresh.
+- The whole pass record goes to `event-track` in **advance-report**.
+- A DM goes only for something he can act on: a decision only he can make, something blocked on him that he does not know, or something that changes what he believed. A tally, an extension, a re-confirmed no-action or "nothing new" never qualifies.
+- A pass with nothing qualifying sends nothing. That is the step completing.
+- A DM carries one topic and leads with what is needed. Same-day DMs go into today's thread: `human-owner-broadcast-thread-ts`/`-date` in the `heartbeat-state-note`. With none for today, post to `human-owner` and record the new thread (`--magic-heartbeat-state-upsert`).
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
-- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. An item still goes separately to the human-owner DM and `slack-magic-team` — but "genuinely important" is exactly the three reasons in `check-execute-board`'s own closing block, never a looser reading of the word.
-- Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this routine's every-iteration cadence would grind the whole accumulated pile each pass.
-- Not wired into `magic-team.coworking.routine`'s Steps/Closure Steps as separate calls — this routine runs unattended every main-loop iteration and its trace is debug-level. **advance-report** is that inherited closing obligation, discharged into `slack-event-track`.
-- Every real file read/write and communications API call this routine makes (including `check-process-board`'s own `--member-comms-slack-react` calls) is its own direct `mcp__myx_distro__execute` call — no Keep-Alive Console Session assumed or required, per `magic-team/magic-team.armed.md`'s process-flow rule.
-- Never resolves an open design/judgment question surfaced by an investigation subtask — flags it for `magic-team.grooming.routine`/`magic-architect`.
-- Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal.
-- `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as things are found, not batch it artificially.
-- No separate close-out step beyond `# Closure steps` below. This routine is invoked inline, mid-iteration, from `magic-coordinator.heartbeat.routine`; that iteration's own session close closes the work.
-- **advance-report** never repeats `check-process-board`'s own **board-report** — that step already covers this same pass's board-state findings.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
+- This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- This routine extends `magic-team.coworking.routine`, with these overrides: the session thread is `event-track`; **fold-in-learned-lessons** does not run; **advance-report** is the closing obligation.
+- Keep `event-track` current as things are found, not batched.
+- A `recheck-date` is computed as `magic-coordinator.armed.md` states below `check-process-board`.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-advance-input-scan <team-member>` (**advance-read-board-state**: read the in-scope board state; also `check-process-board`'s own **board-recompute-dependencies**, on the same already-loaded read)
-- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board`'s own never-started-`board-pending`-items step: basic-task start; **advance-review-items**: return a rejected `board-review` item with `--from-state:review`)
-- `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...` (`check-execute-board` fallback when spawn is required but cannot execute in this pass)
-- `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...` (**reconcile-dead-session**: a `board-running` item whose session is dead and which declares no `restart-session`, moved with `condition:` naming that session)
-- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:...]...` (**advance-review-items**: the coordinator accepts a `board-review` item it judged trivial)
-- `--magic-advance-lock-acquire <team-member> <owner-label>` (**advance-acquire-lock**: take this routine's lock before anything else runs)
-- `--magic-advance-lock-refresh <team-member>` (hold the lock across a long pass)
-- `--magic-advance-close-state-and-unlock <team-member>` (**advance-close-state-and-unlock**: release, setting `state: advance-finished`)
-- `--magic-advance-lock-status <team-member>` (ask who holds the lock; never a gate)
-- `--magic-advance-state-and-lock-upsert <team-member> [--header:...]... [--from-file <path>|--edit-patch-from-stdin]` (**advance-read-board-state**'s own session tracking document, kept current as the pass proceeds; **advance-close-state-and-unlock**'s closing content write)
-- `--magic-advance-sleep-run` (`check-restart`: executed before continuing to the next `board-running` item, side-effecting outcomes only)
-- `--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]` (**Per-pass completion requirement**, at scale: records bookkeeping-only outcomes for several `board-running` items in one call)
-- `--magic-heartbeat-spawn-proxy <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (`check-execute-board` autonomous spawn relay with execution receipt)
-- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**Thread continuity** write-back of `human-owner-broadcast-thread-ts`/`human-owner-broadcast-thread-date`, for a human-owner DM that qualifies)
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (**advance-report**: post the `event-track` report trace; also `check-execute-board`'s own per-type re-ask rules)
-
-## `--magic-advance-sleep-run` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-sleep-run` — read-only, no arguments: a fixed-duration pacing operation in `magic-coordinator.advance.routine`'s operation group. Required only after a genuinely side-effecting per-item call (spawn/nudge/redispatch/park); not required after `--magic-advance-batch-outcome`.
-
-## `--magic-advance-batch-outcome` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...` — records a per-pass outcome (`nudged`/`respawned`/`redispatched`/`flagged-once`/`no-action`) plus `execution-receipt` for several `board-running` items in one call, same-state (`running`→`running`), existing content preserved. Bookkeeping only — never moves state, never spawns; a genuine spawn/respawn/redispatch/park still goes through `--magic-advance-to-running`/`--magic-advance-to-parked`. The `execution-receipt` portion may itself contain colons (`inline:<timestamp>`, `no-action:<reason-code>` both pass through intact); must not contain a comma. Never `slack:<channel>:<ts>` — that shape is an item's own `communication-channel-id` header value, not an `execution-receipt`; `interview-*`/`talk-*` outcomes are recorded directly, never via this call (see **Per-pass completion requirement**'s pooling exclusion), and still use the same exhaustive four `execution-receipt` shapes as everything else. One malformed/failing entry is reported inline without aborting the rest of the batch; any failures make the whole call exit non-zero.
-
-## `--magic-advance-input-scan` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — scan of `board-pending`, `board-running`, `board-review`, `board-blocked` and `board-parked` — every item type, every frontmatter field, never `board-backlog` — plus this routine's own `state-and-lock` note as part of the same prepared input. After the board digest come three registry sections: `## team members`, `## spawned sessions` and `## pending replies`. `<team-member>` is the only argument; the scan's shape is fixed, and it reads every baseline item this routine needs — an item name is not a parameter to it.
-
-**Inbox scope**: `<team-member>`'s own inbox, notes only — the `pending-slack-reaction` and `pending-trello-update` records `check-pending-comms-actions` acts on. No inquiries, no reflections and no `client-*` inbox: those are `--magic-grooming-input-scan`'s. Board scope is all types / any owner, so a board item a `client-*` member filed is visible here on that ground alone.
-
-## `--magic-advance-lock-acquire` / `--magic-advance-lock-refresh` / `--magic-advance-close-state-and-unlock` / `--magic-advance-lock-status` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-lock-acquire <team-member> <owner-label>` / `--magic-advance-lock-refresh <team-member>` / `--magic-advance-close-state-and-unlock <team-member>` / `--magic-advance-lock-status <team-member>` — the single-instance lock this routine owns, one holder at a time. `acquire` prints `ACQUIRED` on a fresh take, or `RECLAIMED_STALE:...` when a dead holder's lock is taken over, both returning 0; on contention it prints `ACTIVE:...` and returns 1, which means this pass does not start. `<owner-label>` identifies the actual running agent/process by a fixed, discoverable name, not an ephemeral session id — distinct from `<team-member>`, the calling member's own identity. `refresh` prints `REFRESHED` and is what holds the lock across a long pass. `close-state-and-unlock` prints `RELEASED` and sets `state: advance-finished`. `status` is a question, not a gate: it prints current lock metadata, or `NO_LOCK` when free, and always returns 0.
-
-## `--magic-advance-state-and-lock-upsert` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--edit-patch-from-stdin]` — writes this routine's own `state-and-lock` note: the pass's session tracking content. Body content via `--from-file` or `--edit-patch-from-stdin`.
-
-## `--magic-advance-to-parked` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-parked` in one call, and/or patches its frontmatter. The calling step supplies `condition`/`handoff-action`/`recheck-date`/`execution-receipt` itself via `--header:*`.
-
-## `--magic-advance-to-running` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]` — moves a board item into `board-running` in one call. `--from-state:<state>` is required. `--header:*`/`--upsert-from-stdin`/`--edit-script-from-stdin`/`--edit-patch-from-stdin` pass straight through for whatever else the move also needs.
-
-## `--magic-heartbeat-state-upsert` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) `magic-coordinator.heartbeat.routine`'s own day-rhythm state record. Content via stdin by default, or `--from-file <path>`. Always a whole-record overwrite, never an append; empty content is refused rather than written — so a write-back of individual fields supplies the whole record, not just the changed pair.
-
-## `--member-comms-slack-send-message` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+- `--magic-advance-lock-acquire <team-member> <owner-label>`
+- `--magic-advance-lock-refresh <team-member>`
+- `--magic-advance-close-state-and-unlock <team-member>`
+- `--magic-advance-state-and-lock-upsert <team-member> [--header:...]...`
+- `--magic-advance-input-scan <team-member>`
+- `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:...]...`
+- `--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,...]`
+- `--magic-advance-sleep-run`
+- `--magic-heartbeat-state-read <team-member>`
+- `--magic-heartbeat-state-upsert <team-member>`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--console-list`
+- `--console-send <channel> [-- <command...>]`
 
 # Maintainer Notes
 
@@ -415,16 +202,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.heartbeat.routine` — the caller that invokes this routine every iteration, at the end of its loop.
-- `magic-coordinator.communication-sweep.routine` — the Comms step this routine runs right after; also the source of the `pending-slack-reaction` records `check-pending-comms-actions` consumes.
-- `magic-team.grooming.routine` — deeper, once-daily, three-actor pass this routine's own findings feed into when they need real judgment; also reads `check-process-board`'s own recorded dependency ordering for its own cross-member reprioritization.
-- `magic-librarian.morning-review.routine` — the distinct, structural-drift-focused board session, not duplicated by this routine's own reconciliation pass.
-- `magic-team.process-inbox.routine` — full own-inbox read (**advance-process-inbox**), distinct from `check-pending-comms-actions`'s narrow deferred-action slice.
-- `magic-coordinator/magic-coordinator.armed.md` — `check-process-board`'s own home, called from **advance-run-process-board**; `spawn-one-dispatch`, called from `check-execute-board`.
-- `magic-team/magic-team.board.md` — the board's own state model, write-authority rule, `processed/`/`archived/` outcome-ambiguity note, `# Process-Flow, the board dynamics` section.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, `--console-list`, calling convention, `--member-comms-slack-react`/`--console-send` mechanics.
-- `magic-team.grooming.routine`'s `rice-scoring` block — the four normalized dimensions `check-process-board`'s own dependency-recompute step records alongside, never silently reconciled with.
+- `magic-coordinator.heartbeat.routine` — runs this routine inline, last, every pass. `magic-coordinator.coordination-session.routine` runs it on a new update.
+- `magic-coordinator.armed.md` — `check-process-board`, `check-pending-comms-actions`, `spawn-one-dispatch`.
+- `magic-team.board.md` — board states and the advance/grooming split.
 
 ### Conventions
 
-None currently known beyond this file's own Local rules.
+None.

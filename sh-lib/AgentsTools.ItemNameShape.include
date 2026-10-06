@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ItemNameShape.include -- the item filename check every creating writer
+## of board-items and inbox items shares: <type>-<YYYYMMDD'T'HHmm'Z'>[-<matter>].md, the
+## seconds variant <type>-<YYYYMMDD'T'HHmmSS'Z'>[-<matter>].md also accepted (the naming
+## Rule, magic-team.armed.md). Sourced by AgentsTools.InternOpBoardUpsertMoveEdit.include
+## and AgentsTools.InternOpMemberInboxUpsert.include. Contract: MAGIC.md.
+##
+
+if ! type AgentsToolsItemNameShapeCheck > /dev/null 2>&1 ; then
+
+	## The type an item filename names: its leading lowercase token, or nothing.
+	AgentsToolsItemNameType(){ ## item filename
+		printf '%s\n' "$1" | LC_ALL=C sed -n -E 's/^([a-z][a-z0-9]*)(-.*|\.md)?$/\1/p'
+	}
+
+	## Says, never refuses: a name off the Rule's shape gets one warning quoting the
+	## Rule, and the item is still created under the name given -- the name carries the
+	## caller's own matter, so the tooling never rewrites it. Always returns 0.
+	AgentsToolsItemNameShapeCheck(){ ## item filename, context, label
+		if ! printf '%s\n' "$1" | LC_ALL=C grep -Eq '^[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9._-]+)?\.md$' ; then
+			echo "$MDSC_CMD: $2: ⚠️ WARNING: $3: $1 does not follow the naming Rule (magic-team.armed.md): \"when/if you add a date, always use \`YYYYMMDD'T'HHmm'Z'\` format. If seconds are required, use \`YYYYMMDD'T'HHmmSS'Z'\` extended variant.\" The shape is <type>-<date>-<matter>.md, for example task-$( date -u +%Y%m%dT%H%MZ )-short-matter.md. Created anyway." >&2
+		fi
+		return 0
+	}
+
+fi

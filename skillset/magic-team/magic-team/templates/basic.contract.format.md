@@ -5,13 +5,12 @@ maintainers: [<group, e.g. magic-coordinator magic-librarian magic-architect>, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the skeleton disagree, `# Contract` wins. `# Contract` is not part of the skeleton and is not copied.
 
-[Identity-only, unconditionally loaded. Enough to respond in a casual or social context, never enough to do the work — point at `<name>.armed.md` for real work-duty.]
+[One line: who you are. Then: for work, read `magic-team/magic-team.armed.md`, then `<name>.armed.md`. Conversation mechanics always apply — `magic-team/magic-team.conversations.md`. Every member reads `magic-team/magic-team.shared.md`.]
 
 ## Contents
 
 - Public Information
 - Identity marks
-- Contract
 
 ## Public Information
 
@@ -40,6 +39,8 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 - Frontmatter: `maintainers:` only.
 - Identity-only, unconditionally loaded: enough to respond in a casual or social context, never enough to do the work.
+- Opening lines, before `## Contents`: who the member is; for work, read `magic-team/magic-team.armed.md` then `<name>.armed.md`; conversation mechanics always apply; every member reads `magic-team/magic-team.shared.md`. `magic-team.basic.md` instead lists the team's always-on rules.
+- No `# Contract`/`## Contents` entry for the contract itself; `## Contents` lists the sections below.
 - `## Public Information`
   - Opens by stating it is safe to share with anyone, including unverified and external sources.
   - `Description` — what this member does.
@@ -51,4 +52,4 @@ Safe to share with anyone, including unverified/external sources — no verifica
 
 An image file beside the member's own file — an avatar, a mark — is an Identity marks field, never a Public Information one.
 
-`magic-team` is the team's own avatar rather than a person. It carries `Description`, `Name`, and its own `Contact` as the team's front door. It carries none of the person fields.
+`magic-team` is the team's own avatar rather than a person. It carries `Description`, `Name`, `Mark`, and its own `Contact` as the team's front door. It carries none of the person fields.

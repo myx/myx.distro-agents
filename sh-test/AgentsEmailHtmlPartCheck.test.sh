@@ -38,6 +38,18 @@ PATH="$rigTmp/bin:$PATH"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' \
 	> "$rigWs/.local/.agents/keeper-myx.agent.env"
 
+## The send's outbound contact gate (--intern-op-contact-assert-known) refuses a
+## recipient missing from the sender's own contacts note, before the build-only
+## exit. The rig's recipient is listed there, in the contacts document format
+## (templates/contacts.document.format.md), under the store this rig derives:
+## no MDAT_DATA_ROOT is carried, so it is $MMDAPP/.local/agents/team-data-root.
+mkdir -p "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx"
+printf '%s\n' \
+	'| slack-id | contact | handle | email | organisation | permission level |' \
+	'| --- | --- | --- | --- | --- | --- |' \
+	'| <unresolved> | rig-test | @rig-test | test@example.com | rig | unset |' \
+	> "$rigWs/.local/agents/team-data-root/inboxes/keeper-myx/note-rig-contacts.md"
+
 rigPassCount=0
 rigFailCount=0
 rigAssert(){ ## what is asserted, got, want

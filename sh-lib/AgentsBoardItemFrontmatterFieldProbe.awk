@@ -2,8 +2,8 @@
 ##
 ## AgentsBoardItemFrontmatterFieldProbe.awk -- reports whether one named field
 ## is present in a body's own frontmatter, for the move-stamp defaults in
-## AgentsTools.InternOpBoardUpsertMoveEdit.include and
-## AgentsTools.InternOpInboxToProcessed.include (contract: MAGIC.md).
+## AgentsTools.InternOpBoardUpsertMoveEdit.include (contract: MAGIC.md) and the
+## type check in AgentsTools.InternOpMemberInboxUpsert.include.
 ##
 ## Body on stdin, `-v fieldName=<name>`. Prints exactly one of:
 ##   HAS         -- frontmatter present, and it carries `<fieldName>: `

@@ -90,12 +90,13 @@
 📘 syntax: DistroAgentsTools.fn.sh --librarian-list-team-files-dates [<path>...]
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
 📘 syntax: DistroAgentsTools.fn.sh --librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
-📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
+📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
@@ -110,6 +111,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices
+📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -1645,9 +1647,10 @@
 
 		--librarian-inbox-item-trash <team-member> <item-filename> --from-inbox:<member>
 			Discards one of `<member>`'s inbox items -- live or already
-			processed. Searched in order: the live inbox root, then its
-			`processed/`; first match wins, so a basename in both leaves
-			the processed copy untouched -- root-first, so the copy
+			processed. Searched in order: the inbox root, then its legacy
+			`processed/` (items drained before the in-place marker, until
+			the GC empties it); first match wins, so a basename in both
+			leaves the legacy copy untouched -- root-first, so the copy
 			discarded is always one the caller could have read. `--from-
 			inbox:` is colon-style only. `<member>` must be a bare name;
 			`<item-filename>` a bare name ending `.md`. No type-prefix
@@ -1661,29 +1664,40 @@
 			won't restore it. Treat every call as final.
 
 		--librarian-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-			Moves one item out of `<team-member>`'s own live inbox
-			root into that inbox's `processed/`, deleting the
-			original. `<item-filename>` must be a bare name ending
-			`.md`. No `--from-inbox:<member>` here -- the source is
+			Marks one item in `<team-member>`'s own inbox root
+			processed, IN PLACE: stamps `processed-at` into its
+			frontmatter (creating the block when the item has none)
+			and commits it. The item stays where it is; active inbox
+			scans skip it from then on, and the GC deletes it once the
+			stamp is older than the retention (`warning-*`/
+			`reflection-*` one day, everything else seven).
+			`<item-filename>` must be a bare name ending `.md`. No `--from-inbox:<member>` here -- the source is
 			always the acting member's own inbox; `--from-state:`/
 			`--from-inbox:` are both rejected if given. `--header:*`
 			and the three body-input modes behave as on the
 			`--magic-board-to-*` family.
 
-			Auto-stamps `processed-at` on the drained item unless:
-			the caller gives `--header:<op>:processed-at` (including
-			`:remove:` for no stamp); the body already carries
-			`processed-at`; or the body has no complete frontmatter
-			block to stamp into.
+			A caller's `--header:<op>:processed-at` wins over the
+			stamp (`:remove:` for none). An item already marked keeps
+			its original `processed-at`: a plain re-mark is a no-op
+			success, and an edit applies without moving the stamp.
+			An item in the legacy `processed/` folder is already
+			processed: a plain re-mark succeeds as a no-op, an edit is
+			refused (that folder is read-only).
 
-			Refuses rather than overwrites if `processed/` already
-			holds that basename, leaving the source in place -- a
-			refused call is safe to fix and re-run.
+		--member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+			Marks one of `<team-member>`'s OWN inbox items handled:
+			`processed-at` stamped in place, exactly as
+			`--librarian-inbox-to-processed` (a given processed-at wins,
+			a re-mark is a no-op, the original stamp is kept). Any
+			member may call it for its own inbox:
+			`<team-member>` is both the actor and the inbox, must be a
+			real member skill directory, and a spawned session acting
+			as another member is refused. `<item-filename>` is a bare
+			name ending `.md`. `--header:*` and the three body-input
+			modes behave as on the `--magic-board-to-*` family.
 
-			**ONE-WAY** -- the original is deleted once the
-			processed/ copy is written. Treat every call as final.
-
-		--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
 			inbox. Checks nothing about who is writing -- whose inbox a
 			member may write into is a team rule, not enforced here.
@@ -1698,14 +1712,32 @@
 			found, or matches more than once without `replace_all`,
 			fails loud before anything is written.
 
-		--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]
+			A NEW item (no file of that name in the inbox yet):
+			- Name: written exactly as given. A name off the naming
+			  Rule's `<type>-<YYYYMMDD'T'HHmm'Z'>-<matter>.md` shape (or
+			  its `HHmmSS'Z'` seconds variant) gets one warning quoting
+			  the Rule, and so does a type that is not an inbox type
+			  (note-*, inquiry-*, reflection-*); neither is refused.
+			- Frontmatter: `type` (the name's prefix), `from` (the
+			  writing member: `--from-member <member>`, else the spawned
+			  session's own member, else left out), `date` (now, in the
+			  team's `date-time` format) and `owner` (`<member>`, whose
+			  inbox it is) are added where the content does not already
+			  carry them. A given value is never overwritten; content
+			  with no frontmatter gets one.
+			An update of an existing item keeps its name and its
+			headers as they are.
+
+		--member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]
 			Passes an inquiry into a member's own inbox -- the standard
 			hand-off mechanism. `<member>` must exist as a real skill
 			directory; `<item-filename>` a bare filename. Inbox created
 			lazily if missing. Content via stdin by default, or
-			`--from-file <path>`.
+			`--from-file <path>`. A new item's required
+			`type`/`from`/`date`/`owner` headers are completed as in
+			`--member-inbox-note-upsert`.
 
-		--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]
+		--member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a
 			member's own inbox. Same arguments, lazy inbox creation,
 			stdin/`--from-file` content and `--edit-patch-from-stdin`
@@ -1735,10 +1767,10 @@
 
 		--member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 			Read-only read of one item in `<member>`'s own inbox, by bare
-			`<item-filename>`. Searches the live inbox root first, then
-			its `processed/`, first match wins. `<item-filename>` must
-			carry one of the four type prefixes: `note-`/`inquiry-`/
-			`reflection-`/`warning-`. `--start-line`/`--end-line` must be
+			`<item-filename>`. Searches the inbox root first (marked or
+			not), then its legacy `processed/`, first match wins.
+			`<item-filename>` must carry one of the four type prefixes:
+			`note-`/`inquiry-`/`reflection-`/`warning-`. `--start-line`/`--end-line` must be
 			given as a complete pair.
 
 		--member-inbox-item-trash <member> <item-filename>
@@ -1747,7 +1779,7 @@
 			is REFUSED, so a member-scoped call can never become a
 			cross-member one (use `--librarian-inbox-item-trash` for
 			another member's inbox). Resolution as
-			`--member-inbox-item-read`: live root then `processed/`,
+			`--member-inbox-item-read`: root then legacy `processed/`,
 			first match wins, not found in either names both. No
 			type-prefix restriction. An item carrying `archive: true` is
 			discarded like any other -- that header only diverts the
@@ -2034,9 +2066,23 @@
 		--make-workspace-integrations [--quiet]
 			Runs all `--make-*` commands, then
 			--install-workspace-integrations, then
-			--install-workspace-restrictions, against $MMDAPP. A step
+			--install-workspace-restrictions, then
+			--make-harness-indices, against $MMDAPP. A step
 			that fails ends the run; later steps don't run. `--quiet`
 			suppresses the usage guidance normally printed.
+
+		--make-harness-indices
+			Writes the universal harness's own indexes in
+			`$MMDAPP/.local/agents`, which it reads with builtins at every
+			start instead of recomputing them: `harness.roots.index`
+			(the access roots, already resolved) and
+			`harness.hooks.index` (the PreToolUse hook list), one section
+			per origin a harness of this workspace runs from, and
+			`mcp.servers.index` (each registered MCP server resolved, as
+			--install-vscode-integrations also writes it). Each is
+			produced by the code the harness otherwise runs and is used
+			only while what it was produced from is unchanged, so a
+			missing or stale one only costs time. Takes no arguments.
 
 		--make-agents-indices
 			Rebuilds the prepared registries of this workspace's team
@@ -2148,6 +2194,10 @@
 			no existing body to carry forward. `communication-channel-
 			id`, `approved-by`/`approved-at`, `blocks`/`blocked-by` and
 			`references` ride `--header:*` in this same write.
+			Creation headers (`type`, `from` = <team-member>, `date`)
+			are completed by the tooling, as for
+			`--magic-board-create-running`; `owner` stays the
+			`--owner-header-value`.
 
 		--magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
 			As `--magic-grooming-create-backlog`, target board/processed/
@@ -2211,6 +2261,17 @@
 			--comms-since-utime or --comms-since-date-time,
 			mutually exclusive, passed unchanged to every client
 			member's own sweep.
+
+			Every `## slack-message` item block carries `author:` and
+			`addressees:` right after `user:`, so no reader parses a
+			message itself. Where the text opens with the team's own
+			send header (`*_<from>_* @<alias> → <addressee>; ....`),
+			`author:` is the member named there and `addressees:`
+			the members, accounts or conversations it names, or
+			`@here (unaddressed)`. Without that header, `author:` is
+			the platform sender (as `user:`) and `addressees:` the
+			accounts the text mentions, `@here (unaddressed)` for a
+			channel-wide mention, or `(none stated)`.
 
 			**Hazard: not a workspace-wide mention search** -- a
 			conversation or mention outside the already-watched
@@ -2392,8 +2453,9 @@
 
 			--wait-timeout: bound in whole seconds, default 300.
 			--wait-poll-interval: whole seconds between probes,
-			default 19 (MDAT_WAIT_POLL_SECONDS when set), minimum
-			1 -- only affects how soon an
+			fixed when given (or MDAT_WAIT_POLL_SECONDS when set),
+			minimum 1. Unset, it backs off: 5s, growing 15s per 5
+			minutes waited, capped at 300s. Only affects how soon an
 			arrival is noticed. --wait-since-utime: epoch seconds;
 			give it to catch something already posted (e.g. a
 			message just sent) so it counts as an immediate
@@ -2591,9 +2653,9 @@
 			routine triggered the arming). Returns that same member's own
 			inbox first, as two sections: its reflections, then its notes
 			(`## inbox/<item-filename>`, frontmatter and body; top-level
-			items only, processed/ excluded, at most 64 each). A section with
-			nothing in it, a not-yet-created inbox/ included, prints a note
-			saying so, not an error. Inquiries and
+			items only, items marked `processed-at` excluded, at most 64
+			each). A section with nothing in it, a not-yet-created inbox/
+			included, prints a note saying so, not an error. Inquiries and
 			other inbox items are not returned. Then its board items:
 			pending/running/review/blocked, restricted to the items owned by
 			<team-member>, every board-item type, every frontmatter field,
@@ -2626,14 +2688,19 @@
 			doesn't exist yet reports as nothing to report, not an
 			error; content only, never evaluates the lock). Then, under
 			a `## board digest` heading, `<team-member>`'s own inbox
-			reflections: top-level items only, processed/ excluded, at
+			reflections: top-level items only, marked items excluded, at
 			most 64, each with frontmatter and body. No board items.
 			Before the digest, a `## questions (pending replies)`
 			section shows the main loop's last collect of unanswered
 			questions, then every question still open, from any member,
 			with its session, asker and age. Then a `## spawned
 			sessions` section: each spawn's recorded close status and
-			exit code, and whether its process is alive now.
+			exit code, and whether its process is alive now. Then a
+			`## board counts` section: one `<state>: <n>` line per board
+			state (backlog, pending, running, review, blocked, parked,
+			processed, archived, retained), counted live at scan time
+			from the `*.md` files directly in that state's folder --
+			the counts a report needs, with no count of its own.
 			`<team-member>` is the only argument -- no --state/--header
 			override.
 
@@ -2808,9 +2875,18 @@
 			approval-* item raised when a board-backlog item is flagged
 			for human-owner approval (the move half of that same step is
 			`--magic-board-to-blocked`). `--from-state:` is rejected: a
-			created item has no source state. No auto-stamp.
-			`blocks`/`blocked-by` ride `--header:*` in this same write.
-			One body-input mode is required.
+			created item has no source state. `blocks`/`blocked-by`
+			ride `--header:*` in this same write. One body-input mode
+			is required.
+			The name is used exactly as given; one off the naming
+			Rule's `<type>-<YYYYMMDD'T'HHmm'Z'>-<matter>.md` shape is
+			still created, with one warning quoting the Rule.
+			The tooling completes the creation headers, never over a
+			given value:
+			- Frontmatter: `type` (the name's prefix), `from`
+			  (`<team-member>`) and `date` (now, `date-time` format)
+			  are added where neither the body nor a `--header:*`
+			  gives them. `started-at` is stamped as before.
 
 		--magic-advance-lock-acquire <team-member> <owner-label>
 		--magic-grooming-lock-acquire <team-member> <owner-label>
@@ -3049,6 +3125,12 @@
 			`--edit-patch-from-stdin`. Empty content is rejected. If
 			`--edit-patch-from-stdin` is used, stdin must be a JSON patch array
 			for exact-literal replace operations.
+			While the note says `state: heartbeat-running`, every state
+			write also refreshes the lock: `recheck-date` is set to now
+			+ 15 minutes, the same value `--magic-heartbeat-lock-refresh`
+			writes, so a pass that keeps writing its state needs no
+			separate refresh call for it. Any other state is carried
+			over untouched.
 
 		--magic-heartbeat-lock-acquire <team-member> <owner-label>
 			Takes routine-heartbeat's lock before any other step. Prints
@@ -3266,13 +3348,13 @@
 
 		# Post a note into another member's own personal inbox
 		```
-		DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx 2026-07-22-note-example.md <<'EOF'
+		DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx note-20260722T0930Z-example.md <<'EOF'
 		... note content ...
 		EOF
 		```
 
 		# Same, via --from-file instead of stdin
-		`DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx 2026-07-22-note-example.md --from-file /path/to/note.md`
+		`DistroAgentsTools.fn.sh --member-inbox-note-upsert keeper-myx note-20260722T0930Z-example.md --from-file /path/to/note.md`
 
 		# Append one session transcript entry (one call = one entry block)
 		`DistroAgentsTools.fn.sh --member-append-session-transcript magic-coordinator --speaker human-owner --timestamp 2026-07-26T12:34:56Z --message "Approved. Proceed." --transcript-name transcript-2026-07-26-example.md --create`

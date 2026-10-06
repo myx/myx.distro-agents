@@ -1,5 +1,5 @@
 ---
-executors: magic-coordinator (light)
+executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
 # magic-coordinator.heartbeat.routine — the actual procedure
@@ -12,25 +12,11 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Steps
 - Closure steps
 - Routine's local procedures
-  - `day-rhythm-state` procedure
-  - `single-instance-lock` procedure
-  - `spawn-proxy` procedure
-    - Prompt packet (required)
-    - Receipt packet (required)
+  - `day-rhythm-state` — what is due today
+  - `single-instance-lock` — one pass at a time
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--member-comms-slack-send-message` operation reference
-  - `--member-comms-email-send` operation reference
-  - `--member-comms-slack-react` operation reference
-  - `--magic-heartbeat-config-check` operation reference
-  - `--magic-heartbeat-input-scan` operation reference
-  - `--magic-advance-input-scan` operation reference
-  - `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
-  - `--magic-heartbeat-state-read` operation reference
-  - `--magic-heartbeat-state-upsert` operation reference
-  - `--magic-heartbeat-board-item-trash` operation reference
-  - `--magic-heartbeat-spawn-proxy` operation reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -40,303 +26,109 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-Routine-heartbeat is the team's continuous, self-driven operating rhythm — deciding what's due (`magic-coordinator.advance.routine`, once-daily grooming, the daily meeting's work-session fan-out), running advance inline and dispatching the rest as separate spawned sessions — so the team acts without a human re-triggering each step.
+`magic-coordinator.heartbeat.routine` is one `main-loop` pass: it decides what is due, dispatches it, and runs one advance pass inline.
 
 ## Goals
 
-- Continuous, self-driven operating rhythm — not gated on a human re-triggering each step:
-  - `magic-coordinator.advance.routine` dispatched every pass
-  - backlog groomed once a day
-  - daily meeting's work-session fan-out actually happens
-- Self-driven by the host loop that spawns each `next-iteration` — the team's own operating cadence doesn't depend on continuous human observation.
-- Defines the team's whole 7-day operating rhythm.
+- Give the team a continuous operating rhythm, seven days a week, that does not wait for a human to re-trigger each step.
+- Every pass runs `magic-coordinator.advance.routine`. The backlog is groomed once a day, and the daily meeting's work session happens.
 
 ## Scope
 
 - Does:
-  - Decides what's due (`magic-team.grooming.routine`/`magic-coordinator.daily.routine`/`magic-coordinator.advance.routine`), dispatches grooming and the daily flow as separate spawned sessions via **spawn-proxy**, and runs advance inline.
-  - Runs one `magic-coordinator.advance.routine` pass **inline in this session** every `next-iteration`, at the end of the loop — the pass is not finished, and the lock is not released, until advance is done, which inline execution makes structural rather than conditional.
-  - Runs only as a `next-iteration` spawned by the host loop — never started from a session.
-    - Ongoing resource commitment (30s-2min-ish cadence, potentially hours) — the loop is never started implicitly just because this routine exists.
-- Doesn't do:
-  - Self-schedule or idle-wait for anything — one bounded pass per `next-iteration`, then exits.
-  - Isn't one of "the four" (daily-meeting/retro/grooming/one-on-one) — the daily meeting remains where bigger, human-supervised decisions get made.
-  - Doesn't currently call `magic-coordinator.retro.routine` from any default branch (only grooming and daily-meeting are called) — `magic-coordinator.retro.routine`'s own "Autonomous invocation" addendum exists for consistency, not because the current design invokes it.
-  - Doesn't read, scan, or write any board item, and doesn't run another routine's own Steps itself — that work happens only inside the dispatched session. Its one persistent artifact is its own `heartbeat-state-note`.
+  - Run as one pass, spawned by the host loop through `--intern-root-harness --routine heartbeat --non-interactive`. No member starts, stops or relays into it.
+  - Dispatch `magic-team.grooming.routine` and `magic-coordinator.daily.routine` as their own sessions when due.
+  - Run `magic-coordinator.external-inbox-handle-loop.routine` and `magic-coordinator.advance.routine` inline.
+  - Keep the `heartbeat-state-note` current.
+- Doesn't:
+  - Repeat itself. Repetition is the host loop's.
+  - Run `magic-coordinator.retro.routine`, which is manual.
+  - Work board items itself. Its board work happens inside the advance pass, apart from registering a decision only the human-owner can make.
+- Open, pending:
+  - Open: the team calendar / full-sprint routine each pass would check what is due against. Until it exists, the `day-rhythm-state` procedure decides.
+  - Open: autonomous retro invocation from a day-rhythm branch; retro stays manual until designed.
+  - Open: the real report cadence — hourly during the day and an evening wrap-up — and its HTML/multipart layout. **send-test-report** is the hourly testing stand-in.
+  - Open: a light staleness check across acting members' inboxes, raising a `warning-*` for a member's stale item. It waits for a scan that reads other members' inbox ages.
+  - Open: slow-tier platforms (deep Trello board reads, Google Drive/Sheets, Confluence) checked every few passes or from grooming, not every pass.
+  - Open: what happens to an advance pass that hangs. The human-owner's policy call; no bound is set.
+  - Open: `TEAM-ORGANIZATION-VISION.md` addenda for main-loop elevation and the architect's resolution of it.
 
 # Steps
 
-Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently. Each step below runs once per `next-iteration`, in sequence — one bounded pass, not a continuous loop of its own.
+Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **check-required-config**: `--magic-heartbeat-config-check` operation.
-   - State the outcome in this pass's own output — each missing key's line already carries its own exact fix command.
-   - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
-   - **On success**: continue.
-2. **acquire-lock**: `single-instance-lock` procedure, `--magic-heartbeat-lock-acquire` operation.
-   - State the outcome in this pass's own output.
-   - **On failure**: `sleep 15`, then exit — no further steps run this cycle, nothing else touched.
-   - **On success**: continue.
-   - **An anomaly here (an undocumented lock state, an unexpected owner/meta) is assess→investigate work**: governed by `magic-coordinator.root-harness.routine`'s **apply-harness-session-rules** step, not restated here.
-3. **use-direct-tooling-calls**: no console session — this `next-iteration`'s own execution model, per `magic-team/magic-team.armed.md`'s process-flow rule: no Keep-Alive Console Session opens, none is assumed.
-   - Every `DistroAgentsTools.fn.sh` call from here on goes through `mcp__myx_distro__execute`, which is what puts the workspace environment the call needs in place.
-   - Every `heartbeat-state-note` update goes through `--magic-heartbeat-state-upsert` via `mcp__myx_distro__execute` — never the Edit/Write tools, never a raw shell redirect, never a raw Bash call.
-   - That record is rewritten every `next-iteration`; a permission prompt on it halts this whole unattended loop until a human clicks it.
-4. **open-event-track-thread**: start a Slack thread in `slack-event-track` — `--member-comms-slack-send-message` operation, literal target argument `event-track` (no `slack-` prefix), a short opening line for this `next-iteration`.
-   - Not `slack-magic-team` — that's the human-facing channel; this thread is this routine's own execution log for this run.
-5. **read-state-and-branch**: read the `heartbeat-state-note`, branch per the `day-rhythm-state` procedure — weekend / first-today / later-today.
-6. **run-one-bounded-substep**: run one bounded step for that branch — not everything at once; each sub-step's own calls are direct per **use-direct-tooling-calls**, no shared session to carry between them.
-   - After each sub-step: post a short progress report into the thread opened at **open-event-track-thread**.
-   - Between each sub-step: check for messages from sub-spawned sessions. For each one found, assess what it needs, dispatch any real work to a sub-session, and record the outcome in this pass's own output and the **open-event-track-thread** thread — this pass has no live human to relay to.
-   - Sub-steps, in order:
-     - **Heartbeat iteration input** (first, every `next-iteration`): call the `--magic-heartbeat-input-scan` operation to load this routine's own prepared input for this pass — every sub-step below works from what it returns. It returns no board items, so the **Test email report** reads them from the scan named there.
-     - **Inbox processing**:
-       - Run `magic-team.process-inbox.routine magic-coordinator` — inline execution, own identity. This loop is that routine's regular caller, not its only invocation path (see `magic-team.process-inbox.routine` for standalone/ad hoc invocation and the morning self-review).
-       - Items owned by a non-acting owner (human-owner, external contacts): run `magic-coordinator.external-inbox-handle-loop.routine` — their content lives inside `magic-coordinator`'s own inbox too, since they have no skill folder of their own.
-       - Items owned by an acting member: leave for the next `magic-coordinator.daily.routine`/`magic-team.grooming.routine` pass to fold into that member's properly-registered assignment, unless there's a specific reason to invoke `magic-team.process-inbox.routine` standalone for that member right now.
-         - **Automatic nudge**: content that looks stale (age-based, same light check this sub-step already does across acting members' inboxes) gets a `warning-*` board-item in `board-blocked` instead of silently waiting — `recheck-date` set to today, `condition: <member> hasn't processed inbox item <item-filename> yet`, referencing the stale item. Already one open for this item: refresh `recheck-date` only, don't duplicate.
-     - **Test email report** (hourly cadence, testing only): a conditional, date/context-based step, not a separate routine — happens after the Comms step above, not every `next-iteration`.
-       - This is the still-undesigned evening day-wrap-up email report, run **hourly instead of once-daily purely for closer testing convenience** — a literal frequency change, not a timescale/ratio compression of the eventual real cadence.
-       - Two intended cadences exist in the eventual design (hourly-during-the-day, and one evening wrap-up), neither fully specified yet — this step exists only to exercise the send mechanism while real cadence/content design waits on the human-owner seeing real hourly test reports in practice.
-       - Independent of the day-rhythm state machine's own checks — the two never get coupled; this step runs (or doesn't, per the hourly check) regardless of which of the weekend/first-today/later-today branches this `next-iteration` is in.
-       - Content: the plain-text placeholder must be a real, readable, multi-section structure, not one line:
-         - **Board statistics** — one line per board state (`board-backlog`, `board-pending`, `board-running`, `board-blocked`, `board-parked`, `board-processed`, `board-archived`, `board-retained`) with its count, computed live at send time via `magic-tooling` (`find`/`wc` per `board-<state>` folder) — never cached or persisted as standing state.
-         - **Active processes** — one line per active/blocked item naming it and its state (in-work/blocked/etc.), not just a number. The lines come from the `--magic-advance-input-scan` operation's board rows, each labelled `<state>/<item-filename>`.
-         - Shape: an iteration/timestamp header line, then the Board statistics section, then the Active processes section.
-       - Full HTML/multipart layout redesign stays deferred (the text-vs-HTML question is still open) — this is a content/structure floor, not the eventual full design.
-       - Sent via the `--member-comms-email-send` magic-tooling operation — never a session's own personal mail connector.
-       - Cadence check: track `last-test-email-sent` in the `heartbeat-state-note` and check "has an hour passed" the same mechanical way the day-rhythm check works — not fired every single `next-iteration` regardless of the fast-tier's 30s-2min cadence.
-     - **First-today only**: dispatch `magic-team.grooming.routine` as a separate spawned session via **spawn-proxy** — librarian context prep and the batched `magic-librarian` own-inbox processing pass (`magic-librarian`'s own "Own inbox: collect and batch, don't fix ad hoc" standard) happen inside that dispatched session, not inline here.
-     - **Later-today**: dispatch `magic-coordinator.daily.routine`'s flow as a separate spawned session via **spawn-proxy**, watching for planned work-sessions.
-     - **`heartbeat-state-note` update**: a small, mostly-static state record, not a running history — updated every single `next-iteration`, not just narrative-notable ones.
-       - The structured header block (`last-iteration-date`/`last-iteration-timestamp`/`today-stage`/`active-project`) is refreshed to this `next-iteration`'s own values each time, never left at an earlier `next-iteration`'s values — a stale header is indistinguishable from a stopped loop to anyone checking it.
-       - The file's "Last iteration" section is overwritten each `next-iteration`, not appended to — one short paragraph replacing the previous one, not a growing tail.
-       - Anything worth a permanent record does not accumulate here — it goes to one of two places: this `next-iteration`'s own `slack-event-track` thread (**open-event-track-thread**), for anything about this run specifically; or a `magic-coordinator/inbox/` reflection memo, for anything that should outlive this single run.
-     - **Stale-flag escalation**:
-       - Trigger: the same open decision-point already flagged in a prior `next-iteration`'s `active-project` field or `slack-magic-team` trace (matched by its own recorded wording, not a brand-new occurrence), still carried forward unresolved across roughly 5+ consecutive `next-iteration`s or ~1 hour of elapsed time, whichever comes first.
-       - Action: escalate it **exactly once** — a direct, focused `human-owner` DM naming the specific decision needed (not `slack-magic-team`: this needs the human-owner's own personal answer, not a team-channel post nobody's individually tagged on), not another repeat of the flag — instead of continuing to silently re-flag it every subsequent iteration with no one ever actually asking.
-       - Does **not** authorize deciding the flagged question itself — still `main`/the human-owner's call, unchanged. It only converts "flagged repeatedly, never asked plainly" into "asked once, clearly," consistent with the standing "batch human-hands-on items, don't drip them" posture, applied here to stale decision-flags rather than physical actions.
-       - **Once escalated**:
-         - rule: don't re-escalate the same flag on later `next-iteration`s unless the human-owner's response itself calls for a follow-up
-         - step: record `escalated: <timestamp>` alongside the flag in the `heartbeat-state-note`'s `active-project` field
-     - **Board advance, end of loop, every `next-iteration`**: run one `magic-coordinator.advance.routine` pass **inline, in this session, under this member's own identity** — the same shape this routine already uses for `magic-team.process-inbox.routine`. Every pass, no first-today/later-today gate.
-       - **Inline is what makes it synchronous, structurally rather than by flag.** The pass cannot continue past advance because advance *is* this pass: no Closure step runs while it is unfinished, the `single-instance-lock` stays held for its whole run, the ✅ at **conclude-event-track-thread** means the whole pass concluded, and **report-status-to-spawner** carries advance's own outcome rather than only that something was dispatched. Synchronicity stops being a property of a flag that can be dropped.
-       - **Never an `Agent` call, and no longer a spawn either.** The `Agent` ban stands on its own measured grounds: not every host CLI offers one, and an `Agent` child is in-process — it dies with the session, and this routine exits within seconds of dispatching, so the child is destroyed having done almost nothing while the pass reports ✅ over it. Inline execution is not an `Agent` call and does not reinstate one. Dropping the spawn also lifts advance out of depth 2 in the host loop → heartbeat → advance chain, the depth `spawn-one-dispatch` records as unreliable — where a child's report can describe an entire session's files that were never written.
-       - **A hung advance is not bounded here.** The proxy `--wait` was bounded by the call itself and said so in its own receipt; inline execution has no call and no child, so nothing cuts it short. That gap is stated rather than closed: what should happen to an advance that hangs is the human-owner's own policy call and no value has been given for it.
-       - **Progress is visible by construction.** Advance's output is this pass's own output, so nothing has to be plumbed to reach it. The two hazards the proxy form had to warn against — dropping `--wait`, and passing `--from-board`/`--from-vault`/`--from-audit` so a dispatch document redirects the run into an audit log — cannot arise inline, because there is no child stream to redirect.
-       - Releasing the lock with advance unfinished is the defect this rule exists to stop. It lets the next `next-iteration` acquire the lock and start while the previous pass's board work is still in flight, so two passes mutate the board at once — and the ✅ claims a completion that has not happened.
+1. **check-required-config**: Run `--magic-heartbeat-config-check`. On a FAIL, report the output (each FAIL line carries its fix) and go to **report-status-to-spawner**: nothing else runs this pass.
+2. **acquire-lock**: Run the `single-instance-lock` procedure's acquire. Contention means another pass is live: go to **report-status-to-spawner**, nothing else runs. An unexpected lock state is reported in the pass status.
+3. **read-state-and-branch**: Read the `heartbeat-state-note` (`--magic-heartbeat-state-read`) and pick this pass's branch by the `day-rhythm-state` procedure.
+4. **load-iteration-input**: Run `--magic-heartbeat-input-scan`. The steps below work from it.
+5. **handle-external-owner-items**: Run `magic-coordinator.external-inbox-handle-loop.routine` inline.
+6. **dispatch-due-routine**: Per the branch, steps:
+   - first-today: dispatch `magic-team.grooming.routine` through `spawn-one-dispatch` (`--magic-spawn-session --routine magic-team.grooming`), and set `today-stage: grooming-dispatched`.
+   - later-today, `today-stage: grooming-dispatched`, and `--magic-grooming-lock-status` shows today's grooming finished: dispatch `magic-coordinator.daily.routine` the same way, and set `today-stage: daily-dispatched`.
+   - weekend, or nothing due: dispatch nothing.
+7. **send-test-report**: Once an hour has passed since `last-test-email-sent`, email the human-owner a test report (`--member-comms-email-send`): a pass header, the `## board counts` from `--magic-heartbeat-input-scan`, and one line per active or blocked item from `--magic-advance-input-scan`'s rows (`<state>/<item-filename>`). Record `last-test-email-sent`. This step runs on every branch.
+8. **register-owner-decisions**: An open decision this pass found that only the human-owner can make becomes an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists. Advance asks and re-asks it.
+9. **update-heartbeat-state**: Rewrite the `heartbeat-state-note` (`--magic-heartbeat-state-upsert`) with this pass's `last-iteration-date`, `last-iteration-timestamp` and `today-stage`, and one short "Last iteration" paragraph replacing the previous one. Anything worth keeping beyond this pass goes to the session thread or a `reflection-*`, never into this note.
+10. **run-advance**: Run one `magic-coordinator.advance.routine` pass inline, every pass, last. This pass is not finished, and the lock is not released, until advance has finished.
 
 # Closure steps
 
-1. **close-state-and-unlock**: per the `single-instance-lock` procedure, using the `--magic-heartbeat-close-state-and-unlock` operation. Reached only once the **Board advance** step has finished — that step runs inline, so the lock outlives it by construction.
-2. **conclude-event-track-thread**: conclude the `slack-event-track` thread opened at **open-event-track-thread** via the `--member-comms-slack-react` operation, reacting ✅ on that thread — a direct `mcp__myx_distro__execute` call, same as every other call this `next-iteration` makes.
-3. **report-status-to-spawner**: report status as this pass's final output, then exit.
-   - Repeating, if it happens at all, is entirely up to the host loop — never this routine itself.
+1. **close-state-and-unlock**: Release the lock with `--magic-heartbeat-close-state-and-unlock`. Reached only after **run-advance** finished.
+2. **conclude-event-track-thread**: React ✅ on the pass's session thread root (`--member-comms-slack-react`).
+3. **report-status-to-spawner**: Report the pass status, advance's outcome included, to the spawner, then hand back and end: the host loop is blocked on this pass (`magic-team.armed.md`'s **wait-never-quit** exception).
 
 # Routine's local procedures
 
-Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
 
-## `day-rhythm-state` procedure
+## `day-rhythm-state` — what is due today
 
-- Persistent record: the `heartbeat-state-note` — read via the `--magic-heartbeat-state-read` operation, written via `--magic-heartbeat-state-upsert`.
-- Owned/written by whichever session actually executes this routine's own `next-iteration` (in practice, `magic-coordinator`).
-- Minimum fields: `last-iteration-date`, `last-iteration-timestamp`, `today-stage` (`not-started` → `grooming-done` → `daily-done` → steady-state cycling), `last-test-email-sent` (see **run-one-bounded-substep**'s Test email report sub-step), `human-owner-broadcast-thread-ts` / `human-owner-broadcast-thread-date` (the captured `channel:ts` of today's first human-owner DM from an unattended pass, e.g. `magic-coordinator.advance.routine`'s `check-execute-board` DM on a pass that found something qualifying — treated as stale/cleared whenever `human-owner-broadcast-thread-date` != today's real date, same "recompute per real date" convention as the weekend/first-today checks above; consumed by `magic-coordinator.advance.routine`'s own `check-execute-board` procedure to thread same-day human-owner DMs together instead of posting each as a fresh top-level message), and a light pointer to whichever active project a dispatched work-session belongs to — just enough to satisfy the "all dispatched work sits within a project" constraint; the project schema itself stays out of scope here.
-- Created lazily on first real run.
+- `heartbeat-state-note` fields: `last-iteration-date`, `last-iteration-timestamp`, `today-stage` (`not-started` → `grooming-dispatched` → `daily-dispatched`), `last-test-email-sent`, `human-owner-broadcast-thread-ts`/`human-owner-broadcast-thread-date` (today's human-owner DM thread), and `active-project` (the project today's dispatched work belongs to). `NO_STATE` means a first run.
+- First-today: `last-iteration-date` differs from today's real date, or no state. `today-stage` resets to `not-started`.
+- Later-today: the dates match; continue from `today-stage`.
+- Weekend: recompute the weekday from the real date every pass. Saturday and Sunday allow comms and reactive admin only, in answer to an actual request. Grooming, daily and work dispatch are denied, unless the work is tied to a live human-owner activity a `magic-coordinator` in contact with him confirmed firsthand.
+- The branch is date-driven. Low activity on a weekday is no reason to skip a step.
 
-- **First-iteration-today test**: compare `last-iteration-date` to today's real date.
-  - Mismatch or file absent → this is the first `next-iteration` today: run `magic-team.grooming.routine` after `magic-librarian` preps context, then move into `magic-coordinator.daily.routine`'s flow.
-  - Match → resume from `today-stage`.
-- **Weekend detection** (recompute weekday from real system date every `next-iteration`; Sat/Sun triggers this):
-  - ALLOW: comms sweep. Reactive admin (todo/record updates), only in direct response to an actual incoming request.
-  - DENY by default: dispatching grooming/daily-meeting/work-sessions; advancing `today-stage` past comms.
-  - RULE: coordinator dispatches normal work only if tied to a genuine ad-hoc human-owner activity, firsthand-confirmed by a `magic-coordinator` instance in live contact with the human-owner — trusted per `magic-team`'s own delegated-authority rule, same as any other coordinator report; no separate anchor required.
-  - Unmet → DENY stands.
+## `single-instance-lock` — one pass at a time
 
-## `single-instance-lock` procedure
-
-- This routine's own concern — it protects itself, since the lock must hold across separate OS processes.
-- The lock is the `--magic-heartbeat-lock-*` operation group — call these ops via `mcp__myx_distro__execute`, the same way as every other `DistroAgentsTools.fn.sh` call, never raw Bash, and never a hand-rolled lock alongside them.
-- Acquire before anything else in this routine runs. Contention means another `next-iteration` is live: this pass does not start.
-- Refresh periodically while the pass runs — a long first-today grooming + daily-meeting fan-out outlives a single acquire, and a concurrent check must not mistake a slow-but-alive run for a crashed one.
-- Release in Closure steps, every time.
-- Status is a question, not a gate — what anyone deciding whether to start a new run asks first.
-
-## `spawn-proxy` procedure
-
-This routine executes spawn requests itself via `DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy`.
-
-- **Protocol shape is mandatory**: every spawn attempt must carry a structured prompt packet and produce a structured receipt packet.
-
-### Prompt packet (required)
-
-```text
-SPAWN-REQUEST: <short label, e.g. "librarian-morning-review">
-GOAL: <one-line description -- same as Agent's own description field>
-CONTEXT: <self-contained prompt body>
-NAME: <fixed name to spawn under, or omit for one-shot>
-WAIT: <yes|no>
-```
-
-Exact formatted example:
-
-```text
-SPAWN-REQUEST: librarian-morning-review
-GOAL: Run magic-librarian.morning-review.routine for board state-shape drift check
-CONTEXT: Review magic-team board files and report only actual drift findings.
-NAME: magic-librarian.morning-review.routine
-WAIT: no
-```
-
-- Field rules:
-  - `SPAWN-REQUEST` required.
-  - `GOAL` required.
-  - `CONTEXT` required.
-  - `NAME` optional.
-  - `WAIT` required (`yes` or `no`).
-- Source rules:
-  - Prompt packet comes from stdin by default, or from one explicit selector:
-    - `--from-board <board-item-name> [--board-state <state>]...`
-    - `--from-vault <vault-item-name>`
-    - `--from-audit <audit-item-name>`
-  - `--from-file` is not the documented path for routine usage.
-
-### Receipt packet (required)
-
-```text
-RECEIPT_ID=<correlation-id>
-DISPATCH_DOC=<create|reuse|none>
-TRACKING_ITEM=<board-item-name>
-DISPATCH_ITEM=<board-item-name>
-STATUS=<started|succeeded|failed>
-PID=<pid>
-EXIT_CODE=<code>
-OUTPUT_FILE=<path>
-```
-
-Example — the async, stdin-body path this routine takes by default, which creates a dispatch document:
-
-```text
-RECEIPT_ID=spawn-proxy-20260908T072500-48217
-DISPATCH_DOC=create
-DISPATCH_ITEM=dispatch-20260908T072500-spawn-proxy-48217.md
-STATUS=started
-PID=48219
-OUTPUT_FILE=<audit-dir>/spawn-proxy-20260908T072500-48217.output.log
-```
-
-- Printed on every call: `RECEIPT_ID`, `DISPATCH_DOC`, `STATUS`. `TRACKING_ITEM` accompanies `DISPATCH_DOC=reuse` and `DISPATCH_ITEM` accompanies `create`, while `none` prints neither. `PID` accompanies the async path; `EXIT_CODE` and `LAUNCHED` accompany the `--wait` path, joined by `TIMEOUT_SECONDS` when the wait was cut short and by `SETUP_STATUS` when the CLI was not configured. `OUTPUT_FILE` appears only where the child's streams went to a file — always on the async path, and on the `--wait` path only when a dispatch document was kept. A `--wait` call carrying none has those streams on the caller's own stderr instead and prints no `OUTPUT_FILE`, which is the shape a dispatch uses when its progress has to be watchable live. There is no `RECEIPT_FILE` key — a pass looking for one finds nothing on every path.
-- `RECEIPT_ID` is the correlation id, and it is what this routine's caller records on the related board item as `execution-receipt`. `OUTPUT_FILE` names the spawned session's own raw stdout/stderr log — read it to find out what that session actually did.
-- `WAIT: no` is default path (async, `STATUS=started`); `WAIT: yes` is for explicit blocking cases.
-- Any spawn-required branch that cannot produce a successful proxy call in the same pass is a hard execution failure and must follow `magic-coordinator.advance.routine` parked fallback (never silent defer).
+- Acquire with `--magic-heartbeat-lock-acquire <team-member> main-loop` before any other step.
+- Each `--magic-heartbeat-state-upsert` refreshes it; `--magic-heartbeat-lock-refresh` only for a long stretch without a state write.
+- Release in **close-state-and-unlock**, every pass that acquired it.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
-- Overrides the inherited coworking thread anchor: this routine's session thread lives in `slack-event-track`, not `slack-magic-team`. Genuinely important items still go separately to the human-owner DM and `slack-magic-team`.
-- Does not run **fold-in-learned-lessons** — that step works a small, recent, unresolved reflection set, and this loop's per-nudge cadence would grind the whole accumulated pile every iteration.
-- Not wired into `magic-team.coworking.routine`'s Steps/Closure Steps as separate calls — this loop iterates far more often than the structured routines those are meant for, and its per-nudge traffic is debug-level. **open-event-track-thread** and **conclude-event-track-thread** are that inherited opening/closing obligation, discharged into a `slack-event-track` thread per `next-iteration`.
-- Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
-- This routine is a scheduler tick — each `next-iteration` checks what's due against `magic-team`'s own calendar/full-sprint routine (comms cadence, once-daily grooming, the daily meeting) and acts on exactly what's due this pass, nothing more.
-- **Per-platform pacing, not one interval for everything**:
-  - **Fast tier** (Slack, email, Trello's notification-stream check) — check roughly every 30s-2min, since these are where a human is most likely waiting on a timely reply.
-    - Trello belongs here, not slow tier — its `GET /1/members/me/notifications?since=...` check (`magic-coordinator.communication-sweep.routine` documents it) is exactly as cheap as an email/Slack check, so it runs on the same cadence, not a reduced one.
-  - **Slow tier** (reading/grooming/analyzing full Trello board content, plus Google Drive/Sheets, Confluence, and any similar deep-content platform that joins later) — check every few cycles of the fast tier, or only from `magic-team.grooming.routine`, instead of every single one; genuinely heavier and less time-sensitive than "is there anything new."
-  - Google Drive/Sheets is out of this loop's fast tier entirely (per `magic-coordinator.communication-sweep.routine`'s Scope section) — it's an extended procedure for grooming/search, living in the slow tier above alongside deep Trello board work, not polled on its own schedule.
-  - Exact cadence is a runtime parameter based on actual API limits and real activity levels, not fixed here.
-- **Guardrail: acting alone doesn't mean acting unsupervised in spirit.** Running unattended is exactly the situation where the existing caution rules matter most, not least — the "no unilateral epics" rule, the standing send/confirm rules per platform, and "don't manufacture work when there's nothing real to do" all apply at full strength inside every sweep and every sub-routine this routine runs, not a relaxed version of them.
-- **No inline invention during a real `next-iteration`**:
-  - A real (non-testing, non-investigation) `next-iteration` follows existing instructions and existing precoded tooling as written — one plain tool call at a time, never a hand-built multi-step script or a novel command sequence invented on the spot.
-  - A genuinely better/novel approach occurring mid-`next-iteration` is not built or run inline — it files an idea/proposal as an initial task (the idea → interview → proposal → approval pipeline) and keeps working the current `next-iteration` on existing, already-approved instructions/tooling in the meantime.
-  - The invented approach only becomes usable once it's actually been interviewed and approved through that pipeline and applied for real — never adopted unilaterally inside a `next-iteration` just because it seemed like a good idea in the moment.
-  - Exception: testing/investigation/verification sessions (e.g. a `magic-tester` dispatch, a build/design coworking session) — hand-constructed commands and exploratory scripting are normal and expected there; this rule is scoped to a real production `next-iteration`'s own execution specifically.
-  - Governs *invention* — don't hand-roll a new command sequence when a plain DistroAgentsTools op already exists.
-  - Distinct, companion concern to how much to trust/re-verify a DistroAgentsTools call that's already being made correctly: default-trust it blindly day to day, re-check a specific call site only when a real incident actually traces back to it.
-- **Routing discipline covers *all* new work, not just novel/hand-rolled ideas.**
-  - Sharper than the invention guardrail above in two ways: it isn't scoped to *novel* approaches that occur mid-`next-iteration` — it covers ordinary task intake generally, any real change work of any kind, wherever it originates; and it applies to daily-meeting too — a daily-meeting work-session dispatch executes against already-approved instructions/tooling the same way a `next-iteration` does, it doesn't get to skip the queue just because a human happens to be present for that routine.
-  - New work (a fix, a change, an improvement someone notices) always gets filed into the relevant inbox or a queued board state first; `main-loop` (or whichever routine is actually running) is the mechanism designed to pick it up from there, not something to route around because it's convenient in the moment.
-  - A live, explicit, real-time override from the human-owner in direct response to an active blocker (e.g. "build this specific thing right now") is still the one recognized exception to "always queue" — a generalizable idea noticed while working is not.
-- **Relationship to the host loop**:
-  - It spawns one `next-iteration` per cycle until killed. No member calls it, and no session starts, stops, or relays into it.
-  - Whether a pass is live is read with `--magic-heartbeat-lock-status`; the last pass's state with `--magic-heartbeat-state-read`.
-  - The loop never calls the lock ops itself; each `next-iteration` does.
-- A permission prompt appears mid-`next-iteration`: a direct `mcp__myx_distro__execute` call should never trigger one — it's a sign a call bypassed the mandated tooling channel, or a real config/auth gap. Stop and fix it, don't click through and continue as if it were normal.
-- A day's real activity level doesn't match the assumed weekend/weekday branch: still follow the branch logic as written — the day-rhythm state machine is date-driven, not activity-driven, so low activity is not a signal to skip steps, only genuinely being a weekend is.
-- **DistroAgentsTools trust policy**: `DistroAgentsTools.fn.sh` is the team's own tool.
-  - Trust it by default day to day — no defensive re-verification of its own correctness on every call.
-  - Propose interface changes through the normal idea → interview → proposal → approval pipeline — never as an inline bypass.
-  - Re-check a specific call site only when a real incident actually traces back to it.
-- **Goal-directedness**: when a goal is set for this session, actively work to move the process toward that goal.
-  - Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
+- This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- This routine extends `magic-team.coworking.routine`, with these overrides: the pass's session thread is the `event-track` thread the tooling opened for it; **fold-in-learned-lessons** does not run; the opening and closing groups reduce to posting into that thread and **conclude-event-track-thread**.
+- Post a short progress line into the session thread after each step. Something the human-owner must act on goes per `magic-team.shared.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
+- Between steps, read what spawned sessions sent. Assess each, dispatch any real work through `spawn-one-dispatch`, and record the outcome in the session thread.
+- Running unattended, every caution rule applies at full strength: no unilateral epics, the per-platform send rules, no manufactured work.
+- A real pass follows existing instructions and operations, one plain call at a time. A better approach that occurs mid-pass is filed as an idea, never built inline. Testing and investigation sessions are exempt.
+- New work found mid-pass is filed into an inbox or the board queue. Only the human-owner's live override in answer to an active blocker skips the queue.
+- A permission prompt mid-pass means a call bypassed the tooling channel, or a configuration gap. Report it; never work around it.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (**open-event-track-thread**: open the `event-track` thread)
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` (Closure steps: close the `event-track` thread with a checkmark)
-- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**Test email report** sub-step: send the hourly test email report)
-- `--magic-heartbeat-config-check` (**check-required-config**: check magic-coordinator config upfront, before anything else runs)
-- `--magic-heartbeat-input-scan <team-member>` (**run-one-bounded-substep**: load heartbeat iteration input)
-- `--magic-advance-input-scan <team-member>` (**Test email report** sub-step: read the active and blocked board items)
-- `--magic-heartbeat-lock-acquire <team-member> <owner-label>` (**acquire-lock**: acquire the single-instance lock)
-- `--magic-heartbeat-lock-refresh <team-member>` (refresh the lock during a long-running `next-iteration`)
-- `--magic-heartbeat-close-state-and-unlock <team-member>` (Closure steps: release the lock)
-- `--magic-heartbeat-lock-status <team-member>` (check lock state before starting a new run)
-- `--magic-heartbeat-state-read <team-member>` (**read-state-and-branch**: read the `heartbeat-state-note`)
-- `--magic-heartbeat-state-upsert <team-member> [--from-file <path>]` (**use-direct-tooling-calls** and **run-one-bounded-substep**: rewrite the `heartbeat-state-note`)
-- `--magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` (relocate a terminal board-item to `trash/`)
-- `--magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` (spawn relay used by unattended heartbeat/advance execution paths)
-
-## `--member-comms-slack-send-message` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
-
-## `--member-comms-email-send` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (also `-- --from-stdin` or `-- --from-file <path>`) — real, standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; body is everything after. Exactly one body source required. This routine's own **Test email report** sub-step uses it to send the hourly test email report.
-
-## `--member-comms-slack-react` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut, since a reaction always targets one exact message, not a channel. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). `<team-member>` is the acting identity — the reaction is posted BY that member. This routine's own Closure-steps usage: resolve `event-track`'s real `<channel>` id first (no alias shortcut here), then `magic-coordinator <channel>:<thread-ts> white_check_mark`.
-
-## `--magic-heartbeat-config-check` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-config-check` — takes no arguments. Prints one `<KEY>: OK`/`<KEY>: FAIL` line per checked key, each FAIL with its own exact fix command. Returns non-zero when a key this pass cannot run without is missing.
-
-## `--magic-heartbeat-input-scan` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>` — read-only: this routine's own prepared input (the name deliberately doesn't echo this routine's own name). Returns this routine's own state-and-lock note, then a `## questions (pending replies)` section — the main loop's last collect of unanswered questions, then every question still open, with its session, asker and age — then a `## spawned sessions` section, each session as measured at its close and whether it is alive now — then `<team-member>`'s own inbox reflections, each with its body. It returns no board items. `<team-member>` is the only argument: the scan reads every baseline item this routine needs, and an item name is not a parameter to it.
-
-## `--magic-advance-input-scan` operation reference
-
-`DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>` — `magic-coordinator.advance.routine`'s own board scan. Each board row is labelled `<state>/<item-filename>`. This routine's **Test email report** takes its Active processes lines from those rows. `<team-member>` is the only argument.
-
-## `--magic-heartbeat-lock-acquire` / `--magic-heartbeat-lock-refresh` / `--magic-heartbeat-close-state-and-unlock` / `--magic-heartbeat-lock-status` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>` / `--magic-heartbeat-lock-refresh <team-member>` / `--magic-heartbeat-close-state-and-unlock <team-member>` / `--magic-heartbeat-lock-status <team-member>` — the single-instance lock this routine owns, one holder at a time. `acquire` prints `ACQUIRED` on a fresh take, or `RECLAIMED_STALE:...` when a dead holder's lock is taken over, both returning 0; on contention it prints `ACTIVE:...` and returns 1, which means this pass does not start. `<owner-label>` identifies the actual running agent/process by a fixed, discoverable name (e.g. `"main-loop"`), not an ephemeral chat/conversation-session id — distinct from `<team-member>`, the calling member's own identity. `refresh` prints `REFRESHED` and is what holds the lock across a long pass, `NO_LOCK_HELD` and returns 1 when nothing is held. `close-state-and-unlock` prints `RELEASED` and sets `state: heartbeat-finished`. `status` is a question, not a gate: it prints current lock metadata, or `NO_LOCK` when free, and always returns 0.
-
-## `--magic-heartbeat-state-read` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>` — read-only: prints the whole `heartbeat-state-note` on stdout, verbatim. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error, the same "absent is not a failure" contract as `--magic-heartbeat-lock-status`'s own `NO_LOCK`. `<team-member>` is the only argument.
-
-## `--magic-heartbeat-state-upsert` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>]` — writes (creates or overwrites) the `heartbeat-state-note`. Content comes via stdin by default, or via `--from-file <path>` (never a bare `--file`). Every call replaces the whole record; it never appends. Empty content is refused rather than written, since an erased record reads back as "no state yet" and would re-run a day's grooming. Takes no filename or path argument — storage is the operation's own concern, which is what keeps ordinary iteration from ever rewriting a skillset file.
-
-## `--magic-heartbeat-board-item-trash` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name>` — relocates one terminal board-item out of the board entirely. `<board-state>` is the item's current real board state (`backlog/pending/running/blocked/parked/processed/archived/retained`); `<item-name>` is a bare filename.
-
-## `--magic-heartbeat-spawn-proxy` operation reference
-
-`DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--wait]` — executes a spawn prompt through `DistroAgentsConsole.sh` and prints the receipt packet above for per-item execution accounting. Body source is exactly one of stdin (default), `--from-file <path>`, `--from-board <board-item-name>`, `--from-vault <vault-item-name>` or `--from-audit <audit-item-name>`; empty body is rejected. Default mode is async (`STATUS=started` + `PID`), while `--wait` blocks for completion and returns non-zero on failure.
+- `--magic-heartbeat-config-check`
+- `--magic-heartbeat-lock-acquire <team-member> <owner-label>`
+- `--magic-heartbeat-lock-refresh <team-member>`
+- `--magic-heartbeat-close-state-and-unlock <team-member>`
+- `--magic-heartbeat-state-read <team-member>`
+- `--magic-heartbeat-state-upsert <team-member>`
+- `--magic-heartbeat-input-scan <team-member>`
+- `--magic-advance-input-scan <team-member>`
+- `--magic-grooming-lock-status <team-member>`
+- `--magic-spawn-session (--routine <selector>|--routine-default) [<team-member>...]`
+- `--magic-board-create-running <team-member> <item-filename> [--header:...]...`
+- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
 
 # Maintainer Notes
 
@@ -358,20 +150,11 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.communication-sweep.routine` — the Comms sub-step, every iteration.
-- `magic-coordinator.advance.routine` — the Board-advance sub-step, every iteration, end of loop.
-- `magic-team.process-inbox.routine` — inbox-processing sub-step: one call per pass on `magic-coordinator`'s own inbox, this loop being that routine's regular caller.
-- `magic-coordinator.external-inbox-handle-loop.routine` — non-acting-owner inbox variant, folded into the same sub-step.
-- `magic-team.grooming.routine` — first-today-only sub-step (autonomous-invocation mode).
-- `magic-coordinator.daily.routine` — later-today sub-step.
-- `magic-coordinator.retro.routine` — carries an "Autonomous invocation" addendum for consistency, not currently called by any default branch.
-- `heartbeat-state-note` — day-rhythm persistent state, librarian-owned.
-- `magic-team/magic-team.armed.md`'s "Execution mechanisms" section — the process-flow direct-tooling-call rule this routine's own **use-direct-tooling-calls** follows; its "Team-Member's (-specific) tooling" section for calling convention and the permission-prompt diagnostic.
-- `magic-team/magic-team.armed.md` — delegated-authority rule the weekend-detection branch relies on.
-- `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — the main-loop-elevation facets and architect-resolution addendum.
-- `magic-librarian/magic-librarian.armed.md`'s `own-inbox-batch-processing` procedure — "Own inbox: collect and batch, don't fix ad hoc" standard, applied by the first-today-only sub-step.
-- The host loop, which spawns each `next-iteration` — its call contract is this package's own `MAGIC.md`.
+- `magic-coordinator.advance.routine` — run inline at **run-advance** (the "Board advance" step the benchmarks name); it runs the comms sweep and inbox processing.
+- `magic-coordinator.external-inbox-handle-loop.routine` — run inline at **handle-external-owner-items**.
+- `magic-team.grooming.routine`, `magic-coordinator.daily.routine` — dispatched at **dispatch-due-routine**.
+- The host loop and its call contract — this package's own `MAGIC.md`.
 
 ### Conventions
 
-- This is the largest/densest routine folder in the team — preserve the single-instance lock mechanics, the day-rhythm state machine, the per-run bounded-iteration shape, the stale-flag escalation rule, and the "process-flow runs as direct tooling calls, no console session" rule precisely. Summarizing any of these away risks silently reintroducing the failure modes each one exists to prevent.
+- Preserve the single-instance lock, the day-rhythm state machine, the one-pass shape and the inline advance precisely. Each exists to prevent a failure mode that summarising would reintroduce.

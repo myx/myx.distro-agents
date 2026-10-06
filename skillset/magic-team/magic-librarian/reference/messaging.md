@@ -1,4 +1,4 @@
-# Messaging platforms — size limits, silent truncation, identity-scoped access
+# Messaging platforms — size limits, silent truncation, composition
 
 Read this when sending, reading, or storing messages through any chat/messaging platform, when
 composing a message that asks the human-owner for something, and when writing or revising the
@@ -23,14 +23,6 @@ reason this module exists as a separate layer.
 - The core property: a response describes acceptance, not retention
 - Measured behaviour (Slack, `chat.postMessage`)
 - Consequences for composition
-- Retry output can carry more than one verdict
-- Identity-scoped access — send and read are not symmetric
-  - Why this matters for stored addresses
-- Required permissions — the settled list, and how to re-derive it
-  - The derivation method — this is the durable part
-  - Endpoints actually called
-  - Required scopes
-  - The honesty bound — never separate it from the check
 - Reading list
 
 ## Why a session reply does not reach the human-owner
@@ -122,113 +114,6 @@ rule that survives is "platforms impose limits and may truncate silently".
   pair, which is the thing to read before composing; a platform's public formatting guide describes
   the platform, not the path the message takes. Where the markdown grammar cannot express something,
   the raw block-structure format is the escape hatch.
-
-## Retry output can carry more than one verdict
-
-A retrying send can emit more than one `ok`/verdict field across its own retry attempts. Read the
-**last** verdict in the output, not the first — a retried send that ultimately lands can still show an
-earlier failed attempt's `ok:false` ahead of it, and reading the first field alone misreports a landed
-post as failed.
-
-## Identity-scoped access — send and read are not symmetric
-
-Measured on both sides, not argued:
-
-- **Send**: `chat.postMessage` accepts a **user id** as its `channel` and resolves the DM itself. No
-  explicit conversation-open call is needed.
-- **Read**: `conversations.history` needs the **DM id**; a **user id** returns `channel_not_found`. The
-  id is only half of it. The reading identity must itself be in that conversation, so the DM id fails
-  the same way when it is not.
-- Reactions follow the read side, not the send side.
-- **Delete**: only the identity that authored a message may remove it. The operational consequence is the part that bites — a session's posts are spread across the identities that made them, so removing them takes each of those identities in turn, and is never one member's action.
-- **The failure wears the wrong name.** An unauthorised reader is told `channel_not_found`, which reads
-  as a bad target. So it looks like a mistyped id, gets retried, and never gets investigated. A reader
-  who knows this stops retrying and asks which identity is acting.
-
-So a user id is a sufficient address for writing and an insufficient one for reading, and the address is
-not the whole of it. The natural assumption is that all paths behave alike; they do not. **Any doc
-covering the send path must say so explicitly**, or a reader will generalise from the easy case.
-
-**A verification is only a verification when the same identity performed both halves.** A read under one
-identity establishes nothing about a write made under another, and it fails in the shape of a target
-error, so the check looks as though it ran. Where the split makes a read-back impossible, an out-of-band
-confirmation is the stronger instrument anyway: a reply to what was sent establishes delivery, and no
-read of the sender's own conversation matches that.
-
-### Why this matters for stored addresses
-
-A DM id is **scoped to one identity pair**. It is not a shared address, even though it is shaped like
-one and sits in the same field as genuinely shared channel ids.
-
-The governing invariant, adopted team-wide: **a value scoped to one identity pair must not live in a
-shared config key.** Prefix kind-checking (`D…` vs `C…`) catches only the cases whose wrongness is
-visible in the value's own syntax — it cannot catch a private channel that only one identity can see.
-Treat kind-checking as a partial mitigation, never as coverage.
-
-Practical consequence for any stored address: **prefer storing the person's user id and deriving the
-conversation at read time** over persisting a resolved DM id, since the derived value is correct for
-whichever identity is doing the reading. Where DM ids are already persisted, they are only valid for
-the identity that recorded them.
-
-## Required permissions — the settled list, and how to re-derive it
-
-Concrete scope names live here, in the reference layer, deliberately. They do not belong in routine or
-help text: the durable rule there is platform-neutral, and a future platform inherits the rule without
-inheriting this vendor's vocabulary.
-
-### The derivation method — this is the durable part
-
-**Derive from endpoints, not from incidents.** Grep the source for the API endpoints actually called,
-union them into the scopes those endpoints require, and grant that set.
-
-**One grep is not the derivation.** An endpoint reaches the wire in two forms — written as a literal
-URL, or passed by name as an argument to a shared caller — and a pattern matching only the first
-misses the second silently. Union both:
-
-```
-grep -Rhho "slack\.com/api/[a-zA-Z.]*" sh-lib sh-scripts | sed 's|slack.com/api/||'
-grep -Rhho -- "--api [a-zA-Z]*\.[a-zA-Z.]*" sh-lib sh-scripts | sed 's|^--api ||'
-```
-
-Sort and unique the two together. The literal-URL grep alone misses every endpoint passed by name —
-`conversations.history`, `conversations.replies` and `reactions.add` among them.
-
-**A scope with no endpoint of its own is invisible to this method.** `chat:write.customize` modifies
-`chat.postMessage` rather than adding an endpoint, so no endpoint grep can find it and an
-endpoint-derived list omits it by construction. Read the app's own declared scopes alongside the
-derived list before concluding a capability is missing.
-
-**Re-run this whenever an endpoint is added.** A list produced any other way is a snapshot that starts
-drifting immediately; a list with a re-derivation command attached stays true — but only while the
-command still matches every call form the code actually uses. The derivation command is itself
-something to re-check, never a standing guarantee.
-
-### Endpoints actually called
-
-Literal-URL form: `auth.test`, `chat.postMessage`, `conversations.info`, `conversations.join`,
-`conversations.list`, `conversations.open`, `rtm.connect`, `users.list`.
-
-Argument form: `chat.delete`, `chat.update`, `conversations.history`, `conversations.info`,
-`conversations.replies`, `files.info`, `reactions.add`, `search.messages`.
-
-### Required scopes
-
-Each operation declares its own, and `--magic-heartbeat-config-check` reports them against both
-identities; the list and its current gaps are not restated here.
-
-Scopes are fixed at authorization, so granting one requires re-installing the app and storing the new
-token; adding a scope in a settings page does not change a token already issued.
-
-### The honesty bound — never separate it from the check
-
-**A permission check verifies GRANTED SCOPES, not EFFECTIVE ACCESS.**
-
-The bot holds `files:read` and **still cannot read a file in a DM it is not in**. A green result means
-*"the scopes are granted"*, never *"this works"*. Capability and access are separate things sitting on
-separate identities (see the identity section above), and no scope audit can see the second one.
-
-Anyone reading "scope check passes" later will assume more than it means unless this bound travels
-with it. State it wherever the result is reported, not only where the check is defined.
 
 ## Reading list
 

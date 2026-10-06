@@ -15,8 +15,6 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--member-comms-slack-send-message` operation reference
-  - `--member-upsert-member-inquiry` operation reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -26,82 +24,67 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-Routine-librarian-morning-review is the once-per-workday joint `magic-coordinator`+`magic-librarian` checkpoint catching board state-model drift, not ordinary content staleness.
+`magic-librarian.morning-review.routine` is the once-per-workday joint `magic-coordinator` and `magic-librarian` checkpoint for board state-model drift and cross-file consistency.
 
 ## Goals
 
-`magic-coordinator` owns and modifies the board continuously, all day, on its own authority. This session is the one deliberate checkpoint where `magic-librarian` joins it — jointly, coordinator leading — rather than coordinator working the board alone all week with nobody else's eyes on it. Its real purpose isn't re-confirming ordinary content staleness (that's `magic-librarian`'s own daily self-sufficiency audit) — it's catching a more structural class of problem: does the board's own *state model* still match what it's supposed to represent, and do claims made in one file actually still hold against another file's real current content. Not a separate audit `magic-librarian` runs solo against the board; if librarian finds something worth changing outside this session, that's still coordinator's call to fold in or defer, same as any other dispatch.
+- Catch structural drift: does the board's state model still match what it represents, and do claims in one file still hold against another file's current content.
+- Give the board a second pair of eyes once a day, `magic-coordinator` leading.
 
 ## Scope
 
-Does: catch board *state-model* drift and cross-file consistency gaps — not ordinary content staleness. Spawned as a full sub-session from `magic-coordinator.daily.routine`'s own **spawn-morning-review**, first-today only — a background `Agent` dispatch (`Skill(magic-librarian)` first, default goal = this routine's own Goals), waited on to completion, executing `magic-team.coworking.routine`'s Steps/Closure Steps per the session-type framework.
-Doesn't do: the deep team self-sufficiency audit `magic-librarian`'s own `magic-librarian.armed.md` (`team-self-sufficiency-audit` procedure) already runs as a normal daily task across every `magic-*` skill directory's formal docs — that's broader (currency/consistency/self-sufficiency/clarity across the whole team, unconditional, every day) and doesn't specifically center on the board.
+- Does:
+  - Check state-model drift and cross-file consistency, and lightly recheck blocked and parked items.
+  - Run as a coworking session, started by `magic-coordinator.daily.routine`'s **spawn-morning-review**.
+- Doesn't:
+  - The broad skillset audit — `magic-librarian`'s `team-self-sufficiency-audit`.
+  - Board writes by `magic-librarian`, or garbage collection.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **session-start**: execute `magic-team.coworking.routine`'s Steps — declares itself coworking-like/structured-multi-member (`magic-coordinator` + `magic-librarian` jointly), invokes `magic-team.process-reflections.routine` for this session's own project/workspace, processes own inbox, and posts an opening broadcast to `slack-magic-team`/Trello.
-2. **read-board-shape**: `board-backlog`/`board-pending`/`board-running`/`board-review`/`board-blocked`/`board-parked`/`board-processed`/`board-archived`/`board-retained`, plus the `heartbeat-state-note`, for comms-platform state not yet reflected there. The `heartbeat-state-note` read is executed by `magic-coordinator` — this routine's joint executor present in the session — from its own tooling; `magic-librarian` reads the result, it does not make the call.
-3. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` (the default executor for this joint-executor routine) — inline execution (own identity). Board-state notes filed there since the last pass — the claims **check-state-shape-drift** checks the board's own state model against. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-4. **check-state-shape-drift**: not just content drift — e.g. `blocked/` and `parked/` being silently collapsed into `running/`/`archived/`, losing the distinction between "stalled on something external" and "deliberately deferred by choice." Not just "is this file's *content* current" but "does the *model itself* still match what it's supposed to represent."
-
-   **Content-hygiene pass, folded into this same step**: any skill-folder file that defines a routine, machinery, team dynamic, or process flow — `SKILL.md` and its typed siblings, shared team docs — touched during this session gets checked for accreted dated/historical narration ("Added on DATE," "CORRECTED —," incident-quote framing standing in for a plain rule). Where found, steps:
-   - analyze and load the actual current context
-   - verify nothing actually-active is lost
-   - rewrite as firm, present-tense current content — not a history of edits
-
-   Log files (a keeper's own `processed/` entries, board Items, inbox items) are exempt — their whole point is being a dated record. The `heartbeat-state-note` is NOT exempt — it holds current, standing state rather than a closed dated record, so it takes the same current-state-not-changelog treatment as any other rule-bearing file: strictly structured, overwritten-in-place fields, no narrative trail. Full statement of this standard: `magic-librarian`'s own "Skill-folder content hygiene" content.
-5. **recheck-blocked-and-parked**: re-check `blocked/` and `parked/` items specifically for whether their condition has changed — per the board's own definitions, this doesn't have to happen at every grooming pass, but this session is a good light-touch moment for it.
-6. **check-cross-file-consistency**: not just in-file cleanup — a status claim in one file against the actual current content of another. Budget explicit attention for this, not just a same-file dedupe pass.
-7. **flag-gc-candidates**: GC-adjacent, but not GC itself — removal from `processed/` is the tooling's, not this session's job. This session can flag a `processed/` item that looks like it should already be gone, but doesn't do the deletion itself.
+1. **session-start**: Execute `magic-team.coworking.routine`'s Steps, with `magic-coordinator` and `magic-librarian` as participants.
+2. **read-board-shape**: `magic-coordinator` reads every board state and the `heartbeat-state-note`, and shares the result with `magic-librarian`.
+3. **process-own-inbox**: Run `magic-team.process-inbox.routine` for `magic-coordinator`: the board-state notes filed since the last pass are the claims **check-state-shape-drift** checks.
+4. **check-state-shape-drift**: Check the state model itself, not only content — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
+   - step: check the skillset files touched in this session for accreted dated narration, per `magic-librarian/magic-librarian.armed.md`'s "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
+   - step: check the `heartbeat-state-note` holds structured current state, with no narrative trail.
+5. **recheck-blocked-and-parked**: Recheck `board-blocked` and `board-parked` items for a changed condition. A change that is likely but uncertain is flagged for the next `magic-team.grooming.routine`, not resolved here.
+6. **check-cross-file-consistency**: Check status claims in one file against the current content of another.
+7. **flag-gc-candidates**: Flag a processed item that looks overdue for removal. Removal itself is the tooling's.
 
 # Closure steps
 
-1. **close-session**: execute `magic-team.coworking.routine`'s Closure Steps — this is a coworking-like session (see **session-start** above), so its continuity step, `slack-magic-team`/Trello closing broadcast, and skill-update-discussion offer all apply; context compaction does not (a spawned sub-session has no persisting interactive context to compact — it simply exits once its report is sent, back to `magic-coordinator.daily.routine`). `magic-team.process-reflections.routine` already ran at **session-start**'s opening, not here.
+1. **close-session**: Execute `magic-team.coworking.routine`'s Closure steps.
 
 # Routine's local procedures
 
-Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+Named procedure blocks. Steps above call them by name. Not separate routines — not visible outside this file.
 
-None currently defined.
+None.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` and `magic-librarian` (this routine's joint executors) are permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- This routine is an extension of `magic-team.coworking.routine` — it inherits that routine's own instructions and follows them wherever they apply; on any conflict, this file's rules override the parent's.
-- Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
-- Never inspect the credential store directly — only through `DistroAgentsTools.fn.sh`'s own config resolution.
-- One documented mechanism failing once is an escalation signal, not a puzzle to solve alone.
-- A state-shape drift is found (for example, two states silently collapsed into one): treat this as higher priority than ordinary content staleness — fix the model gap itself, not just the one instance of it, since a model-level gap likely produced more than one misclassified item.
-- A cross-file inconsistency is found, where it's unclear which file is actually correct: do not silently pick a winner — surface the conflict and resolve it explicitly.
-- A `blocked/`/`parked/` item's condition looks like it may have changed, but isn't certain: a light-touch re-check is enough here — flag it for a real decision at the next `magic-team.grooming.routine` pass, rather than resolving the transition unilaterally in this session.
-- Something surfaces that isn't board-specific: pass it to `magic-librarian` via the `post-inquiry` procedure, for its own regular daily audit, rather than fixing it inline here.
-- Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- `magic-coordinator` is part of this routine's joint executor set — while acting as executor here, it is obligated to keep `slack-event-track` activity tracking current as the session actually runs, not only via the closure step's close-out.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
+- This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- This routine extends `magic-team.coworking.routine`; on a conflict, this file wins.
+- Only `magic-coordinator` writes the board (`magic-team/magic-team.board.md`).
+- A state-model drift outranks ordinary staleness: fix the model gap, not only the one instance, since one gap likely misfiled several items.
+- A cross-file inconsistency where it is unclear which file is right is surfaced and resolved explicitly, never by silently picking a winner.
+- A finding that is not about the board goes to `magic-librarian`'s own daily audit with `post-inquiry`.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (Slack activity-tracking obligation)
-- `--member-upsert-member-inquiry <member> <item-filename>` (non-board-specific findings, passed to `magic-librarian`'s own daily audit)
+- `--member-upsert-member-inquiry <team-member> <item-filename>`
 
-Note: **read-board-shape**'s `heartbeat-state-note` read is not on this list, because this routine does not execute it. That operation belongs to `magic-coordinator`'s own tooling, and `magic-coordinator` — one of this routine's two joint executors — runs it from there. See `magic-coordinator/magic-coordinator.armed.md` for its syntax and behavior.
-
-## `--member-comms-slack-send-message` operation reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
-
-## `--member-upsert-member-inquiry` operation reference
-
-Passes an inquiry along to a specific named member's own inbox — same argument shape and file-writing mechanics as the `--member-inbox-note-upsert` operation, kept as its own distinctly-named op because the two represent semantically distinct fallback cases ("note it for later" vs. "pass it to another member").
+`magic-coordinator`'s board and heartbeat-state reads in **read-board-shape** are its own operations, from `magic-coordinator/magic-coordinator.armed.md`.
 
 # Maintainer Notes
 
@@ -114,18 +97,16 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-tests (benchmarks)
 
 - This session has exactly one responsibility — the board-review session described in its own Goals section, not two.
+- `magic-librarian` finds a misfiled item. It reports it; `magic-coordinator` moves it.
 
 ## Librarian Comments
 
 ### Reference
 
-- `magic-coordinator.daily.routine` — the caller that spawns this routine at its own **spawn-morning-review**.
-- `magic-team.coworking.routine` — the template this routine extends; its Steps/Closure Steps are the opening and closing this routine executes.
-- `magic-team.process-inbox.routine` — own-inbox processing.
-- `magic-team/magic-team.board.md` — the board's own state model this routine checks for drift.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, calling convention, sole-sanctioned Slack-posting mechanism.
-- `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
+- `magic-coordinator.daily.routine` — starts this routine at **spawn-morning-review**.
+- `magic-team.coworking.routine` — the routine this one extends.
+- `magic-team/magic-team.board.md` — the state model checked here.
 
 ### Conventions
 
-None currently known beyond this file's own Local rules.
+- none

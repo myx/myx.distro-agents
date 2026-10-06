@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsHarnessModelRound.include -- functions only the model loop of
+## AgentsUniversalHarness.sh calls: the bearer refresh before each stream, and the
+## per-round reader of the calls a response holds. Sourced by the core once it is past
+## the --intern-tool exit, so a served call never loads them; everything here runs in
+## the core's process and shares its variables.
+
+## Exchanges only where one is declared, and only where the bearer is absent or its margin
+## is spent -- which is why the header below reads one variable in both cases.
+AgentsHarnessRefreshBearer(){
+	[ -n "$harnessTokenExchange" ] || return 0
+	local exchangeNow="$( date +%s )"
+	[ -z "$harnessBearer" ] || [ "$exchangeNow" -ge "$harnessBearerGoodUntil" ] || return 0
+	local exchangeOut="$( printf '%s' "$harnessToken" | AgentsExchangeBearer )"
+	harnessBearer="${exchangeOut%% *}"
+	if [ -z "$harnessBearer" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: Agents${harnessTokenExchange}Exchange.sh returned no bearer for the credential named in $harnessCredentialNames -- this leg cannot authenticate" >&2
+		exit 1
+	fi
+	## Two fields or none: a single field is the bearer, and its expiry is then unknown.
+	local exchangeExpiry=0
+	case "$exchangeOut" in *' '*) exchangeExpiry="${exchangeOut#* }" ;; esac
+	AgentsHarnessWholeNumber "$exchangeExpiry" || exchangeExpiry=0
+	## Both numbers below are chosen policy values and not derived ones -- nothing here
+	## bounds a single stream, that curl carrying no --max-time -- so tuning either is a
+	## policy decision rather than a correction.
+	[ "$exchangeExpiry" != 0 ] || exchangeExpiry=$(( exchangeNow + 1800 ))
+	harnessBearerGoodUntil=$(( exchangeExpiry - 300 ))
+	## A lifetime shorter than the margin cannot be margined, and absorbing that silently
+	## re-exchanges on every attempt for the rest of the run.
+	if [ "$harnessBearerGoodUntil" -le "$exchangeNow" ] ; then
+		echo "${harnessWarn}⚠️  bearer lifetime is under the 300s margin${harnessOff} ${harnessDim}-- Agents${harnessTokenExchange}Exchange.sh returned an expiry $(( exchangeExpiry - exchangeNow ))s away; using it unmargined, which is a mis-parsed TTL or a very short-lived token${harnessOff}" >&2
+		harnessBearerGoodUntil="$exchangeExpiry"
+	fi
+	printf '%s\n' "${harnessDim}🔑 bearer exchanged via Agents${harnessTokenExchange}Exchange.sh -- $(( harnessBearerGoodUntil - exchangeNow ))s until the next exchange${harnessOff}" >&2
+}
+
+## Each call's id, name and arguments, read ONCE per round into harnessCallIds/Names/Args
+## -- what "$( AgentsWireToolCallId N )" and its two siblings yield, without re-parsing
+## the whole response three times per call per loop. A synthesized response is built from
+## the per-index stream files the wire's consumer leaves, and those values pass through
+## its escape and the field reader unchanged, so they are read from there: OpenAiChat
+## (Copilot, Grok, Scaleway) from stream.tool.N.{id,name,args}, AnthropicMessages from
+## each tool_use block's stream.block.N.{raw,json}. Anything else -- a raw non-streaming
+## body, another wire, files that do not account for every call -- takes the wire's own
+## accessors, exactly as before.
+harnessResponseSynthesized=0
+harnessCallIds=()
+harnessCallNames=()
+harnessCallArgs=()
+AgentsHarnessToolCallsRead(){ ## tool call count
+	local readCount="$1" readIdx=0 readBlock=0 readBlocks="" readType="" readFrom=""
+	harnessCallIds=()
+	harnessCallNames=()
+	harnessCallArgs=()
+	if [ "$harnessResponseSynthesized" = 1 ] ; then
+		case "$harnessWire" in
+			OpenAiChat)
+				AgentsHarnessFileText "$harnessScratch/stream.tool.count"
+				if [ "$harnessFileText" = "$readCount" ] ; then
+					readFrom=files
+					while [ "$readIdx" -lt "$readCount" ] ; do
+						AgentsHarnessFileText "$harnessScratch/stream.tool.$readIdx.id" ; harnessCallIds[$readIdx]="$harnessFileText"
+						AgentsHarnessFileText "$harnessScratch/stream.tool.$readIdx.name" ; harnessCallNames[$readIdx]="$harnessFileText"
+						AgentsHarnessFileText "$harnessScratch/stream.tool.$readIdx.args" ; harnessCallArgs[$readIdx]="$harnessFileText"
+						readIdx=$(( readIdx + 1 ))
+					done
+				fi
+			;;
+			AnthropicMessages)
+				AgentsHarnessFileText "$harnessScratch/stream.block.count"
+				readBlocks="$harnessFileText"
+				if AgentsHarnessWholeNumber "$readBlocks" ; then
+					readFrom=files
+					while [ "$readBlock" -lt "$readBlocks" ] ; do
+						AgentsHarnessFileText "$harnessScratch/stream.block.$readBlock.type"
+						if [ "$harnessFileText" = tool_use ] ; then
+							## The block's own start event, read by the same engine the field reader is.
+							AgentsHarnessFileText "$harnessScratch/stream.block.$readBlock.raw"
+							AgentsHarnessArgParse "$harnessFileText"
+							AgentsHarnessArgFind id || :
+							harnessFileText="$harnessArgFound"
+							while : ; do case "$harnessFileText" in *$'\n') harnessFileText="${harnessFileText%$'\n'}" ;; *) break ;; esac ; done
+							harnessCallIds[$readIdx]="$harnessFileText"
+							AgentsHarnessArgFind name || :
+							harnessFileText="$harnessArgFound"
+							while : ; do case "$harnessFileText" in *$'\n') harnessFileText="${harnessFileText%$'\n'}" ;; *) break ;; esac ; done
+							harnessCallNames[$readIdx]="$harnessFileText"
+							AgentsHarnessFileText "$harnessScratch/stream.block.$readBlock.json"
+							[ -n "$harnessFileText" ] || harnessFileText='{}'
+							harnessCallArgs[$readIdx]="$harnessFileText"
+							readIdx=$(( readIdx + 1 ))
+						fi
+						readBlock=$(( readBlock + 1 ))
+					done
+					[ "$readIdx" = "$readCount" ] || readFrom=""
+				fi
+			;;
+		esac
+	fi
+	[ "$readFrom" != files ] || return 0
+	## A plain assignment each, so an accessor's own loud exit still ends the run under set -e.
+	local readValue
+	readIdx=0
+	while [ "$readIdx" -lt "$readCount" ] ; do
+		readValue="$( AgentsWireToolCallId "$readIdx" )"
+		harnessCallIds[$readIdx]="$readValue"
+		readValue="$( AgentsWireToolCallName "$readIdx" )"
+		harnessCallNames[$readIdx]="$readValue"
+		readValue="$( AgentsWireToolCallArgs "$readIdx" )"
+		harnessCallArgs[$readIdx]="$readValue"
+		readIdx=$(( readIdx + 1 ))
+	done
+}

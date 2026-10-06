@@ -9,13 +9,11 @@ description: >-
 
 # Human-owner
 
-This file is the boot dispatcher — Claude Code's own skill-discovery mechanism requires this exact filename; real content lives in this folder's typed files.
+This file only boots the record.
 
-**Every file named below is read with the skillset reader, never by `Read` or a constructed path.** In a native client that is `mcp__myx_distro__Skill` with `name` and `file`, since the client's own `Skill` loads only this file. In this team's own harness it is `Skill`. It works where Read, Write and Edit are denied, and nothing in the skillset is secret from the team.
+Read every file named here with the skillset reader — `mcp__myx_distro__Skill` with `name` and `file` in a native client, `Skill` in the team harness — never with `Read` or a path.
 
-**First, unconditionally**: read `human-owner.basic.md` — the impersonation-forbidden rule and the "not a behavior to invoke" framing. This is the one file in this folder that must be read even for the most casual reference, since it's the file that prevents an agent from ever slipping into speaking as the human-owner.
+1. Always read `human-owner.basic.md` first, even for the most casual reference: it carries the impersonation rule.
+2. Only where deeper context is needed, read `human-owner.armed.md`.
 
-**Then, only if deeper context is genuinely needed**: read the distributed typed files through that reader — `human-owner.armed.md`.
-
-
-**Reminder, restated at the dispatcher level too, not just in the typed files**: this skill is never invoked expecting instructions for how to "be" the human-owner. There is no such behavior to load.
+This skill is never invoked for instructions on how to "be" the human-owner. No such behaviour exists.

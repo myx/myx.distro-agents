@@ -483,33 +483,49 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
 	. "$harnessRootsInclude"
+	## The installer's own index of this same set, already resolved, when it vouches for
+	## this run (AgentsHarnessRootsIndex.include says when); the producer below otherwise.
+	harnessRootsFromIndex=""
+	harnessWriteFromIndex=""
+	harnessWriteGiven="${#harnessWriteAccessRoots[@]}"
+	. "$harnessHere/AgentsHarnessRootsIndex.include"
+	if AgentsHarnessRootsIndexUse "${MMDAPP:-}" "$harnessAgent" "$harnessWriteGiven" ; then
+		harnessRootsFromIndex=1
+		[ "$harnessWriteGiven" != 0 ] || harnessWriteFromIndex=1
+	fi
 	## Captured on its own line so a failed producer refuses the run: read through the
 	## herestring directly, its status is lost and a short set passes as the whole one.
 	## stderr is captured with it, so the reason travels with the refusal; the loop
 	## below keeps absolute paths only. Under --intern-tool stdout is all a caller sees.
-	if ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" 2>&1 )" ; then
+	if [ -n "$harnessRootsFromIndex" ] ; then
+		:
+	elif ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" 2>&1 )" ; then
 		[ -z "$harnessToolOnly" ] || printf 'ERROR: the access-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root set could not be computed, refusing rather than running on a partial set: $harnessOwnRoots" >&2
 		exit 1
+	else
+		while IFS= read -r harnessOwnRoot ; do
+			case "$harnessOwnRoot" in
+				/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
+			esac
+		done <<< "$harnessOwnRoots"
 	fi
-	while IFS= read -r harnessOwnRoot ; do
-		case "$harnessOwnRoot" in
-			/*) harnessAccessRoots+=( "$harnessOwnRoot" ) ;;
-		esac
-	done <<< "$harnessOwnRoots"
 	## Writes narrow the way the console narrows them: the write reference roots plus the
 	## declared Edit grants, never the whole read set, so the skills root stays read-only.
-	if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] ; then
-		if ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots ; } 2>&1 )" ; then
+	if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] || [ -n "$harnessWriteFromIndex" ] ; then
+		if [ -n "$harnessWriteFromIndex" ] ; then
+			:
+		elif ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots ; } 2>&1 )" ; then
 			[ -z "$harnessToolOnly" ] || printf 'ERROR: the write-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the write-root set could not be computed, refusing rather than writing wherever reads reach: $harnessOwnRoots" >&2
 			exit 1
+		else
+			while IFS= read -r harnessOwnRoot ; do
+				case "$harnessOwnRoot" in
+					/*) harnessWriteAccessRoots+=( "$harnessOwnRoot" ) ;;
+				esac
+			done <<< "$harnessOwnRoots"
 		fi
-		while IFS= read -r harnessOwnRoot ; do
-			case "$harnessOwnRoot" in
-				/*) harnessWriteAccessRoots+=( "$harnessOwnRoot" ) ;;
-			esac
-		done <<< "$harnessOwnRoots"
 		if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] ; then
 			[ -z "$harnessToolOnly" ] || printf 'ERROR: no write roots resolved, so nothing was done -- check MMDAPP in the MCP server environment\n'
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: no write roots resolved, refusing rather than writing wherever reads reach -- check MMDAPP" >&2
@@ -521,9 +537,17 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	printf '%s\n' "🔐 ${harnessDim}access roots${harnessOff} ${harnessValue}${#harnessAccessRoots[@]}${harnessOff} ${harnessDim}from this package's own access-root mechanism${harnessOff}" >&2
 fi
 
+## A root the index resolved at install, and still a directory, keeps that resolution;
+## every other one is resolved here, one subshell each, as always.
 harnessRoots=""
+harnessRootIdx=0
 for harnessRoot in "${harnessAccessRoots[@]}" ; do
-	harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
+	if [ -n "${harnessRootsFromIndex:-}" ] && [ -n "${harnessAccessRootsReal[$harnessRootIdx]-}" ] ; then
+		harnessRoots="${harnessRoots}${harnessAccessRootsReal[$harnessRootIdx]}"$'\n'
+	else
+		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessRoot" )"$'\n'
+	fi
+	harnessRootIdx=$(( harnessRootIdx + 1 ))
 done
 if [ -z "$harnessRoots" ] ; then
 	[ -z "$harnessToolOnly" ] || printf 'ERROR: no access roots resolved, so nothing was done -- sh-lib/AgentsTools.ClientAccessRoots.include yielded an empty set; check MDAT_SKILLSET_ROOT, HOME and MMDAPP in the MCP server environment\n'
@@ -536,8 +560,14 @@ fi
 ## generated before this flag passes, so no existing spawn loses a write.
 harnessWriteRoots=""
 if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
+	harnessRootIdx=0
 	for harnessWriteRoot in "${harnessWriteAccessRoots[@]}" ; do
-		harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessWriteRoot" )"$'\n'
+		if [ -n "${harnessWriteFromIndex:-}" ] && [ -n "${harnessWriteAccessRootsReal[$harnessRootIdx]-}" ] ; then
+			harnessWriteRoots="${harnessWriteRoots}${harnessWriteAccessRootsReal[$harnessRootIdx]}"$'\n'
+		else
+			harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessWriteRoot" )"$'\n'
+		fi
+		harnessRootIdx=$(( harnessRootIdx + 1 ))
 	done
 	## A named member writes its own directory by definition, without being granted it.
 	[ -z "$harnessAgentRealDir" ] || harnessWriteRoots="${harnessWriteRoots}$harnessAgentRealDir"$'\n'
@@ -545,20 +575,71 @@ fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
 
 ## The spawn's own sandbox is added here, after the write set is final.
+## The spawn op hands over the sandbox already resolved, as MDAT_SPAWN_SANDBOX_ROOT_REAL.
+## It is taken only where it is provably the same directory and its input/ and output/
+## are real directories under it, not links -- then `cd && pwd -P` would yield exactly
+## those names; otherwise each is resolved here, as always.
 if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
-	harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )"$'\n'"$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
-	harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT_REAL:-}" ] && [ "${MDAT_SPAWN_SANDBOX_ROOT_REAL#/}" != "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
+		&& [ "$MDAT_SPAWN_SANDBOX_ROOT" -ef "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
+		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] \
+		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] ; then
+		harnessRoots="${harnessRoots}$MDAT_SPAWN_SANDBOX_ROOT_REAL/input"$'\n'"$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"$'\n'
+		harnessWriteRoots="${harnessWriteRoots}$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"$'\n'
+	else
+		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )"$'\n'"$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+		harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+	fi
 fi
 
 ## A parent session reads its children's output and writes their input, by parent-session-id.
 harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+## Where every spawn since the install has listed itself in its parent's own
+## .local/agents/children/<id> -- the install re-lists the older ones and then marks the
+## store with children/.indexed -- only the records that file names are read,
+## taken in the order the full scan meets them and still checked line for line; a
+## parent with no such file has no children. Anywhere else, every record is scanned.
 if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
+	harnessChildRecords=""
+	case "$harnessParentKey" in
+		*/*|.|..) harnessChildIndexed="" ;;
+		*) harnessChildIndexed="$MMDAPP/.local/agents/children/.indexed" ; [ -f "$harnessChildIndexed" ] || harnessChildIndexed="" ;;
+	esac
+	if [ -n "$harnessChildIndexed" ] ; then
+		harnessChildNames=""
+		[ ! -f "$MMDAPP/.local/agents/children/$harnessParentKey" ] || IFS= read -r -d '' harnessChildNames < "$MMDAPP/.local/agents/children/$harnessParentKey" || :
+		if [ -n "$harnessChildNames" ] ; then
+			harnessChildFiles=()
+			for harnessChildRecord in "$MMDAPP"/.local/agents/spawned/*/*.md ; do
+				case $'\n'"$harnessChildNames" in
+					*$'\n'"${harnessChildRecord#"$MMDAPP/.local/agents/spawned/"}"$'\n'*) harnessChildFiles+=( "$harnessChildRecord" ) ;;
+				esac
+			done
+			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "${harnessChildFiles[@]}" 2>/dev/null )" || harnessChildRecords=""
+		fi
+	else
+		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )" || harnessChildRecords=""
+	fi
+	## The spawned/ directory is resolved once; a child's own folder and its input/ and
+	## output/ that are real directories, not links, resolve under it to exactly what
+	## `cd && pwd -P` gives, so only a child with a link or a missing folder is resolved
+	## on its own.
+	harnessSpawnedDir="$MMDAPP/.local/agents/spawned"
+	harnessSpawnedReal=""
 	while IFS= read -r harnessChildRecord ; do
 		[ -n "$harnessChildRecord" ] || continue
 		harnessChildRoot="${harnessChildRecord%/*}"
-		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/output" )"$'\n'
-		harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/input" )"$'\n'
-	done <<< "$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )"
+		harnessChildName="${harnessChildRoot#"$harnessSpawnedDir/"}"
+		if [ "$harnessChildName" != "$harnessChildRoot" ] && [ -n "$harnessChildName" ] && [ "${harnessChildName%/*}" = "$harnessChildName" ] \
+			&& [ ! -L "$harnessChildRoot" ] && [ -d "$harnessChildRoot/output" ] && [ ! -L "$harnessChildRoot/output" ] && [ -d "$harnessChildRoot/input" ] && [ ! -L "$harnessChildRoot/input" ] ; then
+			[ -n "$harnessSpawnedReal" ] || harnessSpawnedReal="$( AgentsHarnessResolveDir "$harnessSpawnedDir" )"
+			harnessRoots="${harnessRoots}$harnessSpawnedReal/$harnessChildName/output"$'\n'
+			harnessWriteRoots="${harnessWriteRoots}$harnessSpawnedReal/$harnessChildName/input"$'\n'
+		else
+			harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/output" )"$'\n'
+			harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/input" )"$'\n'
+		fi
+	done <<< "$harnessChildRecords"
 fi
 
 ## Claude Code saves a tool result too large to return under its own session folder, outside
@@ -1739,6 +1820,17 @@ AgentsHarnessToolWait(){
 		cat "$harnessScratch/wait.err"
 		return 0
 	fi
+	## A dismissal is a Wait outcome of its own: a message whose body is DISMISSED,
+	## addressed to this member (AgentsHarnessWaitDismissed.awk). The spawner sends it when
+	## it is satisfied; the waiting session ends with its handback on it. Everything the
+	## wait returned still follows, so nothing it saw is hidden behind the outcome.
+	local waitDismissedBy=""
+	if [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] \
+		&& waitDismissedBy="$( LC_ALL=C awk -v agent="$harnessAgent" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
+		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
+		tail -n +2 "$harnessScratch/wait.out"
+		return 0
+	fi
 	cat "$harnessScratch/wait.out"
 }
 
@@ -1903,7 +1995,25 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	## itself resolves the thread and refuses rather than starting a new
 	## session silently when the id names none.
 	[ -z "$toolSessionId" ] || set -- "$@" --session-id "$toolSessionId"
+	## The mechanical brief block -- tool-routing, read-and-obey, executors, invitees and
+	## the open warnings -- is the tooling's to write, never the caller's to copy: the
+	## standing default routine's block goes ahead of the prompt, unless the prompt already
+	## opens with one. A member the block cannot be built for (no .armed.md, no template)
+	## is still spawned, and the result says the block is missing.
+	local toolBriefNote=""
+	case "$toolPrompt" in
+		"SPAWN-PREPARE-BRIEF: "*) ;;
+		*)
+			local toolBrief=""
+			if toolBrief="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
+				toolPrompt="$toolBrief"$'\n\n'"$toolPrompt"
+			else
+				toolBriefNote="NOTE: the spawn brief block (tool-routing, read-and-obey) could not be built for $toolAgentName, so the prompt went in without it: $( head -1 "$harnessScratch/spawn-brief.err" 2>/dev/null )"
+			fi
+		;;
+	esac
 	printf '%s' "$toolPrompt" | "$@" >"$harnessScratch/spawn.out" 2>&1 || spawnRc=$?
+	[ -z "$toolBriefNote" ] || printf '%s\n' "$toolBriefNote" >> "$harnessScratch/spawn.out"
 	if [ "$spawnRc" != "0" ] ; then
 		printf 'ERROR: the spawn failed (rc=%s) and NO helper session is running. What the operation reported follows:\n' "$spawnRc"
 		cat "$harnessScratch/spawn.out"
@@ -3133,9 +3243,12 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 	printf '... read %s of the %s matching resource(s); the bound on this call was %s ...\n' "$dirRead" "$dirMatched" "$toolLimit"
 }
 
-## Holds no catalogue: the floor is rendered by the mirror on every call, so both wires
-## search one literal, and the MCP entries are this round's $harnessMcpToolsJson,
-## each already carrying its separating comma.
+## The floor is rendered by the mirror once per process and kept in this scratch file --
+## the call runs in a command substitution, so a variable would not outlive it -- and both
+## wires search that one literal. Only a rendering that succeeded is kept: a failed one
+## is tried again, and says why, on the next call. The MCP entries are this round's
+## $harnessMcpToolsJson, each already carrying its separating comma.
+harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 AgentsHarnessToolToolSearch(){ ## query, max_results
 	local toolQuery="$1" toolMax="$2" searchFloor="" searchRc=0
 	if [ -z "$toolQuery" ] ; then
@@ -3148,9 +3261,17 @@ AgentsHarnessToolToolSearch(){ ## query, max_results
 	else
 		toolMax=5
 	fi
-	searchFloor="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || searchRc=$?
+	if [ -s "$harnessToolSearchFloorFile" ] ; then
+		AgentsHarnessFileText "$harnessToolSearchFloorFile"
+		searchFloor="$harnessFileText"
+	else
+		searchFloor="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || searchRc=$?
+	fi
 	case "$searchRc:$searchFloor" in
-		'0:['*']') ;;
+		'0:['*']')
+			## Written whole and then renamed, so a reader never meets half a floor.
+			[ -s "$harnessToolSearchFloorFile" ] || { printf '%s' "$searchFloor" > "$harnessToolSearchFloorFile.$$" && mv -f "$harnessToolSearchFloorFile.$$" "$harnessToolSearchFloorFile" ; } 2>/dev/null || rm -f "$harnessToolSearchFloorFile.$$" 2>/dev/null || :
+		;;
 		*)
 			printf 'ERROR: ToolSearch: the harness tool declarations did not render (rc=%s), so nothing was searched. The renderer names the declaration at fault on stderr.\n' "$searchRc" ; return 0
 		;;
@@ -3343,9 +3464,85 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	fi
 }
 
-## A tool_call's own `function.arguments` is itself a JSON document, so the same field
-## reader runs again on it rather than a second parser being written.
+## A tool_call's own `function.arguments` is itself a JSON document. It is parsed ONCE
+## per call, by AgentsHarnessArgTable.awk -- the field reader's own engine, emitting every
+## leaf at once -- and each lookup after that is builtins only. The table belongs to one
+## raw argument string: AgentsHarnessArgParse on the same string again is a no-op, and
+## any other string replaces it.
+## Each top-level key spelled [A-Za-z0-9_] is also held as harnessArgV_<key>, and each
+## `-<letters>` key (Grep's -n, -A ...) as harnessArgD_<letters>, holding exactly what
+## "$( AgentsHarnessArgValue raw key )" yields: unset where that is empty, every
+## trailing newline dropped as a command substitution drops it.
+harnessArgRaw=""
+harnessArgParsed=0
+harnessArgPaths=()
+harnessArgEncs=()
+harnessArgFound=""
+AgentsHarnessArgParse(){ ## raw arguments
+	[ "$harnessArgParsed" != 1 ] || [ "$1" != "$harnessArgRaw" ] || return 0
+	local parseTable parseLine parseKind parsePath parseEnc parseValue
+	unset ${!harnessArgV_@} ${!harnessArgD_@}
+	harnessArgPaths=()
+	harnessArgEncs=()
+	harnessArgRaw="$1"
+	harnessArgParsed=1
+	## The here-string adds the one newline `printf '%s\n'` handed the field reader.
+	parseTable="$( LC_ALL=C awk -f "$harnessHere/AgentsHarnessJsonField.awk" -f "$harnessHere/AgentsHarnessArgTable.awk" <<< "$1" 2>/dev/null )" || parseTable=""
+	[ -n "$parseTable" ] || return 0
+	while IFS= read -r parseLine ; do
+		case "$parseLine" in '!ok') continue ;; esac
+		parseKind="${parseLine%%$'\t'*}"
+		parseLine="${parseLine#*$'\t'}"
+		## Never `printf -v` an empty result: bash 3.2 then leaves the buffer of the one before.
+		parsePath="${parseLine%%$'\t'*}"
+		[ -z "$parsePath" ] || printf -v parsePath '%b' "$parsePath"
+		parseEnc="${parseLine#*$'\t'}"
+		harnessArgPaths+=( "$parsePath" )
+		harnessArgEncs+=( "$parseEnc" )
+		case "$parseKind" in
+			v|d)
+				parseValue=""
+				[ -z "$parseEnc" ] || printf -v parseValue '%b' "$parseEnc"
+				while : ; do
+					case "$parseValue" in *$'\n') parseValue="${parseValue%$'\n'}" ;; *) break ;; esac
+				done
+				[ -n "$parseValue" ] || continue
+				if [ "$parseKind" = v ] ; then
+					printf -v "harnessArgV_$parsePath" '%s' "$parseValue"
+				else
+					printf -v "harnessArgD_${parsePath#-}" '%s' "$parseValue"
+				fi
+			;;
+		esac
+	done <<< "$parseTable"
+}
+
+## The value at one exact path of the parsed table, untrimmed, into harnessArgFound;
+## non-zero when the path is absent -- or the arguments were not one JSON object.
+AgentsHarnessArgFind(){ ## key path
+	local findIndex=0 findCount="${#harnessArgPaths[@]}"
+	harnessArgFound=""
+	[ -n "$1" ] || return 1
+	while [ "$findIndex" -lt "$findCount" ] ; do
+		if [ "${harnessArgPaths[$findIndex]}" = "$1" ] ; then
+			[ -z "${harnessArgEncs[$findIndex]}" ] || printf -v harnessArgFound '%b' "${harnessArgEncs[$findIndex]}"
+			return 0
+		fi
+		findIndex=$(( findIndex + 1 ))
+	done
+	return 1
+}
+
+## Byte for byte what the field reader prints for this path. Answered from the parsed
+## table when it is this same raw string -- a subshell inherits it -- and by the reader
+## itself for any other document.
 AgentsHarnessArgValue(){
+	## A path carrying a backslash or a newline is left to the reader: awk's own -v
+	## escape processing decides what such a path even names.
+	if [ "$harnessArgParsed" = 1 ] && [ "$1" = "$harnessArgRaw" ] && [ "${2//[\\$'\n']/}" = "$2" ] ; then
+		! AgentsHarnessArgFind "$2" || printf '%s\n' "$harnessArgFound"
+		return 0
+	fi
 	printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null || :
 }
 
@@ -3354,11 +3551,15 @@ AgentsHarnessArgValue(){
 harnessArgExact=""
 harnessArgOld=""
 AgentsHarnessArgExact(){ ## raw arguments, key, alias key read only when the key is absent
+	AgentsHarnessArgParse "$1"
 	## Absent, not empty: an empty new_string is a real value, and the key still wins over its alias.
-	[ -z "$3" ] || printf '%s\n' "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" >/dev/null 2>&1 || set -- "$1" "$3"
-	harnessArgExact="$( AgentsHarnessArgValue "$1" "$2" ; printf 'x' )"
-	harnessArgExact="${harnessArgExact%x}"
-	harnessArgExact="${harnessArgExact%$'\n'}"
+	if [ -n "$3" ] && ! AgentsHarnessArgFind "$2" ; then
+		set -- "$1" "$3"
+	fi
+	harnessArgExact=""
+	if AgentsHarnessArgFind "$2" ; then
+		harnessArgExact="$harnessArgFound"
+	fi
 }
 
 ## One line, every C0 byte and DEL folded to a space, cut on a UTF-8 character boundary.
@@ -3416,17 +3617,19 @@ AgentsHarnessTruncateArg(){
 ## so the only escapes reaching the terminal are the $harness* literals placed around them.
 AgentsHarnessAnnounceTool(){
 	local announceFuncName="$1" announceArgsRaw="$2" announceIcon="❓" announceDetail="" announcePath=""
+	## Parsed once here; the dispatch that follows reads the same table.
+	AgentsHarnessArgParse "$announceArgsRaw"
 	case "$announceFuncName" in
 		Read)
 			announceIcon="📖"
-			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
-			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announcePath="${harnessArgV_file_path}"
+			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Write)
 			announceIcon="📝"
-			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
-			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announcePath="${harnessArgV_file_path}"
+			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Glob)
@@ -3435,8 +3638,8 @@ AgentsHarnessAnnounceTool(){
 			## other off the terminal, and the path is the half that identifies the
 			## call. Two spaces past the tool line, not aligned to the detail column --
 			## a wide gutter on a continuation reads as a second column that is not there.
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" pattern )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_path}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_pattern}" )$harnessOff"
 			## Only when there is one: the announce prints before the call validates its
 			## arguments, so a missing path would otherwise render a second line holding
 			## an indent, the word `in`, and nothing.
@@ -3444,33 +3647,33 @@ AgentsHarnessAnnounceTool(){
 		;;
 		Edit)
 			announceIcon="✏️"
-			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" file_path )"
-			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" path )"
+			announcePath="${harnessArgV_file_path}"
+			[ -n "$announcePath" ] || announcePath="${harnessArgV_path}"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		Grep)
 			announceIcon="🔍"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" path )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" pattern )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_path}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_pattern}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim in$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		Bash)
 			announceIcon="💻"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" cwd )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" command )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_cwd}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_command}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim in$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		WebSearch)
 			announceIcon="🔎"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" query )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_query}" )$harnessOff"
 		;;
 		WebFetch)
 			announceIcon="🌐"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" url )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url}" )$harnessOff"
 		;;
 		SendMessage)
 			announceIcon="✉️"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_to}" )$harnessOff"
 		;;
 		ListAgents)
 			announceIcon="👥"
@@ -3487,87 +3690,87 @@ AgentsHarnessAnnounceTool(){
 		## one field that identifies the call rather than the whole body it composed.
 		SubagentHandback)
 			announceIcon="📦"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )${harnessOff}"
-			[ -n "$( AgentsHarnessArgValue "$announceArgsRaw" to )" ] || announceDetail="${harnessValue}${harnessParentName}${harnessOff}"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_to}" )${harnessOff}"
+			[ -n "${harnessArgV_to}" ] || announceDetail="${harnessValue}${harnessParentName}${harnessOff}"
 		;;
 		ReportFindings)
 			announceIcon="📊"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" subject )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_subject}" )$harnessOff"
 		;;
 		PushNotification)
 			announceIcon="📣"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" headline )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_headline}" )$harnessOff"
 		;;
 		Artifact)
 			announceIcon="🔗"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" url )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url}" )$harnessOff"
 		;;
 		## The question, then the conversation on its own line: a question and a target
 		## on one line push each other off the terminal, and this call may hold the run
 		## for minutes, so what it is waiting on has to be visible.
 		AskUserQuestion)
 			announceIcon="❔"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" to )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" question )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_to}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_question}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim to$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		## server is optional here, so a bare call states what it will actually do rather
 		## than announcing an empty detail that reads as a stall.
 		ListMcpResourcesTool)
 			announceIcon="🗂️"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
 			announceDetail="$harnessDim every MCP server this run enumerated$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
 		;;
 		ReadMcpResourceTool)
 			announceIcon="📄"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" uri )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_uri}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		ReadMcpResourceDirTool)
 			announceIcon="🗃️"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" server )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" uri_prefix )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_server}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_uri_prefix}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim on$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		Skill)
 			announceIcon="📚"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" file )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" name )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_file}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_name}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim file$harnessOff $harnessValue$announcePath$harnessOff"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" skill )" )"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_skill}" )"
 			[ -z "$announcePath" ] || announceDetail="$harnessValue$announcePath$harnessOff"
 		;;
 		## The member being spawned, then the brief on its own line: this call starts a
 		## session that outlives the turn, so who it starts has to be visible at a glance.
 		Agent)
 			announceIcon="🚀"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" prompt )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" agent )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_prompt}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_agent}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim brief$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		TaskStop)
 			announceIcon="🛑"
-			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" task_id )"
-			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" shell_id )"
-			[ -n "$announcePath" ] || announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" handle )"
+			announcePath="${harnessArgV_task_id}"
+			[ -n "$announcePath" ] || announcePath="${harnessArgV_shell_id}"
+			[ -n "$announcePath" ] || announcePath="${harnessArgV_handle}"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
 		;;
 		TaskOutput)
 			announceIcon="📜"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_handle}" )$harnessOff"
 		;;
 		ToolSearch)
 			announceIcon="🧰"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" query )" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_query}" )$harnessOff"
 		;;
 		## A start and a read are the same tool, and which one this call is decides which
 		## field identifies it, so both are shown rather than one that may be empty.
 		Monitor)
 			announceIcon="📡"
-			announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" handle )" )"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" command )" )$harnessOff"
+			announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_handle}" )"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_command}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim handle$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
@@ -3577,10 +3780,10 @@ AgentsHarnessAnnounceTool(){
 		## falls back to showing the whole argument object.
 		mcp__*)
 			announceIcon="🔌"
-			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" command )"
+			announcePath="${harnessArgV_command}"
 			if [ -n "$announcePath" ]; then
 				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
-				announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" comment )" )"
+				announcePath="$( AgentsHarnessTruncateArg "${harnessArgV_comment}" )"
 				[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim comment$harnessOff $harnessValue$announcePath$harnessOff"
 			else
 				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
@@ -3610,7 +3813,8 @@ AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must w
 }
 AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the arming read
 	[ -z "$harnessArmedAt" ] && [ "$1" = "Skill" ] && [ -n "$harnessAgent" ] || return 0
-	[ "$( AgentsHarnessArgValue "$2" name )" = "$harnessAgent" ] && [ "$( AgentsHarnessArgValue "$2" file )" = "$harnessAgent.armed.md" ] || return 0
+	AgentsHarnessArgParse "$2"
+	[ "${harnessArgV_name}" = "$harnessAgent" ] && [ "${harnessArgV_file}" = "$harnessAgent.armed.md" ] || return 0
 	case "$3" in ERROR:*|'') return 0 ;; esac
 	## "In full" means every line: each read's range is recorded, and arming waits until the
 	## union covers line 1 to the last. A read with no footer is the whole file.
@@ -3635,52 +3839,83 @@ AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the armi
 
 AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 	local harnessFuncName="$1" harnessFuncArgsRaw="$2"
+	## One parse per call -- a no-op when the announce already parsed this same string --
+	## and every arm below reads its fields from harnessArgV_*/harnessArgD_*.
+	AgentsHarnessArgParse "$harnessFuncArgsRaw"
 	## Text a tool writes is taken byte for byte, ahead of the arms that keep their own spelling.
 	case "$harnessFuncName" in
 		Write) AgentsHarnessArgExact "$harnessFuncArgsRaw" content ;;
 		Edit) AgentsHarnessArgExact "$harnessFuncArgsRaw" old_string old_text ; harnessArgOld="$harnessArgExact" ; AgentsHarnessArgExact "$harnessFuncArgsRaw" new_string new_text ;;
 	esac
 	case "$harnessFuncName" in
-		Read)      harnessResult="$( AgentsHarnessToolRead "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pages )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" )" ;;
-		Write)     harnessResult="$( AgentsHarnessToolWrite "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
-		Glob)      harnessResult="$( AgentsHarnessToolGlob "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" long )" )" ;;
-		Edit)      harnessResult="$( AgentsHarnessToolEdit "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$harnessArgOld" "$harnessArgExact" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" replace_all )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file_path )" "$harnessFuncArgsRaw" )" ;;
-		Grep)      harnessResult="$( AgentsHarnessToolGrep "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pattern )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" path )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" before )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" after )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" ignore_case )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" glob )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -n )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -o )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -A )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -B )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -C )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" -i )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" head_limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" multiline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" type )" )" ;;
-		Bash)      harnessResult="$( AgentsHarnessToolBash "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" )" ;;
-		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$harnessFuncArgsRaw" )" ;;
-		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" )" ;;
-		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" message )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" view )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" state )" )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" sources )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" poll_interval )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" since_utime )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" addressee )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" include_own )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" mode )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" seen )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" note )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" done )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" )" ;;
-		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" outcome )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" unfinished )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" subject )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" findings )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" evidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" confidence )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" severity )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" headline )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" detail )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" action_required )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" url )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" title )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" summary )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" )" ;;
-		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" question )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" options )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" context )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" timeout )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" wait_source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" as_bot )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" address_to )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" kind )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" understood )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" source )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" will_do )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" refusal_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" reason )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_ref )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" pending_id )" )" ;;
-		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" )" ;;
-		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri )" )" ;;
-		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" server )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" uri_prefix )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
-		Skill)     harnessResult="$( AgentsHarnessToolSkill "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" name )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" file )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" list )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" skill )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" args )" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" agent )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" prompt )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cli_service )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_name_or_comment )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" session_id )" )" ;;
-		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" force )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" task_id )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" shell_id )" )" ;;
-		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" output_file )" )" ;;
-		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" query )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" max_results )" )" ;;
-		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" command )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" cwd )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" handle )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" offset )" "$( AgentsHarnessArgValue "$harnessFuncArgsRaw" limit )" )" ;;
+		Read)      harnessResult="$( AgentsHarnessToolRead "${harnessArgV_path}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_pages}" "${harnessArgV_file_path}" )" ;;
+		Write)     harnessResult="$( AgentsHarnessToolWrite "${harnessArgV_path}" "$harnessArgExact" "${harnessArgV_file_path}" "$harnessFuncArgsRaw" )" ;;
+		Glob)      harnessResult="$( AgentsHarnessToolGlob "${harnessArgV_pattern}" "${harnessArgV_path}" "${harnessArgV_long}" )" ;;
+		Edit)      harnessResult="$( AgentsHarnessToolEdit "${harnessArgV_path}" "$harnessArgOld" "$harnessArgExact" "${harnessArgV_replace_all}" "${harnessArgV_file_path}" "$harnessFuncArgsRaw" )" ;;
+		Grep)      harnessResult="$( AgentsHarnessToolGrep "${harnessArgV_pattern}" "${harnessArgV_path}" "${harnessArgV_context}" "${harnessArgV_before}" "${harnessArgV_after}" "${harnessArgV_ignore_case}" "${harnessArgV_output_mode}" "${harnessArgV_glob}" "${harnessArgD_n}" "${harnessArgD_o}" "${harnessArgD_A}" "${harnessArgD_B}" "${harnessArgD_C}" "${harnessArgD_i}" "${harnessArgV_head_limit}" "${harnessArgV_offset}" "${harnessArgV_multiline}" "${harnessArgV_type}" )" ;;
+		Bash)      harnessResult="$( AgentsHarnessToolBash "${harnessArgV_cwd}" "${harnessArgV_command}" "${harnessArgV_timeout}" )" ;;
+		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "${harnessArgV_query}" "$harnessFuncArgsRaw" )" ;;
+		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" )" ;;
+		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" )" ;;
+		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" )" ;;
+		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" )" ;;
+		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" )" ;;
+		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" )" ;;
+		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" )" ;;
+		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "${harnessArgV_to}" "${harnessArgV_question}" "${harnessArgV_options}" "${harnessArgV_context}" "${harnessArgV_wait}" "${harnessArgV_timeout}" "${harnessArgV_wait_source}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "${harnessArgV_kind}" "${harnessArgV_understood}" "${harnessArgV_source}" "${harnessArgV_will_do}" "${harnessArgV_refusal_id}" "${harnessArgV_reason}" "${harnessArgV_task_ref}" "${harnessArgV_pending_id}" )" ;;
+		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "${harnessArgV_server}" )" ;;
+		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
+		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
+		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" )" ;;
+		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
+		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
+		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;
+		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "${harnessArgV_command}" "${harnessArgV_cwd}" "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
 		*)         harnessResult="ERROR: unknown tool: $harnessFuncName" ;;
 	esac
 }
 
+## One file's whole content, as `$( cat file )` gives it -- every trailing newline
+## dropped, empty when it is absent -- into harnessFileText, with builtins only.
+harnessFileText=""
+AgentsHarnessFileText(){ ## file
+	harnessFileText=""
+	[ -f "$1" ] || return 0
+	IFS= read -r -d '' harnessFileText < "$1" || :
+	while : ; do
+		case "$harnessFileText" in *$'\n') harnessFileText="${harnessFileText%$'\n'}" ;; *) break ;; esac
+	done
+}
+
+## Includes load only on the path that uses them. A served --intern-tool call needs the
+## wire and the MCP client only for the tools that reach an MCP server -- the client
+## declares what a server lists through the wire's own AgentsWireToolDeclaration -- and
+## every other served tool runs without either; the model path needs both. The hooks
+## load for every path: a served call of any tool is put to them, as a model call is.
+harnessNeedsMcp=1
+if [ -n "$harnessToolOnly" ] ; then
+	case "$harnessToolOnlyName" in
+		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|mcp__*) ;;
+		*) harnessNeedsMcp="" ;;
+	esac
+fi
+
 ## Sourced, not exec'd: its functions run in this process and share everything above.
+## Checked on every path, so a misnamed wire is refused exactly as it always was.
 harnessWireFile="$harnessHere/Agents${harnessWire}Wire.sh"
 if [ ! -f "$harnessWireFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: HARNESS_WIRE=$harnessWire names no adapter in this package: $harnessWireFile" >&2
 	exit 1
 fi
-. "$harnessWireFile"
-## The declarations a hosted model is given state the cap this process applies.
-[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
+if [ -n "$harnessNeedsMcp" ] ; then
+	. "$harnessWireFile"
+	## The declarations a hosted model is given state the cap this process applies.
+	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
+fi
 
 ## The bearer the auth header is built from. With no exchange declared it is the stored
 ## credential, seeded once here, and no exchange code runs anywhere in this process.
@@ -3703,36 +3938,6 @@ if [ -n "$harnessTokenExchange" ] ; then
 	harnessBearer=""
 	harnessBearerGoodUntil=0
 fi
-
-## Exchanges only where one is declared, and only where the bearer is absent or its margin
-## is spent -- which is why the header below reads one variable in both cases.
-AgentsHarnessRefreshBearer(){
-	[ -n "$harnessTokenExchange" ] || return 0
-	local exchangeNow="$( date +%s )"
-	[ -z "$harnessBearer" ] || [ "$exchangeNow" -ge "$harnessBearerGoodUntil" ] || return 0
-	local exchangeOut="$( printf '%s' "$harnessToken" | AgentsExchangeBearer )"
-	harnessBearer="${exchangeOut%% *}"
-	if [ -z "$harnessBearer" ] ; then
-		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: Agents${harnessTokenExchange}Exchange.sh returned no bearer for the credential named in $harnessCredentialNames -- this leg cannot authenticate" >&2
-		exit 1
-	fi
-	## Two fields or none: a single field is the bearer, and its expiry is then unknown.
-	local exchangeExpiry=0
-	case "$exchangeOut" in *' '*) exchangeExpiry="${exchangeOut#* }" ;; esac
-	AgentsHarnessWholeNumber "$exchangeExpiry" || exchangeExpiry=0
-	## Both numbers below are chosen policy values and not derived ones -- nothing here
-	## bounds a single stream, that curl carrying no --max-time -- so tuning either is a
-	## policy decision rather than a correction.
-	[ "$exchangeExpiry" != 0 ] || exchangeExpiry=$(( exchangeNow + 1800 ))
-	harnessBearerGoodUntil=$(( exchangeExpiry - 300 ))
-	## A lifetime shorter than the margin cannot be margined, and absorbing that silently
-	## re-exchanges on every attempt for the rest of the run.
-	if [ "$harnessBearerGoodUntil" -le "$exchangeNow" ] ; then
-		echo "${harnessWarn}⚠️  bearer lifetime is under the 300s margin${harnessOff} ${harnessDim}-- Agents${harnessTokenExchange}Exchange.sh returned an expiry $(( exchangeExpiry - exchangeNow ))s away; using it unmargined, which is a mis-parsed TTL or a very short-lived token${harnessOff}" >&2
-		harnessBearerGoodUntil="$exchangeExpiry"
-	fi
-	printf '%s\n' "${harnessDim}🔑 bearer exchanged via Agents${harnessTokenExchange}Exchange.sh -- $(( harnessBearerGoodUntil - exchangeNow ))s until the next exchange${harnessOff}" >&2
-}
 
 ## Sourced the same way, and after the wire so its refusals can name this run's tools.
 ## Absent, this refuses to start: a harness that cannot consult its hooks must not run
@@ -3758,8 +3963,8 @@ fi
 ## destination for it too. No mcp.servers.json means no set, and nothing is printed.
 ## A set named on argv is the run's own and stays. With none named, the set is read
 ## from mcp.servers.json again on every enumeration -- the client enumerates on load
-## and again before every round -- so a server registered or removed there reaches the
-## next round rather than the next run.
+## and again before any round that finds that file changed -- so a server registered or
+## removed there reaches the next round rather than the next run.
 case "$harnessToolOnlyName" in
 	ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch)
 		export MDAT_MCP_SERVED_MARKER=1
@@ -3772,11 +3977,13 @@ AgentsHarnessMcpServerSet(){
 	case "$harnessToolOnlyName" in
 		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|'')
 			if [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
+				## From the installer's index when it matches the JSON, else the JSON's own keys.
+				AgentsHarnessMcpKeys "$MMDAPP/.local/agents/mcp.servers.json"
 				while IFS= read -r harnessToolPeer ; do
 					[ -n "$harnessToolPeer" ] || continue
 					[ "myx.distro" != "$harnessToolPeer" ] || continue
 					harnessMcpServers+=( "$harnessToolPeer" )
-				done <<< "$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$MMDAPP/.local/agents/mcp.servers.json" 2>/dev/null )"
+				done <<< "$harnessMcpResKeys"
 			fi
 		;;
 	esac
@@ -3790,12 +3997,14 @@ if [ ! -f "$harnessMcpFile" ] ; then
 	echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the MCP client support is missing from this package: $harnessMcpFile" >&2
 	exit 1
 fi
-. "$harnessMcpFile"
+[ -z "$harnessNeedsMcp" ] || . "$harnessMcpFile"
 ## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
 [ ! -f "$harnessHere/AgentsTools.LocalLock.include" ] || . "$harnessHere/AgentsTools.LocalLock.include"
 
-## --intern-tool ends here: the tools, the hooks and the MCP client are all in scope by
-## now, and everything below this point is the model path. The argument object arrives
+## --intern-tool ends here: the tools, the hooks and, for a tool that reaches an MCP
+## server, the MCP client are all in scope by now, and everything below this point is the
+## model path -- which bash, reading a script as it runs it, never even parses on a
+## served call. The argument object arrives
 ## on stdin as the same raw JSON a tool_call carries, so a served call and a model call
 ## read their arguments through one reader. stdout carries the result and nothing else.
 if [ -n "$harnessToolOnly" ] ; then
@@ -3828,6 +4037,10 @@ if [ -n "$harnessToolOnly" ] ; then
 	harnessExitClean=1 ; exit 0
 fi
 
+## The model path's own functions -- the bearer refresh and the per-round tool-call
+## reader -- live in an include no served call loads.
+. "$harnessHere/AgentsHarnessModelRound.include"
+
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
 
@@ -3838,10 +4051,14 @@ $harnessWriteRoots
 Everything else above you may read, list, search and run commands in, but not write to. Do not try to work around that -- report it instead.
 "
 
+## A spawned session never ends on its own, its work done or not: its spawner dismisses it.
+## Not one whose caller blocks on it (MDAT_SPAWN_CALLER_WAITS): that caller cannot send DISMISSED.
+harnessSpawnedWaitNote=""
+[ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || [ "${MDAT_SPAWN_CALLER_WAITS:-}" = "true" ] || harnessSpawnedWaitNote=" You are a spawned session: you never end on your own, not even when your work is done. When it is done, report that to whoever started you with SubagentHandback, saying you are done and waiting for further instructions, then keep waiting with Wait on your session thread and keep obeying what arrives there. End your run only when a Wait returns DISMISSED."
 harnessSystemTail=" (no sandboxing beyond the paths below). You may only read, write, list, search or run commands with a working directory under one of these access roots:
 $harnessRoots
 $harnessWriteNote
-Use the given tools to accomplish the request, then reply with a final plain-text message once done. Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskUserQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
+Use the given tools to accomplish the request, then reply with a final plain-text message once done. A plain-text reply with no tool call ends your run, so never give one while the work is still open: waiting for an answer, a reply, another session or any other event is not done. Wait for it with the Wait tool (mcp__myx_distro__Wait over MCP), and after a TIMEOUT wait again, look elsewhere or escalate -- never end the run just to wait. Then carry on obeying your instructions.$harnessSpawnedWaitNote Nobody is reading this terminal, so a question written into your own answer reaches no one: where you genuinely need a decision only a person can make, AskUserQuestion is the one way to ask for one. Otherwise make the most reasonable choice and state what you did."
 
 ## --agent given: the member's own identity replaces the generic opener entirely.
 ## Skill below is a tool name in prose, which no structural check can see.
@@ -3948,8 +4165,10 @@ while : ; do
 	harnessMonitorPending="$( AgentsHarnessMonitorSpool )"
 	[ -z "$harnessMonitorPending" ] || harnessMessages+=( "$( AgentsWireUserRecord "$harnessMonitorPending" )" )
 
-	## The MCP set is enumerated again every round; its report shows when the set or the note changed.
-	if [ "$harnessRound" -gt 1 ] ; then
+	## The MCP set is enumerated again before a round only when the catalogue may be stale --
+	## mcp.servers.json changed, a server was unavailable, or a call failed to reach its
+	## server (AgentsHarnessMcpStale); its report shows when the set or the note changed.
+	if [ "$harnessRound" -gt 1 ] && AgentsHarnessMcpStale ; then
 		harnessMcpToolsJsonWas="$harnessMcpToolsJson"
 		AgentsHarnessMcpEnumerate 2> "$harnessScratch/mcp.enum.err"
 		if [ "$harnessMcpToolsJson" != "$harnessMcpToolsJsonWas" ] || [ "$harnessMcpUnavailableNote" != "$harnessMcpNoteTold" ] ; then
@@ -4046,11 +4265,13 @@ while : ; do
 		exit 1
 	fi
 
+	harnessResponseSynthesized=0
 	if [ -s "$harnessScratch/stream.rawother" ] ; then
 		harnessResponse="$( cat "$harnessScratch/stream.rawother" )"
 	else
 		## The adapter synthesizes the exact document shape the downstream code expects.
 		AgentsWireSynthesizeResponse
+		harnessResponseSynthesized=1
 	fi
 
 	## From here $harnessResponse is either a real non-streaming error body or this
@@ -4116,12 +4337,14 @@ while : ; do
 
 	## The assistant's own tool_calls message goes into history verbatim first -- this
 	## API's required shape for a multi-turn tool exchange.
+	## Every call's fields are read once, here, and both loops below take them from there.
+	AgentsHarnessToolCallsRead "$harnessToolCount"
 	harnessToolCallsJson=""
 	harnessIndex=0
 	while [ "$harnessIndex" -lt "$harnessToolCount" ] ; do
-		harnessCallId="$( AgentsWireToolCallId "$harnessIndex" )"
-		harnessFuncName="$( AgentsWireToolCallName "$harnessIndex" )"
-		harnessFuncArgsRaw="$( AgentsWireToolCallArgs "$harnessIndex" )"
+		harnessCallId="${harnessCallIds[$harnessIndex]}"
+		harnessFuncName="${harnessCallNames[$harnessIndex]}"
+		harnessFuncArgsRaw="${harnessCallArgs[$harnessIndex]}"
 		harnessToolCallsJson="${harnessToolCallsJson}${harnessToolCallsJson:+,}$( AgentsWireToolCallEntry "$harnessCallId" "$harnessFuncName" "$harnessFuncArgsRaw" )"
 		harnessIndex=$(( harnessIndex + 1 ))
 	done
@@ -4130,9 +4353,9 @@ while : ; do
 	## Then one result per call, keyed by that exact tool_call_id.
 	harnessIndex=0
 	while [ "$harnessIndex" -lt "$harnessToolCount" ] ; do
-		harnessCallId="$( AgentsWireToolCallId "$harnessIndex" )"
-		harnessFuncName="$( AgentsWireToolCallName "$harnessIndex" )"
-		harnessFuncArgsRaw="$( AgentsWireToolCallArgs "$harnessIndex" )"
+		harnessCallId="${harnessCallIds[$harnessIndex]}"
+		harnessFuncName="${harnessCallNames[$harnessIndex]}"
+		harnessFuncArgsRaw="${harnessCallArgs[$harnessIndex]}"
 
 		AgentsHarnessAnnounceTool "$harnessFuncName" "$harnessFuncArgsRaw"
 

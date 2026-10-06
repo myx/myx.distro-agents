@@ -884,21 +884,21 @@ rigAssert "no request left this box"                           "$( rigLines "$ri
 rigVerdict "own-inbox and board macro-events are returned by --continue between calls, and a quiet pair times out"
 
 ## ---------------------------------------------------------------------------
-## 10f. The internal poll: 19 seconds by default, MDAT_WAIT_POLL_SECONDS in tests,
-##      --wait-poll-interval over both -- and the caller's timeout never lengthened.
+## 10f. The internal poll: a backoff from 5s by default, MDAT_WAIT_POLL_SECONDS in
+##      tests, --wait-poll-interval over both -- and the caller's timeout never lengthened.
 ## ---------------------------------------------------------------------------
 rigNewStart poll
 rigDropQ="$rigNewDir/dropQ.txt"
 : > "$rigDropQ"
 rigNewPoll=""
 rigNewIn poll-default --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2
-rigAssert "without the env the poll is 19s"                    "$( rigHolds "$rigNewOut" 'poll round(s) at 19s' )" yes
-rigAssert "the caller's bound still ends it, not the 19s"      "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
+rigAssert "without the env the poll backs off from 5s"         "$( rigHolds "$rigNewOut" 'poll round(s) at backoff from 5s' )" yes
+rigAssert "the caller's bound still ends it, not the 5s"       "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
 rigAssert "it is a TIMEOUT"                                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
 rigNewPoll="1"
 rigNewIn poll-env --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2
 rigAssert "control: with the env the poll is 1s"               "$( rigHolds "$rigNewOut" 'poll round(s) at 1s' )" yes
-rigAssert "control: not 19s"                                   "$( rigHolds "$rigNewOut" 'at 19s' )" no
+rigAssert "control: not the backoff"                           "$( rigHolds "$rigNewOut" 'backoff' )" no
 rigNewIn poll-flag --wait-default --wait-source "file:$rigDropQ" --wait-timeout 2 --wait-poll-interval 3
 rigAssert "--wait-poll-interval wins over the env"             "$( rigHolds "$rigNewOut" 'poll round(s) at 3s' )" yes
 rigDropAfter 1 "$rigDropQ" RIG-POLL-ARRIVAL
@@ -906,7 +906,7 @@ rigNewIn poll-arrival --wait-default --wait-source "file:$rigDropQ" --wait-timeo
 rigDropDone
 rigAssert "with the env an arrival is noticed at the next 1s poll" "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
 rigAssert "it returned inside 10s of a 30s bound"              "$( rigWithin "$rigNewElapsed" 10 )" "within-10"
-rigVerdict "the poll defaults to 19s, MDAT_WAIT_POLL_SECONDS sets it for tests, --wait-poll-interval wins, the bound is never exceeded"
+rigVerdict "the poll backs off from 5s by default, MDAT_WAIT_POLL_SECONDS sets it for tests, --wait-poll-interval wins, the bound is never exceeded"
 
 ## ---------------------------------------------------------------------------
 ## 10g. The existing call shape, with no mode and no session id: unchanged -- a

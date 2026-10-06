@@ -17,8 +17,6 @@ default-for-session-kind: coworking
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--routine-coworking-session-input-scan` Operation Reference
-  - `--member-comms-slack-send-message` Operation Reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -28,143 +26,109 @@ default-for-session-kind: coworking
 
 # Summary
 
-Routine-coworking is the named shape for genuine multi-member collaborative work on one shared task in one conversation/thread, `magic-coordinator` participating directly.
+`magic-team.coworking.routine` is several members working one shared task together in one session, `magic-coordinator` leading it.
 
 ## Goals
 
-Give the team a real, named shape for genuine multi-member collaborative work sessions — several members actually working the same task together in the same conversation/thread, not one member dispatched solo and reporting back afterward. This is distinct from a normal dispatch (one member, one assignment, reports at the end) and distinct from `magic-coordinator.daily.routine`'s work-session fan-out (several members, but each working their *own* separate assignment in parallel, not the same shared task together). `magic-coordinator` participating directly and orchestrating — keeping the session's own goal on track, not just spawning and stepping back — is what makes this genuinely coworking rather than several independent dispatches that happen to run at the same time.
+- Give genuinely shared work a named shape: members react to each other in real time on the same task, with `magic-coordinator` keeping the shared goal on track.
+- Own the opening group (**session-start**) and closing group (**close-session**) that every session runs, and the session-type taxonomy they key off.
 
 ## Scope
 
-Does: orchestrated shared-task collaboration, `magic-coordinator` staying on-task not just spawning and stepping back. Manual, no autonomous or scheduled trigger — the human-owner, or `magic-coordinator` itself, recognizes a task genuinely needs several members working it together in the same session, though a spawned session can also recognize this partway through. Explicitly non-exhaustive — not the only valid coworking shape.
-Doesn't do: solo dispatch-and-report-back, `magic-coordinator.daily.routine`'s per-member parallel-but-separate fan-out.
+- Does:
+  - Orchestrated multi-member work on one shared task. Started by the human-owner or `magic-coordinator`, or by a session that finds its task needs several members.
+  - The opening and closing groups every session runs, coworking or not.
+- Doesn't:
+  - Solo dispatch-and-report work.
+  - `magic-coordinator.daily.routine`'s fan-out, where each member works its own separate assignment.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **session-start**: the shared opening group. Every session executes it — coworking-like and ad-hoc/solo alike. A session that is not this routine references this group by name and executes it alike, rather than invoking this routine as a whole, steps:
-   - **declare-session-type**: declare this session's type, per the taxonomy in this routine's own Local rules — state plainly, up front, which of the two types this session is. Every later step here, and every session-type-gated step in **close-session**, keys off this one declaration — don't re-derive it separately at each gated step.
-   - **assign-transcript-name**: if session type is coworking-like, assign `session_transcript_name` now — required context key, one `transcript-*.md` filename for this session, set once and stable for the whole session. Transcript appends are blocked while this key is absent; do not proceed with them.
-   - **post-opening-broadcast**: post to `slack-magic-team` now — this group's first externally-visible action. Every activity posts as it happens, no exemptions, any session type; this opening post happens here, before **fold-in-learned-lessons** or **collect-reflections-output**, no exceptions. Content may be minimal at this point (session type + participants known so far + goal if already framed) — completeness is never a reason to delay; a short immediate post beats a complete late one. The executor posts it via the `--member-comms-slack-send-message` operation.
-     - **Coworking-like sessions only**: this same step also carries the opening Trello update naming participants and the shared goal (already framed, or about to be framed at **frame-the-shared-goal**), mirroring **close-session**'s closing Trello update. A calling routine may inline the actual posting into whatever early-session dispatch it already makes — an opening post happening is what's mandatory, not the exact mechanism used to make it happen.
-     - **Thread continuity — every session, both types**: `session_thread_ts` is the session's own coworking-session thread, opened by the spawn proxy at spawn time, before this routine's own first step runs — titled from the spawner-provided name or comment when one was given, from the session id otherwise. On the normal path a session never opens this thread itself. Only a failed opening post falls back to a fresh `magic-team` thread, the same way it always has. `SendMessage`, `AskUserQuestion` and `Wait` default to it automatically when the calling agent's own sandbox carries one, so naming it explicitly on every post is no longer required for the default to hold — still do so where a send's target must be unambiguous to a reader of the call itself, such as this routine's own worked examples. Every `slack-magic-team` post for this session still targets the one thread its sandbox names, ad-hoc/solo sessions included. This is ad-hoc/solo work's own minimal floor: an open post and a close post in one visible thread, nothing heavier — mid-session progress narration stays each member's own judgment call, not mandatory for ad-hoc the way it is for genuinely shared coworking.
-   - **fold-in-learned-lessons**: mandatory — only `magic-librarian` runs `magic-team.process-reflections.routine` for this session's own project/workspace, so the session starts with this project's accumulated reflection lessons already folded in rather than catching up on them on the way out. **all other participants**: each considers its own lessons and findings, and passes them to `magic-librarian` in place of running the routine. Each may also decide to write another reflection.
-   - **collect-reflections-output**: run `magic-team.process-inbox.routine <executor>` — inline execution (own identity). Positioned after **fold-in-learned-lessons** deliberately: that step files new drafted proposals and `inquiry-*`/`reflection-*` items into this executor's own inbox, and this is the pass that picks them up. **all participants**: it collects what that same member's own **fold-in-learned-lessons** just filed into that member's own inbox, so the executor commands each member it just ran that step for, and announces it. Not automatic just because this routine spawned — this explicit call is what actually guarantees it happens.
-2. **frame-the-shared-goal**: state plainly, up front, what the coworking session is actually trying to accomplish together — same discipline as `magic-team.discuss.routine`'s framing step, since a coworking session without a clear shared goal risks becoming an unfocused free-for-all. (**post-opening-broadcast** may run before or after this framing.) Once the goal names this session's own tracking document(s), steps:
-   - call the `--routine-coworking-session-input-scan` operation for those tracking document(s) before the session works from them
-   - re-read any inbox item naming the same board-item(s) so the participants invited next start from them
-3. **invite-participants-visibly**: invoke each participant's real Skill, visibly, as each one is actually dispatched — including any member pulled into duty later, mid-session, not only those named when the session started. Every member actually collaborating loads its own full `Skill`, not a paraphrase — same standard as any other dispatch, just multiple members present in the same working session rather than one. For each one, at the moment its dispatch begins, post `Inviting <member's own Alias, per its own Public Information>...` into this session's `slack-magic-team` thread via the `--member-comms-slack-send-message` operation, target `session_thread_ts` per **post-opening-broadcast**'s Thread continuity, never the bare `magic-team` keyword; once that member has loaded its Skill and is ready, that member posts its own confirmation into the same thread under its own alias, same threaded target (illustrative shape only: `@<alias>: Hi there! Armed and ready!` — each member's actual wording is its own voice, not a fixed script). This reply is not decorative — it's the actual mechanism that confirms the member is armed, replacing a silent assumption of dispatch success with a visible, checkable confirmation. Applies identically to a member added mid-session — no quieter/implicit path for a late arrival. **Confirmation never arrives**: `magic-coordinator` re-invites once (re-post the `Inviting...` line); still nothing, flag it in this session's own `slack-magic-team` thread and either proceed without that member if the shared task still works without them, or pause and ask the human-owner if it can't.
-4. **orchestrate-as-participant**: `magic-coordinator` participates directly and orchestrates — not a passive observer, rules:
-   - actively keeps the session's own goal on track
-   - redirects when the work's shape drifts
-   - makes the real-time judgment calls a solo dispatch would otherwise leave to whichever single member was assigned
-   - carries a participant's own stuck point through to a real outcome, never leaving it for that participant alone to solve
-5. **work-the-shared-task**: however the actual collaboration shape needs to happen for this specific goal — sequential handoffs, parallel sub-pieces reconciled at the end, live back-and-forth — this step is deliberately not prescriptive about the *mechanics* of collaborating, since that's genuinely task-dependent.
-6. **batch-then-test-knowledge-changes**: batch-then-test floor, specifically for magic-team knowledge changes (routines/skills/rules/process-flow files — `SKILL.md` and its typed siblings, shared team docs; not a ceiling on how a session may work, a minimum for this specific kind of change): accumulate a batch of related knowledge changes first, rather than treating every single minor edit mid-session as its own tested unit. Between batches, steps:
-   - close out any sub-spawned sessions from the finishing batch
-   - make sure the actual knowledge files are fully updated (not left half-edited)
-   - spawn a fresh session whose only job is to test the batch's changes together as a whole (not mixed with authoring new changes)
-   - reload the now-current knowledge into this coworking session itself once that test session confirms things hold
-   - only then spawn the next co-working batch
-
-   This is the standing floor for this shape of session. **The test session's own completion report is the real signal** — a background `Agent` dispatch reports back on completion the same way any other spawned sub-session does, so the coworking session isn't guessing whether the batch is clean. **The report comes back failing, not passing**:
-   - rule: never reload an unconfirmed batch into this coworking session; only a batch the test session has actually confirmed clean gets reloaded
-   - step: fix the real problems it found
-   - step: re-test within that same test/fix cycle
-7. **narrate-progress-in-thread**: narrate real progress into the same thread as it happens, not only at the final report — as the shared goal's scope changes, or a participant begins applying a piece of work, post a short line to that effect (illustrative shape: `updated session scope: ...`, `applying ...`). This makes `magic-coordinator`'s own general message-by-message relay obligation concrete for this routine. Additive to, not a replacement for: the existing `slack-event-track` activity-tracking obligation in this routine's own Local rules (different channel, technical purpose) and **report-out-with-transcripts**'s own end-of-session substantive report.
-8. **ask-before-investigating**: default to a short clarification question over a broad investigation when something is unclear mid-task — same ask-first discipline as conversation mechanics **clarification-stall-single-hypothesis** (single-hypothesis, closed-form) and the team's own gap-surfacing convention (ask what's wanted; investigate only facts, never intent). Escalate into a real investigation — file reads, cross-file search, dispatching a member to go look — only once one of two concrete thresholds is actually met: the same gap has gone through two clarification rounds without resolving (that same rule's own stall definition), or the gap is a fact nobody present already holds (what a file/system actually contains or does, never what's wanted). Investigating "to be sure" before either threshold is met is scope creep on this step, not a safer default.
-9. **report-out-with-transcripts**: report out to `slack-magic-team` via the `--member-comms-slack-send-message` operation, including transcripts — unlike an ordinary dispatch's compact status trace, a coworking session's report includes enough of the actual working transcript/substance that the broader team can see not just the outcome but how it was reached — this is a deliberate transparency choice for genuinely collaborative work, distinct from **post-closing-broadcast**'s more compact broadcast. Same threaded target as **invite-participants-visibly**/**narrate-progress-in-thread**: `session_thread_ts`, never a fresh bare `magic-team` post. The report itself is the member's own text and takes the team output-style floor; the included transcripts are carried text, marked as quotation and never restyled, per `magic-team/magic-team.shared.md`'s own "The output-style floor". This step is the one place a member writes and carries in the same send.
+1. **session-start**: the shared opening group, steps:
+   - **declare-session-type**: state which of the two session types this is (Local rules). Every type-gated step keys off this declaration.
+   - **assign-transcript-name**: coworking-like sessions only: name this session's transcript `transcript-<date>-<topic>` once. It stays fixed until close. No transcript append runs before it is named.
+   - **post-opening-broadcast**: post the session type, the participants known so far and the goal, if framed, into the session thread. Post at once; completeness never delays it. Coworking-like sessions: `magic-coordinator` makes the opening Trello card update, directly or as a `note-pending-trello-update-*` record in its own inbox.
+   - **fold-in-learned-lessons**: `magic-librarian`, when a participant, runs `magic-team.process-reflections.routine` for this session's project or workspace. All other participants: each passes its own recent lessons to `magic-librarian` with `post-inquiry`, and may file a new `reflection-*`.
+   - **collect-reflections-output**: all participants: each runs `magic-team.process-inbox.routine <own-name>`, picking up what **fold-in-learned-lessons** filed.
+2. **frame-the-shared-goal**: state what the session must achieve together. Once the goal names this session's tracking documents, steps:
+   - read them with `--routine-coworking-session-input-scan` before working from them.
+   - re-read any inbox item naming the same board items.
+3. **invite-participants-visibly**: invite each participant as it joins, at the start or mid-session, steps:
+   - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information.
+   - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
+   - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate.
+4. **orchestrate-the-shared-task**: `magic-coordinator` leads the work as a participant, rules:
+   - keep the session on its goal; redirect drift.
+   - make the real-time judgement calls a solo dispatch would leave to one member.
+   - carry every participant's stuck point to an outcome.
+   - the collaboration shape (hand-offs, parallel pieces, live back-and-forth) is the task's own; nothing here fixes it.
+5. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
+6. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest.
 
 # Closure steps
 
-1. **close-session**: the shared closing group. Every session executes it — coworking-like and ad-hoc/solo alike. A session that is not this routine references this group by name and executes it alike, rather than invoking this routine as a whole. `magic-team.process-reflections.routine` does not run here — it already ran at **fold-in-learned-lessons**, steps:
-   - **post-closing-broadcast**: post to `slack-magic-team` — every session, both types, unconditional.
-     - post the actual substance (resolutions, triage outcomes, highlights) — not a one-line summary; skip only genuinely internal mechanics
-     - any member posts directly via the `--member-comms-slack-send-message` operation
-     - targets `session_thread_ts`, per **post-opening-broadcast** — never a fresh bare `magic-team` post
-     - coworking-like sessions only: queue a `note-*` to `magic-coordinator`'s inbox via the `--member-inbox-note-upsert` operation, describing the Trello card update needed — never write to Trello directly, `magic-coordinator.advance.routine` is the sole executor of actual Trello writes
-     - in a full coworking session this is the compact counterpart to **report-out-with-transcripts**, which carries the working transcript itself
-   - **secure-continuity**: every session, both types. **all participants**: the executor commands each member to check its own transcript, reflect on its own incidents, and write into its own inbox, and announces the round.
-     - check: does anything genuinely important from this session exist only in this transcript, no durable file backing it? If so, write it now via the `--member-inbox-note-upsert` operation (plain memo) or `--member-inbox-reflection-upsert` operation (`reflection-*` note) — or a drafted proposal if the durable form is an `.armed.md`/routine-file change
-     - a ruling this session took on the work itself goes into that work's own document — the plan or spec the work is built from — never only into an inbox note, which the next person to open that document will not read (`magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**). A work document is not a team-knowledge file, so the gate below does not cover it
-     - never a live edit to a team-knowledge file at session close itself — still goes through `magic-team.process-reflections.routine`'s own propose→discuss/approve→edit gate
-     - reflect on this session's actual incidents (0, 1, or several — not a fixed ritual): real corrections, real conflicts with the human-owner's actual stated words, real gaps found live. Check against: floor-not-ceiling (durable minimum going forward, not a one-off patch), statement-updates-state (frame a conflict with a prior assumption as "the model was wrong," not competing information logged side by side)
-     - update any inbox task this session touched, resolved, or deferred
-     - process own inbox: run `magic-team.process-inbox.routine <executor>` — inline execution. Closes out this step's own writes: the `note-*`/`reflection-*` just filed above, plus any inbox item this session touched, resolved, or deferred.
-   - **compact-session-context**: ad-hoc/solo/IDE-chat sessions only.
-     - make sure nothing important is left only in this transcript (**secure-continuity** should already have caught anything substantive) — what makes a session safe to `/clear`
-     - coworking-like sessions skip this entirely — a dispatched background `Agent` has no persisting interactive context to compact
-   - **offer-skill-update-discussion**: coworking-like sessions only.
-     - look back at what the routine surfaced (challenges, friction, gaps between what a member was asked to do and what its own `.armed.md` equips it to do) and raise with the user, explicitly, whether any `magic-*` member's `.armed.md` or any `routine-*` file is due for an update
-     - an offer, not an automatic edit — name the specific skill and gap, let the user decide now or defer
-     - ad-hoc/solo sessions skip this — route through that member's own inbox/reflection note (**secure-continuity**) instead
-   - **conclude-session-thread**: conclude the session's own `slack-magic-team` thread — every session, both types, conditional on a live thread actually existing.
-     - react `:white_check_mark:` on that thread's root message (the same `session_thread_ts` **post-closing-broadcast** posted into) via the `--member-comms-slack-react` operation — same "black tick on completion" pattern `magic-coordinator.heartbeat.routine`'s own closure already uses for its `slack-event-track` thread
-     - no live thread for this session (none handed over, and none opened at **post-opening-broadcast**) → skip, no error
+1. **close-session**: the shared closing group, steps:
+   - **post-closing-broadcast**: post the session's substance into the session thread — resolutions, triage outcomes, highlights — not a one-line summary. Coworking-like sessions: `magic-coordinator` makes the closing Trello card update the same way. Trello writes are `magic-coordinator`'s only.
+   - **secure-continuity**: all participants: each checks its own part of the session, steps:
+     - write anything important that lives only in this session into its own inbox: a `note-*` or a `reflection-*`. A proposed skillset change goes to `magic-coordinator` as an `inquiry-*`, its text labelled `(draft)`.
+     - write a ruling on the work into that work's own document, per **decision-lands-in-the-document-it-binds**.
+     - reflect on this session's real incidents, if any: corrections, conflicts with the human-owner's words, gaps found live. Frame a broken assumption as "the model was wrong".
+     - run `magic-team.process-inbox.routine <own-name>`, covering what was just filed and any item this session touched.
+   - **compact-session-context**: ad-hoc/solo sessions only: confirm nothing important lives only in this session, so it is safe to clear.
+   - **offer-skill-update-discussion**: coworking-like sessions only: name to the human-owner any member file or routine this session showed is due for an update, and the gap. An offer; he decides now or later.
+   - **conclude-session-thread**: react ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
+
 # Routine's local procedures
 
-Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
+Named procedure blocks. Steps above call them by name. Not separate routines — not visible outside this file.
 
-None currently defined.
+None.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
-- **Two senses of "coworking", kept apart.** This routine's `# Summary`/`## Goals` govern the *narrow* sense — several members working the same shared task together, `magic-coordinator` participating directly. The taxonomy below governs the *general* session-type distinction every session passes through. A session can be coworking-like in the general sense without being a full coworking session in the narrow one. Both live in this file; do not collapse them into each other.
-- **Every step here is the executor's.** A step naming participants is a script for the executor to orchestrate and command, announced in the session transcript as it happens — never members quietly doing it on their own. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are the steps the executor runs *per participant*, commanding each in turn; every other step it performs directly. A send any step instructs — the opening and closing posts, the invite lines, progress narration, the closure reaction — is likewise the executor's, unless that step names a different actor. What a participant says on its own account is not a step and is not constrained by this.
-- **An executor can only command members it spawned itself.** A `magic-coordinator` that was itself spawned cannot reach members spawned by the harness root: they are its parent's peers, `SendMessage` answers that no such agent is reachable, and no roster lookup is available to resolve one. Plan a session so the executor spawns its own participants; where members already exist under the root, the root is the only session that can command them, and a seated coordinator participates rather than leads.
-- **An executor that cannot spawn its members applies each participant's Skill itself.** It says so in the session thread and in the report.
-- **A member joining mid-session does not replay the steps it missed.** On arrival it loads its own Skill, is announced into the session thread, and picks up the shared task from the current state — the executor decides whether any earlier step needs re-running for that member and commands it explicitly if so. Nothing re-fires automatically.
-- **`session-start` and `close-session` are open to every member — `executors: magic-coordinator` in this file's frontmatter governs a full coworking session, not those two groups.** Opening and closing cleanly is a universal need, not something to gate behind a specific role: any member, and any ad-hoc/solo or IDE-chat session, executes both groups alike under its own identity. The frontmatter is deliberately not widened — it is right for the narrow sense, and this rule is what carries the open posture for the two groups.
-- **Session-type taxonomy — defined here, in the template that owns the opening and closing steps.** Every session executing this routine's Steps or Closure Steps is one of exactly two types:
-  - **Coworking-like / structured-multi-member**: a routine extending this template with a defined participant set and an existing external-reporting obligation — `magic-coordinator.daily.routine`, `magic-coordinator.retro.routine`, `magic-team.grooming.routine`, `magic-coordinator.one-on-one.routine`, `magic-librarian.morning-review.routine`, and this routine itself — or, more generally, several members genuinely working the *same* shared task together (not each on its own separate assignment, which is `magic-coordinator.daily.routine`'s work-session fan-out — still coworking-like, since it is part of a structured routine).
-  - **Ad-hoc / solo / IDE-chat**: a single-member dispatch working its own assigned item, a plain IDE-chat UI conversation, or any other dynamic one-off activity that isn't one of the structured routines above. It executes these Steps and Closure Steps alike, in simplified form, following what applies.
-  - `magic-coordinator.advance.routine` and `magic-coordinator.heartbeat.routine` extend this template too, but override the groups heavily (their own `slack-event-track` lifecycle, no **fold-in-learned-lessons**) — see their own Local rules.
-- Genuinely unsure which type a session is: default to **coworking-like**, not ad-hoc — full participant declaration, opening broadcast, and the coworking-gated closing steps — unless the session explicitly declares itself ad-hoc. Ad-hoc is an explicit declaration, never an assumed fallback.
-- **Standing rule**: every invocation of one of the structured routines named above is always a proper (sub-)spawned session executing these Steps and Closure Steps in full — never an ambiguous "just a step vs. a real spawn" judgment call.
-- **Scope boundary on that standing rule**: it does NOT extend to every named routine. Utility/mechanical routines keep their deliberately lightweight execution modes exactly as documented: `magic-team.process-inbox.routine` keeps its inline-(own identity)/spawned-(representing another identity) split; a `partner-*`'s own diagram-sync routine keeps its "skip silently if nothing changed" cheap mtime check.
-- **Co-working transcript context rule**: for coworking-like sessions, `session_transcript_name` is mandatory session context. Assign it once at **assign-transcript-name** and keep it unchanged through close; transcript-append calls are blocked when it is missing.
-- **Session thread-continuity rule**: every session targets the `session_thread_ts` the tooling starts or hands over at spawn time, before this routine's own first step runs. Only a failed opening post falls back to a fresh thread at **post-opening-broadcast**, the same way it always has. Every later `slack-magic-team` post reuses that one value, including **post-closing-broadcast** — one continued activity, one thread, ad-hoc/solo sessions included.
-- Explicitly non-exhaustive scope — this routine is not limiting, it is there to widen what a session can be. Don't read the shape described here as the only valid form a coworking session can take; widen it as real cases surface, through the normal maintainer-quorum process, not silently in the moment.
-- Every participant in this routine — `magic-coordinator` included — counts as not genuinely live-interactive for the `Edit`-vs-`magic-tooling` fallback rule, regardless of any parallel live session `magic-coordinator` may also be holding elsewhere.
-- **Workspace boundary: in coworking, work on an explicitly different workspace must run in a console session for that target workspace.** Same rule as `magic-team.armed.md`'s "Execution mechanisms" section, restated here so a coworking session doesn't have to cross-reference `magic-coordinator/magic-coordinator.root-harness.routine` to find it.
-- **Sessions sharing a file edit it by turns, in the open.** A session editing a file another live session may edit declares its region to that session first. It re-reads the file before every edit. It anchors each edit on text unique to its region. It tells the other session when it hands the file back.
-- **No default attendee roster, until responsibility says otherwise.** `magic-coordinator` convenes and calls in whichever members the shared task actually needs. Nobody is required to attend by default.
-- **Responsibility overrides the default.** A session whose actual output or scope falls inside one member's defined area of responsibility requires that member's attendance, not merely an invitation if convenient. Three named triggers:
-  - **Code, shell, or config output**: requires `magic-developer` and `magic-librarian`, each per its own Scope section.
-  - **Team-facing text or prose, code or not**: requires `magic-librarian`, per its own Scope section. A session editing the magic-team skillset's own doctrine prose does not also fire this trigger — `magic-team.armed.md`'s mandatory conventions-check rule already covers that case.
-  - **A workspace or namespace a `keeper-*`/`warden-*` member owns**: requires the `keeper-*`/`warden-*` owning that workspace/namespace. Attendance by the specific `partner-*`/`client-*` sub-domain specialist holding real implementation authority inside that namespace stays `magic-coordinator`'s normal discretionary call, not mandated by this trigger.
-- Anything else stays under the no-default rule above.
-- **A real tool choice in a session goes to `magic-devops`, not to the chair.** Which tool fits a job is domain competence, not coordination — the executor invites that member the same visible way as any other participant, rather than improvising the choice or letting a participant proceed on an assumed tool.
-- `magic-coordinator`'s participation is not optional or passive: a session with several members present but no one actually keeping the shared goal on track is not this routine — it is just several members talking.
-- Unsure whether a task needs `magic-team.coworking.routine` vs. a normal solo dispatch vs. `magic-coordinator.daily.routine`'s parallel fan-out: solo is only for clear, checkable, single-dispatchable work where one member covers all of its expertise, access and responsibility. Every normal long-running, multi-task session starts as a coworking session, per `magic-coordinator/magic-coordinator.armed.md`'s "A batch of tasks is dispatched as a coworking session". Between coworking and fan-out, coworking is for genuinely *shared* work on the *same* task, where members need to react to each other in real time — if the pieces are actually independent, that's fan-out, not coworking.
-- A participant needs a real decision outside the coworking session's own mandate: same sole-mandated-channel rule as everywhere else — routes through `magic-coordinator`.
-- The transcript-inclusion report (**report-out-with-transcripts**) would expose something genuinely sensitive or internal: use judgment to redact or summarize that specific part, while keeping the rest of the transparency intent intact.
-- Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current throughout the session, not only at the final report — additive to, not replacing, **narrate-progress-in-thread**'s separate `slack-magic-team` progress narration and **report-out-with-transcripts**' end-of-session substantive report.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team.shared.md`'s own rule — see there for the full statement.
+- `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- **session-start and close-session are open to every session.** Any member, and any ad-hoc, solo or IDE-chat session, runs both groups under its own identity, in simplified form where a step is type-gated. `executors:` governs a full coworking session only.
+- **Session-type taxonomy** — every session is one of two types:
+  - **Coworking-like**: a structured routine extending this one (`magic-coordinator.daily.routine`, `magic-coordinator.retro.routine`, `magic-team.grooming.routine`, `magic-coordinator.one-on-one.routine`, `magic-librarian.morning-review.routine`, this routine), or several members on one shared task.
+  - **Ad-hoc / solo**: a single-member dispatch on its own item, an IDE chat, any other one-off activity.
+  - Unsure: coworking-like. Ad-hoc is declared, never assumed.
+  - `magic-coordinator.advance.routine` and `magic-coordinator.heartbeat.routine` extend this routine with their own overrides, stated in their files.
+- Invoking a structured routine always starts a full session running these Steps and Closure steps. Utility routines keep their own lighter modes (`magic-team.process-inbox.routine`'s inline mode).
+- **Every step is the executor's**, per `magic-team.shared.md`'s actor phrases. **fold-in-learned-lessons**, **collect-reflections-output** and **secure-continuity** are commanded per participant.
+- **An executor can only command members it spawned itself.** A spawned `magic-coordinator` cannot reach members the harness root spawned. Plan so the executor spawns its own participants; where members already exist under the root, the root leads and a seated coordinator participates.
+- An executor that cannot spawn its members applies each participant's `Skill` itself, and says so in the session thread and the report.
+- A member joining mid-session does not replay missed steps. It loads its `Skill`, is announced, and starts from the current state. The executor commands any re-run it judges needed.
+- A participant's own words are its own; only steps are constrained.
+- Every wait in this routine follows **wait-never-quit**.
+- A gap in understanding follows `magic-team.negotiations.md`'s "Gap surfacing": ask about intent, investigate facts.
+- **Sessions sharing a file edit it by turns.** Declare your region to the other session first, re-read the file before every edit, anchor each edit on text unique to your region, and hand the file back explicitly.
+- **No default attendees.** `magic-coordinator` calls in the members the task needs. Responsibility overrides this:
+  - code, shell or config output: `magic-developer` and `magic-librarian`.
+  - team-facing text or prose: `magic-librarian`.
+  - a workspace or namespace a `keeper-*`/`warden-*` owns: that member. A `partner-*`/`client-*` specialist stays `magic-coordinator`'s call.
+- **A real tool choice goes to `magic-devops`**, invited like any participant. The chair never picks the tool.
+- Solo dispatch is only for clear, checkable work one member fully owns. Independent pieces are fan-out; shared, interacting work is coworking.
+- A decision outside the session's mandate goes through `magic-coordinator`.
+- Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--routine-coworking-session-input-scan <team-member> <tracking-document>...` (**frame-the-shared-goal**: once the goal names this session's own tracking document(s))
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (**invite-participants-visibly**: invite/confirm posts; **report-out-with-transcripts**: report out; Slack activity-tracking obligation)
-
-## `--routine-coworking-session-input-scan` Operation Reference
-
-`DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...` — read-only: `magic-team.coworking.routine`'s own **frame-the-shared-goal** board scan once the session's shared goal names its own tracking document(s). Each `<tracking-document>` is one tracking document for this particular session — a `dispatch-*`, an `interview-*`, a `task-*`, or any other board-item or own-inbox item that is this session's own work — given as a bare name; a `.md` suffix is accepted just the same and returns the same document. An attachment is not a separate thing to name here: an attached document lives inside its envelope's own body, so naming the envelope returns it. There is no attachment relation to follow, and nothing traverses one. At least one is required. They are this scan's own defining input, not an override: they seed a closure over `blocks:`/`blocked-by:`, and that closure is what makes the returned set every item this session actually needs. The closure is walked from named **board** items. A named item in the calling member's own inbox is returned, but its own `blocks:`/`blocked-by:` are not followed — name anything reached that way yourself, or it will not appear.
-
-## `--member-comms-slack-send-message` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member).
+- `--routine-coworking-session-input-scan <team-member> <tracking-document>...`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
+- `--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]`
+- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-inbox-reflection-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]`
+- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]`
 
 # Maintainer Notes
 
@@ -186,13 +150,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-team.discuss.routine` — the goal-framing discipline **frame-the-shared-goal** borrows from.
-- `magic-team.process-inbox.routine` — own-inbox processing.
-- `magic-coordinator.daily.routine` — the parallel-fan-out shape this routine is explicitly distinct from.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — calling convention, sole-sanctioned Slack-posting mechanism.
-- `magic-team/magic-team.conversations.md` — **clarification-stall-single-hypothesis**'s clarification-stall threshold, **ask-before-investigating** borrows it; conversation mechanics this routine's Local rules point to.
-- `magic-team/magic-team.negotiations.md` — gap-surfacing section (ask what's wanted, investigate only facts), **ask-before-investigating** borrows it.
+- `magic-team.process-inbox.routine`, `magic-team.process-reflections.routine` — run inside **session-start** and **close-session**.
+- `magic-coordinator.daily.routine` — the fan-out shape this routine is distinct from.
+- `magic-team/magic-team.negotiations.md` — "Gap surfacing".
 
 ### Conventions
 
-None currently known beyond this file's own Local rules.
+- **session-start** and **close-session** sub-step names are cited by other routines; keep them stable.

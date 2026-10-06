@@ -19,8 +19,8 @@ verification technique itself has to manage the blast radius.
 
 ## Preview mode beats grepping for blast radius
 
-Before running anything that does real clone/pull/write across a workspace's
-repos, run its preview/dry-run flag first if one exists (`myx.distro-*`'s
+Before anything does real clone/pull/write across a workspace's repos, run its
+preview/dry-run flag first if one exists (`myx.distro-*`'s
 convention: a `--print-*` twin next to the `--execute-*` verb, e.g.
 `DistroImageSync --all-tasks --print-source-prepare-pull` before
 `--execute-source-prepare-pull`). **A static grep for the declare/config pattern
@@ -42,8 +42,8 @@ instead of stalling the session.
 **Gotcha: a dev box may carry no `timeout`/`gtimeout` binary at all.** Check
 for `timeout`/`gtimeout` first; with neither, use the hand-rolled wall-clock
 timeout in `magic-developer/reference/shell.md`'s reusable patterns. It needs
-only the shell, where a Perl one-liner adds a dependency the team does not use. Unconfirmed whether this gap is host-specific or general across
-the estate's dev machines — don't assume either way without checking.
+only the shell, where a Perl one-liner adds a dependency the team does not use.
+Open: whether the missing binary is host-specific or general across the estate's dev machines — check, never assume.
 
 **The full offline set takes tens of minutes, past the `execute` default
 600-second foreground limit.** Run it as a background job and wait on its rc
@@ -84,9 +84,10 @@ after a file move, correct file permissions matching git-tracked mode and
 sibling convention, each changed file read back showing only the intended change) catches what it can
 catch, but **only a real end-to-end run is actual proof a change didn't break
 runtime behavior.** Static/diff-level checks can't catch a runtime-only issue by
-construction. For anything with real side effects, budget for the live run (run
-twice if a fluke is plausible) as part of "done," not as an optional extra past
-the diff review.
+construction. For anything with real side effects, the live run (twice if a
+fluke is plausible) is part of "done", not an optional extra past the diff
+review. Run it within your granted permissions, asking for more when the run
+needs it, and judge the result from its output.
 
 ## "Ruled out" vs "couldn't reproduce" — say which one you mean
 
@@ -123,9 +124,9 @@ missing landed work produces alarm and an investigation with nothing at the end 
 it.
 
 **Whether two paths are one directory or two is a measurement, not a judgement.**
-`readlink` each path component, then compare `stat -f '%d:%i'` — the same device and
-inode means one file, different means two. Reasoning about how the layout must be set
-up does not substitute for those two commands.
+`[ "$a" -ef "$b" ]` answers it on all three platforms — the same device and inode
+means one file, different means two. Reasoning about how the layout must be set
+up does not substitute for that test.
 
 ## A detection check with only negative results, run for real against live traffic
 

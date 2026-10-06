@@ -62,7 +62,7 @@ Steps:
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
@@ -142,4 +142,4 @@ Used to check this file's own definitions against its own goals when it is updat
       - This folder's own knowledge index: pointers to this folder's own typed files, cross-referenced skill folders, shared (`*.shared.md`) material.
     - `### Conventions`
 
-- **Floor-doc carve-out — `magic-team` only.** As the team-avatar whose `.armed.md` is every member's baseline, `magic-team` may carry extra top-level sections for genuinely team-wide content, placed between `# Team-Member's (-specific) local rules` and `# Team-Member's (-specific) tooling`. No other member takes this carve-out.
+- **Floor-doc carve-out — `magic-team` only.** As the team-avatar whose `.armed.md` is every member's baseline, `magic-team` may carry extra top-level sections for genuinely team-wide content, placed between `# Team-Member's (-specific) local rules` and `# Domain knowledge`, and an `## Execution mechanisms` subsection in its tooling section. No other member takes this carve-out.

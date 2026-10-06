@@ -281,6 +281,7 @@ case "$1" in
 		}
 		DistroAgentsTools --intern-op-board-upsert-move-edit running "$itemName" \
 			--create \
+			--acting-member:"$callingMember" \
 			--context --magic-board-create-running \
 			"${passthrough[@]}"
 		return $?

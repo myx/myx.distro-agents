@@ -18,6 +18,6 @@ Every team member reads `magic-team/magic-team.shared.md` unconditionally, simpl
 - **Unicode character**: 👀
 - **Slack shortcode**: `:myx:`
 - **Image file**: `myx.mark.png`, in `resources/` — a cartoon fly.
-- **Favourites**: 👀 🔥 ✅ ❤️ 👍 👌, and `:myx:` itself — signing a message with his own mark is a real habit rather than an accident. Measured from his own use, not assigned.
+- **Favourites**: 👀 🔥 ✅ ❤️ 👍 👌, and `:myx:` itself.
 
-The fallback does not depict the image, deliberately. The members' pairing rule does not govern this record, and the character was chosen from what he actually does rather than from what the mark shows.
+The members' mark-pairing rule does not govern this record: the fallback character need not depict the image.

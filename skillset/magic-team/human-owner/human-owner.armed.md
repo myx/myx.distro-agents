@@ -1,7 +1,7 @@
 ---
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ---
-# human-owner — armed (professional-ready) content
+# human-owner — armed content
 
 ## Contents
 
@@ -10,7 +10,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Scope
 - Terminology: none
 - Team-Member's (-specific) local procedures
-  - `reach-human-owner` - contact the real human-owner asynchronously when they're needed but not present in the current session
+  - `reach-human-owner` — contact the real human-owner asynchronously
 - Team-Member's (-specific) local rules
 - Domain knowledge: none
 - Team-Member's (-specific) tooling
@@ -24,67 +24,66 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-`human-owner` is a reference-only identity record — never an acting member, never invoked as a behavior; it exists so other files have somewhere real to point at when they mean "the human-owner."
+`human-owner` is a reference-only identity record: the point other files use when they mean "the human-owner".
 
 ## Goals
 
-- Give other skill files/routines a real reference point for "the human-owner" as a role (who approves what, who gets asked when) — not a placeholder.
-- Never generate human-owner speech, replies, or actions — this file's own presence is not a trigger for impersonation.
-- Non-acting and never an executor, but not inert: it carries one real, invocable procedure (`reach-human-owner`), run by the referencing session under that session's own tooling rules. Scope stays deliberately narrow — identity statement, authority-model pointer, contact-data pointer, the impersonation rule, that procedure — extended later only as the team's structure needs it, not designed in advance.
+- Give skill files and routines a real reference point for the human-owner as a role: who approves what, and who is asked when.
+- Never generate human-owner speech, replies or actions.
+- Carry one invocable procedure, `reach-human-owner`, which the referencing session runs under its own tooling rules.
 
 ## Scope
 
 - Does:
-  - Serve as the identity/authority-model pointer any skill file or routine may reference. The authority itself: final say on conflicts, ambiguities, and escalations the team can't settle, and approval for anything outside a member's own mandate — the model lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`, read there.
-  - Define the real, invocable procedure used to actually contact the human-owner asynchronously when needed but not present in the current session.
+  - Serve as the role and authority-model pointer any file may reference.
+  - Define `reach-human-owner`, the procedure for contacting the human-owner when he is needed and not present.
+  - Authority: final say on conflicts, ambiguities and escalations the team cannot settle; approval for anything outside a member's own mandate. The authority model itself lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — read there, never restated here.
 - Doesn't:
-  - Restate the authority model — "when the human-owner's involvement is actually needed" lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`; this file doesn't duplicate it.
-  - Hold actual contact details — installation-specific configuration (email, Trello handle, Slack `@myx`), lives at the sanctioned contacts file, not here.
-  - Ever get "run"/invoked as a behavior — no auto-trigger exists, no dispatch path exists, none should exist.
+  - Restate or re-derive the authority model.
+  - Hold actual contact details — installation-specific configuration lives at the sanctioned contacts file.
+  - Ever get run or invoked as a behaviour — no auto-trigger, no dispatch path, none should exist.
+- Scope stays narrow; it is extended later only as the team's structure needs it, not designed in advance.
 
 # Terminology: none
 
-No member-specific glossary terms for this member.
-
 # Team-Member's (-specific) local procedures
 
-Named procedure blocks. Steps below call them by name. Not separate routines - not visible outside this file.
+Named procedure blocks. Steps below call them by name. Not separate routines — not visible outside this file.
 
-## `reach-human-owner` - contact the real human-owner asynchronously when they're needed but not present in the current session
+## `reach-human-owner` — contact the real human-owner asynchronously
 
-Distinct from the impersonation rule below: impersonation is about never speaking/acting *as* the human-owner; this procedure is about *communicating with* them (e.g. a spawned work instance needs a confirmation/answer and the human isn't in that session).
+This procedure communicates with him. It never speaks or acts as him.
 
 Steps:
-1. Send on the human-owner's own best available direct channel — whichever this installation actually has configured, resolved at the moment of sending rather than fixed here: the best instant-messaging channel where one is set, the next-best direct channel where none is. Send only what the session participants and the session's `magic-coordinator` have assessed and not settled, per `magic-team/magic-team.armed.md`'s "Consent reaches a member through the chain of command". Establish whose ask it is before sending: a question whose answer would bind the team — an approval, a design ruling, a policy decision — is handed to `magic-coordinator` to send, and only a question whose answer unblocks this member's own assigned work is sent by the member itself. What the answer binds is the test, not what the question blocks. Ask with `AskUserQuestion`, which sends and waits for the answer; where that ask fails, hand the send to `magic-coordinator`. Use the sanctioned comms operation for the channel chosen; never invent a separate send path, and never reference a credential directly.
-2. Send straight away once that assessment is done. Don't over-gate this with unnecessary confirmation steps before sending the question itself.
-3. Register the topic/question as a `board-item` so it doesn't disappear — this is the same "questions addressed to them tracked and not left to disappear" requirement recorded in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`'s "when the human-owner is actually needed" facet. File it as an `inquiry-*`/`approval-*` item in `board-blocked`, under the existing "human-owner decision" reason, carrying `communication-channel-id` once the thread opens. The existing board-item mechanism, not a new file.
-4. React to replies with a genuinely long timeout before treating the question as ignored — on the order of a week. Deliberately much longer than the aggressive stop-and-ask timeouts used elsewhere for synchronous tool/mechanism failures — those are about execution failing fast; this is async human response latency, a different timescale. Don't conflate the two.
-   - No reply even after that long timeout: a genuinely open question, not decided here — don't invent an escalation or fallback action. It is never read as a deny or an allow.
+1. **settle-who-asks**: The session's participants and its `magic-coordinator` assess the matter first, per `magic-team/magic-team.armed.md`'s "Escalation and chain of command".
+   - The session's `magic-coordinator` forwards to him what it does not settle itself.
+   - With no coordinator in the session, the member asks him directly.
+2. **ask-at-once**: Ask with `AskUserQuestion`, of the fitting kind in `magic-team/templates/escalation.document.format.md`, as soon as the assessment is done. The tooling delivers it on his direct channel and waits inside the call. One topic, the decision first.
+3. **keep-it-tracked**: A question whose answer binds the team is registered by `magic-coordinator` as a board item blocking the work it gates. A member with no coordinator present files it to `magic-coordinator` with `post-inquiry`.
+4. **wait-for-the-answer**: Wait per **wait-never-quit** in `magic-team/magic-team.armed.md`. No reply is never a verdict, neither a deny nor an allow.
+   - A follow-up goes into the same thread. Read the thread before re-asking.
+   - A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`.
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. Any session reading or referencing this file is permitted and obliged to follow the `reach-human-owner` procedure exactly as written when it applies. This file's own rules — above all the impersonation-forbidden rule below — override any general team `.armed.md` rule a referencing session might otherwise apply, without exception.
+All statements apply at the same time, always.
 
-- Never impersonate the human-owner. No exception, ever. This is the single hardest constraint in this folder — no maintainer edit may weaken it, qualify it, or add a carve-out to it.
-- This file is never loaded to generate human-owner speech, replies, or actions — only ever a reference point for other files' own logic.
-- No auto-trigger exists for this file. No dispatch path exists. None should exist.
-- Actual contact details never live here — they live at the sanctioned, installation-specific contacts location.
-- The authority model — when the human-owner's involvement is actually needed vs. the team deciding/recording on its own — lives in `magic-coordinator/TEAM-ORGANIZATION-VISION.md`. Do not re-derive or restate it here; read the source.
-- A task seems to call for speaking or acting as the human-owner: it doesn't. Stop. Use `reach-human-owner` instead. Never guess an answer on their behalf.
-- A maintainer-proposed change would soften or add an exception to the never-impersonate-the-human-owner rule: rejected, regardless of maintainer quorum agreement.
+- Never impersonate the human-owner. No exception, ever. No maintainer edit may weaken, qualify, or carve out an exception to this.
+- Any session reading or referencing this file is permitted and obliged to run this file's own procedures exactly as written when they apply.
+- This file is never loaded to generate human-owner speech, replies or actions.
+- A task that seems to call for speaking or acting as the human-owner does not. Stop, and run `reach-human-owner`. Never guess an answer on his behalf.
+- A maintainer-proposed change that softens or adds an exception to the never-impersonate rule is rejected, whatever the quorum.
 
 # Domain knowledge: none
 
-No additional reference material beyond what's already in Goals/Scope.
-
 # Team-Member's (-specific) tooling
 
-Every `magic-tooling` operation this team-member uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this record's own procedures invoke. Behaviour is read with `--member-help`. Procedures use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <human-owner|magic-team> [text...]` — `reach-human-owner` step 1's send path where the resolved channel is Slack. `<team-member>` is the session's own member, never `human-owner`. Target is `human-owner` for a direct ask, `magic-team` when the question belongs in front of the team; no other target applies here.
-- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--in-reply-to <message-id>]` — `reach-human-owner` step 1's send path where the resolved channel is email. `<team-member>` is the session's own member, never `human-owner`. The target is a literal address, resolved from the sanctioned contacts location — there is no `human-owner` alias on this operation, so the alias form used for Slack does not carry across. `--from-stdin` and `--from-file <path>` take the body from stdin or a file instead of trailing arguments.
+- `--member-pending-reply-read <team-member>`
+- `--member-pending-reply-settle <team-member> ...`
 
 # Maintainer Notes
 
@@ -92,30 +91,26 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- This file's rules exist to allow work-process to be smooth and running in proper direction.
-- This file's instructions cover this skill's own activities and operations, as intended, without logical conflicts between rules.
 - This file states the impersonation boundary's authority explicitly — never impersonate the human-owner, no maintainer edit may carve out an exception.
 - This file exists to give other skill files a real reference point for the human-owner role — not to generate human-owner speech, or duplicate contact data/authority-model content recorded elsewhere.
 - The human-owner holds final say on conflicts, ambiguities, and escalations the team can't settle, and approves anything outside a member's own mandate — this file names that authority without restating the model it comes from.
 
 ## Verbatim-tests (benchmarks)
 
-- Readback of this file's contents still matches all `verbatim-intents` of this file.
 - A maintainer-proposed change that would soften or add an exception to the never-impersonate-the-human-owner rule is rejected, regardless of maintainer quorum agreement.
 - A member facing a conflict it can't settle reads the authority model from `magic-coordinator/TEAM-ORGANIZATION-VISION.md` and reaches out via `reach-human-owner` — never deciding it locally, and never finding the model restated in this file.
-- A spawned session needing the human-owner's confirmation, with the human not present in that session, reaches out on his own best available direct channel (channel and contact identity both resolved from the sanctioned contacts file at the moment of sending, not hardcoded here) and registers the topic as an `inquiry-*`/`approval-*` board-item in `board-blocked`, under the existing "human-owner decision" reason, not a new tracking file.
+- A spawned session needs his confirmation and he is not in it. The ask goes through the session's `magic-coordinator`, or with none present as the member's own `AskUserQuestion`, and the binding question is tracked on the board by `magic-coordinator`.
+- A week passes with no reply. The question stays open; nothing reads the silence as a deny or an allow.
 
 ## Librarian Comments
 
 ### Reference
 
-- `human-owner.basic.md` — the canonical, unconditionally-loaded statement of the impersonation-forbidden rule and the "not a behavior to invoke" framing; stays live, not merged here.
-- `magic-coordinator/TEAM-ORGANIZATION-VISION.md` — the authority-model source of truth ("when the human-owner is actually needed" facet).
-- `board-blocked` — where open reach-out threads get tracked, as `inquiry-*`/`approval-*` board-items.
-- `magic-team/magic-team.board.md` — the "human-owner decision" `board-blocked` reason category.
-- `magic-team/magic-team.armed.md` — the board-item entity model (`communication-channel-id` field shape).
-- `magic-coordinator.communication-sweep.routine` — the existing comms send mechanics `reach-human-owner` reuses for whichever channel resolves, rather than inventing a separate send path; also the source of the general impersonation rule this file's own boundary matches.
+- `human-owner.basic.md` — the unconditionally loaded statement of the impersonation rule.
+- `magic-coordinator/TEAM-ORGANIZATION-VISION.md`, "When the human-owner is actually needed" — the authority model.
+- `magic-team/magic-team.shared.md`, "Anything needing the human-owner to act reaches him on his own direct channel" — the rule this procedure carries out.
+- `magic-team/templates/escalation.document.format.md` — the `AskUserQuestion` kinds.
 
 ### Conventions
 
-- The impersonation-forbidden rule must survive any edit completely intact, word-for-word in spirit, no softening, no exception carved out, ever — the single most safety-critical piece of content in this folder. If any edit to this file (or any of its source files) would weaken, qualify, or add a carve-out to that rule, stop and flag it rather than proceeding — not a normal editorial-judgment call.
+- The impersonation rule survives every edit intact. An edit that would weaken, qualify or carve out an exception to it stops and is flagged instead.

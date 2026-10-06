@@ -168,7 +168,9 @@ rigAssert "the announce arm stated this call's arguments"   "$( rigHolds "$rigSc
 rigAssert "the dispatch arm did not fall through"           "$( rigHolds "$rigScenarioDir/req.2" 'unknown tool' )" no
 rigAssert "the server answered, and got the arguments"      "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT:RIG-ARG-MARKER' )" yes
 rigAssert "the fresh leg re-offers the same declaration"    "$( rigHolds "$rigScenarioDir/req.3" '"name":"mcp__rigmcp__ping"' )" yes
-rigAssert "the server was enumerated once per round"        "$( rigServerSaw list )" 3
+## The registration never changes and nothing fails, so the catalogue enumerated at
+## start is kept for every round: re-spawning the server each round bought nothing.
+rigAssert "the server was enumerated once, not per round"   "$( rigServerSaw list )" 1
 rigAssert "an unchanged set is reported as no change"       "$( rigHolds "$rigScenarioDir/err" 'MCP tool set changed' )" no
 ## The `tools` array alone: the wire writes it after `messages` and right before
 ## `tool_choice`, so it is the last `"tools":[` ahead of the first `],"tool_choice":`
@@ -189,7 +191,7 @@ rigToolsOf(){ ## request file
 rigAssert "an unchanged set sends the same tools bytes"      "$( [ -n "$( rigToolsOf "$rigScenarioDir/req.1" )" ] && [ "$( rigToolsOf "$rigScenarioDir/req.1" )" = "$( rigToolsOf "$rigScenarioDir/req.3" )" ] && printf same || printf differ )" same
 rigAssert "the server was called once"                      "$( rigServerSaw call )" 1
 rigAssert "the fresh leg's own answer is the result"        "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "declaration, announce, dispatch and round-trip -- enumerated per round, across a restart"
+rigVerdict "declaration, announce, dispatch and round-trip -- enumerated once, kept across rounds and a restart"
 
 ## The tool set is dynamic: a registration removed between rounds is gone from the next
 ## request, and one added between rounds is declared in it. No --mcp-server is named, so
@@ -242,18 +244,37 @@ rigVerdict "a server back mid-run -- declared and told in the next round"
 
 ## A failure inside a mid-run enumeration is stated and the run carries on. The rig
 ## makes one by turning the reply file enumeration writes into a directory; the first
-## round calls a built-in tool, so nothing but the enumeration writes that file.
+## round calls a built-in tool, so nothing but the enumeration writes that file. The
+## registration is rewritten too -- same servers, one more trailing byte -- because an
+## unchanged one is not enumerated again, and a changed one must be.
 rigStart enumeration-fails-mid-run
 printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-glob-call","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"*\\"}"}}]}}]}\n' > "$rigScenarioDir/res.1"
 printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigScenarioDir/res.1"
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
-RIG_AFTER_ROUND_1='rigReq="${RIG_REQUEST_FILE%/*}/mcp.reply" ; rm -f "$rigReq" ; mkdir "$rigReq"' rigRun 0
+RIG_AFTER_ROUND_1='rigReq="${RIG_REQUEST_FILE%/*}/mcp.reply" ; rm -f "$rigReq" ; mkdir "$rigReq" ; printf " \n" >> "$RIG_SCENARIO/.local/agents/mcp.servers.json"' rigRun 0
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the failure's own reason is shown"               "$( rigHolds "$rigScenarioDir/err" 'Is a directory' )" yes
 rigAssert "the server is degraded, saying why"              "$( rigHolds "$rigScenarioDir/err" 'answer could not be written' )" yes
 rigAssert "and the model is told"                           "$( rigHolds "$rigScenarioDir/req.2" 'answer could not be written' )" yes
 rigVerdict "an enumeration failing mid-run -- stated, and the run carries on"
+
+## The cache's own boundary, from the other side: built-in calls only, nothing failing and
+## nothing edited, across four rounds -- the server is spawned for the first enumeration
+## and never again, and every round declares its tool with the same bytes.
+rigStart unchanged-not-reenumerated
+for rigRoundAt in 1 2 3 ; do
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-glob-%s","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"*\\"}"}}]}}]}\n' "$rigRoundAt" > "$rigScenarioDir/res.$rigRoundAt"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigScenarioDir/res.$rigRoundAt"
+done
+rigTextStream "$rigScenarioDir/res.4" RIG-FINAL-MARKER 20
+rigRun 0
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "four rounds were requested"                      "$rigRoundCount" 4
+rigAssert "the server was enumerated once for the session"  "$( rigServerSaw list )" 1
+rigAssert "the last round still declares its tool"          "$( rigHolds "$rigScenarioDir/req.4" 'RIG-DESC-MARKER' )" yes
+rigAssert "with the same tools bytes as the first"          "$( [ "$( rigToolsOf "$rigScenarioDir/req.1" )" = "$( rigToolsOf "$rigScenarioDir/req.4" )" ] && printf same || printf differ )" same
+rigVerdict "an unchanged registration and no failure -- the catalogue is kept, no server re-spawned"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
 ## same canned rounds with no server named and no mcp.servers.json to default to, where

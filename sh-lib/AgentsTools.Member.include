@@ -356,6 +356,7 @@ case "$1" in
 			set +e ; return 1
 		}
 		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
+		## Root first; processed/ is the legacy folder, a read-only fallback until the GC drains it.
 		local readArgs=( --intern-op-data-read "$itemName" --context --member-inbox-item-read \
 			--lookup-folder "$inboxDir" --lookup-folder "$inboxDir/processed" )
 
@@ -368,7 +369,7 @@ case "$1" in
 
 	##
 	## Member-scoped trash for one item out of the member's OWN inbox --
-	## the live root or its processed/, whichever holds it, root first.
+	## the inbox root, or its legacy processed/ while that still exists, root first.
 	## Forwards to the same intern-op arm --librarian-inbox-item-trash
 	## calls; the difference is only where --from-inbox: comes from.
 	##
@@ -428,6 +429,55 @@ case "$1" in
 		esac
 		DistroAgentsTools --intern-op-board-trash "$memberName" "--from-inbox:$memberName" "$itemName" \
 			--context --member-inbox-item-trash
+		return $?
+	;;
+
+	## Any member marks its own inbox item handled: `processed-at` stamped in place in its
+	## inbox root, through the same primitive --librarian-inbox-to-processed uses.
+	## Own inbox only -- <team-member> is both the actor and the inbox, and a spawned
+	## session naming another member than itself is refused.
+	--member-inbox-to-processed)
+		shift
+		local memberName="$1"
+		shift || true
+		local itemName="$1"
+		shift || true
+		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: syntax is <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+			set +e ; return 1
+		fi
+		local passthrough=()
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+					passthrough+=( "$1" ) ; shift
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: invalid option: $1 -- this op marks an item in <team-member>'s own inbox processed, nothing else" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		AgentsToolsAssertBareName "$memberName" "<team-member>" member-inbox-to-processed || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-to-processed || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+			set +e ; return 1
+		fi
+		if [ -n "${MDAT_SPAWN_AGENT:-}" ] && [ "$MDAT_SPAWN_AGENT" != "$memberName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: this session acts as $MDAT_SPAWN_AGENT, and only its own inbox items are its to mark handled -- not $memberName's" >&2
+			set +e ; return 1
+		fi
+		case "$itemName" in
+			*.md) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-inbox-to-processed: <item-filename> must end in .md -- every inbox item is a markdown document: $itemName" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools --intern-op-inbox-to-processed "$memberName" "$itemName" \
+			--context --member-inbox-to-processed \
+			"${passthrough[@]}"
 		return $?
 	;;
 

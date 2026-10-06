@@ -84,19 +84,20 @@ case "$1" in
 			## file. An inbox item has no board state to be diverted into, so
 			## honouring it could only mean refusing -- and a refusal on a header
 			## is the deadlock this arm exists to break, since no tooling edits
-			## frontmatter in place once an item sits in processed/.
+			## frontmatter in place once an item sits in the legacy processed/.
 			local inboxBase="" inboxDirResolved=""
 			inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 			if [ -z "$inboxBase" ] ; then
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: no such inbox root: $MDAT_DATA_ROOT/inboxes" >&2
 				set +e ; return 1
 			fi
-			## Both the live inbox ROOT and its own processed/ are searched, ROOT
+			## Both the inbox ROOT and its legacy processed/ are searched, ROOT
 			## FIRST: a member's own inspection path resolves the same way, so
 			## inverting the order would delete a copy the caller could never
-			## have read. A basename held in both is the root copy -- the drain
-			## path refuses a processed/ collision, so only a re-upsert into the
-			## root produces the pair.
+			## have read. Items are now marked processed in place in the root
+			## (`processed-at`), so processed/ only holds items drained before
+			## that change, read-only until the GC empties it; a basename held in
+			## both is the root copy.
 			local inboxRootDir="$MDAT_DATA_ROOT/inboxes/$inboxMember"
 			local inboxProcessedDir="$MDAT_DATA_ROOT/inboxes/$inboxMember/processed"
 			local inboxSourcePath="" inboxCandidateDir=""

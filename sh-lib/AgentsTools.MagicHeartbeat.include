@@ -55,6 +55,18 @@ case "$1" in
 		printf '\n'
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		AgentsToolsRegistryRenderSpawnedSessions || echo "(the spawned-sessions registry could not be read)"
+		## Live counts, read at scan time and never stored: one line per board state,
+		## `<state>: <n>` items (*.md files directly in that state's folder), so a report
+		## needs no count of its own.
+		printf '\n%s\n\n' "## board counts"
+		local countState countFile countN
+		for countState in backlog pending running review blocked parked processed archived retained ; do
+			countN=0
+			for countFile in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+				[ -f "$countFile" ] && countN=$(( countN + 1 ))
+			done
+			printf '%s: %s\n' "$countState" "$countN"
+		done
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--all-types \
@@ -420,6 +432,22 @@ case "$1" in
 		if [ -z "$lockFields" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: $target has no readable frontmatter -- refusing to overwrite a document in an unexpected shape" >&2
 			set +e ; return 1
+		fi
+		## Every state write while the pass holds the lock also refreshes it -- the same
+		## recheck-date --magic-heartbeat-lock-refresh writes, now + 15 minutes -- so a pass
+		## that keeps writing its state never reads as a crashed holder. Only while the note
+		## says heartbeat-running: a finished or foreign state is carried over untouched.
+		if printf '%s\n' "$lockFields" | LC_ALL=C grep -qx 'state: heartbeat-running' ; then
+			local refreshEpoch refreshDay refreshRem refreshDate
+			refreshEpoch=$(( $( date +%s ) + 15 * 60 ))
+			refreshDay="$( printf '%s\n' "$refreshEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
+			refreshRem=$(( refreshEpoch % 86400 ))
+			refreshDate="$( printf '%s %02d:%02d +0000' "$refreshDay" "$(( refreshRem / 3600 ))" "$(( refreshRem % 3600 / 60 ))" )"
+			lockFields="$( printf '%s\n' "$lockFields" | LC_ALL=C awk -v recheck="recheck-date: $refreshDate" '
+				/^recheck-date: / { print recheck ; done = 1 ; next ; }
+				{ print ; }
+				END { if (!done) print recheck ; }
+			' )"
 		fi
 		## Excludes the same lock-owned allowlist $lockFields already carries,
 		## not just "print everything" -- --edit-patch-from-stdin's own body

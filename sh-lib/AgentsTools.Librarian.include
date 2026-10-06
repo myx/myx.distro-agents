@@ -162,7 +162,7 @@ case "$1" in
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--from-state:*|--from-inbox:*)
-						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: $1 is not valid here -- this op moves an item out of <team-member>'s own inbox ROOT, source and member are the same positional. Use --magic-board-to-*/--magic-grooming-to-* for a board-to-board move." >&2
+						echo "⛔ ERROR: $MDSC_CMD --librarian-inbox-to-processed: $1 is not valid here -- this op marks an item in <team-member>'s own inbox ROOT processed in place, source and member are the same positional. Use --magic-board-to-*/--magic-grooming-to-* for a board-to-board move." >&2
 						set +e ; return 1
 					;;
 					--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)

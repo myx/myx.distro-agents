@@ -1,9 +1,9 @@
 # PWA Vision — magic-frontender
 
 A running, cumulative statement of what an ideal PWA architecture looks like,
-built one facet at a time across daily iteration passes. Per the skill's
-`pwa-vision-iteration` section, each pass picks ONE facet, reasons through it with
-systems rigor, and appends a new dated section here. **Do not rewrite or
+built one facet at a time. Each `pwa-vision-iteration` pass picks ONE facet,
+reasons through it with systems rigor, and proposes a new dated section, which
+lands here by the skillset change rule. **Do not rewrite or
 "clean up" prior sections in a later pass** — if a later facet changes the
 conclusion of an earlier one, add a note in the new section that supersedes
 or amends it, and leave the original in place with a pointer. This file is a

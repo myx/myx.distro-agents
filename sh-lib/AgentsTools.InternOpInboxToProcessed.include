@@ -7,6 +7,13 @@
 ## dispatcher. Sourced lazily from that exact op's own dispatcher arm
 ## Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
+## Marks one inbox item handled IN PLACE: stamps `processed-at` into its own
+## frontmatter (creating the block when it has none) and commits the item. The
+## item stays in the inbox root; readers drop marked items from their active
+## scopes and the GC collects them once the stamp is older than the type
+## retention. Nothing is moved: the per-member processed/ folder is legacy,
+## read-only, and drained by the GC. Contract: MAGIC.md.
+##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
 
@@ -47,7 +54,7 @@ case "$1" in
 		}
 
 		local bodyMode="" scriptLang="" bodyModeCount=0
-		## Set below when the caller names processed-at, which overrides the move stamp.
+		## Set below when the caller names processed-at, which overrides the tool's stamp.
 		local callerSetProcessedAt="false"
 		## Header ops accumulate here and are materialised once, immediately before
 		## the .awk that reads them by path -- so no early return can leak a file.
@@ -155,19 +162,35 @@ case "$1" in
 		esac
 		local sourcePath="$inboxDirResolved/$itemName"
 		if [ ! -f "$sourcePath" ] ; then
+			## Legacy layout: items drained before the in-place marker sit in
+			## processed/ until the GC collects them. They are already handled, so a
+			## plain re-mark succeeds as a no-op; an edit is refused -- that folder is
+			## read-only now and nothing new is ever written into it.
+			if [ -f "$inboxDirResolved/processed/$itemName" ] ; then
+				if [ -z "$headerOps" ] && [ -z "$bodyMode" ] ; then
+					echo "# $MDSC_CMD: inbox-to-processed: $itemName already processed (legacy processed/), nothing to do" >&2
+					return 0
+				fi
+				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: $itemName sits in the legacy processed/ folder, which is read-only -- it is already processed and cannot be edited: $inboxDirResolved/processed/$itemName" >&2
+				set +e ; return 1
+			fi
 			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: item not found in inbox root: $sourcePath" >&2
 			set +e ; return 1
 		fi
 
-		local targetDir="$inboxDirResolved/processed"
-		mkdir -p "$targetDir" || {
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: can't create inbox processed directory: $targetDir" >&2
-			set +e ; return 1
-		}
-		local targetPath="$targetDir/$itemName"
-		if [ -e "$targetPath" ] ; then
-			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: processed target already exists, refusing to overwrite: $targetPath (source left in place: $sourcePath)" >&2
-			set +e ; return 1
+		## Already marked: the item keeps its original processed-at (it is the GC's
+		## retention clock), and a plain re-mark is a successful no-op -- no write,
+		## no commit. Edits still apply to an already-marked item.
+		local existingProcessedAt="" existingMarked="false" existingLine=""
+		existingLine="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "$sourcePath" )" || existingLine=""
+		## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
+		if [ -n "$existingLine" ] ; then
+			existingMarked="true"
+			existingProcessedAt="${existingLine#*$'\t'}"
+		fi
+		if [ "$existingMarked" = "true" ] && [ -z "$headerOps" ] && [ -z "$bodyMode" ] ; then
+			echo "# $MDSC_CMD: inbox-to-processed: $itemName already processed (processed-at: $existingProcessedAt), nothing to do" >&2
+			return 0
 		fi
 
 		local body
@@ -185,7 +208,7 @@ case "$1" in
 			body="$( cat )"
 			## Measured, never refused. Only this branch carries the caller's own
 			## new text: script and patch derive a body from content somebody else
-			## wrote, and a plain move rewrites the file unchanged.
+			## wrote, and a plain mark only adds the stamp.
 			printf '%s' "$body" | AgentsToolsOutputStyleRefusal "$inboxMember" "" "$itemName" "" none || :
 		elif [ "$bodyMode" = "patch" ] ; then
 			local patchJson existingContent
@@ -196,14 +219,15 @@ case "$1" in
 			body="$( cat "$sourcePath" )"
 		fi
 
-		## Move stamp: this op's target state is fixed in its own name. Contract: MAGIC.md.
+		## The processed marker: this op's whole effect is fixed in its own name.
+		## Contract: MAGIC.md. A `default` op, so it never overrides a processed-at
+		## the resulting body already carries, and the header awk creates the
+		## frontmatter block when the item has none. An item already marked keeps
+		## its original time even when an edit body dropped the field.
 		if [ "$callerSetProcessedAt" = "false" ] ; then
-			local probeState
-			probeState="$( printf '%s\n' "$body" | LC_ALL=C awk -v fieldName=processed-at -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" || probeState=""
-			## `|| ...` because this file runs under `set -e`: a bare capture aborts the op instead of returning through its own error path.
-			if [ "$probeState" = "FRONTMATTER" ] ; then
-				headerOps="${headerOps}upsert"$'\t'"processed-at"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
-			fi
+			local stampValue="$existingProcessedAt"
+			[ -n "$stampValue" ] || stampValue="$( date +"%Y-%m-%d %H:%M %z" )"
+			headerOps="${headerOps}default"$'\t'"processed-at"$'\t'"$stampValue"$'\n'
 		fi
 
 		## The ops file has to be a real path -- it is the awk's own `-v opsFile=`
@@ -226,42 +250,43 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		printf '%s\n' "$body" > "$targetPath"
+		## In place, through a sibling temp file and a rename, so a failed write
+		## never leaves a half-written item. The temp name is a dotfile not ending
+		## in .md, so no `*.md` inbox scan can ever see it.
+		local tempPath="$inboxDirResolved/.$itemName.inbox-to-processed.$$"
+		if ! printf '%s\n' "$body" > "$tempPath" || ! mv -f -- "$tempPath" "$sourcePath" ; then
+			rm -f -- "$tempPath"
+			echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: could not write the marked item: $sourcePath" >&2
+			set +e ; return 1
+		fi
+		echo "# $MDSC_CMD: inbox-to-processed: marked ${sourcePath#"$inboxDirResolved"/} processed in place" >&2
 
 		## Commit gate: .git presence in the team-data root, presence only --
-		## this op never pushes. Mirrors --intern-op-board-upsert-move-edit's
-		## both-ends move commit. Tracked-state is read before the source is
-		## removed: git add on a vanished untracked path would fail the op
-		## after the move already happened.
-		local repoRoot="" sourceTracked="false"
+		## this op never pushes. One path: the item itself, edited in place.
+		local repoRoot=""
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
-		if [ -n "$repoRoot" ] ; then
-			[ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] || sourceTracked="true"
-		fi
-
-		## `--` guards a later edit that bypasses validation.
-		rm -f -- "$sourcePath"
-		echo "# $MDSC_CMD: inbox-to-processed: wrote ${targetPath#"$inboxDirResolved"/}, previous ${sourcePath#"$inboxDirResolved"/} deleted" >&2
-
-		## Both ends of the move in one commit: the processed/ copy that now
-		## holds the item, and the source whose removal git must record.
 		if [ -n "$repoRoot" ] ; then
 			local ctxForMsg="$opContext"
 			if [ "$ctxForMsg" = "<no --context given>" ] ; then ctxForMsg="--intern-op-inbox-to-processed" ; fi
-			local commitPaths=( "$targetPath" )
-			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			local commitPaths=( "$sourcePath" )
 			local gitOut="" gitRc=0
 			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then
 				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git add failed for ${commitPaths[*]}: $gitOut" >&2
 				set +e ; return 1
 			fi
+			## An edit of an already-marked item can leave the bytes as they were;
+			## a commit of nothing would fail the op after a successful write.
+			if git -C "$repoRoot" diff --cached --quiet -- "${commitPaths[@]}" 2>/dev/null ; then
+				echo "# $MDSC_CMD: inbox-to-processed: ${sourcePath#"$MDAT_DATA_ROOT"/} unchanged, nothing to commit" >&2
+				return 0
+			fi
 			gitOut="$( git -C "$repoRoot" commit -m "* processed: $ctxForMsg" -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then
 				echo "$MDSC_CMD: inbox-to-processed: ⛔ ERROR: git commit failed for ${commitPaths[*]}: $gitOut" >&2
 				set +e ; return 1
 			fi
-			echo "# $MDSC_CMD: inbox-to-processed: committed ${targetPath#"$MDAT_DATA_ROOT"/}" >&2
+			echo "# $MDSC_CMD: inbox-to-processed: committed ${sourcePath#"$MDAT_DATA_ROOT"/}" >&2
 		fi
 
 		return 0

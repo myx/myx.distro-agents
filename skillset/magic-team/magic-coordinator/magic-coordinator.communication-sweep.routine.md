@@ -12,23 +12,10 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Steps
 - Closure steps
 - Routine's local procedures
-  - `slack-reaction-tracking` procedure
+  - `slack-reaction-tracking` — the reaction ladder on each Slack message
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - `--magic-sweep-input-scan` Operation Reference
-  - `--member-comms-email-check` Operation Reference
-  - `--member-comms-trello-check` Operation Reference
-  - `--member-comms-slack-send-message` Operation Reference
-  - `--member-upsert-member-inquiry` Operation Reference
-  - `--member-inbox-note-upsert` Operation Reference
-  - `--member-comms-email-send` Operation Reference
-  - `--member-comms-email-mark-seen` Operation Reference
-  - `--member-comms-slack-react` Operation Reference
-  - `--member-comms-slack-read` Operation Reference
-  - `--magic-sweep-state-read` Operation Reference
-    - Reads are whole conversations, and a truncated one fails rather than shortens
-  - `--magic-sweep-state-upsert` Operation Reference
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -38,208 +25,114 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-Routine-communication-sweep is a fast, reliable check-and-act pass across every live communication platform (email, Trello, Slack), run every `magic-coordinator.heartbeat.routine` iteration.
+`magic-coordinator.communication-sweep.routine` is the check-and-act pass over every live communication platform.
 
 ## Goals
 
-Give the team a real, reliable way to notice and act on incoming communication across every live platform (email, Trello, Slack) without either missing things (an unattended DM sitting unanswered for days) or manufacturing unnecessary work (chasing platforms that aren't actually live, or investigating every message as if it needed deep triage). The routine's whole shape — fast/parallel by default, deliberate/sequential only when something looks wrong — exists to make "check comms" cheap and reliable enough to run constantly (every `magic-coordinator.heartbeat.routine` iteration) without becoming its own burden.
+- Notice and act on incoming communication on every live platform, without missing anything and without manufacturing work.
+- Stay cheap enough to run every main-loop iteration.
 
 ## Scope
 
-Does: fast/parallel-by-default check-and-act, one full sweep = one pass through all 6 steps for every live platform. Invoked from `magic-coordinator.daily.routine` (both start and end), `magic-coordinator.heartbeat.routine` every iteration, or standalone on direct request any time.
-- Live-platform set is tracked knowledge, not rediscovered at sweep time: **email**, **Trello**, **Slack**. Update only on human-reported status change, or a check-call error pointing at a credential/availability problem.
-- Two source sets, both covered by every sweep, in this same pass: the executor's own team-scoped sources, and every `client-*` member's own external sources. A `client-*` member is an avatar of this routine's own executor, which is why its traffic is swept here; no routine belongs to one particular client, and none is written.
-- Resolving which members exist, and reading each of them, is the input-scan's own work. This routine names no member, enumerates nothing and loops over nothing; what it owes is being ready for that operation's combined output, described in **check** below.
-- Two kinds of traffic arrive, and the executor does different things with them. A message addressed between team members is **routed**: the coordinator is the delivery mechanism, not the addressee — one member addressing another in the team channel (say `magic-tester` addressing `magic-developer`) is the canonical example, and this is how inter-member messaging works at all. A message addressed to the coordinator, any DM, any client DM, and an unaddressed external request in a team channel is **handled** by the coordinator itself.
-- Credentials for every live platform are made available before check calls run, resolved by `magic-tooling` itself. Never print them into a transcript/chat/log.
-- Credentials unavailable: escalate to the user immediately — no filesystem search, no fallback connector, no solo puzzle-solving past one failed round.
-- Open-thread set for Slack thread-reply checks: whichever `board-item`s are currently open and track a live Slack thread — `communication-channel-id` in the three-part `slack:<channel>:<ts>` shape; a bare `slack:<channel>` tracks no thread — read fresh each sweep, no separate registry.
+- Does:
+  - Sweep the live platforms — email, Trello, Slack — for two source sets at once: the executor's own team sources, and every `client-*` member's own external sources. A `client-*` member is an avatar of this routine's executor, so its traffic is swept here; no routine belongs to one client.
+  - Treat two kinds of traffic differently. A message addressed from one member to another is **routed**: the coordinator delivers it and does not answer it. A message addressed to the coordinator, any DM, any client DM, and an unaddressed external request in a team channel is **handled** here.
+  - Run inside `magic-coordinator.advance.routine` every pass, in `magic-coordinator.daily.routine`, in `magic-coordinator.coordination-session.routine`, or standalone on request.
+- Doesn't:
+  - Read Google Drive or Sheets. That is grooming's, when searching.
+  - Triage or classify deeply. Grooming does that later.
+  - Start a new epic or initiative inline.
 
-Doesn't do: Google (Drive/Sheets) — extended procedure, only when the task is actually searching/grooming, not a default **check** call.
+Open, pending:
+- Open: "tagged anywhere" coverage — finding a mention outside the watched sources. The scan covers watched sources only; a known thread outside them is read directly.
+- Open: editing the own-status Trello card as a standing checklist. Until an operation exists, the status goes as a card comment.
+
+The live-platform set changes only on a human-reported status change, or a check error pointing at availability. Unavailable credentials are escalated at once.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator` — items a previous sweep routed there and left unacted, read before this pass adds more.
-2. **check**: read the sweep-state-note via --magic-sweep-state-read. Call --magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts> — board-tracked threads and every watched source, one pass, covering both watched targets and every open thread (see Scope).
-   - default: batch every platform's credential read + API call into one script/command block, piped through `mcp__myx_distro__execute`.
-   - exception: a check call errors or returns something ambiguous → go deliberate.
-   - a thread the coordinator's own identity participated in — started, was replied to, or was tagged in — is followed regardless of freshness; this widening degrades gracefully to the plain freshness check alone when the coordinator's identity can't be resolved this pass.
-   - incoming messages are located by enumerating **the messages' own** timestamps — every participant's in the conversation, not one identity's — and diffing them against what was already handled; never by "what came after my own last post". Own posts move such a watermark forward, so any participant's message in a thread already replied to falls below the line and stops being findable at all; the misses concentrate exactly in the threads that look most attended. Two passes, both required every sweep: top-level, then each open thread via `--member-comms-slack-read <team-member> <channel>:<parent> --thread`, whose whole-thread result is enumerated the same way over every message in it that is not the acting member's own — a top-level-only enumeration silently drops thread replies (see this file's own Verbatim-tests).
-   - the result of this step is one combined, deduplicated set of new messages across every platform/source, sorted **ascending by the message's own timestamp** — this ordering is what step 3 below iterates over.
-   - the document covers every source set at once, and each part of it names the member it belongs to. A message is attributed by the member its own part names — never inferred from a channel, an address, or a position in the file.
-   - a member with nothing new and a member that could not be read never look alike. Nothing new is reported against the count actually scanned; a member that could not be read reports that no scan was made, or that its scan was partial, naming the source it lost. A member with no part at all is a third case again — a defect in the run, never an empty result, and never reported as one.
-   - one exit status covers the whole run, so it is the floor across members and a verdict on none of them: it says whether every source was scanned, some were, or none were. Which members those were is read from the document. A run that failed can still have written part of a document before it stopped, so the status is what is read and the presence of output is never evidence of success.
-   - inside a member's own part, each section is read in the order it declares for itself: the chat section states its own `sort:` line, the mail section lists ascending UID and so is already oldest first, and the Trello section declares none and none is established elsewhere, so no order is assumed for it. Messages are ordered within a source and never across them — the single ascending set above is the executor's own sources, and a member's own part is its own ordered run.
-   - a member's own part also carries that member's own inbox and board items. They are read to establish what is already recorded, never answered outward into that member's systems — a member's own inbox is `magic-team.process-inbox.routine`'s to work. Inbox blocks are consumed by their own `body-lines: <N>` count, never by scanning forward to the next `## ` heading: an inbox body legally contains `## ` lines, and a heading scan mis-slices the document.
-   - a capped section is never read as complete. Where a section's own mark states that its cap is a display cap, the items it dropped were still read at their source; where it states nothing, that is not established either way.
-   - **a post by another team member is inbound traffic, and is recognised from the message's own text — never from the platform's sender field.** Read as the coordinator's own, a member's post is passed over and nobody acts on it. The author is named in the header the send places at the start of the message. A message with no such header was not sent by a member, and its platform sender is its author.
-   - **who a message is for is a separate fact from who wrote it.** Addressees are carried in the message body by the marks the send places there — a member's own mark and alias, a rendered user mention, a rendered channel reference. The conversation a message was posted to is a third fact again: it is where the message went, and it establishes neither of the other two. A message addressed `@here` is for whoever the conversation holds, and is unaddressed for routing, which is its own case below.
-3. **process-each-message**: for every message in **check**'s own ascending-time-ordered set, in that order, then each `client-*` member's own run in its own declared order, one message at a time — not as five separate batch passes over the whole set. A message on a member's own source runs this same sequence as that member: that member is the `<team-member>` argument of every call the message needs. Each message runs this full local sequence before moving to the next:
-   1. **read**: pull this message's actual content. A message that quotes a block is read in full, never from the preview: the instruction usually sits *after* the quoted text and is exactly what a truncated read loses.
-   2. **analyze**: cross-reference against current state (`TodoWrite`, the board) and identify what this one message needs: anything unblocked and ready to dispatch, anything a keeper-*/partner-* idle pass would pick up, a new-knowledge candidate for `magic-librarian`, whether it needs a reply and what it should say. Empty result (nothing needed) is normal, not a failure.
-      - whether a message was handled is judged from what its own text asked for and whether that thing was actually done — the existence of a later reply of the coordinator's own is not evidence of it.
-      - Slack: apply the `slack-reaction-tracking` procedure's Analyze-stage reaction (`:eyes:`) on **this message**, now — this is the visible marker that this specific message was actually seen; it happens as this message is processed, never deferred to a later batch step.
-   3. **act**: first settle which of the two this message is — routed to another member, or handled here — then, for a handled one, route its candidate(s) by size.
-      - **Addressed to a team member other than the coordinator → route it, and routing is the whole of this message's handling.** Deliver it into that member's own inbox as an `inquiry-*` via `--member-upsert-member-inquiry`, carrying the message's own `communication-channel-id` so the thread it came from stays reachable, and leave the answer to that member. Routing is a real outcome, not a lighter kind of handling, and it is the one that makes inter-member messaging work at all.
-      - **A message addressed to another member is never answered on that member's behalf** — not when the answer looks obvious, not when that member is slow, not when the coordinator happens to know it. Answering it destroys the addressee's own turn and leaves the asker believing that member replied.
-      - Addressed to the coordinator, arriving in any DM, arriving in a client DM, or unaddressed in a team channel → the coordinator handles it itself, by size, below.
-      - Approved, simple, obvious → do it inline, now, standard dispatch mechanism only.
-      - Bigger/questionable, needs whole-team visibility → note for the next `magic-coordinator.daily.routine`.
-      - Bigger/questionable, concerns specific member(s) only → propose a `magic-coordinator.one-on-one.routine` session.
-      - Worth recording, no investigation needed now → into the backlog `magic-team.grooming.routine` already triages.
-      - Never start a new epic/initiative unilaterally inline.
-      - Normalize a genuinely new incoming item into a board-item (`note-*.md`/`inquiry-*.md`, per the team's own entity model): write it into `magic-coordinator`'s own inbox by default, or directly into the relevant member's own inbox via `--member-inbox-note-upsert` if clearly addressed to someone specific. This settles where a record is filed — neither whose words it carries nor who sends anything. Filename shape mandatory, `note-<date>-<matter>.md` / `inquiry-<date>-<matter>.md`, with `<date>` in `magic-team/magic-team.armed.md`'s tooling-section naming **Rule**, `YYYYMMDD'T'HHmm'Z'`. Solo `magic-coordinator` work; no deep classification/enqueue-todo/triage here — that's `magic-team.grooming.routine`'s job later.
-      - Slack: apply the `slack-reaction-tracking` procedure's Act-stage reaction on **this message**, now.
-   4. **reply-if-warranted**: respect each platform's own send/confirm rules, for this message specifically.
-      - minimum floor: acknowledge every non-ignored incoming message.
-      - Slack, mandatory: target the reply at `<channel>:<ts>` of this specific message, never a bare `<channel>`.
-      - Email: get human confirmation before sending, when a human is actually present in the session; running unattended (`magic-coordinator.heartbeat.routine`), send directly, no confirmation gate — the rest of this step's send/reply discipline still applies in full.
-      - Slack/Trello comments in the coordinator's own channels: lead dialog directly, still pause before anything reading as a commitment/decision on the user's behalf.
-      - **never impersonate.** The rule is about whose words a message carries: nobody passes off words that are not their own as their own, whoever is speaking.
-      - who sends is settled by the source, separately from the rule above: a message on this routine's own team-scoped sources sends as the coordinator, and a message on a member's own source sends as that member.
-      - genuinely requires the addressee's reaction/reply before anything proceeds → explicitly `@`-mention them, per `magic-team/magic-team.conversations.md`'s **address-messages-clearly** — posting where they might see it is not enough.
-      - send questions standalone, never bundled inside a longer status update.
-      - no message bundles multiple distinct topics — unit is topic count, not send-call count: one root message naming the overall topic, then each distinct point as its own separate threaded reply under it, per `magic-team/magic-team.conversations.md`'s **one-message-one-speech-act**/**message-shape-is-correctness** — never one long message covering several points, never several unthreaded top-level posts on the same topic.
-      - mark read once handled, every platform (see Tooling for the per-platform mechanics).
-      - Slack, additionally: apply the `slack-reaction-tracking` procedure's Reply-stage and terminal reactions on **this message**, now.
-      - `--format blocks` is a hard rule, no exceptions — never plain-text.
-   5. **advance-watermark**: only now, after this message's full local sequence above is done, does this message count as swept — record its own timestamp as this pass's running high-water mark (used by **update-context** below). Move to the next message in the ordered set.
+1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first. Inside those, the caller already did.
+2. **check**: Read the `sweep-state-note` (`--magic-sweep-state-read`), then run `--magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts>`. Read the result this way:
+   - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
+   - A thread this member started, was answered in or was tagged in is followed whatever its age.
+   - The executor's own new messages form one set, ascending by timestamp. Each member's part is attributed by the member it names, and read in the order it declares. Messages are never ordered across sources.
+   - Nothing new, could not be read, and no part at all are three different results. The run's exit status says whether all, some or none of the sources were scanned; output present is never evidence of success. A capped section is never read as complete.
+   - A member's own inbox and board items in its part are read to know what is recorded, never answered.
+   - A post by another member is inbound. Its author is the item's `author:`, who it is for its `addressees:`; `@here (unaddressed)` is unaddressed. The conversation it was posted in settles neither.
+3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call, steps:
+   1. **read**: Read the full message. A message quoting a block is read past the quote: the instruction is usually after it.
+   2. **analyze**: Cross-reference it with the board and the current todo state. Identify what it needs: work ready to dispatch, an idle-pass candidate, a knowledge candidate for `magic-librarian`, a reply. Nothing needed is a normal result. Whether it was handled is judged from what it asked and whether that was done, never from a later reply existing. Slack: react 👀 now.
+   3. **act**: Settle whether it is routed or handled:
+      - Addressed to another member: deliver it into that member's inbox as an `inquiry-*` (`post-inquiry`), carrying its `communication-channel-id`. Routing is the whole handling. Never answer it on that member's behalf, however obvious the answer.
+      - Handled here, by size: approved, simple and obvious → do it now through the standard dispatch; bigger, needing the whole team → note it for the next daily; concerning specific members → propose a one-on-one; worth recording only → file it for grooming.
+      - A genuinely new item is filed as a `note-*` in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), or as an `inquiry-*` to the member it clearly concerns (`post-inquiry`). Filing settles where the record lives, not whose words it carries or who replies.
+      - Slack: react per `slack-reaction-tracking`'s act stage.
+   4. **reply-if-warranted**: Acknowledge every message not ignored, by each platform's own rules:
+      - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. `--format blocks`, always.
+      - Email, and any reply into an external party's conversation: the human-owner's go first (`AskUserQuestion`; running unattended, `wait: false`, and the reply waits for it).
+      - In the coordinator's own Slack or Trello threads, lead the dialogue directly, but pause before anything reading as a commitment or decision on the human-owner's behalf.
+      - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.
+      - A reply the addressee must act on tags them (`magic-team.conversations.md`'s **address-messages-clearly**).
+      - A question goes standalone. Distinct points go as threaded replies under one root message, never one long message (**one-message-one-speech-act**).
+      - Mark it read on every platform (`--member-comms-email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
+   5. **advance-watermark**: Only now is this message swept. Record its timestamp as this member's running high-water mark.
+
 # Closure steps
 
-1. **update-context**: fold platform mechanical-state findings into the `sweep-state-note` via `--magic-sweep-state-upsert` — `--edit-patch-from-stdin` for a single-field update, full-content write only for a genuine whole-record rewrite — invoked through `mcp__myx_distro__execute` only. Fold identity/routing data into the `roster-note` via `--member-inbox-note-upsert`.
-   - **`last_swept_ts`, precisely**: **process-each-message**'s own running high-water mark — the timestamp of the last message that actually completed its full read→analyze→act→reply-if-warranted→react sequence this pass. Never wall-clock time at whatever moment this Closure step happens to run — this step runs after every message's own processing, which can take minutes, and writing "now" here silently advances the cutoff past any message that arrived during that processing window, permanently skipping it on every later pass. If **check** found zero messages this pass, `last_swept_ts` is left unchanged from its prior stored value, never bumped to now.
-   - **Every member's own position is written under that member's own name.** `--magic-sweep-state-upsert <team-member>` stores one record per member, so the closing write of a pass is one call per member swept: the executor's own, and one per `client-*` member, each carrying that member's own running high-water mark from **process-each-message**. A client's position is never the executor's: the two are positions in different streams under different credentials, and the scan resolves each member's own before reading anything, so nothing needs passing down. The invariant is enforced by the operation itself — a write whose `last_swept_ts` is older than the stored one, or which drops the field, is refused rather than accepted, because a pointer only ever moves from oldest to newest.
-   - **On a member's own source, idempotence is per-platform, and the two halves behave oppositely.** Mail carries itself: the scan's own instrument there is the unread flag, so a message marked seen in **reply-if-warranted** drops out of the next scan by itself. Chat does not: the reaction ladder is real on the wire, but the scan's document carries no reaction, so telling a handled chat message from an unhandled one costs one `--member-comms-slack-read` on that message, every pass — and without that read a handled chat message reads as new for ever.
-   - A message's own `:eyes:` reaction (or lack of one) is the visible, auditable record of whether that specific message was ever actually processed — deliberately redundant with `last_swept_ts`, so a human can verify sweep coverage by looking at real Slack reactions, not just trusting the stored state note.
-   - Update the own-status Trello card: a standing checklist of what `magic-coordinator` is currently doing and what it needs from the human team, legible to someone who wasn't in the conversation — surface anything blocked on the human team here.
-   - Keep `slack-magic-team` current as a standing narrative broadcast: post a milestone as it happens, in plain external-facing language; post a blocker the moment it's identified. No internal dispatch mechanics, agent IDs, or RICE scores. Post as threaded replies within the session's own root message, as small separate messages as things happen — not accumulated into end-of-session summaries. Does not replace direct in-conversation reporting to the user.
-   - Post completion status to `slack-event-track`.
+1. **update-context**: steps:
+   - Write each swept member's own `sweep-state-note` (`--magic-sweep-state-upsert <team-member>`), one call per member, carrying that member's high-water mark as `last_swept_ts`. Never wall-clock time. With no message found, leave it unchanged.
+   - Fold identity and routing changes into the `roster-note` (`--magic-team-roster-upsert`).
+   - Post today's status and what is blocked on the human team to the own-status Trello card (`--magic-comms-trello-post-comment`).
+   - Post milestones and blockers to `magic-team` as threaded replies under the session's root message, as they happen, in plain language. No dispatch mechanics, ids or scores.
+   - Post completion status to `event-track`.
 
 # Routine's local procedures
 
-Named procedure blocks. Steps above call them by name. Not separate routines - not visible outside this file.
+Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
 
-## `slack-reaction-tracking` procedure
+## `slack-reaction-tracking` — the reaction ladder on each Slack message
 
-Slack-only — email/Trello have no reaction primitive. Real, load-bearing async-visibility channel, not cosmetic. Every Slack message this routine handles gets a running, stacking set of reactions as it progresses.
+Slack only. Reactions add up, per `magic-team.conversations.md`'s **react-at-each-stage**, and use the `Wait` sets:
+- 👀 seen — at **analyze**, once understood.
+- ✍️ noted — at **act**, when the message is routed or filed for later.
+- ✅ done — at **reply-if-warranted**, when it is resolved this sweep.
+- ⏳ waiting — at **reply-if-warranted**, when it now waits on a tracked board item. File a `note-pending-slack-reaction-<matter>` record in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), naming the `communication-channel-id` and the board item. `check-pending-comms-actions` adds the outcome reaction when the item resolves.
 
-**Stage mapping** (grounded in Steps above, never fired eagerly at first contact):
-- `:eyes:` — **analyze**, once understood/classified.
-- `:writing_hand:` — **act**, conditional: only when genuinely blocked on/tied to an ongoing interview-like process. Genuinely unsure whether it applies: default to skipping the reaction.
-- `:ok_hand:` — **reply-if-warranted**, same moment as "mark it read."
-- `:white_check_mark:` — terminal, not automatic at sweep time, see split below.
-
-**Additive by default, not an absolute never-remove rule.** Recognized exceptions where a reaction gets removed/replaced:
-- underlying request/candidate refused/declined outright
-- a request (not the human-owner's own) now blocked pending his approval
-- human-owner asks to restart/stop/park the underlying work
-- any agent's assumption the human-owner said was wrong/refused → react `:x:`/❌ on the traced-back message, replacing whatever was there
-
-**Terminal-stage split:**
-- **Same-sweep resolution**: add `:white_check_mark:` right away, alongside `:ok_hand:`, in **reply-if-warranted**.
-- **Deferred resolution** — message became/already was the source of a tracked board-item staying open past this sweep: do not add the terminal reaction now, leave at `:eyes:`/`:writing_hand:`/`:ok_hand:`. File a lightweight pending-reaction record (into `magic-coordinator`'s inbox, or directly into `board-running`) carrying the `communication-channel-id` plus the tied board-item's bare name stated in the record's own body prose. `magic-coordinator.advance.routine`'s own pending-reaction-lookup step adds the terminal reaction later.
-- **Negative outcome, at that later point**: assessed per case, not one hardcoded emoji — `:x:`/❌ a sensible floor, `:-1:`/thumbsdown where it reads better.
-
-**Origin-ts lifecycle**: a Slack message normalized into a board-item may move inbox-file → formal board-item → `blocked/`/`parked/` → `processed/`/`archived/`. The reaction target never changes; whichever step promotes an inbox item into a formal board-item copies `communication-channel-id` across unchanged.
-
-**Boundary**: only applies where a real Slack message exists — a board-item created directly as a file carries no `communication-channel-id` at all, and has no reaction step anywhere in its lifecycle.
-
-**Out of scope**: backfilling `:eyes:` reactions onto messages handled before this mechanism read them — a reaction is applied only to a message this routine reads itself.
-
-**Mechanics**: the `--member-comms-slack-react` operation. The reaction is posted by the member whose own source the message sits on.
+A reaction is removed or replaced when the request is declined, becomes blocked pending the human-owner, or he stops or parks the work. An assumption he called wrong gets ❌ on the message it came from. The reaction target stays the original message for the item's whole life: promotion carries `communication-channel-id` unchanged. React on the member's own source as that member (`--member-comms-slack-react`). Messages handled before this routine read them are not backfilled.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` (this routine's sole executor) is permitted and obliged to execute every step exactly as written, in order.
-- Every participant follows this routine's own rules over their normal `.armed.md` rules while this routine is active.
-- Conversation mechanics (message shape, reaction meaning, confirming corrections before acting) always apply, in any context.
-- What myx (Alex Kharichev) asks carries direct authority: when he asks for something across any platform, that instruction is the priority — don't silently reinterpret, narrow its scope, or substitute a smaller action than what was actually asked for.
-- Read each message in the context of its own thread, not in isolation: a short reply ("post", "confirm", "recheck") means whatever it means *given everything already said in that specific back-and-forth*.
-- A session/activity's own progress reporting to `slack-magic-team` goes as threaded replies under one root message for that session — start one root when the session begins (or reuse an existing live one), reply within that thread as things happen, never repeated new root posts.
-- An **act** candidate borderline between "approved, simple, obvious" and "bigger, questionable": default to the more conservative bucket.
-- A message's intent is genuinely unclear: ask, don't guess and proceed — especially on Slack and in comments where tone/brevity make intent easy to misread. This is about being genuinely clear on content and intent before acting, not about adding friction to every message: an unambiguous, already-scoped ask still doesn't need a fresh round of confirmation each time.
-- Goal-directedness: when a goal is set for this session, actively work to move the process toward that goal. Non-goal-directed items that surface mid-session get quickly recorded, not acted on now.
-- `magic-coordinator` (this routine's sole executor) is obligated to keep `slack-event-track` activity tracking current as the sweep runs — sweep step-progress/status always targets `event-track` (debug-only); milestones, blockers, and escalations always target `magic-team`.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
+- This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- The human-owner's ask, on any platform, is the priority: never reinterpret it, narrow it, or substitute a smaller action.
+- Read each message in its own thread's context: a short reply ("post", "confirm") means what the thread so far makes it mean.
+- A candidate between "simple and obvious" and "bigger" goes to the more conservative bucket.
+- Unclear intent is asked about, never guessed. An unambiguous, already-scoped ask needs no fresh confirmation.
+- Step progress goes to `event-track`; milestones, blockers and escalations go to `magic-team`.
+- Credentials are never printed into a transcript, chat or log.
 
 # Routine-specific tooling
 
-Every `magic-tooling` operation this routine uses. Full syntax and behavior here. Steps use its name only.
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
 ## DistroAgentsTools magic-tooling operations
 
-- `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]` (**check**: primary op — board-tracked threads plus every watched source)
-- `--member-comms-email-check <team-member>` (**check**: Email)
-- `--member-comms-trello-check <team-member>` (**check**: Trello)
-- `--member-comms-slack-send-message <team-member> <target> [text...]` (**reply-if-warranted**)
-- `--member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` (**act**: normalize a new incoming item into an inbox record)
-- `--member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` (**act**: deliver a message addressed to another member into that member's own inbox)
-- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (**reply-if-warranted**: email)
-- `--member-comms-email-mark-seen <team-member> <uid>` (**reply-if-warranted**: mark-read, email)
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` (`slack-reaction-tracking` procedure, throughout)
-- `--member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` (**check**: read one arbitrary target/thread the scan does not cover)
-- `--magic-sweep-state-read <team-member>` (**check**: read the `sweep-state-note`)
-- `--magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` (**update-context**)
-
-## `--magic-sweep-input-scan` Operation Reference
-
-`DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]` — this routine's own **check** step in one pass: the board-tracked threads this routine already follows, plus every watched source across every live platform. The cut-off is optional and the two spellings are mutually exclusive, neither repeatable — one cut-off, one spelling. `--comms-since-utime` takes epoch seconds, with or without a fractional part. This is not a platform-wide search: a conversation outside the already-watched sources, or an identity mention that falls outside them, stays undiscoverable here — true "tagged anywhere" coverage is a separate, not-yet-built capability. A single arbitrary target/thread outside the watched set is not covered by this scan — read it directly with `--member-comms-slack-read <team-member> <channel>:<ts>` when its id is known. `<team-member>` and the optional cut-off are the only arguments: the scan reads every baseline source and board-tracked thread this routine needs, and an item name is not a parameter to it. Every `client-*` member's own sources are covered by this same call, and each member's part of the document names itself (`member:`/`member-kind:`) — a section that is absent is a member that was not read, never one with nothing new. **The cut-off given here applies to the calling member only and is deliberately not passed on**: each `client-*` member's own sweep is run with no cut-off, so the scan's own default window applies there, and its section states which under `resumed-from:`. Handing a client the executor's own cut-off filters that client's conversations by a position in the team's traffic and reports the remainder as nothing new. The scan itself is stateless: it stores no position and reads none, so where this routine got to is recorded by this routine, in its own state-and-lock note, and given back as an explicit `--comms-since-utime` on the next pass when it wants one. Exit status: `0` every source scanned, `3` some scanned and some not, `4` none, `1` the operation failed — a failed call may already have written part of a document to stdout, so the status is what is read and the presence of output is never evidence of success. An optional source a member holds no credentials of its own for is counted in no source total and does not make the scan partial.
-
-## `--member-comms-email-check` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-email-check <team-member>` — IMAP STATUS INBOX (UNSEEN) check only, unread count, not a full fetch. `<team-member>` comes first and is required: the count is that member's own mailbox. This routine passes `magic-coordinator`, its sole executor.
-
-## `--member-comms-trello-check` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>` — unread Trello notifications only (`read_filter=unread`), not a full board read. `<team-member>` comes first and is required: the unread list is that member's own notifications. This routine passes `magic-coordinator`, its sole executor.
-
-## `--member-comms-slack-send-message` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [text...]` — posts a message to Slack, attributed to `<team-member>`.
-
-## `--member-upsert-member-inquiry` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-file <path>]` — passes an inquiry into `<member>`'s own inbox. Same argument shape and file-writing mechanics as `--member-inbox-note-upsert`, kept separate because the two mean different things: filing something for later, versus handing it to another member. Filename `inquiry-<date>-<matter>.md`, `<date>` per the same naming **Rule**; required frontmatter `type: inquiry`, `from`, `date`, `owner`, plus `communication-channel-id` when the item traces back to one specific external message.
-
-## `--member-inbox-note-upsert` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) a note into `<member>`'s own inbox. Content via stdin by default, or `--from-file <path>`.
-
-## `--member-comms-email-send` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>` (or `-- --from-stdin` / `-- --from-file <path>` in place of the trailing body) — real standalone SMTP send. `<team-member>` comes first and is required: it is the acting identity. This routine passes `magic-coordinator`, its sole executor, the same member its check step used. Multiple recipients accepted before the first `--`; subject is everything between the two `--` separators; everything after the second becomes the body. Exactly one body source required — giving more than one of trailing-body-argv/`--from-stdin`/`--from-file` together is an error.
-
-## `--member-comms-email-mark-seen` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>` — marks one email (by IMAP UID) as `\Seen` — otherwise every sweep re-sees the same UIDs as unseen. `<team-member>` comes first and is required: the mailbox written to is that member's own, strictly, and a UID only means anything inside one mailbox — the same `<uid>` under a different member names a different message, or none. This routine passes `magic-coordinator`, its sole executor, the same member its check step used.
-
-## `--member-comms-slack-react` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]` — posts one Slack reaction to a specific message. `<channel>:<ts>` only, no `magic-team`/`human-owner` shortcut. `<emoji-name>` has no colons (e.g. `white_check_mark`, not `:white_check_mark:`). `<team-member>` is the acting identity — the reaction is posted BY that member.
-
-## `--member-comms-slack-read` Operation Reference
-
-`DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> <channel>:<ts> [--thread] [--identity-bot]` — reads one specific message in full, or the whole thread it belongs to with `--thread`. `<channel>:<ts>` only: unlike the scan ops it takes no `magic-team`/`human-owner` shortcut, since it retrieves one exact message and that needs its own `<ts>`. `<team-member>` is the acting identity, and it decides WHICH conversation is read at all. A call that could not see the message asked for fails loud — an empty result is never reported as an outcome, so "nothing there" can never be concluded from a failed read.
-
-## `--magic-sweep-state-read` Operation Reference
-
-`DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>` — read-only: prints the whole `sweep-state-note` **of that member** on stdout, verbatim, this routine's source for `last_swept_ts` ahead of the **check** step. Prints `NO_STATE` and returns 0 when nothing is stored yet — a normal first-run outcome, not an error. `<team-member>` is the only argument, and it selects whose record is read: every member has its own.
-
-### Reads are whole conversations, and a truncated one fails rather than shortens
-
-Both `conversations.history` and `conversations.replies` page backwards, newest first. Channels and DMs are followed cursor-by-cursor to the end of this pass's window, so a busy conversation is read to the end of that window rather than to its first page. A thread is read in one call at the API ceiling of 999 replies instead, because `conversations.replies` repeats the thread parent on every page and merging those pages would duplicate it.
-
-A thread with more than 999 replies therefore **fails** rather than returning its newest 999 as though they were the whole thread — and it will fail on every pass until it is dealt with, which is the point. Two ways out, both deliberate: read the thread's older part directly, or set `ENV_MAGIC_SWEEP_SLACK_THREAD_TRUNCATE_OK=true` to accept the newest 999 with a loud note in the log. The second is right when this pass's own cut-off already puts the old end of that thread out of scope; it is not right as a standing setting, because it decides on the reader's behalf that the tail is enough.
-
-`ENV_MAGIC_SWEEP_SLACK_PAGE_SIZE` (default 200, floored at 100, ceilinged at 999) and `ENV_MAGIC_SWEEP_SLACK_PAGE_MAX` (default 20 pages) bound the channel walk. Exhausting the page cap with material still unread is also a failure, never a short answer.
-
-## `--magic-sweep-state-upsert` Operation Reference
-
-`DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]` — writes (creates or overwrites) that member's own `sweep-state-note`. Content via stdin by default; `--from-file <path>` for a full-content write, `--edit-patch-from-stdin` for a single-field update — per **update-context**, the patch form is used for a single-field update, full-content write only for a genuine whole-record rewrite. Empty content is refused rather than written. Takes no filename or path argument — storage is the operation's own concern. **The sweep pointer only ever moves from oldest to newest, and the operation enforces it**: content whose `last_swept_ts` is older than the stored one is refused, and so is content that drops the field while a position is stored. Neither refusal is a reason to rewrite the record by another route — to re-read material below the pointer, pass an explicit `--comms-since-utime` to the scan, which reads without moving anything.
+- `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`
+- `--magic-sweep-state-read <team-member>`
+- `--magic-sweep-state-upsert <team-member>`
+- `--member-comms-slack-read <team-member> <channel>:<ts> [--thread]`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
+- `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
+- `--member-comms-email-mark-seen <team-member> <uid>`
+- `--member-upsert-member-inquiry <member> <item-filename>`
+- `--member-inbox-note-upsert <team-member> <item-filename>`
+- `--magic-team-roster-upsert <team-member>`
+- `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
 
 # Maintainer Notes
 
@@ -266,18 +159,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.daily.routine` — calls this routine at both start and end.
-- `magic-coordinator.heartbeat.routine` — calls this every iteration as its "Comms" step.
-- `magic-team.grooming.routine` — deep classification/triage, Google Drive/Sheets, board-coverage diffing.
-- `magic-coordinator.advance.routine` — its own pending-reaction-lookup step reacts on deferred-terminal messages later.
-- `magic-team.process-inbox.routine` — own-inbox processing.
-- `magic-coordinator.one-on-one.routine` — small-group proposal destination for member-specific findings.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — Keep-Alive Workspace Console Session mechanics, mandatory batching.
-- `magic-team/magic-team.armed.md`'s "Board & Inbox board-items entity model" section — `board-item` entity model, `communication-channel-id` frontmatter convention.
-- `magic-team/magic-team.board.md` — `processed/`/`archived/` outcome-ambiguity note.
-- `magic-team/magic-team.conversations.md` — conversation mechanics (message shape, reaction meaning, confirming corrections before acting) this routine's Local rules point to.
-- `magic-team/magic-team.shared.md`'s "Partner / Client (`partner-*`/`client-*`)" section — the sweep operation generic across every `client-*` member, and this routine as the wrapper around it.
+- `magic-coordinator.advance.routine` — runs this routine every pass at **advance-process-comms**.
+- `magic-coordinator.armed.md`'s `check-pending-comms-actions` — adds deferred outcome reactions.
+- `magic-team.shared.md`'s "Partner / Client" section — the client sweep this routine wraps.
 
 ### Conventions
 
-- The Slack per-message reaction-tracking design (stage mapping, additive-vs-swap exceptions, the same-sweep-vs-deferred terminal split) is dense and load-bearing — preserve it precisely when editing, don't summarize it away.
+- The reaction ladder and the routed-versus-handled split are load-bearing. Preserve them precisely.

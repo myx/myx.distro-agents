@@ -120,38 +120,42 @@ function scanArray(nodePath,   itemIndex, curChar) {
 	}
 }
 
-{
+## `jsLibrary = 1` (set in a later -f file's BEGIN) makes this a library: no input is
+## read, END does nothing, and the caller drives skipws()/scanValue() itself.
+!jsLibrary {
 	if (inputSeen) inputText = inputText "\n" $0
 	else inputText = $0
 	inputSeen = 1
 }
 
 END {
-	if (wantPath == "" || (sliceMode != "raw" && sliceMode != "keys")) {
-		printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: pass both `-v path=...` and one of `-v mode=raw` or `-v mode=keys`\n") > "/dev/stderr"
-		exit 2
+	if (!jsLibrary) {
+		if (wantPath == "" || (sliceMode != "raw" && sliceMode != "keys")) {
+			printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: pass both `-v path=...` and one of `-v mode=raw` or `-v mode=keys`\n") > "/dev/stderr"
+			exit 2
+		}
+
+		scanLen = split(inputText, scanChars, "")
+		scanPos = 1
+
+		skipws()
+		if (scanPos > scanLen || scanChars[scanPos] != "{") {
+			printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: input is not a JSON object -- an empty read, a diagnostic captured in place of a document, or a line that is not one (wanted path `%s`)\n", wantPath) > "/dev/stderr"
+			exit 1
+		}
+
+		scanValue("")
+		skipws()
+
+		if (structErr || scanPos <= scanLen) {
+			printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: input did not parse as one complete JSON object -- truncated body or trailing garbage (wanted path `%s`)\n", wantPath) > "/dev/stderr"
+			exit 1
+		}
+
+		if (foundCount == 0) exit 3
+
+		if (sliceMode == "keys") printf("%s", foundValue)
+		else printf("%s\n", foundValue)
+		exit 0
 	}
-
-	scanLen = split(inputText, scanChars, "")
-	scanPos = 1
-
-	skipws()
-	if (scanPos > scanLen || scanChars[scanPos] != "{") {
-		printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: input is not a JSON object -- an empty read, a diagnostic captured in place of a document, or a line that is not one (wanted path `%s`)\n", wantPath) > "/dev/stderr"
-		exit 1
-	}
-
-	scanValue("")
-	skipws()
-
-	if (structErr || scanPos <= scanLen) {
-		printf("⛔ ERROR: AgentsHarnessJsonSlice.awk: input did not parse as one complete JSON object -- truncated body or trailing garbage (wanted path `%s`)\n", wantPath) > "/dev/stderr"
-		exit 1
-	}
-
-	if (foundCount == 0) exit 3
-
-	if (sliceMode == "keys") printf("%s", foundValue)
-	else printf("%s\n", foundValue)
-	exit 0
 }

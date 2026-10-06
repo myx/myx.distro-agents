@@ -29,7 +29,7 @@ case "$1" in
 		local itemName="$1"
 		shift || true
 		if [ -z "$memberName" ] || [ -z "$itemName" ] ; then
-			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
+			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: syntax is <member> <item-filename> [--from-member <member>] -- content via stdin, --from-file <path>, or --edit-patch-from-stdin" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-upsert || { set +e ; return 1 ; }
@@ -50,6 +50,9 @@ case "$1" in
 		}
 		local target="$inboxDir/$itemName"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
+		## Who is writing: the `from` a new item is stamped with when its content names none.
+		## A spawned session's own member when not given; nothing is guessed beyond that.
+		local fromMember="${MDAT_SPAWN_AGENT:-}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-file)
@@ -67,6 +70,15 @@ case "$1" in
 					bodyMode="patch"
 					bodyModeCount=$(( bodyModeCount + 1 ))
 					shift
+				;;
+				--from-member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: --from-member: value required" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "--from-member" member-inbox-upsert || { set +e ; return 1 ; }
+					fromMember="$2"
+					shift 2
 				;;
 				--context)
 					if [ -z "${2:-}" ] ; then
@@ -102,10 +114,51 @@ case "$1" in
 			echo "$MDSC_CMD: member-inbox-upsert: ⛔ ERROR: empty content -- refusing to write an empty inbox item" >&2
 			set +e ; return 1
 		fi
+		## A new item's name is checked against the naming Rule: said, never refused, and
+		## never rewritten. An item that already exists is updated under the name it has.
+		if [ ! -f "$inboxDir/$itemName" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemNameShape.include"
+			AgentsToolsItemNameShapeCheck "$itemName" member-inbox-upsert "new item"
+			## An inbox holds inbox types, and a board type here is misfiled.
+			case "$( AgentsToolsItemNameType "$itemName" )" in
+				note|inquiry|reflection) ;;
+				*) echo "$MDSC_CMD: member-inbox-upsert: ⚠️ WARNING: $itemName is not an inbox type (note-*, inquiry-*, reflection-*) -- a board type filed in an inbox is misfiled; written anyway" >&2 ;;
+			esac
+		fi
+		target="$inboxDir/$itemName"
 		## created vs updated is decided before the write, while the target's
 		## prior presence still tells the two apart.
 		local existedBefore="false"
 		if [ -f "$target" ] ; then existedBefore="true" ; fi
+
+		## A new item's required headers -- type, from, date, owner -- stamped only where the
+		## content names none of them: type from the name's prefix, from the writing member
+		## when known, date now, owner the member whose inbox this is. Never on an update:
+		## those are creation facts, and the one updating is not the one who created it.
+		## A body opening a frontmatter block it never closes is written as given, as before:
+		## there is no frontmatter to complete, and the header awk would refuse it.
+		local openFrontmatter="false"
+		if [ "${content%%$'\n'*}" = "---" ] && [ "$( printf '%s\n' "$content" | LC_ALL=C awk -v fieldName=type -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" )" = "NONE" ] ; then
+			openFrontmatter="true"
+		fi
+		if [ "$existedBefore" = "false" ] && [ "$openFrontmatter" = "false" ] ; then
+			[ -n "$fromMember" ] && AgentsToolsAssertBareName "$fromMember" "MDAT_SPAWN_AGENT" member-inbox-upsert 2>/dev/null || fromMember=""
+			local createDefaults="" createType
+			createType="$( AgentsToolsItemNameType "$itemName" )"
+			[ -z "$createType" ] || createDefaults="default"$'\t'"type"$'\t'"$createType"$'\n'
+			[ -z "$fromMember" ] || createDefaults="${createDefaults}default"$'\t'"from"$'\t'"$fromMember"$'\n'
+			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
+			createDefaults="${createDefaults}default"$'\t'"owner"$'\t'"$memberName"$'\n'
+			## Same ops file discipline as --intern-op-board-upsert-move-edit: a real path the
+			## awk reads, made and removed inside this one subshell.
+			content="$(
+				headerOpsFile="$MMDAPP/.local/temp/mdat-intern-op-inbox-headers.$$"
+				trap 'rm -f "$headerOpsFile"' EXIT
+				mkdir -p "$MMDAPP/.local/temp" || exit 1
+				printf '%s' "$createDefaults" > "$headerOpsFile" || exit 1
+				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk"
+			)" || { set +e ; return 1 ; }
+		fi
 		printf '%s\n' "$content" > "$target"
 		echo "# $MDSC_CMD: member-inbox-upsert: wrote ${target#"$inboxDir"/} ($( printf '%s\n' "$content" | wc -l | tr -d '[:space:]' ) lines)" >&2
 

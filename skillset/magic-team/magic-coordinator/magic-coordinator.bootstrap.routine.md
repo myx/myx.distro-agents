@@ -16,8 +16,6 @@ invitees: human-owner
 - Routine's local rules
 - Routine-specific tooling
   - DistroAgentsTools magic-tooling operations
-  - AskUserQuestion operation
-  - Direct Slack API checks used by this routine
 - Maintainer Notes
   - Verbatim-goals (intents)
   - Verbatim-tests (benchmarks)
@@ -27,195 +25,64 @@ invitees: human-owner
 
 # Summary
 
-Routine-bootstrap-magic-vane is the one-time (and re-runable) coordinator bootstrap for Magic Vane's real operating identity: confirm identity, configure credentials, verify delivery semantics, confirm Slack profile shape, and fail loud with a human-owner handoff when any step cannot be completed autonomously.
-
-Member-addressed: written to Magic Vane. It reads the same whether she follows it herself or asks an agent to set up, reconfigure, fix or check on her behalf.
+`magic-coordinator.bootstrap.routine` sets up and verifies Magic Vane's working identity and channels, and hands the human-owner an exact list of what is missing. It can be re-run at any time.
 
 ## Goals
 
-- Ensure Magic Vane operates under the intended identity (`magic-coordinator` / `Magic Vane` / `dispatchr`) rather than accidental myx/app-only impersonation.
-- Ensure message delivery checks reflect real usable behavior (native-user expectations and attribution reality) instead of `ok:true` false confidence.
-- Ensure watched communication targets are reachable and joined where applicable.
-- Ensure Slack profile basics are correct and visibly aligned with the role.
-- Produce a compact, explicit missing-items report when blocked.
+- Magic Vane works under her own identity (`magic-coordinator`, Magic Vane, `dispatchr`), never by accident under the human-owner's or a bare app identity.
+- Delivery checks reflect real, usable behaviour, never a transport success alone.
+- Every watched team conversation is reachable, and her Slack profile matches her role.
 
 ## Scope
 
-Does:
-- Bootstrap and validate `SLACK_USER_TOKEN` for `magic-coordinator`.
-- Verify target channel reachability and join state for `magic-team`, `event-track`, `event-alert`, and `human-owner` alias target.
-- Verify send-path behavior with current policy checks.
-- Verify Slack profile essentials: picture, display name, handle, and status line.
-- Escalate to human-owner with exact step-by-step asks when a step cannot be completed by coordinator tooling.
-
-Doesn't do:
-- Change unrelated skill files.
-- Rework broad team policy outside coordinator bootstrap scope.
-
-This routine stands a team up in a new place — a full custom-team setup for a new board, or a minimal one. It is setup machinery, not part of the working skillset, so it is deliberately absent from the skillset's routine indexes.
+- Does: readiness checks, probe sends, profile checks, and one concrete ask to the human-owner for each blocker. Runs when a team is set up in a new place, or on request.
+- Doesn't: change other skill files, or rework team policy.
+- Open: whether app-attribution markers are acceptable when the message reads as Magic Vane — the human-owner's policy call, asked at **checkpoint-ask-user**. Tooling that hard-fails on the marker alone is a recorded mismatch to fix.
+- Open: checking channel membership and joining public team channels, once an operation covers it.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **check-preconditions**: any one missing is a fail-loud stop, escalated via **escalate-to-human-owner**'s script.
-- Workspace root available with `source/myx/myx.distro-agents`.
-- `DistroAgentsTools.fn.sh` available and executable.
-- Coordinator member key exists: `magic-coordinator`.
-- Human-owner reachable for escalations when required.
-
-2. **load-identity-and-targets**
-- Read member token and configured targets:
-  - `--member-config-option magic-coordinator --select SLACK_USER_TOKEN`
-  - `--agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM`
-  - `--agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER`
-  - `--agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK`
-  - `--agents-config-option magic-team --select SLACK_CHANNEL_EVENT_ALERT`
-- Missing any required value: stop and escalate using the human-owner script in **escalate-to-human-owner**.
-
-3. **check-auth-identity**
-- Call `auth.test` using `SLACK_USER_TOKEN`.
-- Expected minimum:
-  - `ok:true`
-  - `user == magic-coordinator`
-  - stable `user_id` present
-- If auth fails or identity mismatch: stop and escalate (**escalate-to-human-owner**).
-
-4. **check-membership-and-join**: public channels
-- For `magic-team`, `event-track`, `event-alert`:
-  - Call `conversations.join` with current user token.
-  - Accept `ok:true` as joined/already-joined success.
-- If `missing_scope` appears:
-  - Record missing scope exactly as returned (for example `channels:write`).
-  - Escalate with one clear add-scope request (**escalate-to-human-owner**).
-
-5. **check-send-path**
-- Send probe message to each target (`magic-team`, `event-track`, `event-alert`, `human-owner`) with timestamp marker.
-- Capture full API response payload for each attempt.
-- Distinguish outcomes:
-  - transport success (`ok:true`)
-  - attribution shape (`message.user`, `app_id`, `bot_id`, `bot_profile`)
-  - target accessibility errors (`channel_not_found`, `not_in_channel`, etc.)
-
-6. **gate-native-identity-policy**
-- Treat send as valid operational success only when all are true:
-  - `ok:true`
-  - `message.user` equals authenticated `user_id` from **check-auth-identity**
-  - target is expected and reachable for that alias
-- Presence of `app_id`/`bot_id`/`bot_profile` is a policy warning, not a standalone transport failure.
-- If local code currently hard-fails on marker presence alone, steps:
-  - record as tooling-rule mismatch
-  - queue fix
-
-7. **check-alias-target-validity**: `human-owner`
-- If `human-owner` send fails with `channel_not_found`:
-  - mark alias mapping unresolved for current identity.
-  - require human-owner to provide a reachable DM/channel id for Magic Vane.
-- Do not silently swap to a guessed target.
-
-8. **check-slack-profile-setup**: now and every bootstrap re-run
-- Validate these profile fields for Magic Vane:
-  - Picture/avatar: current intended image is present and correct.
-  - Display name: `Magic Vane`.
-  - Handle/alias: `dispatchr`.
-  - Status line: present, role-aligned, short.
-- Preferred status line baseline:
-  - `Dispatch and prioritization lead for magic-*`
-- If API scope allows (`users.profile:read`), fetch and verify via API.
-- If API read is unavailable or ambiguous, request visual confirmation from human-owner (**escalate-to-human-owner**).
-
-9. **capture-scope-matrix**
-- Record currently required scopes by operation family:
-  - Auth: token validity (`auth.test`).
-  - Channel joins (public): `channels:write`.
-  - Channel history/replies reads: conversation read scopes used by the comms sweep.
-  - Reactions: scopes for `reactions.add` used by `--member-comms-slack-react`.
-  - Message send: scopes for `chat.postMessage`.
-- When any call returns `missing_scope`, record exact `needed` and `provided` fields verbatim.
-
-10. **checkpoint-ask-user**: mandatory when `NOT READY`
-- Ask the human-owner for exactly the next missing action, one question at a time.
-- Preferred path: AskUserQuestion in-session (single focused question, explicit expected answer format).
-- Failover path: if AskUserQuestion is unavailable, unanswered, or the session is unattended, send the same question to Slack IM target (`human-owner`) via `--member-comms-slack-send-message`.
-- Slack IM failover failure (`channel_not_found` or equivalent): immediately fall back, steps:
-  - post the question in `magic-team`
-  - post a short blocker note in `event-alert`
-- After each answer, steps:
-  - apply only the directly affected fix
-  - re-run only the impacted bootstrap step(s)
-
-11. **wait-for-reply**: required after **checkpoint-ask-user**
-- Do not continue as if answered; explicitly wait for a reply.
-- In interactive harness mode, AskUserQuestion is blocking: wait for the returned answer payload, then proceed.
-- In unattended/async mode, use a bounded wait loop, not a tight busy-loop:
-  - wait interval: approximately 30-90 seconds between checks,
-  - max attempts: 5,
-  - stop condition: first valid answer received,
-  - timeout condition: no answer after max attempts -> escalate in `magic-team` and `event-alert`, keep `NOT READY`.
-- For Slack failover, each retry must post at most one short follow-up nudge; do not spam multiple channels in the same attempt.
-
-12. **escalate-to-human-owner**: step-by-step script, mandatory when blocked
-- Use this exact ask sequence, one step per message:
-  1. Confirm I should continue bootstrap for `magic-coordinator` under `Magic Vane` identity.
-  2. Confirm/update `SLACK_USER_TOKEN` for Magic Vane.
-  3. Add missing Slack scope(s) exactly as reported (example: `channels:write`).
-  4. Reinstall/re-authorize app/token if Slack requires it after scope changes.
-  5. Provide/confirm reachable `human-owner` DM or channel id for this identity.
-  6. Confirm Slack profile values:
-     - picture correct,
-     - name `Magic Vane`,
-     - handle `dispatchr`,
-     - status line text.
-  7. Confirm whether app-attribution markers are acceptable for this workspace policy when `message.user` matches Magic Vane.
-  8. Approve rerun of full bootstrap verification sweep.
-- After each human-owner response, re-run only the directly affected step(s), then continue sequence.
+1. **check-readiness**: Run `--owner-setup-slack --check` and `--magic-heartbeat-config-check`. Every missing or failing item becomes a blocker for **checkpoint-ask-user**.
+2. **check-send-path**: Send a probe, carrying a timestamp marker, to `magic-team`, `event-track`, `event-alert` and `human-owner` (`--member-comms-slack-send-message`). Read each back (`--member-comms-slack-read`). A probe counts only when it arrived where expected and reads as sent by Magic Vane. Delivered under another identity, or not found, is a blocker. App attribution alongside her own identity is a warning, not a failure.
+3. **check-alias-target**: A failed `human-owner` send leaves that target unresolved. Ask the human-owner for a reachable conversation; never guess a substitute.
+4. **check-slack-profile**: Read the profile (`--member-comms-slack-profile-get magic-coordinator`) and compare it with `magic-coordinator.basic.md`: picture, display name Magic Vane, handle `dispatchr`, and a short role-aligned status line (baseline: "Dispatch and prioritization lead for magic-*"). A mismatch is set (`--member-comms-slack-profile-set`) after the human-owner's go. A facet that could not be read is asked about, never assumed.
+5. **checkpoint-ask-user**: For each blocker, ask the human-owner for exactly the next action, one question at a time (`AskUserQuestion`), and wait for the answer (`magic-team.armed.md`'s **wait-never-quit**). After each answer, apply only the affected fix and re-run only the affected step.
 
 # Closure steps
 
-1. **report-compact-outcome**
-   - Produce one short matrix: Target -> join status -> send status -> identity status -> missing items.
-   - Include explicit final line: `READY` only if all required targets are operational per **gate-native-identity-policy**; otherwise `NOT READY` plus numbered missing actions.
+1. **report-compact-outcome**: One short table: target, send status, identity status, missing items. A final line `READY` only when every target passed **check-send-path**; otherwise `NOT READY` with the numbered missing actions.
 
 # Routine's local procedures
 
 Named procedure blocks, called by name from `# Steps`. Not separate routines — not visible outside this file.
 
-None currently defined.
+None.
 
 # Routine's local rules
 
-All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while working in this routine.
+All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- Fail loud on ambiguity; never report "working" from transport success alone.
-- No guessed target ids, no guessed scope names, no silent fallback identities.
-- Every blocker must map to one concrete ask for human-owner.
-- Every `NOT READY` state must pass through **checkpoint-ask-user**: one concrete AskUserQuestion before continuing.
-- Never use a tight infinite busy-loop waiting for replies; use **wait-for-reply**'s bounded waits and timeout escalation.
-- Keep reports compact and operational: facts first, no narrative padding.
-- Never link this routine file into the skillset's routine indexes — it is setup machinery, not working-skillset content.
-- `# Steps`/`# Closure steps` sequencing follows `magic-team/magic-team.shared.md`'s own rule — see there for the full statement.
+- This routine's own executor is permitted and obliged to execute every step exactly as written.
+- Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- Fail loud on ambiguity. Transport success alone never reads as "working".
+- No guessed targets, no guessed scopes, no fallback identity.
+- Every blocker maps to one concrete ask, and every `NOT READY` passes through **checkpoint-ask-user**.
+- Reports are compact: facts first.
 
 # Routine-specific tooling
 
+Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
+
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-config-option <member> --select <KEY>`
-- `--agents-config-option <member> --select <KEY>`
-- `--member-comms-slack-send-message <member> <target> [text...]`
-- `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]`
-
-## AskUserQuestion operation
-
-- `vscode_askQuestions` (or equivalent AskUserQuestion channel in the active harness) is the primary interactive blocker-resolution mechanism for **checkpoint-ask-user**.
-- Ask one concrete question at a time. Do not batch unrelated blockers into one prompt.
-- Treat unanswered AskUserQuestion as pending state, not implicit rejection; apply **wait-for-reply**'s wait semantics before escalation.
-
-## Direct Slack API checks used by this routine
-
-- `auth.test`
-- `conversations.join`
-- `chat.postMessage`
-- Optional profile read when available: `users.profile.get`
+- `--owner-setup-slack --check`
+- `--magic-heartbeat-config-check`
+- `--member-comms-slack-send-message <team-member> <target> [text...]`
+- `--member-comms-slack-read <team-member> <channel>:<ts>`
+- `--member-comms-slack-profile-get <team-member>`
+- `--member-comms-slack-profile-set <team-member> {--display-name <v>|--status-text <v>|--avatar <path>|...}`
 
 # Maintainer Notes
 
@@ -235,14 +102,9 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Reference
 
-- `magic-coordinator.armed.md`'s "Routines (index)" section.
-- `magic-coordinator.root-harness.routine` — the bootstrap state the root instance starts in before mode
-  selection.
-- `magic-team/magic-team.armed.md`'s "Team-Member's (-specific) tooling" section — `--member-comms-slack-send-message`, the sole sanctioned Slack-posting mechanism.
+- `magic-coordinator.basic.md` — the identity the profile is checked against.
 
 ### Conventions
 
-- Keep step order stable; add new checks as append-only unless a reorder is required by dependency.
-- Preserve the split between transport success, identity success, and policy success.
-- Keep escalation text actionable and one-question-at-a-time.
-- Baseline facts the checks are calibrated against: `channels:write` is required to auto-join public targets; the `human-owner` alias can fail `channel_not_found` unless explicitly mapped; Slack may return `ok:true` with app/bot attribution while `message.user` still matches Magic Vane; reporting separates "delivered" from "accepted by native-identity policy".
+- Keep transport success, identity success and policy success apart.
+- One question per ask, each actionable.

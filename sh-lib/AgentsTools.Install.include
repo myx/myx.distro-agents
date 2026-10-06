@@ -2327,6 +2327,22 @@ case "$1" in
 					fi
 				done
 			fi
+
+			## Our own harness's index of the servers just registered, in this same step
+			## and from the file just written, so the two never diverge: the harness then
+			## launches a server with builtins instead of an awk per field. It is used
+			## only while mcp.servers.json is byte for byte what it was built from, so a
+			## later hand edit of that JSON is read the slow way, never wrongly.
+			( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpConfig.include" \
+				&& AgentsHarnessMcpIndexWrite "$workspace/.local/agents/mcp.servers.json" "$workspace/.local/agents/mcp.servers.index" ) || {
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index could not be written" >&2
+				failed=1
+			}
+			if [ -f "$workspace/.local/agents/mcp.servers.index" ] ; then
+				echo "🔌 harness MCP index written: .local/agents/mcp.servers.index" >&2
+			else
+				echo "🙋 WARNING: no harness MCP index for .local/agents/mcp.servers.json -- it did not read cleanly, so the harness reads that JSON directly" >&2
+			fi
 		fi
 
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.

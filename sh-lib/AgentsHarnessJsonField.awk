@@ -3,7 +3,7 @@
 # Reads one JSON object (stdin) and prints the scalar value at one exact
 # dot-separated key path (`-v path=...`). Provider-neutral: the harness core and
 # every wire adapter read their responses through it. Same recursive-descent
-# engine as AgentsSlackJsonField.awk beside it, with names brought to this
+# grammar as AgentsSlackJsonField.awk beside it, with names brought to this
 # package's own two-word convention; unlike that reader there is no top-level
 # `ok` gate, because these responses carry no such key.
 #
@@ -14,29 +14,155 @@
 # a free-text leaf's own trailing newlines survive `$( ... )`; the caller strips
 # the one trailing `X`. An array also emits `<path>.__count`, empty or not.
 #
-# LC_ALL=C IS REQUIRED -- the walk indexes a byte array from split(s, sc, "").
+# LINEAR, AND THE WAY IT GETS THERE IS LOAD-BEARING. This awk's substr(), index()
+# and length() each cost the length of the WHOLE string they are given, and a
+# string grown one byte at a time is copied once per byte. So the input is held
+# as a table of chunks of at most jfChunkCap bytes, a string's unescaped runs are
+# found with index() inside one chunk and copied whole, and a value is built only
+# where its path can still be the one asked for -- every other string is checked
+# and skipped. The walk still runs to the end of the document: a fault after the
+# value is still rc 1, and a duplicate is still reported, exactly as before.
+# The grammar is unchanged byte for byte, quirks included (a string's opening
+# byte is skipped unseen, `t`/`f`/`n` skip 4/5/4 bytes unread);
+# sh-test/AgentsHarnessJsonFieldDiffCheck.test.sh holds it to the previous engine.
+#
+# `jfLibrary = 1` (set in a later -f file's BEGIN) makes this a library: no input
+# is read and END does nothing, and jfParseText(text) fills jfLeaf[path] with the
+# first value of every leaf, jfLeafSeen[path] marking presence -- the same answer
+# this reader gives for each path, from one walk.
+#
+# LC_ALL=C IS REQUIRED -- every offset here is a byte offset.
 
 BEGIN {
-	wantPath = path
-	inputText = ""
-	inputSeen = 0
-	foundCount = 0
-	foundValue = ""
-	structErr = 0
+	jfWant = path
+	jfChunkCap = 256
+	jfCollectAll = 0
+	jfReset()
 }
 
-function skipws(   curChar) {
-	while (scanPos <= scanLen) {
-		curChar = scanChars[scanPos]
-		if (curChar == " " || curChar == "\t" || curChar == "\n" || curChar == "\r") scanPos++
-		else break
+function jfReset() {
+	delete jfK
+	delete jfCs
+	delete jfLeaf
+	delete jfLeafSeen
+	jfM = 0
+	jfTotal = 0
+	jfCs[1] = 1
+	jfKc = 1
+	jfHi = 0
+	jfPos = 1
+	jfLineSeen = 0
+	jfFoundCount = 0
+	jfFoundValue = ""
+	jfStructErr = 0
+}
+
+## Adds text to the end of the chunk table, halving until each chunk fits.
+function jfAppend(text, textLen,   halfLen) {
+	if (textLen <= 0) return
+	if (textLen <= jfChunkCap) {
+		jfM++
+		jfK[jfM] = text
+		jfCs[jfM] = jfTotal + 1
+		jfTotal += textLen
+		jfCs[jfM + 1] = jfTotal + 1
+		return
+	}
+	halfLen = int(textLen / 2)
+	jfAppend(substr(text, 1, halfLen), halfLen)
+	jfAppend(substr(text, halfLen + 1), textLen - halfLen)
+}
+
+## The walk only moves forward, so the current chunk does too. Its text and
+## bounds are held in scalars: an array subscript is a number formatted to a
+## string on every access, and this runs once per token.
+function jfSeek() {
+	if (jfPos < jfHi) return
+	while (jfKc <= jfM && jfPos >= jfCs[jfKc + 1]) jfKc++
+	jfLoad()
+}
+
+function jfLoad() {
+	if (jfKc > jfM) {
+		jfLo = jfTotal + 1
+		jfHi = 1e18
+		jfText = ""
+	} else {
+		jfLo = jfCs[jfKc]
+		jfHi = jfCs[jfKc + 1]
+		jfText = jfK[jfKc]
+	}
+}
+
+function jfCur() {
+	if (jfPos >= jfHi) jfSeek()
+	return substr(jfText, jfPos - jfLo + 1, 1)
+}
+
+## One byte at or ahead of the walk, without moving it; "" past the end.
+function jfPeek(atPos,   chunkAt) {
+	if (atPos < jfHi) return substr(jfText, atPos - jfLo + 1, 1)
+	chunkAt = jfKc
+	while (chunkAt <= jfM && atPos >= jfCs[chunkAt + 1]) chunkAt++
+	if (chunkAt > jfM) return ""
+	return substr(jfK[chunkAt], atPos - jfCs[chunkAt] + 1, 1)
+}
+
+## What is left of the current chunk from the walk on. Call jfSeek() first.
+function jfRest(   restOff) {
+	restOff = jfPos - jfLo + 1
+	return (restOff == 1) ? jfText : substr(jfText, restOff)
+}
+
+## A value is assembled in parts of about 1 KiB, joined pairwise at the end, so
+## neither many short runs nor one long one copy the value over and over.
+function jfBufReset() {
+	jfBufAcc = ""
+	jfBufN = 0
+}
+
+function jfBufAdd(text) {
+	jfBufAcc = jfBufAcc text
+	if (length(jfBufAcc) > 1024) {
+		jfBufN++
+		jfBufPart[jfBufN] = jfBufAcc
+		jfBufAcc = ""
+	}
+}
+
+function jfBufJoin(   joinAt, joinCount) {
+	if (jfBufN == 0) return jfBufAcc
+	jfBufN++
+	jfBufPart[jfBufN] = jfBufAcc
+	joinCount = jfBufN
+	while (joinCount > 1) {
+		for (joinAt = 1; 2 * joinAt <= joinCount; joinAt++) jfBufPart[joinAt] = jfBufPart[2 * joinAt - 1] jfBufPart[2 * joinAt]
+		if (joinCount % 2) jfBufPart[joinAt] = jfBufPart[joinCount]
+		joinCount = int((joinCount + 1) / 2)
+	}
+	jfBufN = 0
+	jfBufAcc = ""
+	return jfBufPart[1]
+}
+
+function jfSkipWs(   restText, curChar) {
+	## Most calls land on a non-blank byte, and answering those needs no copy.
+	curChar = jfCur()
+	if (curChar != " " && curChar != "\t" && curChar != "\n" && curChar != "\r") return
+	while (1) {
+		jfSeek()
+		if (jfKc > jfM) return
+		restText = jfRest()
+		if (!match(restText, /^[ \t\n\r]+/)) return
+		jfPos += RLENGTH
+		if (RLENGTH < length(restText)) return
 	}
 }
 
 ## -1 for anything that is not exactly four hex digits. A non-hex digit scored
 ## index()-1 == -1 and produced a NEGATIVE code point, which sprintf("%c", ...)
 ## renders differently on each awk -- one of them a value-truncating NUL.
-function hex2dec(hexText,   hexIndex, hexChar, hexVal, hexAcc) {
+function jfHex2Dec(hexText,   hexIndex, hexChar, hexVal, hexAcc) {
 	if (length(hexText) != 4) return -1
 	hexAcc = 0
 	for (hexIndex = 1; hexIndex <= length(hexText); hexIndex++) {
@@ -48,7 +174,7 @@ function hex2dec(hexText,   hexIndex, hexChar, hexVal, hexAcc) {
 	return hexAcc
 }
 
-function utf8enc(codePoint,   byteOne, byteTwo, byteThree, byteFour) {
+function jfUtf8Enc(codePoint,   byteOne, byteTwo, byteThree, byteFour) {
 	if (codePoint < 128) {
 		return sprintf("%c", codePoint)
 	} else if (codePoint < 2048) {
@@ -69,177 +195,240 @@ function utf8enc(codePoint,   byteOne, byteTwo, byteThree, byteFour) {
 	}
 }
 
-function parseString(   curChar, outText, hexText, codeVal, hexTwo, codeTwo, codePoint, isClosed) {
-	scanPos++
-	outText = ""
-	isClosed = 0
-	while (scanPos <= scanLen) {
-		curChar = scanChars[scanPos]
-		if (curChar == "\"") { scanPos++; isClosed = 1; break; }
-		if (curChar == "\\") {
-			scanPos++
-			curChar = scanChars[scanPos]
-			if (curChar == "\"") outText = outText "\""
-			else if (curChar == "\\") outText = outText "\\"
-			else if (curChar == "/") outText = outText "/"
-			else if (curChar == "b") outText = outText "\b"
-			else if (curChar == "f") outText = outText "\f"
-			else if (curChar == "n") outText = outText "\n"
-			else if (curChar == "r") outText = outText "\r"
-			else if (curChar == "t") outText = outText "\t"
-			else if (curChar == "u") {
-				hexText = scanChars[scanPos+1] scanChars[scanPos+2] scanChars[scanPos+3] scanChars[scanPos+4]
-				codeVal = hex2dec(hexText)
-				scanPos += 4
-				## Malformed \u: rejected rather than rendered as an awk-dependent byte.
-				if (codeVal < 0) { structErr = 1; return outText; }
-				if (codeVal >= 55296 && codeVal <= 56319 && (scanChars[scanPos+1] scanChars[scanPos+2]) == "\\u") {
-					hexTwo = scanChars[scanPos+3] scanChars[scanPos+4] scanChars[scanPos+5] scanChars[scanPos+6]
-					codeTwo = hex2dec(hexTwo)
-					if (codeTwo >= 56320 && codeTwo <= 57343) {
-						codePoint = 65536 + (codeVal - 55296) * 1024 + (codeTwo - 56320)
-						outText = outText utf8enc(codePoint)
-						scanPos += 6
-					} else {
-						outText = outText utf8enc(codeVal)
-					}
-				} else {
-					outText = outText utf8enc(codeVal)
-				}
+## Advances past one string -- its first byte skipped unseen, as it always was --
+## leaving the decoded text in jfStr when isBuilt, and "" otherwise. Every escape
+## is still checked either way: a malformed \u is rc 1 whether or not it is wanted.
+function jfParseString(isBuilt,   restText, quoteAt, slashAt, escAt, escChar, hexText, codeVal, hexTwo, codeTwo) {
+	jfPos++
+	jfStr = ""
+	if (isBuilt) jfBufReset()
+	while (1) {
+		jfSeek()
+		if (jfKc > jfM) { jfStructErr = 1 ; return ; }
+		restText = jfRest()
+		quoteAt = index(restText, "\"")
+		slashAt = index(restText, "\\")
+		if (quoteAt == 0 && slashAt == 0) {
+			if (isBuilt) jfBufAdd(restText)
+			jfPos += length(restText)
+			continue
+		}
+		if (slashAt == 0 || (quoteAt > 0 && quoteAt < slashAt)) {
+			if (isBuilt) {
+				if (quoteAt > 1) jfBufAdd(substr(restText, 1, quoteAt - 1))
+				jfStr = jfBufJoin()
 			}
-			else outText = outText curChar
-			scanPos++
-		} else {
-			outText = outText curChar
-			scanPos++
+			jfPos += quoteAt
+			return
+		}
+		if (isBuilt && slashAt > 1) jfBufAdd(substr(restText, 1, slashAt - 1))
+		escAt = jfPos + slashAt - 1
+		escChar = jfPeek(escAt + 1)
+		jfPos = escAt + 2
+		if (escChar == "u") {
+			hexText = jfPeek(escAt + 2) jfPeek(escAt + 3) jfPeek(escAt + 4) jfPeek(escAt + 5)
+			codeVal = jfHex2Dec(hexText)
+			## Malformed \u: rejected rather than rendered as an awk-dependent byte.
+			if (codeVal < 0) { jfStructErr = 1 ; return ; }
+			jfPos = escAt + 6
+			if (codeVal >= 55296 && codeVal <= 56319 && (jfPeek(escAt + 6) jfPeek(escAt + 7)) == "\\u") {
+				hexTwo = jfPeek(escAt + 8) jfPeek(escAt + 9) jfPeek(escAt + 10) jfPeek(escAt + 11)
+				codeTwo = jfHex2Dec(hexTwo)
+				if (codeTwo >= 56320 && codeTwo <= 57343) {
+					if (isBuilt) jfBufAdd(jfUtf8Enc(65536 + (codeVal - 55296) * 1024 + (codeTwo - 56320)))
+					jfPos = escAt + 12
+				} else if (isBuilt) {
+					jfBufAdd(jfUtf8Enc(codeVal))
+				}
+			} else if (isBuilt) {
+				jfBufAdd(jfUtf8Enc(codeVal))
+			}
+		} else if (isBuilt) {
+			if (escChar == "b") jfBufAdd("\b")
+			else if (escChar == "f") jfBufAdd("\f")
+			else if (escChar == "n") jfBufAdd("\n")
+			else if (escChar == "r") jfBufAdd("\r")
+			else if (escChar == "t") jfBufAdd("\t")
+			else jfBufAdd(escChar)
 		}
 	}
-	if (!isClosed) structErr = 1
-	return outText
 }
 
-function emitLeaf(leafPath, rawText, leafValue) {
-	if (leafPath != wantPath) return
-	if (foundCount == 0) foundValue = leafValue
-	foundCount++
+function jfEmit(leafPath, leafValue) {
+	if (jfCollectAll) {
+		if (!(leafPath in jfLeafSeen)) {
+			jfLeafSeen[leafPath] = 1
+			jfLeaf[leafPath] = leafValue
+		}
+		return
+	}
+	if (leafPath != jfWant) return
+	if (jfFoundCount == 0) jfFoundValue = leafValue
+	jfFoundCount++
 }
 
-function parseValue(nodePath,   curChar, startPos, leafValue, rawText, rawPos) {
-	skipws()
-	curChar = scanChars[scanPos]
+## Whether anything at or under childPath can still be the path asked for. Only an
+## empty path has descendants that do not start with its own text plus a dot.
+function jfLive(childPath) {
+	return jfCollectAll || childPath == "" || childPath == jfWant || index(jfWant, childPath ".") == 1
+}
+
+function jfParseValue(nodePath, isLive,   curChar, startPos, rawText, restText) {
+	jfSkipWs()
+	curChar = jfCur()
 	if (curChar == "\"") {
-		leafValue = parseString()
-		emitLeaf(nodePath, "", leafValue)
+		jfParseString(isLive && (jfCollectAll || nodePath == jfWant))
+		if (jfStructErr) return
+		if (isLive) jfEmit(nodePath, jfStr)
 	} else if (curChar == "{") {
-		parseObject(nodePath)
+		jfParseObject(nodePath, isLive)
 	} else if (curChar == "[") {
-		parseArray(nodePath)
+		jfParseArray(nodePath, isLive)
 	} else if (curChar == "t") {
-		scanPos += 4
-		emitLeaf(nodePath, "true", "true")
+		jfPos += 4
+		if (isLive) jfEmit(nodePath, "true")
 	} else if (curChar == "f") {
-		scanPos += 5
-		emitLeaf(nodePath, "false", "false")
+		jfPos += 5
+		if (isLive) jfEmit(nodePath, "false")
 	} else if (curChar == "n") {
-		scanPos += 4
-		emitLeaf(nodePath, "null", "")
+		jfPos += 4
+		if (isLive) jfEmit(nodePath, "")
 	} else {
-		startPos = scanPos
-		while (scanPos <= scanLen) {
-			curChar = scanChars[scanPos]
-			if (curChar == "-" || curChar == "+" || curChar == "." || curChar == "e" || curChar == "E" || (curChar >= "0" && curChar <= "9")) scanPos++
-			else break
+		startPos = jfPos
+		jfBufReset()
+		while (1) {
+			jfSeek()
+			if (jfKc > jfM) break
+			restText = jfRest()
+			if (!match(restText, /^[-+.eE0-9]+/)) break
+			if (isLive) jfBufAdd(substr(restText, 1, RLENGTH))
+			jfPos += RLENGTH
+			if (RLENGTH < length(restText)) break
 		}
 		## A zero-length run cannot begin a value, so `{"a":}` is rc 1 not rc 0.
-		if (scanPos == startPos) { structErr = 1; return; }
-		rawText = ""
-		for (rawPos = startPos; rawPos < scanPos; rawPos++) rawText = rawText scanChars[rawPos]
-		emitLeaf(nodePath, rawText, rawText)
+		if (jfPos == startPos) { jfStructErr = 1 ; return ; }
+		rawText = jfBufJoin()
+		if (isLive) jfEmit(nodePath, rawText)
 	}
 }
 
-function parseObject(nodePath,   keyName, keyPath, curChar) {
-	scanPos++
-	skipws()
-	if (scanChars[scanPos] == "}") { scanPos++; return; }
+function jfParseObject(nodePath, isLive,   keyPath, curChar) {
+	jfPos++
+	jfSkipWs()
+	if (jfCur() == "}") { jfPos++ ; return ; }
 	while (1) {
-		skipws()
-		keyName = parseString()
-		skipws()
+		jfSkipWs()
+		jfParseString(isLive)
+		if (jfStructErr) return
+		jfSkipWs()
 		## The separator is required: consuming it blindly read `{"a" 1}` as rc 0.
-		if (scanChars[scanPos] != ":") { structErr = 1; return; }
-		scanPos++
-		keyPath = (nodePath == "") ? keyName : nodePath "." keyName
-		parseValue(keyPath)
-		skipws()
-		curChar = scanChars[scanPos]
-		if (curChar == ",") { scanPos++; continue; }
-		else if (curChar == "}") { scanPos++; break; }
-		else { structErr = 1; break; }
+		if (jfCur() != ":") { jfStructErr = 1 ; return ; }
+		jfPos++
+		if (isLive) {
+			keyPath = (nodePath == "") ? jfStr : nodePath "." jfStr
+			jfParseValue(keyPath, jfLive(keyPath))
+		} else {
+			jfParseValue("", 0)
+		}
+		if (jfStructErr) return
+		jfSkipWs()
+		curChar = jfCur()
+		if (curChar == ",") { jfPos++ ; continue ; }
+		else if (curChar == "}") { jfPos++ ; break ; }
+		else { jfStructErr = 1 ; return ; }
 	}
 }
 
-function parseArray(nodePath,   itemIndex, curChar) {
-	scanPos++
-	skipws()
+function jfParseArray(nodePath, isLive,   itemIndex, itemPath, curChar) {
+	jfPos++
+	jfSkipWs()
 	itemIndex = 0
-	if (scanChars[scanPos] == "]") { scanPos++; emitLeaf(nodePath ".__count", itemIndex, itemIndex); return; }
-	while (1) {
-		parseValue(nodePath "." itemIndex)
-		itemIndex++
-		skipws()
-		curChar = scanChars[scanPos]
-		if (curChar == ",") { scanPos++; continue; }
-		else if (curChar == "]") { scanPos++; break; }
-		else { structErr = 1; break; }
+	if (jfCur() == "]") {
+		jfPos++
+		if (isLive) jfEmit(nodePath ".__count", itemIndex)
+		return
 	}
-	emitLeaf(nodePath ".__count", itemIndex, itemIndex)
+	while (1) {
+		if (isLive) {
+			itemPath = nodePath "." itemIndex
+			jfParseValue(itemPath, jfLive(itemPath))
+		} else {
+			jfParseValue("", 0)
+		}
+		if (jfStructErr) return
+		itemIndex++
+		jfSkipWs()
+		curChar = jfCur()
+		if (curChar == ",") { jfPos++ ; continue ; }
+		else if (curChar == "]") { jfPos++ ; break ; }
+		else { jfStructErr = 1 ; return ; }
+	}
+	if (isLive) jfEmit(nodePath ".__count", itemIndex)
 }
 
-{
-	if (inputSeen) inputText = inputText "\n" $0
-	else inputText = $0
-	inputSeen = 1
+## 0 parsed, 1 not a JSON object at all, 2 a fault inside or after it.
+function jfParseDocument() {
+	jfPos = 1
+	jfKc = 1
+	jfLoad()
+	jfSkipWs()
+	if (jfPos > jfTotal || jfCur() != "{") return 1
+	jfParseValue("", 1)
+	if (jfStructErr) return 2
+	jfSkipWs()
+	if (jfPos <= jfTotal) return 2
+	return 0
+}
+
+## Library entry: every leaf of one document into jfLeaf / jfLeafSeen.
+function jfParseText(text) {
+	jfReset()
+	jfCollectAll = 1
+	jfAppend(text, length(text))
+	return jfParseDocument()
+}
+
+!jfLibrary {
+	if (jfLineSeen) jfAppend("\n" $0, length($0) + 1)
+	else jfAppend($0, length($0))
+	jfLineSeen = 1
 }
 
 END {
-	if (wantPath == "") {
-		printf("⛔ ERROR: AgentsHarnessJsonField.awk: no key path given -- pass one as `-v path=choices.0.message.content`\n") > "/dev/stderr"
-		exit 2
-	}
-
-	scanLen = split(inputText, scanChars, "")
-	scanPos = 1
-
-	skipws()
-	if (scanPos > scanLen || scanChars[scanPos] != "{") {
-		printf("⛔ ERROR: AgentsHarnessJsonField.awk: input is not a JSON object -- an empty read, an HTML error page, or a transport diagnostic captured in place of a response body (wanted path `%s`)\n", wantPath) > "/dev/stderr"
-		exit 1
-	}
-
-	parseValue("")
-	skipws()
-
-	if (structErr || scanPos <= scanLen) {
-		printf("⛔ ERROR: AgentsHarnessJsonField.awk: input did not parse as one complete JSON object -- truncated body or trailing garbage (wanted path `%s`)\n", wantPath) > "/dev/stderr"
-		exit 1
-	}
-
-	if (foundCount > 1) {
-		printf("# AgentsHarnessJsonField.awk: path `%s` occurred %d times at that exact full path (duplicate key in one object, malformed JSON) -- reporting the first\n", wantPath, foundCount) > "/dev/stderr"
-	}
-
-	if (foundCount == 0) {
-		if (optional != "1") {
-			printf("# AgentsHarnessJsonField.awk: path `%s` is absent from this response (rc 3) -- not an empty value, not present\n", wantPath) > "/dev/stderr"
+	if (!jfLibrary) {
+		if (jfWant == "") {
+			printf("⛔ ERROR: AgentsHarnessJsonField.awk: no key path given -- pass one as `-v path=choices.0.message.content`\n") > "/dev/stderr"
+			exit 2
 		}
-		exit 3
-	}
 
-	if (sentinel == "1") {
-		printf("%sX", foundValue)
-	} else {
-		print foundValue
+		jfDocRc = jfParseDocument()
+
+		if (jfDocRc == 1) {
+			printf("⛔ ERROR: AgentsHarnessJsonField.awk: input is not a JSON object -- an empty read, an HTML error page, or a transport diagnostic captured in place of a response body (wanted path `%s`)\n", jfWant) > "/dev/stderr"
+			exit 1
+		}
+
+		if (jfDocRc == 2) {
+			printf("⛔ ERROR: AgentsHarnessJsonField.awk: input did not parse as one complete JSON object -- truncated body or trailing garbage (wanted path `%s`)\n", jfWant) > "/dev/stderr"
+			exit 1
+		}
+
+		if (jfFoundCount > 1) {
+			printf("# AgentsHarnessJsonField.awk: path `%s` occurred %d times at that exact full path (duplicate key in one object, malformed JSON) -- reporting the first\n", jfWant, jfFoundCount) > "/dev/stderr"
+		}
+
+		if (jfFoundCount == 0) {
+			if (optional != "1") {
+				printf("# AgentsHarnessJsonField.awk: path `%s` is absent from this response (rc 3) -- not an empty value, not present\n", jfWant) > "/dev/stderr"
+			}
+			exit 3
+		}
+
+		if (sentinel == "1") {
+			printf("%sX", jfFoundValue)
+		} else {
+			print jfFoundValue
+		}
+		exit 0
 	}
-	exit 0
 }

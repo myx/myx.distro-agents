@@ -1092,6 +1092,14 @@ case "$1" in
 						|| setupHelperBad="$setupHelperBad AgentsHarnessJsonField.awk"
 					printf '{"a":{"b":"c"}}' | LC_ALL=C awk -v path=a -v mode=keys -f "$setupLibDir/AgentsHarnessJsonSlice.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsHarnessJsonSlice.awk"
+					## The library-loaded ones, each with the files it is loaded after; an
+					## empty stream proves they parse together, and writes nothing.
+					: | LC_ALL=C awk -f "$setupLibDir/AgentsProgressLineSafe.awk" -f "$setupLibDir/AgentsHarnessJsonField.awk" -f "$setupLibDir/AgentsHarnessJsonSlice.awk" -f "$setupLibDir/AgentsOpenAiChatStream.awk" >/dev/null 2>&1 \
+						|| setupHelperBad="$setupHelperBad AgentsOpenAiChatStream.awk"
+					: | LC_ALL=C awk -f "$setupLibDir/AgentsHarnessJsonField.awk" -f "$setupLibDir/AgentsHarnessJsonSlice.awk" -f "$setupLibDir/AgentsAnthropicMessagesStream.awk" >/dev/null 2>&1 \
+						|| setupHelperBad="$setupHelperBad AgentsAnthropicMessagesStream.awk"
+					printf '{"hookSpecificOutput":{"permissionDecision":"allow"}}' | LC_ALL=C awk -f "$setupLibDir/AgentsHarnessJsonField.awk" -f "$setupLibDir/AgentsHarnessHookDecision.awk" >/dev/null 2>&1 \
+						|| setupHelperBad="$setupHelperBad AgentsHarnessHookDecision.awk"
 					if [ -z "$setupHelperBad" ] ; then
 						echo "HARNESS_HELPERS_LOAD: OK (progress-line, json-escape, json-field, json-slice)"
 					else
@@ -1112,6 +1120,9 @@ case "$1" in
 						"$setupLibDir/AgentsProgressLineSafe.awk" \
 						"$setupLibDir/AgentsHarnessJsonField.awk" \
 						"$setupLibDir/AgentsHarnessJsonSlice.awk" \
+						"$setupLibDir/AgentsOpenAiChatStream.awk" \
+						"$setupLibDir/AgentsAnthropicMessagesStream.awk" \
+						"$setupLibDir/AgentsHarnessHookDecision.awk" \
 						"$setupLibDir/AgentsHarnessToolSearch.awk" \
 						"$setupLibDir/AgentsHarnessMcpMirror.awk" \
 						"$setupLibDir/AgentsMcpJsonEscape.awk" \

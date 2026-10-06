@@ -144,8 +144,57 @@ function whoIs(id,   raw, nl, i, f) {
 	return id
 }
 
+## Who a message is from and who it is for, so no reader parses the header itself.
+## The team's own send writes one header line ahead of the body:
+##   [<mark> ]*_<from>_* @<alias> → <addressee>[; <addressee>]...<.>
+## where each addressee is `[<mark> ]*_<member>_* <handle>`, `<@U…>`, `<#C…>`, or the
+## whole field is `@here` -- addressed to nobody in particular. Sets hdrAuthor and
+## hdrAddressees; both empty when the text carries no such header.
+function readHeader(text,   arrow, fromPart, toPart, endPos, n, parts, k, entry, nm, out) {
+	hdrAuthor = "" ; hdrAddressees = ""
+	arrow = index(text, " → ")
+	if (arrow == 0) return
+	fromPart = substr(text, 1, arrow - 1)
+	if (!match(fromPart, /\*_[^*]+_\*/)) return
+	## The header is the message's first line: nothing but a mark may stand before the sender.
+	if (RSTART > 1 && substr(fromPart, 1, RSTART - 1) ~ /[^ ]+ [^ ]/) return
+	hdrAuthor = substr(fromPart, RSTART + 2, RLENGTH - 4)
+	toPart = substr(text, arrow + length(" → "))
+	## The field ends at the first `.` that closes it: end of text, or `. ` before the body.
+	endPos = index(toPart, ". ")
+	if (endPos == 0) { endPos = length(toPart) ; if (substr(toPart, endPos, 1) == ".") endPos-- ; else endPos = length(toPart) ; }
+	else endPos--
+	toPart = substr(toPart, 1, endPos)
+	if (toPart == "@here") { hdrAddressees = "@here (unaddressed)" ; return ; }
+	n = split(toPart, parts, "; ")
+	out = ""
+	for (k = 1; k <= n; k++) {
+		entry = parts[k]
+		if (match(entry, /\*_[^*]+_\*/)) nm = substr(entry, RSTART + 2, RLENGTH - 4)
+		else if (match(entry, /<@[A-Z0-9]+>/)) nm = whoIs(substr(entry, RSTART + 2, RLENGTH - 3))
+		else if (match(entry, /<#[A-Z0-9]+>/)) nm = substr(entry, RSTART + 2, RLENGTH - 3)
+		else nm = entry
+		if (nm != "") out = out (out == "" ? "" : ", ") nm
+	}
+	hdrAddressees = out
+}
+
+## No header: the platform's own mentions in the text are the addressees, a
+## channel-wide mention is nobody in particular, and none at all is said as such.
+function textMentions(text,   rest, out, id) {
+	if (text ~ /<!(here|channel|everyone)>/) return "@here (unaddressed)"
+	out = "" ; rest = text
+	while (match(rest, /<@[A-Z0-9]+(\|[^>]*)?>/)) {
+		id = substr(rest, RSTART + 2, RLENGTH - 3)
+		sub(/\|.*/, "", id)
+		out = out (out == "" ? "" : ", ") whoIs(id)
+		rest = substr(rest, RSTART + RLENGTH)
+	}
+	return (out == "" ? "(none stated)" : out)
+}
+
 ## Prints the CURRENT leg under its own legChannel; resetLeg() is the separate reset.
-function flushLeg(   i) {
+function flushLeg(   i, oneText) {
 	if (itemCount == 0) return
 	for (i = 0; i < itemCount; i++) {
 		printf("## slack-message %s:%s\n", legChannel, tsOf[i])
@@ -154,6 +203,15 @@ function flushLeg(   i) {
 		if (legIdentity != "") printf("identity: %s\n", legIdentity)
 		printf("ts: %s\n", tsOf[i])
 		printf("user: %s\n", (i in userOf) ? whoIs(userOf[i]) : "?")
+		oneText = oneLine(textOf[i])
+		readHeader(oneText)
+		if (hdrAuthor != "") {
+			printf("author: %s\n", hdrAuthor)
+			printf("addressees: %s\n", (hdrAddressees == "" ? "(none stated)" : hdrAddressees))
+		} else {
+			printf("author: %s\n", (i in userOf) ? whoIs(userOf[i]) : "?")
+			printf("addressees: %s\n", textMentions(oneText))
+		}
 		if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
 		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) printf("reply-count: %s\n", replyCountOf[i])
 		printf("text: %s\n", oneLine(textOf[i]))

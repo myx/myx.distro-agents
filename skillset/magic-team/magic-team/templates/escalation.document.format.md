@@ -23,7 +23,7 @@ One ask, to one addressee, about one thing a member needs before one part of its
 
 - Every member raises a readback, a decision or a permission ask itself, through tooling, never through chat relay.
 - The answer comes back as a verdict the tooling matched to its addressee, so the member acts on it with no text marker and no re-check.
-- An ask never ends the task. It is synchronous: the member waits for its resolution, per `magic-team/magic-team.shared.md`'s "Nothing stops on its own".
+- An ask never ends the task. It is synchronous: the member waits for its resolution, per `magic-team/magic-team.shared.md`'s "Nothing stops on its own" and `magic-team/magic-team.armed.md`'s **wait-never-quit**.
 
 ## Scope
 

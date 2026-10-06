@@ -8,8 +8,10 @@
 ## standard $MDLT_ORIGIN-based path. Not standalone: relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
-## Three locations, one retention table: inboxes/*/processed/,
-## board/processed/ and trash/. The table is keyed on the item's own document
+## Four locations, one retention table: inbox roots (items marked handled in
+## place by `processed-at`, dated by that stamp -- see
+## AgentsToolsFinalGcScanInboxRoot), the legacy inboxes/*/processed/ (drained,
+## then a no-op), board/processed/ and trash/. The table is keyed on the item's own document
 ## type -- `warning-*` and `reflection-*` at one day, everything else at seven
 ## -- and applies identically wherever the item is found. A folder is a
 ## location to scan, never a threshold of its own. trash/ is simply absent in a
@@ -68,13 +70,17 @@ AgentsToolsFinalGcGitTimes(){
 ## `git ls-files`/`git ls-tree` rather than a `--error-unmatch` per candidate:
 ## one fork for a whole directory instead of one per item.
 ## Sets (overwrites each call): gcIndexNames, gcHeadNames.
+## `top` as $2 keeps only the directory's own top-level entries: an inbox root
+## holds the legacy processed/ beneath it, whose basenames must not be read as
+## the root's (`git ls-files` recurses; `git ls-tree` does not).
 AgentsToolsFinalGcGitNames(){
-	local scanDir="$1"
+	local scanDir="$1" scanDepth="${2:-}"
 	gcIndexNames="$LF" ; gcHeadNames="$LF"
 	[ -n "$gcRepoRoot" ] || return 0
-	gcIndexNames="$LF$( git -C "$scanDir" ls-files -- . 2>/dev/null | LC_ALL=C awk '
+	gcIndexNames="$LF$( git -C "$scanDir" ls-files -- . 2>/dev/null | LC_ALL=C awk -v topOnly="$scanDepth" '
 		{
 			name = $0 ;
+			if (topOnly == "top" && index(name, "/") > 0) { next ; } ;
 			sub(/^.*\//, "", name) ;
 			print name ;
 		}
@@ -208,7 +214,92 @@ AgentsToolsFinalGcLookup(){
 	return 0
 }
 
-## Scans one already-resolved directory. Shared by all three locations,
+## Scans one member's inbox ROOT for items marked handled in place. Only an item
+## carrying `processed-at` is a candidate: an item without it is unhandled or a
+## standing note and is NEVER collected, whatever its age. The clock is the
+## stamp's own value -- the moment the item was handled -- not git or mtime:
+## the item has sat in the root since it arrived, so its file dates say when it
+## was written, not when it was handled. A stamp that does not parse as a date
+## keeps the item (deleting on absence of evidence), with a warning, since such
+## an item would otherwise be kept forever unnoticed. Same retention table as
+## every other location; no diversions (an inbox item has no board state).
+## Sets (accumulates into): as AgentsToolsFinalGcScanDir.
+AgentsToolsFinalGcScanInboxRoot(){
+	local scanDir="$1" nowEpoch="$2"
+	local path fileBase stampValue normValue thresholdDays ageSeconds clockEpoch inIndex inHead
+	local rootItems=() stampPaths=() stampValues=() epochList="" si
+	for path in "$scanDir"/*.md ; do
+		if [ -f "$path" ] ; then rootItems+=( "$path" ) ; fi
+	done
+	[ "${#rootItems[@]}" -gt 0 ] || return 0
+	local stampLine
+	while IFS= read -r stampLine ; do
+		[ -n "$stampLine" ] || continue
+		path="${stampLine%%"$TAB"*}"
+		stampValue="${stampLine#*"$TAB"}"
+		## The tool's own stamp format (`date +"%Y-%m-%d %H:%M %z"`) normalised to
+		## ISO-8601; any other ISO-8601 value (a caller's override) passes as is.
+		case "$stampValue" in
+			[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]" "[0-2][0-9]:[0-5][0-9]" "[+-][0-9][0-9][0-9][0-9])
+				normValue="${stampValue%% *}T${stampValue#* }"
+				normValue="${normValue%% *}:00${stampValue##* }"
+			;;
+			[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]*)
+				normValue="$stampValue"
+			;;
+			*)
+				echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept $path -- its processed-at is not a date this op can read: '$stampValue'" >&2
+				continue
+			;;
+		esac
+		stampPaths+=( "$path" )
+		stampValues+=( "$normValue" )
+	done <<EOF
+$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInboxProcessedAtList.awk" "${rootItems[@]}" )
+EOF
+	[ "${#stampPaths[@]}" -gt 0 ] || return 0
+	## One conversion for the whole root; every value was shape-checked above.
+	epochList="$( printf '%s\n' "${stampValues[@]}" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" )" || {
+		echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: kept every marked item in $scanDir -- its processed-at dates could not be converted" >&2
+		return 0
+	}
+	AgentsToolsFinalGcGitNames "$scanDir" top
+	si=0
+	while IFS= read -r clockEpoch ; do
+		path="${stampPaths[$si]}"
+		si=$(( si + 1 ))
+		if [ -z "$clockEpoch" ] || [ -z "$path" ] ; then continue ; fi
+		fileBase="${path##*/}"
+		gcSeenCount=$(( gcSeenCount + 1 ))
+		case "$fileBase" in
+			warning-*|reflection-*) thresholdDays=1 ;;
+			*)                      thresholdDays=7 ;;
+		esac
+		ageSeconds=$(( nowEpoch - clockEpoch ))
+		if [ "$ageSeconds" -lt "$(( thresholdDays * 86400 ))" ] ; then continue ; fi
+		inIndex="false" ; inHead="false"
+		case "$gcIndexNames" in
+			*"$LF$fileBase$LF"*) inIndex="true" ;;
+		esac
+		case "$gcHeadNames" in
+			*"$LF$fileBase$LF"*) inHead="true" ;;
+		esac
+		if ! rm -f -- "$path" ; then
+			gcScanFailedPath="$path"
+			gcScanFailedWhat="delete"
+			return 1
+		fi
+		gcDeletedCount=$(( gcDeletedCount + 1 ))
+		gcDeletedPaths+=( "$path" )
+		if [ "$inIndex" = "true" ] ; then gcAddPaths+=( "$path" ) ; fi
+		if [ "$inHead" = "true" ] ; then gcCommitPaths+=( "$path" ) ; fi
+	done <<EOF
+$epochList
+EOF
+	return 0
+}
+
+## Scans one already-resolved directory. Shared by the three folder locations,
 ## unchanged between them: the retention table is keyed on the item, not on
 ## where it sits. Two per-location inputs, and neither is a threshold: $3
 ## `immediate` collects every item found regardless of age, which is what trash/
@@ -414,16 +505,34 @@ case "$1" in
 		set -e
 		if [ -n "$gcTrashRemote" ] ; then gcTrashMode="immediate" ; fi
 
-		## Inbox source: every member's own processed/, cd+pwd -P resolved and
+		## Inbox source: every member's own inbox ROOT (items marked `processed-at`
+		## in place) and its legacy processed/ (items drained before that marker
+		## existed, until it is empty -- then a no-op), cd+pwd -P resolved and
 		## containment-checked. A member escaping containment (e.g. a symlink) is
 		## skipped with a warning rather than aborting the scan across every other
 		## member -- this op covers many members in one call.
 		local inboxBase=""
 		inboxBase="$( cd "$MDAT_DATA_ROOT/inboxes" 2>/dev/null && pwd -P )" || inboxBase=""
 		if [ -n "$inboxBase" ] ; then
-			local memberDir memberProcessed
+			local memberDir memberRoot memberProcessed
 			for memberDir in "$inboxBase"/*/ ; do
 				[ -d "$memberDir" ] || continue
+				memberRoot="$( cd "$memberDir" 2>/dev/null && pwd -P )" || memberRoot=""
+				[ -z "$memberRoot" ] && continue
+				case "$memberRoot" in
+					"$inboxBase"/*)
+						gcDeletedCount=0
+						if ! AgentsToolsFinalGcScanInboxRoot "$memberRoot" "$nowEpoch" ; then
+							echo "$MDSC_CMD: team-data-final-gc-deletion: ⛔ ERROR: could not $gcScanFailedWhat $gcScanFailedPath" >&2
+							set +e ; return 1
+						fi
+						inboxDeletedCount=$(( inboxDeletedCount + gcDeletedCount ))
+					;;
+					*)
+						echo "$MDSC_CMD: team-data-final-gc-deletion: ⚠️ WARNING: skipping $memberRoot -- escapes inbox root $inboxBase" >&2
+						continue
+					;;
+				esac
 				memberProcessed="$( cd "${memberDir}processed" 2>/dev/null && pwd -P )" || memberProcessed=""
 				[ -z "$memberProcessed" ] && continue
 				case "$memberProcessed" in

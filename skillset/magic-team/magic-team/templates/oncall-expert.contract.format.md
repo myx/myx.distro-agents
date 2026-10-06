@@ -48,7 +48,6 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 
 - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
 - Domain of expertise: [the specific type(s) of work this member is brought in for — not a workspace, a work-type].
-- Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
 - Spawn trigger, cost/billing tracking, session lifecycle: [not yet defined team-wide — state whatever this specific member's own instructions already settle, flag the rest as open].
 
 # Terminology: <topic>
@@ -70,7 +69,7 @@ Steps:
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - [Flat, present-tense rule bullet: limit, restriction, or decision-making guidance.]
@@ -127,7 +126,6 @@ Used to check this file's own definitions against its own goals when it is updat
     - `### Engagement shape` — present even if N/A.
       - Not a standing team member: a costed, external AI-service resource, spawned into a billed pay-per-time session, brought in to boost/accelerate one specific, complicated task.
       - Domain of expertise: the specific type(s) of work this member is brought in for — not a workspace, a work-type.
-      - Remote execution account info: this member's own settings name whatever account/credential the billed remote service is actually reached through.
       - Spawn trigger, cost and billing tracking, and session lifecycle are not yet defined team-wide. State whatever this specific member's own instructions already settle, and flag the rest as open.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.

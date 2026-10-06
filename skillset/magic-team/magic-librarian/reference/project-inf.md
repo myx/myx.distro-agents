@@ -30,11 +30,11 @@ session otherwise re-derives or invents.
 ## A project is reachable by more names than it declares
 
 - **The index adds the `Name` value and every trailing path-segment form of the project's location.** A
-  project at `mel/infra/common-mel/setup.standard-freebsd-machine` resolves under that whole path, under
-  `infra/common-mel/setup.standard-freebsd-machine`, and under the bare `setup.standard-freebsd-machine`,
-  none of which appear in its own `Provides:`.
+  project at `<ns>/infra/common-<ns>/setup.example-machine` resolves under that whole path, under
+  `infra/common-<ns>/setup.example-machine`, and under the bare `setup.example-machine`, none of which
+  appear in its own `Provides:`.
 - **What `Provides:` adds on top is the abstract capability name** — the namespace-neutral alias a
-  dependant actually writes in its `Requires:`, such as `cloud.all/setup.standard-freebsd-machine`. That
+  dependant actually writes in its `Requires:`, such as `cloud.all/setup.example-machine`. That
   alias is an arbitrary string matched byte-for-byte; it carries no relationship to where either project
   sits on disk.
 - **So moving a project changes its implicit path names and nothing else.** Dependants keep resolving

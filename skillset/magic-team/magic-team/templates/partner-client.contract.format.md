@@ -48,9 +48,8 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 ### External representation
 
 - `partner-*`: holds the subject [named external party]'s counterpart works in — our interface to that counterpart, never a stand-in for them and never their representative among us.
-- `client-*`: our own avatar inside [named external party]'s own systems, holding our credentials for them.
-- A `client-*` is a persona avatar with its own presentation inside that organisation — the shape is `magic-team/magic-team.authority.client.contract.md`'s "Relationship shape" section. Its records follow the persona: the contacts note lives in the inbox of the identity the exchange runs under. What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
-- Communication with the external entity: a `client-*` acts directly; a `partner-*` reaches its counterpart through the `client-*` for that organisation. Where neither is configured, it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+- `client-*`: our own avatar inside [named external party]'s own systems — `magic-team/magic-team.authority.client.contract.md`'s "Relationship shape". Its contacts note lives in its own inbox. What an incoming contact gets is `magic-team/magic-team.conversations.md`'s **non-owner-contact-tiers-and-escalation**.
+- Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
 - Generic role operations run through the shared `magic-tooling` baseline; any external-system tooling specific to this partner/client (their own Jira/Slack/Google, etc.) is documented in this file's own `Team-Member's (-specific) tooling` section below.
 
 ### How to meet them well
@@ -78,7 +77,7 @@ Steps:
 
 # Team-Member's (-specific) local rules
 
-All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules while working in this member's own routine.
+All statements apply at the same time, always. These rules override a magic-team's own general `.armed.md` rules whenever this member is acting.
 
 - This team-member is permitted and obliged to execute every one of its own local procedures and duties exactly as written.
 - [`partner-*` only — drop this bullet entirely for a `client-*` member, which is a representative with normally no workspace or console of its own. Keep it for a specific client only when that client genuinely needs console, stated explicitly here:] Console-session authorization: `--console-start`/`--console-send` when its own instructions call for it — available, not a standing requirement.
@@ -141,11 +140,9 @@ Relationship shape — the asymmetric external-organisation relationship (`clien
     - What it deliberately doesn't do.
     - Invocation conditions and auto-trigger behavior stated here.
     - `### External representation` — present even if N/A.
-      - Which direction this member represents, and whether it holds our credentials into the external
-        organisation's own systems — never asserted generically here, `partner-*` and `client-*` face
-        opposite directions: see `magic-team.authority.partner.contract.md`/
+      - Which direction this member faces: see `magic-team.authority.partner.contract.md`/
         `magic-team.authority.client.contract.md`'s own "Relationship shape".
-      - Communication with the external entity uses this member's own dedicated account or email, where one is configured. Otherwise it routes through `magic-coordinator` — an explicit ask, `magic-coordinator`'s own conscious assessment, escalated to human-owner confirmation when warranted.
+      - Communication with the external entity: a `client-*` acts directly; a `partner-*` goes through the `client-*` for that organisation, else through `magic-coordinator`.
       - Generic role operations run through the shared `magic-tooling` baseline. Any external-system tooling specific to this particular partner or client — their own issue tracker, messaging or document systems — is this member's own addition. It is documented in its own `Team-Member's (-specific) tooling` section.
 - `# Terminology: <topic>`
   - Pure glossary, `term` → definition.
