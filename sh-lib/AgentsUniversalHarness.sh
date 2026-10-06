@@ -3571,10 +3571,20 @@ AgentsHarnessAnnounceTool(){
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim handle$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
-		## The whole argument object is shown, since only the server knows its own shape.
+		## A call carrying a command is announced like Bash/Grep/Glob above: the command
+		## on the announce line, an optional comment on its own labelled line below, no
+		## raw JSON. Only the server knows the shape of anything else, so that still
+		## falls back to showing the whole argument object.
 		mcp__*)
 			announceIcon="🔌"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
+			announcePath="$( AgentsHarnessArgValue "$announceArgsRaw" command )"
+			if [ -n "$announcePath" ]; then
+				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announcePath" )$harnessOff"
+				announcePath="$( AgentsHarnessTruncateArg "$( AgentsHarnessArgValue "$announceArgsRaw" comment )" )"
+				[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim comment$harnessOff $harnessValue$announcePath$harnessOff"
+			else
+				announceDetail="$harnessValue$( AgentsHarnessTruncateArg "$announceArgsRaw" )$harnessOff"
+			fi
 		;;
 	esac
 	## Named in the title as it starts, so a long call says what it is waiting on

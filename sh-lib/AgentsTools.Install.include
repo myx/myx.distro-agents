@@ -664,7 +664,31 @@ case "$1" in
 								;;
 							esac
 							case "$regVerdict" in
-								same) ;;
+								same)
+									## A member/rules entry this workspace itself bundles, reached
+									## through a foreign workspace's identical-content link: presence
+									## here is what AgentsToolsMemberWorkspaceResolve reads, so this
+									## workspace still registers its own row, from its own bundled
+									## path -- the slot itself is left exactly as found, not relinked
+									## (human-owner, 2026-10-06).
+									case " $rulesNames " in
+										*" $regName "*)
+											regType="rules-symlink" ; regRel="${regBundled#$originRoot/}"
+										;;
+										*)
+											case "$regBundled" in
+												"$compositeRoot"/*)      regType=".local-merged"   ; regRel="${regBundled#$workspace/.local/}" ;;
+												"$workspace/.local/"*)   regType=".local-symlink"  ; regRel="${regBundled#$workspace/.local/}" ;;
+												"$workspace/source/"*)   regType="source-symlink"  ; regRel="${regBundled#$workspace/source/}" ;;
+												"$originRoot"/*)         regType="origin-symlink"  ; regRel="${regBundled#$originRoot/}" ;;
+												*)
+													echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: $regName is bundled here and identical at $regResolved, but $regBundled resolves outside this workspace and its origin -- not registered" >&2
+													continue
+												;;
+											esac
+										;;
+									esac
+								;;
 								ours)
 									case " $rulesNames " in
 										*" $regName "*) regSlot="$workspace/.claude/rules/$regName" ;;
@@ -676,12 +700,13 @@ case "$1" in
 										echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to relink: $regSlot -> $regBundled" >&2
 										errorMembers="${errorMembers}${regName} " ; hadError="true"
 									fi
+									continue
 								;;
 								*)
 									echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: not registered, points outside both workspace $workspace and origin $originRoot (pre-existing link kept, not ours to claim): $regName -> $regResolved" >&2
+									continue
 								;;
 							esac
-							continue
 						;;
 					esac
 				fi

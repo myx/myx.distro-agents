@@ -26,10 +26,7 @@ standing comments on how to behave with them.
 
 ## Goals
 
-- **One note per identity, not per person and not per member.** An identity is a scope that holds
-  its own token and therefore its own conversations. A member with a `SLACK_USER_TOKEN` has one;
-  the shared `SLACK_BOT_TOKEN` identity has one, in the inbox of the member that holds that token,
-  because every member without a token of its own speaks through it and must read the same note.
+- **One note per identity, not per person and not per member.**
 - A reader can tell, for every contact, which level the row records and where it came from — read from
   `permission-level:` and its `permission-set-*` provenance. `unset` is the state of a **new** contact
   nobody has ruled on; it is not a queue. It leaves the contact fully reachable: tier 1 (ingest) and

@@ -160,9 +160,6 @@ Every item below is sequentially numbered (flat, no letter suffixes) and also ca
      members and tags one has addressed one.
    - The tag is that member's own `.basic.md` Alias, written `@<alias>` — never its member id, which
      tags nobody. Its `## Identity marks` Unicode character goes with it, as `<mark> @<alias>`.
-   - The team's own members hold no account on the messaging platform, so no mention can render for one:
-     the alias in text is the tag, and is not the failed mention the clause above describes. That clause
-     holds for an addressee the platform can notify — the human-owner, or anyone outside the team.
    - A message referencing part of the conversation: quote/cite the relevant point verbatim (at least
      with `> `, or better where the platform's formatting tools allow it).
    - Once addressed, proceed with whatever activity the reply was for.
@@ -288,7 +285,7 @@ Every confirmation this section asks for comes through the chain of command: ses
    session participants first, then the session's `magic-coordinator` with `AskUserQuestion` addressed to it —
    `mcp__myx_distro__AskUserQuestion` in a native client. The coordinator settles a simple question itself and
    takes the rest on, per `magic-team.armed.md`'s "Consent reaches a member through the chain of command". With
-   no coordinator in the session, the ask goes under the session's own team identity to the human-owner's direct
+   no coordinator in the session, the ask goes to the human-owner's direct
    channel and waits for the answer. An escalation is synchronous,
    per `magic-team.shared.md`'s "Nothing stops on its own". A question binding the team still goes through `magic-coordinator`. Where the ask itself fails, the
    session hands it to `magic-coordinator`. Until a verdict arrives, that specific sub-decision stays open:
@@ -701,8 +698,7 @@ Every confirmation this section asks for comes through the chain of command: ses
     loop continues from his reply. Record the outcome in the note's `### Escalations`. `permission-level:`
     is set by the human-owner and recorded there when he sets one; a case he resolved one time stays
     recorded as that one case.
-    The contacts note lives in the inbox of the identity the exchange runs under — the member's own where
-    it holds a user token, `magic-team`'s where it speaks through the shared bot. Its filename, its
+    The contacts note lives in the inbox of the identity the exchange runs under. Its filename, its
     `# Index` lookup table and the rest of its shape are
     `magic-team/templates/contacts.document.format.md`'s; consult that index on an incoming id before
     treating the sender as unknown.

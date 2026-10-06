@@ -141,23 +141,9 @@ Measured on both sides, not argued:
   the same way when it is not.
 - Reactions follow the read side, not the send side.
 - **Delete**: only the identity that authored a message may remove it. The operational consequence is the part that bites — a session's posts are spread across the identities that made them, so removing them takes each of those identities in turn, and is never one member's action.
-- **The two halves need not act as the same identity.** A send may go out under the member's own user
-  identity while a read of that same conversation acts as the bot. `--identity-bot` is the only
-  modifier and has no opposite, so a member whose read acts as bot cannot ask for a user-identity read.
-  Where a send goes out as user, its own read-back is structurally unavailable rather than merely
-  awkward.
-- **A send's fallback identity can differ by address form, for a member with no user token of its
-  own.** Observed and reproduced: a bare `human-owner` alias fell back to one real DM channel, an
-  explicit `<channel>:<ts>` address fell back to a different one, and both fell back silently — a
-  passive stdout warning only, no error. The mechanism behind the difference is inferred from that
-  symptom and the warning text, not read from the send path's own source, and is stated here as
-  inferred, not confirmed.
 - **The failure wears the wrong name.** An unauthorised reader is told `channel_not_found`, which reads
   as a bad target. So it looks like a mistyped id, gets retried, and never gets investigated. A reader
   who knows this stops retrying and asks which identity is acting.
-- **The field naming the acting identity is not evidence on the send path.** It has reported the bot
-  while the call used the member's own user token. Treat it as a hint, never as a statement of which
-  identity acted.
 
 So a user id is a sufficient address for writing and an insufficient one for reading, and the address is
 not the whole of it. The natural assumption is that all paths behave alike; they do not. **Any doc

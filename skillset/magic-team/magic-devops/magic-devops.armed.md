@@ -172,7 +172,7 @@ Every `magic-tooling` operation this team-member uses. Full syntax and behavior 
 
 ## `--member-comms-slack-send-message` Operation Reference
 
-`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member). The Tier 1 announce-gate uses this session's own `session_thread_ts` as the target as it stands, already in `<channel>:<ts>` form, so the announcement and its outcome stay in the session's one thread. Optional `--identity-bot` posts as the team bot instead of `<team-member>`'s own identity; omitted, the member's own identity when it has one, the team bot when it does not.
+`DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--identity-bot] [text...]` — posts a message to Slack, attributed to `<team-member>` (a bare directory name that must already exist as a real team member). The Tier 1 announce-gate uses this session's own `session_thread_ts` as the target as it stands, already in `<channel>:<ts>` form, so the announcement and its outcome stay in the session's one thread.
 
 # Maintainer Notes
 

@@ -28,7 +28,7 @@ This file's own content is binding and obligatory on every team member who reads
 - Tooling
 - Writing code
   - Searching the skillset
-- Human-owner conversations: two identities
+- Human-owner conversations: informational and actionable
 - Identifier and identity
   - Identity marks
 - Folder shape — the typed-suffix scheme
@@ -133,16 +133,10 @@ The member directories under the skillset root are symlinks into the real source
 - **The form that works is `find -L <root> -type f -exec grep … {} +`.** It follows the root and the symlinked subdirectories alike. `magic-librarian`'s own `--librarian-list-team-files` is the listing equivalent.
 - **The control goes in the same invocation as the search.** A control is a token confirmed present by reading a file directly. A zero arriving without one is not yet a result.
 
-## Human-owner conversations: two identities
+## Human-owner conversations: informational and actionable
 
-- The team bot and a member's own IM account are two separate conversations with the human-owner.
-- The team bot is the shared identity a member with no account of its own falls back to.
-- The bot's conversation carries what is informational — an outcome already settled, a report he does not have to act on.
-- Anything needing him to act reaches him on his own direct channel instead, by this file's own human-owner standing rules. A shared identity may be unable to reach that conversation at all.
-- Identity defaults to the member's own where it exists, and to the team bot otherwise.
-- `--identity-bot` is the only modifier. It selects the bot's conversation on reads, checks and reactions as well as sends. That is how a member with its own account works in the bot's conversation.
-- There is no opposite flag.
-- One exception: message search runs under the member's own identity only, and refuses `--identity-bot` outright.
+- What is informational is an outcome already settled, a report he does not have to act on.
+- Anything needing him to act reaches him on his own direct channel instead, by this file's own human-owner standing rules.
 
 ## Identifier and identity
 
@@ -430,7 +424,7 @@ Nested steps are normally not named. **Name them when the parent is a named grou
 
 **Every step is the executor's**. A step naming other members is a script for the executor. The executor orchestrates and commands the work. It announces that work in the session transcript, so the orchestration is visible. There is no second actor running steps of its own.
 
-**A send a step instructs is the executor's too, and goes under the executor's own identity**. That covers an opening or closing post, a status update, a reaction. The bot carries it only where that member has no identity of its own. Being unable to reach the destination is not that case. A step naming a different actor overrides this, and nothing else does. It governs instructed sends only. What a participant says on its own account, in its own voice, is not a step and is not constrained here.
+**A send a step instructs is the executor's too**. That covers an opening or closing post, a status update, a reaction. A step naming a different actor overrides this, and nothing else does. It governs instructed sends only. What a participant says on its own account, in its own voice, is not a step and is not constrained here.
 
 An actor phrase says *whom the executor commands*, in plain language. Two forms:
 
@@ -624,9 +618,9 @@ A question, a link he has to click, a decision that blocks work — it goes to h
 
 The channel is whichever direct one this installation actually has configured. The acting member resolves it at the moment of sending: the best available instant-messaging channel where one is set, the next-best direct channel where none is. A rule naming a transport is wrong the first time the transport changes.
 
-Whose ask it is decides who sends it. A question whose answer would bind the team goes through `magic-coordinator`, the mandated channel for those — an approval, a design ruling, a policy decision. A question whose answer only unblocks this member's own assigned work is that member's own, and goes out under its own identity. Either kind goes first to the session participants and then the session's `magic-coordinator`, which settles a simple question itself; only what it does not settle reaches him. What the answer binds is the test, not what the question blocks. A ruling can block one member and still bind everyone, and that one is the chair's to carry.
+Whose ask it is decides who sends it. A question whose answer would bind the team goes through `magic-coordinator`, the mandated channel for those — an approval, a design ruling, a policy decision. A question whose answer only unblocks this member's own assigned work is that member's own. Either kind goes first to the session participants and then the session's `magic-coordinator`, which settles a simple question itself; only what it does not settle reaches him. What the answer binds is the test, not what the question blocks. A ruling can block one member and still bind everyone, and that one is the chair's to carry.
 
-Every session asks with `AskUserQuestion` (`mcp__myx_distro__AskUserQuestion` in a native client). In a coordinated session the ask is addressed to the session's `magic-coordinator`. Only an ask it forwards, or one raised with no coordinator present, goes under the session's own team identity to his direct channel and waits for the answer. The send is automatic and needs no permission. Where the ask itself fails, the member states plainly what it needed, and hands the ask to `magic-coordinator`. It does not swallow the question, and it does not wait on an answer that cannot arrive.
+Every session asks with `AskUserQuestion` (`mcp__myx_distro__AskUserQuestion` in a native client). In a coordinated session the ask is addressed to the session's `magic-coordinator`. Only an ask it forwards, or one raised with no coordinator present, goes to his direct channel and waits for the answer. The send is automatic and needs no permission. Where the ask itself fails, the member states plainly what it needed, and hands the ask to `magic-coordinator`. It does not swallow the question, and it does not wait on an answer that cannot arrive.
 
 A message continuing an existing exchange goes into that exchange's own thread. A new top-level message is only for a new subject. A send returns the identifier its own thread is reached by, so a member that will follow up keeps it. Before a ping or a re-ask, the member reads that thread: an answer already there is the answer. A question settled elsewhere is closed by the member that asked it, with `--member-pending-reply-settle` and the reason, never left open to be pinged. Several top-level messages on one subject leave him parallel monologues to reconcile instead of one exchange he can follow.
 
@@ -894,7 +888,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A new operation, flag, file, key, or document type needs a name, or a new method/operation syntax is proposed. It goes via approval before it lands — internal names nobody can invoke included — and the request shows the sibling names it would join plus the adjacent sets deliberately not the same thing.
 - An operation-renaming pass runs. Flags are left untouched: an operation carries its owner's namespace, a flag does not.
 - Two instruction files or conventions conflict, or a convention is genuinely ambiguous. It goes to the human-owner for the decision, both sides intact and unedited until he rules; a dispatch to investigate one is not authorization to reconcile it.
-- A session has a question for the human-owner, a link he must click, or a decision that blocks it, and the answer would unblock only its own assigned work. Once the session participants and the session's `magic-coordinator` have not settled it, it goes to his own direct channel at once, sent with `AskUserQuestion` under the session's own team identity, without asking permission; the session never leaves it in the session and waits.
+- A session has a question for the human-owner, a link he must click, or a decision that blocks it, and the answer would unblock only its own assigned work. Once the session participants and the session's `magic-coordinator` have not settled it, it goes to his own direct channel at once, sent with `AskUserQuestion`, without asking permission; the session never leaves it in the session and waits.
 - A question would bind the team once answered — an approval, a design ruling, a policy decision. It goes through `magic-coordinator` whatever identity the asking member holds, because what the answer binds is the test rather than what the question blocks.
 - A member's question is one an established pattern or the family's existing form already answers. The session coordinator settles it, and the human-owner never receives it.
 - The acting member's `AskUserQuestion` ask fails. It says so plainly, names what it needed, and hands the ask to `magic-coordinator` — rather than swallowing the question, or treating a failed or unanswered send as delivery.
