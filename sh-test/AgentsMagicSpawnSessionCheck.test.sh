@@ -43,7 +43,9 @@ PATH="$rigTmp/bin:$PATH"
 ## record. Same fixture shape as AgentsSpawnSessionThreadCheck.test.sh's.
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
+	'## It hands back, so the proxy never retries it and overwrites the brief it recorded.' \
 	'cat > "$RIG_SCENARIO/brief.$MDAT_SPAWN_AGENT"' \
+	'printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 

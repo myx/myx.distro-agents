@@ -77,6 +77,7 @@ rigConsole(){ ## workspace, label -- a console that records where it was started
 		'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records where it was started.' \
 		"printf '%s\\n' \"\$MMDAPP\" > \"\$RIG_SCENARIO/launched.$2\"" \
 		'cat > "$RIG_SCENARIO/brief.'"$2"'"' \
+		'printf "📦 SubagentHandback\n"' \
 		'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWork/$1/DistroAgentsConsole.sh"
 	chmod +x "$rigWork/$1/DistroAgentsConsole.sh"
 }
@@ -428,6 +429,25 @@ rm -f "$rigWork/ws-here/DistroAgentsConsole.sh"
 rigSpawnIn ws-here keeper-there
 rigAssert "the spawning workspace's own console is not needed for a member elsewhere" "$rigRc $( rigLaunched )" "0 THERE=ws-there"
 rigConsole ws-here HERE
+
+echo "-- 8b. a handback retry is resumed exactly as the launch was: the member's workspace, its session, its CLI --"
+## A console that hands back only when resumed, recording each start: the launch, then
+## the proxy's one handback retry (MDAT_SPAWN_RESUME=true). It carries a --cli) arm
+## mention, so the proxy accepts --spawn-cli-service against it.
+printf '%s\n' '#!/usr/bin/env bash' \
+	'## --cli-configured and --cli) stand-in: writes MDAT_SPAWN_LAUNCH_MARKER, hands back only when resumed.' \
+	'printf "%s|%s|%s|%s\n" "$MMDAPP" "$MDAT_SESSION_ID" "$MDAT_SESSION_THREAD" "$*" > "$RIG_SCENARIO/start.${MDAT_SPAWN_RESUME:-launch}"' \
+	'cat > /dev/null' \
+	'[ "${MDAT_SPAWN_RESUME:-}" != true ] || printf "📦 SubagentHandback\n"' \
+	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWork/ws-there/DistroAgentsConsole.sh"
+rm -f "$rigTmp"/start.*
+rigSpawnIn ws-here keeper-there --spawn-cli-service rig-service
+rigAssert "a launch with no handback is retried once"                     "$rigRc $( ls "$rigTmp" | LC_ALL=C grep -c '^start\.' || : )" "0 2"
+rigAssert "the retry gets the launch's own workspace, session id, session thread and CLI args" "$( cat "$rigTmp/start.true" 2> /dev/null )" "$( cat "$rigTmp/start.launch" 2> /dev/null )"
+rigAssert "which are the member's workspace and the asked-for CLI, never the caller's" "$( LC_ALL=C cut -d'|' -f1,4 "$rigTmp/start.true" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" )" "ws-there|--cli rig-service --non-interactive"
+rigAssert "with a session id and a session thread carried, not empty"   "$( LC_ALL=C awk -F'|' '{ print ( $2 != "" && $3 != "" ) ? "carried" : "empty" }' "$rigTmp/start.true" 2> /dev/null )" carried
+rm -f "$rigTmp"/start.*
+rigConsole ws-there THERE
 
 echo "-- 9. --magic-spawn-session, --magic-heartbeat-* and the root harness --"
 rigSessionIn(){ ## workspace, args... -- --magic-spawn-session from that workspace

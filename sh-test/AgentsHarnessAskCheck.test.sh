@@ -241,7 +241,7 @@ rigStart send-refused
 : > "$rigScenarioDir/post-refuse"
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The opener repeats the question, so a refusal naming an output-style predicate means the question sits below the plain-language floor this team holds, which is written out in ${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:"
+rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The send measures the plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:"
 rigAssert "it is not dressed as POSTED"                   "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
 rigAssert "no record was written"                         "$( rigRecords )" 0
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0
@@ -261,18 +261,20 @@ rigAssert "no record was written"                         "$( rigRecords )" 0
 rigVerdict "to=<channel>:<ts> with no address_to -- refused before any request"
 
 ## ---------------------------------------------------------------------------
-## 7. The team's own plain-language floor refuses the question: nothing is posted,
-##    and the refusal names the predicate. A semicolon is a gating predicate.
+## 7. Below the team's own plain-language floor: the Slack send measures it and
+##    never refuses (AgentsTools.MemberCommsSlack.include), so the question is
+##    POSTED and recorded, and the fired predicate is named in what the send reported.
 ## ---------------------------------------------------------------------------
-rigStart floor-refused
-rigAsk 30 '{"to":"magic-team","question":"Should the rig proceed now; or wait for the second scenario?","address_to":"URIGOWNER"}'
+rigStart floor-measured
+rigAsk 30 '{"to":"magic-team","question":"Should the rig proceed now; or wait for the second scenario?","address_to":"URIGOWNER","wait":"false"}'
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result says the question does not exist"   "$( rigHolds "$rigScenarioDir/out" 'THE QUESTION DOES NOT EXIST' )" yes
-rigAssert "the refusal names the predicate"               "$( rigHolds "$rigScenarioDir/out" 'semicolon' )" yes
-rigAssert "it is not dressed as POSTED"                   "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
-rigAssert "nothing was posted"                            "$( rigCalls chat.postMessage )" 0
-rigAssert "no record was written"                         "$( rigRecords )" 0
-rigVerdict "below the plain-language floor -- refused before any post, and nothing is recorded"
+rigAssert "the result opens with POSTED"                  "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: POSTED"
+rigAssert "the send's floor warning is carried"           "$( rigHolds "$rigScenarioDir/out" 'IT WAS WRITTEN ANYWAY' )" yes
+rigAssert "the warning names the predicate"               "$( rigHolds "$rigScenarioDir/out" 'a semicolon, which this floor does not allow' )" yes
+rigAssert "it is not dressed as a refusal"                "$( rigHolds "$rigScenarioDir/out" 'THE QUESTION DOES NOT EXIST' )" no
+rigAssert "two posts: opener and question"                "$( rigCalls chat.postMessage )" 2
+rigAssert "one pending record"                            "$( rigRecords )" 1
+rigVerdict "below the plain-language floor -- measured, never refused: POSTED, and the predicate named"
 
 ## ---------------------------------------------------------------------------
 ## 8. The wait itself cannot be performed: the question stands, nothing is known,

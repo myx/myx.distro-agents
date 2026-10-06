@@ -2833,7 +2833,7 @@ AgentsHarnessToolAskUserQuestion(){
 			case "$askOpen" in
 				ERROR:*)
 					[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
-					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The opener repeats the question, so a refusal naming an output-style predicate means the question sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askOpen"
+					printf 'ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The send measures the plain-language floor (%s/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askOpen"
 					return 0
 				;;
 			esac
@@ -2852,7 +2852,7 @@ AgentsHarnessToolAskUserQuestion(){
 	case "$askSent" in
 		ERROR:*)
 			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
-			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. A refusal naming an output-style predicate means the text sits below the plain-language floor this team holds, which is written out in %s/magic-team/magic-team.shared.md -- rewrite the question to that standard and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askSent"
+			printf 'ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The send measures the plain-language floor (%s/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:\n%s\n' "${MDAT_SKILLSET_ROOT:-}" "$askSent"
 			return 0
 		;;
 	esac
