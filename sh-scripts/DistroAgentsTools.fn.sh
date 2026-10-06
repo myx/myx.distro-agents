@@ -17,6 +17,19 @@ export MDLT_ORIGIN
 
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
+	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+	## An operation naming a team member runs in a workspace where that member is present; the spawn proxy resolves its own, since its records stay here.
+	case "$1:${2:-}" in
+		--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*) ;;
+		--*:*)
+			local memberWorkspace
+			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }
+			if [ -n "$memberWorkspace" ] ; then
+				( AgentsToolsWorkspaceSwitch "$memberWorkspace" ; DistroAgentsTools "$@" )
+				return $?
+			fi
+		;;
+	esac
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 
 	case "$1" in
@@ -321,11 +334,7 @@ DistroAgentsTools(){
 						echo "$MDSC_CMD: mcp-execute: ⛔ ERROR: no such workspace: $2" >&2
 						set +e ; return 1
 					fi
-					export MMDAPP="$2"
-					## all derived from the previous root, and an index path is matched before MDSC_CACHED
-					unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
-					## by prefix, so a new index variable needs no edit here
-					for mcpStaleIndex in ${!MDSC_ID*} ; do unset "$mcpStaleIndex" ; done
+					AgentsToolsWorkspaceSwitch "$2"
 					shift 2
 				;;
 			esac

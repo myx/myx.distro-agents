@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberWorkspace.include -- the workspace a team-member operation runs in.
+## Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
+##
+
+## Moves this process to another workspace root. The tooling origin stays, and everything
+## derived from the previous root is dropped so it is derived again from the new one.
+AgentsToolsWorkspaceSwitch(){ ## workspace path
+	local switchStale
+	export MMDAPP="$1"
+	## all derived from the previous root, and an index path is matched before MDSC_CACHED
+	unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
+	## by prefix, so a new index variable needs no edit here
+	for switchStale in ${!MDSC_ID*} ; do unset "$switchStale" ; done
+}
+
+## The workspace a member operation runs in, from the machine-wide members index and the
+## list of tracked workspaces. Order: the current workspace when the member is there, else
+## the workspace where the member is a source link, else the first tracked workspace that
+## has it. Prints the path to switch to, and nothing when no switch is needed: the member is
+## in the current workspace, is not in the index (its operation refuses as it always has),
+## or the current workspace is not tracked. Refuses, naming the cause, when the member is in
+## no tracked workspace or the chosen workspace is not on this machine.
+AgentsToolsMemberWorkspaceResolve(){ ## member, operation
+	local resolveMember="$1" resolveOp="$2"
+	local resolveDir="$HOME/.claude/skills"
+	local resolveIndex="$resolveDir/.linked.magic-team.members.txt" resolveList="$resolveDir/.human-owner.workspaces.md"
+	local resolveHere="${MMDAPP%/}" resolveRows resolveWanted resolveName resolveKind resolveLine resolvePath=""
+	case "$resolveMember" in
+		''|magic-team|human-owner) return 0 ;;
+	esac
+	[ -f "$resolveIndex" ] || return 0
+	resolveHere="${resolveHere##*/}"
+	resolveRows="$( LC_ALL=C awk -F: -v who="$resolveMember" -v here="$resolveHere" '
+		$2 == here { tracked = 1 ; }
+		$1 == who { found = 1 ; if ( $2 == here ) { present = 1 ; } rows = rows $2 ":" $3 "\n" ; }
+		END {
+			if ( ! found ) { print "unknown" ; exit ; }
+			if ( ! tracked ) { print "untracked" ; exit ; }
+			if ( present ) { print "present" ; exit ; }
+			print "switch" ;
+			printf "%s", rows ;
+		}
+	' "$resolveIndex" )"
+	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
+	resolveRows="${resolveRows#*$'\n'}"
+	if [ -f "$resolveList" ] ; then
+		for resolveWanted in source-symlink any ; do
+			while IFS=: read -r resolveName resolveKind ; do
+				[ -n "$resolveName" ] || continue
+				[ "$resolveWanted" = "any" ] || [ "$resolveKind" = "source-symlink" ] || continue
+				while IFS= read -r resolveLine ; do
+					resolveLine="${resolveLine%/}"
+					case "$resolveLine" in /*) ;; *) continue ;; esac
+					[ "${resolveLine##*/}" = "$resolveName" ] || continue
+					resolvePath="$resolveLine"
+					break
+				done < "$resolveList"
+				[ -z "$resolvePath" ] || break
+			done <<< "$resolveRows"
+			[ -z "$resolvePath" ] || break
+		done
+	fi
+	if [ -z "$resolvePath" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: member '$resolveMember' is in the team members index but is present in no tracked workspace -- nothing was done" >&2
+		return 1
+	fi
+	if [ ! -d "$resolvePath" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: the workspace of member '$resolveMember' is not present on this machine: $resolvePath -- nothing was done" >&2
+		return 1
+	fi
+	[ "$( cd "$resolvePath" && pwd -P )" != "$( cd "$MMDAPP" && pwd -P )" ] || return 0
+	printf '%s\n' "$resolvePath"
+}

@@ -211,6 +211,13 @@ case "$1" in
 		done
 		local callerName="$1"
 		shift || true
+		## The member's session starts in a workspace where that member is present; the spawn records, dispatch items and board stay in this one.
+		type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+		local spawnWorkspace="$MMDAPP"
+		if [ -n "$callerName" ] ; then
+			spawnWorkspace="$( AgentsToolsMemberWorkspaceResolve "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
+			[ -n "$spawnWorkspace" ] || spawnWorkspace="$MMDAPP"
+		fi
 		local contextFromFile="false" waitMode="false" spawnContext=""
 		## Which agent CLI this one spawn runs on. Empty means the workspace setting
 		## decides, which is what every caller got before this option existed.
@@ -543,8 +550,8 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: empty spawn context" >&2
 			set +e ; return 1
 		fi
-		if [ ! -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: DistroAgentsConsole.sh is not executable at $MMDAPP" >&2
+		if [ ! -x "$spawnWorkspace/DistroAgentsConsole.sh" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: DistroAgentsConsole.sh is not executable at $spawnWorkspace" >&2
 			set +e ; return 1
 		fi
 
@@ -559,9 +566,9 @@ case "$1" in
 			## the vintage guard above exists to refuse, reached by a different door.
 			## So the arm this spawn is about to use is checked, not assumed from the
 			## other one being present.
-			if ! grep -q -- '--cli)' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+			if ! grep -q -- '--cli)' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null ; then
 				echo "SETUP_STATUS=console-stale"
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service $spawnCliService was asked for, but $MMDAPP/DistroAgentsConsole.sh carries no --cli arm, so the service could not be selected and this spawn would have run the console's own default while reporting success. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service $spawnCliService was asked for, but $spawnWorkspace/DistroAgentsConsole.sh carries no --cli arm, so the service could not be selected and this spawn would have run the console's own default while reporting success. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 				set +e ; return 1
 			fi
 			spawnCliArgs=( --cli "$spawnCliService" )
@@ -577,9 +584,9 @@ case "$1" in
 		## console's VINTAGE, not what selects the mode. Dropping it because the
 		## command line changed would retire the guard silently, which is the shape
 		## of breakage nothing reports.
-		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
+		if ! grep -q 'cli-configured' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null ; then
 			echo "SETUP_STATUS=console-stale"
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $spawnWorkspace/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 			set +e ; return 1
 		fi
 
@@ -982,17 +989,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## Nothing to read until the child is actually running: started right
@@ -1128,7 +1135,7 @@ case "$1" in
 			## On its own, same as the wait-mode branch: not gated by outputFile.
 			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$eventTrackBody" 4>&- &
 			cliUpdatePid=$!
-			env MMDAPP="$MMDAPP" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
+			env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
 			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }
