@@ -322,8 +322,9 @@
 			routine-* name sends as the bot and skips that check.
 			A client-* member posting from its own token into its
 			own workspace presents under the first name, family
-			name and alias of its own row in team-members-names
-			(--make-agents-indices) and never as its own identifier;
+			name and alias of its row in team-members-names
+			(--make-agents-indices), which is the persona's, and
+			never as its own identifier;
 			the send is refused when that row lacks one of them. A
 			sender or addressee reads its mark and alias from the
 			same registry. An addressee with no row reads as its plain
@@ -2043,12 +2044,14 @@
 			(member, workspace, link kind, skillset path) and
 			`team-members-names.registry` (member, mark, first name,
 			family name, alias), rows only for members that have a path
-			in this workspace. Names come from each SKILL.md
-			frontmatter (first-name, family-name, alias), replaced by
-			the member's scope key FIRST_NAME, FAMILY_NAME or ALIAS
-			when set; a value that is missing, `not decided yet` or
-			not valid is stored `-` and warned about, unless the
-			member is reference-only. Takes no arguments, prints
+			in this workspace. Names come from each member's
+			basic.md (the Name bullet split at its first space, and the
+			Alias bullet), replaced by the member's scope key
+			FIRST_NAME, FAMILY_NAME or ALIAS when set; a value that
+			is missing, `not decided yet` or not valid is stored `-`
+			and warned about, unless the member is reference-only.
+			Every client-* row carries the persona member's values
+			instead (its own files and scope are not read). Takes no arguments, prints
 			nothing on stdout, notes each file on stderr, and fails
 			only when a file cannot be written. Run by the install
 			and by the source-prepare build.

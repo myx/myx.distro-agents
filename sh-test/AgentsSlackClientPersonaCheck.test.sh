@@ -2,19 +2,21 @@
 ## Behavioural check on what a member presents in Slack and on the agents registries that hold it, run rather than read,
 ## against a scenario workspace and a fixture skillset built here. Held: --make-agents-indices writes, in
 ## $MMDAPP/.local/agents, exactly two registries for the members that have a path in THIS workspace: team-members
-## (member workspace link-kind path) and team-members-names (member mark first family alias). The names are each
-## member's SKILL.md frontmatter (first-name, family-name, alias), replaced by its scope key (FIRST_NAME, FAMILY_NAME,
-## ALIAS) at build time, the mark is read from its basic.md; a value that is missing, `not decided yet`, quoted or not
-## storable is `-` and warned about unless the member is reference-only. A send reads team-members-names and nothing
-## else: an edit to the registry is followed, an edit to SKILL.md, scope or basic.md is not until the next build, and
-## unreadable skill and config files change nothing. A client's EXTERNAL presentation, its own user token or its own
-## bot token with no relay, is its OWN row (mark, first and family name, alias), with no client identifier in the payload
-## and no metadata; a client without a complete row refuses with nothing posted. A sender with no row, or no alias,
-## shows its member name; an addressee whose directory is missing refuses, one whose directory exists but has no row is
-## plain @<member>. Also held: a localised name byte for byte, the in-body mention rules, no identity swap to the shared
-## bot for an external send, the two call places of the build and its help pair. A fake `curl` first on PATH logs each
-## method with its token and the posted bodies; every token is a literal. Offline by construction. What the stubs
-## cannot show: how real Slack renders any of it, and the real skillset's own frontmatter and installer index.
+## (member workspace link-kind path) and team-members-names (member mark first family alias). A member's names are
+## DEFAULTED from its own basic.md bullets (the marks function for mark and alias, the Name bullet split at its first
+## space, a final period dropped, plain words only) and replaced by its scope keys FIRST_NAME, FAMILY_NAME, ALIAS at
+## build time; a value that is missing, `not decided yet` or not storable is `-` and warned about, unless the member's
+## SKILL.md says reference-only. EVERY client-* member has the row of the persona member (one constant), its own
+## files, bullets and scope are not read, and an unreadable persona gives dashes, one warning per field and a refused
+## external send. A send reads team-members-names and nothing else: an edit to a bullet, a scope or a SKILL.md is not
+## followed until the next build, and unreadable files change nothing. A client's EXTERNAL presentation (own user token,
+## or own bot token with no relay) is that row, with no client identifier in the payload and no metadata. A sender with
+## no row, or no alias, shows its member name; an addressee whose directory is missing refuses, one whose directory
+## exists but has no row is plain @<member>, and its mention id never depends on a row. Also held: the Name shapes, a
+## localised name byte for byte, the in-body mention rules, no identity swap to the shared bot for an external send,
+## the two call places of the build and its help pair. A fake `curl` first on PATH logs each method with its token and
+## the posted bodies; every token is a literal. Offline by construction. What the stubs cannot show: how real Slack
+## renders any of it, and the real skillset's own bullets and installer index.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -60,21 +62,26 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-## The fixture skillset. A member's basic.md carries its mark, and a decoy Name and Alias that no output may show.
+## The fixture skillset. The names live in a member's basic.md bullets; its SKILL.md carries the status and decoy
+## frontmatter names that no output may show.
 rigBasic(){ ## member, lines... -- that member's .basic.md
 	local basicMember="$1" ; shift
 	mkdir -p "$rigSkills/$basicMember"
 	{ printf -- '---\nmaintainers: rig\n---\n' ; printf '%s\n' "$@" ; } > "$rigSkills/$basicMember/$basicMember.basic.md"
 }
-rigSkill(){ ## member, status, first-name, family-name, alias -- that member's SKILL.md frontmatter, a key left out when its value is empty
+rigBullets(){ ## member, Name text as written (empty: no line), alias (empty: no line), mark (empty: no line)
+	local bulletMember="$1" bulletLines=( "# $1" )
+	[ -z "$2" ] || bulletLines+=( "- **Name**: $2" )
+	[ -z "$3" ] || bulletLines+=( "- **Alias**: \`$3\`." )
+	[ -z "$4" ] || bulletLines+=( "- **Unicode character**: $4" )
+	rigBasic "$bulletMember" "${bulletLines[@]}"
+}
+rigSkill(){ ## member, status -- that member's SKILL.md: the status, and decoy names that no output may show
 	mkdir -p "$rigSkills/$1"
 	{
 		printf -- '---\nname: %s\n' "$1"
 		[ -z "$2" ] || printf 'status: %s\n' "$2"
-		[ -z "$3" ] || printf 'first-name: %s\n' "$3"
-		[ -z "$4" ] || printf 'family-name: %s\n' "$4"
-		[ -z "$5" ] || printf 'alias: %s\n' "$5"
-		printf -- 'description: rig\n---\n\n# %s\n' "$1"
+		printf -- 'first-name: DecoyFirst\nfamily-name: DecoyFamily\nalias: decoyalias\ndescription: rig\n---\n\n# %s\n' "$1"
 	} > "$rigSkills/$1/SKILL.md"
 }
 rigLinkAdd(){ ## member, workspace, path -- one line of the installer's linked-members index: member:workspace:link-kind:path
@@ -91,15 +98,11 @@ rigBuild(){ ## options... -- the registries build in the rig workspace; rc in ri
 rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, members, linked-members index and registries built
 	rm -rf "$rigWs" "$rigSkills"
 	mkdir -p "$rigWs/.local/.agents" "$rigSkills"
-	rigBasic "$rigPersona" '- **Name**: Bullet Name.' '- **Alias**: `bulletalias`.' '- **Unicode character**: 🐭'
-	rigSkill "$rigPersona" active Magic Vane dispatchr
-	rigBasic client-ndm '- **Name**: Bullet Client.' '- **Alias**: `bulletclient`.' '- **Unicode character**: 🐭'
-	rigSkill client-ndm active Magic Vane dispatchr
-	rigBasic client-mel '- **Unicode character**: 🐭'
-	rigSkill client-mel active Magic Vane dispatchr
+	rigBullets "$rigPersona" 'Magic Vane.' dispatchr 🐭 ; rigSkill "$rigPersona" active
+	rigBullets client-ndm 'Client Decoy.' clientdecoy 🦊 ; rigSkill client-ndm active
+	rigBullets client-mel '' '' 🦊 ; rigSkill client-mel active
 	rigBasic magic-team '# the team, no mark of its own'
-	rigBasic keeper-myx '- **Name**: Bullet Smith.' '- **Alias**: `bulletsmith`.' '- **Unicode character**: 🔧'
-	rigSkill keeper-myx active Forge Keeper forge
+	rigBullets keeper-myx 'Forge Keeper.' forge 🔧 ; rigSkill keeper-myx active
 	: > "$rigLinkedFile"
 	rigLinkAdd "$rigPersona" "$rigWsName" ; rigLinkAdd client-ndm "$rigWsName" ; rigLinkAdd client-mel "$rigWsName" ; rigLinkAdd keeper-myx "$rigWsName"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -112,8 +115,7 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 }
 rigWorldPlain(){ ## -- the default world and one more member with no Slack token of its own
 	rigWorld
-	rigBasic keeper-plain '- **Unicode character**: 🔨'
-	rigSkill keeper-plain active Plain Keeper plainalias
+	rigBullets keeper-plain 'Plain Keeper.' plainalias 🔨 ; rigSkill keeper-plain active
 	rigLinkAdd keeper-plain "$rigWsName"
 	rigBuild
 }
@@ -170,30 +172,33 @@ rigNoBodies(){ ## -- how many bodies the last send posted
 rigLines(){ ## file -- how many lines it has
 	LC_ALL=C awk 'END { print NR + 0 }' "$1" 2> /dev/null
 }
+rigWarnsOf(){ ## fixed text -- how many build warning lines hold it
+	LC_ALL=C grep '^⚠️ WARNING: ' "$rigTmp/build.err" 2> /dev/null | LC_ALL=C grep -c -F -- "$1" || :
+}
 
 rigWorld
 [ "$rigBuildRc" = 0 ] && [ -f "$rigNamesFile" ] || rigRefuse "the baseline build made no $rigNamesName registry at $rigNamesFile, so no row below would be measured: $( LC_ALL=C grep -m1 ERROR "$rigTmp/build.err" )"
 rigSend keeper-myx magic-team
 [ "$rigRc" = 0 ] && [ "$( rigPosts )" = 1 ] || rigRefuse "the baseline send reached no post, so no row below would be measured: $( LC_ALL=C grep -m1 ERROR "$rigTmp/err" )"
 
-echo "-- 1. a client's own user token: the external presentation is its own row --"
+echo "-- 1. a client's own user token: the external presentation is the persona's row --"
 rigSend client-ndm magic-team
 rigAssert "the send is posted under the client's own user token"          "$rigRc $( rigPostToken )" "0 rig-user-token-NDM"
-rigAssert "the text is the header from the client's row: mark, name and alias" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "the text is the header from the persona's row: mark, name and alias" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
 rigAssert "the blocks carry the mark, the name in bold italic, and the alias" "$( rigBodyHas '{"type":"text","text":"🐭 "},{"type":"text","text":"Magic Vane","style":{"bold":true,"italic":true}},{"type":"text","text":" @dispatchr "}' )" 1
 rigAssert "no client identifier anywhere in the posted payload"            "$( rigBodyHas 'client-ndm' )" 0
 rigAssert "and no metadata key at all"                                     "$( rigBodyHas '"metadata"' )" 0
-rigAssert "and no decoy bullet value from its basic.md"                    "$( rigBodyHas 'Bullet' ) $( rigBodyHas 'bullet' )" "0 0"
+rigAssert "and nothing of the client's own bullets or the decoy frontmatter" "$( rigBodyHas 'Decoy' ) $( rigBodyHas 'decoy' ) $( rigBodyHas 'clientdecoy' ) $( rigBodyHas '🦊' )" "0 0 0 0"
 rigSend client-ndm human-owner
 rigAssert "to the human-owner, with its own token: the same header, no relay" "$( rigText ) $( rigN "$rigTmp/err" 'has no SLACK_USER_TOKEN of its own' )" '🐭 *_Magic Vane_* @dispatchr → <@URIGOWNER>.\nRIG-BODY 0'
 rigSend keeper-myx magic-team
 rigAssert "control: a non-client member's header is its own row alias and mark, with its member name" "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
-rigAssert "control: no decoy bullet value there either"                    "$( rigBodyHas 'Bullet' ) $( rigBodyHas 'bullet' )" "0 0"
+rigAssert "control: no decoy frontmatter value there either"               "$( rigBodyHas 'Decoy' ) $( rigBodyHas 'decoy' )" "0 0"
 
 echo "-- 2. a client's own bot token with --identity-bot: external too --"
 rigSend client-mel magic-team --identity-bot
 rigAssert "posted under the client's own bot token"                        "$rigRc $( rigPostToken )" "0 rig-bot-token-MEL"
-rigAssert "the text is the header from the client's row"                   "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "the text is the header from the persona's row, though the client has no bullets of its own" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
 rigAssert "no client identifier and no metadata in the payload"            "$( rigBodyHas 'client-mel' ) $( rigBodyHas '"metadata"' )" "0 0"
 
 echo "-- 3. --identity-bot with only the shared team bot token: internal --"
@@ -219,84 +224,79 @@ rigAssert "the same member as the shared bot"                              "$( r
 rigSend magic-team magic-team --identity-bot
 rigAssert "the team member with a directory and no row: its own name as mark-less alias" "$( rigText )" '*_magic-team_* @magic-team → @here.\nRIG-BODY'
 
-echo "-- 6. a client without a complete row refuses an external send: nothing posted, no fallback --"
-rigRefusal(){ ## label, the keys the message must name as missing
+echo "-- 6. a persona that cannot be read: client rows are dashes, one warning per field, an external send refused --"
+rigRefusal(){ ## label, how many fields the persona is missing
+	rigAssert "$1: the persona warns once per missing field, naming the persona, the field and the bullets" "$( rigWarnsOf "persona member $rigPersona: required field" ) $( LC_ALL=C grep -c -E "persona member $rigPersona: required field .* is missing or not valid in its basic.md [(]a Name bullet of plain words, or its scope key[)]\$" "$rigTmp/build.err" || : )" "$2 $2"
+	rigAssert "$1: every client row is dashes, though the clients have two clients' own files" "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel )" 'client-ndm|-|-|-|- client-mel|-|-|-|-'
 	rigSend client-ndm magic-team
-	rigAssert "$1: exit 1, an error naming the client, the SKILL.md and the registry, missing $2, ending nothing was sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: the external presentation of 'client-ndm' needs first-name, family-name and alias in its SKILL.md and in the team-members-names registry: missing $2; nothing was sent" "$rigTmp/err" || : )" "1 1"
+	rigAssert "$1: the external send exits 1 naming the persona row, all three fields, ending nothing was sent" "$rigRc $( LC_ALL=C grep -c -F -- "⛔ ERROR: DistroAgentsTools --member-comms-slack-send-message: the external presentation needs the persona row in the team-members-names registry (--make-agents-indices): missing first-name, family-name, alias; nothing was sent" "$rigTmp/err" || : )" "1 1"
 	rigAssert "$1: the curl stub was never called"                         "$( rigNoCalls )" 0
 	rigAssert "$1: no body was posted, so nothing fell back to another name" "$( rigNoBodies )" 0
 	rigSend client-ndm magic-team --identity-bot
-	rigAssert "$1: sibling, the same client as the shared bot (internal) still sends" "$rigRc $( rigPosts ) $( rigBodyHas '*_client-ndm_*' )" '0 1 1'
+	rigAssert "$1: sibling, the same client as the shared bot (internal) still sends, as its member name" "$rigRc $( rigPosts ) $( rigBodyHas '*_client-ndm_*' )" '0 1 1'
+	rigSend keeper-myx magic-team
+	rigAssert "$1: control, a non-client member is untouched"              "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 }
-rigWorld ; rm -f "$rigNamesFile"
-rigRefusal "no registry file at all" "first-name, family-name, alias"
+rigWorld ; rm -f "$rigSkills/$rigPersona/$rigPersona.basic.md" ; rigBuild
+rigRefusal "persona basic.md missing" 3
+rigWorld ; rigBullets "$rigPersona" '' dispatchr 🐭 ; rigBuild
+rigRefusal "persona has no Name line" 2
+rigWorld ; rigBullets "$rigPersona" 'Magic.' dispatchr 🐭 ; rigBuild
+rigRefusal "persona Name is one word" 1
+rigWorld ; rigBullets "$rigPersona" 'Magic Vane.' '' 🐭 ; rigBuild
+rigRefusal "persona has no Alias line" 1
+rigWorld ; rigBullets "$rigPersona" 'Magic Vane.' 'bad!' 🐭 ; rigBuild
+rigRefusal "persona Alias is no handle" 1
+rigWorld ; rigBullets "$rigPersona" 'Magic Vane.' 'a"b' 🐭 ; rigBuild
+rigRefusal "persona Alias holds a double quote" 1
+rigWorld ; rigBullets "$rigPersona" 'Magic Vane, the dispatcher of the team.' dispatchr 🐭 ; rigBuild
+rigRefusal "persona Name is a prose line" 2
+rigWorld ; rigBullets "$rigPersona" 'Magic "Vane".' dispatchr 🐭 ; rigBuild
+rigRefusal "persona Name holds double quotes" 2
+rigWorld ; rigBullets "$rigPersona" 'Ma_gic Vane.' dispatchr 🐭 ; rigBuild
+rigRefusal "persona Name holds an underscore" 2
+rigWorld ; rigBullets "$rigPersona" "Magic Va$( printf '\302\205' )ne." dispatchr 🐭 ; rigBuild
+rigRefusal "persona family name holds a C1 control (U+0085)" 1
+rigWorld ; rigScope "$rigPersona" 'FIRST_NAME=a"b'
+rigRefusal "persona scope FIRST_NAME holds a double quote" 1
+rigWorld ; rigScope "$rigPersona" 'ALIAS=a b'
+rigRefusal "persona scope ALIAS holds a space" 1
+rigWorld ; rigScope "$rigPersona" 'FAMILY_NAME=not decided yet'
+rigRefusal "persona scope FAMILY_NAME is not decided yet" 1
+rigWorld ; rigSkill "$rigPersona" reference-only ; rigBullets "$rigPersona" '' '' 🐭 ; rigBuild
+rigRefusal "persona that is reference-only is not exempt" 3
+rigAssert "and its own ordinary row, being reference-only, does not warn as a member" "$( rigWarnsOf "indices: member $rigPersona: required field" )" 0
+rigWorld ; rigBullets "$rigPersona" '' dispatchr 🐭 ; rigBuild
+rigAssert "the persona's own ordinary row warns as a member too, once per field, besides the persona warning" "$( rigWarnsOf "indices: member $rigPersona: required field" ) $( rigIndexRow "$rigPersona" )" "2 $rigPersona|🐭|-|-|dispatchr"
+rigAssert "and two clients make the persona warnings no more: two, not four"   "$( rigWarnsOf "persona member $rigPersona: required field" )" 2
 rigWorld ; rigLinkDrop client-ndm ; rigBuild
-rigRefusal "the client has no path in this workspace, so no row" "first-name, family-name, alias"
-rigWorld ; rm -f "$rigSkills/client-ndm/SKILL.md" ; rigBuild
-rigAssert "a linked member with no SKILL.md gets a row of dashes and one warning per field" "$( rigIndexRow client-ndm ) $( rigN "$rigTmp/build.err" 'member client-ndm: required field' )" "client-ndm|🐭|-|-|- 3"
-rigRefusal "no SKILL.md for the client" "first-name, family-name, alias"
-rigWorld ; rigSkill client-ndm active '' '' '' ; rigBuild
-rigRefusal "a SKILL.md with none of the three" "first-name, family-name, alias"
-rigWorld ; rigSkill client-ndm active '' Vane dispatchr ; rigBuild
-rigRefusal "first-name missing" "first-name"
-rigWorld ; rigSkill client-ndm active Magic '' dispatchr ; rigBuild
-rigRefusal "family-name missing" "family-name"
-rigWorld ; rigSkill client-ndm active Magic Vane '' ; rigBuild
-rigRefusal "alias missing" "alias"
-rigWorld ; rigSkill client-ndm active 'not decided yet' Vane dispatchr ; rigBuild
-rigRefusal "first-name is not decided yet" "first-name"
-rigWorld ; rigSkill client-ndm active Magic 'not decided yet' dispatchr ; rigBuild
-rigRefusal "family-name is not decided yet" "family-name"
-rigWorld ; rigSkill client-ndm active Magic Vane 'not decided yet' ; rigBuild
-rigRefusal "alias is not decided yet" "alias"
-rigWorld ; rigSkill client-ndm active 'Ma"gic' Vane dispatchr ; rigBuild
-rigRefusal "first-name with a double quote" "first-name"
-rigWorld ; rigSkill client-ndm active Magic 'Va\ne' dispatchr ; rigBuild
-rigRefusal "family-name with a backslash" "family-name"
-rigWorld ; rigSkill client-ndm active "Ma$( printf '\001' )gic" Vane dispatchr ; rigBuild
-rigRefusal "first-name with a control byte" "first-name"
-rigWorld ; rigSkill client-ndm active Magic "Va$( printf '\302\205' )ne" dispatchr ; rigBuild
-rigRefusal "family-name with a C1 control (U+0085)" "family-name"
-rigWorld ; rigSkill client-ndm active '"Magic"' Vane dispatchr ; rigBuild
-rigRefusal "first-name written in double quotes" "first-name"
-rigWorld ; rigSkill client-ndm active Magic "'Vane'" dispatchr ; rigBuild
-rigRefusal "family-name written in single quotes" "family-name"
-rigWorld ; rigSkill client-ndm active 'Ma_gic' Vane dispatchr ; rigBuild
-rigRefusal "first-name holding an underscore" "first-name"
-rigWorld ; rigSkill client-ndm active Magic 'Va_ne' dispatchr ; rigBuild
-rigRefusal "family-name holding an underscore" "family-name"
-rigWorld ; rigSkill client-ndm active Magic Vane 'bad!' ; rigBuild
-rigRefusal "alias that is no handle" "alias"
-rigWorld ; rigSkill client-ndm active Magic Vane 'bad alias' ; rigBuild
-rigRefusal "alias with a space" "alias"
-rigWorld ; rigSkill client-ndm active Magic Vane '-dash' ; rigBuild
-rigRefusal "alias starting with a dash" "alias"
-rigWorld ; rigSkill client-ndm reference-only Magic Vane '' ; rigBuild
-rigAssert "a reference-only client is exempt from the build warnings, not from the refusal" "$( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 0
-rigRefusal "reference-only client with no alias" "alias"
-rigWorld ; rm -f "$rigSkills/$rigPersona/SKILL.md" "$rigSkills/$rigPersona/$rigPersona.basic.md" ; rigBuild
 rigSend client-ndm magic-team
-rigAssert "control: the persona member's own files are not consulted: with none, the client's external send is unchanged" "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "a client with no path in this workspace has no row: an external send refuses, nothing sent" "$rigRc $( rigNoCalls ) $( rigN "$rigTmp/err" 'missing first-name, family-name, alias; nothing was sent' )" "1 0 1"
+rigWorld ; rm -f "$rigNamesFile"
+rigSend client-ndm magic-team
+rigAssert "no registry file at all: refused, nothing sent"                 "$rigRc $( rigNoCalls ) $( rigN "$rigTmp/err" 'missing first-name, family-name, alias; nothing was sent' )" "1 0 1"
+rigWorld ; rigLinkDrop "$rigPersona" ; rm -f "$rigSkills/$rigPersona/SKILL.md" ; rigBuild
+rigSend client-ndm magic-team
+rigAssert "control: a persona with no path and no SKILL.md in this workspace still serves its bullets to the clients" "$rigRc $( rigText ) $( rigIndexRow "$rigPersona" )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY '
 rigWorld
 
-echo "-- 7. a localised or multi-word name passes byte for byte --"
-for rigPair in "Zauberer|Müller" "Магия|Вейн" "Magic|D'Vane" "Magic|© Vane" "Ünal|Ø" "Mary Ann|van der Berg" ; do
-	rigFirst="${rigPair%%|*}" ; rigFamily="${rigPair#*|}"
-	rigWorld ; rigSkill client-ndm active "$rigFirst" "$rigFamily" dispatchr ; rigBuild
+echo "-- 7. a localised or multi-word persona name passes byte for byte --"
+for rigName in "Zauberer Müller" "Магия Вейн" "Magic D'Vane" "Magic © Vane" "Ünal Ø" "Mary Ann van der Berg" "Jean-Luc Picard" ; do
+	rigWorld ; rigBullets "$rigPersona" "$rigName." dispatchr 🐭 ; rigBuild
 	rigSend client-ndm magic-team
-	rigAssert "$rigFirst $rigFamily: in the text, exactly"                 "$rigRc $( rigText )" "0 🐭 *_${rigFirst} ${rigFamily}_* @dispatchr → @here.\\nRIG-BODY"
-	rigAssert "$rigFirst $rigFamily: in the blocks, exactly"               "$( rigBodyHas "{\"type\":\"text\",\"text\":\"$rigFirst $rigFamily\",\"style\":{\"bold\":true,\"italic\":true}}" )" 1
+	rigAssert "$rigName: in the text, exactly"                             "$rigRc $( rigText )" "0 🐭 *_${rigName}_* @dispatchr → @here.\\nRIG-BODY"
+	rigAssert "$rigName: in the blocks, exactly"                           "$( rigBodyHas "{\"type\":\"text\",\"text\":\"$rigName\",\"style\":{\"bold\":true,\"italic\":true}}" )" 1
 done
-rigWorld ; rigSkill client-ndm active "Mary Ann" "van der Berg" dispatchr ; rigBuild
-rigAssert "a name with spaces is stored with underscores, one column each" "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Mary_Ann|van_der_Berg|dispatchr'
+rigWorld ; rigBullets "$rigPersona" 'Mary Ann van der Berg.' dispatchr 🐭 ; rigBuild
+rigAssert "a name of several words is stored first, then the rest with underscores" "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Mary|Ann_van_der_Berg|dispatchr'
 rigWorld
 
 echo "-- 8. the addressee of an external send --"
 rigSend client-ndm magic-team --address-to client-ndm
-rigAssert "to itself: its own header and a real mention of the account that posts" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* <@URIGNDM>.\nRIG-BODY'
+rigAssert "to itself: the persona header and a real mention of the account that posts" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* <@URIGNDM>.\nRIG-BODY'
 rigAssert "and the blocks hold the user element for that id"               "$( rigBodyHas '{"type":"user","user_id":"URIGNDM"}' ) $( rigBodyHas 'client-ndm' )" "1 0"
 rigSend client-ndm magic-team --address-to client-mel
-rigAssert "to another client with a complete row: its row, the plain alias, no mention id" "$( rigText ) $( rigN "$rigTmp/bodies" '<@' ) $( rigBodyHas '"type":"user"' )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* @dispatchr.\nRIG-BODY 0 0'
+rigAssert "to another client: its row, which is the persona's, the plain alias, no mention id" "$( rigText ) $( rigN "$rigTmp/bodies" '<@' ) $( rigBodyHas '"type":"user"' )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* @dispatchr.\nRIG-BODY 0 0'
 rigAssert "and no client identifier"                                       "$( rigBodyHas 'client-mel' ) $( rigBodyHas 'client-ndm' )" "0 0"
 rigSend client-ndm magic-team --address-to keeper-myx
 rigAssert "to a non-client member: its own header and its mention"         "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🔧 *_keeper-myx_* <@URIGKEEPER>.\nRIG-BODY'
@@ -322,24 +322,63 @@ rigSend client-mel magic-team
 rigAssert "an external send whose client has its own bot token may swap to that one, with the same payload" "$( rigPosts ) $rigRc $( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s ", $2 }' "$rigTmp/calls" ) $( rigBodyHas 'Magic Vane' ) $( rigBodyHas 'client-mel' )" "2 0 rig-user-token-MEL rig-bot-token-MEL  2 0"
 : > "$rigTmp/post-answers"
 
-echo "-- 11. a client reads its own row, no other member's --"
-rigWorld ; rigBasic client-mel '- **Unicode character**: 🦊' ; rigSkill client-ndm active Iris Marsh imarsh ; rigSkill client-mel active Mira Hale mhale ; rigBuild
+echo "-- 11. a client row equals the persona row, whatever the client holds --"
+rigWorld
+rigAssert "the two clients' rows are the persona's row under their own member names" "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel ) $( rigIndexRow "$rigPersona" )" "client-ndm|🐭|Magic|Vane|dispatchr client-mel|🐭|Magic|Vane|dispatchr $rigPersona|🐭|Magic|Vane|dispatchr"
+rigAssert "the build warned of nothing"                                    "$( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 0
+rigBullets client-ndm 'Own Name.' ownalias 🦉 ; rigSkill client-ndm reference-only
+rigScopeRaw client-ndm FIRST_NAME=OwnFirst FAMILY_NAME=OwnFamily ALIAS=ownscope
+rigBuild
+rigAssert "a client with its own Name, Alias, mark, scope keys and SKILL.md still has the persona's row" "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Magic|Vane|dispatchr'
 rigSend client-ndm magic-team
-rigAssert "the external header is the client's own row, not the persona member's" "$( rigText ) $( rigBodyHas 'Magic Vane' ) $( rigBodyHas 'dispatchr' )" '🐭 *_Iris Marsh_* @imarsh → @here.\nRIG-BODY 0 0'
-rigSend client-mel magic-team
-rigAssert "another client reads its own"                                   "$( rigText )" '🦊 *_Mira Hale_* @mhale → @here.\nRIG-BODY'
+rigAssert "and presents the persona's, with nothing of its own in the payload" "$( rigText ) $( rigBodyHas 'Own' ) $( rigBodyHas 'own' ) $( rigBodyHas '🦉' ) $( rigBodyHas 'Decoy' )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0 0 0 0'
+rigScopeRaw client-ndm 'FIRST_NAME=a"b' 'ALIAS=bad alias!'
+rigBuild
+rigAssert "bad values in a client's own scope are not read: the row is the persona's and nothing warns" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Magic|Vane|dispatchr 0'
+rm -f "$rigSkills/client-ndm/client-ndm.basic.md" "$rigSkills/client-ndm/SKILL.md"
+rigBuild
+rigAssert "a client with no basic.md and no SKILL.md at all has the persona's row too" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Magic|Vane|dispatchr 0'
+rigWorld
+rigClientSum="$( cksum < "$rigSkills/client-ndm/client-ndm.basic.md" )"
+rigBuild ; rigSend client-ndm magic-team ; rigSend client-ndm magic-team --identity-bot
+rigAssert "no bullet is written into the client's basic.md by a build or a send" "$( cksum < "$rigSkills/client-ndm/client-ndm.basic.md" ) $( LC_ALL=C grep -c -E 'Name|Alias' "$rigSkills/client-ndm/client-ndm.basic.md" || : )" "$rigClientSum 2"
+rigAssert "control: that file does hold a Name line of its own to begin with, the decoy" "$( LC_ALL=C grep -c 'Client Decoy' "$rigSkills/client-ndm/client-ndm.basic.md" || : )" 1
+rigBullets client-mel '' '' 🦊
+rigBuild
+rigAssert "the persona's mark, not the client's own, is the client's mark"  "$( rigIndexRow client-mel | LC_ALL=C awk -F'|' '{ print $2 }' )" '🐭'
 rigSend client-ndm magic-team --address-to client-mel
-rigAssert "an addressee client with a complete row reads under its own mark, names and alias" "$( rigText )" '🐭 *_Iris Marsh_* @imarsh → 🦊 *_Mira Hale_* @mhale.\nRIG-BODY'
-rigSend client-ndm magic-team --address-to client-ndm
-rigAssert "itself: its own row and its real mention"                       "$( rigText )" '🐭 *_Iris Marsh_* @imarsh → 🐭 *_Iris Marsh_* <@URIGNDM>.\nRIG-BODY'
-rigSkill client-mel active Mira Hale '' ; rigBuild
-rigSend client-ndm magic-team --address-to client-mel
-rigAssert "an addressee client whose row lacks the alias reads under the sender's external mark, names and alias" "$( rigText ) $( rigBodyHas 'Mira' ) $( rigBodyHas 'client-mel' )" '🐭 *_Iris Marsh_* @imarsh → 🐭 *_Iris Marsh_* @imarsh.\nRIG-BODY 0 0'
+rigAssert "an addressee client reads under the persona's row, which is its own row"   "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* @dispatchr.\nRIG-BODY'
 rigLinkDrop client-mel ; rigBuild
 rigSend client-ndm magic-team --address-to client-mel
-rigAssert "an addressee client with no row at all reads the same"          "$( rigText ) $( rigBodyHas 'client-mel' )" '🐭 *_Iris Marsh_* @imarsh → 🐭 *_Iris Marsh_* @imarsh.\nRIG-BODY 0'
+rigAssert "an addressee client with no row reads under the sender's external names, the same text" "$( rigText ) $( rigBodyHas 'client-mel' )" '🐭 *_Magic Vane_* @dispatchr → 🐭 *_Magic Vane_* @dispatchr.\nRIG-BODY 0'
+rigWorld
+
+echo "-- 11b. a persona's override reaches the client rows at the next build only --"
+rigScopeRaw "$rigPersona" FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=pr.manager
+rigSend client-ndm magic-team
+rigAssert "before the build: the client's external header is unchanged"    "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "and both client rows and the persona's own row are unchanged"   "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel ) $( rigIndexRow "$rigPersona" )" "client-ndm|🐭|Magic|Vane|dispatchr client-mel|🐭|Magic|Vane|dispatchr $rigPersona|🐭|Magic|Vane|dispatchr"
+rigBuild
+rigSend client-ndm magic-team
+rigAssert "after the build: the client's external header is the override"  "$( rigText )" '🐭 *_Alexa Quill_* @pr.manager → @here.\nRIG-BODY'
+rigAssert "both client rows and the persona's own row carry it"            "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel ) $( rigIndexRow "$rigPersona" )" "client-ndm|🐭|Alexa|Quill|pr.manager client-mel|🐭|Alexa|Quill|pr.manager $rigPersona|🐭|Alexa|Quill|pr.manager"
 rigSend client-ndm magic-team --identity-bot
-rigAssert "control: the same sender as the shared bot (internal) is its member name with its row alias" "$( rigText )" '🐭 *_client-ndm_* @imarsh → @here.\nRIG-BODY'
+rigAssert "control: the same client as the shared bot shows its member name with the overridden alias" "$( rigText )" '🐭 *_client-ndm_* @pr.manager → @here.\nRIG-BODY'
+rigWorld ; rigScope "$rigPersona" FIRST_NAME=Alexa
+rigAssert "FIRST_NAME alone: the family and alias stay from the bullets"   "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Alexa|Vane|dispatchr'
+rigWorld ; rigScope "$rigPersona" FAMILY_NAME=Quill
+rigAssert "FAMILY_NAME alone: the first name and alias stay from the bullets" "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Magic|Quill|dispatchr'
+rigWorld ; rigScope "$rigPersona" ALIAS=pr.manager
+rigAssert "ALIAS alone: the names stay from the bullets"                   "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Magic|Vane|pr.manager'
+rigWorld ; rigScope "$rigPersona" FIRST_NAME=Alexa
+rigBullets "$rigPersona" 'Wren Skinner.' dispatchr 🐭
+rigSend client-ndm magic-team
+rigAssert "a persona bullet edited without a rebuild is not followed"      "$( rigText )" '🐭 *_Alexa Vane_* @dispatchr → @here.\nRIG-BODY'
+rigBuild
+rigAssert "after the build the bullet's family and the override's first name are both there" "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Alexa|Skinner|dispatchr'
+rigBullets "$rigPersona" 'Wren Skinner.' dispatchr 🦊
+rigBuild
+rigAssert "the persona's mark, edited and rebuilt, is every client's mark"  "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel )" 'client-ndm|🦊|Alexa|Skinner|dispatchr client-mel|🦊|Alexa|Skinner|dispatchr'
 rigWorld
 
 echo "-- 12. the addressee: a missing directory refuses, a directory with no row is plain --"
@@ -376,7 +415,7 @@ rigSend keeper-myx magic-team --address-to client-ndm
 rigAssert "a client addressee in an internal send with no registry: plain" "$rigRc $( rigText )" '0 *_keeper-myx_* @keeper-myx → *_client-ndm_* @client-ndm.\nRIG-BODY'
 rigSend client-ndm magic-team
 rigAssert "control: the external client send with no registry still refuses" "$rigRc $( rigNoCalls )" "1 0"
-rigWorldPlain ; rigSkill keeper-plain active Plain Keeper '' ; rigSkill keeper-myx active Forge Keeper '' ; rigBuild
+rigWorldPlain ; rigBullets keeper-plain 'Plain Keeper.' '' 🔨 ; rigBullets keeper-myx 'Forge Keeper.' '' 🔧 ; rigBuild
 rigSend keeper-myx magic-team --address-to keeper-plain
 rigAssert "a row with no alias, sender and addressee: the mark is kept, the member name is the alias" "$( rigText )" '🔧 *_keeper-myx_* @keeper-myx → 🔨 *_keeper-plain_* @keeper-plain.\nRIG-BODY'
 rigWorldPlain
@@ -399,15 +438,15 @@ rm -f "$rigMembersFile"
 rigSend client-ndm magic-team
 rigAssert "the team-members registry is not read by a send: deleting it changes nothing" "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
 rigWorldPlain
-rigSkill keeper-myx active Forge Keeper changed
+rigBullets keeper-myx 'Forge Keeper.' changed 🔧
 rigSend keeper-myx magic-team
-rigAssert "a SKILL.md edited without a rebuild is not followed"            "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
+rigAssert "a basic.md Alias edited without a rebuild is not followed"      "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 rigBuild
 rigSend keeper-myx magic-team
 rigAssert "control: after the build the same edit is followed"             "$( rigText )" '🔧 *_keeper-myx_* @changed → @here.\nRIG-BODY'
 rigWorldPlain
 rigScopeRaw keeper-myx ALIAS=scoped FIRST_NAME=Other
-rigScopeRaw client-ndm FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=aquill
+rigScopeRaw "$rigPersona" FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=aquill
 rigSend keeper-myx magic-team
 rigAssert "a scope edited without a rebuild is not followed: internal"     "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 rigSend client-ndm magic-team
@@ -416,18 +455,22 @@ rigBuild
 rigSend keeper-myx magic-team
 rigAssert "control: after the build the scope alias is followed"           "$( rigText )" '🔧 *_keeper-myx_* @scoped → @here.\nRIG-BODY'
 rigSend client-ndm magic-team
-rigAssert "control: and the client's scope first and family name and alias" "$( rigText )" '🐭 *_Alexa Quill_* @aquill → @here.\nRIG-BODY'
+rigAssert "control: and the persona's scope names are the client's"        "$( rigText )" '🐭 *_Alexa Quill_* @aquill → @here.\nRIG-BODY'
 rigWorldPlain
-rigBasic keeper-myx '- **Unicode character**: 🪛'
+rigBullets keeper-myx 'Forge Keeper.' forge 🪛
 rigSend keeper-myx magic-team
 rigAssert "a basic.md mark edited without a rebuild is not followed"       "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 rigBuild
 rigSend keeper-myx magic-team
 rigAssert "control: after the build it is"                                 "$( rigText )" '🪛 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 rigWorldPlain
-rm -f "$rigSkills/client-ndm/SKILL.md" "$rigSkills/client-ndm/client-ndm.basic.md" "$rigSkills/keeper-myx/SKILL.md" "$rigSkills/keeper-myx/keeper-myx.basic.md" "$rigLinkedFile"
+rigSkill keeper-myx reference-only
+rigSend keeper-myx magic-team
+rigAssert "a SKILL.md status edited without a rebuild changes nothing, and a send never reads it" "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
+rigWorldPlain
+rm -f "$rigSkills/client-ndm/SKILL.md" "$rigSkills/client-ndm/client-ndm.basic.md" "$rigSkills/keeper-myx/SKILL.md" "$rigSkills/keeper-myx/keeper-myx.basic.md" "$rigSkills/$rigPersona/$rigPersona.basic.md" "$rigLinkedFile"
 rigSend client-ndm magic-team
-rigAssert "the skill files and the linked-members index deleted after the build change nothing: external" "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "the skill and basic files and the linked-members index deleted after the build change nothing: external" "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
 rigSend keeper-myx magic-team --address-to client-ndm
 rigAssert "and internal"                                                   "$( rigText )" '🔧 *_keeper-myx_* @forge → 🐭 *_client-ndm_* @dispatchr.\nRIG-BODY'
 rigWorldPlain ; rigScopeRaw keeper-plain ALIAS=scopedplain ; rigBuild
@@ -447,24 +490,29 @@ rigWorld
 
 echo "-- 14. the build output --"
 rigWorld
-rigBasic keeper-quoted '- **Slack shortcode**: :hammer:' '- **Unicode character**: 🔨'
-rigSkill keeper-quoted active '"Zoe"' "'Marsh'" 'q.h'
-rigSkill keeper-spaced active 'Mary Ann' 'van der Berg' 'spaced'
-rigSkill keeper-undund active 'A_b' 'Cee' 'undund'
-rigSkill keeper-aliasspace active 'Ada' 'Lee' 'bad alias'
-rigSkill keeper-scopespace active 'Bea' 'Fox' 'scopey'
-rigSkill keeper-undecided active 'not decided yet' Voss vossy
-rigSkill keeper-badalias active Ira Dale 'bad!'
-rigSkill keeper-ref reference-only 'not decided yet' '' 'bad!'
-rigSkill keeper-nobasic active No Basic nobasic
-rigBasic keeper-nofile '- **Unicode character**: 🔨'
-rigBasic keeper-mixed '- **Unicode character**: 🔨'
-rigSkill keeper-mixed active Mia '' ''
-rigBasic keeper-notlinked '- **Unicode character**: 🔨'
-rigSkill keeper-notlinked active Not Linked notlinked
-for rigMember in keeper-quoted keeper-spaced keeper-undund keeper-aliasspace keeper-scopespace keeper-undecided keeper-badalias keeper-ref keeper-nobasic keeper-nofile keeper-mixed ; do rigLinkAdd "$rigMember" "$rigWsName" ; done
+rigBullets keeper-w2 'Wren Skinner.' wren 🔧 ; rigSkill keeper-w2 active
+rigBullets keeper-w1 'Cher.' cher 🔧
+rigBullets keeper-w3 'Mary Ann Smith.' mary 🔧
+rigBullets keeper-w5 'Mary Ann van der Berg' mary5 🔧
+rigBullets keeper-bt '`Wren Skinner`.' bt 🔧
+rigBullets keeper-prose 'Wren Skinner, the forge keeper of the old tower.' prose 🔧
+rigBullets keeper-quote 'Wren "Skin" ner.' quote 🔧
+rigBullets keeper-noname '' noname 🔧
+rigBullets keeper-aq 'Aq Name.' 'a"b' 🔧
+rigBullets keeper-ab 'Ab Name.' 'bad!' 🔧
+rigBullets keeper-sc 'Sc Name.' scopey 🔧
+rigBullets keeper-sq 'Sq Name.' sqey 🔧
+rigBullets keeper-ud 'Ud Name.' udey 🔧
+rigBullets keeper-mix 'Mia.' '' 🔧
+rigBullets keeper-ref '' '' '' ; rigSkill keeper-ref reference-only
+rigSkill keeper-nb active
+rigBullets keeper-notlinked 'Not Linked.' notlinked 🔧
+rigBasic keeper-sh '- **Slack shortcode**: :hammer:' '- **Unicode character**: 🔨' '- **Name**: Hammer Hand.' '- **Alias**: `hh`.'
+for rigMember in keeper-w2 keeper-w1 keeper-w3 keeper-w5 keeper-bt keeper-prose keeper-quote keeper-noname keeper-aq keeper-ab keeper-sc keeper-sq keeper-ud keeper-mix keeper-ref keeper-nb keeper-sh ; do rigLinkAdd "$rigMember" "$rigWsName" ; done
 rigScopeRaw keeper-myx FIRST_NAME=Override
-rigScopeRaw keeper-scopespace 'ALIAS=has space'
+rigScopeRaw keeper-sc 'ALIAS=has space'
+rigScopeRaw keeper-sq 'ALIAS=a"b'
+rigScopeRaw keeper-ud 'FIRST_NAME=not decided yet'
 mkdir -p "$rigAgentsDir"
 printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 'seed-replies\n' > "$rigAgentsDir/pending-replies.registry" ; printf 'seed-log\n' > "$rigAgentsDir/comms-slack-send.log"
 rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )"
@@ -473,41 +521,48 @@ rigAssert "the build exits 0 and prints nothing on stdout"                 "$rig
 rigAssert "the build makes exactly the two registries and keeps the other files: the folder holds the two and the three seeded" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.log pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
 rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )" "$rigSeedSum"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
-rigAssert "a normal row: member, mark, first, family, alias"               "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Magic|Vane|dispatchr'
-rigAssert "the persona member's row is an ordinary row"                    "$( rigIndexRow "$rigPersona" )" "$rigPersona|🐭|Magic|Vane|dispatchr"
-rigAssert "a scope FIRST_NAME replaces the frontmatter first-name at build" "$( rigIndexRow keeper-myx )" 'keeper-myx|🔧|Override|Keeper|forge'
-rigAssert "a name with spaces is stored with underscores, no warning"      "$( rigIndexRow keeper-spaced ) $( rigN "$rigTmp/build.err" 'member keeper-spaced:' )" 'keeper-spaced|-|Mary_Ann|van_der_Berg|spaced 0'
-rigAssert "a quoted first-name and family-name are stored -, the valid alias is kept; the mark is the shortcode" "$( rigIndexRow keeper-quoted )" 'keeper-quoted|:hammer:|-|-|q.h'
-rigAssert "a first-name holding an underscore is stored -"                 "$( rigIndexRow keeper-undund )" 'keeper-undund|-|-|Cee|undund'
-rigAssert "an alias with a space is stored - (the registry would have kept it as bad_alias)" "$( rigIndexRow keeper-aliasspace )" 'keeper-aliasspace|-|Ada|Lee|-'
-rigAssert "a scope ALIAS with a space is stored - as well"                 "$( rigIndexRow keeper-scopespace )" 'keeper-scopespace|-|Bea|Fox|-'
-rigAssert "not decided yet is stored -"                                    "$( rigIndexRow keeper-undecided )" 'keeper-undecided|-|-|Voss|vossy'
-rigAssert "an alias that is no handle is stored -"                         "$( rigIndexRow keeper-badalias )" 'keeper-badalias|-|Ira|Dale|-'
-rigAssert "a member with no basic.md has no mark: -"                       "$( rigIndexRow keeper-nobasic )" 'keeper-nobasic|-|No|Basic|nobasic'
-rigAssert "a reference-only member: every bad value is -"                  "$( rigIndexRow keeper-ref )" 'keeper-ref|-|-|-|-'
-rigAssert "a linked member with no SKILL.md: its mark from basic.md, three dashes" "$( rigIndexRow keeper-nofile )" 'keeper-nofile|🔨|-|-|-'
-rigAssert "a member with a SKILL.md but no path in this workspace has no row in either file" "$( LC_ALL=C grep -c 'keeper-notlinked' "$rigNamesFile" "$rigMembersFile" | LC_ALL=C tr '\n' ' ' )" "$rigNamesFile:0 $rigMembersFile:0 "
-rigAssert "the row count: one per member linked in this workspace, in both files" "$( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "15 15"
+rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
+rigAssert "the persona member's own row is an ordinary row"                "$( rigIndexRow "$rigPersona" )" "$rigPersona|🐭|Magic|Vane|dispatchr"
+rigAssert "the clients' rows are the persona's"                            "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel )" 'client-ndm|🐭|Magic|Vane|dispatchr client-mel|🐭|Magic|Vane|dispatchr'
+rigAssert "a scope FIRST_NAME replaces the bullet's first name at build"   "$( rigIndexRow keeper-myx )" 'keeper-myx|🔧|Override|Keeper|forge'
+rigAssert "a one-word Name: first name only, the family is -"              "$( rigIndexRow keeper-w1 )" 'keeper-w1|🔧|Cher|-|cher'
+rigAssert "a three-word Name: first, then the rest with an underscore"     "$( rigIndexRow keeper-w3 )" 'keeper-w3|🔧|Mary|Ann_Smith|mary'
+rigAssert "a Name with no final period is split the same"                  "$( rigIndexRow keeper-w5 )" 'keeper-w5|🔧|Mary|Ann_van_der_Berg|mary5'
+rigAssert "a Name in backticks has them removed"                           "$( rigIndexRow keeper-bt )" 'keeper-bt|🔧|Wren|Skinner|bt'
+rigAssert "a prose Name line is absent: first and family -"                "$( rigIndexRow keeper-prose )" 'keeper-prose|🔧|-|-|prose'
+rigAssert "a Name holding double quotes is absent"                         "$( rigIndexRow keeper-quote )" 'keeper-quote|🔧|-|-|quote'
+rigAssert "no Name line is absent"                                         "$( rigIndexRow keeper-noname )" 'keeper-noname|🔧|-|-|noname'
+rigAssert "an Alias with a double quote is absent"                         "$( rigIndexRow keeper-aq )" 'keeper-aq|🔧|Aq|Name|-'
+rigAssert "an Alias that is no handle is absent"                           "$( rigIndexRow keeper-ab )" 'keeper-ab|🔧|Ab|Name|-'
+rigAssert "a scope ALIAS with a space is stored -, though the bullet was good" "$( rigIndexRow keeper-sc )" 'keeper-sc|🔧|Sc|Name|-'
+rigAssert "a scope ALIAS with a double quote is stored -"                  "$( rigIndexRow keeper-sq )" 'keeper-sq|🔧|Sq|Name|-'
+rigAssert "a scope first name of not decided yet is stored -, the bullet is not used instead" "$( rigIndexRow keeper-ud )" 'keeper-ud|🔧|-|Name|udey'
+rigAssert "no Alias line and a one-word Name: the mark, and two dashes after the first name" "$( rigIndexRow keeper-mix )" 'keeper-mix|🔧|Mia|-|-'
+rigAssert "a reference-only member with nothing: every field -"            "$( rigIndexRow keeper-ref )" 'keeper-ref|-|-|-|-'
+rigAssert "a linked member with only a SKILL.md and no basic.md: all dashes" "$( rigIndexRow keeper-nb )" 'keeper-nb|-|-|-|-'
+rigAssert "a member with a shortcode and a unicode character: the shortcode is the mark" "$( rigIndexRow keeper-sh )" 'keeper-sh|:hammer:|Hammer|Hand|hh'
+rigAssert "a member with bullets but no path in this workspace has no row in either file" "$( LC_ALL=C grep -c 'keeper-notlinked' "$rigNamesFile" "$rigMembersFile" | LC_ALL=C tr '\n' ' ' )" "$rigNamesFile:0 $rigMembersFile:0 "
+rigAssert "the row count: one per member linked in this workspace, in both files" "$( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "21 21"
 rigAssert "every names row has exactly five whitespace-separated fields, no header" "$( LC_ALL=C awk 'NF != 5 { bad++ } END { print bad + 0 }' "$rigNamesFile" )" 0
 rigAssert "every team-members row has exactly four"                        "$( LC_ALL=C awk 'NF != 4 { bad++ } END { print bad + 0 }' "$rigMembersFile" )" 0
 rigAssert "a team-members row is member, workspace, link kind, path"       "$( LC_ALL=C grep '^client-ndm ' "$rigMembersFile" )" "client-ndm $rigWsName source-symlink myx/pkg/skillset/client-ndm"
-rigAssert "the decoy bullet Names and Aliases are in no row"               "$( LC_ALL=C grep -c -i 'bullet' "$rigNamesFile" || : )" 0
-rigAssert "the warnings are on stderr in the package style, twelve in all, and no error" "$( LC_ALL=C grep -c '^⚠️ WARNING: DistroAgentsTools --make-agents-indices: member ' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c '🙋' "$rigTmp/build.err" || : )" "12 0 0"
-rigAssert "every warning ends with the plain-value hint"                   "$( LC_ALL=C grep -c 'WARNING: .* is missing or not valid in its SKILL.md (the value must be an unquoted plain value)$' "$rigTmp/build.err" || : )" 12
-rigAssert "undecided first-name warns"                                     "$( rigN "$rigTmp/build.err" "$rigOpName: member keeper-undecided: required field first-name is missing or not valid in its SKILL.md" )" 1
-rigAssert "the bad alias, the spaced alias and the scope alias with a space warn"  "$( rigN "$rigTmp/build.err" "member keeper-badalias: required field alias" ) $( rigN "$rigTmp/build.err" "member keeper-aliasspace: required field alias" ) $( rigN "$rigTmp/build.err" "member keeper-scopespace: required field alias" )" "1 1 1"
-rigAssert "the quoted names warn once each, the underscore name once"      "$( rigN "$rigTmp/build.err" "member keeper-quoted: required field first-name" ) $( rigN "$rigTmp/build.err" "member keeper-quoted: required field family-name" ) $( rigN "$rigTmp/build.err" "member keeper-undund: required field first-name" )" "1 1 1"
-rigAssert "a member lacking family-name and alias warns for each"          "$( rigN "$rigTmp/build.err" "member keeper-mixed: required field family-name" ) $( rigN "$rigTmp/build.err" "member keeper-mixed: required field alias" )" "1 1"
-rigAssert "a linked member with no SKILL.md warns for all three"           "$( rigN "$rigTmp/build.err" "member keeper-nofile: required field" )" 3
-rigAssert "no warning for the reference-only member, the one with no mark, the spaced one, or the valid ones" "$( LC_ALL=C grep -c -E 'member (keeper-ref|keeper-nobasic|keeper-spaced|keeper-myx|client-ndm|client-mel|magic-coordinator):' "$rigTmp/build.err" || : )" 0
-rigAssert "a note per file on stderr: the path and the row count"          "$( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigMembersFile (15 rows)" ) $( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigNamesFile (15 rows)" )" "1 1"
+rigAssert "the decoy SKILL.md names are in no row"                         "$( LC_ALL=C grep -c -i 'decoy' "$rigNamesFile" || : )" 0
+rigAssert "the warnings are in the package style on stderr, seventeen in all, and no error, no earlier style" "$( LC_ALL=C grep -c '^⚠️ WARNING: DistroAgentsTools --make-agents-indices: member ' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( LC_ALL=C grep -c '🙋' "$rigTmp/build.err" || : )" "17 0 0"
+rigAssert "every warning ends with the bullets hint, and none says SKILL.md"  "$( LC_ALL=C grep -c 'WARNING: .* is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)$' "$rigTmp/build.err" || : ) $( LC_ALL=C grep 'WARNING' "$rigTmp/build.err" | LC_ALL=C grep -c 'SKILL.md' || : )" "17 0"
+rigAssert "a one-word Name warns for the family name only"                 "$( rigWarnsOf 'member keeper-w1: required field family-name' ) $( rigWarnsOf 'member keeper-w1: required field first-name' )" "1 0"
+rigAssert "a prose Name warns for both names, and so does a quoted one and a missing one" "$( rigWarnsOf 'member keeper-prose: required field' ) $( rigWarnsOf 'member keeper-quote: required field' ) $( rigWarnsOf 'member keeper-noname: required field' )" "2 2 2"
+rigAssert "a bad Alias bullet warns once, so does a bad scope alias, and the scope first name"  "$( rigWarnsOf 'member keeper-aq: required field alias' ) $( rigWarnsOf 'member keeper-ab: required field alias' ) $( rigWarnsOf 'member keeper-sc: required field alias' ) $( rigWarnsOf 'member keeper-sq: required field alias' ) $( rigWarnsOf 'member keeper-ud: required field first-name' )" "1 1 1 1 1"
+rigAssert "a member lacking family-name and alias warns for each"          "$( rigWarnsOf 'member keeper-mix: required field family-name' ) $( rigWarnsOf 'member keeper-mix: required field alias' )" "1 1"
+rigAssert "a linked member with no basic.md warns for all three"           "$( rigWarnsOf 'member keeper-nb: required field' )" 3
+rigAssert "no warning for the reference-only member, the plain ones, the clients or the persona" "$( LC_ALL=C grep -c -E 'member (keeper-ref|keeper-w2|keeper-w3|keeper-w5|keeper-bt|keeper-sh|keeper-myx|client-ndm|client-mel|magic-coordinator):' "$rigTmp/build.err" || : ) $( rigWarnsOf 'persona member' )" "0 0"
+rigAssert "a note per file on stderr: the path and the row count"          "$( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigMembersFile (21 rows)" ) $( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigNamesFile (21 rows)" )" "1 1"
 rigSum="$( cat "$rigMembersFile" "$rigNamesFile" | cksum )"
 rigBuild extra
 rigAssert "an extra argument is refused: exit 1, named, nothing on stdout" "$rigBuildRc $( rigN "$rigTmp/build.err" "$rigOpName takes no arguments, got: extra" ) $( rigLines "$rigTmp/build.out" )" "1 1 0"
 rigAssert "and both registries are as they were"                           "$( cat "$rigMembersFile" "$rigNamesFile" | cksum )" "$rigSum"
-rigLinkDrop keeper-quoted ; rigLinkDrop keeper-spaced
+rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
-rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-quoted )$( LC_ALL=C grep -c 'keeper-spaced' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 13 13"
+rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
 rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 5"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild
@@ -523,10 +578,8 @@ rigWorld
 
 echo "-- 15. the team-members registry holds this workspace's members only --"
 rigWorld
-rigSkill keeper-both active Both Member bothy
-rigSkill keeper-away active Away Member awayy
-rigSkill keeper-prefix active Pre Fix prefixy
-rigSkill keeper-suffix active Suf Fix suffixy
+rigBullets keeper-both 'Both Member.' bothy 🔧 ; rigBullets keeper-away 'Away Member.' awayy 🔧
+rigBullets keeper-prefix 'Pre Fix.' prefixy 🔧 ; rigBullets keeper-suffix 'Suf Fix.' suffixy 🔧
 rigLinkAdd keeper-both "$rigWsName" 'myx/here/skillset/keeper-both'
 rigLinkAdd keeper-both other-ws 'OTHERPATH/keeper-both'
 rigLinkAdd keeper-away other-ws 'OTHERPATH/keeper-away'
@@ -538,86 +591,113 @@ rigAssert "a member in this and another workspace has one row, with this workspa
 rigAssert "a member in another workspace only has no row in either file"   "$( LC_ALL=C grep -c 'keeper-away' "$rigMembersFile" "$rigNamesFile" | LC_ALL=C tr '\n' ' ' )" "$rigMembersFile:0 $rigNamesFile:0 "
 rigAssert "a workspace whose name only starts or ends with this one's gets no row" "$( LC_ALL=C grep -c -E 'keeper-(prefix|suffix)' "$rigMembersFile" "$rigNamesFile" | LC_ALL=C tr '\n' ' ' )" "$rigMembersFile:0 $rigNamesFile:0 "
 rigAssert "nothing in either file names the other workspace or a path of it" "$( LC_ALL=C grep -c -E 'OTHERPATH|other-ws' "$rigMembersFile" "$rigNamesFile" | LC_ALL=C tr '\n' ' ' )" "$rigMembersFile:0 $rigNamesFile:0 "
-rigAssert "the names row of the shared member is there once"               "$( rigIndexRow keeper-both )" 'keeper-both|-|Both|Member|bothy'
+rigAssert "the names row of the shared member is there once"               "$( rigIndexRow keeper-both )" 'keeper-both|🔧|Both|Member|bothy'
 rigAssert "the other members' rows are the four of the world and the one shared member, in both files" "$( rigLines "$rigMembersFile" ) $( rigLines "$rigNamesFile" )" "5 5"
 rm -f "$rigLinkedFile"
 rigBuild
 rigAssert "with no linked-members index at all both registries are empty and the build succeeds" "$rigBuildRc $( rigLines "$rigMembersFile" ) $( rigLines "$rigNamesFile" ) $( [ -f "$rigMembersFile" ] && [ -f "$rigNamesFile" ] && printf files || printf missing )" "0 0 0 files"
 rigWorld
 
-echo "-- 16. a value in a scope that cannot be stored is -, warned about, and refuses an external send --"
-rigScopeBad(){ ## label, member, KEY=value line, the frontmatter key named in the warning
+echo "-- 16. a value in a scope that cannot be stored is -, warned about --"
+rigScopeBad(){ ## label, member, KEY=value line, the field named in the warning
 	rigWorldPlain ; rigScopeRaw "$2" "$3" ; rigBuild
-	rigAssert "$1: the field is - in the row and the build warns once, exit 0" "$rigBuildRc $( rigDashes "$2" ) $( rigN "$rigTmp/build.err" "member $2: required field $4 is missing or not valid in its SKILL.md" )" "0 1 1"
+	rigAssert "$1: the field is - in the row and the build warns once, exit 0" "$rigBuildRc $( rigDashes "$2" ) $( rigWarnsOf "indices: member $2: required field $4 is missing or not valid in its basic.md" )" "0 1 1"
 }
-rigBadValues=( 'a"b' 'a\b' "a$( printf '\001' )b" "a$( printf '\302\205' )b" 'a_b' )
-rigBadNames=( 'a double quote' 'a backslash' 'a control byte' 'a C1 control byte (C2 85)' 'an underscore' )
+rigBadValues=( 'a"b' 'a\b' "a$( printf '\001' )b" "a$( printf '\302\205' )b" 'a_b' '"Magic"' "'Magic'" )
+rigBadNames=( 'a double quote' 'a backslash' 'a control byte' 'a C1 control byte (C2 85)' 'an underscore' 'double quotes around it' 'single quotes around it' )
 rigAt=0
 for rigValue in "${rigBadValues[@]}" ; do
-	rigScopeBad "FIRST_NAME with ${rigBadNames[$rigAt]}" client-ndm "FIRST_NAME=$rigValue" first-name
+	rigScopeBad "persona FIRST_NAME with ${rigBadNames[$rigAt]}" "$rigPersona" "FIRST_NAME=$rigValue" first-name
+	rigAssert "persona FIRST_NAME with ${rigBadNames[$rigAt]}: the persona warns, and the clients' rows are dashes" "$( rigWarnsOf "persona member $rigPersona: required field first-name" ) $( rigIndexRow client-ndm )" "1 client-ndm|-|-|-|-"
 	rigSend client-ndm magic-team
-	rigAssert "FIRST_NAME with ${rigBadNames[$rigAt]}: the external send refuses naming first-name, nothing sent" "$rigRc $( rigN "$rigTmp/err" "in its SKILL.md and in the team-members-names registry: missing first-name; nothing was sent" ) $( rigNoCalls ) $( rigNoBodies )" "1 1 0 0"
+	rigAssert "persona FIRST_NAME with ${rigBadNames[$rigAt]}: the external send refuses, nothing sent" "$rigRc $( rigN "$rigTmp/err" "missing first-name, family-name, alias; nothing was sent" ) $( rigNoCalls ) $( rigNoBodies )" "1 1 0 0"
 	rigAt=$(( rigAt + 1 ))
 done
-rigScopeBad "FAMILY_NAME with a quote" client-ndm 'FAMILY_NAME=Q"u' family-name
+rigScopeBad "persona FAMILY_NAME with a quote" "$rigPersona" 'FAMILY_NAME=Q"u' family-name
+rigScopeBad "persona ALIAS with a space" "$rigPersona" 'ALIAS=a b' alias
+rigScopeBad "persona ALIAS starting with a dash" "$rigPersona" 'ALIAS=-dash' alias
+rigScopeBad "persona ALIAS with a double quote" "$rigPersona" 'ALIAS=a"b' alias
+rigScopeBad "persona ALIAS with a slash" "$rigPersona" 'ALIAS=a/b' alias
 rigSend client-ndm magic-team
-rigAssert "FAMILY_NAME with a quote: refuses, no fallback to the frontmatter value" "$rigRc $( rigN "$rigTmp/err" "missing family-name; nothing was sent" ) $( rigBodyHas 'Vane' )" "1 1 0"
-rigScopeBad "ALIAS with a space" client-ndm 'ALIAS=a b' alias
-rigScopeBad "ALIAS starting with a dash" client-ndm 'ALIAS=-dash' alias
-rigScopeBad "ALIAS with a double quote" client-ndm 'ALIAS=a"b' alias
-rigScopeBad "ALIAS with a slash" client-ndm 'ALIAS=a/b' alias
-rigSend client-ndm magic-team
-rigAssert "ALIAS with a slash: the external send refuses naming alias"     "$rigRc $( rigN "$rigTmp/err" "missing alias; nothing was sent" )" "1 1"
+rigAssert "persona ALIAS with a slash: the external send refuses, no fallback to the bullet alias" "$rigRc $( rigNoCalls ) $( rigBodyHas 'dispatchr' )" "1 0 0"
 rigScopeBad "an ordinary member's ALIAS with a space" keeper-myx 'ALIAS=a b' alias
+rigAssert "and its own warning is the member one, the clients' rows are untouched" "$( rigWarnsOf 'persona member' ) $( rigIndexRow client-ndm )" '0 client-ndm|🐭|Magic|Vane|dispatchr'
 rigSend keeper-myx magic-team
 rigAssert "an ordinary sender with an alias stored -: its member name, its mark, sent" "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @keeper-myx → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope client-ndm 'FIRST_NAME=' 'ALIAS='
-rigAssert "sibling: an empty scope value is unset, the frontmatter applies, no warning" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Magic|Vane|dispatchr 0'
+rigWorldPlain ; rigScope "$rigPersona" 'FIRST_NAME=' 'ALIAS='
+rigAssert "sibling: an empty scope value is unset, the bullets apply, no warning" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Magic|Vane|dispatchr 0'
 rigSend client-ndm magic-team
 rigAssert "sibling: and the external send goes out"                        "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope client-ndm FIRST_NAME=Alexa ALIAS=pr.manager
+rigWorldPlain ; rigScope "$rigPersona" FIRST_NAME=Alexa ALIAS=pr.manager
 rigAssert "sibling: valid values are stored, no warning"                   "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Alexa|Vane|pr.manager 0'
 rigSend client-ndm magic-team
 rigAssert "sibling: and they are what the external send shows"             "$rigRc $( rigText )" '0 🐭 *_Alexa Vane_* @pr.manager → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope client-ndm 'FIRST_NAME=Mary Ann'
+rigWorldPlain ; rigScope "$rigPersona" 'FIRST_NAME=Mary Ann'
 rigAssert "sibling: a scope first name with a space is valid, stored with an underscore" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Mary_Ann|Vane|dispatchr 0'
 rigSend client-ndm magic-team
 rigAssert "sibling: and it reads back with the space"                      "$( rigText )" '🐭 *_Mary Ann Vane_* @dispatchr → @here.\nRIG-BODY'
 
-echo "-- 17. scope keys at build: each replaces its own field only --"
-rigWorldPlain ; rigScope client-ndm FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=pr.manager
-rigSend client-ndm magic-team
-rigAssert "all three: the external header shows Alexa Quill and @pr.manager" "$rigRc $( rigText )" '0 🐭 *_Alexa Quill_* @pr.manager → @here.\nRIG-BODY'
-rigAssert "the blocks carry the same, and no frontmatter value"            "$( rigBodyHas '"text":"Alexa Quill","style":{"bold":true,"italic":true}' ) $( rigBodyHas '" @pr.manager "' ) $( rigBodyHas 'Magic' ) $( rigBodyHas 'dispatchr' )" "1 1 0 0"
-rigWorldPlain ; rigScope client-ndm FIRST_NAME=Alexa
-rigSend client-ndm magic-team
-rigAssert "FIRST_NAME alone: the family and alias come from the frontmatter" "$( rigText )" '🐭 *_Alexa Vane_* @dispatchr → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope client-ndm FAMILY_NAME=Quill
-rigSend client-ndm magic-team
-rigAssert "FAMILY_NAME alone: the first name and alias come from the frontmatter" "$( rigText )" '🐭 *_Magic Quill_* @dispatchr → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope client-ndm ALIAS=pr.manager
-rigSend client-ndm magic-team
-rigAssert "ALIAS alone changes the handle and keeps the names"             "$( rigText )" '🐭 *_Magic Vane_* @pr.manager → @here.\nRIG-BODY'
-rigWorldPlain ; rigScope "$rigPersona" FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=pr.manager
-rigSend client-ndm magic-team
-rigAssert "control: the persona member's own scope is no client's presentation" "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
+echo "-- 17. non-client members are unchanged: their own bullets and their own scope --"
 rigWorldPlain ; rigScope keeper-plain ALIAS=kplain ; rigScope keeper-myx ALIAS=kmyx
 rigSend keeper-myx magic-team
 rigAssert "an ordinary member's scope alias is its internal sender alias, the member name unchanged" "$( rigText )" '🔧 *_keeper-myx_* @kmyx → @here.\nRIG-BODY'
 rigSend keeper-myx magic-team --address-to keeper-plain
 rigAssert "an addressee with no Slack account shows its scope alias"       "$( rigText )" '🔧 *_keeper-myx_* @kmyx → 🔨 *_keeper-plain_* @kplain.\nRIG-BODY'
+rigAssert "the persona's row and the clients' are not touched by them"     "$( rigIndexRow "$rigPersona" ) $( rigIndexRow client-ndm )" "$rigPersona|🐭|Magic|Vane|dispatchr client-ndm|🐭|Magic|Vane|dispatchr"
 rigWorldPlain ; rigScope keeper-plain ALIAS=kplain
 rigSend keeper-myx magic-team
 rigAssert "control: another member's alias is untouched by it"             "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
+rigWorldPlain ; rigScope keeper-myx FIRST_NAME=Alexa FAMILY_NAME=Quill
+rigAssert "a non-client's own scope names replace its bullets'; the persona is not read for it" "$( rigIndexRow keeper-myx ) $( rigIndexRow "$rigPersona" )" "keeper-myx|🔧|Alexa|Quill|forge $rigPersona|🐭|Magic|Vane|dispatchr"
+rigWorldPlain ; rigScope "$rigPersona" FIRST_NAME=Alexa FAMILY_NAME=Quill ALIAS=pr.manager
+rigAssert "a persona override does not reach a non-client member"          "$( rigIndexRow keeper-myx ) $( rigIndexRow keeper-plain )" 'keeper-myx|🔧|Forge|Keeper|forge keeper-plain|🔨|Plain|Keeper|plainalias'
 rigWorldPlain
 for rigName in "Zoë" "Борис" "Ünal" ; do
-	rigScope client-ndm "FIRST_NAME=$rigName"
+	rigScope "$rigPersona" "FIRST_NAME=$rigName"
 	rigSend client-ndm magic-team
-	rigAssert "$rigName in FIRST_NAME: in the text, exactly"              "$rigRc $( rigText )" "0 🐭 *_$rigName Vane_* @dispatchr → @here.\\nRIG-BODY"
-	rigAssert "$rigName in FIRST_NAME: in the blocks, exactly"            "$( rigBodyHas "\"text\":\"$rigName Vane\",\"style\":{\"bold\":true,\"italic\":true}" )" 1
+	rigAssert "$rigName in the persona's FIRST_NAME: in the text, exactly" "$rigRc $( rigText )" "0 🐭 *_$rigName Vane_* @dispatchr → @here.\\nRIG-BODY"
+	rigAssert "$rigName in the persona's FIRST_NAME: in the blocks, exactly" "$( rigBodyHas "\"text\":\"$rigName Vane\",\"style\":{\"bold\":true,\"italic\":true}" )" 1
+	rigWorldPlain
 done
 
-echo "-- 18. static: the send reads team-members-names, the registries include reads the rest --"
+echo "-- 17b. the Name shapes of the persona's bullet --"
+rigShape(){ ## label, Name text as written (empty: no line), first, family, warnings (fields missing)
+	rigWorld ; rigBullets "$rigPersona" "$2" dispatchr 🐭 ; rigBuild
+	rigAssert "$1: the persona's own row"                                  "$( rigIndexRow "$rigPersona" )" "$rigPersona|🐭|$3|$4|dispatchr"
+	rigAssert "$1: warnings, as the persona and as a member"               "$( rigWarnsOf "persona member $rigPersona: required field" ) $( rigWarnsOf "indices: member $rigPersona: required field" )" "$5 $5"
+	rigSend client-ndm magic-team
+	if [ "$5" = 0 ] ; then
+		rigAssert "$1: the clients' rows are the persona's, and the external header is the name read back" "$( rigIndexRow client-ndm ) $rigRc $( rigText )" "client-ndm|🐭|$3|$4|dispatchr 0 🐭 *_$3 ${4//_/ }_* @dispatchr → @here.\\nRIG-BODY"
+	else
+		rigAssert "$1: the clients' rows are dashes, the external send refused with nothing posted" "$( rigIndexRow client-ndm ) $rigRc $( rigNoCalls )" "client-ndm|-|-|-|- 1 0"
+	fi
+}
+rigShape "two words with a final period" 'Magic Vane.' Magic Vane 0
+rigShape "two words, no period" 'Magic Vane' Magic Vane 0
+rigShape "one word with a period" 'Magic.' Magic - 1
+rigShape "one word" 'Magic' Magic - 1
+rigShape "three words" 'Mary Ann Smith.' Mary Ann_Smith 0
+rigShape "a hyphenated word and an apostrophe" "Jean-Luc D'Arc." Jean-Luc D\'Arc 0
+rigShape "in backticks" '`Magic Vane`.' Magic Vane 0
+rigShape "a prose line with a comma" 'Magic Vane, the dispatcher.' - - 2
+rigShape "a prose line with a bracket" 'Magic Vane (the dispatcher).' - - 2
+rigShape "a prose line with a second sentence" 'Magic Vane. The dispatcher.' - - 2
+rigShape "a double space" 'Magic  Vane.' - - 2
+rigShape "a colon" 'Magic: Vane' - - 2
+rigShape "an at sign" 'Magic V@ne.' - - 2
+rigShape "no Name line" '' - - 2
+rigShape "a localised name" 'Zauberer Müller.' Zauberer Müller 0
+rigWorld
+
+echo "-- 17c. an Alias bullet with a space or a quote --"
+rigWorld ; rigBullets keeper-as 'As Name.' 'bad alias' 🔧 ; rigLinkAdd keeper-as "$rigWsName" ; rigBuild
+rigAssert "an Alias bullet with a space is cut at the space by the marks function, which stays as it was: the first word is the alias" "$( rigIndexRow keeper-as )" 'keeper-as|🔧|As|Name|bad'
+rigAssert "and does not warn, because what the registry reads is the marks function's output" "$( rigWarnsOf 'member keeper-as:' )" 0
+rigWorld ; rigBullets "$rigPersona" 'Magic Vane.' 'dis"patchr' 🐭 ; rigBuild
+rigAssert "a persona Alias bullet with a double quote is absent, and the clients' rows are dashes" "$( rigIndexRow "$rigPersona" ) $( rigIndexRow client-ndm )" "$rigPersona|🐭|Magic|Vane|- client-ndm|-|-|-|-"
+rigWorld
+
+echo "-- 18. static: the send reads team-members-names, the persona is named in one place --"
 rigNamers(){ ## file, pattern -- the functions holding a non-comment line that matches the pattern, one line, sorted
 	LC_ALL=C awk -v pat="$2" '/^case "\$1" in/ { fn = "(send dispatcher arm)" } /^[A-Za-z0-9_]+\(\)[ \t]*\{/ { fn = $1 ; sub(/\(\).*/, "", fn) } $0 ~ pat && $0 !~ /^[ \t]*#/ && fn != "" { print fn }' "$1" | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' '
 }
@@ -625,8 +705,8 @@ rigFnCut(){ ## file, function name -- that function's text, from its first line 
 	LC_ALL=C awk -v name="$2" 'index( $0, name "(){" ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$1"
 }
 rigAssert "the Slack include names no basic.md path in code"               "$( rigNamers "$rigInclude" '[.]basic[.]md' )" ""
-rigAssert "the registries include names a basic.md path in the marks function only" "$( rigNamers "$rigRegInclude" '[.]basic[.]md' )" "AgentsToolsCommsSlackMemberMarks "
-rigAssert "the registries include reads a member's scope in the names rows function only" "$( rigNamers "$rigRegInclude" '--member-config-option' )" "AgentsToolsRegistryTeamMembersNamesRows "
+rigAssert "the registries include names a basic.md path in the marks function and the Name bullet function only" "$( rigNamers "$rigRegInclude" '[.]basic[.]md' )" "AgentsToolsCommsSlackMemberMarks AgentsToolsRegistryMemberNameBullet "
+rigAssert "the registries include reads a member's scope in one function only" "$( rigNamers "$rigRegInclude" '--member-config-option' )" "AgentsToolsRegistryMemberNamesRead "
 rigAssert "the Slack include names no presentation scope key at all"       "$( LC_ALL=C grep -c -E 'FIRST_NAME|FAMILY_NAME|--select[ \"]*ALIAS' "$rigInclude" || : )" 0
 printf 'F(){\n\tx="$d/.basic.md"\n}\nG(){\n\ty="$d/.basic.md"\n}\n# the .basic.md again in a comment\n' > "$rigTmp/sample.include"
 rigAssert "control: a sample with two functions naming a basic.md is caught, a comment is not" "$( rigNamers "$rigTmp/sample.include" '[.]basic[.]md' )" "F G "
@@ -634,7 +714,13 @@ rigReadFn="$( rigFnCut "$rigInclude" AgentsToolsCommsSlackMemberPresentation )"
 rigAssert "control: the presentation function was cut out of the include"  "$( printf '%s\n' "$rigReadFn" | LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberPresentation(){' || : )" 1
 rigAssert "the presentation function names the names registry, once"       "$( printf '%s\n' "$rigReadFn" | LC_ALL=C grep -c "$rigNamesName" || : )" 1
 rigAssert "and no skill file, basic file, scope file, linked index or config read" "$( printf '%s\n' "$rigReadFn" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'SKILL[.]md|basic[.]md|agent[.]env|config-option|--select|linked|team-members[.]|AgentsToolsRegistryTeamMembersRows' || : )" 0
-rigAssert "control: the same pattern does find those in the names rows function" "$( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'SKILL[.]md|config-option|--select' || : )" -gt 0 ] && printf found || printf blind )" found
+rigAssert "control: the same pattern does find those in the names read function" "$( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryMemberNamesRead | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'config-option|--select' || : )" -gt 0 ] && printf found || printf blind )" found
+rigAssert "the persona member is assigned once in the registries include, as a whole line" "$( LC_ALL=C grep -c -x "registryPersonaMember=\"$rigPersona\"" "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^registryPersonaMember=' "$rigRegInclude" || : )" "1 1"
+rigAssert "and its literal name is written nowhere else in the registries include code" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigRegInclude" | LC_ALL=C grep -c -F -- "$rigPersona" || : )" 1
+rigAssert "the client branch names the constant, not a member: no literal member name in the Rows function" "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E '(magic|keeper|partner)-[a-z]' || : ) $( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -c 'registryPersonaMember' || : )" -gt 0 ] && printf names-it || printf blind )" "0 names-it"
+rigAssert "the Slack include holds no assignment of it"                    "$( LC_ALL=C grep -c -E 'registryPersonaMember=' "$rigInclude" || : )" 0
+printf 'registryPersonaMember="a"\nregistryPersonaMember="b"\n' > "$rigTmp/sample.include"
+rigAssert "control: a sample with two assignments counts two"              "$( LC_ALL=C grep -c '^registryPersonaMember=' "$rigTmp/sample.include" || : )" 2
 rigAssert "the earlier index include, its file name, its functions and its builder are gone" "$( cat "$rigHere"/*.include | LC_ALL=C grep -c -E 'member-presentation|AgentsToolsMemberIndex|AgentsTools[.]MemberIndex|slackPersonaMember|AgentsToolsCommsSlackPersonaMarks|AgentsToolsCommsSlackMemberDefaults|AgentsToolsCommsSlackPresentationInvalid|AgentsToolsCommsSlackMemberName' || : ) $( [ -e "$rigHere/AgentsTools.MemberIndex.include" ] && printf present || printf absent ) $( [ -e "$rigHere/AgentsToolsCommsSlackMemberName.awk" ] && printf present || printf absent ) $( [ -e "$rigPackage/builders/source-prepare/1000-make-member-index.sh" ] && printf present || printf absent )" "0 absent absent absent"
 rigAssert "control: the same read of all includes does find a function that is there" "$( cat "$rigHere"/*.include | LC_ALL=C grep -c -E 'AgentsToolsCommsSlackMemberPresentation|AgentsToolsRegistryAgentsIndicesBuild' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "found" : "blind" }' )" found
 rigAssert "the marks function is defined in the registries include, not the Slack include" "$( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^AgentsToolsCommsSlackMemberMarks(){' "$rigInclude" || : )" "1 0"
@@ -651,36 +737,31 @@ rigAssert "control: a name is not used as given, whatever it holds"        "$( r
 echo "-- 19. the two call places of the build --"
 rigBuilder="$rigPackage/builders/source-prepare/$rigBuilderName"
 rigLocalTools="$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn.sh"
-rigGuard='[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ||'
+rigMakeInclude="$rigHere/AgentsTools.Make.include"
 rigAssert "the builder is in builders/source-prepare of the agents package" "$( [ -f "$rigBuilder" ] && printf present || printf absent ) $( ls "$rigPackage/builders" )" "present source-prepare"
 rigAssert "and nothing of it is under sh-lib"                              "$( [ -e "$rigHere/builders" ] && printf present || printf absent ) $( ls "$rigHere" | LC_ALL=C grep -c -F -- "$rigBuilderName" || : )" "absent 0"
-rigAssert "the builder runs the build once, behind the guard that the agents script exists" "$( rigN "$rigBuilder" "$rigOpName" ) $( rigN "$rigBuilder" "$rigGuard" )" "1 1"
-rigAssert "the builder's one command line is that guard and the build"     "$( LC_ALL=C grep -F -- "$rigOpName" "$rigBuilder" | LC_ALL=C grep -c -F -- "$rigGuard \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh\" $rigOpName" || : )" 1
-rigAssert "the install block of Update Local Tools has the build line once" "$( rigN "$rigLocalTools" "$rigOpName" )" 1
-rigAssert "and it is guarded by the agents script existing"                "$( LC_ALL=C grep -F -- "$rigOpName" "$rigLocalTools" | LC_ALL=C grep -c -F -- "$rigGuard" || : )" 1
-rigAssert "and it comes straight after the make-workspace-integrations line" "$( LC_ALL=C grep -F -B1 -- "$rigOpName" "$rigLocalTools" | LC_ALL=C grep -c -F -- 'DistroLocalTools --make-workspace-integrations' || : )" 1
-rigAssert "control: a sample with the build line twice counts two"          "$( printf '%s\n%s\n' "x $rigOpName" "y $rigOpName" > "$rigTmp/sample.sh" ; rigN "$rigTmp/sample.sh" "$rigOpName" )" 2
-rigRunBuilder(){ ## origin -- the builder run under that origin, the rig workspace as the workspace; rc in rigRc
+rigAssert "the builder runs the build once, as the bare agents script name"  "$( rigN "$rigBuilder" "$rigOpName" ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigOpName" "$rigBuilder" || : )" "1 1"
+rigAssert "the Local Tools script holds no call of the build, in any spelling" "$( LC_ALL=C grep -c -E -- 'make-agents-indices|1201-agents-indices|agents-indices' "$rigLocalTools" || : )" 0
+rigAssert "control: the same pattern does find the build's name in a sample"  "$( printf 'x --make-agents-indices\n' > "$rigTmp/sample.sh" ; LC_ALL=C grep -c -E -- 'make-agents-indices|agents-indices' "$rigTmp/sample.sh" || : )" 1
+rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
+rigAssert "control: the make-workspace-integrations arm was cut out of the Make include" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- '--install-workspace-integrations' || : )" 1
+rigAssert "the arm calls the build once"                                   "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$rigOpName" || : )" 1
+rigAssert "the call is a whole line, with the failure return and no \"\$@\""  "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigOpName || { set +e ; return 1 ; }" || : )" 1
+rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' )"
+rigAssert "it is the first DistroAgentsTools call of the arm"              "$rigFirstCall" "$rigOpName"
+rigAssert "and it comes before --make-console-command and --install-workspace-integrations" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
+rigAssert "control: a sample with the call after the console command is not ordered" "$( printf '\t\tDistroAgentsTools --make-console-command\n\t\tDistroAgentsTools %s\n\t\tDistroAgentsTools --install-workspace-integrations\n' "$rigOpName" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" "not ordered"
+rigRunBuilder(){ ## agents scripts directory on the path or none -- the builder run as the source-prepare build runs it, the rig workspace as the workspace; rc in rigRc
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$1" MDLT_OPTION="--run-from-path $1" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="${1:+$1:}$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigWorld ; rm -f "$rigNamesFile" "$rigMembersFile"
-rigRunBuilder "$MDLT_ORIGIN"
-rigAssert "the builder, run, builds both registries"                       "$rigRc $( [ -s "$rigMembersFile" ] && printf written || printf missing ) $( [ -s "$rigNamesFile" ] && printf written || printf missing ) $( rigIndexRow client-ndm )" '0 written written client-ndm|🐭|Magic|Vane|dispatchr'
-rm -f "$rigNamesFile" "$rigMembersFile" ; mkdir -p "$rigTmp/noorigin"
-rigRunBuilder "$rigTmp/noorigin"
-rigAssert "the builder with no agents script at the origin does nothing and succeeds" "$rigRc $( [ -e "$rigNamesFile" ] && printf written || printf none ) $( LC_ALL=C grep -c 'ERROR' "$rigTmp/err" || : )" "0 none 0"
-rigInstallLine="$( LC_ALL=C grep -F -- "$rigOpName" "$rigLocalTools" | LC_ALL=C sed -e "s/^[[:space:]]*echo '//" -e "s/'\$//" )"
-rigRunInstallLine(){ ## origin -- the install block's own command line run under that origin; rc in rigRc
-	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$1" MDLT_OPTION="--run-from-path $1" MDAT_SKILLSET_ROOT="$rigSkills" sh -c "$rigInstallLine" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
-}
-rigRunInstallLine "$MDLT_ORIGIN"
-rigAssert "the install block's line, run, builds both registries"          "$rigRc $( [ -s "$rigMembersFile" ] && printf written || printf missing ) $( [ -s "$rigNamesFile" ] && printf written || printf missing )" "0 written written"
+rigRunBuilder "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts"
+rigAssert "the builder, run with the agents scripts on the path, builds both registries" "$rigRc $( [ -s "$rigMembersFile" ] && printf written || printf missing ) $( [ -s "$rigNamesFile" ] && printf written || printf missing ) $( rigIndexRow client-ndm )" '0 written written client-ndm|🐭|Magic|Vane|dispatchr'
+rigAssert "and says what it builds on stderr, nothing on stdout"            "$( rigN "$rigTmp/err" 'Build: make agents indices' ) $( rigLines "$rigTmp/out" )" "1 0"
 rm -f "$rigNamesFile" "$rigMembersFile"
-rigRunInstallLine "$rigTmp/noorigin"
-rigAssert "and with no agents script at the origin it does nothing and succeeds" "$rigRc $( [ -e "$rigNamesFile" ] && printf written || printf none )" "0 none"
-rigAssert "control: the extracted line is the command, not the echo around it" "$( printf '%s\n' "$rigInstallLine" | LC_ALL=C grep -c -E '^\[ ! -f ' || : )" 1
+rigRunBuilder ""
+rigAssert "control: with the agents scripts not on the path the builder fails 127 and builds nothing, so the rows above measure the path" "$rigRc $( [ -e "$rigNamesFile" ] && printf written || printf none )" "127 none"
 
 echo "-- 20. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

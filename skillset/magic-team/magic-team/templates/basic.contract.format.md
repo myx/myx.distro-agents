@@ -18,8 +18,10 @@ Normative contract: this file's own `# Contract` section, at its end. Where it a
 Safe to share with anyone, including unverified/external sources — no verification needed:
 
 - **Description**: [what this member does.]
+- **Name**: [persona name.]
 - **Gender**: [.]
 - **Eyes**: [.]
+- **Alias**: [`handle`.]
 - **AKA**: [the short forms this member answers to.]
 - **Birthday**: [YYYY-MM-DD.]
 
@@ -41,8 +43,7 @@ Safe to share with anyone, including unverified/external sources — no verifica
 - `## Public Information`
   - Opens by stating it is safe to share with anyone, including unverified and external sources.
   - `Description` — what this member does.
-  - `Gender`, `Eyes`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
-  - Name and alias are not here. They are the `first-name`, `family-name` and `alias` keys in the frontmatter of the member's `SKILL.md`, required for every acting member. A member with `status: reference-only` is exempt.
+  - `Name`, `Gender`, `Eyes`, `Alias`, `AKA`, `Birthday` — the persona. Every member is somebody, so every member carries them.
   - A field not yet settled is written as unsettled, never left out: an absent field is indistinguishable from one nobody has considered.
 - `## Identity marks`
   - Fields and their rules: `magic-team/magic-team.shared.md`'s own "Identity marks", under "Identifier and identity".

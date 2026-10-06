@@ -1914,7 +1914,7 @@ blocks|verbatim|caller|stdin file"
 			;;
 		esac
 
-		## A client presents under the names of its own member index row in a workspace that is not ours:
+		## A client presents under the names of its own team-members-names row in a workspace that is not ours:
 		## its own user token posts there, and so does its own bot token. The
 		## shared bot token and a relay under another member's token are our
 		## workspace, which keeps the internal identifier. Decided here, before
@@ -1938,7 +1938,7 @@ blocks|verbatim|caller|stdin file"
 		esac
 		local externalMark="" externalName="" externalAlias="" externalFirst externalFamily externalPres externalMissing=""
 		if [ "$presentExternal" = "true" ] ; then
-			## The member's own row, and nothing else: a client presents under the names in its own SKILL.md.
+			## The member's own row, and nothing else: the build gives every client the persona's values.
 			externalPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" || externalPres=""
 			externalMark="$( AgentsToolsCommsSlackPresentationField 1 "$externalPres" )"
 			externalFirst="$( AgentsToolsCommsSlackPresentationField 2 "$externalPres" )"
@@ -1948,7 +1948,7 @@ blocks|verbatim|caller|stdin file"
 			[ -n "$externalFamily" ] || externalMissing="$externalMissing${externalMissing:+, }family-name"
 			[ -n "$externalAlias" ] || externalMissing="$externalMissing${externalMissing:+, }alias"
 			if [ -n "$externalMissing" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: the external presentation of '$memberName' needs first-name, family-name and alias in its SKILL.md and in the team-members-names registry: missing $externalMissing; nothing was sent" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: the external presentation needs the persona row in the team-members-names registry (--make-agents-indices): missing $externalMissing; nothing was sent" >&2
 				set +e ; return 1
 			fi
 			externalName="$externalFirst $externalFamily"

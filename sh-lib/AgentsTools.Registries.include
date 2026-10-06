@@ -50,24 +50,6 @@ AgentsToolsRegistryHeader(){ ## frontmatter text, header name
 	printf '%s\n' "$headerValue"
 }
 
-## The same header value as AgentsToolsRegistryHeader reads it, but as written: trimmed,
-## the whitespace inside it kept, and nothing at all where absent. For a check that
-## has to see what the author wrote, before a column collapses it.
-AgentsToolsRegistryHeaderRaw(){ ## frontmatter text, header name
-	printf '%s\n' "$1" | LC_ALL=C awk -v want="$2" '
-		{
-			line = $0
-			pos = index(line, ":")
-			if (pos < 2) next
-			key = substr(line, 1, pos - 1)
-			if (key != want) next
-			val = substr(line, pos + 1)
-			gsub(/^[ \t]+|[ \t\r]+$/, "", val)
-			if (val != "") { print val ; exit ; }
-		}
-	'
-}
-
 ## Every `key: value` frontmatter line of one file, through this package's own
 ## frontmatter printer -- no second parser is written here.
 AgentsToolsRegistryFrontmatter(){ ## file
@@ -146,44 +128,126 @@ AgentsToolsRegistryNameInvalid(){ ## key, value as written
 	return 0
 }
 
+## The persona member: every client-* presents in another workspace as this member's
+## mark, first name, family name and alias. The one place a persona swap is made.
+registryPersonaMember="magic-coordinator"
+
+## A member's Name bullet from its basic.md as plain words: the value after the colon,
+## backticks removed, one final period dropped. Prints nothing and returns 1 when the
+## line is absent or holds anything but words (letters, digits, hyphen, apostrophe,
+## single spaces; bytes above 0x7f pass, so a localised name does).
+AgentsToolsRegistryMemberNameBullet(){ ## member
+	local bulletFile="$MDAT_SKILLSET_ROOT/$1/$1.basic.md" bulletName bulletPlain
+	[ -f "$bulletFile" ] || return 1
+	bulletName="$( LC_ALL=C awk '
+		/^- \*\*Name\*\*:/ {
+			name = $0 ;
+			sub( /^- \*\*Name\*\*:[ \t]*/, "", name ) ;
+			gsub( /`/, "", name ) ;
+			sub( /[ \t\r]+$/, "", name ) ;
+			sub( /\.$/, "", name ) ;
+			print name ;
+			exit ;
+		}
+	' "$bulletFile" )" || bulletName=""
+	[ -n "$bulletName" ] || return 1
+	bulletPlain="$( printf "^[A-Za-z0-9'\200-\377-]+( [A-Za-z0-9'\200-\377-]+)*\$" )"
+	printf '%s' "$bulletName" | LC_ALL=C grep -qE "$bulletPlain" || return 1
+	printf '%s\n' "$bulletName"
+}
+
+## One member's stored name fields, "<mark> <first-name> <family-name> <alias>", `-` for
+## each that is absent or cannot be stored, the whitespace of a name written as `_`.
+## Defaults come from the member's basic.md (the marks function; the Name bullet split
+## at its first space); each is replaced by the member's scope key FIRST_NAME,
+## FAMILY_NAME or ALIAS when that key is set.
+AgentsToolsRegistryMemberNamesRead(){ ## member
+	local readMember="$1" readMarks readMark readAlias readName readFirst readFamily readKey readScopeKey readValue readOverride readReason readRow
+	readMarks="$( AgentsToolsCommsSlackMemberMarks "$readMember" 2>/dev/null )" || readMarks=""
+	readMark="$( printf '%s' "${readMarks%%$'\t'*}" | LC_ALL=C tr -d ' \t' )"
+	readAlias=""
+	[ -z "$readMarks" ] || readAlias="${readMarks#*$'\t'}"
+	[ "$readAlias" != "$readMember" ] || readAlias=""
+	readFirst="" ; readFamily=""
+	if readName="$( AgentsToolsRegistryMemberNameBullet "$readMember" )" ; then
+		readFirst="${readName%% *}"
+		case "$readName" in *" "*) readFamily="${readName#* }" ;; esac
+	fi
+	readRow="${readMark:--}"
+	for readKey in first-name family-name alias ; do
+		readScopeKey="$( printf '%s' "${readKey//-/_}" | LC_ALL=C tr 'a-z' 'A-Z' )"
+		case "$readKey" in
+			first-name) readValue="$readFirst" ;;
+			family-name) readValue="$readFamily" ;;
+			alias) readValue="$readAlias" ;;
+		esac
+		readOverride="$( DistroAgentsTools --member-config-option "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
+		[ -z "$readOverride" ] || readValue="$readOverride"
+		[ "$readValue" != "not decided yet" ] || readValue=""
+		readReason=""
+		[ -z "$readValue" ] || readReason="$( AgentsToolsRegistryNameInvalid "$readKey" "$readValue" )"
+		if [ -z "$readValue" ] || [ -n "$readReason" ] ; then
+			readValue="-"
+		else
+			readValue="$( printf '%s' "$readValue" | LC_ALL=C tr ' ' '_' )"
+		fi
+		readRow="$readRow $readValue"
+	done
+	printf '%s\n' "$readRow"
+}
+
+## The names of a row's fields that are `-`, space separated: first-name, family-name, alias.
+AgentsToolsRegistryMemberNamesMissing(){ ## row text
+	printf '%s\n' "$1" | LC_ALL=C awk '{ if ( $2 == "-" ) { out = out " first-name" ; } if ( $3 == "-" ) { out = out " family-name" ; } if ( $4 == "-" ) { out = out " alias" ; } sub( /^ /, "", out ) ; print out ; }'
+}
+
 ##
 ## team-members-names -- the display names of this workspace's team-members.
 ## Columns: member mark first-name family-name alias
 ##
-## One row per team-members row. first-name, family-name and alias are the member's
-## own SKILL.md frontmatter, each replaced by the member's scope key FIRST_NAME,
-## FAMILY_NAME or ALIAS when that key is set; the mark is read from its basic.md.
-## A value that is empty, is `not decided yet`, or cannot be stored is `-`, and
-## warns unless the member is reference-only. The Slack send reads this file and
-## nothing else for a member's names.
+## One row per team-members row. The names are the member's own basic.md bullets
+## (Name split at its first space, Alias), each replaced by the member's scope key
+## FIRST_NAME, FAMILY_NAME or ALIAS when that key is set. A field that is absent,
+## `not decided yet`, or cannot be stored is `-` and warns, unless the member is
+## reference-only. Every client-* has the persona member's values instead: its own
+## files and scope are not read, and a persona field that is `-` makes every client
+## row `-`, with one warning naming the persona member and the field. The Slack
+## send reads this file and nothing else for a member's names.
 ##
 AgentsToolsRegistryTeamMembersNamesRows(){
-	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesKey namesScopeKey namesRaw namesValue namesReason namesMark namesRow
+	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesFields namesMissing namesKey
+	local personaFields="" personaMissing="" personaRead="false"
 	while read -r namesMember namesWorkspace namesKind namesPath ; do
 		[ -n "$namesMember" ] || continue
+		case "$namesMember" in
+			client-*)
+				if [ "$personaRead" != "true" ] ; then
+					personaRead="true"
+					personaFields="$( AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
+					personaMissing="$( AgentsToolsRegistryMemberNamesMissing "$personaFields" )"
+					for namesKey in $personaMissing ; do
+						echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+					done
+				fi
+				if [ -n "$personaMissing" ] ; then
+					printf '%s - - - -\n' "$namesMember"
+				else
+					printf '%s %s\n' "$namesMember" "$personaFields"
+				fi
+				continue
+			;;
+		esac
 		namesFile="$MDAT_SKILLSET_ROOT/$namesMember/SKILL.md"
 		namesText=""
 		[ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
 		namesStatus="$( AgentsToolsRegistryHeader "$namesText" status )"
-		namesMark="$( AgentsToolsCommsSlackMemberMarks "$namesMember" 2>/dev/null | LC_ALL=C awk -F'\t' '{ print $1 ; }' )" || namesMark=""
-		namesMark="$( printf '%s' "$namesMark" | LC_ALL=C tr -d ' \t' )"
-		namesRow="$namesMember ${namesMark:--}"
-		for namesKey in first-name family-name alias ; do
-			namesScopeKey="$( printf '%s' "${namesKey//-/_}" | LC_ALL=C tr 'a-z' 'A-Z' )"
-			namesRaw="$( DistroAgentsTools --member-config-option "$namesMember" --select "$namesScopeKey" 2>/dev/null )" || namesRaw=""
-			[ -n "$namesRaw" ] || namesRaw="$( AgentsToolsRegistryHeaderRaw "$namesText" "$namesKey" )"
-			[ "$namesRaw" != "not decided yet" ] || namesRaw=""
-			namesReason=""
-			[ -z "$namesRaw" ] || namesReason="$( AgentsToolsRegistryNameInvalid "$namesKey" "$namesRaw" )"
-			if [ -z "$namesRaw" ] || [ -n "$namesReason" ] ; then
-				namesValue="-"
-				[ "$namesStatus" = "reference-only" ] || echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: member $namesMember: required field $namesKey is missing or not valid in its SKILL.md (the value must be an unquoted plain value)" >&2
-			else
-				namesValue="$( AgentsToolsRegistryHeader "$namesKey: $namesRaw" "$namesKey" )"
-			fi
-			namesRow="$namesRow $namesValue"
-		done
-		printf '%s\n' "$namesRow"
+		namesFields="$( AgentsToolsRegistryMemberNamesRead "$namesMember" )"
+		if [ "$namesStatus" != "reference-only" ] ; then
+			for namesKey in $( AgentsToolsRegistryMemberNamesMissing "$namesFields" ) ; do
+				echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: member $namesMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+			done
+		fi
+		printf '%s %s\n' "$namesMember" "$namesFields"
 	done < <( AgentsToolsRegistryTeamMembersRows )
 	return 0
 }

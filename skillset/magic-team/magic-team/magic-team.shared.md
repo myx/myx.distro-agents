@@ -153,7 +153,7 @@ A member, or the team, may carry two names. Neither is ever corrected into the o
 
 Both are correct at once, in their own registers. A reader who finds two names for one thing reads this before deciding either is wrong. A change to one is never a reason to change the other.
 
-The team's own identifier is `magic-team`. The team's own identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group. A member's persona name and alias are the `first-name`, `family-name` and `alias` keys in the frontmatter of its `SKILL.md`, required for every acting member. A member with `status: reference-only` is exempt.
+The team's own identifier is `magic-team`. The team's own identity is The Conclave. A member's persona sits below both and belongs to that member, never to the group.
 
 ### Identity marks
 
