@@ -209,7 +209,8 @@ AgentsToolsRegistryMemberNamesMissing(){ ## row text
 ## (Name split at its first space, Alias), each replaced by the member's scope key
 ## FIRST_NAME, FAMILY_NAME or ALIAS when that key is set. A field that is absent,
 ## `not decided yet`, or cannot be stored is `-` and warns, unless the member is
-## reference-only. Every client-* has the persona member's values instead: its own
+## reference-only or is magic-team or human-owner, which have no person name by
+## design. Every client-* has the persona member's values instead: its own
 ## files and scope are not read, and a persona field that is `-` makes every client
 ## row `-`, with one warning naming the persona member and the field. The Slack
 ## send reads this file and nothing else for a member's names.
@@ -242,7 +243,7 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 		[ ! -f "$namesFile" ] || namesText="$( AgentsToolsRegistryFrontmatter "$namesFile" )"
 		namesStatus="$( AgentsToolsRegistryHeader "$namesText" status )"
 		namesFields="$( AgentsToolsRegistryMemberNamesRead "$namesMember" )"
-		if [ "$namesStatus" != "reference-only" ] ; then
+		if [ "$namesStatus" != "reference-only" ] && [ "$namesMember" != "magic-team" ] && [ "$namesMember" != "human-owner" ] ; then
 			for namesKey in $( AgentsToolsRegistryMemberNamesMissing "$namesFields" ) ; do
 				echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: member $namesMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
 			done

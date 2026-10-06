@@ -717,7 +717,7 @@ rigAssert "and no skill file, basic file, scope file, linked index or config rea
 rigAssert "control: the same pattern does find those in the names read function" "$( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryMemberNamesRead | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E 'config-option|--select' || : )" -gt 0 ] && printf found || printf blind )" found
 rigAssert "the persona member is assigned once in the registries include, as a whole line" "$( LC_ALL=C grep -c -x "registryPersonaMember=\"$rigPersona\"" "$rigRegInclude" || : ) $( LC_ALL=C grep -c '^registryPersonaMember=' "$rigRegInclude" || : )" "1 1"
 rigAssert "and its literal name is written nowhere else in the registries include code" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigRegInclude" | LC_ALL=C grep -c -F -- "$rigPersona" || : )" 1
-rigAssert "the client branch names the constant, not a member: no literal member name in the Rows function" "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E '(magic|keeper|partner)-[a-z]' || : ) $( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -c 'registryPersonaMember' || : )" -gt 0 ] && printf names-it || printf blind )" "0 names-it"
+rigAssert "the client branch names the constant, not a member: no literal member name in the Rows function" "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C sed -e 's/"magic-team"//g' -e 's/"human-owner"//g' | LC_ALL=C grep -c -E '(magic|keeper|partner)-[a-z]' || : ) $( [ "$( rigFnCut "$rigRegInclude" AgentsToolsRegistryTeamMembersNamesRows | LC_ALL=C grep -c 'registryPersonaMember' || : )" -gt 0 ] && printf names-it || printf blind )" "0 names-it"
 rigAssert "the Slack include holds no assignment of it"                    "$( LC_ALL=C grep -c -E 'registryPersonaMember=' "$rigInclude" || : )" 0
 printf 'registryPersonaMember="a"\nregistryPersonaMember="b"\n' > "$rigTmp/sample.include"
 rigAssert "control: a sample with two assignments counts two"              "$( LC_ALL=C grep -c '^registryPersonaMember=' "$rigTmp/sample.include" || : )" 2
@@ -791,6 +791,18 @@ for rigLocale in C en_US.UTF-8 ; do
 	rigUpsert "$rigLocale" "$rigPersona" FIRST_NAME ''
 	rigAssert "[$rigLocale] control: an empty value is refused and the stored value is kept" "$( [ "$rigRc" -ne 0 ] && printf refused || printf accepted ) $( rigSelect "$rigLocale" "$rigPersona" FIRST_NAME )" "refused ValFIRST_NAME"
 done
+
+echo "-- 18. a member with no person name by design is not warned about --"
+rigWorld
+rigBullets magic-team 'The Conclave is the name of the team, a prose line.' conclave ⚛️ ; rigSkill magic-team active
+rigBullets human-owner '' '' '' ; rigSkill human-owner active
+rigBullets keeper-w1 'Cher.' cher 🔧
+for rigMember in magic-team human-owner keeper-w1 ; do rigLinkAdd "$rigMember" "$rigWsName" ; done
+rigBuild
+rigAssert "magic-team and human-owner have rows, with dashes for the names the bullets do not give" "$( rigIndexRow magic-team ) $( rigIndexRow human-owner )" 'magic-team|⚛️|-|-|conclave human-owner|-|-|-|-'
+rigAssert "and no warning names either of them, active or not"             "$( rigWarnsOf 'member magic-team:' ) $( rigWarnsOf 'member human-owner:' )" "0 0"
+rigAssert "a normal member is warned, in the build's own line: the member name exactly as the roster writes it" "$( LC_ALL=C grep -c -F -x '⚠️ WARNING: DistroAgentsTools --make-agents-indices: member keeper-w1: required field family-name is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)' "$rigTmp/build.err" || : )" 1
+rigWorld
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SLACK CLIENT PERSONA CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
