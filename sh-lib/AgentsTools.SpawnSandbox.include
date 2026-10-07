@@ -35,10 +35,11 @@ AgentsToolsSpawnSandboxNearestMagic(){ ## path
 }
 
 ## Fills input/: the brief, the board item behind it, the MAGIC.md copies, a named
-## routine, and pointers.md. Copies, never links, and never secret material: the
+## routine, pointers.md, and conversation.md when the spawn continues a conversation.
+## Copies, never links, and never secret material: the
 ## credentials line in pointers.md names the identity the tooling acts as, not a value.
-AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member
-	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4"
+AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty)
+	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4" fillConversations="${5:-}"
 	local fillText fillPath fillMagic fillName fillCount=0 fillSkillsRoot fillMemberDir
 	[ -d "$fillInput" ] || return 0
 	## A joined sandbox may hold a run's read-only input/ still: opened and emptied first.
@@ -85,6 +86,7 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 			done
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
+	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations"
 	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
 	## grants input/ for writing too, so the files and the folder carry no write bit.
 	chmod -R a-w "$fillInput" 2>/dev/null || :
@@ -120,6 +122,101 @@ AgentsToolsSessionThreadFind(){
 	[ -f "$threadFile" ] && IFS= read -r threadLine < "$threadFile" || return 1
 	[ -n "$threadLine" ] || return 1
 	printf '%s\n' "$threadLine"
+	return 0
+}
+
+## A conversation thread is `<channel>:<ts>`: an upper-case Slack id and a message ts.
+AgentsToolsSpawnConversationThreadValid(){ ## channel:ts
+	printf '%s\n' "$1" | LC_ALL=C grep -qxE '[A-Z0-9]+:[0-9]+\.[0-9]+'
+}
+
+## The conversation threads a brief relays messages from, one `<channel>:<ts>` per line:
+## a relayed Wait result's own "# arrived on: slack:<channel>:<ts>[:conversation]" line,
+## and a Slack permalink carrying thread_ts. Nothing else in a brief is read as one.
+AgentsToolsSpawnConversationDerive(){ ## brief text
+	printf '%s\n' "$1" | LC_ALL=C awk '
+		match( $0, /^# arrived on: slack:[A-Z0-9]+:[0-9]+\.[0-9]+/ ) {
+			v = substr( $0, 21, RLENGTH - 20 ) ; if ( ! ( v in seen ) ) { seen[v] = 1 ; print v ; }
+		}
+		{
+			rest = $0
+			while ( match( rest, /\/archives\/[A-Z0-9]+\/p[0-9]+\?[^ >)]*thread_ts=[0-9]+\.[0-9]+/ ) ) {
+				link = substr( rest, RSTART, RLENGTH ) ; rest = substr( rest, RSTART + RLENGTH )
+				ch = link ; sub( /^\/archives\//, "", ch ) ; sub( /\/.*/, "", ch )
+				ts = link ; sub( /.*thread_ts=/, "", ts )
+				v = ch ":" ts ; if ( ! ( v in seen ) ) { seen[v] = 1 ; print v ; }
+			}
+		}'
+}
+
+## input/conversation.md: the recent history of each conversation thread this spawn continues,
+## read as the member, newest MDAT_CONVERSATION_HISTORY_MAX messages (default 50), oldest first.
+## A post tagged [sender: <member>] is marked (own); one by another member (team: <name>).
+## A thread that cannot be read says so in the file, never reads as an empty one.
+AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-separated)
+	local historyFile="$1" historyMember="$2" historyThreads="$3" historyThread historyMax historyRead
+	historyMax="${MDAT_CONVERSATION_HISTORY_MAX:-50}"
+	case "$historyMax" in ''|*[!0123456789]*|0) historyMax=50 ;; esac
+	[ -n "$historyThreads" ] || return 0
+	historyRead="${historyFile%/*}/.conversation.read.$$"
+	{
+		printf '%s\n' "# Conversation history" ""
+		printf '%s\n' "The conversation this session continues: read it before acting. Newest $historyMax messages per thread, oldest first, one \`<ts> | <user> | <text>\` head per message. (own) marks a post by $historyMember, (team: <name>) one by another team member."
+		for historyThread in $historyThreads ; do
+			printf '\n## Thread %s\n\n' "$historyThread"
+			if DistroAgentsTools --member-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
+				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
+				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
+					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } }
+					END {
+						if ( heads == 0 ) { print "(no messages)" ; exit ; }
+						from = ( heads > max ) ? head[heads - max + 1] : head[1]
+						if ( heads > max ) { printf( "(%d older messages not shown)\n", heads - max ) ; }
+						for ( i = from ; i <= NR ; i++ ) {
+							l = line[i]
+							if ( l ~ /^[0-9]+\.[0-9]+ \| / && match( l, /\[sender: [A-Za-z0-9_.-]+\]/ ) ) {
+								who = substr( l, RSTART + 9, RLENGTH - 10 )
+								l = ( who == member ? "(own) " : "(team: " who ") " ) l
+							}
+							print l
+						}
+					}' "$historyRead.fmt"
+			else
+				printf '%s\n' "(could not be read -- unknown, not empty; read it with the slack read tool)"
+				echo "⚠️ WARNING: $MDSC_CMD: conversation history of $historyThread could not be read for $historyMember" >&2
+			fi
+		done
+	} > "$historyFile" 2>/dev/null
+	rm -f "$historyRead" "$historyRead.fmt"
+	return 0
+}
+
+## The conversation threads this spawn continues, space-separated: MDAT_CONVERSATION_THREADS,
+## which the spawn proxy passes to the console, else the `conversation-threads:` field of this
+## spawn's own record in its sandbox root. Prints nothing and returns 1 when there are none.
+AgentsToolsConversationThreadsFind(){
+	[ -z "${MDAT_CONVERSATION_THREADS:-}" ] || { printf '%s\n' "$MDAT_CONVERSATION_THREADS" ; return 0 ; }
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	local recordFile="${MDAT_SPAWN_SANDBOX_ROOT:-$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID}/$MDAT_SPAWN_SESSION_ID.md" recordThreads=""
+	[ -f "$recordFile" ] || return 1
+	recordThreads="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^conversation-threads: / { print substr( $0, 23 ) ; exit ; }' "$recordFile" )"
+	[ -n "$recordThreads" ] || return 1
+	printf '%s\n' "$recordThreads"
+	return 0
+}
+
+## A bare Wait's default sources, space-separated: this session's own thread and every
+## conversation thread it continues, each as slack:<channel>:<ts>:conversation, no repeats.
+## Prints nothing and returns 1 when there is neither (the solo default then applies).
+AgentsToolsWaitDefaultSources(){
+	local defaultThread defaultList="" defaultSeen=" "
+	for defaultThread in $( AgentsToolsSessionThreadFind 2>/dev/null ) $( AgentsToolsConversationThreadsFind 2>/dev/null ) ; do
+		case "$defaultSeen" in *" $defaultThread "*) continue ;; esac
+		defaultSeen="$defaultSeen$defaultThread "
+		defaultList="$defaultList${defaultList:+ }slack:$defaultThread:conversation"
+	done
+	[ -n "$defaultList" ] || return 1
+	printf '%s\n' "$defaultList"
 	return 0
 }
 

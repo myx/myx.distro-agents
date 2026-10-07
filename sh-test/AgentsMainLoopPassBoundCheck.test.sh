@@ -158,6 +158,8 @@ rigWaitFor 60 rigAtLeast 2 rigStarts || rigRefuse "the loop never ran two passes
 rigAssert "no running line"                            "$( LC_ALL=C grep -c 'heartbeat pass running for' "$rigDir/loop.err" )" 0
 rigAssert "no ending"                                  "$( LC_ALL=C grep -c 'ending it (TERM, then KILL)' "$rigDir/loop.err" )" 0
 rigAssert "and no timed-out state"                     "$( LC_ALL=C grep -q 'timed-out' "$rigDir/ws/.local/agents/main-loop.state" 2>/dev/null && printf yes || printf no )" no
+## The iteration's own children-list repair, said and marked before its pass.
+rigAssert "the iteration rebuilt the children lists"  "$( [ "$( LC_ALL=C grep -c 'children lists rebuilt' "$rigDir/loop.err" )" -ge 1 ] && [ -f "$rigDir/ws/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
 rigLoopStop
 
 echo "-- --run names heartbeat as the routine to run, non-interactively --"

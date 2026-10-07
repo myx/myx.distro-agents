@@ -550,6 +550,17 @@ case "$1" in
 			break
 		done
 
+		## Session-id readback below exists only to answer "does this routine
+		## still hold the lock", a question that has no meaning for a category
+		## declared non-lockable above (audit, vault): there is no owner to
+		## lose the lock to, and no caller of --from-audit/--from-vault has
+		## ever been expected to carry a --header:upsert:session-id:<id>. A
+		## successful push already is this write's whole confirmation.
+		if [ "$itemLockable" != "true" ] ; then
+			echo "# $MDSC_CMD: item-upsert: committed and pushed ${target#"$itemStoreRoot"/} -- the $category category carries no lock, so no session-id readback applies" >&2
+			return 0
+		fi
+
 		local localSessionId="" remoteSessionId="" syncOut="" syncRc=0 lockBranch=""
 		set +e
 		lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"

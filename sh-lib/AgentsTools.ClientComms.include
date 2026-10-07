@@ -1,6 +1,45 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
+## Snapshots a resource's full current content before a write below that could
+## lose it -- read, then save byte for byte through the existing generic item
+## store (--intern-op-item-upsert --from-audit), never a new read or write
+## primitive. Either the read or the save failing refuses the whole write: it
+## returns 1 and the caller must not reach its live write call. On success it
+## prints SNAPSHOT_ID=<name> to stderr before that live call runs. No secret
+## or credential value is ever in scope here -- the read op's own output
+## carries none.
+AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, resourceType, resourceId, read-op-args...
+	local snapMember="$1" snapWriteOp="$2" snapSystem="$3" snapResourceType="$4" snapResourceId="$5"
+	shift 5
+	local snapTime snapName snapBody snapRc=0 snapTmp
+	snapTime="$( date -u +%Y%m%dT%H%M%SZ )"
+	snapName="snapshot-$snapTime-$snapSystem-$snapResourceType-$snapResourceId.md"
+	snapBody="$( DistroAgentsTools "$@" --context "$snapWriteOp-snapshot" 2>/dev/null )" || snapRc=$?
+	if [ "$snapRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not read the current $snapResourceType to snapshot it -- refusing the write" >&2
+		return 1
+	fi
+	snapTmp="$MMDAPP/.local/temp/mdat-snapshot.$$"
+	mkdir -p "$MMDAPP/.local/temp" || {
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not create the snapshot scratch directory -- refusing the write" >&2
+		return 1
+	}
+	{
+		printf '%s\n' "---" "type: snapshot" "system: $snapSystem" "resource-type: $snapResourceType" "resource-id: $snapResourceId" "write-op: $snapWriteOp" "captured-by: $snapMember" "captured-at: $snapTime" "---" ""
+		printf '%s\n' "$snapBody"
+	} > "$snapTmp"
+	DistroAgentsTools --intern-op-item-upsert "$snapMember" --from-audit "$snapName" --from-file "$snapTmp" --context "$snapWriteOp-snapshot" --commit-message "audit snapshot: $snapName"
+	snapRc=$?
+	rm -f "$snapTmp"
+	if [ "$snapRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not save the pre-write snapshot -- refusing the write" >&2
+		return 1
+	fi
+	printf '%s\n' "SNAPSHOT_ID=$snapName" >&2
+	return 0
+}
+
 case "$1" in
 
 	--client-comms-jira-board-list)
@@ -270,6 +309,8 @@ case "$1" in
 				;;
 			esac
 		done
+		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-update jira issue "$issueKey" \
+			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context client-comms-jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -311,6 +352,8 @@ case "$1" in
 				;;
 			esac
 		done
+		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-transition jira issue "$issueKey" \
+			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context client-comms-jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -377,6 +420,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-delete jira issue "$issueKey" \
+			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context client-comms-jira-issue-delete --issue-key "$issueKey" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -413,8 +458,8 @@ case "$1" in
 		[ -n "$actingMember" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
 		shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
 		[ -n "$pageId" ] || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: <page-id> missing" >&2 ; set +e ; return 1 ; }
-		case "$#:${1:-}" in
-			0:|2:--format) ;;
+		case "$#:${1:-}:${3:-}" in
+			0::|2:--format:|2:--version:|4:--format:--version|4:--version:--format) ;;
 			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --client-comms-confluence-page-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
 		esac
 		AgentsToolsAssertBareName "$actingMember" "<team-member>" client-comms-confluence-page-read || { set +e ; return 1 ; }
@@ -550,6 +595,8 @@ case "$1" in
 				;;
 			esac
 		done
+		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-update confluence page "$pageId" \
+			--intern-op-atlassian-confluence-page-read --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context client-comms-confluence-page-update --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -616,6 +663,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-delete confluence page "$pageId" \
+			--intern-op-atlassian-confluence-page-read --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context client-comms-confluence-page-delete --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi

@@ -47,7 +47,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-add
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-read <team-member> <page-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-delete <team-member> <page-id>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search <team-member> <cql> [--limit <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-update <team-member> <page-id> --version <n> --title <text> --status <value> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--space-id <numeric-id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
@@ -173,7 +173,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>" >&2

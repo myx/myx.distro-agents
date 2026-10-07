@@ -25,9 +25,23 @@
 ##     WAIT-RESULT: ADDED      -- --wait-add put its sources into the stored wait; nothing was waited on
 ##     WAIT-RESULT: DROPPED    -- --wait-drop took its sources out of it; nothing was waited on
 ##
-## MODES, mutually exclusive, each needing --wait-session-id: --wait-default resets the
-## stored state and waits, --wait-continue repeats the stored sources and per-source
-## floors, --wait-close removes the state. With none of them the call keeps no state.
+## MODES, mutually exclusive, each needing --wait-session-id: --wait-default waits on the
+## sources and filters it is given (or the default ones), --wait-continue repeats the stored
+## sources and filters, --wait-close removes the state. With none of them the call keeps no state.
+##
+## LOSSLESS BY DESIGN. Neither --wait-default nor --wait-continue drops a stored per-source
+## floor: a Slack source the session already waited on resumes after the last message a
+## wait returned on it, so a post that landed while the caller was busy between two calls
+## is returned by the next one, whichever mode it names. Only an explicit
+## --wait-since-utime replaces those floors, and only --wait-close (or --wait-drop) removes
+## them. A :conversation thread with no stored floor starts at the session's own last post
+## in that thread (sessions/<id>/last-own-post, written by the harness send), else at the
+## spawn's launch (the mtime of $MDAT_SPAWN_LAUNCH_MARKER), whichever applies and is older
+## than the wait; every other source with none starts at the wait's start. A floor only ever advances to the newest
+## message a result actually carried. On an arrival from a Slack source the wait settles
+## for $MDAT_WAIT_SETTLE_SECONDS (default 3) and re-reads, up to
+## $MDAT_WAIT_SETTLE_ROUNDS (default 3) times while more keeps arriving, so a burst
+## returns together, oldest first.
 ## --wait-add appends sources to the stored wait, creating it when there is none, and
 ## --wait-drop removes them, removing the wait once none is left: this is how an asked
 ## question's wait item (ask:<pending-id>) joins the session's wait and leaves it once
@@ -175,6 +189,16 @@ AgentsWaitProbeSlack(){
 			[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 			return 2
 		fi
+		## Strictly after the floor, whatever the server did with --oldest: the floor is the
+		## last message a result already carried, so one at the floor must not come back.
+		if [ -n "$probeSince" ] ; then
+			LC_ALL=C awk -v floorTs="$probeSince" '
+				function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+				function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+				/^[0-9]+\.[0-9]+ \| / { keep = ( secOf($1) > secOf(floorTs) || ( secOf($1) == secOf(floorTs) && fracOf($1) > fracOf(floorTs) ) ) ; }
+				keep { print ; }' < "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || return 2
+			return 0
+		fi
 		mv -f "$probeOut.rendered" "$probeOut" || return 2
 		return 0
 	fi
@@ -276,6 +300,15 @@ AgentsWaitProbeAsk(){
 	fi
 	[ "$probeStatus" = "reply-pending" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
 	return 0
+}
+
+## Whether Slack ts (or epoch seconds) $1 is strictly newer than $2. Seconds as a number,
+## microseconds as a fixed-width string, never a float -- the AgentsSlackThreadAnswers.awk rule.
+AgentsWaitTsNewer(){ ## candidate, floor
+	LC_ALL=C awk -v a="$1" -v b="$2" '
+		function secOf(v) { sub(/\..*$/, "", v) ; return ( v == "" ? 0 : v + 0 ) ; }
+		function fracOf(v) { if ( v !~ /\./ ) { return "000000" ; } sub(/^[^.]*\./, "", v) ; return substr(v "000000", 1, 6) ; }
+		BEGIN { exit !( secOf(a) > secOf(b) || ( secOf(a) == secOf(b) && fracOf(a) > fracOf(b) ) ) ; }'
 }
 
 ## `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
@@ -427,7 +460,7 @@ case "$1" in
 		fi
 
 		## State is per session, never per member, and --wait-continue refuses a source or filter of its own.
-		local waitStateDir="" waitStateLine
+		local waitStateDir="" waitStateLine waitStoredSources="" waitOwnPost="" waitSessionStart=""
 		if [ -n "$waitMode" ] ; then
 			if [ -z "$waitSessionId" ] ; then
 				echo "WAIT-RESULT: ERROR"
@@ -483,6 +516,27 @@ case "$1" in
 					esac
 				done < "$waitStateDir/state"
 			fi
+			## default keeps every stored floor: never dropped, only reused or replaced by an explicit since.
+			if [ -f "$waitStateDir/state" ] && [ "$waitMode" = "default" ] ; then
+				while IFS= read -r waitStateLine ; do
+					case "$waitStateLine" in
+						"sources: "*) waitStoredSources="${waitStateLine#sources: }" ;;
+						"floor "*)
+							waitStateLine="${waitStateLine#floor }"
+							waitFloors="$waitFloors${waitStateLine% *}=${waitStateLine##* } "
+						;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+			## The session's own last post, "<channel> <ts>": the floor of a thread source with none stored.
+			[ ! -f "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" ] \
+				|| IFS= read -r waitOwnPost < "$MMDAPP/.local/agents/sessions/$waitSessionId/last-own-post" || :
+			## When this spawn launched: the launcher's own marker file, written once at launch.
+			## The floor of a session or conversation thread with no stored floor and no own post.
+			if [ -n "${MDAT_SPAWN_LAUNCH_MARKER:-}" ] && [ -f "$MDAT_SPAWN_LAUNCH_MARKER" ] ; then
+				waitSessionStart="$( stat -f %m "$MDAT_SPAWN_LAUNCH_MARKER" 2>/dev/null || stat -c %Y "$MDAT_SPAWN_LAUNCH_MARKER" 2>/dev/null )" || waitSessionStart=""
+				case "$waitSessionStart" in ''|*[!0-9]*) waitSessionStart="" ;; esac
+			fi
 		fi
 
 		## Defaults. A caller inside a coworking session defaults to that session's
@@ -492,18 +546,31 @@ case "$1" in
 		## Absent a session thread, the two team conversations every member already
 		## watches: the common "tell me when anyone says anything to me" case.
 		if [ -z "$waitSources" ] ; then
-			type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
-			local defaultSessionThread=""
-			defaultSessionThread="$( AgentsToolsSessionThreadFind 2>/dev/null )" || defaultSessionThread=""
-			if [ -n "$defaultSessionThread" ] ; then
-				waitSources="slack:$defaultSessionThread:conversation "
-				## A thread source needs a floor. No explicit one was given, so
-				## right now is the only sensible reading of "wait for updates" --
-				## everything already in the thread is not what a bare call means.
-				[ -n "$waitSince" ] || waitSince="$( date +%s )"
+			type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			local defaultSessionSources=""
+			defaultSessionSources="$( AgentsToolsWaitDefaultSources 2>/dev/null )" || defaultSessionSources=""
+			if [ -n "$defaultSessionSources" ] ; then
+				## The session thread and every conversation thread this session continues.
+				waitSources="$defaultSessionSources "
+				## A thread source needs a floor. With no explicit one it is the floor
+				## stored for this source, else the session's own last post there, else
+				## the wait's start -- set per source below, never a fresh "now" that
+				## would skip what arrived since the last wait.
 			else
 				waitSources="slack:magic-team slack:human-owner "
 			fi
+		fi
+		## An asked question's wait item (ask:<pending-id>) stays in the session's wait through a
+		## default call too, while its record exists: it leaves by --wait-drop once answered, and
+		## a default call that dropped it would leave the answer with nothing waiting for it.
+		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
+			local carrySource
+			for carrySource in $waitStoredSources ; do
+				case "$carrySource" in ask:*) ;; *) continue ;; esac
+				case " $waitSources" in *" $carrySource "*) continue ;; esac
+				[ -f "$MMDAPP/.local/agents/pending/${carrySource#ask:}.md" ] || continue
+				waitSources="$waitSources$carrySource "
+			done
 		fi
 		[ -n "$waitTimeout" ] || waitTimeout=300
 		## A given interval stays fixed. Unset, the interval backs off: 5s growing by 15s
@@ -660,7 +727,7 @@ case "$1" in
 		## either of those is refused here rather than waited on.
 		## `slack:<channel>:<ts>:conversation` is the "any new post" thread mode:
 		## no addressee, sibling to today's named `slack:magic-team` etc. targets.
-		local checkThreads=0 checkConversation=0
+		local checkThreads=0 checkConversation=0 checkUnfloored=0
 		for checkSource in $waitSources ; do
 			case "$checkSource" in
 				slack:*:*:conversation)
@@ -669,11 +736,18 @@ case "$1" in
 				;;
 				slack:*:*)
 					checkThreads=$(( checkThreads + 1 ))
+					## A question thread's floor is our own message there: given, or stored by an earlier wait.
+					case " $waitFloors" in
+						*" $checkSource="*) ;;
+						*) checkUnfloored=$(( checkUnfloored + 1 )) ;;
+					esac
 				;;
 			esac
 		done
-		## A continued or closed wait has its floors stored, so no since is asked for.
-		if [ "$checkThreads" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then
+		## A continued or closed wait has its floors stored, so no since is asked for. A
+		## :conversation thread with no since takes its stored floor, the session's own last
+		## post there, or the wait's start (below), any of which is a floor.
+		if [ "$checkUnfloored" -gt 0 ] && [ -z "$waitSince" ] && [ "$waitMode" != "continue" ] && [ "$waitMode" != "close" ] ; then
 			echo "WAIT-RESULT: ERROR"
 			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: a thread source needs --wait-since-utime carrying the ts of our own message in that thread, because an answer is what arrives AFTER it. Without that floor every message already in the thread would count as an answer, our own included. Nothing was waited on." >&2
 			set +e ; return 1
@@ -761,7 +835,7 @@ case "$1" in
 			echo "# reactions: $reactSummary"
 			return 0
 		fi
-		[ "$waitMode" != "default" ] || rm -rf "$waitStateDir" 2>/dev/null || true
+		## default does not remove the stored state: its floors are kept (see the floor loop below).
 
 		## mktemp, never `$$`: this operation is a shell function inside a long-lived
 		## process, so every call in that process shares one PID. Two concurrent waits
@@ -805,28 +879,72 @@ case "$1" in
 		## sitting there still does not count as an arrival.
 		local waitReadFloor="${waitSince:-$waitStart}"
 
-		## One floor per source, the stored one where there is one; a continued wait also starts from stored baselines.
-		local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0
+		## One floor per source. LOSSLESS: a stored floor is never dropped. Without an explicit
+		## since it is the floor; with one, a plain question thread takes the since (its own
+		## question is the root an answer must follow), and any other Slack source takes the
+		## OLDER of the two, so a since newer than the stored floor -- the ts of a reply the
+		## caller posted after the last wait returned -- cannot skip what landed in between.
+		## With neither, a :conversation thread starts at the session's own last post in
+		## that thread, else at the spawn's launch, and every other source at the wait's start.
+		## Every Slack source's baseline is empty: its rendering holds only what is after its
+		## floor, so whatever is there is new, including a post made before the first read.
+		## A continued wait, and a default one over a source the stored wait already had,
+		## also start a non-Slack source from its stored baseline.
+		local waitFloorOf=() waitFloorNew=() waitFloorsUsed="" floorIndex=0 floorStored floorStoredIndex floorStoredSource
 		[ "$waitMode" != "continue" ] || waitBaselineMode="stored"
 		for checkSource in $waitSources ; do
 			floorIndex=$(( floorIndex + 1 ))
 			waitFloorOf[$floorIndex]="$waitReadFloor"
+			floorStored=""
 			case " $waitFloors" in
 				*" $checkSource="*)
-					waitFloorOf[$floorIndex]="${waitFloors#*"$checkSource="}"
-					waitFloorOf[$floorIndex]="${waitFloorOf[$floorIndex]%% *}"
+					floorStored="${waitFloors#*"$checkSource="}"
+					floorStored="${floorStored%% *}"
 				;;
 			esac
+			if [ -n "$floorStored" ] ; then
+				if [ -z "$waitSince" ] ; then
+					waitFloorOf[$floorIndex]="$floorStored"
+				else
+					case "$checkSource" in
+						slack:*:*:conversation) ;;
+						slack:*:*) floorStored="" ;;
+					esac
+					[ -z "$floorStored" ] || AgentsWaitTsNewer "$floorStored" "$waitSince" || waitFloorOf[$floorIndex]="$floorStored"
+				fi
+			elif [ -z "$waitSince" ] ; then
+				case "$checkSource" in
+					slack:*:*:conversation)
+						if [ -n "$waitOwnPost" ] && [ "$checkSource" = "slack:${waitOwnPost%% *}:conversation" ] ; then
+							AgentsWaitTsNewer "${waitOwnPost##* }" "$waitStart" || waitFloorOf[$floorIndex]="${waitOwnPost##* }"
+						elif [ -n "$waitSessionStart" ] && [ "$waitSessionStart" -lt "$waitStart" ] ; then
+							waitFloorOf[$floorIndex]="$waitSessionStart"
+						fi
+					;;
+				esac
+			fi
 			case "$checkSource" in
 				slack:*)
 					waitFloorsUsed="$waitFloorsUsed$checkSource=${waitFloorOf[$floorIndex]} "
-					[ "$waitMode" != "continue" ] || : > "$waitDir/base.$floorIndex"
+					: > "$waitDir/base.$floorIndex"
 				;;
 				*)
-					[ "$waitMode" != "continue" ] || [ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+					if [ "$waitMode" = "continue" ] ; then
+						[ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
+					elif [ "$waitMode" = "default" ] && [ -z "$waitSince" ] ; then
+						floorStoredIndex=0
+						for floorStoredSource in $waitStoredSources ; do
+							floorStoredIndex=$(( floorStoredIndex + 1 ))
+							[ "$floorStoredSource" = "$checkSource" ] || continue
+							[ ! -f "$waitStateDir/base.$floorStoredIndex" ] || cp "$waitStateDir/base.$floorStoredIndex" "$waitDir/base.$floorIndex"
+							break
+						done
+					fi
 				;;
 			esac
 		done
+		## The stored baselines are taken over above; what is stored again is this wait's own.
+		[ "$waitMode" != "default" ] || rm -f "$waitStateDir"/base.* 2>/dev/null || true
 
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
 		local waitProbeFailures="" waitReadSources=""
@@ -892,6 +1010,53 @@ case "$1" in
 			## The only thing this process does between probes. No spin, no token.
 			sleep "$waitNap"
 		done
+
+		## BURST SETTLE. An arrival on a Slack source is rarely alone: a person sends two or
+		## three lines in a row. Returning on the first and leaving the rest to the next call
+		## costs a round trip each, and before floors were lossless it lost them outright. So
+		## the Slack sources are re-read after a short settle, again while more keeps coming,
+		## up to a small cap; every source that differs from its baseline then is returned,
+		## each rendering whole and oldest first. A re-read that fails keeps what was read.
+		local settleSeconds="${MDAT_WAIT_SETTLE_SECONDS:-3}" settleRounds="${MDAT_WAIT_SETTLE_ROUNDS:-3}" settleRound=0 settleChanged settleSlackHit="false" settleIndex settleSource settleRc settleRead=""
+		case "$settleSeconds" in ''|*[!0-9]*) settleSeconds=3 ;; esac
+		case "$settleRounds" in ''|*[!0-9]*) settleRounds=3 ;; esac
+		case " $waitHits" in *"=slack:"*) settleSlackHit="true" ;; esac
+		while [ "$waitOutcome" = "RECEIVED" ] && [ "$settleSlackHit" = "true" ] && [ "$settleSeconds" -gt 0 ] && [ "$settleRound" -lt "$settleRounds" ] ; do
+			settleRound=$(( settleRound + 1 ))
+			sleep "$settleSeconds"
+			settleChanged="false"
+			settleIndex=0
+			for settleSource in $waitSources ; do
+				settleIndex=$(( settleIndex + 1 ))
+				case "$settleSource" in slack:*) ;; *) continue ;; esac
+				settleRc=0
+				AgentsWaitProbeSlack "$memberName" "${settleSource#slack:}" "${waitFloorOf[$settleIndex]}" "$waitDir/settle.$settleIndex" "${waitAddressee% }" "$waitIncludeOwn" || settleRc=$?
+				[ "$settleRc" = "0" ] || continue
+				case " $settleRead " in *" $settleIndex "*) ;; *) settleRead="$settleRead $settleIndex" ;; esac
+				if [ -f "$waitDir/now.$settleIndex" ] && cmp -s "$waitDir/now.$settleIndex" "$waitDir/settle.$settleIndex" ; then
+					continue
+				fi
+				mv -f "$waitDir/settle.$settleIndex" "$waitDir/now.$settleIndex" || continue
+				[ -f "$waitDir/base.$settleIndex" ] || : > "$waitDir/base.$settleIndex"
+				settleChanged="true"
+			done
+			[ "$settleChanged" = "true" ] || break
+		done
+		## Hits in source order: every earlier hit, and every Slack source a settle re-read
+		## successfully that now differs from its baseline.
+		if [ "$waitOutcome" = "RECEIVED" ] && [ "$settleRound" -gt 0 ] ; then
+			local settleHits=""
+			settleIndex=0
+			for settleSource in $waitSources ; do
+				settleIndex=$(( settleIndex + 1 ))
+				case " $waitHits" in
+					*" $settleIndex=$settleSource "*) settleHits="$settleHits$settleIndex=$settleSource " ; continue ;;
+				esac
+				case " $settleRead " in *" $settleIndex "*) ;; *) continue ;; esac
+				cmp -s "$waitDir/base.$settleIndex" "$waitDir/now.$settleIndex" || settleHits="$settleHits$settleIndex=$settleSource "
+			done
+			waitHits="$settleHits"
+		fi
 
 		local waitEnd waitElapsed
 		waitEnd="$( date +%s )"
@@ -977,8 +1142,20 @@ case "$1" in
 					floorIndex=$(( floorIndex + 1 ))
 					case "$checkSource" in
 						slack:*) echo "floor $checkSource ${waitFloorNew[$floorIndex]:-${waitFloorOf[$floorIndex]}}" ;;
-						*) [ ! -f "$waitDir/now.$floorIndex" ] || cp "$waitDir/now.$floorIndex" "$waitStateDir/base.$floorIndex" ;;
+						*)
+							if [ -f "$waitDir/now.$floorIndex" ] ; then
+								cp "$waitDir/now.$floorIndex" "$waitStateDir/base.$floorIndex"
+							elif [ -f "$waitDir/base.$floorIndex" ] ; then
+								cp "$waitDir/base.$floorIndex" "$waitStateDir/base.$floorIndex"
+							fi
+						;;
 					esac
+				done
+				## A stored floor of a source this wait did not name is kept, never dropped: a later
+				## wait naming that source again resumes from it.
+				for checkSource in $waitFloors ; do
+					case " $waitSources" in *" ${checkSource%=*} "*) continue ;; esac
+					echo "floor ${checkSource%=*} ${checkSource##*=}"
 				done
 			} > "$waitStateTmp"
 			mv -f "$waitStateTmp" "$waitStateDir/state"

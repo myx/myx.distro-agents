@@ -1227,6 +1227,141 @@ rigAssert "control, every 1: more than one round ran"          "$( rigAtLeast "$
 rigVerdict "iteration dividers -- a kind with N is read on round 1 and every Nth round, per kind, and N of 1 reads every round"
 
 ## ---------------------------------------------------------------------------
+## 10m. Lossless between calls. A message posted after one Wait returned -- while the
+##      caller was replying -- is returned by the next default Wait, with sources and
+##      with none (the session thread), never skipped by a fresh "now" floor; a since
+##      newer than the stored floor cannot skip it either; nothing already returned
+##      comes back; a floor of a source the next wait does not name is kept; the own
+##      last post is the floor of a thread with none stored; close still drops all.
+## ---------------------------------------------------------------------------
+rigNewStart lossless
+rigLossConv="slack:$rigReactChannel:$rigReactThread:conversation"
+rigLossPosts="$( rigOwnerPost 1700000001.000200 loss-200 "$rigReactThread" )"
+rigNewReplies "$rigLossPosts"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-first --wait-default --wait-source "$rigLossConv" --wait-since-utime "$rigReactThread" --wait-timeout 30
+rigAssert "first: RECEIVED"                                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "first: carries the first post"                      "$( rigHolds "$rigNewOut" 'loss-200' )" yes
+## Posted "while the caller replied": older than any fresh now, newer than what was returned.
+rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000300 loss-300 "$rigReactThread" )"
+rigNewReplies "$rigLossPosts"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-default-sources --wait-default --wait-source "$rigLossConv" --wait-timeout 10
+rigAssert "default, same source, no since: RECEIVED"           "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "default: the post made between the calls is returned" "$( rigHolds "$rigNewOut" 'loss-300' )" yes
+rigAssert "default: what was already returned is not"          "$( rigHolds "$rigNewOut" 'loss-200' )" no
+rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000400 loss-400 "$rigReactThread" )"
+rigNewReplies "$rigLossPosts"
+MDAT_SESSION_THREAD="$rigReactChannel:$rigReactThread" MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-default-nosources --wait-default --wait-timeout 10
+rigAssert "default, no sources: RECEIVED"                      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "no sources: it waited on the session thread"        "$( rigHolds "$rigNewOut" "# sources: $rigLossConv" )" yes
+rigAssert "no sources: the post made between the calls is returned" "$( rigHolds "$rigNewOut" 'loss-400' )" yes
+rigAssert "no sources: what was already returned is not"       "$( rigHolds "$rigNewOut" 'loss-300' )" no
+## A since newer than the stored floor -- the ts of the caller's own reply -- takes the older floor.
+rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000500 loss-500 "$rigReactThread" )"
+rigNewReplies "$rigLossPosts"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-newer-since --wait-default --wait-source "$rigLossConv" --wait-since-utime 1700000001.000550 --wait-timeout 10
+rigAssert "newer since: the post below it, above the floor, is returned" "$( rigHolds "$rigNewOut" 'loss-500' )" yes
+rigAssert "newer since: the floor stored is the newest returned" "$( rigHolds "$rigNewDir/ws/.local/agents/sessions/$rigNewSession/wait/state" "floor $rigLossConv 1700000001.000500" )" yes
+## Nothing new: a quiet wait, by either mode -- the floor never moved past or behind.
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-quiet-default --wait-default --wait-source "$rigLossConv" --wait-timeout 2
+rigAssert "control: default with nothing new is TIMEOUT"       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-quiet-continue --wait-continue --wait-timeout 2
+rigAssert "control: continue with nothing new is TIMEOUT"      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+## A wait on another source keeps the thread's floor, and a later wait on the thread resumes from it.
+rigDropL="$rigNewDir/dropL.txt"
+: > "$rigDropL"
+rigNewIn loss-other-source --wait-default --wait-source "file:$rigDropL" --wait-timeout 2
+rigAssert "another source: the thread floor is kept"           "$( rigHolds "$rigNewDir/ws/.local/agents/sessions/$rigNewSession/wait/state" "floor $rigLossConv 1700000001.000500" )" yes
+rigLossPosts="$rigLossPosts$( rigOwnerPost 1700000001.000600 loss-600 "$rigReactThread" )"
+rigNewReplies "$rigLossPosts"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-back --wait-default --wait-source "$rigLossConv" --wait-timeout 10
+rigAssert "back on the thread: the post made meanwhile is returned" "$( rigHolds "$rigNewOut" 'loss-600' )" yes
+rigAssert "back on the thread: nothing older is"               "$( rigHolds "$rigNewOut" 'loss-500' )" no
+## close drops the floors: a default after it starts from its own start, so the old posts stay unshown.
+rigNewIn loss-close --wait-close
+rigAssert "close: CLOSED"                                      "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: CLOSED"
+rigAssert "close: no state is left"                            "$( rigNewState "$rigNewSession" )" absent
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-after-close --wait-default --wait-source "$rigLossConv" --wait-timeout 2
+rigAssert "after close: a fresh wait, nothing old returned"    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+## No stored floor: the session's own last post in that thread is the floor.
+rigNewSession="rig-sess-lossless-own"
+mkdir -p "$rigNewDir/ws/.local/agents/sessions/$rigNewSession"
+printf '%s:%s %s\n' "$rigReactChannel" "$rigReactThread" 1700000001.000450 > "$rigNewDir/ws/.local/agents/sessions/$rigNewSession/last-own-post"
+MDAT_WAIT_SETTLE_SECONDS=1 rigNewIn loss-own-post --wait-default --wait-source "$rigLossConv" --wait-timeout 10
+rigAssert "own post: RECEIVED"                                 "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "own post: a post after it is returned"              "$( rigHolds "$rigNewOut" 'loss-500' )$( rigHolds "$rigNewOut" 'loss-600' )" yesyes
+rigAssert "own post: one before it is not"                     "$( rigHolds "$rigNewOut" 'loss-400' )" no
+rigVerdict "lossless between calls -- default resumes stored floors with and without sources, a newer since cannot skip, close still drops them"
+
+## ---------------------------------------------------------------------------
+## 10n. A burst returns together, oldest first: posts landing a moment apart come back
+##      in one result once the wait has settled. The control settles 0 seconds and
+##      returns the first post alone.
+## ---------------------------------------------------------------------------
+rigNewStart burst
+rigBurstConv="slack:$rigReactChannel:$rigReactThread:conversation"
+rigNewReplies ""
+rigBurstOne="$( rigOwnerPost 1700000001.000700 burst-700 "$rigReactThread" )$( rigOwnerPost 1700000001.000800 burst-800 "$rigReactThread" )"
+rigBurstAll="$rigBurstOne$( rigOwnerPost 1700000001.000900 burst-900 "$rigReactThread" )"
+( sleep 2 ; rigNewReplies "$rigBurstOne" ; sleep 2 ; rigNewReplies "$rigBurstAll" ) &
+rigBurstPid=$!
+MDAT_WAIT_SETTLE_SECONDS=3 rigNewIn burst-settled --wait-default --wait-source "$rigBurstConv" --wait-since-utime "$rigReactThread" --wait-timeout 30
+wait "$rigBurstPid" 2>/dev/null || :
+rigAssert "burst: RECEIVED"                                    "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "burst: all three posts in one result"               "$( rigHolds "$rigNewOut" 'burst-700' )$( rigHolds "$rigNewOut" 'burst-800' )$( rigHolds "$rigNewOut" 'burst-900' )" yesyesyes
+rigAssert "burst: oldest first"                                "$( LC_ALL=C awk '/burst-[0-9]+/ { match($0, /burst-[0-9]+/) ; printf "%s ", substr($0, RSTART, RLENGTH) ; }' "$rigNewOut" )" "burst-700 burst-800 burst-900 "
+rigAssert "burst: one block"                                   "$( rigOpens "$rigNewOut" '# arrived on: ' )" 1
+rigAssert "burst: the newest ts is the next floor"             "$( rigHolds "$rigNewOut" 'WAIT-LAST-TS: 1700000001.000900' )" yes
+rigNewSession="rig-sess-burst-control"
+rigNewReplies ""
+( sleep 2 ; rigNewReplies "$rigBurstOne" ; sleep 5 ; rigNewReplies "$rigBurstAll" ) &
+rigBurstPid=$!
+MDAT_WAIT_SETTLE_SECONDS=0 rigNewIn burst-unsettled --wait-default --wait-source "$rigBurstConv" --wait-since-utime "$rigReactThread" --wait-timeout 30
+rigAssert "control, no settle: RECEIVED"                       "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "control, no settle: the late post is not in it"     "$( rigHolds "$rigNewOut" 'burst-900' )" no
+wait "$rigBurstPid" 2>/dev/null || :
+## ...and the next call returns it, the floor having stopped at what was shown.
+rigNewIn burst-next --wait-default --wait-source "$rigBurstConv" --wait-timeout 10
+rigAssert "control: the next default call returns the late post" "$( rigHolds "$rigNewOut" 'burst-900' )" yes
+rigAssert "control: and not the ones already shown"            "$( rigHolds "$rigNewOut" 'burst-800' )" no
+rigVerdict "a burst returns together, oldest first, and a floor stops at the last message shown"
+
+## ---------------------------------------------------------------------------
+## 10o. A bare Wait watches the session thread AND every conversation thread the
+##      session continues (AgentsToolsWaitDefaultSources). A conversation thread with
+##      no stored floor and no own post starts at the spawn's launch (the launch
+##      marker's mtime), not at "now"; a post before the launch is not returned.
+## ---------------------------------------------------------------------------
+rigNewStart convdefault
+rigCdSession="1700000001.000101"
+rigCdConv="1700000002.000101"
+rigNewReplies "$( rigOwnerPost 1700000001.000300 cd-session-post "$rigCdSession" )" "$rigCdSession"
+rigNewReplies "$( rigOwnerPost 1700000001.900000 cd-before-launch "$rigCdConv" )$( rigOwnerPost 1700000002.000300 cd-conv-post "$rigCdConv" )" "$rigCdConv"
+rigCdMarker="$rigNewDir/launch.marker"
+: > "$rigCdMarker"
+MDAT_SESSION_THREAD="$rigReactChannel:$rigCdSession" MDAT_CONVERSATION_THREADS="$rigReactChannel:$rigCdConv" MDAT_WAIT_SETTLE_SECONDS=1 \
+	rigNewIn cd-bare --wait-default --wait-since-utime 1700000001.000101 --wait-timeout 10
+rigAssert "bare: both threads are the sources"                 "$( rigHolds "$rigNewOut" "# sources: slack:$rigReactChannel:$rigCdSession:conversation slack:$rigReactChannel:$rigCdConv:conversation" )" yes
+rigAssert "bare: the session thread post is returned"          "$( rigHolds "$rigNewOut" 'cd-session-post' )" yes
+rigAssert "bare: the conversation thread post is returned"     "$( rigHolds "$rigNewOut" 'cd-conv-post' )" yes
+rigAssert "bare: one block per thread"                         "$( rigOpens "$rigNewOut" '# arrived on: ' )" 2
+## No since, nothing stored: a new session, whose conversation thread starts at the launch.
+rigNewSession="rig-sess-convdefault-launch"
+rigCdLaunch=1700000002
+touch -t "$( date -r "$rigCdLaunch" +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$rigCdLaunch" +%Y%m%d%H%M.%S )" "$rigCdMarker"
+MDAT_SESSION_THREAD="$rigReactChannel:$rigCdSession" MDAT_CONVERSATION_THREADS="$rigReactChannel:$rigCdConv" MDAT_SPAWN_LAUNCH_MARKER="$rigCdMarker" MDAT_WAIT_SETTLE_SECONDS=1 \
+	rigNewIn cd-launch --wait-default --wait-timeout 10
+rigAssert "launch floor: RECEIVED"                             "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: RECEIVED"
+rigAssert "launch floor: a post after the launch is returned"  "$( rigHolds "$rigNewOut" 'cd-conv-post' )" yes
+rigAssert "launch floor: a post before it is not"              "$( rigHolds "$rigNewOut" 'cd-before-launch' )" no
+rigAssert "launch floor: the floor is the launch"               "$( rigHolds "$rigNewOut" "slack:$rigReactChannel:$rigCdConv:conversation=$rigCdLaunch" )" yes
+## Control: no launch marker -- the floor is the wait's start, and nothing old comes back.
+rigNewSession="rig-sess-convdefault-nomarker"
+MDAT_SESSION_THREAD="$rigReactChannel:$rigCdSession" MDAT_CONVERSATION_THREADS="$rigReactChannel:$rigCdConv" MDAT_WAIT_SETTLE_SECONDS=1 \
+	rigNewIn cd-nomarker --wait-default --wait-timeout 2
+rigAssert "control, no marker: TIMEOUT"                        "$( rigNth "$rigNewOut" 1 )" "WAIT-RESULT: TIMEOUT"
+rigVerdict "a bare Wait watches the session thread and its conversation threads, a new one from the spawn's launch"
+
+## ---------------------------------------------------------------------------
 ## 10j. The Wait tool through the real harness: the declaration carries the mode and
 ##      the four id sets and no longer a poll interval; an omitted mode is default;
 ##      mode close is CLOSED; and the state lands in the session store.

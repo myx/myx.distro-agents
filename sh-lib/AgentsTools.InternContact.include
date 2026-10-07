@@ -161,12 +161,29 @@ case "$1" in
 			assertContactsFile="$assertCandidate" ; break
 		done
 		if [ -n "$assertContactsFile" ] ; then
+			## Two sources, not one: the `# Index` table's own slack-id/email
+			## columns, AND each person's `conversations:` line under `#
+			## Contacts` -- the Index table carries no conversation-id column
+			## of its own, so a raw channel/DM target (what a Slack send
+			## actually gets as its recipient) can only ever be found there.
+			## $0 is read as-is in the `conversations:` pattern-action below
+			## regardless of the `-F'|'` split used for the Index rows: FS
+			## splits fields, never the stored record text itself.
 			if LC_ALL=C awk -F'|' -v want="$assertTarget" '
 				function trim(s) { sub(/^[ \t]+/, "", s) ; sub(/[ \t]+$/, "", s) ; return tolower(s) }
 				NF >= 6 {
 					sid = trim($2) ; mail = trim($5) ;
 					if ( sid != "" && sid == tolower(want) ) { found = 1 ; exit }
 					if ( mail != "" && mail == tolower(want) ) { found = 1 ; exit }
+				}
+				/^[ \t]*conversations:/ {
+					line = $0
+					sub(/^[ \t]*conversations:[ \t]*/, "", line)
+					n = split(line, ids, ",")
+					for (i = 1; i <= n; i++) {
+						cid = trim(ids[i])
+						if ( cid != "" && cid == tolower(want) ) { found = 1 ; exit }
+					}
 				}
 				END { exit found ? 0 : 1 }
 			' "$assertContactsFile" ; then

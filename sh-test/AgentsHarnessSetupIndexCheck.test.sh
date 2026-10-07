@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 ## Check on the harness's own setup indexes, written by --make-harness-indices:
 ##   harness.roots.index (AgentsHarnessRootsIndex.include) and harness.hooks.index
-##   (AgentsHarnessHooksLoad.include).
+##   (AgentsHarnessHooksLoad.include) -- one index each, whichever origin reads it --
+##   and the children lists the main loop repairs (AgentsTools.ChildrenIndex.include).
 ##   1. Unit: from a fixture workspace -- member links under a skillset root and under
 ##      $HOME/.claude/skills, a `trash` entry, declared grants, a root that does not exist
 ##      -- the index yields the read and write sets, and their resolutions, the producer
 ##      and `cd && pwd -P` yield, with no member and with one; and proves it is the index
-##      answering by leaving the producer unable to run. A changed input never uses it.
+##      answering by leaving the producer unable to run. A changed input never uses it;
+##      another MDLT_ORIGIN does, with that origin's own skillset merged in; an index of
+##      format version 1 never does.
 ##   2. Unit: the hook index yields the loader's list, fault and skipped count for every
 ##      settings.json shape the loader distinguishes, and none for changed inputs.
 ##   3. Through the real harness: the request it builds (system text naming every root)
 ##      and its stderr report are the same with the indexes present and absent.
+##   4. The install op writes the indexes and leaves the children lists alone; the main
+##      loop's repair lists every record under its parent and marks the lists complete.
 ## Offline: a fake curl, HOME and MMDAPP are this rig's own mktemp tree.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -101,12 +106,13 @@ rigIndexed(){ ## member
 	printf '%s' "$indexedOut"
 }
 rigWriteIndex(){
-	{ printf 'myx.distro harness.roots.index 1\n' ; AgentsHarnessRootsIndexSection "$rigWs" ; } > "$rigWs/.local/agents/harness.roots.index"
+	AgentsHarnessRootsIndexText "$rigWs" > "$rigWs/.local/agents/harness.roots.index"
 }
 
 echo "-- the roots index answers as the producer does --"
 rigUnit rigWriteIndex
-rigAssert "a roots index is written" "$( LC_ALL=C grep -c '^read	' "$rigWs/.local/agents/harness.roots.index" )" "$( rigUnit AgentsToolsClientAccessRoots "$rigWs" "" | LC_ALL=C grep -c . )"
+## Every root but the one MDLT_ORIGIN names, which each reader merges in for its own origin.
+rigAssert "a roots index is written" "$( LC_ALL=C grep -c '^read	' "$rigWs/.local/agents/harness.roots.index" )" "$( rigUnit eval 'MDLT_ORIGIN="" ; AgentsToolsClientAccessRoots "$rigWs" ""' | LC_ALL=C grep -c . )"
 ## Older than its sources by a second, so the newer-than checks are what they will be in use.
 sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
 for rigMember in "" alpha "new member" ; do
@@ -117,6 +123,13 @@ done
 mkdir -p "$rigWs/.local/temp/member/alpha"
 rigAssert "a root created since is resolved now, not as stored" "$( rigUnit rigIndexed alpha )" "$( rigUnit rigComputed alpha )"
 rigAssert "control: the producer itself was never needed" "$( rigUnit rigIndexed "" | LC_ALL=C grep -c 'index-not-used' )" 0
+for rigMember in "" alpha ; do
+	rigWant="$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigComputed "$rigMember"' )"
+	rigAssert "another origin [$rigMember]: the same index is used" "$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigIndexed "$rigMember"' | cut -c1-14 )" "$( printf '%s' "$rigWant" | cut -c1-14 )"
+	rigAssert "another origin [$rigMember]: its own skillset, same roots" "$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigIndexed "$rigMember"' )" "$rigWant"
+done
+rigAssert "control: that origin's skillset is named" "$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigIndexed ""' | LC_ALL=C grep -c "$rigTmp/origin-b/myx/myx.distro-agents/skillset=" )" 1
+rigAssert "no origin at all"                      "$( rigUnit eval 'MDLT_ORIGIN="" ; rigIndexed ""' )" "$( rigUnit eval 'MDLT_ORIGIN="" ; rigComputed ""' )"
 
 echo "-- a changed input never uses it --"
 ln -s "$rigTmp/src/gamma" "$rigSkills/delta"
@@ -133,8 +146,11 @@ rigAssert "another HOME"                           "$( rigUnit eval 'HOME="$rigT
 sleep 1 ; touch "$rigSkills"
 rigAssert "a skillset root touched after it"       "$( rigUnit rigIndexed "" )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
-printf 'myx.distro harness.roots.index 1\nprint\tx\n' > "$rigTmp/cut"
+printf 'myx.distro harness.roots.index 2\nprint\tx\n' > "$rigTmp/cut"
 rigAssert "an index cut short"                     "$( rigUnit eval 'cp "$rigTmp/cut" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
+sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
+sed '1s/ 2$/ 1/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
+rigAssert "an index of format version 1"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 
 echo "-- the hooks index answers as the loader does --"
 rigHooks(){ ## settings.json content -- prints loader result, index result
@@ -148,7 +164,7 @@ rigHooks(){ ## settings.json content -- prints loader result, index result
 		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
 		AgentsHarnessHooksLoadSettings
 		printf 'loader[%s][%s][%s]\n' "$harnessHooksFault" "$harnessHooksSkipped" "${harnessHooksList//$'\n'/\\n}"
-		{ printf 'myx.distro harness.hooks.index 1\n' ; AgentsHarnessHooksIndexSection "$rigWs" "$harnessHooksRerouteList" ; } > "$rigWs/.local/agents/harness.hooks.index"
+		AgentsHarnessHooksIndexText "$rigWs" "$harnessHooksRerouteList" > "$rigWs/.local/agents/harness.hooks.index"
 		## Poisoned, so only the index can produce the answer below.
 		AgentsHarnessHooksLoadSettings(){ harnessHooksFault="the loader ran" ; }
 		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
@@ -158,6 +174,14 @@ rigHooks(){ ## settings.json content -- prints loader result, index result
 		harnessHooksRerouteList="other"
 		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
 		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index" && printf 'stale-used\n' || printf 'stale-refused\n'
+		## Nor for a settings.json changed since, nor once the index is of another version.
+		harnessHooksRerouteList=".claude/hooks/deny-native-tool-reroute.sh"$'\n'
+		printf ' ' >> "$rigWs/.claude/settings.json"
+		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index" && printf 'stale-used\n' || printf 'stale-refused\n'
+		printf '%s' "$1" > "$rigWs/.claude/settings.json"
+		sed '1s/ 2$/ 1/' "$rigWs/.local/agents/harness.hooks.index" > "$rigWs/.local/agents/harness.hooks.index.v1"
+		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index.v1" && printf 'stale-used\n' || printf 'stale-refused\n'
+		rm -f "$rigWs/.local/agents/harness.hooks.index.v1"
 	)
 }
 rigHookCase(){ ## what, settings.json content
@@ -165,6 +189,8 @@ rigHookCase(){ ## what, settings.json content
 	hookOut="$( rigHooks "$2" )"
 	rigAssert "hooks [$1]: the index gives the loader's answer" "$( printf '%s\n' "$hookOut" | sed -n 2p )" "$( printf '%s\n' "$hookOut" | sed -n 1p )"
 	rigAssert "hooks [$1]: another reroute list is refused"     "$( printf '%s\n' "$hookOut" | sed -n 3p )" stale-refused
+	rigAssert "hooks [$1]: a changed settings.json is refused"  "$( printf '%s\n' "$hookOut" | sed -n 4p )" stale-refused
+	rigAssert "hooks [$1]: a version 1 index is refused"        "$( printf '%s\n' "$hookOut" | sed -n 5p )" stale-refused
 }
 rigHookCase "a mixed set" '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/deny.sh \"a b\""}]},{"hooks":[{"type":"command","command":"/w/.claude/hooks/deny-native-tool-reroute.sh Read"},{"type":"command","command":"/y/other.sh"}]}]}}'
 rigHookCase "no PreToolUse at all" '{"permissions":{"allow":["Read"]}}'
@@ -200,8 +226,8 @@ rigHarnessRun computed
 	export HOME="$rigHome" MDAT_SKILLSET_ROOT="$rigSkills"
 	harnessHere="$rigHere" MMDAPP="$rigWs"
 	. "$rigHere/AgentsTools.ClientAccessRoots.include" && . "$rigHere/AgentsHarnessRootsIndex.include" && . "$rigHere/AgentsTools.ClientToolPolicy.include" && . "$rigHere/AgentsHarnessHooksLoad.include"
-	{ printf 'myx.distro harness.roots.index 1\n' ; AgentsHarnessRootsIndexSection "$rigWs" ; } > "$rigWs/.local/agents/harness.roots.index"
-	{ printf 'myx.distro harness.hooks.index 1\n' ; AgentsHarnessHooksIndexSection "$rigWs" "$( AgentsToolsClientToolPolicyRerouteHookKeys )" ; } > "$rigWs/.local/agents/harness.hooks.index"
+	AgentsHarnessRootsIndexText "$rigWs" > "$rigWs/.local/agents/harness.roots.index"
+	AgentsHarnessHooksIndexText "$rigWs" "$( AgentsToolsClientToolPolicyRerouteHookKeys )" > "$rigWs/.local/agents/harness.hooks.index"
 )
 sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
 rigHarnessRun indexed
@@ -221,11 +247,20 @@ printf -- '---\nsession-id: s2\nparent-session-id: rig-parent\n---\n' > "$rigSpa
 printf -- '---\nsession-id: s3\nparent-session-id: someone-else\n---\n' > "$rigSpawned/other/sp3.md"
 rm -rf "$rigWs/.local/agents/children"
 CLAUDE_CODE_SESSION_ID=rig-parent rigHarnessRun children-scanned
-## The install's own op lists every record and marks the lists complete.
+## The install's own op writes every harness index and leaves the children lists alone.
 ( set +u ; HOME="$rigHome" MDAT_SKILLSET_ROOT="$rigSkills" MMDAPP="$rigWs" "${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh" --make-harness-indices ) > "$rigTmp/make.out" 2> "$rigTmp/make.err"
-rigAssert "the install op marked the children lists complete" "$( [ -f "$rigWs/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
+rigAssert "the install op wrote every harness index"             "$( ls "$rigWs/.local/agents" | LC_ALL=C grep -c 'harness.roots.index\|harness.hooks.index' )" 2
+rigAssert "and left the children lists alone"                    "$( [ -e "$rigWs/.local/agents/children" ] && printf yes || printf no )" no
+## The main loop's repair lists every record and marks the lists complete: a stale list
+## goes, an id that could name another file is skipped.
+mkdir -p "$rigWs/.local/agents/children" "$rigSpawned/bad"
+printf 'gone/sp9.md\n' > "$rigWs/.local/agents/children/stale-parent"
+printf -- '---\nparent-session-id: ../escape\n---\n' > "$rigSpawned/bad/sp4.md"
+( set +u ; . "$rigHere/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
+rigAssert "the repair marked the children lists complete"        "$( [ -f "$rigWs/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
 rigAssert "and listed rig-parent's two children"                "$( LC_ALL=C sort "$rigWs/.local/agents/children/rig-parent" 2>/dev/null | tr '\n' ' ' )" "a-linked/sp2.md b-child/sp1.md "
-rigAssert "and wrote every harness index"                        "$( ls "$rigWs/.local/agents" | LC_ALL=C grep -c 'harness.roots.index\|harness.hooks.index' )" 2
+rigAssert "and every list there is, none other"                 "$( ls "$rigWs/.local/agents/children" | tr '\n' ' ' )" "rig-parent someone-else "
+rm -rf "$rigSpawned/bad"
 ## A listed child twice over, as two appends leave it, reads as one.
 printf 'b-child/sp1.md\n' >> "$rigWs/.local/agents/children/rig-parent"
 CLAUDE_CODE_SESSION_ID=rig-parent rigHarnessRun children-listed
@@ -247,7 +282,7 @@ rigAssert "the request names the sandbox's resolved input"   "$( LC_ALL=C grep -
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ SETUP INDEX CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
-	echo "  fix:  AgentsHarnessRootsIndex.include, AgentsHarnessHooksLoad.include or their callers -- never the assertion" >&2
+	echo "  fix:  AgentsHarnessRootsIndex.include, AgentsHarnessHooksLoad.include, AgentsTools.ChildrenIndex.include or their callers -- never the assertion" >&2
 	exit 1
 fi
 printf 'HARNESS_SETUP_INDEX: OK (%d assertions: roots and hooks from the index == computed, stale inputs never use it, same request through the harness, offline)\n' "$rigPass"

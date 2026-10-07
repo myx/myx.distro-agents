@@ -597,8 +597,8 @@ fi
 ## A parent session reads its children's output and writes their input, by parent-session-id.
 harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 ## Where every spawn since the install has listed itself in its parent's own
-## .local/agents/children/<id> -- the install re-lists the older ones and then marks the
-## store with children/.indexed -- only the records that file names are read,
+## .local/agents/children/<id> -- the main loop re-lists them all from the records and
+## then marks the store with children/.indexed -- only the records that file names are read,
 ## taken in the order the full scan meets them and still checked line for line; a
 ## parent with no such file has no children. Anywhere else, every record is scanned.
 if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
@@ -859,6 +859,22 @@ AgentsHarnessWriteExcluded(){ ## resolved path
 ## The session this call belongs to: the harness's own, a spawn's, or the Claude Code client's.
 AgentsHarnessSessionKey(){
 	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+
+## Records the session's own last post from a send's reported fields, for the Wait floor
+## fallback (AgentsTools.MemberWait.include reads sessions/<id>/last-own-post).
+AgentsHarnessOwnPostRecord(){ ## send output file
+	local ownSession ownChannel ownTs ownThread
+	ownSession="$( AgentsHarnessSessionKey )"
+	[ -n "$ownSession" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$ownSession" || return 0
+	ownChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$1" | head -1 )"
+	ownTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$1" | head -1 )"
+	ownThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' "$1" | head -1 )"
+	AgentsHarnessBareName "$ownChannel" && AgentsHarnessBareName "$ownTs" || return 0
+	[ -z "$ownThread" ] || AgentsHarnessBareName "$ownThread" || return 0
+	mkdir -p "$MMDAPP/.local/agents/sessions/$ownSession" 2>/dev/null \
+		&& printf '%s:%s %s\n' "$ownChannel" "${ownThread:-$ownTs}" "$ownTs" > "$MMDAPP/.local/agents/sessions/$ownSession/last-own-post" 2>/dev/null || :
+	return 0
 }
 
 ## A granted call for this session, tool and resolved target; an Allow once is used up here.
@@ -1751,6 +1767,10 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		printf 'Sent to %s as %s. What the operation reported follows:\n' "${toolShown:-$toolTarget}" "$harnessAgent"
 	fi
 	cat "$harnessScratch/send.out"
+	## The session's own last post, "<channel>:<thread-ts> <ts>": the floor a later Wait takes for
+	## that thread when it has none stored, so a reply landing between this post and that Wait
+	## is not skipped. Best effort: a post not recorded only loses that fallback.
+	[ "$sendRc" != "0" ] || AgentsHarnessOwnPostRecord "$harnessScratch/send.out"
 	## One extra last line naming the Wait that follows, only for a caller that asked (the
 	## SendMessage and SubagentHandback tools) -- never for AskUserQuestion, which waits itself,
 	## or the announcement stubs, which expect no reply. Built from the send's own reported fields.
@@ -1852,17 +1872,20 @@ AgentsHarnessToolWait(){
 			printf 'ERROR: since_utime must be epoch seconds, or a Slack message ts written <epoch>.<micros>, got: %s\n' "$toolSince" ; return 0
 		fi
 	fi
-	## No source named: default to this session's own coworking thread, any post
-	## but the caller's own, where a session thread exists. An ad-hoc/solo spawn
-	## holding none keeps today's default exactly -- magic-team and human-owner,
-	## resolved below by --member-wait-for-input itself from an empty sources list.
+	## No source named: default to this session's own coworking thread and every
+	## conversation thread it continues (AgentsToolsWaitDefaultSources), any post but
+	## the caller's own. An ad-hoc/solo spawn holding none keeps today's default exactly
+	## -- magic-team and human-owner, resolved below by --member-wait-for-input itself
+	## from an empty sources list.
 	if [ -z "$toolSources" ] && [ "$toolMode" != "continue" ] && [ "$toolMode" != "close" ] ; then
-		type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		type AgentsToolsWaitDefaultSources > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
 		local waitDefaultThread=""
-		waitDefaultThread="$( AgentsToolsSessionThreadFind 2>/dev/null )" || waitDefaultThread=""
-		[ -z "$waitDefaultThread" ] || toolSources="slack:$waitDefaultThread:conversation"
-		## A thread source needs a floor, and a bare call means what arrives from now on.
-		[ -z "$waitDefaultThread" ] || [ -n "$toolSince" ] || toolSince="$( date +%s )"
+		waitDefaultThread="$( AgentsToolsWaitDefaultSources 2>/dev/null )" || waitDefaultThread=""
+		[ -z "$waitDefaultThread" ] || toolSources="$waitDefaultThread"
+		## A thread source needs a floor. A stateful call leaves it to the operation, which resumes
+		## from the floor stored for that thread, so nothing that arrived between two calls is
+		## skipped; only the stateless internal call means "from now on".
+		[ -z "$waitDefaultThread" ] || [ -n "$toolSince" ] || [ "$waitStateful" = "true" ] || toolSince="$( date +%s )"
 	fi
 	## slack:session-parent names the parent's thread as a :conversation source, the value SendMessage to takes.
 	case " $toolSources " in
@@ -1870,7 +1893,7 @@ AgentsHarnessToolWait(){
 			waitParent="$( AgentsHarnessParentThread )" || { printf '%s\n' "$waitParent" ; return 0 ; }
 			toolSources=" $toolSources "
 			toolSources="${toolSources/" slack:$harnessParentName "/" slack:${waitParent%% *}:conversation "}"
-			[ -n "$toolSince" ] || toolSince="$( date +%s )"
+			[ -n "$toolSince" ] || [ "$waitStateful" = "true" ] || toolSince="$( date +%s )"
 		;;
 	esac
 	## Built as argv, so a source naming a thread stays one token rather than a
@@ -2054,8 +2077,8 @@ AgentsHarnessSessionPids(){ ## session id
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
 ## rather than a capture: the operation backgrounds a child, and a capture returns on
 ## pipe EOF rather than on the command it ran.
-AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join
-	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" spawnRc=0
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolConversationThread spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -2086,6 +2109,10 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	## itself resolves the thread and refuses rather than starting a new
 	## session silently when the id names none.
 	[ -z "$toolSessionId" ] || set -- "$@" --session-id "$toolSessionId"
+	## The conversation threads this spawn continues; the proxy validates each one.
+	for toolConversationThread in $toolConversation ; do
+		set -- "$@" --conversation "$toolConversationThread"
+	done
 	## The mechanical brief block -- tool-routing, read-and-obey, executors, invitees and
 	## the open warnings -- is the tooling's to write, never the caller's to copy: the
 	## standing default routine's block goes ahead of the prompt, unless the prompt already
@@ -4062,7 +4089,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;

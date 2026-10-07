@@ -234,6 +234,13 @@ case "$1" in
 			AgentsToolsMainLoopSyncTeamData
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
 			AgentsToolsSpawnSandboxSweep "--intern-main-loop"
+			## Each parent session's list of its children, rebuilt from the spawn records in
+			## one pass, before anything is spawned. Logged, never fatal: lists that could not
+			## be rebuilt stay unmarked, and every harness then scans every record.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ChildrenIndex.include" \
+				&& AgentsToolsChildrenIndexRepair "$MMDAPP" \
+				&& echo "# $MDSC_CMD --intern-main-loop: children lists rebuilt under .local/agents/children" >&2 \
+				|| echo "# $MDSC_CMD --intern-main-loop: the children lists could not be rebuilt -- every harness scans every spawn record until an iteration rebuilds them" >&2
 			## Answers to questions whose session has ended, collected by the tooling before
 			## anything is spawned, each going to its asker's inbox. The result is kept as a
 			## file the pass only reads (--magic-heartbeat-input-scan); no model

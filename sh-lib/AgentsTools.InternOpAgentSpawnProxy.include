@@ -286,6 +286,11 @@ case "$1" in
 		## up against the spawned-sessions registry below, and refused rather than
 		## silently starting a new session when the id names no row with a thread.
 		local joinSessionId=""
+		## The conversation threads this spawn continues, `<channel>:<ts>` space-separated:
+		## a replacement for a session that was talking with someone keeps listening there.
+		## Recorded as `conversation-threads:`, passed as MDAT_CONVERSATION_THREADS, and
+		## their recent history lands in input/conversation.md.
+		local conversationThreads=""
 		## Where the spawned session's own thread lives. event-track is an explicit
 		## override -- keep the session thread pinned to this spawn's own agent-log
 		## thread, the main loop's own heartbeat pass uses this so a solitary pass
@@ -449,6 +454,14 @@ case "$1" in
 					joinSessionId="$2"
 					shift 2
 				;;
+				--conversation)
+					if ! AgentsToolsSpawnConversationThreadValid "${2:-}" ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --conversation requires <channel>:<thread-ts>, got: ${2:-}" >&2
+						set +e ; return 1
+					fi
+					case " $conversationThreads " in *" $2 "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$2" ;; esac
+					shift 2
+				;;
 				--wait)
 					waitMode="true"
 					shift
@@ -467,7 +480,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--routine <selector>|--routine-default] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--session-id <session-id>] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -582,6 +595,33 @@ case "$1" in
 			local routineBriefBlock
 			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
 			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
+		fi
+
+		## A brief relaying messages from a thread continues that conversation too.
+		local derivedThread
+		while IFS= read -r derivedThread ; do
+			[ -n "$derivedThread" ] || continue
+			case " $conversationThreads " in *" $derivedThread "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$derivedThread" ;; esac
+		done <<< "$( AgentsToolsSpawnConversationDerive "$spawnContext" )"
+		## A conversation thread that is a known session's own thread names the session
+		## being replaced: joined, the same as --session-id, rather than a new one started
+		## beside it. Only with no explicit --session-id, never for event-track, and only
+		## when exactly one session matches.
+		if [ -z "$joinSessionId" ] && [ -n "$conversationThreads" ] && [ "$sessionThreadMode" != "event-track" ] ; then
+			local conversationJoin=""
+			conversationJoin="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+				AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || exit 0
+				LC_ALL=C awk -v want=" $conversationThreads " '
+					$10 != "-" && index( want, " " $10 " " ) > 0 && ! ( $2 in seen ) { seen[$2] = 1 ; n++ ; row = $2 " " $10 ; }
+					END { if ( n == 1 ) print row ; }
+				' "$( AgentsToolsRegistryFile spawned-sessions )" 2>/dev/null
+			)" || conversationJoin=""
+			if [ -n "$conversationJoin" ] ; then
+				joinSessionId="${conversationJoin%% *}"
+				joinSessionThread="${conversationJoin#* }"
+				echo "$MDSC_CMD: agent-spawn-proxy: conversation $joinSessionThread is session $joinSessionId's own thread -- joining that session" >&2
+			fi
 		fi
 
 		if [ -z "$dispatchDocMode" ] ; then
@@ -971,6 +1011,8 @@ case "$1" in
 			## The two thread pointers, side by side with the ids they belong to.
 			[ -z "$eventTrackThread" ] || printf 'agent-log-thread: %s\n' "$eventTrackThread"
 			[ -z "$sessionThread" ] || printf 'session-thread: %s\n' "$sessionThread"
+			## The conversations this spawn continues, which a bare Wait watches beside its session thread.
+			[ -z "$conversationThreads" ] || printf 'conversation-threads: %s\n' "$conversationThreads"
 			## Typed relation fields, chosen for the direction each one really has:
 			## this spawn created the dispatch item, and it was spawned from the
 			## tracked item it was pointed at.
@@ -997,7 +1039,7 @@ case "$1" in
 			*)
 				{ mkdir -p "$MMDAPP/.local/agents/children" \
 					&& printf '%s\n' "$sandboxName/$MDAT_SPAWN_SESSION_ID.md" >> "$MMDAPP/.local/agents/children/$parentSessionId" ; } 2>/dev/null \
-					|| { rm -f "$MMDAPP/.local/agents/children/.indexed" ; echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not list this spawn among its parent's children in .local/agents/children/$parentSessionId -- every harness now finds children by scanning every record, until the next install re-lists them" >&2 ; }
+					|| { rm -f "$MMDAPP/.local/agents/children/.indexed" ; echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not list this spawn among its parent's children in .local/agents/children/$parentSessionId -- every harness now finds children by scanning every record, until the main loop's next iteration re-lists them" >&2 ; }
 			;;
 		esac
 
@@ -1019,7 +1061,7 @@ case "$1" in
 		elif [ -n "$trackedItemName" ] && [ -n "$trackedItemState" ] ; then
 			sandboxItem="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
 		fi
-		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName"
+		AgentsToolsSpawnSandboxFillInput "$sandboxRoot" "$spawnContext" "$sandboxItem" "$callerName" "$conversationThreads"
 
 		## Tooling's own standing text for every spawn, beside the sandbox lines: a spawned
 		## session waits with Wait and ends only on a DISMISSED -- unless its caller blocks on
@@ -1047,6 +1089,16 @@ case "$1" in
 			"## Your session thread" \
 			"" \
 			"session_thread_ts: ${sessionThread:-none -- the opening post failed, so post a new thread in magic-team yourself}" )"
+		## Same line shape as session_thread_ts, one per thread, after it so its reader is unchanged.
+		if [ -n "$conversationThreads" ] ; then
+			local conversationLine conversationNote="A bare Wait watches these beside your session thread. Answer there, in that thread."
+			[ ! -f "$sandboxRoot/input/conversation.md" ] || conversationNote="$conversationNote Their recent history: $sandboxRoot/input/conversation.md -- read it first."
+			spawnContext="$( printf '%s\n' "$spawnContext" "" "## The conversation you continue" "" )"
+			for conversationLine in $conversationThreads ; do
+				spawnContext="$( printf '%s\n' "$spawnContext" "conversation_thread_ts: $conversationLine" )"
+			done
+			spawnContext="$( printf '%s\n' "$spawnContext" "" "$conversationNote" )"
+		fi
 
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
@@ -1072,17 +1124,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## Nothing to read until the child is actually running: started right
@@ -1218,7 +1270,7 @@ case "$1" in
 			## On its own, same as the wait-mode branch: not gated by outputFile.
 			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$eventTrackBody" 4>&- &
 			cliUpdatePid=$!
-			env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
+			env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
 			bgExitCode=$?
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
 			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }

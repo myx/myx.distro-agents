@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+## AgentsTools.ChildrenIndex.include -- the repair of each parent session's list of its
+## children, .local/agents/children/<parent-session-id>, and of the mark
+## children/.indexed that tells the harness the lists are complete.
+##
+## The spawn proxy appends every child to its parent's list as it spawns it; this
+## rebuilds every list from the spawn records -- the authority -- so a child whose append
+## failed, or that predates the lists, is listed too. Run by the host main loop once per
+## iteration (AgentsTools.InternMainLoop.include): one grep and one awk over every
+## record. The mark is taken away first, so a harness never trusts a list being rebuilt;
+## a rebuild that fails leaves it away, and every harness then scans every record --
+## slower, never a different answer.
+
+## Non-zero, having said why on stderr, when the lists could not be rebuilt.
+AgentsToolsChildrenIndexRepair(){ ## workspace
+	local childWorkspace="${1:-$MMDAPP}" childDir childSpawned
+	[ -n "$childWorkspace" ] || return 1
+	childDir="$childWorkspace/.local/agents/children"
+	childSpawned="$childWorkspace/.local/agents/spawned/"
+	mkdir -p "$childDir" && rm -f "$childDir/.indexed" && rm -f "$childDir"/* || {
+		echo "⛔ ERROR: AgentsToolsChildrenIndexRepair: could not clear $childDir" >&2
+		return 1
+	}
+	## A line is `<record path>:parent-session-id: <id>`, split at the first such marker;
+	## a record path is listed under spawned/, an id that could name another file is skipped.
+	{ LC_ALL=C grep -H '^parent-session-id: ' "$childSpawned"*/*.md 2>/dev/null || : ; } \
+		| LC_ALL=C awk -v childDir="$childDir" -v childSpawned="$childSpawned" '
+			{
+				markAt = index( $0, ":parent-session-id: " )
+				if ( !markAt ) next
+				childFile = substr( $0, 1, markAt - 1 )
+				childParent = substr( $0, markAt + 20 )
+				if ( childParent == "" || childParent == "." || childParent == ".." || index( childParent, "/" ) ) next
+				if ( index( childFile, childSpawned ) == 1 ) childFile = substr( childFile, length( childSpawned ) + 1 )
+				childList = childDir "/" childParent
+				## A list that cannot be opened ends awk non-zero by itself.
+				print childFile >> childList
+				close( childList )
+			}
+		' || {
+		echo "⛔ ERROR: AgentsToolsChildrenIndexRepair: could not list the children under $childDir" >&2
+		return 1
+	}
+	: > "$childDir/.indexed" || {
+		echo "⛔ ERROR: AgentsToolsChildrenIndexRepair: could not mark $childDir/.indexed" >&2
+		return 1
+	}
+	return 0
+}

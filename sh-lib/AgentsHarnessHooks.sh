@@ -54,8 +54,8 @@ done <<< "$harnessHooksRerouteList"
 
 ## The walk itself lives in AgentsHarnessHooksLoad.include, shared with the installer that
 ## writes .local/agents/harness.hooks.index from it. That index is taken only while the
-## settings.json content, the reroute key list above and the loader are byte for byte
-## what it was written from -- builtins, no parse -- and the walk runs otherwise, with
+## settings.json, the reroute key list above and the loader are what it was written
+## from -- one cksum, no parse -- and the walk runs otherwise, with
 ## the same list, fault and skipped count either way.
 . "$harnessHere/AgentsHarnessHooksLoad.include"
 if [ -z "$harnessHooksFault" ] && [ -n "${MMDAPP:-}" ] && [ -e "$MMDAPP/.claude/settings.json" ] ; then

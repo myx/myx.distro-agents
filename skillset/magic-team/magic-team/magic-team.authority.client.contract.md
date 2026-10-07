@@ -44,3 +44,4 @@ A client asks for its own access and states its own reasons. The human-owner's n
 - Answer where the people it is for are (`magic-team.conversations.md`'s **reply-reaches-its-audience**).
 - Chat: a reaction marks seen, never an answer. Threading per `magic-team.shared.md`'s "A reply threads onto the message it answers".
 - Mail: it is the record; one subject per message; mark seen only once handled.
+- Ask one question per decision, exactly once, then act on the answer.

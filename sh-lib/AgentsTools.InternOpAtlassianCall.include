@@ -788,16 +788,21 @@ case "$1" in
 			esac
 		done
 		if [ -z "$jiraReadMember" ] || [ -z "$jiraReadKeyArg" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered] [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered|raw] [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$jiraReadKeyArg" "<issue-key>" "$jiraReadContext" || { set +e ; return 1 ; }
 		[ -n "$jiraReadFormat" ] || jiraReadFormat=adf
 		case "$jiraReadFormat" in
-			adf|rendered) ;;
+			adf|rendered|raw) ;;
 			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: --format invalid: $jiraReadFormat" >&2 ; set +e ; return 1 ;;
 		esac
-		local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraReadKeyArg" )?fields=$( AgentsToolsAtlassianUrlEncode "summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description" )"
+		## raw asks for every field (--fields-json/--update-json on the write side
+		## is unconstrained, so a fixed field list cannot speak for what a write
+		## could change); adf/rendered keep the original fixed, human-read list.
+		local jiraReadFieldsParam="summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description"
+		[ "$jiraReadFormat" = raw ] && jiraReadFieldsParam="*all"
+		local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraReadKeyArg" )?fields=$( AgentsToolsAtlassianUrlEncode "$jiraReadFieldsParam" )"
 		[ "$jiraReadFormat" = rendered ] && jiraReadPath="${jiraReadPath}&expand=renderedFields"
 		local jiraReadBody jiraReadRc=0
 		jiraReadBody="$( AgentsToolsAtlassianCall "$jiraReadMember" jira GET "$jiraReadPath" "$jiraReadContext" "" )" || jiraReadRc=$?
@@ -821,6 +826,13 @@ case "$1" in
 			"$jiraReadLabels" \
 			"$jiraReadFormat" >&2
 		printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
+		if [ "$jiraReadFormat" = raw ] ; then
+			## The already-fetched response body, verbatim -- every field the API
+			## returned for this issue, not only the 10 named ones above. No second
+			## call: this is the same $jiraReadBody the diagnostics just read from.
+			printf '%s' "$jiraReadBody"
+			return 0
+		fi
 		if [ "$jiraReadFormat" = rendered ] ; then
 			local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
 			if [ -z "$jiraReadRendered" ] ; then
@@ -1231,10 +1243,10 @@ case "$1" in
 
 	--intern-op-atlassian-confluence-page-read)
 		shift
-		local confPRMember="" confPRPageId="" confPRFormat="" confPRContext="intern-op-atlassian-confluence-page-read"
+		local confPRMember="" confPRPageId="" confPRFormat="" confPRVersion="" confPRContext="intern-op-atlassian-confluence-page-read"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--member|--page-id|--format|--context)
+				--member|--page-id|--format|--version|--context)
 					if [ -z "${2:-}" ] ; then
 						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $1 value missing" >&2
 						set +e ; return 1
@@ -1243,6 +1255,7 @@ case "$1" in
 						--member)  confPRMember="$2" ;;
 						--page-id) confPRPageId="$2" ;;
 						--format)  confPRFormat="$2" ;;
+						--version) confPRVersion="$2" ;;
 						--context) confPRContext="$2" ;;
 					esac
 					shift 2
@@ -1254,7 +1267,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$confPRMember" ] || [ -z "$confPRPageId" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAtlassianAssertNumber "$confPRPageId" "<page-id>" "$confPRContext" || { set +e ; return 1 ; }
@@ -1263,7 +1276,17 @@ case "$1" in
 			storage|atlas_doc_format) ;;
 			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: --format invalid: $confPRFormat" >&2 ; set +e ; return 1 ;;
 		esac
+		## Read-only: a version query asks the v2 page-by-id endpoint for that
+		## exact historical rendering, same transport and response shape as the
+		## current-version read. Nothing here writes, so there is nothing to
+		## conflict and no next-version number to compute.
+		if [ -n "$confPRVersion" ] ; then
+			AgentsToolsAtlassianAssertNumber "$confPRVersion" "--version" "$confPRContext" || { set +e ; return 1 ; }
+		fi
 		local confPRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPRPageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confPRFormat" )"
+		if [ -n "$confPRVersion" ] ; then
+			confPRPath="$confPRPath&version=$( AgentsToolsAtlassianUrlEncode "$confPRVersion" )"
+		fi
 		local confPRBody confPRRc=0
 		confPRBody="$( AgentsToolsAtlassianCall "$confPRMember" confluence GET "$confPRPath" "$confPRContext" "" )" || confPRRc=$?
 		if [ "$confPRRc" -ne 0 ] ; then

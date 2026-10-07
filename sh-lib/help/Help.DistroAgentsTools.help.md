@@ -33,7 +33,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-space-list <team-member> [--cursor <value>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-search <team-member> <cql> [--limit <n>]
@@ -43,7 +43,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-delete <team-member> <page-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-space-list <team-member> [--cursor <value>]
-📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-search <team-member> <cql> [--limit <n>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-comment-read <team-member> <page-id>
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]
@@ -1065,18 +1065,25 @@
 			also reports `more: yes` with the next `--cursor`, or
 			`more: no` on a confirmed-complete last page.
 
-		--member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+		--member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]
 			`<team-member>` is required; a page is readable only by
 			identities it is shared with. Any other argument is refused
 			with 1.
 
 			The body goes to stdout, title/version/space id to stderr, so
-			`page-read > file` yields the body alone.
+			`page-read > file` yields the body alone. The stderr line's
+			`version=` field is always the version actually returned,
+			whether `--version` was passed or not.
 
 			`--format storage` (default) returns Confluence's storage
 			XHTML; `--format atlas_doc_format` returns the Atlassian
 			Document Format JSON instead. Any other value is refused with
 			1.
+
+			`--version <n>` reads that one historical version instead of
+			the current one. Read-only: nothing is written and no
+			version-conflict is possible, unlike page-update's `--version`.
+			`<n>` must be a whole number, refused with 1 otherwise.
 
 			A 404 does NOT establish the page is absent: Confluence
 			returns 404 both for missing content and for content this
@@ -1187,10 +1194,11 @@
 			completeness reporting are as
 			`--member-comms-confluence-space-list` describes.
 
-		--client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format]
+		--client-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]
 			Runs only as a `client-*` member, under that member's own
 			credential; any other name is refused with 1. Everything
-			else is as `--member-comms-confluence-page-read` describes.
+			else, `--version` included, is as
+			`--member-comms-confluence-page-read` describes.
 
 		--client-comms-confluence-page-search <team-member> <cql> [--limit <n>]
 			Runs only as a `client-*` member, under that member's own
@@ -1214,6 +1222,17 @@
 			own credential; any other name is refused with 1. Everything
 			else is as `--magic-comms-confluence-page-update` describes.
 
+			**Before this write runs, the current page is read and saved
+			byte-for-byte to the team's audit store.** A save that fails
+			refuses the write, naming the snapshot as the reason. A write
+			that runs prints the saved snapshot's id; a snapshot never
+			carries a credential or secret.
+
+			**The approval ask for this write shows the full resulting
+			page, or a diff against the current one.** The tooling does
+			not compose that ask -- the acting `client-*` member is
+			responsible for showing it.
+
 		--client-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
@@ -1223,6 +1242,9 @@
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
 			else is as `--magic-comms-confluence-page-delete` describes.
+
+			Same snapshot-before-write and approval-diff rule as
+			`--client-comms-confluence-page-update`.
 
 		--member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]
 			`<team-member>` required: an issue is readable only by
@@ -1551,10 +1573,26 @@
 			a status change goes through
 			`--client-comms-jira-issue-transition`.
 
+			**Before this write runs, the current issue is read and saved
+			byte-for-byte to the team's audit store.** A save that fails
+			refuses the write, naming the snapshot as the reason. A write
+			that runs prints the saved snapshot's id; a snapshot never
+			carries a credential or secret.
+
+			**The approval ask for this write shows the full resulting
+			issue, or a diff against the current one.** The tooling does
+			not compose that ask -- the acting `client-*` member is
+			responsible for showing it.
+
 		--client-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
 			else is as `--magic-comms-jira-issue-transition` describes.
+
+			Same snapshot-before-write and approval-diff rule as
+			`--client-comms-jira-issue-update` -- `--fields-json` here can
+			overwrite a field too, the same loss `--client-comms-jira-issue-update`
+			guards against.
 
 		--client-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 			Runs only as a `client-*` member, writing under that member's
@@ -1565,6 +1603,9 @@
 			Runs only as a `client-*` member, writing under that member's
 			own credential; any other name is refused with 1. Everything
 			else is as `--magic-comms-jira-issue-delete` describes.
+
+			Same snapshot-before-write and approval-diff rule as
+			`--client-comms-jira-issue-update`.
 
 		--magic-comms-trello-post-comment <team-member> <card-id> (text...|--from-stdin|--from-file <path>)
 			`<team-member>` required: a comment is authored by one
@@ -2076,16 +2117,18 @@
 
 		--make-harness-indices
 			Writes the universal harness's own indexes in
-			`$MMDAPP/.local/agents`, which it reads with builtins at every
-			start instead of recomputing them: `harness.roots.index`
+			`$MMDAPP/.local/agents`, which it reads at every start
+			instead of recomputing them: `harness.roots.index`
 			(the access roots, already resolved) and
-			`harness.hooks.index` (the PreToolUse hook list), one section
-			per origin a harness of this workspace runs from, and
-			`mcp.servers.index` (each registered MCP server resolved, as
-			--install-vscode-integrations also writes it). Each is
-			produced by the code the harness otherwise runs and is used
-			only while what it was produced from is unchanged, so a
-			missing or stale one only costs time. Takes no arguments.
+			`harness.hooks.index` (the PreToolUse hook list), each one
+			index used whichever origin a harness of this workspace runs
+			from, and `mcp.servers.index` (each registered MCP server
+			resolved, as --install-vscode-integrations also writes it).
+			Each is produced by the code the harness otherwise runs and
+			is used only while what it was produced from is unchanged, so
+			a missing, stale or older-format one only costs time. The
+			children lists under `children/` are not this op's: the main
+			loop rebuilds them. Takes no arguments.
 
 		--make-agents-indices
 			Rebuilds the prepared registries of this workspace's team
@@ -2495,8 +2538,10 @@
 			member's own posts never do unless --wait-include-own
 			is given (refused on every other source, where posts
 			already count). On this source shape only,
-			--wait-since-utime need not name a real message -- a
-			bare call defaults it to the current time.
+			--wait-since-utime need not name a real message, and
+			may be left out: the floor is then the stored one,
+			else the session's own last post there, else the
+			spawn's launch, else the wait's start.
 
 			An unsupported source kind is an ERROR at second zero,
 			naming the kinds that exist. A probe that can't run is
@@ -2529,9 +2574,19 @@
 			and a stored wait older than 7 days is removed when
 			any mode call starts. With no mode the call keeps no
 			state.
-			--wait-default: forgets any stored wait, waits on the
-			sources given (else the default above), and stores
-			the wait when it returns RECEIVED or TIMEOUT.
+			--wait-default: waits on the sources given (else the
+			default above), and stores the wait when it returns
+			RECEIVED or TIMEOUT. It keeps every stored floor: a
+			slack source resumes after the last message a wait
+			returned on it, so nothing posted between two calls
+			is skipped. An explicit --wait-since-utime replaces
+			the floor of a plain question thread, and on any
+			other slack source the older of the two is used.
+			A stored ask: item whose record exists stays in it.
+			On a slack arrival the wait re-reads after
+			MDAT_WAIT_SETTLE_SECONDS (default 3, 0 is off), up to
+			MDAT_WAIT_SETTLE_ROUNDS (default 3) times while more
+			arrives, so a burst returns together, oldest first.
 			--wait-continue: repeats the stored wait with its
 			sources, addressee, include-own and per-source
 			floors (kept only from the second call on), so a
