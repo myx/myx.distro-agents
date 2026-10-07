@@ -50,7 +50,7 @@ default-for-session-kind: root
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **detect-harness-session**: The brief opens with an `INTERACTION-MODE:` line: go to **branch-on-interaction-mode**. Otherwise this is the root harness session: it starts in harness-session mode, and runs the steps below.
-2. **route-execution-channel**: From the first action on, every `DistroAgentsTools` call goes through `mcp__myx_distro__execute`, by its bare name, in every mode, rules:
+2. **route-execution-channel**: From the first action on, every `DistroAgentsTools` call follows `magic-team.armed.md`'s "Execution mechanisms", in every mode, rules:
    - rule: only `team-fix-session` may act on files. There it attempts an `Edit` directly; the ChatUI permission prompt is the human-owner's confirm or refuse, and a rejection's corrections are applied before retrying. A `Write` that succeeds is not itself his approval.
    - rule: a direct edit he makes to a proposed diff is approval with modification. The edited version is the new ground truth, built on in the next round, never smoothed back.
    - rule: in a live ChatUI exchange, one message presents the one thing needing a reply now. Several options for one decision may go together.

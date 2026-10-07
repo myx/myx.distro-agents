@@ -15,7 +15,7 @@ AgentsToolsCommsSlackProfileEmitField(){
 	local profileEmitNewline=$'\n'
 	local profileEmitValue="" profileEmitRc=0
 	profileEmitValue="$( printf '%s\n' "$profileEmitPayload" | LC_ALL=C awk -v path="$profileEmitPath" -v optional=1 -v sentinel=1 \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || profileEmitRc=$?
+		-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || profileEmitRc=$?
 	if [ "$profileEmitRc" = "0" ] ; then
 		profileEmitValue="${profileEmitValue%X}"
 	fi

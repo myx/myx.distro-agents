@@ -316,7 +316,7 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 	[ -n "$callArgs" ] || callArgs='{}'
 	callArgs="${callArgs//$'\n'/ }"
 	callArgs="${callArgs//$'\r'/ }"
-	printf '%s' "$callArgs" | LC_ALL=C awk -v path=__probe__ -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" >/dev/null 2>&1 || callRc=$?
+	printf '%s' "$callArgs" | LC_ALL=C awk -v path=__probe__ -v mode=raw -f "$harnessHere/AgentsHarnessJsonField.awk" >/dev/null 2>&1 || callRc=$?
 	## rc 0 found it, rc 3 parsed and it is absent -- both prove one JSON object.
 	case "$callRc" in
 		0|3) ;;
@@ -354,7 +354,7 @@ AgentsHarnessMcpCall(){ ## declared name, raw arguments JSON
 	if [ "$callRc" != "0" ] ; then
 		## No `content` array at all: hand back whatever `result` the server did write,
 		## rather than reporting nothing about an answer it considers successful.
-		callOut="$( LC_ALL=C awk -v path=result -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$harnessScratch/mcp.result" 2>/dev/null )" || callOut=""
+		callOut="$( LC_ALL=C awk -v path=result -v mode=raw -f "$harnessHere/AgentsHarnessJsonField.awk" < "$harnessScratch/mcp.result" 2>/dev/null )" || callOut=""
 		[ -n "$callOut" ] || callOut="ERROR: $callName: the MCP server \`$callServer\` answered with neither a result nor an error this harness can read"
 		printf '%s\n' "$callOut"
 		return 0
@@ -483,7 +483,7 @@ AgentsHarnessMcpEnumerate(){
 				fi
 				harnessMcpSchemaFile="$harnessScratch/mcp.$harnessMcpName.$harnessMcpTool.schema.json"
 				harnessMcpRc=0
-				LC_ALL=C awk -v path="$harnessMcpToolPath.inputSchema" -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" < "$harnessScratch/mcp.reply" > "$harnessMcpSchemaFile" 2>/dev/null || harnessMcpRc=$?
+				LC_ALL=C awk -v path="$harnessMcpToolPath.inputSchema" -v mode=raw -f "$harnessHere/AgentsHarnessJsonField.awk" < "$harnessScratch/mcp.reply" > "$harnessMcpSchemaFile" 2>/dev/null || harnessMcpRc=$?
 				if [ "$harnessMcpRc" != "0" ] ; then
 					rm -f "$harnessMcpSchemaFile"
 					printf '%s\n' "${harnessWarn}🔌 mcp${harnessOff} ${harnessDim}$harnessMcpName: dropped the tool ${harnessOff}${harnessValue}$harnessMcpTool${harnessOff}${harnessDim} -- it declares no readable inputSchema (rc=$harnessMcpRc)${harnessOff}" >&2

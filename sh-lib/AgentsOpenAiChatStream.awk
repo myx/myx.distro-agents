@@ -3,7 +3,7 @@
 # The OpenAI chat-completions SSE stream, consumed by ONE process for the whole
 # round. AgentsOpenAiChatWire.sh's AgentsWireStreamConsume runs it as
 #   agentsWireStreamScratch=<dir> LC_ALL=C awk -f AgentsProgressLineSafe.awk \
-#     -f AgentsHarnessJsonField.awk -f AgentsHarnessJsonSlice.awk -f <this file>
+#     -f AgentsHarnessJsonField.awk -f <this file>
 # and it writes the round's stream.* accumulators exactly as the shell loop it
 # replaces did, file by file and byte for byte: each field is what that loop's own
 # `$( awk -f AgentsHarnessJsonField.awk ... )` gave -- a plain read with its
@@ -33,7 +33,6 @@
 
 BEGIN {
 	jfLibrary = 1
-	jsLibrary = 1
 	wireScratch = ENVIRON["agentsWireStreamScratch"]
 	## stream.tool.count as the shell found it on entry, and the shell's own flags.
 	wireSeen = ENVIRON["agentsWireStreamSeen"]
@@ -129,25 +128,12 @@ function wireHas(leafPath) {
 	return wireDocRc == 0 && (leafPath in jfLeafSeen)
 }
 
-## AgentsHarnessJsonSlice.awk -v mode=raw, driven in place: 0 found (value in
-## wireSliceValue), 1 not one JSON object, 3 absent.
-function wireSliceRaw(sliceText, slicePath) {
-	wantPath = slicePath
-	sliceMode = "raw"
-	foundCount = 0
-	foundValue = ""
-	structErr = 0
-	delete scanChars
-	scanLen = split(sliceText, scanChars, "")
-	scanPos = 1
-	skipws()
-	if (scanPos > scanLen || scanChars[scanPos] != "{") return 1
-	scanValue("")
-	skipws()
-	if (structErr || scanPos <= scanLen) return 1
-	if (foundCount == 0) return 3
-	wireSliceValue = foundValue
-	return 0
+## The reader's -v mode=raw, in place: 0 found (value in wireSliceValue), 1 not
+## one JSON object, 3 absent.
+function wireSliceRaw(sliceText, slicePath,   sliceRc) {
+	sliceRc = jfSliceText(sliceText, slicePath, "raw")
+	if (sliceRc == 0) wireSliceValue = jfSliceValue
+	return sliceRc
 }
 
 function wireData(payload,   errorText, usagePrompt, usageCompletion, usageTotal, usageCached, reasoningText, partCount, partIndex, reasoningParts, contentText, finishReason, toolCount, toolIndex, toolBase, toolIndexField, toolId, toolName, toolArgs) {

@@ -557,16 +557,39 @@ RIG_RENDER
 
 rigAnswersDefault="$rigTmp/answers.default.out"
 LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=0 \
-	-f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersDefault" 2>/dev/null
+	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersDefault" 2>/dev/null
 rigAssert "default: the caller's own post is excluded"    "$( rigHolds "$rigAnswersDefault" 'RIG-OWN-POST' )" no
 rigAssert "default: the other member's post still counts" "$( rigHolds "$rigAnswersDefault" 'RIG-OTHER-POST' )" yes
 
 rigAnswersIncluded="$rigTmp/answers.included.out"
 LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=1 \
-	-f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersIncluded" 2>/dev/null
+	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderFile" > "$rigAnswersIncluded" 2>/dev/null
 rigAssert "control: includeOwn=1 brings the own post back" "$( rigHolds "$rigAnswersIncluded" 'RIG-OWN-POST' )" yes
 rigAssert "control: the other member's post still counts"  "$( rigHolds "$rigAnswersIncluded" 'RIG-OTHER-POST' )" yes
 rigVerdict "AgentsSlackThreadAnswers.awk -- the own-post skip is real, and includeOwn=1 lifts exactly it"
+
+## 9b. The own-post skip never drops a DISMISSED tagged to the caller by another member:
+##     spawner and child post under one team bot, so `[sender: X]` cannot tell them apart.
+rigRenderDismiss="$rigTmp/render.dismiss.txt"
+cat > "$rigRenderDismiss" <<RIG_RENDER
+1700000002.000001 | U100 | [sender: $rigMember] *_magic-coordinator_* @Magic → *_${rigMember}_* @T.
+DISMISSED
+1700000003.000001 | U100 | [sender: $rigMember] *_${rigMember}_* @T → *_${rigMember}_* @T.
+DISMISSED
+1700000004.000001 | U100 | [sender: $rigMember] *_magic-coordinator_* @Magic → *_keeper-myx_* @K.
+DISMISSED
+1700000005.000001 | U100 | [sender: $rigMember] *_magic-coordinator_* @Magic → @here.
+DISMISSED
+RIG_RENDER
+rigAnswersDismiss="$rigTmp/answers.dismiss.out"
+LC_ALL=C awk -v rootTs=1700000001.000000 -v fromUsers="" -v tag="" -v threadCount=0 -v others="" -v mode="conversation" -v callerName="$rigMember" -v includeOwn=0 \
+	-f "$rigHere/AgentsDismissalMatch.awk" -f "$rigAnswersAwk" < "$rigRenderDismiss" > "$rigAnswersDismiss" 2>/dev/null
+rigAssert "same-bot spawner DISMISSED tagged to the caller is kept" "$( rigHolds "$rigAnswersDismiss" '1700000002.000001' )" yes
+rigAssert "...with its body line"                                  "$( LC_ALL=C grep -c -x 'DISMISSED' "$rigAnswersDismiss" )" 1
+rigAssert "the caller's own DISMISSED-looking post is dropped"     "$( rigHolds "$rigAnswersDismiss" '1700000003.000001' )" no
+rigAssert "a DISMISSED tagged to someone else is dropped"          "$( rigHolds "$rigAnswersDismiss" '1700000004.000001' )" no
+rigAssert "a DISMISSED to @here is dropped"                        "$( rigHolds "$rigAnswersDismiss" '1700000005.000001' )" no
+rigVerdict "AgentsSlackThreadAnswers.awk -- a dismissal tagged to the caller survives the own-post skip"
 
 ## ---------------------------------------------------------------------------
 ## 10. The session Wait -- three mutually exclusive modes (--wait-default,

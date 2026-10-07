@@ -41,6 +41,15 @@ if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
 	exit 0
 fi
 
+## The Slack-backed twins reach a person only through the team bot. A workspace with
+## no team bot token configured has nowhere to send them, so the native tool is
+## allowed rather than refused toward a twin that cannot deliver.
+case "$1" in
+AskUserQuestion|PushNotification)
+	grep -q '^SLACK_BOT_TOKEN=.' "${CLAUDE_PROJECT_DIR:-$PWD}/.local/.agents/magic-team.agent.env" 2>/dev/null || exit 0
+;;
+esac
+
 ## The one document a PreToolUse hook answers with. $1 is the reason, and the reason is
 ## the only thing that differs between the tools below.
 denyWith(){

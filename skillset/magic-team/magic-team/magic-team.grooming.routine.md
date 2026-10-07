@@ -98,7 +98,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - **Escalate** — push for resolution now; it stays blocked meanwhile.
      - **Stays blocked** — only with something actually tried this pass. Any open `blocked-by` keeps it blocked.
      - **Becomes parked** — active pursuit is no longer worth it: `--magic-grooming-to-parked`.
-     - **Unblocks** — its blocker cleared or dropped: `--magic-grooming-to-pending`. A resolved `approval-*` sets `approved-by`/`approved-at` on the item it gated.
+     - **Unblocks** — its blocker cleared or dropped: `--magic-grooming-to-pending`. An approved `approval-*` just moves to `board-processed`; the move unblocks what it gated.
      - **Archived** — even waiting is not worth it: `--magic-grooming-to-archived`.
    - recheck every `board-parked` item: its trigger arrived → `--magic-grooming-to-pending` or `--magic-grooming-to-backlog`; never coming → `--magic-grooming-to-archived`.
    - **recheck-and-exit** every `board-retained` item whose `recheck-date` is due or unset: still referenced → renew `recheck-date` (`--magic-grooming-to-retained --from-state:retained`); no longer referenced → `board-processed`.
@@ -141,7 +141,8 @@ Run per item during **triage-per-item**. Steps:
 1. `interview-*`, or a `task-*`/`proposal-*` explicitly awaiting interview (read its content, not its title):
    - `owner-session: interactive` with `owner-session-since` within about an hour: skip; a live session holds it.
    - otherwise: `--magic-grooming-to-pending`. `magic-coordinator.advance.routine` starts it and runs its interview rounds.
-2. Any other item, by the group's consensus this pass:
+2. Any other item already carrying `approved-by`/`approved-at` (created approved by another routine) → `--magic-grooming-to-pending`.
+3. Any other item, by the group's consensus this pass:
    - dependencies clear and priority confirmed, nobody dissents → `--magic-grooming-to-pending` with `approved-by`/`approved-at`.
    - a dependency still open → `--magic-grooming-to-blocked`, with a note. No `approval-*`: not a human decision.
    - real doubt about priority or a dependency → an `approval-*` in `board-running` (`--magic-grooming-create-running`), and the item to `board-blocked`, linked by `blocks`/`blocked-by`.
@@ -151,7 +152,7 @@ Run per item during **triage-per-item**. Steps:
 
 Decided jointly by `magic-coordinator`, `magic-librarian` and `magic-architect`. Steps:
 1. The item's scope or assumptions shifted so its state no longer reflects reality:
-   - all three agree → `--magic-grooming-to-backlog` with a note on the trigger. Clear `approved-by`/`approved-at` in the same call; `check-backlog-promote` re-earns them.
+   - all three agree → `--magic-grooming-to-backlog` with a note on the trigger.
    - they disagree → resolve it in discussion; escalate when still unresolved. Never a silent default.
 2. Framing still holds → no move; update only what narrower changed (owner, `recheck-date`, a note).
 

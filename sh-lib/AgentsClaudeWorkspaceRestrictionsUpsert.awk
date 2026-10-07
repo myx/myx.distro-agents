@@ -7,8 +7,9 @@
 # (AgentsTools.Install.include) is the only caller.
 #
 # Every entry already present that this script did not itself add is kept, in
-# its original position. The one removal is a hooks.PreToolUse entry running a
-# retired hook script (MYX_WSRESTRICT_RETIRED_HOOKS); everything else only
+# its original position. The two removals are a hooks.PreToolUse entry running a
+# retired hook script (MYX_WSRESTRICT_RETIRED_HOOKS) and a permissions.deny entry
+# equal to a retired one (MYX_WSRESTRICT_RETIRED_DENY); everything else only
 # appends missing entries. Prints the new document on stdout; never opens the
 # target itself.
 #
@@ -84,6 +85,11 @@
 #                                        is removed, and the entries around it
 #                                        keep their text. Optional -- unset
 #                                        removes nothing.
+#   MYX_WSRESTRICT_RETIRED_DENY       -- retired permissions.deny entries, one
+#                                        per line, each the exact entry text an
+#                                        earlier install wrote. An entry equal
+#                                        to one is removed; nothing else is.
+#                                        Optional -- unset removes nothing.
 
 function skipws(   c) {
 	while (p <= n) {
@@ -344,6 +350,7 @@ BEGIN {
 	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
 	if (!validJson(allowWriteRootsRaw, "[")) fail("allow-write-roots-not-a-json-array")
 	retiredCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_HOOKS"], retiredHook, "\n")
+	retiredDenyCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_DENY"], retiredDeny, "\n")
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
@@ -479,8 +486,13 @@ END {
 
 	oldDenyCount = stringArrayAt(VALUE_START)
 	for (i = 0; i < oldDenyCount; i++) oldDeny[i] = ELEMS[i]
-	newDenyCount = oldDenyCount
-	for (i = 0; i < oldDenyCount; i++) newDeny[i] = oldDeny[i]
+	## A retired entry goes on an exact match only, so a user's own rule stays.
+	newDenyCount = 0
+	for (i = 0; i < oldDenyCount; i++) {
+		denyRetired = 0
+		for (j = 1; j <= retiredDenyCount; j++) if (retiredDeny[j] != "" && oldDeny[i] == retiredDeny[j]) denyRetired = 1
+		if (!denyRetired) newDeny[newDenyCount++] = oldDeny[i]
+	}
 	for (i = 0; i < denyAddCount; i++) {
 		if (!inList(newDeny, newDenyCount, denyAdd[i])) newDeny[newDenyCount++] = denyAdd[i]
 	}

@@ -3,7 +3,7 @@
 # The Anthropic Messages SSE stream, consumed by ONE process for the whole round.
 # AgentsAnthropicMessagesWire.sh's AgentsWireStreamConsume runs it as
 #   agentsWireStreamScratch=<dir> LC_ALL=C awk -f AgentsHarnessJsonField.awk \
-#     -f AgentsHarnessJsonSlice.awk -f <this file>
+#     -f <this file>
 # and it writes the round's stream.* files -- each block's own, keyed by the index
 # the stream gives it -- exactly as the shell loop it replaces did, byte for byte.
 # Every field is what that loop's AgentsWireEventField gave: appended straight to a
@@ -31,7 +31,6 @@
 
 BEGIN {
 	jfLibrary = 1
-	jsLibrary = 1
 	wireScratch = ENVIRON["agentsWireStreamScratch"]
 	## stream.block.count as the shell found it on entry, and the shell's own flags.
 	wireSeen = ENVIRON["agentsWireStreamSeen"]
@@ -138,25 +137,12 @@ function wireLeaf(leafPath) {
 	return jfLeaf[leafPath]
 }
 
-## AgentsHarnessJsonSlice.awk -v mode=raw, driven in place: 0 found (value in
-## wireSliceValue), 1 not one JSON object, 3 absent.
-function wireSliceRaw(sliceText, slicePath) {
-	wantPath = slicePath
-	sliceMode = "raw"
-	foundCount = 0
-	foundValue = ""
-	structErr = 0
-	delete scanChars
-	scanLen = split(sliceText, scanChars, "")
-	scanPos = 1
-	skipws()
-	if (scanPos > scanLen || scanChars[scanPos] != "{") return 1
-	scanValue("")
-	skipws()
-	if (structErr || scanPos <= scanLen) return 1
-	if (foundCount == 0) return 3
-	wireSliceValue = foundValue
-	return 0
+## The reader's -v mode=raw, in place: 0 found (value in wireSliceValue), 1 not
+## one JSON object, 3 absent.
+function wireSliceRaw(sliceText, slicePath,   sliceRc) {
+	sliceRc = jfSliceText(sliceText, slicePath, "raw")
+	if (sliceRc == 0) wireSliceValue = jfSliceValue
+	return sliceRc
 }
 
 function wireData(payload,   eventType, blockIndex, blockType, deltaType, deltaText, stopReason) {

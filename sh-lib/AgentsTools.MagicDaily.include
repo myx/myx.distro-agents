@@ -9,6 +9,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
 case "$1" in
 
 	## HEADER ORDER IS LOAD-BEARING.
@@ -37,12 +39,8 @@ case "$1" in
 				;;
 			esac
 		done
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )"
-		targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
 			--header:upsert:state:daily-running \
@@ -64,18 +62,26 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		## Read before the acquire writes: the first daily of the day is one whose
+		## note does not carry today's local date as its last-close-date.
+		local recheckDate dailyLastClose="" dailyFirstToday="yes"
+		if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260811T120000Z-daily-state-and-lock.md" ] ; then
+			dailyLastClose="$( LC_ALL=C awk '
+				{ sub(/\r$/, "") ; }
+				$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
+				fmDepth == 1 && /^last-close-date: / { print substr($0, 18) ; exit ; }
+			' "$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260811T120000Z-daily-state-and-lock.md" )"
+		fi
+		[ "$dailyLastClose" = "$( date +%Y-%m-%d )" ] && dailyFirstToday="no"
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:daily-running \
 			--header:upsert:recheck-date:"$recheckDate" \
-			--context --magic-daily-lock-acquire
-		return $?
+			--context --magic-daily-lock-acquire || { set +e ; return 1 ; }
+		echo "first-today: $dailyFirstToday"
+		return 0
 	;;
 
 	--magic-daily-lock-refresh)
@@ -89,11 +95,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-daily-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-daily-state-and-lock.md \
 			--update-lock \
@@ -132,6 +135,7 @@ case "$1" in
 			"${passthrough[@]}" \
 			--unlock-lock \
 			--header:upsert:state:daily-finished \
+			--header:upsert:last-close-date:"$( date +%Y-%m-%d )" \
 			--context --magic-daily-close-state-and-unlock
 		return $?
 	;;

@@ -9,6 +9,8 @@
 ## $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
 case "$1" in
 
 	## HEADER ORDER IS LOAD-BEARING.
@@ -37,12 +39,8 @@ case "$1" in
 				;;
 			esac
 		done
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )"
-		targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--header:upsert:state:retro-running \
@@ -64,11 +62,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
@@ -89,11 +84,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--update-lock \

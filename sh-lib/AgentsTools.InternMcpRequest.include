@@ -244,11 +244,10 @@ case "$1" in
 				esac
 
 				## Bash is absent from tools/list rather than present-and-refusing, so a
-				## caller only reaches this by naming it anyway; it is told where
-				## arbitrary command execution actually lives instead of being refused
-				## with nothing to go on. myx.common is not modified by this.
+				## caller only reaches this by naming it anyway; it is told where to
+				## run commands instead of being refused with nothing to go on.
 				if [ "Bash" = "$mcpToolName" ] ; then
-					AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Arbitrary command execution is myx.common's own MCP method -- call that server's lib_execShStdin instead. This server's own 'execute' is a different thing: it evaluates a shell script with the myx.distro workspace context already established."
+					AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Use your own client's shell tool; where that is refused, use this server's own 'execute', which evaluates a shell script with the myx.distro workspace context already established."
 
 				## Any other tool the floor rendered: run exactly that one tool in the
 				## harness and return its output. The harness may leave a background
@@ -259,7 +258,7 @@ case "$1" in
 					## Lifted RAW out of the request and handed over unchanged: these
 					## bytes are already escaped for JSON, and escaping them again
 					## corrupts every value that carried an escape.
-					mcpToolArgs="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || mcpToolArgs=''
+					mcpToolArgs="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mcpToolArgs=''
 					[ -n "$mcpToolArgs" ] || mcpToolArgs='{}'
 
 					mcpOutFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/tool.$AGENTS_MCP_REQ_SEQ"

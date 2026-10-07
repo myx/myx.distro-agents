@@ -43,13 +43,13 @@ set -e
 ##    kept as a genuine backstop rather than deleted: no case is not the same as
 ##    no case existing, and the counts are already in hand either way.
 ##
-## Parsed through AgentsHarnessJsonSlice.awk, which is not the reader the harness
+## Parsed through AgentsHarnessJsonField.awk -v mode=raw|keys, which is not the read the harness
 ## runs its own responses through -- a literal validated by the same code that
 ## consumes it proves only that the two agree.
 
 checkHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 checkWire="${1:-$checkHere/AgentsOpenAiChatWire.sh}"
-checkSliceAwk="$checkHere/AgentsHarnessJsonSlice.awk"
+checkSliceAwk="$checkHere/AgentsHarnessJsonField.awk"
 
 if [ ! -f "$checkWire" ] ; then
 	echo "HARNESS_TOOLS_JSON: FAIL"

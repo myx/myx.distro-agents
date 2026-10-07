@@ -68,7 +68,7 @@ A term in `` `backticks` `` carries the meaning below. The list is partial; more
 - `filing` — writing one piece of live context, with its goal and references, as one inbox or board document for later pickup, and dropping it from the live session. Filing executes nothing.
 - `harness-session` — the bootstrap state of a `magic-coordinator` instance before a mode is chosen. `harness-session-rules` — the standing rules of that state. Both live in `magic-coordinator`'s files.
 - `human-owner` — the person who owns this team. His direct word overrides team rules.
-- `magic-tooling` — the team's operations, run through `mcp__myx_distro__execute`. See "Team-Member's (-specific) tooling".
+- `magic-tooling` — the team's operations, run on the session's own shell tool. See "Team-Member's (-specific) tooling".
 - `main-loop` — the team's continuous rhythm: one `magic-coordinator.heartbeat.routine` pass per cycle. No member calls it.
 - `next-iteration` — one whole iteration of a long process, treated as one atomic step; the safe point to restart from.
 - `owner-guaranteed` — a rule that changes only with the human-owner's own approval.
@@ -341,10 +341,10 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 ## Execution mechanisms
 
-- Every `DistroAgentsTools` call runs through `mcp__myx_distro__execute`, invoked by the bare name `DistroAgentsTools`, never by path. The channel sets up the workspace environment itself.
-- A one-off call against another workspace passes that workspace in the call's `workspace` argument.
-- A command needing no workspace environment runs on whatever execution tool the session holds. A refused native shell names the channel to use instead; using it is obedience, not a workaround.
-- The channel's name comes from the session's own tool list. A missing channel is escalated, never replaced by a direct path.
+- Every command, `DistroAgentsTools` calls included, runs on the session's own shell tool (`Bash` in the team harness, which already carries the workspace environment). `DistroAgentsTools` is called by its bare name; a shell that does not define it uses `"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"`.
+- A refused native shell names the tool to use instead, such as `mcp__myx_distro__execute`; using it is obedience, not a workaround. Otherwise no MCP execute tool is used by default.
+- A one-off call against another workspace goes through `mcp__myx_distro__execute` with that workspace in its `workspace` argument.
+- A session with no shell tool at all escalates, never works around it.
 - **Console sessions are off by default.** A member opens one (`--console-start`, `--console-send`, `--console-stop`) only where its own instructions list those operations: to batch several commands in one workspace, or to work in another workspace. Process-flow routines use direct calls.
 - A member that is not `DistroAgentsTools`'s owner never edits it. A board item describing a change to it carries `restart-session:` with the owning `keeper-*`, `magic-architect`, `magic-developer`, `magic-tester` and `magic-librarian`.
 

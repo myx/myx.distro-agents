@@ -101,6 +101,16 @@ AgentsToolsClientToolPolicyRetiredHookNames(){
 	printf '%s\n' "deny-bash-tool.sh" "deny-ask-user-question-tool.sh"
 }
 
+## The permissions.deny entries earlier installs wrote into a workspace's
+## .claude/settings.json and this one retires, one per line, each the exact entry
+## text. The settings merge removes an entry only on an exact match, so a narrower
+## rule a user added beside it is never touched. Static denies of a tool the hooks
+## and permission policy govern belong to neither: a blanket "Bash" deny blocked
+## our own spawned sessions too, which the reroute hook lets through.
+AgentsToolsClientToolPolicyRetiredDenyEntries(){
+	printf '%s\n' "Bash"
+}
+
 ## The deny-reroute keys, one per line: the hooks that exist to route a *-native
 ## client toward this estate's own MCP tooling, and which therefore must not apply
 ## inside our own universal harness -- there the destination is already what is

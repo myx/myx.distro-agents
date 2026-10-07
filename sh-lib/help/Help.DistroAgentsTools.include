@@ -154,6 +154,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-m
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
@@ -227,7 +228,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]" >&2

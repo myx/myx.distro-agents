@@ -289,43 +289,44 @@ team-members-names AgentsToolsRegistryTeamMembersNamesRebuild"
 ## record found here did not necessarily run here -- which is why the host it ran on
 ## is a column, and why a row from another machine is never rendered as a dead one.
 ##
+## One entry line for AgentsRegistryHeaderRows.awk: a kind letter and a text, the
+## text's `\` written `\\` and its newline `\n`, so any file name fits on one line.
+## Builtins only: this runs once per file and must not fork.
+AgentsToolsRegistryRowsEntry(){ ## kind letter, text
+	local entryText="$2" entryBs='\' entryNl=$'\n'
+	entryText=${entryText//"$entryBs"/"$entryBs$entryBs"}
+	entryText=${entryText//"$entryNl"/"${entryBs}n"}
+	printf '%s%s\n' "$1" "$entryText"
+}
+
+## The shell globs the store, so the row order is the shell's own; one awk reads every
+## record's headers (AgentsRegistryHeaderRows.awk) -- never a process per file or per
+## column, which cost minutes over a few hundred records.
 AgentsToolsRegistrySpawnedSessionsRows(){
-	local sandboxDir sessionFile headerText sawRecord
-	local rowTracking rowRecordTracking rowSession rowParent rowHost rowOwner rowStatus rowExit
-	local rowSpawn rowAgentLogThread rowSessionThread rowWorkspace
-	for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
-		[ -d "$sandboxDir" ] || continue
-		## The sandbox root's own name is the tracking name, and is the fallback for
-		## a record carrying no header of its own: a sandbox that exists is listable,
-		## which is the whole reason it is created even when empty.
-		rowTracking="${sandboxDir%/}"
-		rowTracking="${rowTracking##*/}"
-		sawRecord="false"
-		for sessionFile in "$sandboxDir"*.md ; do
-			[ -f "$sessionFile" ] || continue
-			sawRecord="true"
-			headerText="$( AgentsToolsRegistryFrontmatter "$sessionFile" )"
-			rowSession="$( AgentsToolsRegistryHeader "$headerText" session-id )"
-			rowParent="$( AgentsToolsRegistryHeader "$headerText" parent-session-id )"
-			rowHost="$( AgentsToolsRegistryHeader "$headerText" host )"
-			rowOwner="$( AgentsToolsRegistryHeader "$headerText" owner )"
-			rowStatus="$( AgentsToolsRegistryHeader "$headerText" status )"
-			rowExit="$( AgentsToolsRegistryHeader "$headerText" exit-code )"
-			rowRecordTracking="$( AgentsToolsRegistryHeader "$headerText" tracking-name )"
-			rowSpawn="$( AgentsToolsRegistryHeader "$headerText" spawn-id )"
-			rowAgentLogThread="$( AgentsToolsRegistryHeader "$headerText" agent-log-thread )"
-			rowSessionThread="$( AgentsToolsRegistryHeader "$headerText" session-thread )"
-			rowWorkspace="$( AgentsToolsRegistryHeader "$headerText" workspace )"
-			## The record's own tracking-name wins over the folder name where it has
-			## one -- they agree unless a sandbox was moved by hand, and then the
-			## record is what the spawn itself wrote.
-			[ "$rowRecordTracking" = "-" ] || rowTracking="$rowRecordTracking"
-			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "$rowTracking" "$rowSession" "$rowParent" "$rowHost" "$rowOwner" "$rowStatus" "$rowExit" "$rowSpawn" "$rowAgentLogThread" "$rowSessionThread" "$rowWorkspace"
+	local sandboxDir sessionFile sawRecord rowTracking
+	{
+		for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
+			[ -d "$sandboxDir" ] || continue
+			## The sandbox root's own name is the tracking name, and is the fallback for
+			## a record carrying no header of its own: a sandbox that exists is listable,
+			## which is the whole reason it is created even when empty. The record's own
+			## tracking-name wins over the folder name where it has one -- they agree
+			## unless a sandbox was moved by hand, and then the record is what the spawn
+			## itself wrote; the awk applies that.
+			rowTracking="${sandboxDir%/}"
+			rowTracking="${rowTracking##*/}"
+			AgentsToolsRegistryRowsEntry D "$rowTracking"
+			sawRecord="false"
+			for sessionFile in "$sandboxDir"*.md ; do
+				[ -f "$sessionFile" ] || continue
+				sawRecord="true"
+				AgentsToolsRegistryRowsEntry S "$sessionFile"
+			done
+			## An empty sandbox is a listed session, not a missing one. It has no session
+			## id to be reached by, and saying so is the point.
+			[ "$sawRecord" = "true" ] || printf 'E\n'
 		done
-		## An empty sandbox is a listed session, not a missing one. It has no session
-		## id to be reached by, and saying so is the point.
-		[ "$sawRecord" = "true" ] || printf '%s - - - - no-session-record - - - - -\n' "$rowTracking"
-	done
+	} | LC_ALL=C awk -v registryRows=spawned -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistryHeaderRows.awk"
 	return 0
 }
 
@@ -374,6 +375,66 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id
 	fi
 }
 
+## The session ids of a spawned-sessions registry that AgentsToolsRegistryPendingSessionOpen
+## would call open, one per line between newlines, from ONE awk over both registries
+## instead of one per row. The same `==` as that function's, numeric where awk sees two
+## numbers, so the answer is the same id for id. An id holding a backslash is left out:
+## `-v` would have read it as an escape, so the caller asks the function itself.
+AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
+	local openPending
+	openPending="$( AgentsToolsRegistryFile pending-replies )"
+	printf '\n'
+	[ -f "$openPending" ] && [ -f "$1" ] || return 0
+	LC_ALL=C awk '
+		FILENAME == ARGV[1] {
+			if ( ( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" ) { openIds[++openCount] = $3 ; }
+			next ;
+		}
+		$2 == "" || $2 == "-" || index($2, "\\") > 0 { next ; }
+		{
+			for (openIdx = 1 ; openIdx <= openCount ; openIdx++) {
+				if ($2 == openIds[openIdx]) { print $2 ; break ; }
+			}
+		}
+	' "$openPending" "$1" 2>/dev/null || :
+}
+
+## The spawn ids of a spawned-sessions registry that occur anywhere in a process list
+## text, one per line between newlines: a literal substring search, as the render's
+## own quoted `*"$id"*` match is, from ONE awk instead of a shell match per row. The
+## text reaches awk on stdin, never through `-v`, so no backslash in it is read as an
+## escape. An empty id is never printed; the caller matches that one itself.
+AgentsToolsRegistryRunningSpawns(){ ## spawned-sessions registry file, process list text
+	printf '\n'
+	[ -f "$1" ] || return 0
+	printf '%s' "$2" | LC_ALL=C awk '
+		FILENAME == ARGV[1] {
+			psAll = (FNR == 1 ? $0 : psAll "\n" $0) ;
+			next ;
+		}
+		$8 != "" && index(psAll, $8) > 0 { print $8 ; }
+	' - "$1" 2>/dev/null || :
+}
+
+## AgentsToolsRegistryDeriveState without a fork: the same answer, into derivedState of the
+## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
+AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set
+	case "$1" in
+		spawn-succeeded|spawn-failed|spawn-ended-without-close) derivedState="finished" ; return 0 ;;
+	esac
+	[ "$2" != "other-host" ] || { derivedState="unknown-foreign" ; return 0 ; }
+	[ "$2" != "running" ] || { derivedState="running" ; return 0 ; }
+	derivedState="unclosed"
+	[ -n "$3" ] && [ "$3" != "-" ] || return 0
+	case "$3" in
+		*\\*) ! AgentsToolsRegistryPendingSessionOpen "$3" || derivedState="waiting" ;;
+		*) case "$4" in *"
+$3
+"*) derivedState="waiting" ;; esac ;;
+	esac
+	return 0
+}
+
 ##
 ## pending-replies -- every question waiting on an answer, kept non-purged so a saved
 ## reply can resume the work and an unanswered one can be asked again.
@@ -388,42 +449,31 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id
 ## resumes an ask and what resumes a board item are not the same act.
 ##
 AgentsToolsRegistryPendingRepliesRows(){
-	local askFile boardState boardFile headerText
-	local rowBlocked rowSession rowOwner rowChannel rowStatus
-	## The ask store first: the commonest source, and the one nothing else records.
-	for askFile in "$MMDAPP/.local/agents/pending"/*.md ; do
-		[ -f "$askFile" ] || continue
-		headerText="$( AgentsToolsRegistryFrontmatter "$askFile" )"
-		rowStatus="$( AgentsToolsRegistryHeader "$headerText" status )"
-		rowSession="$( AgentsToolsRegistryHeader "$headerText" session-id )"
-		rowOwner="$( AgentsToolsRegistryHeader "$headerText" owner )"
-		rowBlocked="$( AgentsToolsRegistryHeader "$headerText" blocked-on )"
-		rowChannel="$( AgentsToolsRegistryHeader "$headerText" communication-channel-id )"
+	local askFile boardState boardFile
+	{
+		## The ask store first: the commonest source, and the one nothing else records.
 		## Closed records stay listed rather than being dropped: a received reply is
 		## what resumes the work and a timed-out one is what a re-ask is posted from,
 		## so both are still wanted here. The status column is what tells them apart.
-		printf '%s ask %s %s %s %s %s\n' "${askFile##*/}" "$rowSession" "$rowOwner" "$rowStatus" "$rowBlocked" "$rowChannel"
-	done
-	## Then the board items that became items, recognised by carrying `blocked-on`.
-	## Both `running` and `blocked` are walked, because an item may be waiting
-	## without having been moved.
-	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	for boardState in running blocked ; do
-		[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
-		for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
-			[ -f "$boardFile" ] || continue
-			headerText="$( AgentsToolsRegistryFrontmatter "$boardFile" )"
-			rowBlocked="$( AgentsToolsRegistryHeader "$headerText" blocked-on )"
-			## Not waiting on a reply, so not a pending reply. The registry lists what
-			## is actually blocked, never every running item.
-			[ "$rowBlocked" = "-" ] && continue
-			rowStatus="$( AgentsToolsRegistryHeader "$headerText" status )"
-			rowSession="$( AgentsToolsRegistryHeader "$headerText" session-id )"
-			rowOwner="$( AgentsToolsRegistryHeader "$headerText" owner )"
-			rowChannel="$( AgentsToolsRegistryHeader "$headerText" communication-channel-id )"
-			printf '%s board-item %s %s %s %s %s\n' "${boardFile##*/}" "$rowSession" "$rowOwner" "$rowStatus" "$rowBlocked" "$rowChannel"
+		for askFile in "$MMDAPP/.local/agents/pending"/*.md ; do
+			[ -f "$askFile" ] || continue
+			AgentsToolsRegistryRowsEntry A "$askFile"
 		done
-	done
+		## Then the board items that became items, recognised by carrying `blocked-on`.
+		## Both `running` and `blocked` are walked, because an item may be waiting
+		## without having been moved. One not waiting on a reply is not a pending
+		## reply, and the awk drops it: the registry lists what is actually blocked,
+		## never every running item.
+		if [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+			for boardState in running blocked ; do
+				[ -d "$MDAT_DATA_ROOT/board/$boardState" ] || continue
+				for boardFile in "$MDAT_DATA_ROOT/board/$boardState"/*.md ; do
+					[ -f "$boardFile" ] || continue
+					AgentsToolsRegistryRowsEntry B "$boardFile"
+				done
+			done
+		fi
+	} | LC_ALL=C awk -v registryRows=pending -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistryHeaderRows.awk"
 	return 0
 }
 
@@ -495,7 +545,7 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile psText thisHost thisWorkspace
 	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowLive rowState
-	local extendedRows="" registryRow sawRow="false" sawAny="false"
+	local extendedRows="" registryRow sawRow="false" sawAny="false" openSet="" runningSet="" derivedState=""
 	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	printf '%s\n\n' "## spawned sessions"
 	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
@@ -515,6 +565,13 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 	printf 'this-host: %s\n' "$thisHost"
 	printf 'this-workspace: %s\n' "$thisWorkspace"
 	psText="$( ps -A -ww -o pid=,args= 2>/dev/null )" || psText=""
+	## The open asks are read once for every row too, never by an awk per row.
+	openSet="$( AgentsToolsRegistryPendingOpenSessions "$registryFile" )
+"
+	## And the process list is searched once for every row's spawn id, not by a shell
+	## pattern match per row over the whole list.
+	runningSet="$( AgentsToolsRegistryRunningSpawns "$registryFile" "$psText" )
+"
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace ; do
 		[ -n "$rowTracking" ] || continue
 		sawAny="true"
@@ -531,9 +588,16 @@ AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state fi
 			rowLive="other-host"
 		else
 			rowLive="no-process"
-			case "$psText" in *"$rowSpawn"*) rowLive="running" ;; esac
+			if [ -n "$rowSpawn" ] ; then
+				case "$runningSet" in *"
+$rowSpawn
+"*) rowLive="running" ;; esac
+			else
+				case "$psText" in *"$rowSpawn"*) rowLive="running" ;; esac
+			fi
 		fi
-		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" )"
+		AgentsToolsRegistryDeriveStateFromSet "$rowStatus" "$rowLive" "$rowSession" "$openSet"
+		rowState="$derivedState"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
 		extendedRows="$extendedRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $rowState
 "

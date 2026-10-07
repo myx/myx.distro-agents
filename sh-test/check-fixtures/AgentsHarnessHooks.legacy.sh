@@ -185,7 +185,7 @@ AgentsHarnessHooksRefusal(){
 		## is an allow: fail-open inside a mechanism whose whole point is failing closed.
 		*)
 			hookInputRc=0
-			printf '%s' "$hookArgsRaw" | LC_ALL=C awk -v path=__probe__ -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" >/dev/null 2>&1 || hookInputRc=$?
+			printf '%s' "$hookArgsRaw" | LC_ALL=C awk -v path=__probe__ -v mode=raw -f "${rigLegacyField%/*}/AgentsHarnessJsonSlice.legacy.awk" >/dev/null 2>&1 || hookInputRc=$?
 			## rc 0 found it, rc 3 parsed and it is absent -- both prove one JSON object.
 			hookInputJson='{}'
 			case "$hookInputRc" in

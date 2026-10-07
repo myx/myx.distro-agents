@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ApprovalCascade.include -- the approval cascade
+## --intern-op-board-upsert-move-edit runs when an `approval-*` arrives in
+## board-processed carrying approved-by/approved-at: the final, approved
+## resolution. Sourced by AgentsTools.InternOpBoardUpsertMoveEdit.include.
+## Contract: MAGIC.md.
+##
+
+if ! type AgentsToolsApprovalCascade > /dev/null 2>&1 ; then
+
+	## Prints the board state holding <name>.md, or nothing; returns 2 when more than
+	## one state holds it (never guessed between).
+	AgentsToolsApprovalCascadeLocate(){ ## <board-root> <bare-name>
+		local found="" count=0 state
+		for state in backlog pending running review blocked parked processed archived retained ; do
+			if [ -e "$1/$state/$2.md" ] ; then found="$state" ; count=$(( count + 1 )) ; fi
+		done
+		[ "$count" -le 1 ] || return 2
+		printf '%s' "$found"
+	}
+
+	## Prints one frontmatter field's value (empty when absent).
+	AgentsToolsApprovalCascadeField(){ ## <file> <field>
+		LC_ALL=C awk -v headers="$2" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" 2>/dev/null \
+			| sed -n "s/^$2: //p"
+	}
+
+	## Splits a relation value (`a, b, c`) into one trimmed entry per line.
+	AgentsToolsApprovalCascadeSplit(){ ## <value>
+		printf '%s\n' "$1" | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed '/^$/d'
+	}
+
+	## Runs the cascade for one approval already written at <approval-path> (its
+	## source already removed). Stamps approved-by/approved-at onto each `blocks`
+	## item where that item has none; moves a stamped item in board-blocked whose
+	## every blocked-by sits in board-processed/board-archived/board-retained to board-pending
+	## (retained is concluded, kept only because something references it).
+	## Prints each step to stderr. Appends every path it changed to the caller's
+	## `approvalCascadePaths` array, for the caller's one commit. A bad target is
+	## reported and skipped; never returns non-zero for one. Re-running changes nothing.
+	AgentsToolsApprovalCascade(){ ## <board-root> <approval-path> <log-prefix>
+		local boardRoot="$1" approvalPath="$2" logPrefix="$3"
+		local approvedBy approvedAt blocksValue
+		approvedBy="$( AgentsToolsApprovalCascadeField "$approvalPath" approved-by )" || approvedBy=""
+		approvedAt="$( AgentsToolsApprovalCascadeField "$approvalPath" approved-at )" || approvedAt=""
+		## Not a final approval (a denial, or a resolution without the go): nothing cascades.
+		[ -n "$approvedBy" ] && [ -n "$approvedAt" ] || return 0
+		blocksValue="$( AgentsToolsApprovalCascadeField "$approvalPath" blocks )" || blocksValue=""
+		[ -n "$blocksValue" ] || return 0
+
+		local repoRoot=""
+		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || repoRoot=""
+
+		local target targetState targetPath probeState opsFile newBody
+		while IFS= read -r target ; do
+			if ! AgentsToolsAssertBareName "$target" "blocks entry" board-upsert-move-edit 2>/dev/null \
+				|| [ "${target%.md}" != "$target" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ blocks entry malformed, skipped: $target" >&2
+				continue
+			fi
+			targetState="$( AgentsToolsApprovalCascadeLocate "$boardRoot" "$target" )" || {
+				echo "$logPrefix: approval cascade: ⚠️ $target is in more than one board state, skipped" >&2
+				continue
+			}
+			if [ -z "$targetState" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ $target not found on the board, skipped" >&2
+				continue
+			fi
+			targetPath="$boardRoot/$targetState/$target.md"
+			if [ ! -f "$targetPath" ] || [ ! -r "$targetPath" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ $targetState/$target.md unreadable, skipped" >&2
+				continue
+			fi
+			probeState="$( LC_ALL=C awk -v fieldName=approved-by -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterFieldProbe.awk" "$targetPath" )" || probeState=""
+			if [ "$probeState" != "HAS" ] && [ "$probeState" != "FRONTMATTER" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ $targetState/$target.md has no frontmatter, skipped" >&2
+				continue
+			fi
+
+			## Stamp: `default` ops, so a value the item already carries wins.
+			newBody="$(
+				opsFile="$MMDAPP/.local/temp/mdat-approval-cascade.$$"
+				trap 'rm -f "$opsFile"' EXIT
+				mkdir -p "$MMDAPP/.local/temp" || exit 1
+				printf 'default\tapproved-by\t%s\ndefault\tapproved-at\t%s\n' "$approvedBy" "$approvedAt" > "$opsFile" || exit 1
+				LC_ALL=C awk -v opsFile="$opsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$targetPath"
+			)" || newBody=""
+			if [ -z "$newBody" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ $targetState/$target.md could not be stamped, skipped" >&2
+				continue
+			fi
+			if [ "$newBody" != "$( cat "$targetPath" )" ] ; then
+				printf '%s\n' "$newBody" > "$targetPath" || {
+					echo "$logPrefix: approval cascade: ⚠️ $targetState/$target.md could not be written, skipped" >&2
+					continue
+				}
+				approvalCascadePaths+=( "$targetPath" )
+				echo "# $logPrefix: approval cascade: stamped approved-by/approved-at on $targetState/$target.md" >&2
+			fi
+
+			[ "$targetState" = "blocked" ] || continue
+
+			## Unblock only when every blocked-by is concluded; any open, missing or malformed one keeps it blocked.
+			local blockedBy blocker blockerState openBlocker=""
+			blockedBy="$( AgentsToolsApprovalCascadeField "$targetPath" blocked-by )" || blockedBy=""
+			if [ -z "$blockedBy" ] ; then
+				echo "# $logPrefix: approval cascade: blocked/$target.md records no blocked-by, left blocked" >&2
+				continue
+			fi
+			while IFS= read -r blocker ; do
+				if ! AgentsToolsAssertBareName "$blocker" "blocked-by entry" board-upsert-move-edit 2>/dev/null \
+					|| [ "${blocker%.md}" != "$blocker" ] ; then
+					openBlocker="$blocker (malformed)" ; break
+				fi
+				blockerState="$( AgentsToolsApprovalCascadeLocate "$boardRoot" "$blocker" )" || blockerState="ambiguous"
+				case "$blockerState" in
+					processed|archived|retained) ;;
+					*) openBlocker="$blocker (${blockerState:-not found})" ; break ;;
+				esac
+			done <<EOF
+$( AgentsToolsApprovalCascadeSplit "$blockedBy" )
+EOF
+			if [ -n "$openBlocker" ] ; then
+				echo "# $logPrefix: approval cascade: blocked/$target.md stays blocked, blocked-by $openBlocker" >&2
+				continue
+			fi
+			if [ -e "$boardRoot/pending/$target.md" ] ; then
+				echo "$logPrefix: approval cascade: ⚠️ pending/$target.md already exists, blocked/$target.md left in place" >&2
+				continue
+			fi
+			local blockedTracked="false"
+			if [ -n "$repoRoot" ] && [ -n "$( git -C "$repoRoot" ls-files -- "$targetPath" 2>/dev/null )" ] ; then
+				blockedTracked="true"
+			fi
+			cp -p -- "$targetPath" "$boardRoot/pending/$target.md" && rm -f -- "$targetPath" || {
+				echo "$logPrefix: approval cascade: ⚠️ blocked/$target.md could not be moved to pending" >&2
+				continue
+			}
+			approvalCascadePaths+=( "$boardRoot/pending/$target.md" )
+			if [ "$blockedTracked" = "true" ] ; then
+				approvalCascadePaths+=( "$targetPath" )
+			else
+				## An untracked source cannot be staged once removed (the move primitive's own rule).
+				local keptPaths=() keptPath
+				for keptPath in "${approvalCascadePaths[@]}" ; do
+					[ "$keptPath" = "$targetPath" ] || keptPaths+=( "$keptPath" )
+				done
+				approvalCascadePaths=( "${keptPaths[@]}" )
+			fi
+			echo "# $logPrefix: approval cascade: moved blocked/$target.md to pending/$target.md" >&2
+		done <<EOF
+$( AgentsToolsApprovalCascadeSplit "$blocksValue" )
+EOF
+		return 0
+	}
+
+fi

@@ -42,7 +42,9 @@ rigNotRequested(){ ## output file
 for rigStub in advance heartbeat ; do
 	echo "-- the $rigStub input scan --"
 	rigRun "$rigTmp/$rigStub" "--magic-$rigStub-input-scan" magic-coordinator
-	LC_ALL=C grep -q '^## board digest$' "$rigTmp/$rigStub" || rigRefuse "the $rigStub scan printed no board digest, so its output was never reached"
+	## Heartbeat prints no board digest since it dropped inbox reflections; its last section is the reach marker.
+	rigReach='## board digest' ; [ "$rigStub" = heartbeat ] && rigReach='## board active items'
+	LC_ALL=C grep -q -x -F -- "$rigReach" "$rigTmp/$rigStub" || rigRefuse "the $rigStub scan printed no '$rigReach', so its output was never reached"
 	rigAssert "it emits no unrelated section heading"   "$( rigUnrelated "$rigTmp/$rigStub" )" 0
 	rigAssert "and no \"not requested\" line"           "$( rigNotRequested "$rigTmp/$rigStub" )" 0
 done

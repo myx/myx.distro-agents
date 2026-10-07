@@ -11,6 +11,7 @@
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
 
 case "$1" in
 
@@ -53,6 +54,7 @@ case "$1" in
 		## Header ops accumulate here and are materialised once, immediately before
 		## the .awk that reads them by path -- so no early return can leak a file.
 		local headerOps=""
+		local recheckIn=""
 
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -145,6 +147,15 @@ case "$1" in
 					fi
 					shift 2
 				;;
+				## recheck-date = now + <minutes>, ± up to <jitter> random minutes; an explicit --header: naming recheck-date wins.
+				--recheck-in)
+					recheckIn="$( AgentsToolsRecheckDate "${2:-}" )" || recheckIn=""
+					if [ -z "$recheckIn" ] ; then
+						echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --recheck-in: value must be <minutes>[±<jitter-minutes>]: ${2:-}" >&2
+						set +e ; return 1
+					fi
+					shift 2
+				;;
 				--log-verb:*)
 					msgVerb="${1#--log-verb:}"
 					shift
@@ -185,6 +196,12 @@ case "$1" in
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --upsert-from-stdin, --edit-script-from-stdin, and --edit-patch-from-stdin are mutually exclusive" >&2
 			set +e ; return 1
 		fi
+
+		## --recheck-in's date (AgentsToolsRecheckDate), after the caller's ops; a caller's --header: naming recheck-date wins.
+		case "$recheckIn: $callerHeaderFields " in
+			:*|*" recheck-date "*) ;;
+			*) headerOps="${headerOps}upsert"$'\t'"recheck-date"$'\t'"$recheckIn"$'\n' ;;
+		esac
 
 		local targetDir="$boardRoot/$toState"
 		if [ ! -d "$targetDir" ] ; then
@@ -311,11 +328,25 @@ case "$1" in
 			echo "# $MDSC_CMD: board-upsert-move-edit: $msgVerb ${targetPath#"$boardRoot"/}" >&2
 		fi
 
+		## Approval cascade (AgentsTools.ApprovalCascade.include, contract: MAGIC.md): only an
+		## approval-* arriving in processed, so a same-state edit (a comment, a clarification, a
+		## rejection with a reason) never fires it; a denial carries no approved-by and cascades nothing.
+		local approvalCascadePaths=()
+		case "$itemName:$toState:$fromState" in
+			approval-*:processed:processed) ;;
+			approval-*:processed:*)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ApprovalCascade.include"
+				AgentsToolsApprovalCascade "$boardRoot" "$targetPath" "$MDSC_CMD: board-upsert-move-edit" \
+					|| echo "$MDSC_CMD: board-upsert-move-edit: approval cascade: ⚠️ did not complete; the approval move stands" >&2
+			;;
+		esac
+
 		## Both ends of the move in one commit: the destination that now holds the
-		## item, and the source whose removal git must record.
+		## item, and the source whose removal git must record -- plus every path the cascade changed.
 		if [ -n "$repoRoot" ] ; then
 			local commitPaths=( "$targetPath" )
 			[ "$sourceTracked" = "true" ] && commitPaths+=( "$sourcePath" )
+			[ "${#approvalCascadePaths[@]}" -eq 0 ] || commitPaths+=( "${approvalCascadePaths[@]}" )
 			local gitOut="" gitRc=0
 			gitOut="$( git -C "$repoRoot" add -- "${commitPaths[@]}" 2>&1 )" || gitRc=$?
 			if [ "$gitRc" -ne 0 ] ; then

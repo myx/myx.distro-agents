@@ -39,7 +39,7 @@ AgentsWireStreamConsume(){
 					;;
 					content_block_start)
 						blockIndex="$( AgentsWireEventField "$streamPayload" index )"
-						printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=content_block -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" > "$harnessScratch/stream.block.$blockIndex.raw" 2>/dev/null || :
+						printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=content_block -v mode=raw -f "${rigLegacyField%/*}/AgentsHarnessJsonSlice.legacy.awk" > "$harnessScratch/stream.block.$blockIndex.raw" 2>/dev/null || :
 						blockType="$( AgentsWireEventField "$streamPayload" content_block.type )"
 						printf '%s' "$blockType" > "$harnessScratch/stream.block.$blockIndex.type"
 						blockSeen="$( cat "$harnessScratch/stream.block.count" 2>/dev/null )" || blockSeen=0

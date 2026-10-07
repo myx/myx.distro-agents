@@ -215,6 +215,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 	return 0
 }
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
 case "$1" in
 
 	--magic-advance-input-scan)
@@ -292,6 +294,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -338,6 +341,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -389,12 +393,8 @@ case "$1" in
 				;;
 			esac
 		done
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )"
-		targetEpoch=$(( nowEpoch + 10 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--header:upsert:state:advance-running \
@@ -562,11 +562,8 @@ case "$1" in
 			AgentsToolsAdvanceLockHeadCheck "$repoRoot" "$lockRelPath" "$lockBranch" --magic-advance-lock-acquire || { set +e ; return 1 ; }
 		fi
 
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 10 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		if ! DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
@@ -609,11 +606,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 10 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 10 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--update-lock \

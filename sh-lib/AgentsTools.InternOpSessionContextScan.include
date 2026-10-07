@@ -703,7 +703,7 @@ case "$1" in
 								## `messages.matches`, which is just another array path.
 								mentionHits="$( printf '%s\n' "$mentionResponse" | LC_ALL=C awk \
 									-v array=messages.matches -v want=channel.id,ts \
-									-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || mentionHits=""
+									-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || mentionHits=""
 								local mentionChannel mentionTs mentionCount=0
 								while IFS="$( printf '\t' )" read -r mentionChannel mentionTs ; do
 									[ -n "$mentionChannel" ] && [ -n "$mentionTs" ] || continue
@@ -721,7 +721,7 @@ case "$1" in
 								local mentionPages="" mentionPagesRc=0 mentionMore=""
 								mentionPages="$( printf '%s\n' "$mentionResponse" | LC_ALL=C awk \
 									-v path=messages.paging.pages \
-									-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || mentionPagesRc=$?
+									-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mentionPagesRc=$?
 								case "$mentionPagesRc:$mentionPages" in
 									0:0|0:1)	;;
 									0:[2-9]|0:[1-9][0-9]*)

@@ -50,7 +50,7 @@ set -u
 
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigCore="$rigHere/AgentsUniversalHarness.sh"
-rigSlice="$rigHere/AgentsHarnessJsonSlice.awk"
+rigSlice="$rigHere/AgentsHarnessJsonField.awk"
 rigMirror="$rigHere/AgentsHarnessMcpMirror.sh"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigField="$rigHere/AgentsHarnessJsonField.awk"

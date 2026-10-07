@@ -113,6 +113,17 @@ function lineSender(line,   rest, ann, val) {
 	return ""
 }
 
+## A post the own-post skip above drops is held whole (head and following lines), not
+## dropped, until the next head or the end: one that DISMISSES the caller, tagged to it
+## by another member's send header, is printed after all. Several members post under
+## one team bot, so `[sender: X]` alone cannot tell a spawner's DISMISSED from the
+## caller's own post. The rule is AgentsDismissalMatch.awk's dismissalOf, loaded with a
+## second -f before this file by every caller.
+function releaseHeldOwn() {
+	if ( heldOwn != "" && dismissalOf(heldOwn, callerName) ) { print heldOwn ; }
+	heldOwn = ""
+}
+
 ## A reaction answers only when one of its users is an addressee, the same rule a reply
 ## is held to. The users are the formatter's "(U1,U2)" tail of the annotation.
 function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
@@ -131,6 +142,7 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 ## message above it -- which is why what to drop is tracked as a state and not decided
 ## line by line.
 /^[0-9]+\.[0-9]+ \| / {
+	releaseHeldOwn()
 	msgTs = $1
 	if ( msgTs == rootTs ) {
 		rootSeen = 1
@@ -148,7 +160,7 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	inRoot = 0
 	if ( ! newerThan(msgTs, rootTs) ) { inOlder = 1 ; next ; }
 	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
-	if ( conversationMode && callerName != "" && ! includeOwn && lineSender($0) == callerName ) { inOlder = 1 ; next ; }
+	if ( conversationMode && callerName != "" && ! includeOwn && lineSender($0) == callerName ) { inOlder = 1 ; heldOwn = $0 ; next ; }
 	inOlder = 0
 	if ( shared ) {
 		replyText = $0
@@ -184,10 +196,11 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	next
 }
 
-{ if ( ! inRoot && ! inOlder ) print ; }
+{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ; }
 
 END {
 	if ( badUsage ) { exit 2 ; }
+	releaseHeldOwn()
 	## Conversation mode's own floor is often "now", picked with no post of ours to
 	## name -- never a message this thread is required to carry. The read itself
 	## already succeeded by the time this runs, which is all rootSeen ever stood in

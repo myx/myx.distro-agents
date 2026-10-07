@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.RecheckDate.include -- the one recheck-date calculation every
+## writer shares: the routine lock ops' fixed offsets and the board ops'
+## --recheck-in. Sourced by AgentsTools.InternOpBoardUpsertMoveEdit.include and
+## the AgentsTools.Magic{Advance,Daily,Grooming,Heartbeat,Retro}.include
+## groups. Contract: MAGIC.md.
+##
+
+if ! type AgentsToolsRecheckDate > /dev/null 2>&1 ; then
+
+	## Prints now + <minutes>, moved by a random whole number of minutes within
+	## ±<jitter-minutes> when given, as `YYYY-MM-DD HH:MM +0000` (UTC). Epoch
+	## arithmetic and AgentsEpochToIsoDate.awk, never date(1) arithmetic (MAGIC.md).
+	## Returns 2 on a value not shaped <minutes>[±<jitter-minutes>], printing
+	## nothing; returns the awk's status when the date cannot be computed.
+	AgentsToolsRecheckDate(){ ## <minutes>[±<jitter-minutes>]
+		local spec="${1:-}"
+		case "${spec%%±*}:${spec#*±}" in
+			*[!0-9:]*|:*|*:) return 2 ;;
+		esac
+		local minutes="${spec%%±*}" jitter=0 epoch day rem
+		case "$spec" in *±*) jitter="${spec#*±}" ;; esac
+		minutes=$(( 10#$minutes ))
+		jitter=$(( 10#$jitter ))
+		if [ "$jitter" -gt 0 ] ; then
+			minutes=$(( minutes + RANDOM % ( 2 * jitter + 1 ) - jitter ))
+		fi
+		epoch=$(( $( date +%s ) + minutes * 60 ))
+		day="$( printf '%s\n' "$epoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )" || return
+		rem=$(( epoch % 86400 ))
+		printf '%s %02d:%02d +0000' "$day" "$(( rem / 3600 ))" "$(( rem % 3600 / 60 ))"
+	}
+
+fi

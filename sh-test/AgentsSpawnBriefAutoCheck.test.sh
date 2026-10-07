@@ -138,7 +138,7 @@ rigAssert "and the MCP mirror serves it" \
 echo "-- Wait: DISMISSED only for a dismissal addressed to the waiting member --"
 rigDismissed(){ ## agent -- prints the dismissing head and rc
 	local rigHead rigRc=0
-	rigHead="$( LC_ALL=C awk -v agent="$1" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
+	rigHead="$( LC_ALL=C awk -v agent="$1" -f "$rigHere/AgentsDismissalMatch.awk" -f "$rigHere/AgentsHarnessWaitDismissed.awk" "$rigTmp/wait.out" )" || rigRc=$?
 	printf '%s rc=%s' "$rigHead" "$rigRc"
 }
 printf '%s\n' 'WAIT-RESULT: RECEIVED' '1.000001 | U1 | :m: *_magic-coordinator_* @Magic → *_rig-a_* @A; *_rig-c_* @C.' 'DISMISSED' \
@@ -149,6 +149,16 @@ rigAssert "one of several addressees"                     "$( rigDismissed rig-c
 rigAssert "the typed form naming the member"              "$( rigDismissed keeper-myx )" "1.000002 | U2 rc=0"
 rigAssert "a body that is not just DISMISSED is not one"  "$( rigDismissed rig-b )" " rc=1"
 rigAssert "@here dismisses no one"                        "$( rigDismissed rig-z )" " rc=1"
+## One team bot posts for spawner and child alike: the tag decides, not the account.
+printf '%s\n' 'WAIT-RESULT: RECEIVED' '2.000001 | UBOT | [sender: rig-own] *_rig-own_* @O → *_rig-own_* @O.' 'DISMISSED' \
+	'2.000002 | UBOT | [sender: rig-own] DISMISSED rig-own' \
+	'2.000003 | UBOT | [sender: rig-own] *_magic-coordinator_* @Magic → *_rig-other_* @X.' 'DISMISSED' \
+	'2.000004 | UBOT | [sender: rig-own] *_magic-coordinator_* @Magic → *_rig-own_* @O.' 'DISMISSED' 'WAIT-LAST-TS: 2.000004' > "$rigTmp/wait.out"
+rigAssert "same-bot spawner's DISMISSED is recognised"     "$( rigDismissed rig-own )" "2.000004 | UBOT rc=0"
+rigAssert "...and only by the member it is tagged to"      "$( rigDismissed rig-other )" "2.000003 | UBOT rc=0"
+printf '%s\n' 'WAIT-RESULT: RECEIVED' '2.000001 | UBOT | [sender: rig-own] *_rig-own_* @O → *_rig-own_* @O.' 'DISMISSED' \
+	'2.000002 | UBOT | [sender: rig-own] DISMISSED rig-own' 'WAIT-LAST-TS: 2.000002' > "$rigTmp/wait.out"
+rigAssert "the member's own DISMISSED-looking posts are not" "$( rigDismissed rig-own )" " rc=1"
 rigAssert "the harness turns it into the DISMISSED outcome" \
 	"$( LC_ALL=C grep -c -F "printf 'WAIT-RESULT: DISMISSED\\nWAIT-DISMISSED-BY: %s\\n'" "$rigHarness" )" 1
 

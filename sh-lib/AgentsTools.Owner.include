@@ -1100,6 +1100,8 @@ case "$1" in
 						|| setupHelperBad="$setupHelperBad AgentsAnthropicMessagesStream.awk"
 					printf '{"hookSpecificOutput":{"permissionDecision":"allow"}}' | LC_ALL=C awk -f "$setupLibDir/AgentsHarnessJsonField.awk" -f "$setupLibDir/AgentsHarnessHookDecision.awk" >/dev/null 2>&1 \
 						|| setupHelperBad="$setupHelperBad AgentsHarnessHookDecision.awk"
+					printf 'Dback\\\\slash\nS/nonexistent/registry-probe.md\nE\n' | LC_ALL=C awk -v registryRows=spawned -f "$setupLibDir/AgentsRegistryHeaderRows.awk" >/dev/null 2>&1 \
+						|| setupHelperBad="$setupHelperBad AgentsRegistryHeaderRows.awk"
 					if [ -z "$setupHelperBad" ] ; then
 						echo "HARNESS_HELPERS_LOAD: OK (progress-line, json-escape, json-field, json-slice)"
 					else
@@ -1126,6 +1128,7 @@ case "$1" in
 						"$setupLibDir/AgentsHarnessToolSearch.awk" \
 						"$setupLibDir/AgentsHarnessMcpMirror.awk" \
 						"$setupLibDir/AgentsMcpJsonEscape.awk" \
+						"$setupLibDir/AgentsRegistryHeaderRows.awk" \
 						"$setupTestDir/AgentsHarnessSelfCheck.test.awk" \
 						"$setupTestDir/AgentsHarnessAwkAxiom.test.awk" 2>&1 )" || setupAxiomRc=$?
 					if [ "$setupAxiomRc" = "0" ] ; then

@@ -114,19 +114,19 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
-📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
+📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
@@ -134,7 +134,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
@@ -147,14 +147,14 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>
@@ -182,6 +182,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--wait]
 📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]
@@ -191,7 +192,7 @@
 📘 syntax: DistroAgentsTools.fn.sh [--help-syntax]
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
-**IMPORTANT -- for `mcp__myx_distro__execute` callers specifically:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. That one execution context already has `DistroAgentsTools` defined as an in-process shell function before your command runs, uniquely among the ways this tool is invoked; every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
+**IMPORTANT -- for `mcp__myx_distro__execute` and team-harness `Bash` callers:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. Those execution contexts already have `DistroAgentsTools` defined as a shell function before your command runs (except a harness `Bash` command run under a timeout); every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
 
 ##  Summary:
 
@@ -1962,9 +1963,8 @@
 			Upserts the fixed grants (`mcp__myx_common`,
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
 			`Edit(<path>/**)` per acting team member's skillset
-			directory) and denies `Bash` and the native Slack MCP
-			server (`mcp__claude_ai_Slack`) unconditionally -- route
-			shell through `mcp__myx_distro__execute`/`Monitor`, Slack
+			directory) and denies the native Slack MCP server
+			(`mcp__claude_ai_Slack`) unconditionally -- route Slack
 			through the team's own `--member-comms-slack-*` ops.
 			Sets `enabledMcpjsonServers` to `myx.common` and
 			`myx.distro`. Not purely additive: it also drops every
@@ -1997,8 +1997,11 @@
 			Idempotent: merges into existing files, a no-op run
 			reported as such. Installs two fixed hook scripts
 			(denying native-tool calls the team routes elsewhere,
-			denying `Read` on the memory system's `MEMORY.md`) and
-			denies `Bash` outright. Also maintains a `.claude`
+			denying `Read` on the memory system's `MEMORY.md`); it
+			writes no blanket `Bash` deny, since the reroute hook
+			governs `Bash`, and removes one an earlier install
+			wrote, matching the exact entry only, so a deny rule
+			the user added stays. Also maintains a `.claude`
 			symlink per namespace root under the workspace, kept in
 			sync with the workspace's own namespace list. Real
 			content found at a target is deleted and replaced by
@@ -2111,7 +2114,7 @@
 			Prints the agents console script body (used by
 			`--make-console-command`) and exits.
 
-		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
 			frontmatter, one call -- no full-content rewrite required.
 			`--edit-patch-from-stdin` takes a JSON array of `{"old":
@@ -2120,10 +2123,13 @@
 			substring match-and-replace against the body. `--from-
 			state:<state>` and `--owner-header-value` are both required;
 			`groomed-at`/`groomed-from`/`track` are always auto-stamped,
-			never caller-supplied. `--header:*` and the three body-input
-			modes pass through for whatever else the move also needs.
+			never caller-supplied. `approved-by`/`approved-at` are
+			cleared, so promotion is re-earned, unless the call itself
+			passes a `--header:*` for either. `--header:*` and the three
+			body-input modes pass through for whatever else the move
+			also needs.
 
-		--magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/pending/ -- the Advancement-review case (backlog ->
 			pending), e.g. `--header:upsert:approved-by:"<team-member>
@@ -2132,11 +2138,11 @@
 			`<team-member> (<session-id>, <date-time>)` with an ISO UTC
 			date-time (suffix `Z`).
 
-		--magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/processed/.
 
-		--magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-parked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/parked/ -- a deliberate deferral by the team's own
 			choice (distinct from board/blocked/, a stall on something
@@ -2144,7 +2150,7 @@
 			supplied via `--header:*` -- triage judgments this op cannot
 			compute.
 
-		--magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-blocked <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/blocked/ -- stalled on something external (distinct
 			from board/parked/, a deliberate stop). Stamps `owner`/
@@ -2153,7 +2159,7 @@
 			target state, but that one stamps nothing. `recheck-date`
 			and `condition` are caller-supplied via `--header:*`.
 
-		--magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-running <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/running/. Distinct from `--magic-advance-to-running`,
 			which targets the same state under a different owning
@@ -2163,7 +2169,7 @@
 			into board/running/ -- pass
 			`--header:upsert:started-at:<date-time>` to override it.
 
-		--magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-archived <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/archived/ -- a Drop outcome, or a re-check step
 			concluding a parked trigger is never coming or a blocked
@@ -2173,7 +2179,7 @@
 			later reader needs. The archived reason text is caller-
 			supplied via `--header:*` or the body-input modes.
 
-		--magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-grooming-to-retained <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Same shape as `--magic-grooming-to-backlog`, target fixed to
 			board/retained/ -- but a SAME-STATE PATCH, not a move: call
 			with `--from-state:retained` so source and target match and
@@ -2184,7 +2190,7 @@
 			meaning groomed while sitting there, not arrived from
 			elsewhere.
 
-		--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/backlog/ -- a first
 			write, not a move: the promoted default landing for an inbox
 			item the authority group promotes. `--from-state:` is
@@ -2199,22 +2205,22 @@
 			`--magic-board-create-running`; `owner` stays the
 			`--owner-header-value`.
 
-		--magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-processed <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--magic-grooming-create-backlog`, target board/processed/
 			-- a promoted-or-denied item landing with its resolution
 			text attached.
 
-		--magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-pending <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--magic-grooming-create-backlog`, target board/pending/
 			-- a promotion where the group's own context already
 			warrants approval at creation.
 
-		--magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-blocked <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--magic-grooming-create-backlog`, target board/blocked/
 			-- a promotion that needs human-owner approval, so the item
 			lands blocked.
 
-		--magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-grooming-create-running <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			As `--magic-grooming-create-backlog`, target board/running/
 			-- the approval-* item the human-owner approval negotiation
 			runs in.
@@ -2416,7 +2422,7 @@
 			some not, 4 none scanned, 1 failed before producing a
 			document.
 
-		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
+		--member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 		--member-wait-for-input <team-member> --wait-list-sources
 			Waits on a list of input sources, returns as soon as one
 			changes or the timeout expires.
@@ -2429,7 +2435,8 @@
 			both exit 0 -- a TIMEOUT is a complete, successful
 			wait, not a failure; ERROR exits 1. `WAIT-RESULT:
 			CLOSED` (--wait-close ended the stored wait, nothing
-			was waited on) exits 0.
+			was waited on) exits 0, as do `WAIT-RESULT: ADDED` and
+			`WAIT-RESULT: DROPPED` (--wait-add, --wait-drop).
 
 			A source is `<kind>:<target>`, --wait-source is
 			repeatable; given none, waits on this session's own
@@ -2445,8 +2452,19 @@
 			`inbox:<member>` on that member's own inbox, which
 			must be the caller's own; `board:<state>` on one
 			board state (backlog, pending, running, review,
-			blocked, parked, processed, archived or retained).
-			Neither carries message ids. Another member's inbox
+			blocked, parked, processed, archived or retained);
+			`ask:<pending-id>` on the answer to a question
+			AskUserQuestion asked: its thread, floor and addressees
+			come from its pending record, read as that question's
+			own wait reads them, plus a `# pending reply <id> is
+			closed: <status>` line once the record is no longer
+			pending (a record-only escalation renders only that).
+			Its record must exist, and with --wait-session-id it
+			must be that session's own question, else ERROR. Its
+			rendering holds arrivals only, so with no stored base
+			an answer already there returns at once. Taking the
+			answer into the record is the harness's, not this
+			operation's. File, inbox and board carry no message ids. Another member's inbox
 			or another state name is an ERROR at second zero.
 			--wait-list-sources prints the source kinds this
 			build carries and waits on nothing.
@@ -2525,6 +2543,17 @@
 			--wait-close: removes the stored wait and returns
 			`WAIT-RESULT: CLOSED` without waiting, also when
 			nothing is stored.
+			--wait-add: appends the --wait-source values to the
+			stored wait, creating it when nothing is stored, and
+			returns `WAIT-RESULT: ADDED` without waiting.
+			--wait-drop: removes them, removing the stored wait
+			once no source is left, and returns
+			`WAIT-RESULT: DROPPED`. Both take one or more
+			--wait-source and nothing else, and refuse a
+			`slack:<channel>:<ts>` thread source, whose since and
+			addressee the stored wait would share. This is how an
+			asked question's `ask:<pending-id>` joins its
+			session's wait and leaves it once answered.
 
 			--wait-react-seen, --wait-react-note,
 			--wait-react-done and --wait-react-wait each take
@@ -2573,8 +2602,12 @@
 			reply naming no valid answer returns
 			`VERDICT: UNCLASSIFIED` to the asking agent with its
 			reason and the reply text; the record stays open, nothing
-			is posted automatically. The result's last line is the
-			exact re-wait call, `AskUserQuestion pending_id=
+			is posted automatically, and its `WAIT-ID:
+			ask:<request-id>` stays in the session's stored wait, so
+			the harness Wait (mode continue, or sources=
+			ask:<request-id>) takes the next reply exactly as the
+			question would. The result's last line is still the
+			compatible re-wait call, `AskUserQuestion pending_id=
 			<request-id>` -- posts nothing, waits on the same thread
 			again, and only the session that asked may make it. An
 			older record with no session id can be re-waited from any
@@ -2620,6 +2653,12 @@
 			`question:` with its first line. It changes nothing, and it
 			reads no thread, so an answer still in the thread is not
 			shown here.
+			An open question is also reminded by the main loop itself
+			(30 minutes, 2 hours, then daily after 09:00 once 4+ hours
+			old; more than 10 to one person go as one DM digest). The
+			record keeps the stamps: reminder-30m, reminder-2h,
+			last-daily-reminder, reminders and last-reminder-at. A
+			reminder never closes a record.
 
 		--member-pending-reply-settle <team-member> <pending-id> --reason <text>
 			Closes one of the member's own open questions that no longer
@@ -2682,15 +2721,22 @@
 
 		--magic-heartbeat-input-scan <team-member>
 			Read-only: routine-heartbeat's own prepared input, narrowed to
-			what that routine's own steps consume. Returns routine-
-			heartbeat's own state-and-lock note content first (the same
-			document --magic-heartbeat-state-read prints; a note that
-			doesn't exist yet reports as nothing to report, not an
-			error; content only, never evaluates the lock). Then, under
-			a `## board digest` heading, `<team-member>`'s own inbox
-			reflections: top-level items only, marked items excluded, at
-			most 64, each with frontmatter and body. No board items.
-			Before the digest, a `## questions (pending replies)`
+			what that routine's own steps consume. Opens with a
+			`## day-rhythm (routine-heartbeat)` section of three lines:
+			`branch: first-today|later-today|weekend` (weekend on a
+			local Saturday or Sunday; otherwise first-today unless the
+			note's `last-iteration-date` is today's local date),
+			`today-stage: <value>` (the note's own, or `not-started`
+			when its date is not today or it has none), and
+			`grooming-today: finished|running|none` (finished: the
+			grooming note says `grooming-finished` with today's
+			`last-close-date`; running: its lock is held; none
+			otherwise). Then routine-heartbeat's own state-and-lock note
+			content (the same document --magic-heartbeat-state-read
+			prints; a note that doesn't exist yet reports as nothing to
+			report, not an error; content only, never evaluates the
+			lock). No board item content and no inbox reflections.
+			Then a `## questions (pending replies)`
 			section shows the main loop's last collect of unanswered
 			questions, then every question still open, from any member,
 			with its session, asker and age. Then a `## spawned
@@ -2700,7 +2746,10 @@
 			state (backlog, pending, running, review, blocked, parked,
 			processed, archived, retained), counted live at scan time
 			from the `*.md` files directly in that state's folder --
-			the counts a report needs, with no count of its own.
+			the counts a report needs, with no count of its own. Last,
+			a `## board active items` section: one `<state>/<item-filename>`
+			line per item in running, review, pending and blocked, at
+			most 40, then `(+<n> more)`; `(none)` when empty.
 			`<team-member>` is the only argument -- no --state/--header
 			override.
 
@@ -2800,7 +2849,7 @@
 			routine's comms step acts on. No inquiries, no reflections,
 			no client-* inbox -- those are --magic-grooming-input-scan's.
 
-		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item into board/running/, and/or patches its
 			frontmatter, in one call. `--from-state:<state>` is
 			required; `--from-state:running` is also valid (same-state,
@@ -2817,11 +2866,18 @@
 			substring patches) -- mutually exclusive; none given leaves
 			the body unchanged except for `--header:*` ops and any
 			auto-stamp the entry names.
+			`--recheck-in <minutes>[±<jitter-minutes>]` upserts
+			`recheck-date` to now + <minutes>, moved by a random whole
+			number of minutes within ±<jitter-minutes>, as
+			`YYYY-MM-DD HH:MM +0000` (UTC). Every `--magic-board-*`,
+			`--magic-grooming-to-*`/`-create-*` and
+			`--magic-advance-to-*` op takes it. A `--header:*` naming
+			`recheck-date` in the same call wins.
 
 			Auto-stamps `started-at` (date-time) on every move into
 			board/running/.
 
-		--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- routine-advance's own
 			check-execute-board fallback when a required spawn could not
@@ -2831,11 +2887,11 @@
 			falls to routine-grooming's slower cadence, so this op never
 			invents one.
 
-		--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/pending/. No auto-stamp.
 
-		--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/blocked/. One auto-stamp:
 			`execution-receipt` defaults to `blocked:<timestamp>` unless
@@ -2843,11 +2899,11 @@
 			receipt:*`/`--header:append:execution-receipt:*`, in which
 			case the caller's value stands.
 
-		--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/backlog/. No auto-stamp.
 
-		--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/parked/ -- check-process-board's own
 			move, the board-mechanical-moves counterpart. No auto-stamp
@@ -2856,7 +2912,7 @@
 			own fields instead). `recheck-date`/`condition` are caller-
 			supplied via `--header:*`.
 
-		--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+		--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/processed/ -- the RUNNING->PROCESSED leg
 			whose other two legs are `--magic-board-to-blocked` and
@@ -2867,9 +2923,26 @@
 			supplied `processed-at` still wins. `execution-receipt`
 			defaults to `processed:<timestamp>` unless the caller
 			supplied one, in which case it stands untouched. Nothing
-			else is stamped.
+			else is stamped on the moved item.
+			Approval cascade (every op moving through
+			`--intern-op-board-upsert-move-edit`): an `approval-*`
+			arriving in board/processed/ from another state, carrying
+			both `approved-by` and `approved-at`, copies them onto each
+			item its `blocks` names (values that item already has
+			win), and moves such an item from board/blocked/ to
+			board/pending/ once every `blocked-by` it names sits in
+			board/processed/, board/archived/ or board/retained/
+			(retained is concluded, kept only because referenced).
+			Each step is printed
+			and committed with the approval move. A same-state edit
+			(comment, clarification, rejection with a reason), a move
+			to any other state, or an approval without `approved-by`/
+			`approved-at` (a denial) cascades nothing. A malformed,
+			missing, ambiguous, unreadable or frontmatter-less `blocks`
+			target is reported and skipped; the approval move stands.
+			Re-running changes nothing.
 
-		--magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...
+		--magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 			Creates a board-item directly in board/running/ --
 			check-process-board's own and only creating step: the
 			approval-* item raised when a board-backlog item is flagged
@@ -2900,6 +2973,10 @@
 			<owner-label> names the running process, not a chat-session id.
 			Takes no options; any further argument is rejected.
 
+			--magic-daily-lock-acquire only: after a successful take, one
+			more line, `first-today: yes|no` -- no when the daily note's
+			`last-close-date` is today's local date.
+
 			--magic-advance-lock-acquire only, and only with
 			TEAM_DATA_GIT_REMOTE set: the board is resynced and the lock
 			note checked against the branch head before anything is
@@ -2927,7 +3004,10 @@
 			Releases the lock in routine closure, setting
 			`state: advance-finished`/`grooming-finished`/
 			`daily-finished`/`retro-finished`. Prints `RELEASED`,
-			returns 0 always.
+			returns 0 always. The grooming and daily closes also stamp
+			`last-close-date` (today, local), which
+			--magic-heartbeat-input-scan's `grooming-today:` and
+			--magic-daily-lock-acquire's `first-today:` read.
 
 			Closing content is optional, written in the SAME upsert
 			call that sets the finished state and releases the lock --
@@ -3131,6 +3211,23 @@
 			writes, so a pass that keeps writing its state needs no
 			separate refresh call for it. Any other state is carried
 			over untouched.
+			Stamps `last-iteration-date` (today, local) and
+			`last-iteration-timestamp` (now, UTC `YYYY-MM-DDTHH:MM:SSZ`)
+			itself; a value the caller gives wins. A stored
+			`last-test-email-sent` the caller leaves out is kept.
+
+		--magic-heartbeat-test-report-send <team-member>
+			Sends the hourly test report. <team-member> must be
+			magic-coordinator. Prints `NOT_DUE:last-test-email-sent=...:
+			due-in=<n>s` and returns 0, sending nothing, until an hour
+			has passed since the note's `last-test-email-sent`. Once due:
+			builds the body from the heartbeat scan's own day-rhythm
+			lines, board counts and board active items, sends it through
+			--member-comms-email-send (text group report) to human-owner's
+			EMAIL_USER, stamps `last-test-email-sent`, and prints
+			`SENT:to=<address>:last-test-email-sent=<timestamp>`. rc 1,
+			with nothing stamped, when EMAIL_USER is unset, the
+			heartbeat note does not exist yet, or the send fails.
 
 		--magic-heartbeat-lock-acquire <team-member> <owner-label>
 			Takes routine-heartbeat's lock before any other step. Prints

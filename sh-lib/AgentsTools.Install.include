@@ -1432,7 +1432,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local denyAddJson='["Bash", "Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
+		## No blanket "Bash": the reroute hook governs it, denying a *-native session
+		## and letting our own spawned ones through, which a static deny cannot do.
+		## Installs that wrote it lose it through the retired-deny list below.
+		local denyAddJson='["Bash(mv *)", "Bash(python3*)", "Bash(rm *)"]'
 
 		local settingsTmp="$settingsFile.tmp.$$"
 
@@ -1471,6 +1474,9 @@ case "$1" in
 		## their entries, and only after settings.json is rewritten are the files
 		## deleted, so no run leaves an entry running a script it removed.
 		local hooksRetiredNames="$( AgentsToolsClientToolPolicyRetiredHookNames )"
+		## The permissions.deny entries earlier installs wrote and this one retires,
+		## removed on an exact match so a user's own rule stays.
+		local denyRetiredEntries="$( AgentsToolsClientToolPolicyRetiredDenyEntries )"
 
 		## The hooks description is the merge .awk's own MYX_WSRESTRICT_HOOKS_FILE
 		## input and has to be a real path. It lives inside this subshell, so its
@@ -1505,6 +1511,7 @@ case "$1" in
 			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
 				MYX_WSRESTRICT_RETIRED_HOOKS="$hooksRetiredNames" \
+				MYX_WSRESTRICT_RETIRED_DENY="$denyRetiredEntries" \
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
 				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \

@@ -52,7 +52,7 @@ AgentsWireUserRecord(){
 ## order, so the calls the core assembles from AgentsWireToolCallEntry are not used:
 ## rebuilt from them, the turn would lose its thinking blocks and the next request 400s.
 AgentsWireAssistantToolCallsRecord(){
-	printf '%s' '{"role":"assistant","content":'"$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=content -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" )"'}'
+	printf '%s' '{"role":"assistant","content":'"$( printf '%s\n' "$harnessResponse" | LC_ALL=C awk -v path=content -v mode=raw -f "$harnessHere/AgentsHarnessJsonField.awk" )"'}'
 }
 
 ## `input` is the call's own JSON object, placed raw; the stream gives none for a call
@@ -195,7 +195,6 @@ AgentsWireStreamConsume(){
 		esac
 	done < <( agentsWireStreamScratch="$harnessScratch" agentsWireStreamSeen="$blockSeen" agentsWireStreamFlags="$-" LC_ALL=C awk \
 		-f "$harnessHere/AgentsHarnessJsonField.awk" \
-		-f "$harnessHere/AgentsHarnessJsonSlice.awk" \
 		-f "$harnessHere/AgentsAnthropicMessagesStream.awk" )
 }
 

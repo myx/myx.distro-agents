@@ -63,7 +63,7 @@ AgentsHarnessMcpDec(){ ## encoded text
 ## The server names, as the core has always read them: the keys of `mcpServers`.
 AgentsHarnessMcpKeysJson(){ ## config file
 	harnessMcpResKeysRc=0
-	harnessMcpResKeys="$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonSlice.awk" < "$1" 2>/dev/null )" || harnessMcpResKeysRc=$?
+	harnessMcpResKeys="$( LC_ALL=C awk -v path=mcpServers -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$1" 2>/dev/null )" || harnessMcpResKeysRc=$?
 }
 
 ## One server's command, args and env, read field by field from the JSON exactly as the
@@ -91,7 +91,7 @@ AgentsHarnessMcpResolveJson(){ ## server name, config file
 	elif [ "$harnessMcpResArgsRc" != 3 ] ; then
 		return 0
 	fi
-	resolveKeys="$( LC_ALL=C awk -v path="mcpServers.$resolveName.env" -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonSlice.awk" < "$resolveFile" 2>/dev/null )" || harnessMcpResEnvRc=$?
+	resolveKeys="$( LC_ALL=C awk -v path="mcpServers.$resolveName.env" -v mode=keys -f "$agentsMcpConfigHere/AgentsHarnessJsonField.awk" < "$resolveFile" 2>/dev/null )" || harnessMcpResEnvRc=$?
 	[ "$harnessMcpResEnvRc" = 0 ] || [ "$harnessMcpResEnvRc" = 3 ] || return 0
 	while IFS= read -r resolveKey ; do
 		[ -n "$resolveKey" ] || continue

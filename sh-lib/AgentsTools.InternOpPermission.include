@@ -198,7 +198,7 @@ case "$1" in
 			hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input.command -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; printf 'x' )"
 			hookTarget="${hookTarget%x}" ; hookTarget="${hookTarget%$'\n'}"
 		fi
-		[ -n "$hookTarget" ] || hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || hookTarget=""
+		[ -n "$hookTarget" ] || hookTarget="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || hookTarget=""
 		if [ -z "$hookMember" ] || [ -z "$hookSession" ] || [ -z "$hookTool" ] || [ -z "$hookTarget" ] ; then
 			AgentsToolsPermissionHookDecision deny "Refused, and not recorded: the member, session, tool or target of this call could not be read, so it cannot be escalated by id."
 			return 0

@@ -62,5 +62,5 @@ The tooling removes processed board and inbox items after a retention period; `a
 
 # Process-Flow, the board dynamics
 
-- `magic-team.grooming.routine` decides: triage, RICE scoring, backlog readiness, recall to backlog. Once per workday or on request.
-- `magic-coordinator.advance.routine` applies decided moves only, every main-loop iteration: approved backlog → pending, dispatch → running, review and unblock handling, signalled reopens, dependency recompute, deferred comms actions. It never makes a go decision.
+- `magic-team.grooming.routine` decides and applies: triage, RICE scoring, backlog readiness and promotion (approved backlog → pending included), recall to backlog. Once per workday or on request.
+- `magic-coordinator.advance.routine` applies decided moves only, every main-loop iteration: dispatch → running, review and unblock handling, signalled reopens, dependency recompute, deferred comms actions. It never makes a go decision.

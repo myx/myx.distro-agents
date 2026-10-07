@@ -11,7 +11,7 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 	local emitNewline=$'\n'
 	local emitValue="" emitRc=0
 	emitValue="$( printf '%s\n' "$emitPayload" | LC_ALL=C awk -v path="$emitPath" -v optional=1 -v sentinel=1 \
-		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || emitRc=$?
+		-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || emitRc=$?
 	if [ "$emitRc" = "0" ] ; then
 		emitValue="${emitValue%X}"
 	fi
@@ -78,7 +78,7 @@ AgentsToolsCommsSlackMentionAccountColumns(){ ## member, user id, calling member
 	local columnsResp columnsValue columnsPath columnsLine=""
 	columnsResp="$( DistroAgentsTools --intern-op-slack-call "${3:-$1}" --api users.info --form "user=$2" --context "AgentsToolsCommsSlackMentionUserId" 2>/dev/null )" || columnsResp=""
 	for columnsPath in user.name user.real_name user.profile.display_name ; do
-		columnsValue="$( printf '%s\n' "$columnsResp" | LC_ALL=C awk -v path="$columnsPath" -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
+		columnsValue="$( printf '%s\n' "$columnsResp" | LC_ALL=C awk -v path="$columnsPath" -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
 		columnsLine="$columnsLine${columnsValue:--}="
 	done
 	columnsValue="$( AgentsToolsResolveSlackWorkspaceDomain "$1" 2>/dev/null | LC_ALL=C tr -d '\\\000-\037=' )" || columnsValue=""
@@ -136,7 +136,7 @@ AgentsToolsCommsSlackMentionUserId(){
 		## Token on curl's stdin, never argv -- keeps it out of ps.
 		local authResp
 		authResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $memberToken" 2>/dev/null )" || authResp=""
-		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || memberId=""
+		memberId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || memberId=""
 	elif [ "$1" = "human-owner" ] ; then
 		memberId="$( DistroAgentsToolsResolveTarget human-owner | sed -n 's/^CHANNEL=//p' )" || memberId=""
 		## Only a user id is an account. A DM conversation id is not one, and
@@ -1080,7 +1080,7 @@ case "$1" in
 				if [ "$rawResponseState" = "in-diagnostic" ] ; then
 					failBody="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
 					failError="$( printf '%s\n' "$failBody" | LC_ALL=C awk -v path=error -v optional=1 \
-						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || failErrorRc=$?
+						-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || failErrorRc=$?
 				fi
 
 				if [ "$failErrorRc" = "0" ] ; then
@@ -1107,7 +1107,7 @@ case "$1" in
 
 			local parseProbeRc=0
 			printf '%s\n' "$response" | LC_ALL=C awk -v path=ok \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" >/dev/null || parseProbeRc=$?
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" >/dev/null || parseProbeRc=$?
 			if [ "$parseProbeRc" != "0" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT PARSE THE files.info RESPONSE for $fileId (field reader rc=$parseProbeRc; its own one-line reason is above). Slack reported this call as successful, so this is a malformed, truncated or non-JSON body rather than an API refusal. NO metadata was emitted -- nothing at all was printed on stdout -- and nothing is known from this call about the file. Use --raw to see the body as it arrived." >&2
 				set +e ; return 1
@@ -1486,7 +1486,7 @@ case "$1" in
 				set +e ; return 1
 			fi
 			local shareConversation="" shareConvRc=0
-			shareConversation="$( printf '%s\n' "$shareInfoResp" | LC_ALL=C awk -v path=channel.id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareConvRc=$?
+			shareConversation="$( printf '%s\n' "$shareInfoResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || shareConvRc=$?
 			if [ "$shareConvRc" != "0" ] || [ -z "$shareConversation" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the conversation lookup for '$shareTarget' returned no usable channel.id (field reader rc=$shareConvRc -- 3: that path is absent, 1: the body was not a parseable API response) -- nothing was uploaded." >&2
 				set +e ; return 1
@@ -1504,7 +1504,7 @@ case "$1" in
 					set +e ; return 1
 				fi
 				local shareFoundParent="" shareParentRc=0
-				shareFoundParent="$( printf '%s\n' "$shareRepliesResp" | LC_ALL=C awk -v path=messages.0.thread_ts -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareParentRc=$?
+				shareFoundParent="$( printf '%s\n' "$shareRepliesResp" | LC_ALL=C awk -v path=messages.0.thread_ts -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || shareParentRc=$?
 				case "$shareParentRc" in
 					0)
 						[ -z "$shareFoundParent" ] || shareParentTs="$shareFoundParent"
@@ -1566,8 +1566,8 @@ case "$1" in
 				set +e ; return 1
 			fi
 			local shareUploadUrl="" shareUploadUrlRc=0 shareFileId="" shareFileIdRc=0
-			shareUploadUrl="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=upload_url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareUploadUrlRc=$?
-			shareFileId="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=file_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || shareFileIdRc=$?
+			shareUploadUrl="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=upload_url -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || shareUploadUrlRc=$?
+			shareFileId="$( printf '%s\n' "$shareStep1Resp" | LC_ALL=C awk -v path=file_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || shareFileIdRc=$?
 			if [ "$shareUploadUrlRc" != "0" ] || [ -z "$shareUploadUrl" ] || [ "$shareFileIdRc" != "0" ] || [ -z "$shareFileId" ] ; then
 				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 1 OF 3 answered ok:true but without a usable upload_url and file_id (field reader rc=$shareUploadUrlRc and rc=$shareFileIdRc -- 3: that path is absent, 1: the body was not a parseable API response). The upload URL is not quoted here: it is a bearer capability. Nothing was uploaded." >&2
@@ -2055,7 +2055,7 @@ blocks|verbatim|caller|stdin file"
 					if [ -n "$dmParty" ] ; then
 						dmParties=" $dmParty"
 					else
-						dmIsMpim="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=channel.is_mpim -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmIsMpim=""
+						dmIsMpim="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=channel.is_mpim -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || dmIsMpim=""
 					fi
 					if [ "$dmIsMpim" = "true" ] ; then
 						dmArgs=( "$memberName" --api conversations.members --form "channel=$channel" --form limit=100 )
@@ -2063,7 +2063,7 @@ blocks|verbatim|caller|stdin file"
 						dmArgs+=( --context "--member-comms-slack-send-message" )
 						dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
 						while : ; do
-							dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path="members.$dmIndex" -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmParty=""
+							dmParty="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path="members.$dmIndex" -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || dmParty=""
 							[ -n "$dmParty" ] || break
 							dmParties="$dmParties $dmParty"
 							dmIndex=$(( dmIndex + 1 ))
@@ -2092,7 +2092,7 @@ blocks|verbatim|caller|stdin file"
 				[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
 				dmArgs+=( --context "--member-comms-slack-send-message" )
 				dmInfo="$( DistroAgentsTools --intern-op-slack-call "${dmArgs[@]}" )" || dmInfo=""
-				dmSelfId="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=user_id -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmSelfId=""
+				dmSelfId="$( printf '%s\n' "$dmInfo" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || dmSelfId=""
 				if [ -z "$dmSelfId" ] ; then
 					echo "# $MDSC_CMD --member-comms-slack-send-message: auth.test did not answer with the posting account's user id, so the addressee list for $channel is NOT known to exclude the sender -- it is sent as inferred rather than failing the send over a header field." >&2
 				else
@@ -2370,7 +2370,7 @@ blocks|verbatim|caller|stdin file"
 			local authResp
 			authResp="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$authHeader" 2>&1 )"
 			local authUserIdRc=0
-			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || authUserIdRc=$?
+			authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || authUserIdRc=$?
 			if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: could not confirm auth.test user_id for $memberName SLACK_USER_TOKEN (user_id reader rc=$authUserIdRc)" >&2
 				echo "# Response: $authResp" >&2
@@ -2466,7 +2466,7 @@ blocks|verbatim|caller|stdin file"
 		if [ "$sent" = "true" ] ; then
 			if [ "$sendIdentity" = "user" ] ; then
 				local responseMessageUser="" responseMessageUserRc=0
-				responseMessageUser="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.user -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || responseMessageUserRc=$?
+				responseMessageUser="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.user -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || responseMessageUserRc=$?
 				if [ "$responseMessageUserRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: THE MESSAGE WAS POSTED -- do not send it again. member SLACK_USER_TOKEN send for $memberName could not be confirmed as message.user=$authUserId -- the response carries no readable message.user (reader rc=$responseMessageUserRc), so the control reached no verdict, which is not a pass" >&2
 					echo "# Response: $response" >&2
@@ -2491,12 +2491,12 @@ blocks|verbatim|caller|stdin file"
 			## stdout stays the response body byte for byte, which is what every existing
 			## caller already reads.
 			local sentTs="" sentChannel="" sentThreadTs="" sentTsRc=0 sentChannelRc=0
-			sentChannel="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=channel -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentChannelRc=$?
-			sentTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.ts -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentTsRc=$?
+			sentChannel="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=channel -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || sentChannelRc=$?
+			sentTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.ts -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || sentTsRc=$?
 			## A message posted into a thread carries that thread ts, and a message that
 			## starts one carries none -- in which case it is the thread itself. Absent is
 			## the documented shape here and not a failure, so this rc is not read.
-			sentThreadTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || sentThreadTs=""
+			sentThreadTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || sentThreadTs=""
 			[ -n "$sentThreadTs" ] || sentThreadTs="$sentTs"
 			if [ "$sentChannelRc" = "0" ] && [ "$sentTsRc" = "0" ] && [ -n "$sentChannel" ] && [ -n "$sentTs" ] ; then
 				echo "SENT_MESSAGE_CHANNEL=$sentChannel" >&2

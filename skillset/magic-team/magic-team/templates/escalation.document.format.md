@@ -61,7 +61,7 @@ verdicts: deny | allow-once | allow-session
 - rule: Every field the kind names is filled. A missing field, or an unknown kind, posts nothing.
 - rule: The result's first line is `ASK-RESULT:`. A typed kind adds `VERDICT: <value>`. A `correct` readback adds `VERDICT-TEXT:` with the correction.
 - rule: An answer outside the kind's verdicts reads `UNCLASSIFIED`, and the ask stays open. The member never guesses a verdict from the answer text.
-- rule: After `UNCLASSIFIED`, the member may clarify in the same thread, then waits again with `AskUserQuestion` `pending_id=<id>` — the exact call the result's last line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
+- rule: After `UNCLASSIFIED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
 - rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.

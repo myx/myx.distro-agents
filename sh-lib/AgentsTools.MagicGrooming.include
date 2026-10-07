@@ -9,6 +9,8 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
 case "$1" in
 
 	--magic-grooming-to-backlog)
@@ -33,6 +35,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -52,6 +55,15 @@ case "$1" in
 		fi
 		local fromStateVal="${fromStateArg#--from-state:}"
 		local groomedAt ; groomedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		## Back in backlog an item is unassessed, so its approval is cleared here and
+		## check-backlog-promote re-earns it. A caller's own approved-by/approved-at
+		## header in this call stands untouched.
+		local approvalClear=( --header:remove:approved-by --header:remove:approved-at ) pt
+		for pt in "${passthrough[@]+"${passthrough[@]}"}" ; do
+			case "$pt" in
+				--header:*:approved-by|--header:*:approved-by:*|--header:*:approved-at|--header:*:approved-at:*) approvalClear=() ; break ;;
+			esac
+		done
 		mkdir -p "$MDAT_DATA_ROOT/board/backlog" || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-to-backlog: can't create board state directory: $MDAT_DATA_ROOT/board/backlog" >&2
 			set +e ; return 1
@@ -63,7 +75,8 @@ case "$1" in
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
 			--context --magic-grooming-to-backlog \
-			"${passthrough[@]}"
+			"${approvalClear[@]+"${approvalClear[@]}"}" \
+			"${passthrough[@]+"${passthrough[@]}"}"
 		return $?
 	;;
 
@@ -90,6 +103,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -147,6 +161,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -206,6 +221,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -263,6 +279,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -332,6 +349,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -389,6 +407,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -448,6 +467,7 @@ case "$1" in
 					fi
 					owner="$2" ; shift 2
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -515,6 +535,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -580,6 +601,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -647,6 +669,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -712,6 +735,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -777,6 +801,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -901,12 +926,8 @@ case "$1" in
 				;;
 			esac
 		done
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )"
-		targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--header:upsert:state:grooming-running \
@@ -929,11 +950,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
@@ -954,11 +972,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 30 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 30 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--update-lock \
@@ -997,6 +1012,7 @@ case "$1" in
 			"${passthrough[@]}" \
 			--unlock-lock \
 			--header:upsert:state:grooming-finished \
+			--header:upsert:last-close-date:"$( date +%Y-%m-%d )" \
 			--context --magic-grooming-close-state-and-unlock
 		return $?
 	;;

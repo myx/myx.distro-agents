@@ -9,6 +9,79 @@
 ## dot-sourced for $1/$@/$MDSC_CMD.
 ##
 
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
+## One frontmatter field's value from a note, bounded to the block between the
+## first two `---` lines; empty when the note or the field is absent.
+AgentsToolsHeartbeatNoteField(){ ## <path> <field>
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v fieldName="$2" '
+		{ sub(/\r$/, "") ; }
+		$0 == "---" { fmDepth++ ; if (fmDepth >= 2) exit ; next ; }
+		fmDepth == 1 && index($0, fieldName ": ") == 1 { print substr($0, length(fieldName) + 3) ; exit ; }
+	' "$1"
+}
+
+## The day-rhythm lines a pass branches on: from the heartbeat note's own
+## last-iteration-date and today-stage, today's local date and weekday, and
+## grooming's own note. Dates are local, as the `last-close-date` stamps are.
+AgentsToolsHeartbeatDayRhythm(){
+	local hbNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	local groomNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
+	local hbToday hbLast hbStage hbBranch groomToday="none" groomRecheckEpoch
+	hbToday="$( date +%Y-%m-%d )"
+	hbLast="$( AgentsToolsHeartbeatNoteField "$hbNote" last-iteration-date )"
+	hbStage="$( AgentsToolsHeartbeatNoteField "$hbNote" today-stage )"
+	[ "$hbLast" = "$hbToday" ] || hbStage="not-started"
+	[ -n "$hbStage" ] || hbStage="not-started"
+	case "$( date +%u )" in
+		6|7) hbBranch="weekend" ;;
+		*) if [ "$hbLast" = "$hbToday" ] ; then hbBranch="later-today" ; else hbBranch="first-today" ; fi ;;
+	esac
+	case "$( AgentsToolsHeartbeatNoteField "$groomNote" state )" in
+		grooming-finished)
+			[ "$( AgentsToolsHeartbeatNoteField "$groomNote" last-close-date )" = "$hbToday" ] && groomToday="finished"
+		;;
+		grooming-running)
+			## Held means what the lock ops' own stale check means: recheck-date not yet a minute past.
+			groomRecheckEpoch="$( AgentsToolsHeartbeatNoteField "$groomNote" recheck-date | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )"
+			if [ -n "$groomRecheckEpoch" ] && [ "$(( $( date +%s ) - groomRecheckEpoch ))" -lt 60 ] ; then
+				groomToday="running"
+			fi
+		;;
+	esac
+	printf 'branch: %s\ntoday-stage: %s\ngrooming-today: %s\n' "$hbBranch" "$hbStage" "$groomToday"
+}
+
+## Live counts, read at call time and never stored: one `<state>: <n>` line per
+## board state, counting the *.md files directly in that state's folder.
+AgentsToolsHeartbeatBoardCounts(){
+	local countState countFile countN
+	for countState in backlog pending running review blocked parked processed archived retained ; do
+		countN=0
+		for countFile in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
+			[ -f "$countFile" ] && countN=$(( countN + 1 ))
+		done
+		printf '%s: %s\n' "$countState" "$countN"
+	done
+}
+
+## The active and blocked items, one `<state>/<item-filename>` line each, at
+## most 40, then one `(+<n> more)` line for the rest; `(none)` when empty.
+AgentsToolsHeartbeatBoardActiveItems(){
+	local activeState activeFile activeN=0 activeCap=40
+	for activeState in running review pending blocked ; do
+		for activeFile in "$MDAT_DATA_ROOT/board/$activeState"/*.md ; do
+			[ -f "$activeFile" ] || continue
+			activeN=$(( activeN + 1 ))
+			[ "$activeN" -gt "$activeCap" ] || printf '%s/%s\n' "$activeState" "${activeFile##*/}"
+		done
+	done
+	[ "$activeN" -le "$activeCap" ] || printf '(+%s more)\n' "$(( activeN - activeCap ))"
+	[ "$activeN" -gt 0 ] || printf '(none)\n'
+	return 0
+}
+
 case "$1" in
 
 	--magic-heartbeat-input-scan)
@@ -36,6 +109,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-input-scan: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
+		## The pass's branch, computed here so no member compares dates or weekdays.
+		printf '%s\n\n' "## day-rhythm (routine-heartbeat)"
+		AgentsToolsHeartbeatDayRhythm
+		printf '\n'
 		## THIS IS THE LOCK NOTE, NOT THE `heartbeat-state-note`.
 		printf '%s\n\n' "## state-and-lock (routine-heartbeat)"
 		local lockNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
@@ -59,23 +136,13 @@ case "$1" in
 		## `<state>: <n>` items (*.md files directly in that state's folder), so a report
 		## needs no count of its own.
 		printf '\n%s\n\n' "## board counts"
-		local countState countFile countN
-		for countState in backlog pending running review blocked parked processed archived retained ; do
-			countN=0
-			for countFile in "$MDAT_DATA_ROOT/board/$countState"/*.md ; do
-				[ -f "$countFile" ] && countN=$(( countN + 1 ))
-			done
-			printf '%s: %s\n' "$countState" "$countN"
-		done
-		printf '\n%s\n\n' "## board digest"
-		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
-			--all-types \
-			--do-inbox-reflections \
-			--no-slack --no-email --no-trello \
-			--no-inbox-inquiry --no-inbox-notes --no-inbox-other \
-			--no-board-related \
-			--context --magic-heartbeat-input-scan
-		return $?
+		AgentsToolsHeartbeatBoardCounts
+		## Names only, never a `## <state>/` row: board content is advance's scan.
+		printf '\n%s\n\n' "## board active items"
+		AgentsToolsHeartbeatBoardActiveItems
+		## No `## board digest`: its only content was the inbox reflections, which no
+		## heartbeat step reads (the human-owner's ruling, 2026-10-07).
+		return 0
 	;;
 
 	--magic-heartbeat-spawn-proxy)
@@ -226,11 +293,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-acquire: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 15 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 15 )"
 		DistroAgentsTools --intern-op-item-read "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
@@ -251,11 +315,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-refresh: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		local nowEpoch targetEpoch recheckDay recheckRem recheckDate
-		nowEpoch="$( date +%s )" ; targetEpoch=$(( nowEpoch + 15 * 60 ))
-		recheckDay="$( printf '%s\n' "$targetEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-		recheckRem=$(( targetEpoch % 86400 ))
-		recheckDate="$( printf '%s %02d:%02d +0000' "$recheckDay" "$(( recheckRem / 3600 ))" "$(( recheckRem % 3600 / 60 ))" )"
+		local recheckDate
+		recheckDate="$( AgentsToolsRecheckDate 15 )"
 		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--update-lock \
@@ -438,11 +499,8 @@ case "$1" in
 		## that keeps writing its state never reads as a crashed holder. Only while the note
 		## says heartbeat-running: a finished or foreign state is carried over untouched.
 		if printf '%s\n' "$lockFields" | LC_ALL=C grep -qx 'state: heartbeat-running' ; then
-			local refreshEpoch refreshDay refreshRem refreshDate
-			refreshEpoch=$(( $( date +%s ) + 15 * 60 ))
-			refreshDay="$( printf '%s\n' "$refreshEpoch" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )"
-			refreshRem=$(( refreshEpoch % 86400 ))
-			refreshDate="$( printf '%s %02d:%02d +0000' "$refreshDay" "$(( refreshRem / 3600 ))" "$(( refreshRem % 3600 / 60 ))" )"
+			local refreshDate
+			refreshDate="$( AgentsToolsRecheckDate 15 )"
 			lockFields="$( printf '%s\n' "$lockFields" | LC_ALL=C awk -v recheck="recheck-date: $refreshDate" '
 				/^recheck-date: / { print recheck ; done = 1 ; next ; }
 				{ print ; }
@@ -500,6 +558,22 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-state-upsert: content parsed to empty fields and empty body -- refusing to overwrite the stored heartbeat state with a lock-only document" >&2
 			set +e ; return 1
 		fi
+		## The pass's own date and time are the tooling's to stamp; a value the caller
+		## gives wins. last-test-email-sent belongs to --magic-heartbeat-test-report-send,
+		## so a caller that leaves it out keeps the stored one.
+		local stampLines="" carriedTestSent
+		case $'\n'"$callerFields" in *$'\n''last-iteration-date: '*) ;; *) stampLines="${stampLines}last-iteration-date: $( date +%Y-%m-%d )"$'\n' ;; esac
+		case $'\n'"$callerFields" in *$'\n''last-iteration-timestamp: '*) ;; *) stampLines="${stampLines}last-iteration-timestamp: $( date -u +%Y-%m-%dT%H:%M:%SZ )"$'\n' ;; esac
+		case $'\n'"$callerFields" in
+			*$'\n''last-test-email-sent: '*) ;;
+			*)
+				carriedTestSent="$( AgentsToolsHeartbeatNoteField "$target" last-test-email-sent )"
+				[ -z "$carriedTestSent" ] || stampLines="${stampLines}last-test-email-sent: $carriedTestSent"$'\n'
+			;;
+		esac
+		if [ -n "$stampLines" ] ; then
+			if [ -n "$callerFields" ] ; then callerFields="$callerFields"$'\n'"${stampLines%$'\n'}" ; else callerFields="${stampLines%$'\n'}" ; fi
+		fi
 		local mergedContent
 		mergedContent="$( printf -- '---\n%s\n%s\n---\n\n%s' "$lockFields" "$callerFields" "$callerBody" )"
 		## Delegates to the same git-backed, session-id-checked primitive the
@@ -551,6 +625,75 @@ case "$1" in
 		else
 			echo "NO_STATE"
 		fi
+		return 0
+	;;
+
+	## The hourly test report: due only once an hour has passed since the note's
+	## last-test-email-sent; built from the heartbeat scan's own day-rhythm, board
+	## counts and active items; sent through --member-comms-email-send to human-owner's
+	## EMAIL_USER; stamps last-test-email-sent once sent.
+	--magic-heartbeat-test-report-send)
+		shift
+		local callingMember="$1"
+		shift || true
+		if [ -z "$callingMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: <team-member> required" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: invalid option: $1 -- takes <team-member> only" >&2
+			set +e ; return 1
+		fi
+		if [ "$callingMember" != "magic-coordinator" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: <team-member> must be magic-coordinator -- the heartbeat note it stamps has no other owner (got: $callingMember)" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local reportNote="$MDAT_DATA_ROOT/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+		if [ ! -f "$reportNote" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: $reportNote does not exist -- acquire the lock first (--magic-heartbeat-lock-acquire)" >&2
+			set +e ; return 1
+		fi
+		local reportLastSent reportLastEpoch="" reportNowEpoch
+		reportNowEpoch="$( date +%s )"
+		reportLastSent="$( AgentsToolsHeartbeatNoteField "$reportNote" last-test-email-sent )"
+		if [ -n "$reportLastSent" ] ; then
+			reportLastEpoch="$( printf '%s\n' "$reportLastSent" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )" || reportLastEpoch=""
+		fi
+		if [ -n "$reportLastEpoch" ] && [ "$(( reportNowEpoch - reportLastEpoch ))" -lt 3600 ] ; then
+			echo "NOT_DUE:last-test-email-sent=$reportLastSent:due-in=$(( 3600 - ( reportNowEpoch - reportLastEpoch ) ))s"
+			return 0
+		fi
+		local reportTo
+		reportTo="$( DistroAgentsTools --agents-config-option human-owner --select EMAIL_USER 2>/dev/null )"
+		if [ -z "$reportTo" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: EMAIL_USER is not set in human-owner's own scope in .local/.agents -- nowhere to send the report" >&2
+			set +e ; return 1
+		fi
+		local reportStamp reportSubject reportBody
+		reportStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		reportSubject="Heartbeat test report $reportStamp"
+		reportBody="$(
+			printf 'Heartbeat pass at %s.\n\n' "$reportStamp"
+			AgentsToolsHeartbeatDayRhythm | sed 's/^/- /'
+			printf '\nBoard counts:\n\n'
+			AgentsToolsHeartbeatBoardCounts | sed 's/^/- /'
+			printf '\nActive and blocked items:\n\n'
+			AgentsToolsHeartbeatBoardActiveItems | sed 's/^/- /'
+		)"
+		printf '%s\n' "$reportBody" | DistroAgentsTools --member-comms-email-send "$callingMember" "$reportTo" -- "$reportSubject" -- --text-group report --from-stdin || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: the send failed, so last-test-email-sent is not stamped" >&2
+			set +e ; return 1
+		}
+		DistroAgentsTools --intern-op-item-upsert magic-coordinator \
+			note-20260809T155000Z-heartbeat-state-and-lock.md \
+			--header:upsert:last-test-email-sent:"$reportStamp" \
+			--commit-message "* main-loop, heartbeat test report, $reportStamp" \
+			--context --magic-heartbeat-test-report-send || { set +e ; return 1 ; }
+		echo "SENT:to=$reportTo:last-test-email-sent=$reportStamp"
 		return 0
 	;;
 

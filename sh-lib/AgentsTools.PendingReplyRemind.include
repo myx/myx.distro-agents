@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PendingReplyRemind.include -- reminders for asks still waiting on a
+## person. Definitions only, sourced by the --intern-op-pending-reply-remind arm
+## (AgentsTools.InternOpPendingReply.include), which the main loop runs every
+## iteration right after its pending-reply collect.
+##
+## Pure tooling: no model is called, no skillset text drives it. It reads every
+## record in .local/agents/pending/ still `status: reply-pending`, of a live session or
+## an ended one alike, and NEVER closes, expires or deletes one -- a reminder only
+## stamps the record it reminded about (owner ruling: asks never expire by age).
+##
+## Schedule, per ask, the ask's age taken from its question ts:
+##   reminder-30m          once, 30 minutes after the ask
+##   reminder-2h           once, 2 hours after the ask
+##   last-daily-reminder   at the first main-loop iteration after 09:00 local each day
+##                         (the day's window, kept in .local/agents/pending-remind.daily),
+##                         an ask 4+ hours old and not yet reminded that day
+## Stages due together send ONE reminder and are stamped together. Every send adds to
+## `reminders: <n>` and sets `last-reminder-at`. The stamps are what makes a repeat
+## send nothing: a stage stamped is never due again.
+##
+## Grouping, within one run: the due asks are grouped by addressee (`address-to`). More
+## than 10 for one person -> one DM digest to that person, with a Slack link per ask;
+## otherwise -> one reply in each ask's own thread. A person a DM cannot reach (a
+## channel, or a team channel alias) always gets the per-thread replies.
+##
+## Sent through --member-comms-slack-send-message, as the ask's own owner, under the
+## identity its record names (`ask-identity: bot`), addressed with the same
+## `--address-to` the ask used. A record with no thread, question ts, owner or
+## addressee is skipped and logged, never guessed at.
+##
+## One line per ask acted on, first word the outcome:
+##   REMINDED <id> <person> thread|digest reminder=<n> stages=<stage,...>
+##   SKIPPED <id> | <why>                  -- unresolvable, nothing sent
+##   FAILED <id> <person> | <why>          -- the send failed; nothing stamped, due again next run
+##   DIGEST <person> <count>               -- one DM digest sent
+## then `REMIND: reminded=<n> threads=<n> digests=<n> skipped=<n> failed=<n>`.
+##
+
+## The question as it was asked: the posted body's first section after its kind heading,
+## up to the first formal field. At most 40 lines.
+AgentsToolsPendingReplyRemindQuestion(){ ## record file
+	LC_ALL=C awk '
+		dashes < 2 { if ( $0 == "---" ) { dashes++ ; } next ; }
+		! seenAsked && $0 == "# Question asked" { seenAsked = 1 ; next ; }
+		! started && /^# / { started = 1 ; next ; }
+		/^\*\*/ { exit ; }
+		{
+			if ( ! started && $0 !~ /^[ \t]*$/ ) { started = 1 ; }
+			if ( started ) { lines[++count] = $0 ; }
+		}
+		END {
+			first = 1 ; while ( first <= count && lines[first] ~ /^[ \t]*$/ ) { first++ ; }
+			last = count ; while ( last >= first && lines[last] ~ /^[ \t]*$/ ) { last-- ; }
+			if ( last - first >= 40 ) { last = first + 39 ; }
+			for ( i = first ; i <= last ; i++ ) { print lines[i] ; }
+		}
+	' "$1" 2>/dev/null
+}
+
+## A Slack link to the ask in its thread: built from SLACK_WORKSPACE_DOMAIN (the owner's,
+## then magic-team's), else chat.getPermalink, else the plain <channel>:<ts> reference.
+AgentsToolsPendingReplyRemindLink(){ ## owner, channel, question ts, thread ts
+	local linkDomain="" linkUrl=""
+	linkDomain="$( DistroAgentsTools --member-config-option "$1" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || linkDomain=""
+	[ -n "$linkDomain" ] || linkDomain="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || linkDomain=""
+	if [ -n "$linkDomain" ] ; then
+		linkDomain="${linkDomain#https://}" ; linkDomain="${linkDomain%%/*}"
+		case "$linkDomain" in
+			*.*) ;;
+			*) linkDomain="$linkDomain.slack.com" ;;
+		esac
+		linkUrl="https://$linkDomain/archives/$2/p${3//./}"
+		[ "$4" = "$3" ] || linkUrl="$linkUrl?thread_ts=$4&cid=$2"
+		printf '%s\n' "$linkUrl"
+		return 0
+	fi
+	linkUrl="$( DistroAgentsTools --intern-op-slack-call "$1" --api chat.getPermalink --form "channel=$2" --form "message_ts=$3" \
+		--context "$MDSC_CMD: reminder link" 2>/dev/null | LC_ALL=C sed -n 's/.*"permalink":"\([^"]*\)".*/\1/p' | head -1 | LC_ALL=C sed 's|\\/|/|g' )" || linkUrl=""
+	case "$linkUrl" in
+		https://*) printf '%s\n' "$linkUrl" ;;
+		*) printf '%s:%s\n' "$2" "$3" ;;
+	esac
+}
+
+## Stamps the stages sent, under the record's own lock, the lock every close takes. A
+## record closed meanwhile is left as it is.
+AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma list), reminder number, stamp time, today
+	local stampLock stampOps stampBody stampStage
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
+	stampLock="$agentsLocalLockPath"
+	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
+		stampOps="$MMDAPP/.local/temp/mdat-pending-reply-remind.$$.$RANDOM"
+		{
+			for stampStage in ${3//,/ } ; do
+				case "$stampStage" in
+					30m) printf 'upsert\treminder-30m\t%s\n' "$5" ;;
+					2h) printf 'upsert\treminder-2h\t%s\n' "$5" ;;
+					daily) printf 'upsert\tlast-daily-reminder\t%s\n' "$6" ;;
+				esac
+			done
+			printf 'upsert\treminders\t%s\n' "$4"
+			printf 'upsert\tlast-reminder-at\t%s\n' "$5"
+		} > "$stampOps" \
+			&& stampBody="$( LC_ALL=C awk -v opsFile="$stampOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$2" )" \
+			&& [ -n "$stampBody" ] && printf '%s\n' "$stampBody" > "$2.$$" && mv -f "$2.$$" "$2" \
+			|| { rm -f "$2.$$" "$stampOps" ; AgentsToolsLocalLockGive "$stampLock" ; return 1 ; }
+		rm -f "$stampOps"
+	fi
+	AgentsToolsLocalLockGive "$stampLock"
+	return 0
+}
+
+## One send through the team's send op, as the ask's owner and identity. The text goes
+## in on stdin. Prints the send's first error line on failure.
+AgentsToolsPendingReplyRemindSend(){ ## owner, identity, target, address to, text
+	local sendOut sendRc=0
+	sendOut="$( mktemp "$MMDAPP/.local/temp/mdat-pending-remind-send.XXXXXX" )" || { printf 'no work file\n' ; return 1 ; }
+	if [ "$2" = "bot" ] ; then
+		printf '%s' "$5" | DistroAgentsTools --member-comms-slack-send-message "$1" "$3" --address-to "$4" --identity-bot --from-stdin > "$sendOut" 2>&1 || sendRc=$?
+	else
+		printf '%s' "$5" | DistroAgentsTools --member-comms-slack-send-message "$1" "$3" --address-to "$4" --from-stdin > "$sendOut" 2>&1 || sendRc=$?
+	fi
+	if [ "$sendRc" != "0" ] ; then
+		printf 'rc=%s %s\n' "$sendRc" "$( LC_ALL=C grep -m1 'ERROR' "$sendOut" | LC_ALL=C tr -s '\t' ' ' )"
+		rm -f "$sendOut"
+		return 1
+	fi
+	rm -f "$sendOut"
+	return 0
+}
+
+## The whole run. Prints the outcome lines and the REMIND summary.
+AgentsToolsPendingReplyRemindRun(){
+	local remindStore="$MMDAPP/.local/agents/pending" remindDaily="$MMDAPP/.local/agents/pending-remind.daily"
+	local remindNow remindToday remindHhmm remindStamp remindDailyOpen="" remindWork remindLock=""
+	local remindReminded=0 remindThreads=0 remindDigests=0 remindSkipped=0 remindFailed=0
+	[ -d "$remindStore" ] || { printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0\n' ; return 0 ; }
+	if [ ! -r "$remindStore" ] || [ ! -x "$remindStore" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: the pending-reply store cannot be read: $remindStore" >&2
+		return 1
+	fi
+	mkdir -p "$MMDAPP/.local/temp" || return 1
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	## One run at a time, so two runs never both find a stage due and both send it.
+	if ! AgentsToolsLocalLockTake "pending-reply-remind" 5 ; then
+		echo "$MDSC_CMD: another reminder run holds the lock; nothing sent this time" >&2
+		printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0 (another run holds the lock)\n'
+		return 0
+	fi
+	remindLock="$agentsLocalLockPath"
+	remindWork="$( mktemp -d "$MMDAPP/.local/temp/mdat-pending-remind.XXXXXX" )" || { AgentsToolsLocalLockGive "$remindLock" ; return 1 ; }
+	remindNow="$( date +%s )"
+	remindToday="$( date +%Y-%m-%d )"
+	remindHhmm="$( date +%H%M )"
+	remindStamp="$( date +"%Y-%m-%d %H:%M %z" )"
+	## The daily window opens once a day, at the first run after 09:00 local.
+	if [ "$(( 10#$remindHhmm ))" -ge 900 ] && [ "$( cat "$remindDaily" 2>/dev/null )" != "$remindToday" ] ; then
+		remindDailyOpen=1
+	fi
+
+	## Which asks are due, one tab-separated row each: person, ask epoch, id, file, stages,
+	## reminder number, owner, identity, channel, question ts, thread ts, asked-at.
+	local remindFile remindKey remindValue remindId remindEpoch remindAge remindStages
+	local fStatus fOwner fChannel fQts fTts fAddr fAddressees fIdentity fAskedAt f30 f2h fDaily fCount fLastAt
+	: > "$remindWork/due"
+	while IFS= read -r remindFile ; do
+		[ -f "$remindFile" ] || continue
+		fStatus="" fOwner="" fChannel="" fQts="" fTts="" fAddr="" fAddressees="" fIdentity="" fAskedAt="" f30="" f2h="" fDaily="" fCount="" fLastAt=""
+		while IFS=$'\t' read -r remindKey remindValue ; do
+			case "$remindKey" in
+				status) fStatus="$remindValue" ;;
+				owner) fOwner="$remindValue" ;;
+				channel) fChannel="$remindValue" ;;
+				question-ts) fQts="$remindValue" ;;
+				thread-ts) fTts="$remindValue" ;;
+				address-to) fAddr="$remindValue" ;;
+				addressees) fAddressees="$remindValue" ;;
+				ask-identity) fIdentity="$remindValue" ;;
+				asked-at) fAskedAt="$remindValue" ;;
+				reminder-30m) f30="$remindValue" ;;
+				reminder-2h) f2h="$remindValue" ;;
+				last-daily-reminder) fDaily="$remindValue" ;;
+				reminders) fCount="$remindValue" ;;
+				last-reminder-at) fLastAt="$remindValue" ;;
+			esac
+		done < <( AgentsToolsPendingReplyCollectFields "$remindFile" )
+		[ "$fStatus" = "reply-pending" ] || continue
+		remindId="${remindFile##*/}" ; remindId="${remindId%.md}"
+		remindEpoch="${fQts%%.*}"
+		if [ -z "$fChannel" ] || [ -z "$fTts" ] || [ -z "$fOwner" ] || [ -z "$fAddr" ] ; then
+			printf 'SKIPPED %s | the record names no thread, owner or addressee to remind\n' "$remindId"
+			remindSkipped=$(( remindSkipped + 1 )) ; continue
+		fi
+		case "$remindEpoch" in
+			''|*[!0-9]*)
+				printf 'SKIPPED %s | the record has no question ts to time a reminder from\n' "$remindId"
+				remindSkipped=$(( remindSkipped + 1 )) ; continue
+			;;
+		esac
+		case "$fCount" in ''|*[!0-9]*) fCount=0 ;; esac
+		remindAge=$(( remindNow - remindEpoch ))
+		remindStages=""
+		[ -n "$f30" ] || [ "$remindAge" -lt 1800 ] || remindStages="$remindStages,30m"
+		[ -n "$f2h" ] || [ "$remindAge" -lt 7200 ] || remindStages="$remindStages,2h"
+		## "Not yet reminded that day": by any stage, not only the daily one.
+		if [ -n "$remindDailyOpen" ] && [ "$remindAge" -ge 14400 ] && [ "$fDaily" != "$remindToday" ] && [ "${fLastAt%% *}" != "$remindToday" ] ; then
+			remindStages="$remindStages,daily"
+		fi
+		[ -n "$remindStages" ] || continue
+		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fAddr" "$remindEpoch" "$remindId" "$remindFile" "${remindStages#,}" \
+			"$(( fCount + 1 ))" "$fOwner" "${fIdentity:-member}" "$fChannel" "$fQts" "$fTts" "${fAskedAt:--}" >> "$remindWork/due"
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$remindStore" 2>/dev/null )
+
+	## Grouped by person, oldest ask first.
+	LC_ALL=C sort -t "$( printf '\t' )" -k1,1 -k2,2n "$remindWork/due" > "$remindWork/due.sorted"
+	local remindPerson remindCount remindDigest remindRow remindText remindQuote remindAsked remindWhy remindLink remindExcerpt
+	local rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt
+	local dOwner dIdentity
+	for remindPerson in $( LC_ALL=C cut -f1 "$remindWork/due.sorted" | LC_ALL=C uniq ) ; do
+		LC_ALL=C awk -F'\t' -v p="$remindPerson" '$1 == p' "$remindWork/due.sorted" > "$remindWork/group"
+		remindCount="$( LC_ALL=C wc -l < "$remindWork/group" | LC_ALL=C tr -d ' ' )"
+		remindDigest=""
+		if [ "$remindCount" -gt 10 ] ; then
+			case "$remindPerson" in
+				magic-team|event-track|event-alert|C[A-Z0-9]*|G[A-Z0-9]*|D[A-Z0-9]*|*:*) ;;
+				*) remindDigest=1 ;;
+			esac
+		fi
+		if [ -n "$remindDigest" ] ; then
+			## One DM, sent as the oldest ask's owner and identity.
+			IFS=$'\t' read -r _ _ _ _ _ _ dOwner dIdentity _ < "$remindWork/group"
+			{
+				printf '⏰ %s questions are still waiting for your answer:\n\n' "$remindCount"
+				while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
+					remindExcerpt="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C tr -s ' \t\n' '   ' | LC_ALL=C sed 's/^ //;s/ $//' )"
+					[ "${#remindExcerpt}" -le 100 ] || remindExcerpt="${remindExcerpt:0:100}..."
+					remindLink="$( AgentsToolsPendingReplyRemindLink "$rOwner" "$rChannel" "$rQts" "$rTts" < /dev/null )"
+					remindAsked="${rAskedAt:0:16}" ; [ "$rAskedAt" != "-" ] || remindAsked="an earlier date"
+					printf -- '- %s (asked %s) %s\n' "${remindExcerpt:-(question text not recorded)}" "$remindAsked" "$remindLink"
+				done < "$remindWork/group"
+				printf '\nPlease reply in each linked thread.\n'
+			} > "$remindWork/digest"
+			if remindWhy="$( AgentsToolsPendingReplyRemindSend "$dOwner" "$dIdentity" "$remindPerson" "$remindPerson" "$( cat "$remindWork/digest" )" < /dev/null )" ; then
+				printf 'DIGEST %s %s\n' "$remindPerson" "$remindCount"
+				remindDigests=$(( remindDigests + 1 ))
+				while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
+					AgentsToolsPendingReplyRemindStamp "$rId" "$rFile" "$rStages" "$rN" "$remindStamp" "$remindToday" < /dev/null \
+						|| echo "⚠️ WARNING: $MDSC_CMD: $rId was reminded, but its record could not be stamped, so it may be reminded again" >&2
+					printf 'REMINDED %s %s digest reminder=%s stages=%s\n' "$rId" "$remindPerson" "$rN" "$rStages"
+					remindReminded=$(( remindReminded + 1 ))
+				done < "$remindWork/group"
+			else
+				while IFS=$'\t' read -r rPerson rEpoch rId _ ; do
+					printf 'FAILED %s %s | digest send: %s\n' "$rId" "$remindPerson" "$remindWhy"
+					remindFailed=$(( remindFailed + 1 ))
+				done < "$remindWork/group"
+			fi
+			continue
+		fi
+		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
+			remindQuote="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C sed 's/^/> /' )"
+			remindAsked="${rAskedAt:0:16}" ; [ "$rAskedAt" != "-" ] || remindAsked="an earlier date"
+			remindText="⏰ Still waiting for your answer (asked $remindAsked, reminder $rN):"
+			[ -z "$remindQuote" ] || remindText="$remindText"$'\n'"$remindQuote"
+			if remindWhy="$( AgentsToolsPendingReplyRemindSend "$rOwner" "$rIdentity" "$rChannel:$rTts" "$rPerson" "$remindText" < /dev/null )" ; then
+				AgentsToolsPendingReplyRemindStamp "$rId" "$rFile" "$rStages" "$rN" "$remindStamp" "$remindToday" < /dev/null \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $rId was reminded, but its record could not be stamped, so it may be reminded again" >&2
+				printf 'REMINDED %s %s thread reminder=%s stages=%s\n' "$rId" "$rPerson" "$rN" "$rStages"
+				remindReminded=$(( remindReminded + 1 )) ; remindThreads=$(( remindThreads + 1 ))
+			else
+				printf 'FAILED %s %s | %s\n' "$rId" "$rPerson" "$remindWhy"
+				remindFailed=$(( remindFailed + 1 ))
+			fi
+		done < "$remindWork/group"
+	done
+	## The day's window is spent once it has run, whatever was due in it.
+	[ -z "$remindDailyOpen" ] || printf '%s\n' "$remindToday" > "$remindDaily" || :
+	rm -rf "$remindWork"
+	AgentsToolsLocalLockGive "$remindLock"
+	printf 'REMIND: reminded=%s threads=%s digests=%s skipped=%s failed=%s\n' "$remindReminded" "$remindThreads" "$remindDigests" "$remindSkipped" "$remindFailed"
+	return 0
+}

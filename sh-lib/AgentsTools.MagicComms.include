@@ -14,7 +14,7 @@
 
 ## Pages a Slack LIST endpoint to exhaustion under ONE identity, printing each
 ## page body on its own line -- the multi-page input shape
-## AgentsSlackListRecords.awk reads. Called for conversations.list and for
+## `AgentsHarnessJsonField.awk -v mode=records -v dialect=slack` reads. Called for conversations.list and for
 ## users.list, which is the reuse that makes it a function rather than two
 ## copies of a cursor loop.
 ##
@@ -47,7 +47,7 @@ AgentsMagicCommsSlackListPaged(){
 		printf '%s\n' "$listBody"
 		listFieldRc=0
 		listCursor="$( printf '%s\n' "$listBody" | LC_ALL=C awk -v path=response_metadata.next_cursor \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || listFieldRc=$?
+			-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || listFieldRc=$?
 		case "$listFieldRc" in
 			0)
 				## Present. A present-but-empty cursor is Slack's own "last page".
@@ -153,17 +153,17 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		local slackJsonField="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk"
+		local slackJsonField="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
 
 		local authUserId="" authUserName="" authUserIdRc=0 authUserNameRc=0
-		authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -f "$slackJsonField" )" || authUserIdRc=$?
+		authUserId="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user_id -v dialect=slack -f "$slackJsonField" )" || authUserIdRc=$?
 		if [ "$authUserIdRc" != "0" ] || [ -z "$authUserId" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: auth.test returned ok:true but no readable top-level user_id (reader rc=$authUserIdRc) -- refusing to report an empty AUTH_USER_ID" >&2
 			set +e ; return 1
 		fi
 		printf 'AUTH_USER_ID=%s\n' "$authUserId"
 
-		authUserName="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user -v optional=1 -f "$slackJsonField" )" || authUserNameRc=$?
+		authUserName="$( printf '%s\n' "$authResp" | LC_ALL=C awk -v path=user -v optional=1 -v dialect=slack -f "$slackJsonField" )" || authUserNameRc=$?
 		if [ "$authUserNameRc" = "0" ] ; then
 			printf 'AUTH_USER_NAME=%s\n' "$authUserName"
 		else
@@ -175,12 +175,12 @@ case "$1" in
 		local usersOkRc=0 channelsOkRc=0
 		if [ "$raw" = "true" ] || [ -n "$userNamesCsv" ] ; then
 			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
-			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
 			[ "$usersOkRc" = "0" ] || usersOk='-'
 		fi
 		if [ "$raw" = "true" ] || [ -n "$channelNamesCsv" ] ; then
 			channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @- --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" <<< "$authHeader" )"
-			channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || channelsOkRc=$?
+			channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || channelsOkRc=$?
 			[ "$channelsOkRc" = "0" ] || channelsOk='-'
 		fi
 
@@ -225,9 +225,9 @@ case "$1" in
 			aliasInfoOk=""
 			aliasInfoErr=""
 			aliasName=""
-			aliasInfoOk="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || aliasInfoOkRc=$?
-			aliasInfoErr="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || aliasInfoErrRc=$?
-			aliasName="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path="$aliasNamePath" -v optional=1 -f "$slackJsonField" )" || aliasNameRc=$?
+			aliasInfoOk="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || aliasInfoOkRc=$?
+			aliasInfoErr="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || aliasInfoErrRc=$?
+			aliasName="$( printf '%s\n' "$aliasInfo" | LC_ALL=C awk -v path="$aliasNamePath" -v optional=1 -v dialect=slack -f "$slackJsonField" )" || aliasNameRc=$?
 			[ "$aliasInfoOkRc" = "0" ] || aliasInfoOk='-'
 			[ "$aliasNameRc" = "0" ] || aliasName='-'
 			[ "$aliasInfoErrRc" = "0" ] || aliasInfoErr='-'
@@ -254,7 +254,7 @@ case "$1" in
 			fi
 			local humanAliasErrRc=0
 			humanAliasErr=""
-			humanAliasErr="$( printf '%s\n' "$humanAliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || humanAliasErrRc=$?
+			humanAliasErr="$( printf '%s\n' "$humanAliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || humanAliasErrRc=$?
 			[ "$humanAliasErrRc" = "0" ] || humanAliasErr='-'
 		else
 			humanAliasErr="unresolved"
@@ -262,7 +262,7 @@ case "$1" in
 
 		if [ "$usersOk" = "not-requested" ] ; then
 			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
-			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || usersOkRc=$?
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
 			[ "$usersOkRc" = "0" ] || usersOk='-'
 		fi
 		## Every exit below passes here, and the config-alias exit above reports
@@ -281,9 +281,9 @@ case "$1" in
 				openOk=""
 				openErr=""
 				openChannel=""
-				openOk="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=ok -f "$slackJsonField" )" || openOkRc=$?
-				openErr="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=error -v optional=1 -f "$slackJsonField" )" || openErrRc=$?
-				openChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -f "$slackJsonField" )" || openChannelRc=$?
+				openOk="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || openOkRc=$?
+				openErr="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || openErrRc=$?
+				openChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$slackJsonField" )" || openChannelRc=$?
 				[ "$openOkRc" = "0" ] || openOk='-'
 				[ "$openErrRc" = "0" ] || openErr='-'
 				if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
@@ -387,14 +387,14 @@ case "$1" in
 			fi
 			local rosterAuthId="" rosterAuthName="" rosterAuthIdRc=0 rosterAuthNameRc=0
 			rosterAuthId="$( printf '%s\n' "$rosterAuthResp" | LC_ALL=C awk -v path=user_id \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || rosterAuthIdRc=$?
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterAuthIdRc=$?
 			if [ "$rosterAuthIdRc" != "0" ] || [ -z "$rosterAuthId" ] ; then
 				echo "IDENTITY|identity=$rosterIdentity|auth=-|handle=-|status=FAILED|reason=auth.test returned ok but no readable top-level user_id (field reader rc=$rosterAuthIdRc) -- refusing to key a roster on an empty identity"
 				rosterFailCount=$(( rosterFailCount + 1 ))
 				continue
 			fi
 			rosterAuthName="$( printf '%s\n' "$rosterAuthResp" | LC_ALL=C awk -v path=user -v optional=1 \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || rosterAuthNameRc=$?
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterAuthNameRc=$?
 			[ "$rosterAuthNameRc" = "0" ] && [ -n "$rosterAuthName" ] || rosterAuthName='-'
 
 			## Handles come from the SAME identity that enumerated the
@@ -406,7 +406,7 @@ case "$1" in
 			local rosterHandles=""
 			if [ "$rosterUserRc" = "0" ] ; then
 				rosterHandles="$( printf '%s\n' "$rosterUserPages" | LC_ALL=C awk -v array=members -v want=id,name \
-					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || rosterHandles=""
+					-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterHandles=""
 			fi
 			rosterUserPages=""
 
@@ -422,7 +422,7 @@ case "$1" in
 			local rosterLines="" rosterLinesRc=0
 			rosterLines="$( printf '%s\n' "$rosterConvPages" \
 				| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted \
-					-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackListRecords.awk" )" || rosterLinesRc=$?
+					-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterLinesRc=$?
 			rosterConvPages=""
 			if [ "$rosterLinesRc" != "0" ] ; then
 				echo "IDENTITY|identity=$rosterIdentity|auth=$rosterAuthId|handle=$rosterAuthName|status=FAILED|reason=the conversations.list body was fetched but could not be read (record reader rc=$rosterLinesRc) -- treat as NOT ENUMERATED, never as empty"

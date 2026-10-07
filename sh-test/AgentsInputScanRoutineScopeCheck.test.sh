@@ -5,7 +5,8 @@
 ## only (the pending-slack-reaction and pending-trello-update records its comms step acts
 ## on), never inquiries or reflections, and no client-* inbox. The grooming scan returns
 ## backlog, the acting inbox's inquiries, reflections and notes, and each client-* inbox as
-## an Additional Inbox group. The heartbeat scan returns no board rows. Offline: a temp data
+## an Additional Inbox group. The heartbeat scan returns no board rows and no inbox
+## reflections. Offline: a temp data
 ## store, skillset root and workspace.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -78,6 +79,7 @@ rigAssert "with its inquiry"                             "$( rigHas 'rig client 
 echo "-- heartbeat --"
 rigScan --magic-heartbeat-input-scan
 rigAssert "no board row"                                 "$( LC_ALL=C grep -c -E '^## (backlog|pending|running|blocked|parked)/' "$rigTmp/out" )" 0
+rigAssert "no own reflection"                            "$( rigHas 'rig own reflection' )" no
 
 echo "-- $rigPassCount passed, $rigFailCount failed --"
 [ "$rigFailCount" -eq 0 ]

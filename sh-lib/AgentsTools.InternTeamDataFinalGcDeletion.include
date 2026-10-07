@@ -385,7 +385,10 @@ AgentsToolsFinalGcScanDir(){
 					continue
 				;;
 			esac
-			## The item's spawn sandbox folders go with it, before it: an open one keeps the item for a later pass, a failed removal keeps it too.
+		fi
+		## Board and trash alike (a dispatch deleted to trash/ still owns its sandbox): the item's spawn sandbox folders go with it,
+		## before it. An open one keeps the item for a later pass, a failed removal keeps it too.
+		if [ "$population" = "board" ] || [ "$population" = "trash" ] ; then
 			gcSandboxRemovable="" ; gcSandboxOpen="false"
 			for gcFolderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$path" ) ; do
 				case "$( AgentsToolsSpawnSandboxFolderState "$gcFolderName" "${fileBase%.md}" )" in

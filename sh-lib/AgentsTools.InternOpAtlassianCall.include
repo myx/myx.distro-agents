@@ -201,11 +201,11 @@ AgentsToolsJiraAgileRead() {
 	fi
 	printf '%s\n' "$agileBody"
 	if [ -n "$agileArray" ] ; then
-		local agileFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
-		local agileTotal="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$agileFieldAwk" 2>/dev/null )"
-		local agileRespStart="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=startAt -v optional=1 -f "$agileFieldAwk" 2>/dev/null )"
+		local agileFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+		local agileTotal="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=total -v optional=1 -v dialect=atlassian -f "$agileFieldAwk" 2>/dev/null )"
+		local agileRespStart="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=startAt -v optional=1 -v dialect=atlassian -f "$agileFieldAwk" 2>/dev/null )"
 		local agileRows agileCount=0 agileRowsRc=0
-		agileRows="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v array="$agileArray" -v want=key -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" 2>/dev/null )" || agileRowsRc=$?
+		agileRows="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v array="$agileArray" -v want=key -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || agileRowsRc=$?
 		if [ "$agileRowsRc" -ne 0 ] ; then
 			printf '%s\n' "# $agileContext: more: unknown -- this response carried no readable $agileArray array, so the rows on this page cannot be counted. That is NOT a confirmation that the page is complete" >&2
 			return 0
@@ -234,7 +234,7 @@ AgentsToolsJiraAgileRead() {
 		esac
 		return 0
 	fi
-	local agileIsLast="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+	local agileIsLast="$( printf '%s\n' "$agileBody" | LC_ALL=C awk -v path=isLast -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 	case "$agileIsLast" in
 		true)
 			printf '%s\n' "# $agileContext: more: no -- the site reported isLast=true, so the rows above are the complete set visible to $agileMember" >&2
@@ -459,7 +459,7 @@ case "$1" in
 			set +e ; return "$spaceRc"
 		fi
 		local spaceRows spaceRowsRc=0
-		spaceRows="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v array=results -v want='id,key,name,type,status' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || spaceRowsRc=$?
+		spaceRows="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v array=results -v want='id,key,name,type,status' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || spaceRowsRc=$?
 		if [ "$spaceRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$spaceContext: results array unreadable" >&2
 			set +e ; return 3
@@ -468,7 +468,7 @@ case "$1" in
 		[ -z "$spaceRows" ] || printf '%s\n' "$spaceRows"
 		## Unlike page-search, this endpoint DOES terminate: _links.next is present
 		## while pages follow and absent on the last one. Measured at both ends.
-		local spaceNext="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v path=_links.next -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		local spaceNext="$( printf '%s\n' "$spaceBody" | LC_ALL=C awk -v path=_links.next -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 		if [ -n "$spaceNext" ] ; then
 			## Cut at the FIRST '&': from page 2 on the next link appends &limit=N after
 			## the cursor, and emitting that whole tail prints a value this operation's
@@ -548,7 +548,7 @@ case "$1" in
 		## isLast is the only truncation signal this endpoint carries, and all three
 		## states are stated: a complete page and an unanswerable one must never read
 		## alike, which is exactly what silence-means-complete made them.
-		local boardIsLast="$( printf '%s\n' "$boardBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		local boardIsLast="$( printf '%s\n' "$boardBody" | LC_ALL=C awk -v path=isLast -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 		case "$boardIsLast" in
 			true)
 				printf '%s\n' "# $boardContext: more: no -- the site reported isLast=true, so the boards above are the complete set visible to $boardMember" >&2
@@ -660,7 +660,7 @@ case "$1" in
 			if [ "$agileBoardRc" -ne 0 ] ; then
 				set +e ; return "$agileBoardRc"
 			fi
-			local agileBoardType="$( printf '%s\n' "$agileBoardBody" | LC_ALL=C awk -v path=type -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+			local agileBoardType="$( printf '%s\n' "$agileBoardBody" | LC_ALL=C awk -v path=type -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 			case "$agileBoardType" in
 				kanban)
 					printf '%s\n' '{"values":[]}'
@@ -673,7 +673,7 @@ case "$1" in
 					if [ "$agileFeatureRc" -ne 0 ] ; then
 						set +e ; return "$agileFeatureRc"
 					fi
-					agileFeatureRows="$( printf '%s\n' "$agileFeatureBody" | LC_ALL=C awk -v array=features -v want=boardFeature,state -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" 2>/dev/null )" || agileFeatureRowsRc=$?
+					agileFeatureRows="$( printf '%s\n' "$agileFeatureBody" | LC_ALL=C awk -v array=features -v want=boardFeature,state -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || agileFeatureRowsRc=$?
 					local agileSprintState=""
 					[ "$agileFeatureRowsRc" -ne 0 ] || agileSprintState="$( printf '%s\n' "$agileFeatureRows" | LC_ALL=C awk -F '\t' '$1 == "SPRINTS" { print $2 ; exit }' )"
 					case "$agileSprintState" in
@@ -738,7 +738,7 @@ case "$1" in
 			set +e ; return "$jiraSearchRc"
 		fi
 		local jiraSearchRows jiraSearchRowsRc=0
-		jiraSearchRows="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v array=issues -v want='key,fields.issuetype.name,fields.status.name,fields.assignee.displayName,fields.updated,fields.summary' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraSearchRowsRc=$?
+		jiraSearchRows="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v array=issues -v want='key,fields.issuetype.name,fields.status.name,fields.assignee.displayName,fields.updated,fields.summary' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || jiraSearchRowsRc=$?
 		if [ "$jiraSearchRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraSearchContext: issues array unreadable" >&2
 			set +e ; return 3
@@ -748,7 +748,7 @@ case "$1" in
 		if [ -z "$jiraSearchRows" ] ; then
 			printf '%s\n' "# $jiraSearchContext: the query ran and matched nothing. Jira answers an unresolvable or malformed query with an empty page rather than an error, so this does NOT establish that no issue matches what you meant: re-check the query itself. The JQL as sent: $jiraSearchJql" >&2
 		fi
-		local jiraSearchIsLast="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v path=isLast -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+		local jiraSearchIsLast="$( printf '%s\n' "$jiraSearchBody" | LC_ALL=C awk -v path=isLast -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 		case "$jiraSearchIsLast" in
 			true)
 				printf '%s\n' "# $jiraSearchContext: more: no -- the site reported isLast=true, so the issues above are the complete set this query matched for $jiraSearchMember" >&2
@@ -804,25 +804,25 @@ case "$1" in
 		if [ "$jiraReadRc" -ne 0 ] ; then
 			set +e ; return "$jiraReadRc"
 		fi
-		local jiraReadFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
-		local jiraReadKeySeen="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=key -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )"
+		local jiraReadFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+		local jiraReadKeySeen="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
 		[ -n "$jiraReadKeySeen" ] || jiraReadKeySeen="$jiraReadKeyArg"
-		local jiraReadLabels="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -f "$jiraReadFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
+		local jiraReadLabels="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
 		printf '# issue %s: type=%s status=%s resolution=%s assignee=%s reporter=%s priority=%s created=%s updated=%s labels=%s format=%s\n' \
 			"$jiraReadKeySeen" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
 			"$jiraReadLabels" \
 			"$jiraReadFormat" >&2
-		printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
+		printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
 		if [ "$jiraReadFormat" = rendered ] ; then
-			local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -f "$jiraReadFieldAwk" 2>/dev/null )"
+			local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
 			if [ -z "$jiraReadRendered" ] ; then
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: renderedFields description unreadable" >&2
 				set +e ; return 3
@@ -831,7 +831,7 @@ case "$1" in
 			return 0
 		fi
 		local jiraReadDescription jiraReadDescRc=0
-		jiraReadDescription="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -f "$jiraReadFieldAwk" 2>/dev/null )" || jiraReadDescRc=$?
+		jiraReadDescription="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" || jiraReadDescRc=$?
 		if [ "$jiraReadDescRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: description field unreadable" >&2
 			set +e ; return 3
@@ -899,16 +899,16 @@ case "$1" in
 			jiraCRRawFlag=( -v raw=body )
 		fi
 		local jiraCRRows jiraCRRowsRc=0
-		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" "${jiraCRRawFlag[@]}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraCRRowsRc=$?
+		jiraCRRows="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v array=comments -v want="$jiraCRWant" "${jiraCRRawFlag[@]}" -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || jiraCRRowsRc=$?
 		if [ "$jiraCRRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraCRContext: comments field unreadable" >&2
 			set +e ; return 3
 		fi
 		printf 'COMMENT_ID\tAUTHOR_ID\tAUTHOR_NAME\tCREATED\tUPDATED\tBODY\n'
 		[ -z "$jiraCRRows" ] || printf '%s\n' "$jiraCRRows"
-		local jiraCRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
-		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
-		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+		local jiraCRTotal="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=total -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
+		local jiraCRRespStart="$( printf '%s\n' "$jiraCRBody" | LC_ALL=C awk -v path=startAt -v optional=1 -v dialect=atlassian -f "$jiraCRFieldAwk" 2>/dev/null )"
 		local jiraCREmitted=0
 		[ -z "$jiraCRRows" ] || jiraCREmitted="$( printf '%s\n' "$jiraCRRows" | LC_ALL=C awk 'END { print NR }' )"
 		case "$jiraCRTotal" in
@@ -1103,7 +1103,7 @@ case "$1" in
 			set +e ; return "$jiraITListRc"
 		fi
 		local jiraITRows jiraITRowsRc=0
-		jiraITRows="$( printf '%s\n' "$jiraITListBody" | LC_ALL=C awk -v array=transitions -v want='id,name,to.name' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || jiraITRowsRc=$?
+		jiraITRows="$( printf '%s\n' "$jiraITListBody" | LC_ALL=C awk -v array=transitions -v want='id,name,to.name' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || jiraITRowsRc=$?
 		if [ "$jiraITRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraITContext: the transitions call returned no transitions array (rc=$jiraITRowsRc) -- nothing was changed" >&2
 			set +e ; return 1
@@ -1269,20 +1269,20 @@ case "$1" in
 		if [ "$confPRRc" -ne 0 ] ; then
 			set +e ; return "$confPRRc"
 		fi
-		local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk"
+		local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
 		local confPRRawFlag=()
 		[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
 		local confPRValue confPRValueRc=0
-		confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
+		confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
 		if [ "$confPRValueRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
 			set +e ; return 3
 		fi
 		printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
 			"$confPRPageId" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
 			"$confPRFormat" >&2
 		printf '%s' "$confPRValue"
 		return 0
@@ -1324,7 +1324,7 @@ case "$1" in
 			set +e ; return "$confPSRc"
 		fi
 		local confPSRows confPSRowsRc=0
-		confPSRows="$( printf '%s\n' "$confPSBody" | LC_ALL=C awk -v array=results -v want='content.id,content.type,title,lastModified,url' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confPSRowsRc=$?
+		confPSRows="$( printf '%s\n' "$confPSBody" | LC_ALL=C awk -v array=results -v want='content.id,content.type,title,lastModified,url' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || confPSRowsRc=$?
 		if [ "$confPSRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPSContext: results field unreadable" >&2
 			set +e ; return 3
@@ -1370,7 +1370,7 @@ case "$1" in
 			set +e ; return "$confCRRc"
 		fi
 		local confCRRows confCRRowsRc=0
-		confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confCRRowsRc=$?
+		confCRRows="$( printf '%s\n' "$confCRBody" | LC_ALL=C awk -v array=results -v want='id,version.authorId,version.createdAt,body.storage.value' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || confCRRowsRc=$?
 		if [ "$confCRRowsRc" -ne 0 ] ; then
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCRContext: results field unreadable" >&2
 			set +e ; return 3
@@ -1457,7 +1457,7 @@ case "$1" in
 				set +e ; return "$confPCLookupRc"
 			fi
 			local confPCSpaceRows confPCSpaceRowsRc=0
-			confPCSpaceRows="$( printf '%s\n' "$confPCLookupBody" | LC_ALL=C awk -v array=results -v want='id,key' -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianListRecords.awk" )" || confPCSpaceRowsRc=$?
+			confPCSpaceRows="$( printf '%s\n' "$confPCLookupBody" | LC_ALL=C awk -v array=results -v want='id,key' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || confPCSpaceRowsRc=$?
 			if [ "$confPCSpaceRowsRc" -ne 0 ] ; then
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPCContext: the space lookup returned no results array (rc=$confPCSpaceRowsRc) -- nothing was created" >&2
 				set +e ; return 1
@@ -1614,7 +1614,7 @@ case "$1" in
 			if [ "$confCAParentRc" -ne 0 ] ; then
 				set +e ; return "$confCAParentRc"
 			fi
-			local confCAParentPageId="$( printf '%s\n' "$confCAParentBody" | LC_ALL=C awk -v path=pageId -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsAtlassianJsonField.awk" 2>/dev/null )"
+			local confCAParentPageId="$( printf '%s\n' "$confCAParentBody" | LC_ALL=C awk -v path=pageId -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )"
 			if [ "$confCAParentPageId" != "$confCAPageId" ] ; then
 				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confCAContext: parent comment $confCAParentCommentId belongs to page ${confCAParentPageId:-<not stated in the response>}, not page $confCAPageId -- the reply was NOT posted" >&2
 				set +e ; return 1

@@ -472,15 +472,17 @@ AgentsHarnessResolveDir(){
 ## the rule mcp.servers.json already follows beside it. Sourced rather than re-entered
 ## through a command script, because an internal caller already holds the context.
 ## One block and no branch on which caller this is: yielding the set is one job.
+## The name the access-root include and every Bash command reach the tooling through,
+## as in the console. Exported so a `bash -c` child (a timed Bash call) has it too.
+if ! type DistroAgentsTools >/dev/null 2>&1 ; then
+	DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
+fi
+export -f DistroAgentsTools
 if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	harnessRootsInclude="$harnessHere/AgentsTools.ClientAccessRoots.include"
 	if [ ! -f "$harnessRootsInclude" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root mechanism is missing from this package: $harnessRootsInclude" >&2
 		exit 1
-	fi
-	## The include reaches the config store through this name, as it does in the console.
-	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
-		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
 	. "$harnessRootsInclude"
 	## The installer's own index of this same set, already resolved, when it vouches for
@@ -1046,7 +1048,7 @@ AgentsHarnessLockTake(){ ## resolved target
 AgentsHarnessToolWrite(){
 	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock=""
 	if [ -z "$toolPath" ] ; then
-		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
+		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Write "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
@@ -1084,7 +1086,7 @@ AgentsHarnessToolWrite(){
 AgentsHarnessToolEdit(){
 	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
 	if [ -z "$toolPath" ] ; then
-		AgentsHarnessRefusal Edit "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
+		AgentsHarnessRefusal Edit "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
 	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Edit "$harnessResolvedPath" ; then
 		AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
@@ -1214,14 +1216,62 @@ AgentsHarnessToolGlob(){
 	fi
 }
 
+## Grep's `type`: the file-name globs of one ripgrep type, space-separated, from ripgrep's
+## own default table, trimmed to common types. Returns 1 for a name not in it. With no
+## argument it prints the known names, for the refusal to list.
+AgentsHarnessGrepTypeGlobs(){ ## type name
+	case "${1-}" in
+		'')       printf 'awk c cpp cs css docker go html java js json kotlin lua make markdown md perl php py ruby rust sh sql svg swift toml ts txt xml yaml' ;;
+		awk)      printf '*.awk' ;;
+		c)        printf '*.c *.h *.H' ;;
+		cpp)      printf '*.C *.cc *.cpp *.cxx *.c++ *.h *.H *.hh *.hpp *.hxx *.h++ *.inl' ;;
+		cs)       printf '*.cs' ;;
+		css)      printf '*.css *.scss' ;;
+		docker)   printf '*Dockerfile*' ;;
+		go)       printf '*.go' ;;
+		html)     printf '*.htm *.html *.ejs' ;;
+		java)     printf '*.java *.jsp *.jspx *.properties' ;;
+		js)       printf '*.js *.jsx *.vue *.cjs *.mjs' ;;
+		json)     printf '*.json *.sarif composer.lock' ;;
+		kotlin)   printf '*.kt *.kts' ;;
+		lua)      printf '*.lua' ;;
+		make)     printf '*.mak *.mk GNUmakefile Gnumakefile makefile Makefile' ;;
+		markdown|md) printf '*.markdown *.md *.mdown *.mdwn *.mkd *.mkdn *.mdx' ;;
+		perl)     printf '*.perl *.pl *.PL *.plh *.plx *.pm *.t' ;;
+		php)      printf '*.php *.php3 *.php4 *.php5 *.php7 *.php8 *.pht *.phtml' ;;
+		py)       printf '*.py *.pyi' ;;
+		ruby)     printf '*.rb *.gemspec Gemfile Rakefile config.ru .irbrc' ;;
+		rust)     printf '*.rs' ;;
+		sh)       printf '*.sh *.bash *.zsh *.ksh *.csh *.tcsh .bashrc .bash_profile .bash_login .bash_logout .profile .zshrc .zprofile .zshenv .zlogin .zlogout .kshrc .cshrc .login .logout' ;;
+		sql)      printf '*.sql *.psql' ;;
+		svg)      printf '*.svg' ;;
+		swift)    printf '*.swift' ;;
+		toml)     printf '*.toml Cargo.lock' ;;
+		ts)       printf '*.ts *.tsx *.cts *.mts' ;;
+		txt)      printf '*.txt' ;;
+		xml)      printf '*.xml *.xml.dist *.dtd *.xsl *.xslt *.xsd *.xjb *.rng *.sch *.xhtml' ;;
+		yaml)     printf '*.yaml *.yml' ;;
+		*)        return 1 ;;
+	esac
+}
+
 ## `ripgrep` would replace this `grep -rn` outright; the human-owner ruled "Not now".
 AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, output_mode, glob, -n, -o, -A, -B, -C, -i, head_limit, offset, multiline, type
-	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="$8" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes toolRegex grepFlags globPrefix globGroup globSuffix globAlts globAlt
+	local toolPattern="$1" toolPath="${2:-$PWD}" toolContext="${13:-$3}" toolBefore="${12:-$4}" toolAfter="${11:-$5}" toolIgnoreCase="${14:-$6}" toolMode="${7:-files_with_matches}" toolGlob="$8" toolLineNumbers="$9" toolOnlyMatching="${10}" toolHeadLimit="${15:-250}" toolOffset="${16:-0}" toolBytes toolRegex grepFlags globPrefix globGroup globSuffix globAlts globAlt typeGlobs typeGlob typeFind=()
 	case "${17}" in
 		true|1) printf 'ERROR: multiline is not supported by this Grep, only by the native Grep tool. Search with a pattern that matches within one line instead. Nothing was searched.\n' ; return 0 ;;
 	esac
+	## A type is a find predicate over the file name, ANDed with glob as ripgrep ANDs -t and -g.
 	if [ -n "${18}" ] ; then
-		printf 'ERROR: type is not supported yet: its type table is not built. Use glob to select files by name instead, such as *.js. Nothing was searched.\n' ; return 0
+		typeGlobs="$( AgentsHarnessGrepTypeGlobs "${18}" )" || {
+			printf 'ERROR: unrecognized file type: %s. Known types: %s. Use glob for any other set of files, such as *.ext. Nothing was searched.\n' "${18}" "$( AgentsHarnessGrepTypeGlobs )" ; return 0
+		}
+		read -r -a typeGlobs <<< "$typeGlobs"
+		for typeGlob in "${typeGlobs[@]}" ; do
+			[ "${#typeFind[@]}" -eq 0 ] || typeFind+=( -o )
+			typeFind+=( -name "$typeGlob" )
+		done
+		typeFind=( '(' "${typeFind[@]}" ')' )
 	fi
 	case "${toolGlob#\*\*/}" in
 		*/*) ;;
@@ -1299,12 +1349,20 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 	esac
 	## `|| :` keeps grep's own rc 1 on no-match from tripping this script's set -e. Paged, and said so when cut.
 	## A glob holding a slash selects files by path first, as Glob matches a path, and grep reads only those.
+	## A type does the same by file name; a file named as path is searched whatever its type, as ripgrep does.
+	[ -d "$toolPath" ] || typeFind=()
 	{
 		case "$toolGlob" in
 			*/*)
-				find "$toolPath" -type f 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+				find "$toolPath" -type f ${typeFind[@]+"${typeFind[@]}"} 2>&3 | GLOB_ROOT="${toolPath%/}/" GLOB_PATTERN="$toolGlob" LC_ALL=C awk -f "$harnessHere/AgentsHarnessGlobFilterFunction.awk" | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
 			;;
-			*) grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || : ;;
+			*)
+				if [ "${#typeFind[@]}" -gt 0 ] ; then
+					find "$toolPath" -type f "${typeFind[@]}" 2>&3 | LC_ALL=C tr '\n' '\000' | xargs -0 -r grep "${grepFlags[@]}" -H -- "$toolRegex" 2>&1 || :
+				else
+					grep "${grepFlags[@]}" -- "$toolRegex" "$toolPath" 2>&1 || :
+				fi
+			;;
 		esac
 	} 3>&1 | LC_ALL=C awk -v skipCount="$toolOffset" -v keepCount="$toolHeadLimit" '
 		NR > skipCount && ( keepCount == 0 || NR <= skipCount + keepCount ) { print ; }
@@ -1538,8 +1596,8 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	fi
 }
 
-AgentsHarnessToolWebFetch(){
-	local toolUrl="$1" fetchUrl="$1" fetchStatus fetchTarget fetchRc=0 fetchHops=0 toolBytes fetchTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" fetchVerdict fetchAllowExtra="" fetchDenied="" fetchUnread="" fetchFromHost fetchToHost
+AgentsHarnessToolWebFetch(){ ## url, prompt
+	local toolUrl="$1" toolPrompt="${2-}" fetchUrl="$1" fetchStatus fetchTarget fetchRc=0 fetchHops=0 toolBytes fetchTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" fetchVerdict fetchAllowExtra="" fetchDenied="" fetchUnread="" fetchFromHost fetchToHost
 	case "$toolUrl" in
 		http://*|https://*) ;;
 		*)
@@ -1594,8 +1652,11 @@ AgentsHarnessToolWebFetch(){
 	done
 	[ "$fetchHops" = 0 ] || printf '... followed %s same-host redirect(s) to: %s ...\n' "$fetchHops" "$fetchUrl"
 	## A non-2xx still carries a body worth reading, so the status leads and the body follows.
-	case "$fetchStatus" in
-		2??) printf '... HTTP %s -- raw body follows, nothing stripped or rendered ...\n' "$fetchStatus" ;;
+	## A served call has no model to apply a prompt with, so the prompt goes back to the
+	## caller, framed ahead of the body: never dropped, and never claimed as applied.
+	case "$fetchStatus:$toolPrompt" in
+		2??:) printf '... HTTP %s -- raw body follows, nothing stripped or rendered ...\n' "$fetchStatus" ;;
+		2??:*) printf '... HTTP %s -- the PROMPT WAS NOT APPLIED: this WebFetch runs no model. Apply it yourself to the unprocessed body below, nothing stripped or rendered. Your prompt: %s ...\n' "$fetchStatus" "$toolPrompt" ;;
 		*)   printf 'ERROR: HTTP %s -- the raw body it returned follows\n' "$fetchStatus" ;;
 	esac
 	## Capped and said so: a cut page reads as a complete one.
@@ -1846,7 +1907,7 @@ AgentsHarnessToolWait(){
 	## wait returned still follows, so nothing it saw is hidden behind the outcome.
 	local waitDismissedBy=""
 	if [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: RECEIVED" ] \
-		&& waitDismissedBy="$( LC_ALL=C awk -v agent="$harnessAgent" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
+		&& waitDismissedBy="$( LC_ALL=C awk -v agent="$harnessAgent" -f "$harnessHere/AgentsDismissalMatch.awk" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
 		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
 		tail -n +2 "$harnessScratch/wait.out"
 		[ "$waitStateful" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
@@ -1856,6 +1917,8 @@ AgentsHarnessToolWait(){
 	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
 	## stateless caller (AskUserQuestion) embeds this output and has no stored wait to continue.
 	[ "$waitStateful" = "true" ] || return 0
+	## An asked question's wait item that arrived is taken into its record here, as the asking call would.
+	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitAskResolve "$harnessScratch/wait.out"
 	case "$( head -1 "$harnessScratch/wait.out" )" in
 		"WAIT-RESULT: TIMEOUT") printf 'NEXT: nothing new yet -- to keep waiting on the same sources, call Wait mode=continue\n' ;;
 		"WAIT-RESULT: RECEIVED") printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n' ;;
@@ -2578,17 +2641,21 @@ AgentsHarnessToolArtifact(){
 ## Neither helper can fail this tool. A question that was genuinely asked must be
 ## reported as asked even where recording it did not work, so a failure here degrades
 ## to no record and a warning, never to a wrong outcome line.
-AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key
-	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity)
+	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession openIdentity="member"
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
 	openSession="$( AgentsHarnessSessionKey )"
+	## Kept on the record, so the tooling's reminders post under the identity the question did.
+	case "${14:-}" in
+		true|1|yes) openIdentity="bot" ;;
+	esac
 	openId="$( printf '%s' "$2" | "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
 		--to "$1" \
 		${openSession:+--session-id "$openSession"} \
 		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
 		${8:+--addressees "$8"} ${9:+--asking-accounts "$9"} ${10:+--refusal-id "${10}"} ${11:+--options "${11}"} \
-		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} \
+		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} --ask-identity "$openIdentity" \
 		--context AskUserQuestion 2>"$harnessScratch/pending-open.err" )" || openId=""
 	if [ -z "$openId" ] ; then
 		printf 'WARNING: AskUserQuestion: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' >&2
@@ -2768,11 +2835,15 @@ AgentsHarnessToolAskUserQuestion(){
 			askDupCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 				--id "$askDupId" --context AskUserQuestion 2>/dev/null | LC_ALL=C grep '^ANSWERED ' )" || askDupCollected=""
 			if [ -n "$askDupCollected" ] ; then
+				AgentsHarnessAskWaitItem drop "$askDupId" || :
 				printf 'ASK-RESULT: RECEIVED\nThe same question to %s was already asked as pending reply %s, and its thread already holds the answer, so nothing was posted and the record is now closed. What the tooling collected, as `ANSWERED <id> <tag> | <question> | <answer>`:\n%s\n' "$toolAddressTo" "$askDupId" "$askDupCollected"
 				return 0
 			fi
 			printf 'ASK-RESULT: ALREADY-OPEN\nThe same question to %s is already open as pending reply %s, asked by %s%s, so it was not posted again.\n' "$toolAddressTo" "$askDupId" "${askDupOwner:-an unknown member}" "${askDupSession:+ in session $askDupSession}"
-			[ -z "$askDupSession" ] || [ "$askDupSession" != "$( AgentsHarnessSessionKey )" ] || printf 'AskUserQuestion pending_id=%s\n' "$askDupId"
+			if [ -n "$askDupSession" ] && [ "$askDupSession" = "$( AgentsHarnessSessionKey )" ] ; then
+				AgentsHarnessAskWaitNext "$askDupId"
+				printf 'AskUserQuestion pending_id=%s\n' "$askDupId"
+			fi
 			return 0
 		;;
 		REUSE$'\t'*)
@@ -2895,8 +2966,8 @@ AgentsHarnessToolAskUserQuestion(){
 	askThreadTs="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
 	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	## The account this question was posted under never answers it, whatever address_to said.
-	askSelfIds=" $( for askSendOut in "$askOpen" "$askSent" ; do printf '%s\n' "$askSendOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
-	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" )"
+	askSelfIds=" $( for askSendOut in "$askOpen" "$askSent" ; do printf '%s\n' "$askSendOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
+	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" )"
 	[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 	fi ## end of the posting path
 	## An escalation is answered before the work goes on, so a typed kind always waits.
@@ -2911,7 +2982,7 @@ AgentsHarnessToolAskUserQuestion(){
 	case "$toolWait" in
 		false|0|no)
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later%s. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ -- recorded as pending reply $askPendingId}" "$askSent"
-			[ -z "$askPendingId" ] || printf 'NEXT: to wait for the answer, call AskUserQuestion pending_id=%s -- it posts nothing\n' "$askPendingId"
+			AgentsHarnessAskWaitNext "$askPendingId"
 			return 0
 		;;
 	esac
@@ -2932,6 +3003,15 @@ AgentsHarnessToolAskUserQuestion(){
 			return 0
 		fi
 		[ -n "$askRecordOnly" ] || toolSource="slack:$askChannel:$askThreadTs"
+		## The wait IS the session's Wait: the question's wait item joins this session's wait set
+		## and is what is waited on, read by the same probe a later Wait reads it with. Only a
+		## question with no record falls back to its thread named directly.
+		if [ -n "$askPendingId" ] ; then
+			AgentsHarnessAskWaitItem add "$askPendingId" || :
+			toolSource="ask:$askPendingId"
+			askTs=""
+			askAddressees=""
+		fi
 	fi
 	if AgentsHarnessWholeNumber "$toolTimeout" && [ "$toolTimeout" -lt 1 ] ; then
 		toolTimeout="$harnessWaitTimeout"
@@ -2973,14 +3053,70 @@ AgentsHarnessToolAskUserQuestion(){
 	done
 	if [ -n "$askNeverRead" ] ; then
 		printf 'ERROR: AskUserQuestion: the question WAS posted to %s%s, and then its thread could not be read at all, so NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId, still open}" "$askWaitOut"
+		[ "$toolSource" != "ask:$askPendingId" ] || AgentsHarnessAskWaitNext "$askPendingId"
 		return 0
 	fi
 	case "$askWaitOut" in
 		ERROR:*)
 			printf 'ERROR: AskUserQuestion: the question WAS posted to %s%s, and then the wait for an answer could not be performed -- so the question stands and NOTHING is known about whether it was answered. Its silence must not be read as quiet. What the wait reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId, still open}" "$askWaitOut"
+			[ "$toolSource" != "ask:$askPendingId" ] || AgentsHarnessAskWaitNext "$askPendingId"
 			return 0
 		;;
 	esac
+	AgentsHarnessAskResolve "$askPendingId" "$toolKind" "$askTag" "$askWaitOut" "$askAnsweredElsewhere" "$askWaitNote" ask \
+		"$( printf 'The question was posted to %s%s, and its own thread%s was watched over %s wait round(s). What the wait returned follows verbatim.\n%s' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "${askThreadTs:+ (slack:$askChannel:$askThreadTs)}" "$askRounds" "$askWaitOut" )"
+}
+
+## What a pending reply's record says, one field: the frontmatter ahead of its body.
+AgentsHarnessAskRecordField(){ ## pending reply id, field name
+	local fieldLine
+	AgentsHarnessBareName "$1" && [ -f "$MMDAPP/.local/agents/pending/$1.md" ] || return 0
+	while IFS= read -r fieldLine ; do
+		case "$fieldLine" in
+			"$2: "*) printf '%s' "${fieldLine#"$2: "}" ; return 0 ;;
+			'# '*) return 0 ;;
+		esac
+	done < "$MMDAPP/.local/agents/pending/$1.md"
+}
+
+## An asked question's wait item, ask:<pending-id> (AgentsTools.MemberWait.include), joins this
+## session's stored wait when the question is posted and leaves it once answered, so the
+## session's next Wait mode=continue covers an answer nobody waited for in the asking call.
+## Through the team's own wait operation, never by writing its state from here. rc 1 when it
+## could not be added; a drop of an item the stored wait does not hold starts nothing.
+AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
+	local itemTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" itemSession itemLine
+	[ -n "$2" ] && [ -n "$harnessAgent" ] && [ -x "$itemTools" ] || return 1
+	itemSession="$( AgentsHarnessSessionKey )"
+	AgentsHarnessBareName "$itemSession" || return 1
+	if [ "$1" = "drop" ] ; then
+		itemLine="$( LC_ALL=C sed -n 's/^sources: //p' "$MMDAPP/.local/agents/sessions/$itemSession/wait/state" 2>/dev/null | head -1 )"
+		case " $itemLine" in
+			*" ask:$2 "*) ;;
+			*) return 0 ;;
+		esac
+	fi
+	"$itemTools" --member-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
+}
+
+## The lines that end an ask left open: its wait item, and the Wait that collects its answer.
+AgentsHarnessAskWaitNext(){ ## pending reply id
+	[ -n "$1" ] || return 0
+	printf 'WAIT-ID: ask:%s\n' "$1"
+	if AgentsHarnessAskWaitItem add "$1" ; then
+		printf 'NEXT: added to your Wait set -- call Wait mode=continue, or start a new wait with Wait sources=ask:%s\n' "$1"
+	else
+		printf 'NEXT: to wait for the answer, call Wait sources=ask:%s -- it posts nothing\n' "$1"
+	fi
+}
+
+## How an answer that a wait saw on an asked question is taken into its pending record --
+## the one place, for AskUserQuestion's own wait and for a Wait whose ask:<pending-id> item
+## arrived. Prints the ASK-RESULT block; the caller's own text (shown) goes after it.
+## The item leaves the session's wait once its record is no longer pending.
+AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output, answered elsewhere (non-empty) or empty, wait note, caller ask|wait, shown
+	local askPendingId="$1" toolKind="${2:-question}" askTag="$3" askWaitOut="$4" askAnsweredElsewhere="$5" askWaitNote="$6" askCaller="$7" askShown="$8"
+	local askFirst askOutcome
 	## The outcome is read off the wait operation's own first line, which carries
 	## RECEIVED, TIMEOUT or ERROR. An answer in any other shape is stated as unclassified
 	## rather than folded into one of the three, since each of them directs a different
@@ -2993,11 +3129,11 @@ AgentsHarnessToolAskUserQuestion(){
 		*)          askOutcome="UNCLASSIFIED" ;;
 	esac
 	[ -z "$askAnsweredElsewhere" ] || askOutcome="RECEIVED"
-	## Two of the four close the record and two deliberately leave it open. A received
-	## answer is done with; a timeout is a question still standing, so it closes as
-	## timed-out and stays in the store for the re-ask. An ERROR or an UNCLASSIFIED
-	## wait means nothing whatever is known about whether anybody answered, and
-	## recording either as unanswered would assert exactly what was not learned.
+	## Only a received answer closes the record; the other three deliberately leave it open.
+	## A timeout is a question still standing, and a pending record never expires by age, so
+	## it stays pending for the next wait. An ERROR or an UNCLASSIFIED wait means nothing
+	## whatever is known about whether anybody answered, and recording either as unanswered
+	## would assert exactly what was not learned.
 	## A typed kind's verdict is read and applied by the escalation operation, the one place that does it.
 	local askVerdict="" askReadLines="" askReason=""
 	if [ "$toolKind" != "question" ] && [ "$askOutcome" = "RECEIVED" ] ; then
@@ -3021,7 +3157,6 @@ AgentsHarnessToolAskUserQuestion(){
 			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "" \
 				"$( printf '%s\n' "$askWaitOut" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
 		;;
-		TIMEOUT:*)  AgentsHarnessPendingReplyClose "$askPendingId" reply-timeout ;;
 	esac
 	printf 'ASK-RESULT: %s\n' "$askOutcome"
 	[ -z "$askVerdict" ] || printf 'VERDICT: %s\n' "$askVerdict"
@@ -3029,10 +3164,40 @@ AgentsHarnessToolAskUserQuestion(){
 	[ -z "$askWaitNote" ] || printf '%s\n' "$askWaitNote"
 	if [ "$askVerdict" = "UNCLASSIFIED" ] ; then
 		printf 'VERDICT-REASON: %s\n' "${askReason:-the reply names none of the answers this kind takes}"
-		printf 'No verdict is taken, and record %s stays open. You may post more in the same thread, then wait again with the call on the last line; it posts nothing.\n' "${askPendingId:-<none>}"
+		if [ "$askCaller" = "wait" ] ; then
+			printf 'No verdict is taken, and record %s stays open and in your Wait set. You may post more in the same thread, then call Wait mode=continue for the next reply; it posts nothing.\n' "${askPendingId:-<none>}"
+		else
+			printf 'No verdict is taken, and record %s stays open. You may post more in the same thread, then wait again with Wait as the NEXT: line says, or with the call on the last line; neither posts anything.\n' "${askPendingId:-<none>}"
+		fi
 	fi
-	printf 'The question was posted to %s%s, and its own thread was watched over %s wait round(s). What the wait returned follows verbatim.\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askRounds" "$askWaitOut"
-	[ "$askVerdict" != "UNCLASSIFIED" ] || [ -z "$askPendingId" ] || printf 'AskUserQuestion pending_id=%s\n' "$askPendingId"
+	[ -z "$askShown" ] || printf '%s\n' "$askShown"
+	## Answered, the item leaves the session's wait; still pending, it stays for the next Wait.
+	if [ -n "$askPendingId" ] && [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" != "reply-pending" ] ; then
+		AgentsHarnessAskWaitItem drop "$askPendingId" || :
+	fi
+	[ "$askCaller" = "ask" ] && [ "$askVerdict" = "UNCLASSIFIED" ] && [ -n "$askPendingId" ] || return 0
+	AgentsHarnessAskWaitNext "$askPendingId"
+	printf 'AskUserQuestion pending_id=%s\n' "$askPendingId"
+}
+
+## A Wait whose ask:<pending-id> items arrived: each is taken into its record by
+## AgentsHarnessAskResolve, from its own section of what the wait returned, after that output.
+AgentsHarnessWaitAskResolve(){ ## wait output file
+	local resolveItem resolveId resolveSection resolveStatus
+	for resolveItem in $( LC_ALL=C sed -n 's/^# arrived on: \(ask:[0-9A-Za-z._-]*\)$/\1/p' "$1" ) ; do
+		resolveId="${resolveItem#ask:}"
+		resolveSection="$( LC_ALL=C awk -v item="$resolveItem" '
+			$0 == "# arrived on: " item { inItem = 1 ; next ; }
+			inItem && $0 == "# --- what that source holds now follows ---" { next ; }
+			inItem && $0 == "# --- end ---" { exit ; }
+			inItem { print ; }
+		' "$1" )"
+		resolveStatus="$( AgentsHarnessAskRecordField "$resolveId" status )"
+		printf '# --- pending reply %s, as the asking call would take it ---\n' "$resolveId"
+		[ "$resolveStatus" = "reply-pending" ] || printf 'NOTE: pending reply %s was already closed (%s) before this Wait saw it, so its record is left as it was.\n' "$resolveId" "${resolveStatus:-no record}"
+		AgentsHarnessAskResolve "$resolveId" "$( AgentsHarnessAskRecordField "$resolveId" kind )" "$( AgentsHarnessAskRecordField "$resolveId" question-tag )" \
+			"WAIT-RESULT: RECEIVED"$'\n'"$resolveSection" "" "" wait ""
+	done
 }
 
 ## The three MCP resource tools reach the same servers this run already enumerated,
@@ -3884,7 +4049,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Grep)      harnessResult="$( AgentsHarnessToolGrep "${harnessArgV_pattern}" "${harnessArgV_path}" "${harnessArgV_context}" "${harnessArgV_before}" "${harnessArgV_after}" "${harnessArgV_ignore_case}" "${harnessArgV_output_mode}" "${harnessArgV_glob}" "${harnessArgD_n}" "${harnessArgD_o}" "${harnessArgD_A}" "${harnessArgD_B}" "${harnessArgD_C}" "${harnessArgD_i}" "${harnessArgV_head_limit}" "${harnessArgV_offset}" "${harnessArgV_multiline}" "${harnessArgV_type}" )" ;;
 		Bash)      harnessResult="$( AgentsHarnessToolBash "${harnessArgV_cwd}" "${harnessArgV_command}" "${harnessArgV_timeout}" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "${harnessArgV_query}" "$harnessFuncArgsRaw" )" ;;
-		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" )" ;;
+		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" "${harnessArgV_prompt}" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "" "" "" reply )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" )" ;;

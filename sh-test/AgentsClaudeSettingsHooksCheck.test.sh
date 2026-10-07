@@ -2,7 +2,8 @@
 ## Behavioural check on the settings merge and verifier for hook entries under more
 ## than one hooks event. A descriptor with a third field lands under that event, one
 ## without it under PreToolUse; a second merge changes nothing; the verifier finds
-## each entry under its own event and reports one that is absent. Offline: two awk
+## each entry under its own event and reports one that is absent. A retired deny entry
+## is removed on an exact match and the user's own deny rules stay. Offline: two awk
 ## programs over files in this check's own temp tree.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -33,7 +34,8 @@ printf '{\n  "permissions": {"allow": [], "deny": []},\n  "hooks": {"PreToolUse"
 } > "$rigTmp/hooks.txt"
 
 rigMerge(){ ## input settings, output settings
-	MYX_WSRESTRICT_DENY_ADD_JSON='["Bash"]' MYX_WSRESTRICT_HOOKS_FILE="$rigTmp/hooks.txt" MYX_WSRESTRICT_RETIRED_HOOKS="" \
+	MYX_WSRESTRICT_DENY_ADD_JSON='["Bash(rm *)"]' MYX_WSRESTRICT_HOOKS_FILE="$rigTmp/hooks.txt" MYX_WSRESTRICT_RETIRED_HOOKS="" \
+		MYX_WSRESTRICT_RETIRED_DENY="Bash" \
 		MYX_WSRESTRICT_ALLOW_SOURCE_ROOT=/rig/source MYX_WSRESTRICT_ALLOW_AGENTS_ROOT=/rig/.claude/skills \
 		MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON='[]' MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON='[]' \
 		LC_ALL=C awk -f "$rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk" "$1" > "$2"
@@ -50,6 +52,13 @@ rigAssert "the PermissionRequest entry is not under PreToolUse" "$( rigVerify ""
 rigAssert "the verifier reports an absent entry as missing" "$( rigVerify PermissionRequest .claude/hooks/rig-permission.sh "$rigTmp/settings.json" )" "hooks.PermissionRequest .claude/hooks/rig-permission.sh: MISSING"
 rigMerge "$rigTmp/merged.json" "$rigTmp/merged2.json" || rigRefuse "the second merge failed"
 rigAssert "a second merge changes nothing" "$( cmp -s "$rigTmp/merged.json" "$rigTmp/merged2.json" && printf same || printf changed )" same
+rigDeny(){ ## settings -- the permissions.deny array, on one line
+	tr -d '\n' < "$1" | sed -n 's/.*"deny": *\(\[[^]]*\]\).*/\1/p'
+}
+rigAssert "a fresh merge writes no blanket Bash deny" "$( rigDeny "$rigTmp/merged.json" )" '["Bash(rm *)"]'
+printf '{\n  "permissions": {"allow": [], "deny": ["Bash", "Bash(git push*)", "WebFetch"]},\n  "hooks": {"PreToolUse": []}\n}\n' > "$rigTmp/old.json"
+rigMerge "$rigTmp/old.json" "$rigTmp/old-merged.json" || rigRefuse "the merge failed on a settings file carrying the retired deny"
+rigAssert "the retired Bash deny goes, the user's own deny rules stay" "$( rigDeny "$rigTmp/old-merged.json" )" '["Bash(git push*)", "Bash(rm *)", "WebFetch"]'
 printf '%s\t%s\t%s\n' ".claude/hooks/rig-bad.sh" '{"hooks": []}' "Pre Tool" > "$rigTmp/hooks.txt"
 rigAssert "an event that is not a plain name is refused" "$( rigMerge "$rigTmp/settings.json" "$rigTmp/bad.json" 2>/dev/null && printf merged || printf refused )" refused
 

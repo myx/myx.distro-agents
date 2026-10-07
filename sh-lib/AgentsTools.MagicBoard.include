@@ -24,6 +24,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -65,6 +66,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -116,6 +118,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -157,6 +160,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -196,6 +200,7 @@ case "$1" in
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-state:*) fromStateArg="$1" ; shift ;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
 					passthrough+=( "$1" ) ; shift
 				;;
@@ -262,6 +267,7 @@ case "$1" in
 					bodyMode="$1"
 					passthrough+=( "$1" ) ; shift
 				;;
+				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
 				--header:*)
 					passthrough+=( "$1" ) ; shift
 				;;

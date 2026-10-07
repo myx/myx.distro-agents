@@ -706,7 +706,7 @@ mkdir -p "$rigTmp/namectl" ; printf 'x %s y\n' "$rigNameA" > "$rigTmp/namectl/pr
 rigCheck "control: the same scan finds a name in a temp file that carries it" "$( rigNameScan "$rigTmp/namectl" )" 1
 rigCheck "neither name appears anywhere in the package's code"            "$( rigNameScan "$MDLT_ORIGIN/myx/myx.distro-agents" )" 0
 
-echo "-- processed-item GC: a deleted item takes its sandbox folder, nothing else goes, twice --"
+echo "-- processed-item GC: a deleted board or trash item takes its sandbox folder, nothing else goes, twice --"
 rigNew b4
 rigGc(){ ## run number
 	rigRun "$rigTmp/b4.g$1" --intern-team-data-final-gc-deletion magic-coordinator
@@ -734,11 +734,11 @@ rigGc 1
 rigCheck "exit 0, a deletion happened"                                    "$( cat "$rigTmp/b4.g1.rc" )" 0
 rigCheck "the item is deleted"                                            "$( rigLoc dispatch-rig-g1.md )" not-found
 rigCheck "its sandbox folder is deleted with it"                          "$( rigPresent "$rigSp/rig-g1" )" gone
-rigCheck "the summary names one removed folder"                           "$( LC_ALL=C grep -c -F ' 1 sandbox-folders removed.' "$rigTmp/b4.g1" || : )" 1
+rigCheck "the summary names both removed folders, board and trash"       "$( LC_ALL=C grep -c -F ' 2 sandbox-folders removed.' "$rigTmp/b4.g1" || : )" 1
 rigCheck "control: the orphan folder, no item, is left alone"             "$( rigPresent "$rigSp/rig-orphan/rig-orphan.md" )" present
 rigCheck "control: the young item and its folder are both kept"           "$( rigLoc dispatch-rig-young.md ) $( rigPresent "$rigSp/rig-young/rig-young.md" )" "processed present"
 rigCheck "control: a marked inbox item is deleted and touches no sandbox" "$( [ -f "$rigD/inboxes/rig-member/note-rig-inbox.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-inbox/rig-inbox.md" )" "deleted present"
-rigCheck "control: a trash item is deleted and touches no sandbox"        "$( [ -f "$rigD/trash/dispatch-rig-trash.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-trash/rig-trash.md" )" "deleted present"
+rigCheck "a trash item is deleted and takes its sandbox folder"           "$( [ -f "$rigD/trash/dispatch-rig-trash.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-trash" )" "deleted gone"
 echo "   another board item still links to the folder"
 rigProcessed rig-g2 rig-g2 ; rigDone rig-g2 0 yes
 rigItem running dispatch-rig-g2-other.md dispatch dispatch-started none rig-g2
@@ -761,6 +761,18 @@ rigCheck "control: the item with a spawn-id and no folder is deleted"     "$( ri
 rigCheck "control: the item with no spawn-id is deleted"                  "$( rigLoc dispatch-rig-g4b.md )" not-found
 rigCheck "control: no sandbox sentence"                                   "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g4" || : )" 0
 rigCheck "control: the held folder of the kept item is still there"       "$( rigPresent "$rigSp/rig-g3/rig-g3.md" )" present
+echo "   trash: an open folder keeps the item, a folder another board item links to is left alone"
+rigTrash(){ ## session id -- an aged trashed dispatch item naming that spawn-id
+	printf -- '---\ntype: dispatch\nowner: rig-member\nspawn-id: %s\n---\n\nrig trash item\n' "$1" > "$rigD/trash/dispatch-$1.md"
+	touch -t 202001010000 "$rigD/trash/dispatch-$1.md"
+}
+rigTrash rig-t-open ; rigSandbox rig-t-open "$rigHost" spawn-started
+rigTrash rig-t-shared ; rigDone rig-t-shared 0 yes
+rigItem running dispatch-rig-t-shared-other.md dispatch dispatch-started none rig-t-shared
+rigGc 4t
+rigCheck "the trash item with an open folder is kept"                     "$( [ -f "$rigD/trash/dispatch-rig-t-open.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-open/rig-t-open.md" )" "kept present"
+rigCheck "the trash item with a shared folder is deleted, the folder kept" "$( [ -f "$rigD/trash/dispatch-rig-t-shared.md" ] && printf kept || printf deleted ) $( rigPresent "$rigSp/rig-t-shared/rig-t-shared.md" )" "deleted present"
+rigCheck "no sandbox sentence"                                            "$( LC_ALL=C grep -c -F 'sandbox-folders' "$rigTmp/b4.g4t" || : )" 0
 echo "   a symlinked folder and a name with a slash are refused"
 mkdir -p "$rigTmp/b4/elsewhere" "$rigW/.local/agents/victim"
 printf -- '---\nspawn-id: rig-sym\nstatus: spawn-succeeded\n---\n' > "$rigTmp/b4/elsewhere/rig-sym.md"

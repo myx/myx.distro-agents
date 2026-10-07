@@ -129,7 +129,7 @@ AgentsWireStreamConsume(){
 				## non-streaming error body is, so the core reports it once and never retries.
 				case "$streamPayload" in
 					*'"error":'*)
-						streamError="$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=error -v mode=raw -f "$harnessHere/AgentsHarnessJsonSlice.awk" 2>/dev/null )" || streamError=""
+						streamError="$( printf '%s\n' "$streamPayload" | LC_ALL=C awk -v path=error -v mode=raw -f "${rigLegacyField%/*}/AgentsHarnessJsonSlice.legacy.awk" 2>/dev/null )" || streamError=""
 						if [ -n "$streamError" ] && [ "$streamError" != null ] ; then
 							printf '%s\n' "$streamPayload" >> "$harnessScratch/stream.rawother"
 							continue

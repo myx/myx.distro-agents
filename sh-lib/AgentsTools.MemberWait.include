@@ -20,11 +20,19 @@
 ##     WAIT-RESULT: ERROR      -- the wait could not be performed; see stderr
 ##     WAIT-RESULT: CLOSED     -- --wait-close ended the stored wait; nothing was waited on
 ##
-## RECEIVED, TIMEOUT and CLOSED all return 0, because all are answers. ERROR returns 1.
+## RECEIVED, TIMEOUT, CLOSED, ADDED and DROPPED all return 0, because all are answers. ERROR returns 1.
+##
+##     WAIT-RESULT: ADDED      -- --wait-add put its sources into the stored wait; nothing was waited on
+##     WAIT-RESULT: DROPPED    -- --wait-drop took its sources out of it; nothing was waited on
 ##
 ## MODES, mutually exclusive, each needing --wait-session-id: --wait-default resets the
 ## stored state and waits, --wait-continue repeats the stored sources and per-source
 ## floors, --wait-close removes the state. With none of them the call keeps no state.
+## --wait-add appends sources to the stored wait, creating it when there is none, and
+## --wait-drop removes them, removing the wait once none is left: this is how an asked
+## question's wait item (ask:<pending-id>) joins the session's wait and leaves it once
+## answered. Neither takes a thread source, since, addressee or include-own: those are
+## shared by the whole stored wait, which a source joining it must not change.
 ## Message ids named in --wait-react-seen|note|done|wait are reacted to before anything else.
 ##
 ## A source never read once during the wait is named on the line right after it:
@@ -100,8 +108,12 @@
 
 ## The kinds this build carries. One word per adapter, in the order they are
 ## offered to a caller that asks.
-agentsWaitSourceKinds="slack file inbox board"
-agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1"
+agentsWaitSourceKinds="slack file inbox board ask"
+agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1"
+## Kinds whose rendering holds arrivals only, never a standing state, so a source of one with no
+## stored baseline starts from an empty one: an arrival already there returns at once, as a
+## --wait-since-utime does for a thread. Every other kind takes its first probe as the baseline.
+agentsWaitKindEmptyBaseline="ask"
 
 ## Slack. Through the team's own sanctioned read operation and no other path:
 ## the credential stays inside that operation and never reaches argv here.
@@ -180,7 +192,7 @@ AgentsWaitProbeSlack(){
 		local probeIncludeOwnFlag=0
 		[ "$probeIncludeOwn" != "true" ] || probeIncludeOwnFlag=1
 		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" -v includeOwn="$probeIncludeOwnFlag" \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
 			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
 	fi
 	## A rendering step that could not run is an UNREADABLE SOURCE and is reported as
@@ -233,6 +245,39 @@ AgentsWaitProbeBoard(){
 	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/board/$2" "$3" "$4"
 }
 
+## A question asked with AskUserQuestion, named by its pending reply id: the wait item the ask
+## adds to its session's wait. What it is judged against comes from its record -- the thread,
+## our own question's ts as the floor, the accounts whose answer counts -- and the thread is read
+## through the slack probe above, so this is exactly the read AskUserQuestion's own wait makes.
+## An escalation to a member with no Slack account is answered by the team operation closing
+## the record, so there the record's status is the arrival; on a thread a closed record adds its
+## status line too, which is how an answer taken elsewhere is seen. Arrivals only, so its
+## baseline is empty (agentsWaitKindEmptyBaseline). Turning the answer into the record's verdict
+## is the asking harness's (AgentsHarnessAskResolve), never this probe's.
+AgentsWaitProbeAsk(){
+	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
+	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees=""
+	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
+	[ -f "$probeRecord" ] || return 2
+	while IFS= read -r probeLine ; do
+		case "$probeLine" in
+			'status: '*) probeStatus="${probeLine#status: }" ;;
+			'channel: '*) probeChannel="${probeLine#channel: }" ;;
+			'question-ts: '*) probeTs="${probeLine#question-ts: }" ;;
+			'thread-ts: '*) probeThreadTs="${probeLine#thread-ts: }" ;;
+			'addressees: '*) probeAddressees="${probeLine#addressees: }" ;;
+			'# '*) break ;;
+		esac
+	done < "$probeRecord"
+	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
+		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut" "$probeAddressees" "false" || return 2
+	else
+		: > "$probeOut" || return 2
+	fi
+	[ "$probeStatus" = "reply-pending" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
+	return 0
+}
+
 ## `slack` -> `AgentsWaitProbeSlack`, without ${var^} -- bash 3.2 has no such
 ## expansion, and this package targets it.
 AgentsWaitProbeFunctionName(){
@@ -269,7 +314,7 @@ case "$1" in
 		local waitMode="" waitSessionId="" waitReactions="" waitFloors="" reactWord
 		while [ $# -gt 0 ] ; do
 			case "$1" in
-				--wait-default|--wait-continue|--wait-close)
+				--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop)
 					if [ -n "$waitMode" ] ; then
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and $1. Nothing was waited on." >&2
@@ -398,6 +443,23 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-continue repeats the stored wait and takes no source, since, addressee or include-own of its own. Nothing was waited on: call --wait-default to change them." >&2
 				set +e ; return 1
 			fi
+			if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then
+				if [ -z "$waitSources" ] || [ -n "$waitSince" ] || [ -n "$waitAddressee" ] || [ "$waitIncludeOwn" = "true" ] || [ -n "$waitReactions" ] ; then
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode takes one or more --wait-source and nothing else, since the since, addressee and include-own of a stored wait are shared by all its sources. Nothing was changed." >&2
+					set +e ; return 1
+				fi
+				local editSource
+				for editSource in $waitSources ; do
+					case "$editSource" in
+						slack:*:*)
+							echo "WAIT-RESULT: ERROR"
+							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode does not take the thread source '$editSource', which needs a since and an addressee of its own. Nothing was changed: name it in a --wait-default." >&2
+							set +e ; return 1
+						;;
+					esac
+				done
+			fi
 			waitStateDir="$MMDAPP/.local/agents/sessions/$waitSessionId/wait"
 			echo "# --member-wait-for-input: mode=$waitMode member=$memberName session=$waitSessionId" >&2
 			## Abandoned state is swept on the way in, as the working directories below are.
@@ -508,8 +570,89 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names nothing this build can wait on: inbox:<own member name> is the own inbox only, and board:<state> is one of backlog pending running review blocked parked processed archived retained. Nothing was waited on." >&2
 					set +e ; return 1
 				;;
+				## An asked question's record must exist, and only the session that asked may wait on it,
+				## the rule AskUserQuestion's own pending_id re-wait keeps. Not checked on a drop, which
+				## must still take out an item whose record was since removed.
+				ask:*)
+					[ "$waitMode" != "drop" ] || continue
+					local checkAskLine checkAskSession=""
+					if ! AgentsToolsAssertBareName "$checkTarget" "<pending-id>" member-wait-for-input || [ ! -f "$MMDAPP/.local/agents/pending/$checkTarget.md" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' names no pending reply in this workspace, so there is no question to wait on. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					while IFS= read -r checkAskLine ; do
+						case "$checkAskLine" in
+							'session-id: '*) checkAskSession="${checkAskLine#session-id: }" ;;
+							'# '*) break ;;
+						esac
+					done < "$MMDAPP/.local/agents/pending/$checkTarget.md"
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+				;;
 			esac
 		done
+
+		## --wait-add and --wait-drop change the stored wait's source list and wait on nothing. A
+		## source keeps its floor line and its base.<position> file, renumbered when one before
+		## it is dropped; an added source starts with no base, so its first wait reads it afresh.
+		if [ "$waitMode" = "add" ] || [ "$waitMode" = "drop" ] ; then
+			local editLine editOld="" editNew="" editAddressee="" editIncludeOwn="false" editFloors="" editIndex=0 editKept=0 editTmp
+			if [ -f "$waitStateDir/state" ] ; then
+				while IFS= read -r editLine ; do
+					case "$editLine" in
+						"sources: "*) editOld="${editLine#sources: }" ;;
+						"addressee: "*) editAddressee="${editLine#addressee: }" ;;
+						"include-own: "*) editIncludeOwn="${editLine#include-own: }" ;;
+						"floor "*) editFloors="$editFloors$editLine"$'\n' ;;
+					esac
+				done < "$waitStateDir/state"
+			fi
+			for editSource in $editOld ; do
+				editIndex=$(( editIndex + 1 ))
+				if [ "$waitMode" = "drop" ] && case " $waitSources" in *" $editSource "*) true ;; *) false ;; esac ; then
+					rm -f "$waitStateDir/base.$editIndex"
+					editFloors="$( printf '%s' "$editFloors" | LC_ALL=C awk -v gone="$editSource" '$1 == "floor" && $2 == gone { next ; } { print ; }' )"
+					[ -z "$editFloors" ] || editFloors="$editFloors"$'\n'
+					continue
+				fi
+				editKept=$(( editKept + 1 ))
+				editNew="$editNew$editSource "
+				[ "$editKept" = "$editIndex" ] || [ ! -f "$waitStateDir/base.$editIndex" ] || mv -f "$waitStateDir/base.$editIndex" "$waitStateDir/base.$editKept"
+			done
+			if [ "$waitMode" = "add" ] ; then
+				for editSource in $waitSources ; do
+					case " $editNew" in *" $editSource "*) continue ;; esac
+					editKept=$(( editKept + 1 ))
+					editNew="$editNew$editSource "
+					rm -f "$waitStateDir/base.$editKept"
+				done
+			fi
+			if [ -z "$editNew" ] ; then
+				rm -rf "$waitStateDir" 2>/dev/null || true
+			else
+				mkdir -p "$waitStateDir" && editTmp="$( mktemp "$waitStateDir/state.XXXXXX" )" || {
+					echo "WAIT-RESULT: ERROR"
+					echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the stored wait under $waitStateDir could not be written, so it is unchanged." >&2
+					set +e ; return 1
+				}
+				{
+					echo "sources: $editNew"
+					echo "addressee: $editAddressee"
+					echo "include-own: $editIncludeOwn"
+					printf '%s' "$editFloors"
+				} > "$editTmp"
+				mv -f "$editTmp" "$waitStateDir/state"
+			fi
+			[ "$waitMode" = "add" ] && echo "WAIT-RESULT: ADDED" || echo "WAIT-RESULT: DROPPED"
+			echo "WAIT-MODE: $waitMode"
+			echo "# member: $memberName"
+			echo "# sources: ${editNew% }"
+			return 0
+		fi
 
 		## Settled before the wait starts and not discovered in its result. A thread source
 		## is a question waiting on its own answer, and an answer is qualified by the
@@ -718,7 +861,7 @@ case "$1" in
 				esac
 
 				if [ ! -f "$waitDir/base.$roundIndex" ] ; then
-					if [ "$waitBaselineMode" = "empty" ] ; then
+					if [ "$waitBaselineMode" = "empty" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) true ;; *) false ;; esac ; then
 						: > "$waitDir/base.$roundIndex"
 					else
 						cp "$waitDir/now.$roundIndex" "$waitDir/base.$roundIndex" 2>/dev/null || : > "$waitDir/base.$roundIndex"

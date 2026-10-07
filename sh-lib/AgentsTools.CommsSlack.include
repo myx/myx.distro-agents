@@ -57,7 +57,7 @@
 ## would need a JSON merge this family does not have, and would let page two's
 ## message index 0 overwrite page one's in both of those parsers. One element per
 ## page rather than one line per page, because page identity must not be line
-## identity -- the line-oriented shortcut AgentsSlackJsonField.awk:115-120
+## identity -- the line-oriented shortcut the Slack field reader always
 ## forbids. The marker deliberately carries NO `identity=`: optional at both
 ## parsers, and omitting it keeps a one-page read byte-identical to the
 ## single-call read it replaces.
@@ -145,7 +145,7 @@ AgentsToolsSlackReadPagedConversation(){
 		if [ "$pagedSingleCall" = "true" ] ; then
 			pagedFieldRc=0
 			pagedHasMore="$( printf '%s\n' "$pagedBody" | LC_ALL=C awk -v path=has_more \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
 			case "$pagedFieldRc" in
 				0|3)	;;
 				*)
@@ -169,7 +169,7 @@ AgentsToolsSlackReadPagedConversation(){
 
 		pagedFieldRc=0
 		pagedCursor="$( printf '%s\n' "$pagedBody" | LC_ALL=C awk -v path=response_metadata.next_cursor \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
+			-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || pagedFieldRc=$?
 		case "$pagedFieldRc" in
 			0)
 				## Present. A present-but-empty cursor is Slack's own "last page".
@@ -437,7 +437,7 @@ AgentsToolsSlackResolveWorkspaceForScope(){
 
 	local scopeUrl="" scopeRc=0
 	scopeUrl="$( curl -sS --connect-timeout 10 --max-time 120 https://slack.com/api/auth.test -H @- <<< "$scopeHeader" 2>/dev/null \
-		| LC_ALL=C awk -v path=url -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || scopeRc=$?
+		| LC_ALL=C awk -v path=url -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || scopeRc=$?
 
 	if [ "$scopeRc" != "0" ] || [ -z "$scopeUrl" ] ; then
 		return 1
@@ -817,7 +817,7 @@ case "$1" in
 					break
 				fi
 				local dmChannelRc=0
-				dmChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" )" || dmChannelRc=$?
+				dmChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || dmChannelRc=$?
 				if [ "$dmChannelRc" != "0" ] || [ -z "$dmChannel" ] ; then
 					failMsg="conversations.open returned ok:true but no usable channel.id for user $resolveDmUser (field reader rc=$dmChannelRc -- 3: that path is absent from the response, 1: the body was not a parseable API response) -- refusing to send with an empty channel id: $openResp"
 					break
@@ -977,7 +977,7 @@ case "$1" in
 					fi
 				fi
 				local okFieldRc=0
-				printf '%s\n' "$response" | LC_ALL=C awk -v path=ok -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" >/dev/null || okFieldRc=$?
+				printf '%s\n' "$response" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" >/dev/null || okFieldRc=$?
 				if [ "$okFieldRc" != "0" ] ; then
 					failMsg="$apiMethod: the server answered, but not with a Slack API response (field reader rc=$okFieldRc -- 3: no top-level ok in this payload, 1: not a parseable API response), under $sendIdentity identity. This is a TRANSPORT-LAYER failure, NOT an ok:false verdict: nothing is known from it about the method, its arguments, or its target, because the method never judged them. What arrived was: $response"
 					break
@@ -1137,7 +1137,7 @@ case "$1" in
 					fi
 					legDmRc=0
 					legDm="$( LC_ALL=C awk -v path=channel.id \
-						-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackJsonField.awk" \
+						-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" \
 						<<< "$legInfo" )" || legDmRc=$?
 					if [ "$legDmRc" = "3" ] ; then
 						legReason="the DM-discovery call succeeded but reported no DM for party $fanOutParty under the $legIdentity identity -- its own conversations.info body carries no channel.id (field reader rc 3: that path is absent from this payload, which is not the same as a present-but-empty value)"

@@ -159,6 +159,11 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 69 Grep '{"pattern":"^\\D+$","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
 	rigCall 70 Grep '{"pattern":"k\\\\d","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
 	rigCall 71 Grep '{"pattern":"[\\D]","path":"'"$rigS/tr/t.txt"'","output_mode":"content"}'
+	rigCall 72 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"js","glob":"a.*","output_mode":"files_with_matches"}'
+	rigCall 73 Grep '{"pattern":"needle","path":"'"$rigG"'","type":"rignosuchtype"}'
+	rigCall 74 Grep '{"pattern":"needle","path":"'"$rigG/a.js"'","type":"ts","output_mode":"files_with_matches"}'
+	rigCall 75 execute '{"command":"printf RIGBASHOUT","description":"Print the rig marker"}'
+	rigCall 76 execute '{"command":"printf RIGBASHFAIL ; exit 3","description":"Fail with exit code 3"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
@@ -170,7 +175,7 @@ chmod 600 "$rigTmp/.local/.agents/magic-team.agent.env"
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 71 ] ; do
+while [ "$rigId" -le 76 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -308,7 +313,11 @@ rigNative Grep "offset 10 skips ten entries before head_limit 5" "$( rigHits "$r
 rigNative Grep "path omitted searches the cwd" "$( rigPathSet "$( rigResult 36 )" )" 'b.txt '
 rigText="$( rigResult 37 )"
 rigNative Grep "regex dialect: ( | ) alternation matches" "$( rigHas "$rigText" 'needle two' ) $( rigHas "$rigText" 'needle three' )" 'yes yes'
-rigNative Grep "(pending decision) type js filters the files" "$( rigPathSet "$( rigResult 38 )" )" 'a.js sub/d.js '
+rigNative Grep "type js filters the files" "$( rigPathSet "$( rigResult 38 )" )" 'a.js sub/d.js '
+rigNative Grep "type js with glob a.* keeps only files matching both" "$( rigPathSet "$( rigResult 72 )" )" 'a.js '
+rigText="$( rigResult 73 )"
+rigNative Grep "an unknown type is refused, naming the known types" "$( rigIsError "$rigText" ) $( rigHas "$rigText" 'unrecognized file type' ) $( rigHas "$rigText" 'Known types:' )" 'yes yes yes'
+rigNative Grep "type does not filter a file given as path" "$( rigPathSet "$( rigResult 74 )" )" 'a.js '
 rigNative Grep "multiline is refused, with a hint naming the native Grep" "$( rigIsError "$( rigResult 39 )" ) $( rigHas "$( rigResult 39 )" 'only by the native Grep tool' )" 'yes yes'
 rigNative Grep "\\d matches a digit" "$( rigHas "$( rigResult 65 )" 'id 42 here' ) $( rigHas "$( rigResult 65 )" 'no digits' )" 'yes no'
 rigNative Grep "\\d inside a bracket matches a digit" "$( rigHas "$( rigResult 66 )" 'id 42 here' ) $( rigHas "$( rigResult 66 )" 'no digits' )" 'yes no'
@@ -354,8 +363,18 @@ rigAssert "web lists: a same-host hop into a denied prefix is refused" "$( rigHa
 rigText="$( rigResult 64 )"
 rigAssert "web lists: an unreadable policy is refused, nothing fetched" "$( rigHas "$rigText" 'the web access policy could not be read' ) $( rigHas "$rigText" RIGFETCHBODY )" 'yes no'
 rigText="$( rigResult 44 )"
-rigNative WebFetch "prompt is honoured: the answer is the prompt applied, not the raw body" \
+rigNative WebFetch "prompt is not ignored: the answer is not the plain raw-body answer" \
 	"$( rigIsError "$rigText" ) $( rigHas "$rigText" 'raw body follows' )" 'no no'
+rigNative WebFetch "prompt comes back marked as not applied, ahead of the body" \
+	"$( rigHas "$rigText" 'PROMPT WAS NOT APPLIED' ) $( rigHas "$rigText" 'Reply with the single word RIGPROMPTWORD' ) $( rigHas "$rigText" RIGFETCHBODY )" 'yes yes yes'
+
+## Bash is rerouted to this server's execute, not to a tool named Bash, so its native calls go there.
+## NOT covered, because execute differs there: native timeout is milliseconds and execute's is
+## seconds, and native run_in_background is execute's background. Both await a ruling.
+echo "-- Bash (rerouted to execute) --"
+rigNative Bash "command runs, description is accepted, stdout comes back" "$( rigResult 75 )" 'RIGBASHOUT'
+rigText="$( rigResult 76 )"
+rigNative Bash "a failing command returns its output and its exit code" "$( rigHas "$rigText" RIGBASHFAIL ) $( rigHas "$rigText" '[exit code: 3]' )" 'yes yes'
 
 echo "-- TaskStop --"
 rigAssert "control: handle reaches the lookup" "$( rigHas "$( rigResult 45 )" 'matches handle rig-no-such-handle' )" yes

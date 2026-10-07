@@ -120,7 +120,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	if [ "$threadRc" = "0" ] ; then
 		threadAnswers="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" <<< "$threadWork" 2>/dev/null \
 			| LC_ALL=C awk -v rootTs="$threadQuestion" -v fromUsers="$threadAuthors" -v tag="${threadStanding%%$'\t'*}" -v threadCount="${threadStanding#*$'\t'}" -v others="$threadOthers" \
-				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadAnswers=""
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" 2>/dev/null )" || threadAnswers=""
 		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
 		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
 			| MDAT_VERDICT_KIND="$( AgentsToolsEscalationField "$threadFile" kind )" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \

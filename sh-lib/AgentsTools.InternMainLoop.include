@@ -244,6 +244,15 @@ case "$1" in
 				&& mv -f "$MMDAPP/.local/agents/pending-collect.last.$$" "$MMDAPP/.local/agents/pending-collect.last" \
 				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-collect.last" )" >&2 \
 				|| { rm -f "$MMDAPP/.local/agents/pending-collect.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply collect could not run" >&2 ; }
+			## Reminders for the asks the collect left waiting, on the 30m / 2h / daily schedule
+			## stamped in each record (AgentsTools.PendingReplyRemind.include). Tooling only; a
+			## failure is logged and the iteration goes on. It never closes an ask.
+			mkdir -p "$MMDAPP/.local/agents" \
+				&& DistroAgentsTools --intern-op-pending-reply-remind --context --intern-main-loop \
+					> "$MMDAPP/.local/agents/pending-remind.last.$$" 2>/dev/null \
+				&& mv -f "$MMDAPP/.local/agents/pending-remind.last.$$" "$MMDAPP/.local/agents/pending-remind.last" \
+				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-remind.last" )" >&2 \
+				|| { rm -f "$MMDAPP/.local/agents/pending-remind.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply reminders could not run" >&2 ; }
 			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only

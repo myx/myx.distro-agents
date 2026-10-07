@@ -31,7 +31,7 @@ case "$1" in
 			printf '%s\n' "Exposes 'execute', backed by $MDSC_CMD --intern-mcp-execute, plus the" >&2
 			printf '%s\n' "harness tool floor rendered by sh-lib/AgentsHarnessMcpMirror.sh and run one" >&2
 			printf '%s\n' "call at a time by sh-lib/AgentsUniversalHarness.sh --intern-tool. Bash is not" >&2
-			printf '%s\n' "among them: arbitrary command execution is myx.common's own MCP method." >&2
+			printf '%s\n' "among them: a caller runs commands with its own shell tool, or 'execute'." >&2
 			set +e ; return 1
 		fi
 		shift

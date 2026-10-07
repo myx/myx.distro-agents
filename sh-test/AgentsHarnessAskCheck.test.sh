@@ -128,7 +128,7 @@ rigAsk(){ ## guard seconds, argument object, optional from-read
 	local askPid askLeft askStartLeft=120
 	rigKilled="no"
 	set -m
-	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID \
+	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID \
 		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigHarness" --intern-tool AskUserQuestion ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	askPid=$!
@@ -169,7 +169,9 @@ rigAssert "one pending record"                            "$( rigRecords )" 1
 rigAssert "it is still waiting for a reply"               "$( rigRecordStatus )" reply-pending
 rigAssert "the result names the record"                   "$( rigHolds "$rigScenarioDir/out" 'recorded as pending reply' )" yes
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0
-rigAssert "the last line names the re-wait call"          "$( LC_ALL=C awk 'END { sub( /pending_id=[0-9A-Za-z._-]+ /, "pending_id=<id> " ) ; print ; }' "$rigScenarioDir/out" )" "NEXT: to wait for the answer, call AskUserQuestion pending_id=<id> -- it posts nothing"
+rigPostedId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
+rigAssert "it names its wait item, the pending record"   "$( [ -n "$rigPostedId" ] && [ -f "$rigScenarioDir/ws/.local/agents/pending/$rigPostedId.md" ] && printf yes || printf no )" yes
+rigAssert "the last line names the Wait for the answer"   "$( LC_ALL=C awk 'END { gsub( /ask:[0-9A-Za-z._-]+/, "ask:<id>" ) ; print ; }' "$rigScenarioDir/out" )" "NEXT: to wait for the answer, call Wait sources=ask:<id> -- it posts nothing"
 rigAssert "and it is the only NEXT: line, none from the send" "$( LC_ALL=C grep -c '^NEXT: ' "$rigScenarioDir/out" )" 1
 rigVerdict "wait=false -- opener, question in its thread, POSTED with a pending record"
 

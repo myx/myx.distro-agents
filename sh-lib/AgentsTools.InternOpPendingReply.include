@@ -49,7 +49,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
-		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## A typed question's own facts, kept so an answer can be classified and applied later.
@@ -65,6 +65,14 @@ case "$1" in
 				## Its tag within a thread several questions share, and the key a duplicate is found by.
 				--question-tag) pendingTag="${2:-}" ; shift 2 ;;
 				--question-key) pendingKey="${2:-}" ; shift 2 ;;
+				## The identity the question was posted under, so a reminder posts under the same one.
+				--ask-identity)
+					case "${2:-}" in
+						bot|member) pendingIdentity="$2" ;;
+						*) echo "$MDSC_CMD: ⛔ ERROR: --ask-identity must be bot|member: ${2:-}" >&2 ; set +e ; return 1 ;;
+					esac
+					shift 2
+				;;
 				--to)
 					pendingTo="${2:-}"
 					[ -n "$pendingTo" ] || { echo "$MDSC_CMD: ⛔ ERROR: --to requires <conversation-id>" >&2 ; set +e ; return 1 ; }
@@ -128,6 +136,7 @@ case "$1" in
 			[ -z "$pendingRefusal" ] || printf 'refusal-id: %s\n' "${pendingRefusal//$'\n'/ }"
 			[ -z "$pendingTag" ] || printf 'question-tag: %s\n' "${pendingTag//$'\n'/ }"
 			[ -z "$pendingKey" ] || printf 'question-key: %s\n' "${pendingKey//$'\n'/ }"
+			[ -z "$pendingIdentity" ] || printf 'ask-identity: %s\n' "$pendingIdentity"
 			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'
@@ -219,17 +228,19 @@ case "$1" in
 			esac
 		done
 		if [ -z "$pendingId" ] || [ -z "$pendingStatus" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --status <reply-received|reply-timeout|reply-unknown>" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --status <reply-received|reply-unknown>" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$pendingId" "<pending-reply-id>" pending-reply-close || { set +e ; return 1 ; }
 		case "$pendingStatus" in
-			reply-received|reply-timeout|reply-unknown) ;;
+			reply-received|reply-unknown) ;;
 			*)
-				## Enumerated rather than free text, because these three direct
-				## different next steps: a received reply resumes the work, a timeout
-				## is re-asked, and an unknown is neither until someone looks.
-				echo "$MDSC_CMD: ⛔ ERROR: --status must be reply-received|reply-timeout|reply-unknown: $pendingStatus" >&2
+				## Enumerated rather than free text, because these two direct
+				## different next steps: a received reply resumes the work, and an
+				## unknown is neither until someone looks. No timeout status: a
+				## pending record never expires by age (MAGIC.md). An old record
+				## already closed as reply-timeout is still read like any closed one.
+				echo "$MDSC_CMD: ⛔ ERROR: --status must be reply-received|reply-unknown: $pendingStatus" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -429,6 +440,28 @@ case "$1" in
 			fi
 		done
 		printf 'COLLECT: answered=%s unmatched=%s open=%s unreadable=%s\n' "$collectAnswered" "$collectUnmatched" "$collectOpen" "$collectUnreadable"
+		return 0
+	;;
+
+	## Reminds the addressee of every ask still waiting, on the 30m / 2h / daily schedule
+	## (AgentsTools.PendingReplyRemind.include). Run by the main loop after its collect.
+	## It only stamps the records it reminded about: it never closes, expires or deletes one.
+	--intern-op-pending-reply-remind)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-remind"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- syntax is [--context <op>]" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"
+		AgentsToolsPendingReplyRemindRun || { set +e ; return 1 ; }
 		return 0
 	;;
 
