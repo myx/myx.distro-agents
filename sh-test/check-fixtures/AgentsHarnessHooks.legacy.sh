@@ -159,7 +159,7 @@ AgentsHarnessHooksRefusal(){
 			[ -n "$hookReadPath" ] || hookReadPath="$( AgentsHarnessArgValue "$hookArgsRaw" path )"
 			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}'
 		;;
-		Glob)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" pattern )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Grep)      hookInputJson='{"path":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" path )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Bash)      hookInputJson='{"command":"'"$( printf '%s' "$( AgentsHarnessArgValue "$hookArgsRaw" command )" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook

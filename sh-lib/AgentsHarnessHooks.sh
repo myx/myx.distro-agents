@@ -3,12 +3,13 @@
 
 ## AgentsHarnessHooks.sh -- PreToolUse hooks for the universal harness. Sourced by
 ## AgentsUniversalHarness.sh and never executed: everything here runs in the core's
-## process. Equivalence with claude rather than a second mechanism -- the descriptor
-## is the same `hooks.PreToolUse` array of the workspace's own .claude/settings.json
-## that claude itself reads, the hook gets the same payload on stdin, and it answers
-## with the same hookSpecificOutput.permissionDecision document.
+## process. Equivalence with claude rather than a second mechanism -- the hooks are
+## the ones our installer writes into .claude/settings.json for claude, taken from the
+## policy that file is generated from (never from the file), the hook gets the same
+## payload on stdin, and it answers with the same hookSpecificOutput.permissionDecision
+## document.
 ## THE RULE SET IS NOT THE SAME SET, AND THAT IS THE SECOND DELIBERATE DIVERGENCE:
-## the array carries two classes of hook, and the class filter below drops the
+## the policy carries two classes of hook, and the class filter below drops the
 ## deny-reroute ones. What that changes is which rules apply here, never how a
 ## rule that applies is judged -- every entry the filter keeps goes through the
 ## whole of the fail-closed path below, unweakened.
@@ -29,13 +30,13 @@ harnessHooksFault=""
 ## Entries the class filter below left out, so a narrower set is never silent.
 harnessHooksSkipped=0
 
-## Two classes share that one array, because a *-native client reads it natively
-## and our harness reads it here. A deny-reroute hook routes a native client at
-## this estate's own MCP tooling, which is already what is running here, so it is
-## left out; a memory-deny hook applies everywhere and stays. The class comes from
-## AgentsTools.ClientToolPolicy.include, the one place the policy is stated, and
-## never from a hook's own name. Absent, this refuses to start on the same rule
-## the access-root mechanism follows: a class that cannot be resolved is not a
+## The rule set is OUR OWN: AgentsTools.ClientToolPolicy.include names every hook this
+## estate installs and its class, and that is all this harness applies. A deny-reroute
+## hook routes a *-native client at this estate's own MCP tooling, which is already
+## what is running here, so it is left out; a memory-deny hook applies everywhere and
+## stays. .claude/settings.json is never read: it is generated from these same records
+## for the *-native clients, and anything else written there is theirs, not ours.
+## Absent, the policy refuses this start: a class that cannot be resolved is not a
 ## class, and guessing it either way is the fault this split exists to remove.
 harnessHooksPolicyFile="$harnessHere/AgentsTools.ClientToolPolicy.include"
 if [ ! -f "$harnessHooksPolicyFile" ] ; then
@@ -43,29 +44,25 @@ if [ ! -f "$harnessHooksPolicyFile" ] ; then
 	exit 1
 fi
 . "$harnessHooksPolicyFile"
-## An empty list is the legitimate "nothing is deny-reroute" and leaves every
-## entry in force; only a non-zero return is a fault, and it refuses every call.
-harnessHooksRerouteKeys=()
-harnessHooksRerouteList="$( AgentsToolsClientToolPolicyRerouteHookKeys )" || harnessHooksFault="the client tool policy could not state which hooks are *-native only"
-while IFS= read -r harnessHooksRerouteKey ; do
-	[ -n "$harnessHooksRerouteKey" ] || continue
-	harnessHooksRerouteKeys+=( "$harnessHooksRerouteKey" )
-done <<< "$harnessHooksRerouteList"
 
-## The walk itself lives in AgentsHarnessHooksLoad.include, shared with the installer that
-## writes .local/agents/harness.hooks.index from it. That index is taken only while the
-## settings.json, the reroute key list above and the loader are what it was written
-## from -- one cksum, no parse -- and the walk runs otherwise, with
-## the same list, fault and skipped count either way.
+## From the installer's .local/agents/harness.hooks.index while it vouches for this
+## policy (one cksum, no parse), else computed from the policy itself -- the same
+## records either way (AgentsHarnessHooksLoad.include).
 . "$harnessHere/AgentsHarnessHooksLoad.include"
-if [ -z "$harnessHooksFault" ] && [ -n "${MMDAPP:-}" ] && [ -e "$MMDAPP/.claude/settings.json" ] ; then
-	AgentsHarnessHooksIndexUse "$MMDAPP/.claude/settings.json" "$MMDAPP/.local/agents/harness.hooks.index" || AgentsHarnessHooksLoadSettings
+if AgentsHarnessHooksRecords "${MMDAPP:-}" ; then
+	AgentsHarnessHooksFromRecords "$agentsHooksRecords"
+else
+	harnessHooksFault="the client tool policy could not state the hooks this estate installs"
 fi
 
 if [ -n "$harnessHooksFault" ] ; then
 	printf '%s\n' "${harnessWarn}🪝 hooks${harnessOff} ${harnessBad}unreadable${harnessOff} ${harnessDim}-- every tool call will be refused: $harnessHooksFault${harnessOff}" >&2
 elif [ -n "$harnessHooksList" ] ; then
-	printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks from${harnessOff} ${harnessValue}$MMDAPP/.claude/settings.json${harnessOff}" >&2
+	if [ "$agentsHooksFrom" = "harness.hooks.index" ] ; then
+		printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks from${harnessOff} ${harnessValue}$MMDAPP/.local/agents/harness.hooks.index${harnessOff}" >&2
+	else
+		printf '%s\n' "🪝 ${harnessDim}PreToolUse hooks computed from${harnessOff} ${harnessValue}the client tool policy${harnessOff}" >&2
+	fi
 fi
 ## Said on its own line and on either path above: a set narrowed by the class
 ## filter otherwise reads exactly like a workspace that configured fewer hooks.
@@ -108,7 +105,7 @@ AgentsHarnessHooksRefusal(){
 	## document's, the fields are read here exactly as they always were, into locals of
 	## the same names.
 	if [ "$harnessArgParsed" != 1 ] || [ "$hookArgsRaw" != "$harnessArgRaw" ] ; then
-		local harnessArgV_offset harnessArgV_limit harnessArgV_file_path harnessArgV_path harnessArgV_command harnessArgV_cwd harnessArgV_handle harnessArgV_query harnessArgV_url harnessArgV_to harnessArgV_message harnessArgV_sources
+		local harnessArgV_offset harnessArgV_limit harnessArgV_file_path harnessArgV_path harnessArgV_pattern harnessArgV_command harnessArgV_cwd harnessArgV_handle harnessArgV_query harnessArgV_url harnessArgV_to harnessArgV_message harnessArgV_sources
 		case "$hookToolName" in
 			Read|Write|Edit)
 				if [ "$hookToolName" = Read ] ; then
@@ -118,7 +115,10 @@ AgentsHarnessHooksRefusal(){
 				harnessArgV_file_path="$( AgentsHarnessArgValue "$hookArgsRaw" file_path )"
 				[ -n "$harnessArgV_file_path" ] || harnessArgV_path="$( AgentsHarnessArgValue "$hookArgsRaw" path )"
 			;;
-			Glob|Grep) harnessArgV_path="$( AgentsHarnessArgValue "$hookArgsRaw" path )" ;;
+			Glob|Grep)
+				harnessArgV_path="$( AgentsHarnessArgValue "$hookArgsRaw" path )"
+				[ "$hookToolName" != Glob ] || harnessArgV_pattern="$( AgentsHarnessArgValue "$hookArgsRaw" pattern )"
+			;;
 			Bash) harnessArgV_command="$( AgentsHarnessArgValue "$hookArgsRaw" command )" ;;
 			Monitor)
 				harnessArgV_command="$( AgentsHarnessArgValue "$hookArgsRaw" command )"
@@ -153,7 +153,8 @@ AgentsHarnessHooksRefusal(){
 			[ -n "$hookReadPath" ] || hookReadPath="${harnessArgV_path-}"
 			hookInputJson='{"file_path":"'"$( printf '%s' "$hookReadPath" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}'
 		;;
-		Glob)      hookInputJson='{"path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
+		## Glob's pattern rides along in claude's own order: an absolute one names where it reads by itself.
+		Glob)      hookInputJson='{"pattern":"'"$( printf '%s' "${harnessArgV_pattern-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'","path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Grep)      hookInputJson='{"path":"'"$( printf '%s' "${harnessArgV_path-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		Bash)      hookInputJson='{"command":"'"$( printf '%s' "${harnessArgV_command-}" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk" )"'"}' ;;
 		## Monitor runs a shell command, so it is shaped in Bash's own spelling: a hook

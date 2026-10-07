@@ -85,6 +85,13 @@
 #                                        is removed, and the entries around it
 #                                        keep their text. Optional -- unset
 #                                        removes nothing.
+#   MYX_WSRESTRICT_SETTINGS           -- top-level settings the restrictions set
+#                                        fixes, one per line: `<key>\t<value>`,
+#                                        the value a JSON scalar (true, false,
+#                                        null, an integer or a plain string).
+#                                        Each key is set to exactly that value,
+#                                        added if absent; no other key is touched.
+#                                        Optional -- unset sets nothing.
 #   MYX_WSRESTRICT_RETIRED_DENY       -- retired permissions.deny entries, one
 #                                        per line, each the exact entry text an
 #                                        earlier install wrote. An entry equal
@@ -351,6 +358,18 @@ BEGIN {
 	if (!validJson(allowWriteRootsRaw, "[")) fail("allow-write-roots-not-a-json-array")
 	retiredCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_HOOKS"], retiredHook, "\n")
 	retiredDenyCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_DENY"], retiredDeny, "\n")
+	settingsCount = 0
+	settingsLines = split(ENVIRON["MYX_WSRESTRICT_SETTINGS"], settingsLine, "\n")
+	for (i = 1; i <= settingsLines; i++) {
+		if (settingsLine[i] == "") continue
+		tabAt = index(settingsLine[i], "\t")
+		if (tabAt < 2) fail("settings-descriptor-malformed")
+		settingKey[settingsCount] = substr(settingsLine[i], 1, tabAt - 1)
+		settingValue[settingsCount] = substr(settingsLine[i], tabAt + 1)
+		if (settingKey[settingsCount] !~ /^[A-Za-z][A-Za-z0-9_]*$/) fail("settings-descriptor-malformed")
+		if (settingValue[settingsCount] !~ /^(true|false|null|-?[0-9]+|"[^"\\]*")$/) fail("settings-descriptor-malformed")
+		settingsCount++
+	}
 
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
@@ -498,6 +517,12 @@ END {
 	}
 	sortList(newDeny, newDenyCount)
 	s = upsertKeyValue(permStart, "deny", arrayJson(newDeny, newDenyCount))
+
+	## --- fixed top-level settings ---
+	for (i = 0; i < settingsCount; i++) {
+		n = length(s); p = 1; skipws(); rootStart = p
+		s = upsertKeyValue(rootStart, settingKey[i], settingValue[i])
+	}
 
 	## --- hooks.PreToolUse ---
 	n = length(s); p = 1; skipws(); rootStart = p

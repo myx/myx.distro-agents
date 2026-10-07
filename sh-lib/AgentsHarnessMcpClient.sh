@@ -6,7 +6,7 @@
 ## everything here runs in the core's process, exactly as AgentsHarnessHooks.sh does.
 ## THE TOOL SET IS DYNAMIC. AgentsHarnessMcpEnumerate runs as this file loads, and the
 ## core runs it again before a later round whenever AgentsHarnessMcpStale says the
-## catalogue it holds may no longer be the servers' own: mcp.servers.json is not the
+## catalogue it holds may no longer be the servers' own: mcp.servers.index is not the
 ## content the last enumeration read, a server was unavailable at that enumeration, or
 ## a call has since failed to reach its server. Otherwise the catalogue is kept for the
 ## session -- re-spawning every server for initialize + tools/list cost over a second a
@@ -15,15 +15,16 @@
 ## is bound by every thinking block produced after it, so a set that changes mid-leg
 ## there is a 400 at replay (AgentsAnthropicStub.sh, constraint 3).
 ## A SERVER IS SPAWNED ONLY BECAUSE harnessMcpServers HOLDS IT -- named by --mcp-server,
-## or else the workspace's own mcp.servers.json minus myx.distro, read again by the
-## core's AgentsHarnessMcpServerSet on every enumeration.
+## or else the servers our installer registers for this workspace minus myx.distro,
+## read again by the core's AgentsHarnessMcpServerSet on every enumeration.
 ## A server the catalogue still names but that has since gone is not hidden by the
 ## cache: its call is an ERROR the model reads, and that failure is what re-enumerates.
 ## A run holding none starts no process, opens no file and leaves this file inert,
 ## which is also what keeps the offline checks offline.
 
-## Where a server's command, args and env come from: our installer-written index when it
-## matches mcp.servers.json byte for byte, else that JSON itself -- one answer either way.
+## Where a server's command, args and env come from: our installer-written index while it
+## vouches for this workspace, else the same registration composed from our own primary
+## sources -- one answer either way, and never a file written for an external tool.
 . "$harnessHere/AgentsHarnessMcpConfig.include"
 
 ## The same newline-delimited, TAB-separated shape harnessHooksList carries, so the
@@ -38,7 +39,7 @@ harnessMcpUnavailableNote=""
 harnessMcpToolsJson=""
 harnessMcpConfigFile=""
 harnessMcpConfigFault=""
-## mcp.servers.json exactly as the last enumeration found it, `absent` or `present:`
+## mcp.servers.index exactly as the last enumeration found it, `absent` or `present:`
 ## and its whole content, compared byte for byte with builtins -- no fork per round.
 harnessMcpConfigSeen=""
 ## Published by AgentsHarnessMcpRun/AgentsHarnessMcpReply for their callers, the way
@@ -84,7 +85,7 @@ AgentsHarnessMcpDegrade(){ ## server name, reason
 "
 }
 
-## Resolves the named server out of mcp.servers.json and runs it once against the request
+## Resolves the named server among the registered ones and runs it once against the request
 ## document already written to $harnessScratch/mcp.req, leaving its answers in
 ## $harnessScratch/mcp.out. One process per exchange, and its whole conversation is
 ## written before it starts: bash 3.2 has no way to hold a bidirectional stdio session
@@ -110,16 +111,15 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 		return 1
 	fi
 
-	## Resolved once, from the index or field by field from the JSON; every refusal below
-	## is worded from the same read statuses either way.
-	AgentsHarnessMcpResolve "$runName" "$harnessMcpConfigFile"
+	## Resolved once, from the index or from the registration composed in its place.
+	AgentsHarnessMcpResolve "$runName"
 	runCommand="$harnessMcpResCmd"
 	runRc="$harnessMcpResCmdRc"
 	if [ "$runRc" = "3" ] ; then
-		harnessMcpFault="no such server under \`mcpServers\` in $harnessMcpConfigFile"
+		harnessMcpFault="no such server among the ones this workspace registers (from $harnessMcpFrom)"
 		return 1
 	elif [ "$runRc" != "0" ] ; then
-		harnessMcpFault="$harnessMcpConfigFile did not read as one JSON object (rc=$runRc)"
+		harnessMcpFault="its registration did not resolve (rc=$runRc, from $harnessMcpFrom)"
 		return 1
 	fi
 	## Absolute only: it is handed to `env` after the assignments, where the leading `/`
@@ -254,11 +254,12 @@ AgentsHarnessMcpHandshake(){
 		'{"jsonrpc":"2.0","method":"notifications/initialized"}'
 }
 
-## The mcp.servers.json content as it stands now, in the shape harnessMcpConfigSeen holds.
-## A builtin read: this runs before every round, and a fork there is what the cache saves.
+## The mcp.servers.index content as it stands now, in the shape harnessMcpConfigSeen holds:
+## the installer rewriting it is what changes the registered set. A builtin read: this
+## runs before every round, and a fork there is what the cache saves.
 harnessMcpConfigNow=""
 AgentsHarnessMcpConfigNow(){
-	local configPath="${MMDAPP:-}/.local/agents/mcp.servers.json" configText=""
+	local configPath="${MMDAPP:-}/.local/agents/mcp.servers.index" configText=""
 	harnessMcpConfigNow="absent"
 	[ -f "$configPath" ] && [ -r "$configPath" ] || return 0
 	IFS= read -r -d '' configText < "$configPath" || :
@@ -424,14 +425,13 @@ AgentsHarnessMcpEnumerate(){
 
 		## Named servers and no configuration is not the inert case: the inert case is a
 		## spawn that named none, which never reaches here at all.
-		## Our own registration, under the workspace's system-data root. A native
-		## client's `.mcp.json` is installer output generated from this file, never a
-		## source read here -- reading it would make something we publish the authority.
-		harnessMcpConfigFile="${MMDAPP:-}/.local/agents/mcp.servers.json"
+		## Our own registration: the installer's index, or the same composed from our
+		## primary sources. mcp.servers.json, `.mcp.json` and `.vscode/mcp.json` are
+		## installer output for external tools, never a source read here -- reading one
+		## would make something we publish the authority.
+		harnessMcpConfigFile="${MMDAPP:-}/.local/agents/mcp.servers.index"
 		if [ -z "${MMDAPP:-}" ] ; then
-			harnessMcpConfigFault="MMDAPP is not set, so there is no mcp.servers.json to resolve it against"
-		elif [ ! -f "$harnessMcpConfigFile" ] || [ ! -r "$harnessMcpConfigFile" ] ; then
-			harnessMcpConfigFault="there is no readable $harnessMcpConfigFile to resolve it against"
+			harnessMcpConfigFault="MMDAPP is not set, so there is no workspace registration to resolve it against"
 		fi
 
 		for harnessMcpName in "${harnessMcpServers[@]}" ; do

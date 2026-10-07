@@ -1,76 +1,36 @@
 #!/usr/bin/env bash
 # ^^^ for syntax checking in the editor only
 
-## AgentsHarnessHooksLoad.include -- how the PreToolUse hook list is loaded from a
-## workspace's .claude/settings.json: the one loader, sourced by AgentsHarnessHooks.sh
-## (at every harness start) and by the installer's --make-harness-indices (to write the
-## index the harness then reads instead). The document is parsed once, by
-## AgentsHarnessHooksLoad.awk on the package's one JSON reader.
+## AgentsHarnessHooksLoad.include -- the PreToolUse hook list our own harness applies,
+## and the index it is read from. Sourced by AgentsHarnessHooks.sh (at every harness
+## start) and by the installer (--make-harness-indices, --install-workspace-restrictions).
 ##
-## THE INDEX, .local/agents/harness.hooks.index, holds what this loader concluded --
-## the list, the fault, the skipped count -- beside what it concluded it from: one cksum
-## line each for the settings.json, this file, the awk and the JSON reader, and the
-## deny-reroute key list itself. The harness takes the index only while all of those are
-## what they are now (one cksum for the four files, the rest builtins), so a settings.json
-## edited since, a policy changed since or a loader upgraded since is loaded the slow
-## way, with the same answer. ONE index, whichever origin the harness runs from: a
-## loader of other content has another checksum. An index of another format version (an
-## older or newer writer's) is never used.
+## THE ONE SOURCE IS OUR OWN POLICY: AgentsToolsClientToolPolicyHookRecords in
+## AgentsTools.ClientToolPolicy.include, which names every hook this estate installs
+## and its class. Nothing here reads .claude/settings.json or any other file written for
+## a *-native client: that file is generated FROM these same records, best-effort, for
+## the native clients alone, and whatever else is in it -- whoever wrote it -- is not
+## applied by our harness.
 ##
-## Format, version 2, every free-text field encoded for `printf '%b'` (backslash doubled,
+## THE INDEX, .local/agents/harness.hooks.index, holds those records as the installer
+## resolved them, beside one cksum line each for the policy and this file -- the only
+## inputs they depend on. The harness takes the index only while both are what they
+## are now; otherwise, or with no index, it computes the same records from the policy
+## itself, with the same answer. An index of another format version is never used.
+##
+## A record's script runs from the package (sh-lib/client-hooks), never from the copy
+## the installer places under .claude/hooks for the native clients; a record naming an
+## absolute script path runs that path.
+##
+## Format, version 3, every free-text field encoded for `printf '%b'` (backslash doubled,
 ## newline as \n, TAB as \t):
-##   myx.distro harness.hooks.index 2
-##   sum <TAB> <the four cksum lines>
-##   reroute <TAB> <the reroute key list>
-##   fault <TAB> <fault>
-##   skipped <TAB> <count>
-##   list <TAB> <the matcher<TAB>command list>
+##   myx.distro harness.hooks.index 3
+##   sum <TAB> <the two cksum lines>
+##   hook <TAB> <one record, as the policy prints it>     one per record
 ##   end
 
 agentsHooksLoadHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
-agentsHooksIndexHeader="myx.distro harness.hooks.index 2"
-
-## The settings.json walk: every value it sets is the global the rest of
-## AgentsHarnessHooks.sh reads -- harnessHooksList and harnessHooksSkipped grow,
-## harnessHooksFault is set on the first fault -- from harnessHooksRerouteKeys. Called
-## only where the caller has established the settings file exists, and no fault is set yet.
-AgentsHarnessHooksLoadSettings(){
-	if [ ! -f "$MMDAPP/.claude/settings.json" ] || [ ! -r "$MMDAPP/.claude/settings.json" ] ; then
-		harnessHooksFault="$MMDAPP/.claude/settings.json exists but is not a readable file"
-		return 0
-	fi
-	local loadKeys="" loadKey loadOut loadRc=0 loadHead loadFault loadEntry loadInner loadSkipped
-	for loadKey in ${harnessHooksRerouteKeys[@]+"${harnessHooksRerouteKeys[@]}"} ; do
-		loadKeys="$loadKeys$loadKey"$'\n'
-	done
-	## The X keeps the list's own last newline through `$( )`, and is there only when the
-	## reader ran to its end: one that did not vouches for nothing, and is refused as a
-	## document it cannot read.
-	loadOut="$( AGENTS_HOOKS_REROUTE_KEYS="$loadKeys" LC_ALL=C awk -f "$agentsHooksLoadHere/AgentsHarnessJsonField.awk" -f "$agentsHooksLoadHere/AgentsHarnessHooksLoad.awk" "$MMDAPP/.claude/settings.json" 2>/dev/null && printf X )" || loadRc=$?
-	case "$loadRc:$loadOut" in
-		0:*$'\t'*$'\t'*$'\t'*$'\n'*X) loadOut="${loadOut%X}" ;;
-		*)
-			harnessHooksFault="$MMDAPP/.claude/settings.json did not parse as one JSON object (rc=1)"
-			return 0
-		;;
-	esac
-	loadHead="${loadOut%%$'\n'*}"
-	loadFault="${loadHead%%$'\t'*}" ; loadHead="${loadHead#*$'\t'}"
-	loadEntry="${loadHead%%$'\t'*}" ; loadHead="${loadHead#*$'\t'}"
-	loadInner="${loadHead%%$'\t'*}" ; loadSkipped="${loadHead#*$'\t'}"
-	harnessHooksList="$harnessHooksList${loadOut#*$'\n'}"
-	harnessHooksSkipped=$(( harnessHooksSkipped + loadSkipped ))
-	## The words the per-field walk this replaced said, each from the same check.
-	case "$loadFault" in
-		none) ;;
-		parse) harnessHooksFault="$MMDAPP/.claude/settings.json did not parse as one JSON object (rc=1)" ;;
-		hooks) harnessHooksFault="hooks.PreToolUse[$loadEntry] carries no readable hooks array" ;;
-		command) harnessHooksFault="hooks.PreToolUse[$loadEntry].hooks[$loadInner] is not a runnable command hook" ;;
-		tab) harnessHooksFault="hooks.PreToolUse[$loadEntry] carries a tab or newline this cannot represent" ;;
-		*) harnessHooksFault="$MMDAPP/.claude/settings.json did not parse as one JSON object (rc=1)" ;;
-	esac
-	return 0
-}
+agentsHooksIndexHeader="myx.distro harness.hooks.index 3"
 
 ## Encoded for `printf '%b'`, into agentsHooksEnc; decoded, into agentsHooksDec.
 agentsHooksEnc=""
@@ -85,79 +45,146 @@ AgentsHarnessHooksDec(){ ## encoded text -- never `printf -v` an empty result: b
 	[ -z "$1" ] || printf -v agentsHooksDec '%b' "$1"
 }
 
-## What the conclusion depends on, as one cksum line per file, into agentsHooksSum: the
-## settings.json given, then this loader's three files. Non-zero when any is unreadable.
+## What the records depend on, as one cksum line per file, into agentsHooksSum: the
+## policy, then this file. Non-zero when either is unreadable.
 agentsHooksSum=""
-AgentsHarnessHooksSum(){ ## settings file
+AgentsHarnessHooksSum(){
 	local sumOut sumCrc sumSize sumRest sumCount=0
 	agentsHooksSum=""
-	[ -f "$1" ] && [ -r "$1" ] || return 1
-	sumOut="$( LC_ALL=C cksum "$1" "$agentsHooksLoadHere/AgentsHarnessHooksLoad.include" "$agentsHooksLoadHere/AgentsHarnessHooksLoad.awk" "$agentsHooksLoadHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || return 1
+	sumOut="$( LC_ALL=C cksum "$agentsHooksLoadHere/AgentsTools.ClientToolPolicy.include" "$agentsHooksLoadHere/AgentsHarnessHooksLoad.include" 2>/dev/null )" || return 1
 	while read -r sumCrc sumSize sumRest ; do
 		agentsHooksSum="$agentsHooksSum$sumCrc $sumSize"$'\n'
 		sumCount=$(( sumCount + 1 ))
 	done <<< "$sumOut"
-	[ "$sumCount" = 4 ] || return 1
+	[ "$sumCount" = 2 ]
 }
 
-## The whole index, on stdout: this loader's own answer for the workspace's
-## settings.json, beside the reroute key list the caller computed as the harness computes
-## it. Non-zero, printing nothing, when there is no readable settings.json -- the harness
-## then loads exactly as before -- or it changed while this ran. The file is the caller's
-## to write atomically.
-AgentsHarnessHooksIndexText(){ ## workspace, reroute key list
-	local writeWorkspace="$1" writeReroute="$2" writeSum writeOut
-	AgentsHarnessHooksSum "$writeWorkspace/.claude/settings.json" || return 1
+## The records, computed from the policy, into agentsHooksRecords. Non-zero when the
+## policy cannot state them.
+agentsHooksRecords=""
+AgentsHarnessHooksRecordsComputed(){
+	agentsHooksRecords=""
+	[ -f "$agentsHooksLoadHere/AgentsTools.ClientToolPolicy.include" ] || return 1
+	type AgentsToolsClientToolPolicyHookRecords >/dev/null 2>&1 || . "$agentsHooksLoadHere/AgentsTools.ClientToolPolicy.include" || return 1
+	agentsHooksRecords="$( AgentsToolsClientToolPolicyHookRecords )" || { agentsHooksRecords="" ; return 1 ; }
+	[ -n "$agentsHooksRecords" ] || return 1
+	agentsHooksRecords="$agentsHooksRecords"$'\n'
+}
+
+## One record split into its six fields, by parameter expansion: `read` with a TAB IFS
+## would fold an empty matcher into its neighbour.
+agentsHookEvent="" agentsHookClass="" agentsHookKey="" agentsHookMatcher="" agentsHookScript="" agentsHookArg=""
+AgentsHarnessHooksRecordSplit(){ ## record
+	local splitRest="$1"
+	case "$splitRest" in *$'\t'*$'\t'*$'\t'*$'\t'*$'\t'*) ;; *) return 1 ;; esac
+	agentsHookEvent="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
+	agentsHookClass="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
+	agentsHookKey="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
+	agentsHookMatcher="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
+	agentsHookScript="${splitRest%%$'\t'*}" ; agentsHookArg="${splitRest#*$'\t'}"
+	[ -n "$agentsHookEvent" ] && [ -n "$agentsHookClass" ] && [ -n "$agentsHookScript" ]
+}
+
+## The harness's own globals from the records given: harnessHooksList grows by one
+## `matcher<TAB>command` line per PreToolUse record of class `all`, harnessHooksSkipped
+## counts the `reroute` ones, and harnessHooksFault is set on a record this cannot read.
+AgentsHarnessHooksFromRecords(){ ## records
+	local fromRecord fromScript fromCommand
+	while IFS= read -r fromRecord ; do
+		[ -n "$fromRecord" ] || continue
+		if ! AgentsHarnessHooksRecordSplit "$fromRecord" ; then
+			harnessHooksFault="the client tool policy states a hook record this harness cannot read"
+			return 0
+		fi
+		[ "$agentsHookEvent" = PreToolUse ] || continue
+		case "$agentsHookClass" in
+			reroute) harnessHooksSkipped=$(( harnessHooksSkipped + 1 )) ; continue ;;
+			all) ;;
+			*)
+				harnessHooksFault="the client tool policy states a PreToolUse hook of unknown class '$agentsHookClass'"
+				return 0
+			;;
+		esac
+		case "$agentsHookScript" in
+			/*) fromScript="$agentsHookScript" ;;
+			*) fromScript="$agentsHooksLoadHere/client-hooks/$agentsHookScript" ;;
+		esac
+		printf -v fromCommand '%q' "$fromScript"
+		[ -z "$agentsHookArg" ] || fromCommand="$fromCommand $agentsHookArg"
+		harnessHooksList="$harnessHooksList$agentsHookMatcher"$'\t'"$fromCommand"$'\n'
+	done <<< "$1"
+	return 0
+}
+
+## The whole index, on stdout, from the records given (by default the policy's own).
+## Non-zero, printing nothing, when there are none or the inputs changed while this ran.
+## The file is the caller's to write atomically.
+AgentsHarnessHooksIndexText(){ ## [records]
+	local writeSum writeRecords writeRecord writeOut=""
+	AgentsHarnessHooksSum || return 1
 	writeSum="$agentsHooksSum"
-	writeOut="$(
-		MMDAPP="$writeWorkspace"
-		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
-		harnessHooksRerouteKeys=()
-		while IFS= read -r harnessHooksRerouteKey ; do
-			[ -n "$harnessHooksRerouteKey" ] || continue
-			harnessHooksRerouteKeys+=( "$harnessHooksRerouteKey" )
-		done <<< "$writeReroute"
-		AgentsHarnessHooksLoadSettings
-		AgentsHarnessHooksEnc "$writeSum" ; printf 'sum\t%s\n' "$agentsHooksEnc"
-		AgentsHarnessHooksEnc "$writeReroute" ; printf 'reroute\t%s\n' "$agentsHooksEnc"
-		AgentsHarnessHooksEnc "$harnessHooksFault" ; printf 'fault\t%s\n' "$agentsHooksEnc"
-		printf 'skipped\t%s\n' "$harnessHooksSkipped"
-		AgentsHarnessHooksEnc "$harnessHooksList" ; printf 'list\t%s\n' "$agentsHooksEnc"
-		printf 'end'
-	)" || return 1
-	## The inputs must still be what was loaded, or the index would vouch for another file.
-	AgentsHarnessHooksSum "$writeWorkspace/.claude/settings.json" && [ "$agentsHooksSum" = "$writeSum" ] || return 1
-	printf '%s\n%s\n' "$agentsHooksIndexHeader" "$writeOut"
+	if [ "$#" -gt 0 ] ; then
+		writeRecords="$1"
+	else
+		AgentsHarnessHooksRecordsComputed || return 1
+		writeRecords="$agentsHooksRecords"
+	fi
+	AgentsHarnessHooksEnc "$writeSum" ; writeOut="sum"$'\t'"$agentsHooksEnc"$'\n'
+	while IFS= read -r writeRecord ; do
+		[ -n "$writeRecord" ] || continue
+		AgentsHarnessHooksEnc "$writeRecord" ; writeOut="${writeOut}hook"$'\t'"$agentsHooksEnc"$'\n'
+	done <<< "$writeRecords"
+	AgentsHarnessHooksSum && [ "$agentsHooksSum" = "$writeSum" ] || return 1
+	printf '%s\n%send\n' "$agentsHooksIndexHeader" "$writeOut"
 }
 
-## Sets harnessHooksList/Fault/Skipped from the index and answers zero only when it
-## vouches for exactly these inputs: this settings.json, this reroute key list
-## ($harnessHooksRerouteList as the caller computed it) and this loader.
-AgentsHarnessHooksIndexUse(){ ## settings file, index file
-	local useLine useTag useRest useSum="" useReroute="" useFault="" useSkipped="" useList="" useIndexRaw=""
-	[ -f "$2" ] && [ -r "$2" ] || return 1
-	IFS= read -r -d '' useIndexRaw < "$2" || :
+## Writes the index for one workspace from the policy, atomically. Non-zero when it
+## could not be written.
+AgentsHarnessHooksIndexWrite(){ ## workspace
+	local writeFile="$1/.local/agents/harness.hooks.index" writeText
+	writeText="$( AgentsHarnessHooksIndexText )" || return 1
+	mkdir -p "$1/.local/agents" || return 1
+	if ! { printf '%s\n' "$writeText" > "$writeFile.tmp.$$" && chmod 644 "$writeFile.tmp.$$" && mv -f "$writeFile.tmp.$$" "$writeFile" ; } ; then
+		rm -f "$writeFile.tmp.$$"
+		return 1
+	fi
+}
+
+## The records the index holds, into agentsHooksRecords, answering zero only when it
+## vouches for this policy and this loader.
+AgentsHarnessHooksIndexRecords(){ ## index file
+	local useLine useTag useRest useSum="" useRecords="" useIndexRaw=""
+	agentsHooksRecords=""
+	[ -f "$1" ] && [ -r "$1" ] || return 1
+	IFS= read -r -d '' useIndexRaw < "$1" || :
 	case "$useIndexRaw" in "$agentsHooksIndexHeader"$'\n'*) ;; *) return 1 ;; esac
 	while IFS= read -r useLine ; do
 		useTag="${useLine%%$'\t'*}"
 		useRest="${useLine#*$'\t'}"
 		case "$useTag" in
-			sum) useSum="$useRest" ;;
-			reroute) useReroute="$useRest" ;;
-			fault) useFault="$useRest" ;;
-			skipped) useSkipped="$useRest" ;;
-			list) useList="$useRest" ;;
+			sum) AgentsHarnessHooksDec "$useRest" ; useSum="$agentsHooksDec" ;;
+			hook) AgentsHarnessHooksDec "$useRest" ; useRecords="$useRecords$agentsHooksDec"$'\n' ;;
 			end)
-				[ -n "$useSkipped" ] && [ -n "$useSum" ] || return 1
-				AgentsHarnessHooksDec "$useReroute" ; [ "$agentsHooksDec" = "$harnessHooksRerouteList" ] || return 1
-				AgentsHarnessHooksSum "$1" || return 1
-				AgentsHarnessHooksDec "$useSum" ; [ "$agentsHooksDec" = "$agentsHooksSum" ] || return 1
-				AgentsHarnessHooksDec "$useFault" ; harnessHooksFault="$agentsHooksDec"
-				AgentsHarnessHooksDec "$useList" ; harnessHooksList="$agentsHooksDec"
-				harnessHooksSkipped="$useSkipped"
+				[ -n "$useSum" ] && [ -n "$useRecords" ] || return 1
+				AgentsHarnessHooksSum || return 1
+				[ "$useSum" = "$agentsHooksSum" ] || return 1
+				agentsHooksRecords="$useRecords"
 				return 0
 			;;
 		esac
 	done <<< "${useIndexRaw#*$'\n'}"
 	return 1
+}
+
+## The records for one workspace: from its index when that vouches for them, else
+## computed from the policy. Says which in agentsHooksFrom. Non-zero when neither can.
+agentsHooksFrom=""
+AgentsHarnessHooksRecords(){ ## workspace (may be empty)
+	agentsHooksFrom=""
+	if [ -n "$1" ] && AgentsHarnessHooksIndexRecords "$1/.local/agents/harness.hooks.index" ; then
+		agentsHooksFrom="harness.hooks.index"
+		return 0
+	fi
+	AgentsHarnessHooksRecordsComputed || return 1
+	agentsHooksFrom="the client tool policy"
 }

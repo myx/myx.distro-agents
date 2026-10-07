@@ -31,7 +31,8 @@ AgentsToolsOwnerConsoleDrifted(){
 ## The WORKSPACE_HOOK_SCRIPTS row, for every domain that renders workspace rows:
 ## each command hook <workspace>/.claude/settings.json runs out of .claude/hooks
 ## has to exist and be executable, this package's or not. A missing one exits
-## 127, which the harness reads as refusing every call that hook matches. Same
+## 127, which a *-native client reads as no decision -- an ALLOW. (Our own harness
+## never reads settings.json; this checks the file we publish for those clients.) Same
 ## dynamic scoping as AgentsToolsOwnerSetupBlock1Verdict below: writes
 ## setupNeedsApply, setupBlockers and setupRc back into the caller's scope.
 AgentsToolsOwnerSetupHookScriptsRow(){
@@ -64,7 +65,7 @@ AgentsToolsOwnerSetupHookScriptsRow(){
 	[ "$setupOperation" != "--check" ] || {
 		echo "WORKSPACE_HOOK_SCRIPTS: FAIL"
 		echo "  warn: a hook settings.json registers runs a script that is missing or not"
-		echo "        executable, so the harness refuses every call that hook matches:"
+		echo "        executable, so a native client reads that hook as allowing every call:"
 		printf '%s' "$hookRowMissing"
 		echo "  path: $1/.claude/settings.json"
 		echo "  fix:  $2 --make-workspace-integrations"

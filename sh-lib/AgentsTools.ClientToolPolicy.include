@@ -46,6 +46,28 @@ AgentsToolsClientToolPolicyClaudeDenyJson(){
 	printf '%s\n' '["mcp__claude_ai_Slack"]'
 }
 
+## The vendor copilot CLI's own memory tools, one comma-separated value for its
+## --excluded-tools, which hides them from the model (copilot-native launches only:
+## AgentsConsoleShellScript.template.sh). store_memory writes Copilot Memory, a store kept
+## by GitHub and shared with the repository's collaborators; vote_memory rates one. Like
+## the claude memory directory, it is not team knowledge. copilot 1.0.87 changelog: "Inject
+## repo memories in the prompt and add memory storage tool"; its session-events schema
+## names both tools. Prompt mode (-p) already runs without memory unless --enable-memory.
+AgentsToolsClientToolPolicyCopilotExcludedTools(){
+	printf '%s\n' "store_memory,vote_memory"
+}
+
+## The top-level settings --install-workspace-restrictions fixes in a workspace's
+## .claude/settings.json, one `<key><TAB><JSON scalar>` per line; each is set to exactly
+## this value and no other key is touched. autoMemoryEnabled false: claude's own
+## auto-memory (the prompt telling the model to keep ~/.claude/projects/<p>/memory/, and
+## the MEMORY.md it loads into context) is off -- that store is not team knowledge
+## (human-owner, 2026-10-07). Claude Code 2.1.236 reads it from project settings: "When
+## false, Claude will not read from or write to the auto-memory directory."
+AgentsToolsClientToolPolicyClaudeSettings(){
+	printf '%s\t%s\n' "autoMemoryEnabled" "false"
+}
+
 ## The enabledMcpjsonServers entries, one JSON array.
 AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 	printf '%s\n' '["myx.distro", "myx.common"]'
@@ -135,6 +157,35 @@ AgentsToolsClientToolPolicyRerouteHookKeys(){
 	printf '%s' "$policyRerouteKeys"
 }
 
+## EVERY HOOK THIS ESTATE INSTALLS, one record per line -- the single source both the
+## harness hook index (AgentsHarnessHooksLoad.include) and the settings.json hooks
+## description (--install-workspace-restrictions) are built from, so they cannot disagree:
+##   event <TAB> class <TAB> key <TAB> matcher <TAB> script <TAB> argument
+## event is the client hook event; class is `all` (applies everywhere, our own harness
+## included), `reroute` (routes a *-native client to our MCP tooling, so never applies in
+## our harness) or `native` (an event our harness has no counterpart for); key is the
+## dedupe key the settings merge and verifier recognise the entry by; script is a file
+## name under sh-lib/client-hooks (installed under .claude/hooks); matcher and argument
+## may be empty. Ordered as the installer has always written them.
+AgentsToolsClientToolPolicyHookRecords(){
+	local recordScript recordTools recordTool recordOut=""
+	recordScript="$( AgentsToolsClientToolPolicyRerouteHookPath )" || return 1
+	recordTools="$( AgentsToolsClientToolPolicyRerouteToolNames )" || return 1
+	recordOut="PreToolUse	all	.claude/hooks/deny-memory-md-read.sh	Read	deny-memory-md-read.sh	"$'\n'
+	## Glob and Grep run the same read guard, one entry each with the tool as its argument:
+	## a key of their own, so an install that already wired the Read entry still adds them.
+	## After the Read record, whose key is a prefix of theirs.
+	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Glob	Glob	deny-memory-md-read.sh	Glob"$'\n'
+	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Grep	Grep	deny-memory-md-read.sh	Grep"$'\n'
+	recordOut="${recordOut}PreToolUse	all	.claude/hooks/protect-memory-md.sh	Edit|Write	protect-memory-md.sh	"$'\n'
+	recordOut="${recordOut}PermissionRequest	native	.claude/hooks/permission-request-escalation.sh		permission-request-escalation.sh	"$'\n'
+	while IFS= read -r recordTool ; do
+		[ -n "$recordTool" ] || continue
+		recordOut="${recordOut}PreToolUse	reroute	$recordScript $recordTool	$recordTool	${recordScript##*/}	$recordTool"$'\n'
+	done <<< "$recordTools"
+	printf '%s' "$recordOut"
+}
+
 ## The dedupe keys, one per line -- the plain substring each installed hook
 ## is recognised by inside the raw hooks.PreToolUse text. A consumer captures
 ## this with $( ), which strips the final newline, and passes it on that call
@@ -156,7 +207,7 @@ AgentsToolsClientToolPolicyHookKeys(){
 		echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: the reroute tool set yielded no keys, so the verifier would assert nothing about the reroute hooks" >&2
 		return 1
 	fi
-	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ; do
+	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-memory-md-read.sh Glob" ".claude/hooks/deny-memory-md-read.sh Grep" ".claude/hooks/protect-memory-md.sh" ; do
 		case "$policyHookKey" in
 			""|*$'\t'*|*$'\n'*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: a hook key is empty or carries a tab or a newline, which the verifier reads as an assertion it never made" >&2

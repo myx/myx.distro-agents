@@ -80,11 +80,25 @@ chmod +x "$rigTmp/bin/curl"
 mkdir -p "$rigTmp/.local/.agents"
 printf 'WEB_ALLOW_PREFIXES=https://fetch.example/\nWEB_DENY_PREFIXES=https://en.wikipedia.org/wiki/Denied\n' >> "$rigTmp/.local/.agents/magic-team.agent.env"
 
-## A recording PreToolUse hook in the workspace's own settings: it appends each payload as one line and allows.
+## A recording PreToolUse hook in the workspace's own harness hook index -- our policy's
+## records plus one more -- that appends each payload as one line and allows. The
+## harness never reads settings.json, so a hook placed only there must record nothing.
 printf 'alpha\n' > "$rigW/h-ctl-e.txt"
 printf 'alpha\n' > "$rigW/h-nat-e.txt"
-mkdir -p "$rigTmp/.claude"
-printf '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"cat >> %s/hook.log ; echo >> %s/hook.log"}]}]}}\n' "$rigTmp" "$rigTmp" > "$rigTmp/.claude/settings.json"
+mkdir -p "$rigTmp/.claude" "$rigTmp/.local/agents"
+printf '#!/bin/sh\ncat >> %s/hook.log ; echo >> %s/hook.log\n' "$rigTmp" "$rigTmp" > "$rigTmp/rig-hook.sh"
+chmod +x "$rigTmp/rig-hook.sh"
+(
+	harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+		&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\tWrite|Edit\t'"$rigTmp/rig-hook.sh"$'\t\n'
+) > "$rigTmp/.local/agents/harness.hooks.index" || rigRefuse "the rig's harness hook index could not be written"
+printf '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"cat >> %s/settings-hook.log"}]}]}}\n' "$rigTmp" > "$rigTmp/.claude/settings.json"
+
+## A client memory store inside a write root, so only the policy's memory guard (class all) can refuse it.
+rigM="$rigW/.claude/projects/rig/memory"
+mkdir -p "$rigM"
+printf 'alpha\n' > "$rigM/feedback-rig.md"
+printf 'n\n' > "$rigW/.claude/projects/rig/beside.md"
 
 rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"
@@ -164,6 +178,14 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 74 Grep '{"pattern":"needle","path":"'"$rigG/a.js"'","type":"ts","output_mode":"files_with_matches"}'
 	rigCall 75 execute '{"command":"printf RIGBASHOUT","description":"Print the rig marker"}'
 	rigCall 76 execute '{"command":"printf RIGBASHFAIL ; exit 3","description":"Fail with exit code 3"}'
+	rigCall 77 Write '{"file_path":"'"$rigM/MEMORY.md"'","content":"m\n"}'
+	rigCall 78 Edit '{"file_path":"'"$rigM/feedback-rig.md"'","old_string":"alpha","new_string":"ALPHA"}'
+	rigCall 79 Write '{"file_path":"'"$rigW/.claude/projects/rig/notes.md"'","content":"n\n"}'
+	rigCall 80 Read '{"file_path":"'"$rigM/feedback-rig.md"'"}'
+	rigCall 81 Glob '{"pattern":"*.md","path":"'"$rigM"'"}'
+	rigCall 82 Glob '{"pattern":"'"$rigW"'/.claude/projects/*/memory/*.md"}'
+	rigCall 83 Grep '{"pattern":"alpha","path":"'"$rigM"'","output_mode":"content"}'
+	rigCall 84 Read '{"file_path":"'"$rigW/.claude/projects/rig/beside.md"'"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
@@ -175,7 +197,7 @@ chmod 600 "$rigTmp/.local/.agents/magic-team.agent.env"
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 76 ] ; do
+while [ "$rigId" -le 84 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -387,6 +409,23 @@ rigAssert "control: a Write with path reaches the hook as tool_input.file_path" 
 rigAssert "control: an Edit with path reaches the hook as tool_input.file_path" "$( rigHas "$rigHookLog" '"tool_name":"Edit","tool_input":{"file_path":"'"$rigW/h-ctl-e.txt"'"' )" yes
 rigNative Write "file_path reaches the hook as tool_input.file_path" "$( rigHas "$rigHookLog" '"tool_name":"Write","tool_input":{"file_path":"'"$rigW/h-nat-w.txt"'"' )" yes
 rigNative Edit "file_path reaches the hook as tool_input.file_path" "$( rigHas "$rigHookLog" '"tool_name":"Edit","tool_input":{"file_path":"'"$rigW/h-nat-e.txt"'"' )" yes
+rigAssert "a hook only in .claude/settings.json is never run by our harness" "$( [ -s "$rigTmp/settings-hook.log" ] && printf ran || printf not-run )" not-run
+
+echo "-- the policy's memory guard applies in our harness (class all) --"
+rigText="$( rigResult 77 )"
+rigAssert "a Write into the client memory store is refused by the hook, pointing to the team's ways" \
+	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'member-inbox-reflection-upsert' ) $( rigHas "$rigText" 'escalation' ) $( rigBytes "$rigM/MEMORY.md" )" 'yes yes yes MISSING'
+rigText="$( rigResult 78 )"
+rigAssert "an Edit of a memory topic file is refused, the file untouched" \
+	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigBytes "$rigM/feedback-rig.md" )" 'yes alpha\n'
+rigText="$( rigResult 80 )"
+rigAssert "a Read of a memory topic file is refused by the hook, pointing to the team's ways" \
+	"$( rigHas "$rigText" 'blocked by a PreToolUse hook' ) $( rigHas "$rigText" 'member-inbox-reflection-upsert' ) $( rigHas "$rigText" alpha )" 'yes yes no'
+rigAssert "a Glob whose path is the store is refused" "$( rigHas "$( rigResult 81 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 81 )" feedback-rig )" 'yes no'
+rigAssert "a Glob whose absolute pattern reaches the store is refused" "$( rigHas "$( rigResult 82 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 82 )" feedback-rig )" 'yes no'
+rigAssert "a Grep whose path is the store is refused" "$( rigHas "$( rigResult 83 )" 'blocked by a PreToolUse hook' ) $( rigHas "$( rigResult 83 )" alpha )" 'yes no'
+rigAssert "control: a Read beside the store is not refused" "$( rigResult 84 )" $'     1\tn'
+rigAssert "control: a Write beside the store is not refused" "$( rigIsError "$( rigResult 79 )" ) $( rigBytes "$rigW/.claude/projects/rig/notes.md" )" 'no n\n'
 
 echo "-- no path given --"
 rigText="$( rigResult 52 )"

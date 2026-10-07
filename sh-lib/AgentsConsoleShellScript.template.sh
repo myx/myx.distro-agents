@@ -784,6 +784,22 @@ DagcRunClaudeStreaming(){
 	exit "$claudeStatus"
 }
 
+## The vendor copilot CLI's own memory tools are hidden from its model, interactive or
+## not: the set is the client tool policy's (AgentsToolsClientToolPolicyCopilotExcludedTools).
+## One `--excluded-tools=a,b` token, never the variadic spelling, which would swallow the
+## arguments after it. Refused when the policy cannot say, rather than launched without it.
+DAGC_POLICY_ARGS=()
+if [ "$DAGC_CLI" = "copilot-native" ] ; then
+	DAGC_POLICY_INCLUDE="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+	DAGC_COPILOT_EXCLUDED=""
+	[ ! -f "$DAGC_POLICY_INCLUDE" ] || { . "$DAGC_POLICY_INCLUDE" && DAGC_COPILOT_EXCLUDED="$( AgentsToolsClientToolPolicyCopilotExcludedTools )" ; }
+	if [ -z "$DAGC_COPILOT_EXCLUDED" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: the client tool policy could not name copilot's memory tools to exclude: $DAGC_POLICY_INCLUDE -- refusing rather than launching copilot with them" >&2
+		exit 1
+	fi
+	DAGC_POLICY_ARGS=( "--excluded-tools=$DAGC_COPILOT_EXCLUDED" )
+fi
+
 if [ "$1" == "--non-interactive" ] ; then
 	shift
 	## No human answers this run, so the harness gates it as unattended.
@@ -821,14 +837,14 @@ if [ "$1" == "--non-interactive" ] ; then
 		if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 			DagcRunClaudeStreaming "$*"
 		fi
-		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
+		exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$*"
 	fi
 	echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
 	if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
 		DagcRunClaudeStreaming "$( cat )"
 	fi
-	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
+	exec "$DAGC_CLI_EXEC" $DAGC_NONINTERACTIVE_PERM_FLAGS "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "${DAGC_PROMPT_ARGS[@]}" "$( cat )"
 fi
 
 echo "DISTRO_CONSOLE_EXEC=$DAGC_CLI"
-exec "$DAGC_CLI_EXEC" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"
+exec "$DAGC_CLI_EXEC" "${DAGC_POLICY_ARGS[@]}" "${DAGC_ACCESS_ARGS[@]}" "${DAGC_SESSION_ID_ARGS[@]}" "${DAGC_AGENT_ARGS[@]}" "$@"

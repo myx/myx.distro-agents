@@ -72,6 +72,60 @@ AgentsToolsItemStaleCheck(){
 	fi
 }
 
+## --unlock-lock's proof that the close is on disk: every upsert header op holds
+## its value in the note's frontmatter, every remove op is gone. Silent rc 0
+## when all hold; otherwise prints what does not, rc 1. append/default ops are
+## not checked (their value is merged, not given).
+AgentsToolsItemUnlockVerify(){ ## note path, header ops (op<TAB>name<TAB>value lines)
+	[ -f "$1" ] || { printf 'the note is missing: %s' "$1" ; return 1 ; }
+	[ -n "$2" ] || return 0
+	printf '%s' "$2" | LC_ALL=C awk -F '\t' '
+		FNR == 1 { fileNo++ ; }
+		fileNo == 1 {
+			if (!($2 in act)) { n++ ; order[n] = $2 ; } ;
+			if ($1 == "upsert") { act[$2] = "set" ; want[$2] = $3 ; }
+			else if ($1 == "remove") { act[$2] = "remove" ; }
+			else { act[$2] = "skip" ; } ;
+			next ;
+		}
+		$0 == "---" { d++ ; if (d >= 2) exit ; next ; }
+		d == 1 { p = index($0, ": ") ; if (p > 0) { nm = substr($0, 1, p - 1) ; if (!(nm in have)) { have[nm] = substr($0, p + 2) ; } ; } ; next ; }
+		END {
+			if (d < 2) { printf("the note has no complete frontmatter") ; exit 1 ; } ;
+			bad = 0 ;
+			for (k = 1 ; k <= n ; k++) {
+				nm = order[k] ;
+				if (act[nm] == "set" && !(nm in have)) { printf("%s%s: missing, want \"%s\"", (bad ? "; " : ""), nm, want[nm]) ; bad = 1 ; }
+				else if (act[nm] == "set" && have[nm] != want[nm]) { printf("%s%s: is \"%s\", want \"%s\"", (bad ? "; " : ""), nm, have[nm], want[nm]) ; bad = 1 ; }
+				else if (act[nm] == "remove" && (nm in have)) { printf("%s%s: still present", (bad ? "; " : ""), nm) ; bad = 1 ; } ;
+			} ;
+			exit bad ;
+		}
+	' - "$1"
+}
+
+## --unlock-lock could not record its close: never RELEASED. `restore` puts the
+## note back as this call found it (and drops this call's own commit when
+## unlockCommitted), so the lock stays held; `as-is` leaves the note alone,
+## when it already is the remote's copy and not this call's write. Reads the
+## caller's target, repoRoot, priorExisted, priorContent, unlockCommitted.
+## Returns 0 so it is safe under set -e; the caller then returns 1 itself.
+AgentsToolsItemUnlockKeep(){ ## restore|as-is, what failed
+	if [ "$1" = "restore" ] ; then
+		local relPath="${target#"$repoRoot"/}"
+		if [ -n "$repoRoot" ] && [ "$unlockCommitted" = "true" ] ; then
+			git -C "$repoRoot" reset -q --soft HEAD~1 >/dev/null 2>&1 || :
+		fi
+		[ -z "$repoRoot" ] || git -C "$repoRoot" reset -q -- "$relPath" >/dev/null 2>&1 || :
+		unlockCommitted="false"
+		if [ "$priorExisted" = "true" ] ; then
+			printf '%s' "$priorContent" > "$target" || :
+		fi
+	fi
+	echo "$MDSC_CMD: item-upsert: ⛔ ERROR: CLOSE_NOT_RECORDED -- $2; the lock is KEPT, NOT released (the note is not marked finished); fix the cause and re-run the close" >&2
+	return 0
+}
+
 case "$1" in
 
 	--intern-op-item-read)
@@ -402,9 +456,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 
+		## No note: nothing holds a lock, and nothing to record the close into.
 		if [ "$unlockLock" = "true" ] && [ ! -f "$target" ] ; then
-			echo "RELEASED"
-			return 0
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: CLOSE_NOT_RECORDED -- no state note at $target to record the close into; NOT released" >&2
+			set +e ; return 1
 		fi
 
 		if [ "$bodyMode" = "patch" ] ; then
@@ -465,11 +520,28 @@ case "$1" in
 			)" || { set +e ; return 1 ; }
 		fi
 
-		printf '%s\n' "$content" > "$target"
+		## --unlock-lock prints RELEASED only once its own close is proven on disk
+		## (AgentsToolsItemUnlockVerify) and landed as far as this configuration
+		## goes; every other way out goes through AgentsToolsItemUnlockKeep, rc 1.
+		## priorContent is the note as found, for putting the lock back.
+		local repoRoot="" originUrl="" unlockVerifyOut=""
+		local priorExisted="false" priorContent="" unlockCommitted="false"
+		if [ "$unlockLock" = "true" ] && [ -f "$target" ] ; then
+			priorExisted="true"
+			priorContent="$( cat "$target" ; printf x )" ; priorContent="${priorContent%x}"
+		fi
+
+		if ! printf '%s\n' "$content" > "$target" ; then
+			if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "could not write $target" ; set +e ; return 1 ; fi
+			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: could not write $target" >&2
+			set +e ; return 1
+		fi
+		if [ "$unlockLock" = "true" ] && ! unlockVerifyOut="$( AgentsToolsItemUnlockVerify "$target" "$headerOps" )" ; then
+			AgentsToolsItemUnlockKeep restore "the written note does not read back the close: $unlockVerifyOut" ; set +e ; return 1
+		fi
 
 		## Two independent conditions, never one: the repository is what makes a
 		## commit possible, the remote is what makes a push possible.
-		local repoRoot="" originUrl=""
 		set +e
 		originUrl="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )"
 		repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )"
@@ -495,7 +567,7 @@ case "$1" in
 		set -e
 		if [ "$gitRc" -ne 0 ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git add failed for $target: $gitOut" >&2
-			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "git add failed" ; fi
 			set +e ; return 1
 		fi
 
@@ -507,9 +579,10 @@ case "$1" in
 		set -e
 		if [ "$gitRc" -ne 0 ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: git commit failed for $target: $gitOut" >&2
-			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+			if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "git commit failed" ; fi
 			set +e ; return 1
 		fi
+		unlockCommitted="true"
 
 		## No remote to push to, and no remote copy to read the lock back from:
 		## the commit above is the whole of what this configuration can do.
@@ -543,7 +616,7 @@ case "$1" in
 						continue
 					fi
 					echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the remote was unreachable after one 15s retry, so whether this routine holds the lock is UNKNOWN, not lost; the local note is written but this routine must not continue: $pushOut" >&2
-					if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+					if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep restore "the close could not be pushed (remote unreachable after one retry); this close's own commit is dropped" ; fi
 					set +e ; return 1
 				;;
 			esac
@@ -585,27 +658,67 @@ case "$1" in
 			set -e
 			if [ "$syncRc" -ne 0 ] ; then
 				echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- the board could not be synced even after discarding this session's own commit, so ownership is UNKNOWN, not lost; this routine must not continue: $syncOut" >&2
-				if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
+				if [ "$unlockLock" = "true" ] ; then AgentsToolsItemUnlockKeep as-is "the board could not be synced, and this close's own commit was discarded" ; fi
+				set +e ; return 1
+			fi
+			## The sync above discarded this call's own commit: what is on disk now
+			## is the remote's note, which never carried this close.
+			if [ "$unlockLock" = "true" ] ; then
+				AgentsToolsItemUnlockKeep as-is "the push was rejected and the board could not be synced over this close's commit, so the commit was discarded: $pushOut"
+				set +e ; return 1
+			fi
+		fi
+
+		## Unlock: the close must be on the remote, not only in this checkout -- a
+		## rejected push whose sync then rebased this commit on top is pushed once
+		## more; still not pushed, the commit is dropped and the lock kept.
+		if [ "$unlockLock" = "true" ] && [ "$pushRc" -ne 0 ] ; then
+			set +e
+			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+			pushRc=$?
+			set -e
+			if [ "$pushRc" -ne 0 ] ; then
+				local relPath="${target#"$repoRoot"/}" headSubject=""
+				set +e
+				headSubject="$( git -C "$repoRoot" log -1 --format=%s HEAD 2>/dev/null )"
+				if [ "$headSubject" = "$commitMessage" ] ; then
+					git -C "$repoRoot" reset -q --soft HEAD~1 >/dev/null 2>&1
+					git -C "$repoRoot" reset -q -- "$relPath" >/dev/null 2>&1
+					git -C "$repoRoot" checkout -- "$relPath" >/dev/null 2>&1
+				fi
+				set -e
+				AgentsToolsItemUnlockKeep as-is "the close could not be pushed: $pushOut"
 				set +e ; return 1
 			fi
 		fi
 
 		remoteSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" 2>/dev/null )"
+		if [ "$unlockLock" = "true" ] ; then
+			if [ -n "$localSessionId" ] && [ "$remoteSessionId" != "$localSessionId" ] ; then
+				AgentsToolsItemUnlockKeep as-is "LOCK_LOST -- the board's note belongs to session-id '$remoteSessionId', not '$localSessionId'"
+				set +e ; return 1
+			fi
+			if ! unlockVerifyOut="$( AgentsToolsItemUnlockVerify "$target" "$headerOps" )" ; then
+				AgentsToolsItemUnlockKeep as-is "the board's note does not read back the close after push and sync: $unlockVerifyOut"
+				set +e ; return 1
+			fi
+			[ -n "$localSessionId" ] || echo "$MDSC_CMD: item-upsert: ⚠️ WARNING: no session-id on the note, so ownership was not read back; the close itself is pushed and read back" >&2
+			echo "# $MDSC_CMD: item-upsert: wrote, pushed and read back the close of ${target#"$itemStoreRoot"/}" >&2
+			echo "RELEASED"
+			return 0
+		fi
 		if [ -z "$localSessionId" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⛔ ERROR: LOCK_UNCHECKABLE -- no session-id on the note, so ownership cannot be read back and is UNKNOWN; pass --header:upsert:session-id:<id>; routine must not continue" >&2
-			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			set +e ; return 1
 		fi
 		if [ "$remoteSessionId" = "$localSessionId" ] ; then
 			echo "# $MDSC_CMD: item-upsert: wrote, pushed and read back ${target#"$itemStoreRoot"/} -- lock held by session-id $localSessionId" >&2
-			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			if [ "$updateLock" = "true" ] ; then echo "REFRESHED" ; return 0 ; fi
 			return 0
 		fi
 
 		if [ "$isClosing" = "true" ] ; then
 			echo "$MDSC_CMD: item-upsert: ⚠️ WARNING: closing update did not land -- closing anyway, local note is written: $pushOut" >&2
-			if [ "$unlockLock" = "true" ] ; then echo "RELEASED" ; return 0 ; fi
 			return 0
 		fi
 

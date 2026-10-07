@@ -35,8 +35,8 @@ case "$1" in
 		## default it resolves for itself -- the same one --make-console-command
 		## above writes its console into.
 		DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
-		## Last, so the indexes describe the settings.json and access roots every step
-		## above has just finished writing.
+		## Last, so the indexes describe the access roots, grants and servers every step
+		## above has just finished registering.
 		DistroAgentsTools --make-harness-indices || { set +e ; return 1 ; }
 		return 0
 	;;
@@ -47,11 +47,14 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## The harness's own first-class indexes, read at every harness start instead of
-		## recomputing them: the access roots (AgentsHarnessRootsIndex.include) and the
-		## PreToolUse hook list (AgentsHarnessHooksLoad.include). Each is produced by the very
-		## code the harness otherwise runs, computed ONCE and used by a harness of this
-		## workspace whichever origin it runs from, and only while what it was produced from
-		## is unchanged -- so a missing or stale one costs time, never a different answer.
+		## recomputing them: the access roots (AgentsHarnessRootsIndex.include), the
+		## PreToolUse hook list (AgentsHarnessHooksLoad.include) and the MCP servers
+		## (AgentsHarnessMcpConfig.include). Each is produced from OUR OWN primary data by the
+		## very code the harness otherwise runs -- never from a file written for an external
+		## tool (.claude/settings.json, mcp.servers.json, .mcp.json, .vscode/mcp.json) --
+		## computed ONCE and used by a harness of this workspace whichever origin it runs
+		## from, and only while what it was produced from is unchanged -- so a missing or
+		## stale one costs time, never a different answer.
 		## The children lists are not this op's: the spawn proxy appends each child and the
 		## main loop repairs them (AgentsTools.ChildrenIndex.include).
 		local indexDir="$MMDAPP/.local/agents" indexHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" indexRoots indexHooks indexKind indexText indexFile
@@ -64,13 +67,13 @@ case "$1" in
 		indexHooks="$(
 			harnessHere="$indexHere"
 			. "$indexHere/AgentsTools.ClientToolPolicy.include" && . "$indexHere/AgentsHarnessHooksLoad.include" \
-				&& indexText="$( AgentsToolsClientToolPolicyRerouteHookKeys )" && AgentsHarnessHooksIndexText "$MMDAPP" "$indexText"
+				&& AgentsHarnessHooksIndexText
 		)" || indexHooks=""
-		## The MCP server index too, from mcp.servers.json as it stands -- the same writer
-		## --install-vscode-integrations runs beside that JSON, so this op alone, as the
-		## source-prepare build runs it, leaves every harness index current.
+		## The MCP server index too, from the servers our installer registers (never read
+		## back from mcp.servers.json) -- the same writer --install-vscode-integrations runs,
+		## so this op alone, as the source-prepare build runs it, leaves every harness index current.
 		( harnessHere="$indexHere" ; . "$harnessHere/AgentsHarnessMcpConfig.include" \
-			&& AgentsHarnessMcpIndexWrite "$indexDir/mcp.servers.json" "$indexDir/mcp.servers.index" ) || {
+			&& AgentsHarnessMcpIndexWrite "$MMDAPP" ) || {
 			echo "$MDSC_CMD: ⛔ ERROR: --make-harness-indices: could not write $indexDir/mcp.servers.index" >&2
 			set +e ; return 1
 		}

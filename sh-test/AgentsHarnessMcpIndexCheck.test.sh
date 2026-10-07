@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 ## Check on the installer-written MCP server index, .local/agents/mcp.servers.index, and
-## the harness reading it (AgentsHarnessMcpConfig.include):
-##   1. written from a registration full of awkward values -- spaces, quotes, TABs,
-##      escaped newlines, backslashes, \u, an empty arg, a number, `=` in env -- every
-##      server resolves from the index BYTE FOR BYTE as it resolves from the JSON, read
-##      statuses included, and the index path is proven taken by making the JSON readers
-##      unreachable while it answers;
-##   2. a JSON changed since the index was written is read from the JSON, never wrongly;
-##      one that does not read cleanly (a duplicate key, unparseable) gets no index;
-##   3. through the real harness, a server is launched with the same argv and env, and
+## the harness reading it (AgentsHarnessMcpConfig.include). Our harness reads only our own
+## registration -- the index, or the same composed from our primary sources -- and never
+## mcp.servers.json, .mcp.json or .vscode/mcp.json, which are outputs for external tools:
+##   1. the primary composition: a workspace with myx.common and myx.distro installed
+##      registers both, with the installer's paths, args and env; one with neither, none;
+##      the index the installer writes resolves every server BYTE FOR BYTE as the
+##      composition does, and is proven taken by making the composition unreachable;
+##   2. awkward values -- spaces, quotes, TABs, newlines, backslashes, an empty arg, `=`
+##      in env -- survive the index whole;
+##   3. an index of another workspace, another writer, another version or cut short is
+##      never used, and the composition answers instead; a mcp.servers.json is never read;
+##   4. through the real harness, a server is launched with the same argv and env, and
 ##      its tool answers the same, with the index present and with it absent.
 ## Offline: a fake curl and a fake stdio server, everything under this rig's own mktemp.
 set -u
@@ -26,6 +29,7 @@ done
 
 rigTmp="$( mktemp -d -t AgentsHarnessMcpIndexCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
+rigTmp="$( cd "$rigTmp" && pwd )"
 
 rigPass=0
 rigFail=0
@@ -57,75 +61,100 @@ rigResolved(){
 	done
 	printf '%sX' "$resolvedOut"
 }
+## Every registered server of $MMDAPP, resolved, plus a name nobody registers.
+rigAll(){
+	local allName allOut=""
+	AgentsHarnessMcpKeys
+	allOut="keys[$harnessMcpResKeysRc]=<$harnessMcpResKeys>"
+	while IFS= read -r allName ; do
+		[ -n "$allName" ] || continue
+		AgentsHarnessMcpResolve "$allName"
+		allOut="$allOut|$allName:$( rigResolved )"
+	done <<< "$harnessMcpResKeys"
+	AgentsHarnessMcpResolve "not-registered"
+	printf '%s|not-registered:%s' "$allOut" "$( rigResolved )"
+}
+rigInstall(){ ## workspace, executable for both server scripts (or empty for none)
+	local installCommon="$1/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib"
+	local installDistro="$1/.local/myx/myx.distro-agents/sh-scripts"
+	mkdir -p "$1/.local/agents" "$installCommon" "$installDistro"
+	[ -n "$2" ] || return 0
+	cp "$2" "$installCommon/agentMcpServer.Common" && cp "$2" "$installDistro/DistroAgentsTools.fn.sh" || rigRefuse "the rig's server stand-ins could not be installed"
+	chmod +x "$installCommon/agentMcpServer.Common" "$installDistro/DistroAgentsTools.fn.sh"
+}
 
-echo "-- the index answers as the JSON does --"
-rigJson="$rigTmp/unit/mcp.servers.json"
-rigIndex="$rigTmp/unit/mcp.servers.index"
-mkdir -p "$rigTmp/unit"
-printf '%s\n' '{"mcpServers":{' \
-	'"tricky":{"command":"/opt/x y/srv\"q","args":["--a b","it'"'"'s \"quoted\"","tab\there","line\nbreak\n","back\\slash \\n","\u00e9\ud83d\ude00","",5,true,null],"env":{"K1":"v = 1","K2":"trail\n\n","BAD-NAME":"x","K3":""}},' \
-	'"bare":{"command":"/bin/bare"},' \
-	'"argsobj":{"command":"/bin/a","args":{"x":1}},' \
-	'"envstr":{"command":"/bin/e","args":[],"env":"nope"},' \
-	'"nocmd":{"args":["x"]},' \
-	'"relative":{"command":"srv","args":["1"]},' \
-	'"x.y":{"command":"/bin/dotted"},' \
-	'"myx.distro":{"command":"/bin/self","args":["--intern-mcp-server","--run"],"env":{"MMDAPP":"/w"}}' \
-	'}}' > "$rigJson"
-AgentsHarnessMcpIndexWrite "$rigJson" "$rigIndex" || rigRefuse "the index writer failed outright"
-rigAssert "an index is written for a clean registration" "$( [ -f "$rigIndex" ] && printf yes || printf no )" yes
-rigAssert "it carries mode 0644" "$( ls -l "$rigIndex" | cut -c1-10 )" "-rw-r--r--"
-rigAssert "no temp is left beside it" "$( ls "$rigTmp/unit" | LC_ALL=C grep -c 'tmp\|err' )" 0
-rigAssert "it is usable against that JSON" "$( AgentsHarnessMcpIndexUsable "$rigJson" && printf yes || printf no )" yes
+echo "-- the primary composition, and the index the installer writes from it --"
+rigWs="$rigTmp/unit ws"
+printf '#!/bin/sh\nexit 0\n' > "$rigTmp/stand-in"
+rigInstall "$rigWs" "$rigTmp/stand-in"
+MMDAPP="$rigWs" ; harnessMcpLoadedFor=""
+rigComputed="$( rigAll )"
+AgentsHarnessMcpKeys
+rigAssert "with nothing indexed, the servers are computed" "$harnessMcpFrom" "the servers this workspace's installer registers, computed"
+rigAssert "both servers, as the installer registers them" "$rigComputed" \
+	"keys[0]=<myx.distro
+myx.common>|myx.distro:cmd[0]=<$rigWs/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh> args[0] <--intern-mcp-server> <--run> env[0] <MMDAPP>=<$rigWs>X|myx.common:cmd[0]=<$rigWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib/agentMcpServer.Common> args[0] <--run> env[0] <MMDAPP>=<$rigWs>X|not-registered:cmd[3]=<> args[0] env[0]X"
+AgentsHarnessMcpIndexWrite "$rigWs" || rigRefuse "the index writer failed outright"
+rigAssert "an index is written" "$( [ -f "$rigWs/.local/agents/mcp.servers.index" ] && printf yes || printf no )" yes
+rigAssert "it carries mode 0644" "$( ls -l "$rigWs/.local/agents/mcp.servers.index" | cut -c1-10 )" "-rw-r--r--"
+rigAssert "no temp is left beside it" "$( ls "$rigWs/.local/agents" | LC_ALL=C grep -c 'tmp' )" 0
+## The composition made unreachable: an answer now can only have come from the index.
+AgentsHarnessMcpServersPrimary(){ AgentsHarnessMcpSpecReset ; AgentsHarnessMcpSpecAdd poisoned /bin/false 0 ; }
+harnessMcpLoadedFor=""
+rigAssert "the index answers exactly as the composition did" "$( rigAll )" "$rigComputed"
+AgentsHarnessMcpKeys
+rigAssert "and says it is the index" "$harnessMcpFrom" "$rigWs/.local/agents/mcp.servers.index"
+## A mcp.servers.json beside it, naming another server, is never read.
+printf '{"mcpServers":{"foreign":{"command":"/bin/foreign"}}}\n' > "$rigWs/.local/agents/mcp.servers.json"
+harnessMcpLoadedFor=""
+rigAssert "a mcp.servers.json is never read" "$( rigAll )" "$rigComputed"
+unset -f AgentsHarnessMcpServersPrimary
+. "$rigHere/AgentsHarnessMcpConfig.include"
 
-AgentsHarnessMcpKeysJson "$rigJson"
-rigWantKeys="$harnessMcpResKeysRc:$harnessMcpResKeys"
-rigNames=()
-while IFS= read -r rigName ; do rigNames+=( "$rigName" ) ; done <<< "$harnessMcpResKeys"
-rigNames+=( "not-registered" )
-rigWant=()
-for rigName in "${rigNames[@]}" ; do
-	AgentsHarnessMcpResolveJson "$rigName" "$rigJson" 2>/dev/null
-	rigWant+=( "$( rigResolved )" )
-done
-## The JSON readers made unreachable: an answer now can only have come from the index.
-agentsMcpConfigHere="$rigTmp/no-readers-here"
-AgentsHarnessMcpKeys "$rigJson"
-rigAssert "the server names, from the index" "$harnessMcpResKeysRc:$harnessMcpResKeys" "$rigWantKeys"
-rigIdx=0
-for rigName in "${rigNames[@]}" ; do
-	if [ "$rigName" != "not-registered" ] ; then
-		AgentsHarnessMcpResolve "$rigName" "$rigJson" 2>/dev/null
-		rigAssert "[$rigName] from the index" "$( rigResolved )" "${rigWant[$rigIdx]}"
-	fi
-	rigIdx=$(( rigIdx + 1 ))
-done
-agentsMcpConfigHere="$rigHere"
-## A name the index does not hold is the JSON's to answer, rc 3 included.
-AgentsHarnessMcpResolve "not-registered" "$rigJson" 2>/dev/null
-rigAssert "[not-registered] falls to the JSON" "$( rigResolved )" "${rigWant[$(( ${#rigNames[@]} - 1 ))]}"
-rigAssert "the tricky args survive whole" "$( AgentsHarnessMcpResolve tricky "$rigJson" ; printf '%s|' "${harnessMcpResArgs[@]}" )" "--a b|it's \"quoted\"|tab	here|line
-break|back\\slash \\n|é😀||5|true||"
+rigEmpty="$rigTmp/empty"
+rigInstall "$rigEmpty" ""
+MMDAPP="$rigEmpty" ; harnessMcpLoadedFor=""
+rigAssert "a workspace with no server installed registers none" "$( rigAll )" "keys[0]=<>|not-registered:cmd[3]=<> args[0] env[0]X"
 
-echo "-- a changed or unclean JSON is never read from a stale index --"
-printf '%s\n' '{"mcpServers":{"tricky":{"command":"/changed","args":["new"]}}}' > "$rigJson"
-rigAssert "a JSON changed since makes the index unusable" "$( AgentsHarnessMcpIndexUsable "$rigJson" && printf yes || printf no )" no
-AgentsHarnessMcpResolve tricky "$rigJson" 2>/dev/null
-rigAssert "and the JSON's own new value is what resolves" "$harnessMcpResCmd|${harnessMcpResArgs[*]}" "/changed|new"
-rm -f "$rigJson"
-rigAssert "a JSON removed makes it unusable too" "$( AgentsHarnessMcpIndexUsable "$rigJson" && printf yes || printf no )" no
-AgentsHarnessMcpIndexWrite "$rigJson" "$rigIndex"
-rigAssert "no JSON leaves no index" "$( [ -f "$rigIndex" ] && printf yes || printf no )" no
-printf '%s\n' '{"mcpServers":{"a":{"command":"/one"},"a":{"command":"/two"}}}' > "$rigJson"
-AgentsHarnessMcpIndexWrite "$rigJson" "$rigIndex"
-rigAssert "a duplicate key -- the reader warns -- leaves no index" "$( [ -f "$rigIndex" ] && printf yes || printf no )" no
-printf '%s\n' '{"mcpServers":{"a":' > "$rigJson"
-AgentsHarnessMcpIndexWrite "$rigJson" "$rigIndex"
-rigAssert "an unparseable JSON leaves no index" "$( [ -f "$rigIndex" ] && printf yes || printf no )" no
-printf '%s\n' '{"mcpServers":{"a":{"command":"/one"}}}' > "$rigJson"
-AgentsHarnessMcpIndexWrite "$rigJson" "$rigIndex"
-printf 'myx.distro mcp.servers.index 1\nsource\tpresent:x\n' > "$rigIndex"
-rigAssert "an index cut short is never used" "$( AgentsHarnessMcpIndexUsable "$rigJson" && printf yes || printf no )" no
+echo "-- awkward values survive the index whole --"
+MMDAPP="$rigWs" ; harnessMcpLoadedFor=""
+AgentsHarnessMcpSpecReset
+AgentsHarnessMcpSpecAdd "tricky" "/opt/x y/srv\"q" 4 K1 "v = 1" K2 $'trail\n\n' "BAD-NAME" x K3 "" \
+	"--a b" "it's \"quoted\"" $'tab\there' $'line\nbreak\n' 'back\slash \n' "é😀" "" 5
+AgentsHarnessMcpSpecAdd "x.y" "/bin/dotted" 0
+AgentsHarnessMcpIndexWrite "$rigWs" use-spec || rigRefuse "the index writer failed on the awkward set"
+AgentsHarnessMcpResolve tricky
+rigAssert "the tricky command" "$harnessMcpResCmd" "/opt/x y/srv\"q"
+rigAssert "the tricky args, whole" "$( printf '%s|' "${harnessMcpResArgs[@]}" )" "--a b|it's \"quoted\"|tab	here|line
+break
+|back\\slash \\n|é😀||5|"
+rigTricky="$( rigResolved )"
+rigAssert "the tricky env, whole" "env${rigTricky##*env}" "env[0] <K1>=<v = 1> <K2>=<trail
+
+> <BAD-NAME>=<x> <K3>=<>X"
+AgentsHarnessMcpKeys
+rigAssert "both names, in order" "$harnessMcpResKeys" "tricky
+x.y"
+
+echo "-- an index that does not vouch for this workspace and writer is never used --"
+AgentsHarnessMcpIndexWrite "$rigWs" || rigRefuse "the index writer failed outright"
+rigIndexed="$( harnessMcpLoadedFor="" ; rigAll )"
+rigIndexCase(){ ## what, transform (sed program)
+	sed "$2" "$rigWs/.local/agents/mcp.servers.index" > "$rigTmp/idx" && cp "$rigTmp/idx" "$rigWs/.local/agents/mcp.servers.index"
+	harnessMcpLoadedFor=""
+	AgentsHarnessMcpServersPrimary(){ AgentsHarnessMcpSpecReset ; AgentsHarnessMcpSpecAdd computed-instead /bin/true 0 ; }
+	AgentsHarnessMcpKeys
+	rigAssert "$1: computed instead" "$harnessMcpResKeys" "computed-instead"
+	unset -f AgentsHarnessMcpServersPrimary
+	. "$rigHere/AgentsHarnessMcpConfig.include"
+	AgentsHarnessMcpIndexWrite "$rigWs"
+}
+rigIndexCase "another workspace's index" 's/workspace=/workspace=\/elsewhere/'
+rigIndexCase "another writer's index" 's/code=[0-9]*/code=1/'
+rigIndexCase "a version 1 index" '1s/ 2$/ 1/'
+rigIndexCase "an index cut short" '$d'
+harnessMcpLoadedFor=""
+rigAssert "control: rewritten, it is used again" "$( rigAll )" "$rigIndexed"
 
 echo "-- through the harness: the same launch, index or not --"
 mkdir -p "$rigTmp/bin"
@@ -141,31 +170,37 @@ export HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check ne
 export HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main"
 export HARNESS_TOKEN_LIGHT="rig-not-a-credential" HARNESS_TOKEN_MAIN="rig-not-a-credential"
 
-rigLaunch(){ ## scenario name, with-index|without-index
-	local launchDir="$rigTmp/$1"
-	mkdir -p "$launchDir/.local/agents"
-	printf '0' > "$launchDir/round"
-	printf '{"mcpServers":{"rigrec":{"command":"%s/bin/rigrec","args":["--a b","it'"'"'s \\"q\\"","tab\\there","nl\\n","back\\\\slash",""],"env":{"RIG_MCP_PROBE":"v = 1 \\"x\\"","RIG_MCP_OTHER":"trail\\n","BAD-NAME":"dropped"}}}}\n' "$rigTmp" > "$launchDir/.local/agents/mcp.servers.json"
-	[ "$2" = without-index ] || AgentsHarnessMcpIndexWrite "$launchDir/.local/agents/mcp.servers.json" "$launchDir/.local/agents/mcp.servers.index"
-	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-call","type":"function","function":{"name":"mcp__rigrec__ping","arguments":"{\\"word\\":\\"RIG-ARG-MARKER\\"}"}}]}}]}\n' > "$launchDir/res.1"
-	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$launchDir/res.1"
-	printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-FINAL-MARKER"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' > "$launchDir/res.2"
-	RIG_SCENARIO="$launchDir" MMDAPP="$launchDir" MDAT_HARNESS_CONTEXT_TOKENS=0 \
-		"$rigHarness" --access-root "$launchDir" RIG-TASK-MARKER > "$launchDir/out" 2> "$launchDir/err" || :
+## One workspace, its myx.common the launch recorder (which then behaves as the rig
+## server); the myx.distro stand-in is never spawned -- the harness excludes itself.
+rigLaunchWs="$rigTmp/launch"
+rigInstall "$rigLaunchWs" "$rigTmp/stand-in"
+rigLaunchCommon="$rigLaunchWs/.local/myx/myx.common/os-myx.common/host/tarball/share/myx.common/bin/lib"
+cp "$rigTmp/bin/rigrec" "$rigLaunchCommon/agentMcpServer.Common" && cp "$rigTmp/bin/rigmcp" "$rigLaunchCommon/rigmcp" || rigRefuse "the launch recorder could not be installed"
+chmod +x "$rigLaunchCommon/agentMcpServer.Common" "$rigLaunchCommon/rigmcp"
+rigLaunch(){ ## label, with-index|without-index
+	rm -f "$rigLaunchWs/launch.log" "$rigLaunchWs/.local/agents/mcp.servers.index"
+	printf '0' > "$rigLaunchWs/round"
+	[ "$2" = without-index ] || ( MMDAPP="$rigLaunchWs" ; AgentsHarnessMcpIndexWrite "$rigLaunchWs" ) || rigRefuse "the launch index could not be written"
+	printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-call","type":"function","function":{"name":"mcp__myx_common__ping","arguments":"{\\"word\\":\\"RIG-ARG-MARKER\\"}"}}]}}]}\n' > "$rigLaunchWs/res.1"
+	printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigLaunchWs/res.1"
+	printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-FINAL-MARKER"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' > "$rigLaunchWs/res.2"
+	RIG_SCENARIO="$rigLaunchWs" MMDAPP="$rigLaunchWs" MDAT_HARNESS_CONTEXT_TOKENS=0 \
+		"$rigHarness" --access-root "$rigLaunchWs" RIG-TASK-MARKER > "$rigTmp/$1.out" 2> "$rigTmp/$1.err" || :
+	cp "$rigLaunchWs/launch.log" "$rigTmp/$1.log" 2>/dev/null || : > "$rigTmp/$1.log"
+	cp "$rigLaunchWs/req.2" "$rigTmp/$1.req2" 2>/dev/null || : > "$rigTmp/$1.req2"
 }
-rigLaunch launch-json without-index
+rigLaunch launch-computed without-index
 rigLaunch launch-index with-index
-rigAssert "the index run had an index to read"          "$( [ -f "$rigTmp/launch-index/.local/agents/mcp.servers.index" ] && printf yes || printf no )" yes
-rigAssert "both runs answered"                          "$( cat "$rigTmp/launch-json/out" ):$( cat "$rigTmp/launch-index/out" )" "RIG-FINAL-MARKER:RIG-FINAL-MARKER"
-rigAssert "the server was launched twice in each"       "$( LC_ALL=C grep -c '^--$' "$rigTmp/launch-json/launch.log" ):$( LC_ALL=C grep -c '^--$' "$rigTmp/launch-index/launch.log" )" "2:2"
-rigAssert "with the same argv and env, byte for byte"   "$( cat "$rigTmp/launch-index/launch.log" )" "$( cat "$rigTmp/launch-json/launch.log" )"
-rigAssert "the awkward args arrived whole"              "$( sed -n 2,7p "$rigTmp/launch-index/launch.log" | tr '\n' '|' )" "arg[5]=--a b|arg[8]=it's \"q\"|arg[8]=tab	here|arg[2]=nl|arg[10]=back\\slash|arg[0]=|"
-rigAssert "the tool answered the same"                  "$( LC_ALL=C grep -o 'RIG-MCPRESULT:[A-Z-]*' "$rigTmp/launch-index/req.2" )" "$( LC_ALL=C grep -o 'RIG-MCPRESULT:[A-Z-]*' "$rigTmp/launch-json/req.2" )"
-rigAssert "the bad env name was dropped, saying so, in both" "$( LC_ALL=C grep -c 'dropped the `env` entry named' "$rigTmp/launch-json/err" ):$( LC_ALL=C grep -c 'dropped the `env` entry named' "$rigTmp/launch-index/err" )" "2:2"
+rigAssert "both runs answered"                          "$( cat "$rigTmp/launch-computed.out" ):$( cat "$rigTmp/launch-index.out" )" "RIG-FINAL-MARKER:RIG-FINAL-MARKER"
+rigAssert "the server was launched twice in each"       "$( LC_ALL=C grep -c '^--$' "$rigTmp/launch-computed.log" ):$( LC_ALL=C grep -c '^--$' "$rigTmp/launch-index.log" )" "2:2"
+rigAssert "with the same argv and env, byte for byte"   "$( cat "$rigTmp/launch-index.log" )" "$( cat "$rigTmp/launch-computed.log" )"
+rigAssert "the installer's argv"                        "$( sed -n 1,2p "$rigTmp/launch-index.log" | tr '\n' '|' )" "argc=1|arg[5]=--run|"
+rigAssert "the tool answered the same"                  "$( LC_ALL=C grep -o 'RIG-MCPRESULT:[A-Z-]*' "$rigTmp/launch-index.req2" )" "$( LC_ALL=C grep -o 'RIG-MCPRESULT:[A-Z-]*' "$rigTmp/launch-computed.req2" )"
+rigAssert "the tool did answer"                         "$( LC_ALL=C grep -c 'RIG-MCPRESULT:RIG-ARG-MARKER' "$rigTmp/launch-index.req2" )" 1
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ MCP INDEX CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2
 	echo "  fix:  AgentsHarnessMcpConfig.include or its callers -- never the assertion" >&2
 	exit 1
 fi
-printf 'HARNESS_MCP_INDEX: OK (%d assertions: index == JSON for every server, stale or unclean JSON never indexed or read from one, same launch through the harness, offline)\n' "$rigPass"
+printf 'HARNESS_MCP_INDEX: OK (%d assertions: index == primary composition for every server, a foreign or stale index never used, mcp.servers.json never read, same launch through the harness, offline)\n' "$rigPass"

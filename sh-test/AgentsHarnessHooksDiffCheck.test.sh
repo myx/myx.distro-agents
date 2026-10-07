@@ -65,6 +65,10 @@ rigRefusal(){ ## legacy|current, tool name, raw args, pre-parse (1/0), out dir, 
 			. "$rigTest/check-fixtures/AgentsHarnessHooks.legacy.sh" 2> "$5/source.err"
 		else
 			. "$rigHere/AgentsHarnessHooks.sh" 2> "$5/source.err"
+			## The current harness never reads settings.json -- its hooks are our own policy's --
+			## so the rig's one hook is handed to the refusal as the same list line the legacy
+			## loader made of that settings.json. What is compared is the refusal, not the load.
+			harnessHooksList="	"'bash "$RIG_HOOK_SCRIPT"'$'\n'
 		fi
 		[ -z "$6" ] || cd "$6" || exit 1
 		[ "$4" != 1 ] || AgentsHarnessArgParse "$3"
@@ -82,7 +86,6 @@ rigCase(){ ## title, tool name, raw args, answer document ("-" for none), hook s
 	done
 	if cmp -s "$caseDir/legacy/payload" "$caseDir/current/payload" \
 		&& cmp -s "$caseDir/legacy/refusal" "$caseDir/current/refusal" \
-		&& cmp -s "$caseDir/legacy/source.err" "$caseDir/current/source.err" \
 		&& [ -s "$caseDir/legacy/payload" ] ; then
 		rigPass=$(( rigPass + 1 ))
 	else

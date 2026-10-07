@@ -23,6 +23,5 @@ Safe to share with anyone, including unverified/external sources — no verifica
 ## Identity marks
 
 - **Unicode character**: 🐭
-- **Slack shortcode**: not decided yet.
 - **Image file**: `magic-vane.avatar.png`, in `resources/`.
 - **Favourites**: 👀 ⏳ ❓ 📤 ✅

@@ -1331,15 +1331,33 @@ case "$1" in
 		## Read guard is conditional and reads the payload, so it stays separate.
 		## A missing source is a hard refusal: a hook that is absent, or present and
 		## emitting no decision, reads as ALLOW to a *-native client.
+		## PRIMARY -> INDEX -> OUTPUTS: our own harness's hook index is written first, from
+		## the policy's hook records, and both the scripts copied below and the entries
+		## merged into settings.json are generated from that index -- so what a *-native
+		## client runs and what our harness runs can never disagree, and nothing of ours
+		## reads settings.json back as a source.
 		local hookSrcDir="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/client-hooks"
-		local hookRerouteScript hookInstallName hookSrcFile hookDstFile hookDstTmp
-		hookRerouteScript="$( AgentsToolsClientToolPolicyRerouteHookPath )" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy does not name the reroute hook script, so no hook was written" >&2
+		local hookRecords hookRecord hookInstallName hookInstallNames="" hookSrcFile hookDstFile hookDstTmp
+		hookRecords="$(
+			harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+			. "$harnessHere/AgentsHarnessHooksLoad.include" || exit 1
+			AgentsHarnessHooksIndexWrite "$workspace" || exit 1
+			AgentsHarnessHooksIndexRecords "$workspace/.local/agents/harness.hooks.index" || exit 1
+			printf '%s' "$agentsHooksRecords"
+		)" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the harness hook index could not be written from the client tool policy, so no hook was written" >&2
 			set +e ; return 1
 		}
-		hookRerouteScript="${hookRerouteScript##*/}"
+		echo "🪝 harness hooks index written: .local/agents/harness.hooks.index" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessHooksLoad.include"
+		while IFS= read -r hookRecord ; do
+			AgentsHarnessHooksRecordSplit "$hookRecord" || continue
+			case $'\n'"$hookInstallNames" in *$'\n'"$agentsHookScript"$'\n'*) continue ;; esac
+			hookInstallNames="$hookInstallNames$agentsHookScript"$'\n'
+		done <<< "$hookRecords"
 
-		for hookInstallName in "$hookRerouteScript" "deny-memory-md-read.sh" "permission-request-escalation.sh" ; do
+		while IFS= read -r hookInstallName ; do
+			[ -n "$hookInstallName" ] || continue
 			hookSrcFile="$hookSrcDir/$hookInstallName"
 			hookDstFile="$hooksDir/$hookInstallName"
 			hookDstTmp="$hookDstFile.tmp.$$"
@@ -1359,7 +1377,7 @@ case "$1" in
 				rm -f "$hookDstTmp"
 				hooksFailed=1
 			fi
-		done
+		done <<< "$hookInstallNames"
 
 		## Each namespace folder the generated `.code-workspace` lists is a project
 		## root of its own, and an editor session takes the FIRST folder as its
@@ -1460,16 +1478,16 @@ case "$1" in
 			END { printf "]"; }
 		' )"
 
-		## Resolved in THIS shell, not the subshell below, so a policy that cannot
-		## state its reroute set stops the op instead of writing a settings file with
-		## the reroute entries quietly missing.
-		local hooksRerouteScriptPath hooksRerouteToolNames
-		hooksRerouteScriptPath="$( AgentsToolsClientToolPolicyRerouteHookPath )" || hooksRerouteScriptPath=""
-		hooksRerouteToolNames="$( AgentsToolsClientToolPolicyRerouteToolNames )" || hooksRerouteToolNames=""
-		if [ -z "$hooksRerouteScriptPath" ] || [ -z "$hooksRerouteToolNames" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the client tool policy could not state which tools are rerouted, so $settingsFile is left untouched -- a missing reroute entry reads as allow" >&2
-			set +e ; return 1
-		fi
+		## Every settings.json hook entry below is generated from the index records read
+		## above. Checked in THIS shell, so an index with no reroute entry stops the op
+		## instead of writing a settings file with them quietly missing.
+		case "$hookRecords" in
+			*$'\t'reroute$'\t'*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the harness hook index states no rerouted tool, so $settingsFile is left untouched -- a missing reroute entry reads as allow" >&2
+				set +e ; return 1
+			;;
+		esac
 		## The hooks earlier installs wrote and this one retires. The merge drops
 		## their entries, and only after settings.json is rewritten are the files
 		## deleted, so no run leaves an entry running a script it removed.
@@ -1490,28 +1508,30 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: cannot create $MMDAPP/.local/temp" >&2
 				exit 1
 			}
-			## One entry per rerouted tool, every one running the same script and
-			## told which tool it is deciding by a trailing argument. The command is
-			## a shell command line -- it already depends on $CLAUDE_PROJECT_DIR
-			## being expanded and its quotes removed -- so the name arrives as $1.
-			## The dedupe key carries the tool too, so the verifier at the end of
-			## this op asserts each entry rather than just the shared script.
-			{
-				printf '%s\t%s\n' ".claude/hooks/deny-memory-md-read.sh" '{"matcher": "Read", "hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/deny-memory-md-read.sh"}]}'
-				## Every tool's permission request, under its own event: it answers only in an unattended session.
-				printf '%s\t%s\t%s\n' ".claude/hooks/permission-request-escalation.sh" '{"hooks": [{"type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/permission-request-escalation.sh"}]}' "PermissionRequest"
-				while IFS= read -r hooksRerouteTool ; do
-					[ -n "$hooksRerouteTool" ] || continue
-					printf '%s %s\t{"matcher": "%s", "hooks": [{"type": "command", "command": "\\"$CLAUDE_PROJECT_DIR\\"/%s %s"}]}\n' \
-						"$hooksRerouteScriptPath" "$hooksRerouteTool" \
-						"$hooksRerouteTool" \
-						"$hooksRerouteScriptPath" "$hooksRerouteTool"
-				done <<< "$hooksRerouteToolNames"
-			} > "$hooksDescFile" || exit 1
+			## One entry per hook record, in the index's own order. The command is a
+			## shell command line -- it already depends on $CLAUDE_PROJECT_DIR being
+			## expanded and its quotes removed -- so a reroute entry's tool name arrives
+			## as $1. The dedupe key is the record's own, carrying the tool for a reroute
+			## entry, so the verifier at the end of this op asserts each entry rather
+			## than just the shared script. An event other than PreToolUse rides as the
+			## third field; an empty matcher writes no matcher key.
+			while IFS= read -r hookRecord ; do
+				[ -n "$hookRecord" ] || continue
+				AgentsHarnessHooksRecordSplit "$hookRecord" || exit 1
+				hookJson='{'
+				[ -z "$agentsHookMatcher" ] || hookJson="$hookJson\"matcher\": \"$agentsHookMatcher\", "
+				hookJson="$hookJson\"hooks\": [{\"type\": \"command\", \"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/$agentsHookScript${agentsHookArg:+ $agentsHookArg}\"}]}"
+				if [ "$agentsHookEvent" = PreToolUse ] ; then
+					printf '%s\t%s\n' "$agentsHookKey" "$hookJson"
+				else
+					printf '%s\t%s\t%s\n' "$agentsHookKey" "$hookJson" "$agentsHookEvent"
+				fi
+			done <<< "$hookRecords" > "$hooksDescFile" || exit 1
 			MYX_WSRESTRICT_DENY_ADD_JSON="$denyAddJson" \
 				MYX_WSRESTRICT_HOOKS_FILE="$hooksDescFile" \
 				MYX_WSRESTRICT_RETIRED_HOOKS="$hooksRetiredNames" \
 				MYX_WSRESTRICT_RETIRED_DENY="$denyRetiredEntries" \
+				MYX_WSRESTRICT_SETTINGS="$( AgentsToolsClientToolPolicyClaudeSettings )" \
 				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
 				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
 				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
@@ -1570,6 +1590,20 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry the PermissionRequest hook -- the MISSING line above names it" >&2
 			set +e ; return 1
 		}
+
+		## Every fixed top-level setting the policy names, read back with its value.
+		local restrictionsSetting restrictionsFlat
+		restrictionsFlat="$( tr -d ' \t\n\r' < "$settingsFile" )"
+		while IFS= read -r restrictionsSetting ; do
+			[ -n "$restrictionsSetting" ] || continue
+			case "$restrictionsFlat" in
+				*"\"${restrictionsSetting%%$'\t'*}\":${restrictionsSetting#*$'\t'}"[,}]*) ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: $settingsFile does not carry ${restrictionsSetting%%$'\t'*} = ${restrictionsSetting#*$'\t'}" >&2
+					set +e ; return 1
+				;;
+			esac
+		done <<< "$( AgentsToolsClientToolPolicyClaudeSettings )"
 
 		## Every command hook settings.json runs out of .claude/hooks has to exist
 		## and be executable, this package's or not: a missing one exits 127, and
@@ -2207,14 +2241,53 @@ case "$1" in
 				failed=1
 			fi
 
-			local escapedWorkspace
-			escapedWorkspace="$( printf '%s' "$workspace" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" )"
-			local mmdappEnvJson="{\"MMDAPP\":\"$escapedWorkspace\"}"
-
 			mkdir -p "$workspace/.local/agents" 2>/dev/null || true
-			## Ours first, the native two after it: `.local/agents/mcp.servers.json`
-			## is what our own harness reads, and a client's own file is output we
-			## publish rather than a source anything of ours consults.
+			## PRIMARY -> INDEX -> OUTPUTS. Our own harness's index of the servers this
+			## workspace registers is written FIRST, from the one composition of them
+			## (AgentsHarnessMcpServersPrimary), and every JSON below is generated from
+			## that index -- command, args and env -- so the files we publish for external
+			## tools can never disagree with what our harness runs, and nothing of ours
+			## ever reads those files back.
+			( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpConfig.include" \
+				&& AgentsHarnessMcpIndexWrite "$workspace" ) || {
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index could not be written" >&2
+				set +e ; return 1
+			}
+			echo "🔌 harness MCP index written: .local/agents/mcp.servers.index" >&2
+			## One registered server's command, args JSON and env JSON, read from that index.
+			local mcpEntryCmd mcpEntryArgsJson mcpEntryEnvJson
+			AgentsToolsInstallMcpEntryFromIndex(){ ## server name
+				local entryOut
+				entryOut="$(
+					MMDAPP="$workspace" ; harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+					. "$harnessHere/AgentsHarnessMcpConfig.include" || exit 1
+					AgentsHarnessMcpResolve "$1"
+					[ "$harnessMcpResCmdRc" = 0 ] || exit 1
+					entryEsc(){ printf '%s' "$1" | LC_ALL=C awk -f "$mcpRoot/include/data/agentMcpJsonEscape.awk" ; }
+					entryJson="[" ; entrySep=""
+					for entryArg in ${harnessMcpResArgs[@]+"${harnessMcpResArgs[@]}"} ; do
+						entryJson="$entryJson$entrySep\"$( entryEsc "$entryArg" )\"" ; entrySep=","
+					done
+					entryEnv="{" ; entrySep="" ; entryIdx=0
+					while [ "$entryIdx" -lt "${#harnessMcpResEnvKeys[@]}" ] ; do
+						entryEnv="$entryEnv$entrySep\"$( entryEsc "${harnessMcpResEnvKeys[$entryIdx]}" )\":\"$( entryEsc "${harnessMcpResEnvVals[$entryIdx]}" )\"" ; entrySep=","
+						entryIdx=$(( entryIdx + 1 ))
+					done
+					printf '%s\n%s]\n%s}' "$harnessMcpResCmd" "$entryJson" "$entryEnv"
+				)" || return 1
+				mcpEntryCmd="${entryOut%%$'\n'*}" ; entryOut="${entryOut#*$'\n'}"
+				mcpEntryArgsJson="${entryOut%%$'\n'*}" ; mcpEntryEnvJson="${entryOut#*$'\n'}"
+			}
+			local mcpCommonCmd mcpCommonArgsJson mcpCommonEnvJson
+			if ! AgentsToolsInstallMcpEntryFromIndex "myx.common" || [ "$mcpEntryCmd" != "$serverScript" ] ; then
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index does not register myx.common at $serverScript" >&2
+				set +e ; return 1
+			fi
+			mcpCommonCmd="$mcpEntryCmd" mcpCommonArgsJson="$mcpEntryArgsJson" mcpCommonEnvJson="$mcpEntryEnvJson"
+
+			## Ours first, the native two after it. All three are output we publish for
+			## external tools, generated from the index above; our own harness reads that
+			## index, never any of these.
 			local mcpTarget
 			for mcpTarget in \
 				"$workspace/.local/agents/mcp.servers.json:mcpServers" \
@@ -2229,9 +2302,9 @@ case "$1" in
 				mcpTmp="$mcpFile.tmp.$$"
 				mcpErr="$( MYX_MCPUPSERT_TOPKEY="$mcpKey" \
 					MYX_MCPUPSERT_ENTRYKEY="myx.common" \
-					MYX_MCPUPSERT_COMMAND="$serverScript" \
-					MYX_MCPUPSERT_ARGS='["--run"]' \
-					MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
+					MYX_MCPUPSERT_COMMAND="$mcpCommonCmd" \
+					MYX_MCPUPSERT_ARGS="$mcpCommonArgsJson" \
+					MYX_MCPUPSERT_ENV="$mcpCommonEnvJson" \
 					LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpServerJsonUpsert.awk" "$mcpSource" 2>&1 >"$mcpTmp" )" || mcpRc=$?
 				if [ "$mcpRc" -ne 0 ] ; then
 					echo "⛔ ERROR: mcp-upsert $mcpFile: $mcpErr" >&2
@@ -2287,7 +2360,11 @@ case "$1" in
 			elif [ ! -x "$distroServerScript" ] ; then
 				echo "⛔ ERROR: mcp-distro-path missing or not executable: $distroServerScript" >&2
 				failed=1
+			elif ! AgentsToolsInstallMcpEntryFromIndex "myx.distro" || [ "$mcpEntryCmd" != "$distroServerScript" ] ; then
+				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index does not register myx.distro at $distroServerScript" >&2
+				failed=1
 			else
+				local distroArgsJson="$mcpEntryArgsJson" distroEnvJson="$mcpEntryEnvJson"
 				local distroTarget
 				for distroTarget in \
 					"$workspace/.local/agents/mcp.servers.json:mcpServers" \
@@ -2301,8 +2378,8 @@ case "$1" in
 					distroErr="$( MYX_MCPUPSERT_TOPKEY="$distroKey" \
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
-						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-						MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
+						MYX_MCPUPSERT_ARGS="$distroArgsJson" \
+						MYX_MCPUPSERT_ENV="$distroEnvJson" \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>&1 >"$distroTmp" )" || distroRc=$?
 					if [ "$distroRc" -ne 0 ] ; then
 						echo "⛔ ERROR: mcp-distro-upsert $distroFile: $distroErr" >&2
@@ -2323,8 +2400,8 @@ case "$1" in
 					if MYX_MCPUPSERT_TOPKEY="$distroKey" \
 						MYX_MCPUPSERT_ENTRYKEY="myx.distro" \
 						MYX_MCPUPSERT_COMMAND="$distroServerScript" \
-						MYX_MCPUPSERT_ARGS='["--intern-mcp-server","--run"]' \
-						MYX_MCPUPSERT_ENV="$mmdappEnvJson" \
+						MYX_MCPUPSERT_ARGS="$distroArgsJson" \
+						MYX_MCPUPSERT_ENV="$distroEnvJson" \
 						LC_ALL=C awk -f "$distroUpsert" "$distroFile" 2>/dev/null \
 						| cmp -s - "$distroFile" ; then
 						echo "🔌 myx.distro registered in ${distroFile#$workspace/}" >&2
@@ -2333,22 +2410,6 @@ case "$1" in
 						failed=1
 					fi
 				done
-			fi
-
-			## Our own harness's index of the servers just registered, in this same step
-			## and from the file just written, so the two never diverge: the harness then
-			## launches a server with builtins instead of an awk per field. It is used
-			## only while mcp.servers.json is byte for byte what it was built from, so a
-			## later hand edit of that JSON is read the slow way, never wrongly.
-			( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpConfig.include" \
-				&& AgentsHarnessMcpIndexWrite "$workspace/.local/agents/mcp.servers.json" "$workspace/.local/agents/mcp.servers.index" ) || {
-				echo "⛔ ERROR: mcp-index .local/agents/mcp.servers.index could not be written" >&2
-				failed=1
-			}
-			if [ -f "$workspace/.local/agents/mcp.servers.index" ] ; then
-				echo "🔌 harness MCP index written: .local/agents/mcp.servers.index" >&2
-			else
-				echo "🙋 WARNING: no harness MCP index for .local/agents/mcp.servers.json -- it did not read cleanly, so the harness reads that JSON directly" >&2
 			fi
 		fi
 

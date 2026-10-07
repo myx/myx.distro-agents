@@ -2035,10 +2035,27 @@
 			isn't a genuine workspace root (no `<workspace>/.local`),
 			naming a likely correct ancestor root when found.
 
+			Writes `.local/agents/harness.hooks.index` first, from
+			the client tool policy, and generates the hook scripts
+			and the `settings.json` hook entries from that index, so
+			what a native client runs and what the universal harness
+			runs never disagree. The harness never reads
+			`settings.json`: a hook added there by anyone else
+			applies to native clients only.
+
 			Idempotent: merges into existing files, a no-op run
-			reported as such. Installs two fixed hook scripts
-			(denying native-tool calls the team routes elsewhere,
-			denying `Read` on the memory system's `MEMORY.md`); it
+			reported as such. Installs three fixed hook scripts
+			(denying native-tool calls the team routes elsewhere;
+			denying `Read`, and `Glob`/`Grep` pointed into it, of
+			the client's machine-local memory store,
+			`~/.claude/projects/*/memory/`; denying `Edit`/`Write`
+			into it -- the two memory guards refuse naming
+			`MAGIC.md`, reflection, inbox note or inquiry and
+			escalation instead, and the universal harness applies
+			them too), and sets `"autoMemoryEnabled": false`,
+			touching no other top-level key; a hand-wired entry
+			running the same script is kept as the policy's own and
+			its script replaced; it
 			writes no blanket `Bash` deny, since the reroute hook
 			governs `Bash`, and removes one an earlier install
 			wrote, matching the exact entry only, so a deny rule
@@ -2086,7 +2103,12 @@
 			Wires `myx.common` into workspace `.vscode/mcp.json`,
 			workspace-root `.mcp.json`, and Claude Code's home local
 			scope (`~/.claude.json`). Each written entry is verified by
-			re-reading it.
+			re-reading it. Writes `.local/agents/mcp.servers.index`
+			first, from the servers the workspace has installed, and
+			generates every MCP JSON entry (`.local/agents/
+			mcp.servers.json`, `.vscode/mcp.json`, `.mcp.json`) from
+			that index; the universal harness reads the index only,
+			never those files.
 
 			Default target workspace is the current shell directory;
 			`--workspace <path>` overrides it. Fails fast if the target
@@ -2119,14 +2141,18 @@
 			Writes the universal harness's own indexes in
 			`$MMDAPP/.local/agents`, which it reads at every start
 			instead of recomputing them: `harness.roots.index`
-			(the access roots, already resolved) and
-			`harness.hooks.index` (the PreToolUse hook list), each one
-			index used whichever origin a harness of this workspace runs
-			from, and `mcp.servers.index` (each registered MCP server
-			resolved, as --install-vscode-integrations also writes it).
-			Each is produced by the code the harness otherwise runs and
-			is used only while what it was produced from is unchanged, so
-			a missing, stale or older-format one only costs time. The
+			(the access roots, already resolved),
+			`harness.hooks.index` (the hooks the client tool policy
+			names) and `mcp.servers.index` (the servers this workspace
+			registers, as --install-vscode-integrations also writes
+			it), each one index used whichever origin a harness of
+			this workspace runs from. Each is produced from our own
+			primary data by the code the harness otherwise runs --
+			never from `.claude/settings.json`, `mcp.servers.json` or
+			any other file written for an external tool, which the
+			harness never reads -- and is used only while what it was
+			produced from is unchanged, so a missing, stale or
+			older-format one only costs time. The
 			children lists under `children/` are not this op's: the main
 			loop rebuilds them. Takes no arguments.
 
@@ -3058,8 +3084,11 @@
 		--magic-retro-close-state-and-unlock <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Releases the lock in routine closure, setting
 			`state: advance-finished`/`grooming-finished`/
-			`daily-finished`/`retro-finished`. Prints `RELEASED`,
-			returns 0 always. The grooming and daily closes also stamp
+			`daily-finished`/`retro-finished`. Prints `RELEASED` (rc 0)
+			only once the close is read back from the note on disk and
+			committed/pushed as configured; otherwise prints
+			`CLOSE_NOT_RECORDED` naming what failed, keeps the lock (the
+			note is not left finished) and returns 1. The grooming and daily closes also stamp
 			`last-close-date` (today, local), which
 			--magic-heartbeat-input-scan's `grooming-today:` and
 			--magic-daily-lock-acquire's `first-today:` read.
@@ -3300,8 +3329,10 @@
 
 		--magic-heartbeat-close-state-and-unlock <team-member>
 			Releases the lock in routine closure, setting the note's
-			`state: heartbeat-finished`. Prints `RELEASED` and returns 0
-			always. Takes no options; any further argument is rejected.
+			`state: heartbeat-finished`. Prints `RELEASED` (rc 0) only once
+			the close is read back on disk and committed/pushed as
+			configured; otherwise `CLOSE_NOT_RECORDED`, lock kept, rc 1.
+			Takes no options; any further argument is rejected.
 
 		--magic-heartbeat-lock-status <team-member>
 			Read-only, returns 0 always -- including when free, so a caller

@@ -306,8 +306,13 @@ rigVerdict "a complete error body costs one request, and the refusal names the h
 ## E. A PreToolUse hook refusal reaching the model, and the same rounds without it.
 ## ---------------------------------------------------------------------------
 rigStart e-hook-denies
-mkdir -p "$rigScenarioDir/.claude"
-printf '{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"%s/bin/rigdeny"}]}]}}\n' "$rigTmp" > "$rigScenarioDir/.claude/settings.json"
+## In the workspace's harness hook index -- our policy's records plus the rig's deny hook --
+## the only place our harness takes hooks from.
+mkdir -p "$rigScenarioDir/.local/agents"
+(
+	harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+		&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\t*\t'"$rigTmp/bin/rigdeny"$'\t\n'
+) > "$rigScenarioDir/.local/agents/harness.hooks.index" || { echo "⛔ ERROR: the rig's hook index could not be written -- refusing to report a result" >&2 ; exit 1 ; }
 rigWriteStream "$rigScenarioDir/res.1" "$rigScenarioDir/RIG-ARG-MARKER.txt" RIG-WRITTEN-MARKER
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
@@ -319,12 +324,16 @@ rigAssert "the round carried on to an answer"          "$( cat "$rigScenarioDir/
 rigAssert "the run ends normally"                      "$rigRunStatus" 0
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
-## same canned rounds with no settings file, where every probe answers the other way.
+## same canned rounds with no rig hook in the index -- the same deny hook placed only in
+## .claude/settings.json, which our harness never reads -- where every probe answers the
+## other way.
 rigStart e-hook-absent
+mkdir -p "$rigScenarioDir/.claude"
+printf '{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"%s/bin/rigdeny"}]}]}}\n' "$rigTmp" > "$rigScenarioDir/.claude/settings.json"
 rigWriteStream "$rigScenarioDir/res.1" "$rigScenarioDir/RIG-ARG-MARKER.txt" RIG-WRITTEN-MARKER
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun --access-write-root "$rigScenarioDir"
-rigAssert "control: no hooks were loaded"              "$( rigHolds "$rigScenarioDir/err" 'PreToolUse hooks from' )" no
+rigAssert "control: no hook index was loaded"         "$( rigHolds "$rigScenarioDir/err" 'harness.hooks.index' )" no
 rigAssert "control: no hook reason came back"          "$( rigHolds "$rigScenarioDir/req.2" 'RIG-HOOK-DENIED' )" no
 rigAssert "control: nothing was stated as blocked"     "$( rigHolds "$rigScenarioDir/req.2" 'blocked by a PreToolUse hook' )" no
 rigAssert "control: the tool ran and the file exists"  "$( rigExists "$rigScenarioDir/RIG-ARG-MARKER.txt" )" yes

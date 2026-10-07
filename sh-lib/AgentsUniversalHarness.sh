@@ -290,7 +290,7 @@ while [ $# -gt 0 ] ; do
 		;;
 		--mcp-server)
 			## Naming any replaces the workspace default set below with exactly these;
-			## AgentsHarnessMcpClient.sh resolves the name against .local/agents/mcp.servers.json.
+			## AgentsHarnessMcpClient.sh resolves the name among the servers the installer registers.
 			if [ -z "${2:-}" ] ; then
 				echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: --mcp-server: value required" >&2
 				exit 1
@@ -3325,7 +3325,7 @@ AgentsHarnessToolListMcpResourcesTool(){ ## server (optional)
 	case "$listServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ListMcpResourcesTool: this run enumerated no MCP server at all, so there is nothing to list. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ListMcpResourcesTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -3377,7 +3377,7 @@ AgentsHarnessToolReadMcpResourceTool(){ ## server, uri
 	case "$readServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ReadMcpResourceTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ReadMcpResourceTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -3410,7 +3410,7 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 	case "$dirServerRc" in
 		0) ;;
 		1)
-			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because this workspace registers it in .local/agents/mcp.servers.json, and nothing here can add one.\n' ; return 0
+			printf 'ERROR: ReadMcpResourceDirTool: this run enumerated no MCP server at all, so there is nothing to read from. A server is reachable only because this harness was started naming it or, with none named, because the installer registers it for this workspace (.local/agents/mcp.servers.index), and nothing here can add one.\n' ; return 0
 		;;
 		*)
 			printf 'ERROR: ReadMcpResourceDirTool: this run did not enumerate an MCP server named %s, and one it was never given is never started here. The servers this run holds are:%s\n' "$toolServer" "$( printf ' %s' "${harnessMcpServers[@]}" )" ; return 0
@@ -4173,7 +4173,8 @@ fi
 ## Which servers a served call may reach is the tool's own business, not its caller's,
 ## so it is settled here rather than by whoever invoked this arm. Only the three
 ## resource tools and ToolSearch reach one at all, so only they pay for one being spawned. The set is
-## the workspace's own cooked mcp.servers.json, minus this package's own server: our
+## the servers our installer registers for this workspace (its mcp.servers.index, or the
+## same composed from our primary sources), minus this package's own server: our
 ## registered key and our serverInfo.name are both the literal myx.distro, and
 ## enumerating ourselves is how a walk descends into a copy of itself. Self-exclusion
 ## terminates only if every participant excludes itself, so the marker below travels
@@ -4181,11 +4182,11 @@ fi
 ## declines. Named after the caller has parsed argv, and before the client is sourced,
 ## because that file enumerates as it loads. A model run that named no --mcp-server
 ## takes the same set, the empty name being that run: this harness is the myx.distro
-## destination for it too. No mcp.servers.json means no set, and nothing is printed.
+## destination for it too. No registered server means no set, and nothing is printed.
 ## A set named on argv is the run's own and stays. With none named, the set is read
-## from mcp.servers.json again on every enumeration -- the client enumerates on load
-## and again before any round that finds that file changed -- so a server registered or
-## removed there reaches the next round rather than the next run.
+## again on every enumeration -- the client enumerates on load and again before any
+## round that finds mcp.servers.index changed -- so a server the installer registers or
+## removes reaches the next round rather than the next run.
 case "$harnessToolOnlyName" in
 	ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch)
 		export MDAT_MCP_SERVED_MARKER=1
@@ -4197,9 +4198,9 @@ AgentsHarnessMcpServerSet(){
 	harnessMcpServers=()
 	case "$harnessToolOnlyName" in
 		ListMcpResourcesTool|ReadMcpResourceTool|ReadMcpResourceDirTool|ToolSearch|'')
-			if [ -f "${MMDAPP:-}/.local/agents/mcp.servers.json" ] ; then
-				## From the installer's index when it matches the JSON, else the JSON's own keys.
-				AgentsHarnessMcpKeys "$MMDAPP/.local/agents/mcp.servers.json"
+			if [ -n "${MMDAPP:-}" ] ; then
+				## From the installer's index, else the same registration composed from our primary sources.
+				AgentsHarnessMcpKeys
 				while IFS= read -r harnessToolPeer ; do
 					[ -n "$harnessToolPeer" ] || continue
 					[ "myx.distro" != "$harnessToolPeer" ] || continue
@@ -4387,7 +4388,7 @@ while : ; do
 	[ -z "$harnessMonitorPending" ] || harnessMessages+=( "$( AgentsWireUserRecord "$harnessMonitorPending" )" )
 
 	## The MCP set is enumerated again before a round only when the catalogue may be stale --
-	## mcp.servers.json changed, a server was unavailable, or a call failed to reach its
+	## mcp.servers.index changed, a server was unavailable, or a call failed to reach its
 	## server (AgentsHarnessMcpStale); its report shows when the set or the note changed.
 	if [ "$harnessRound" -gt 1 ] && AgentsHarnessMcpStale ; then
 		harnessMcpToolsJsonWas="$harnessMcpToolsJson"

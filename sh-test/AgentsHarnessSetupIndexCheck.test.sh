@@ -10,8 +10,9 @@
 ##      answering by leaving the producer unable to run. A changed input never uses it;
 ##      another MDLT_ORIGIN does, with that origin's own skillset merged in; an index of
 ##      format version 1 never does.
-##   2. Unit: the hook index yields the loader's list, fault and skipped count for every
-##      settings.json shape the loader distinguishes, and none for changed inputs.
+##   2. Unit: the hook index yields the policy's own list and skipped count -- never
+##      anything from .claude/settings.json -- and none for another policy, version or a
+##      cut-short index.
 ##   3. Through the real harness: the request it builds (system text naming every root)
 ##      and its stderr report are the same with the indexes present and absent.
 ##   4. The install op writes the indexes and leaves the children lists alone; the main
@@ -152,52 +153,37 @@ sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.
 sed '1s/ 2$/ 1/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
 rigAssert "an index of format version 1"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 
-echo "-- the hooks index answers as the loader does --"
-rigHooks(){ ## settings.json content -- prints loader result, index result
+echo "-- the hooks index answers as the policy does, and settings.json is never read --"
+mkdir -p "$rigWs/.claude"
+## A settings.json full of hooks of every kind: none of it may reach the harness's list.
+printf '%s' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/deny.sh \"a b\""}]},{"hooks":[{"type":"command","command":"/y/other.sh"}]}]}}' > "$rigWs/.claude/settings.json"
+rigHooks(){ ## prints: computed list, index-written, index list, then one verdict per stale case
 	(
 		MMDAPP="$rigWs" harnessHere="$rigHere"
-		. "$rigHere/AgentsHarnessHooksLoad.include"
-		mkdir -p "$rigWs/.claude"
-		printf '%s' "$1" > "$rigWs/.claude/settings.json"
-		harnessHooksRerouteList=".claude/hooks/deny-native-tool-reroute.sh"$'\n'
-		harnessHooksRerouteKeys=( ".claude/hooks/deny-native-tool-reroute.sh" )
-		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
-		AgentsHarnessHooksLoadSettings
-		printf 'loader[%s][%s][%s]\n' "$harnessHooksFault" "$harnessHooksSkipped" "${harnessHooksList//$'\n'/\\n}"
-		AgentsHarnessHooksIndexText "$rigWs" "$harnessHooksRerouteList" > "$rigWs/.local/agents/harness.hooks.index"
+		. "$rigHere/AgentsTools.ClientToolPolicy.include" && . "$rigHere/AgentsHarnessHooksLoad.include" || exit 1
+		rigList(){ harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0 ; AgentsHarnessHooksRecords "$rigWs" && AgentsHarnessHooksFromRecords "$agentsHooksRecords" ; printf '[%s][%s][%s][%s]\n' "$agentsHooksFrom" "$harnessHooksFault" "$harnessHooksSkipped" "${harnessHooksList//$'\n'/\\n}" ; }
+		rm -f "$rigWs/.local/agents/harness.hooks.index"
+		rigList
+		AgentsHarnessHooksIndexWrite "$rigWs" && printf 'written\n' || printf 'not-written\n'
 		## Poisoned, so only the index can produce the answer below.
-		AgentsHarnessHooksLoadSettings(){ harnessHooksFault="the loader ran" ; }
-		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
-		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index" || AgentsHarnessHooksLoadSettings
-		printf 'loader[%s][%s][%s]\n' "$harnessHooksFault" "$harnessHooksSkipped" "${harnessHooksList//$'\n'/\\n}"
-		## Any other reroute list is another policy, and the index must not answer for it.
-		harnessHooksRerouteList="other"
-		harnessHooksList="" harnessHooksFault="" harnessHooksSkipped=0
-		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index" && printf 'stale-used\n' || printf 'stale-refused\n'
-		## Nor for a settings.json changed since, nor once the index is of another version.
-		harnessHooksRerouteList=".claude/hooks/deny-native-tool-reroute.sh"$'\n'
-		printf ' ' >> "$rigWs/.claude/settings.json"
-		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index" && printf 'stale-used\n' || printf 'stale-refused\n'
-		printf '%s' "$1" > "$rigWs/.claude/settings.json"
-		sed '1s/ 2$/ 1/' "$rigWs/.local/agents/harness.hooks.index" > "$rigWs/.local/agents/harness.hooks.index.v1"
-		AgentsHarnessHooksIndexUse "$rigWs/.claude/settings.json" "$rigWs/.local/agents/harness.hooks.index.v1" && printf 'stale-used\n' || printf 'stale-refused\n'
-		rm -f "$rigWs/.local/agents/harness.hooks.index.v1"
+		AgentsHarnessHooksRecordsComputed(){ agentsHooksRecords=$'PreToolUse\tall\tpoison\t\t/poison\t\n' ; }
+		rigList
+		cp "$rigWs/.local/agents/harness.hooks.index" "$rigTmp/hooks.good"
+		for rigStale in 's/^sum\t[0-9]*/sum\t1/' '1s/ 3$/ 2/' '$d' ; do
+			sed "$rigStale" "$rigTmp/hooks.good" > "$rigWs/.local/agents/harness.hooks.index"
+			harnessHooksList="" ; AgentsHarnessHooksRecords "$rigWs" ; printf '%s\n' "$agentsHooksFrom"
+		done
+		cp "$rigTmp/hooks.good" "$rigWs/.local/agents/harness.hooks.index"
 	)
 }
-rigHookCase(){ ## what, settings.json content
-	local hookOut
-	hookOut="$( rigHooks "$2" )"
-	rigAssert "hooks [$1]: the index gives the loader's answer" "$( printf '%s\n' "$hookOut" | sed -n 2p )" "$( printf '%s\n' "$hookOut" | sed -n 1p )"
-	rigAssert "hooks [$1]: another reroute list is refused"     "$( printf '%s\n' "$hookOut" | sed -n 3p )" stale-refused
-	rigAssert "hooks [$1]: a changed settings.json is refused"  "$( printf '%s\n' "$hookOut" | sed -n 4p )" stale-refused
-	rigAssert "hooks [$1]: a version 1 index is refused"        "$( printf '%s\n' "$hookOut" | sed -n 5p )" stale-refused
-}
-rigHookCase "a mixed set" '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/x/deny.sh \"a b\""}]},{"hooks":[{"type":"command","command":"/w/.claude/hooks/deny-native-tool-reroute.sh Read"},{"type":"command","command":"/y/other.sh"}]}]}}'
-rigHookCase "no PreToolUse at all" '{"permissions":{"allow":["Read"]}}'
-rigHookCase "not JSON" '{"hooks":'
-rigHookCase "a hook that is not a command" '{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"prompt","command":"x"}]}]}}'
-rigHookCase "a tab in a matcher" '{"hooks":{"PreToolUse":[{"matcher":"a\tb","hooks":[{"type":"command","command":"/z"}]}]}}'
-rigHookCase "no hooks array" '{"hooks":{"PreToolUse":[{"matcher":"*"}]}}'
+rigHookOut="$( rigHooks )"
+rigPolicyList="$( printf '%s\n' "$rigHookOut" | sed -n 1p )"
+rigAssert "hooks: computed from the policy, settings.json not read" "$rigPolicyList" "[the client tool policy][][10][Read	$rigHere/client-hooks/deny-memory-md-read.sh\\nGlob	$rigHere/client-hooks/deny-memory-md-read.sh Glob\\nGrep	$rigHere/client-hooks/deny-memory-md-read.sh Grep\\nEdit|Write	$rigHere/client-hooks/protect-memory-md.sh\\n]"
+rigAssert "hooks: the index is written" "$( printf '%s\n' "$rigHookOut" | sed -n 2p )" written
+rigAssert "hooks: the index gives the policy's answer" "$( printf '%s\n' "$rigHookOut" | sed -n 3p )" "${rigPolicyList/the client tool policy/harness.hooks.index}"
+rigAssert "hooks: another policy's index is refused" "$( printf '%s\n' "$rigHookOut" | sed -n 4p )" "the client tool policy"
+rigAssert "hooks: a version 2 index is refused" "$( printf '%s\n' "$rigHookOut" | sed -n 5p )" "the client tool policy"
+rigAssert "hooks: an index cut short is refused" "$( printf '%s\n' "$rigHookOut" | sed -n 6p )" "the client tool policy"
 
 echo "-- through the harness: the same request and report, indexes or not --"
 mkdir -p "$rigTmp/bin"
@@ -227,15 +213,17 @@ rigHarnessRun computed
 	harnessHere="$rigHere" MMDAPP="$rigWs"
 	. "$rigHere/AgentsTools.ClientAccessRoots.include" && . "$rigHere/AgentsHarnessRootsIndex.include" && . "$rigHere/AgentsTools.ClientToolPolicy.include" && . "$rigHere/AgentsHarnessHooksLoad.include"
 	AgentsHarnessRootsIndexText "$rigWs" > "$rigWs/.local/agents/harness.roots.index"
-	AgentsHarnessHooksIndexText "$rigWs" "$( AgentsToolsClientToolPolicyRerouteHookKeys )" > "$rigWs/.local/agents/harness.hooks.index"
+	AgentsHarnessHooksIndexText > "$rigWs/.local/agents/harness.hooks.index"
 )
 sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
 rigHarnessRun indexed
 rigAssert "both runs answered" "$( cat "$rigTmp/computed.out" ):$( cat "$rigTmp/indexed.out" )" "RIG-FINAL-MARKER:RIG-FINAL-MARKER"
 rigAssert "the request names the same roots, byte for byte" "$( cat "$rigTmp/indexed.req" )" "$( cat "$rigTmp/computed.req" )"
 rigAssert "the request did name the fixture's roots"        "$( LC_ALL=C grep -c "$rigTmp/src/alpha" "$rigTmp/indexed.req" )" 1
-rigAssert "the stderr report is the same"                   "$( LC_ALL=C grep -v '^── round\|AgentsUniversalHarness\.' "$rigTmp/indexed.err" )" "$( LC_ALL=C grep -v '^── round\|AgentsUniversalHarness\.' "$rigTmp/computed.err" )"
-rigAssert "and it reported the hooks and a skipped reroute"  "$( LC_ALL=C grep -c 'PreToolUse hooks from\|skipped' "$rigTmp/indexed.err" )" 2
+rigAssert "the stderr report is the same, but for where the hooks came from" "$( LC_ALL=C grep -v '^── round\|AgentsUniversalHarness\.\|PreToolUse hooks' "$rigTmp/indexed.err" )" "$( LC_ALL=C grep -v '^── round\|AgentsUniversalHarness\.\|PreToolUse hooks' "$rigTmp/computed.err" )"
+rigAssert "the indexed run said the hooks came from the index" "$( LC_ALL=C grep -c 'PreToolUse hooks from.*harness.hooks.index' "$rigTmp/indexed.err" )" 1
+rigAssert "the computed run said they were computed"          "$( LC_ALL=C grep -c 'PreToolUse hooks computed from.*the client tool policy' "$rigTmp/computed.err" )" 1
+rigAssert "and it reported a skipped reroute"                 "$( LC_ALL=C grep -c 'skipped' "$rigTmp/indexed.err" )" 1
 
 echo "-- children and the sandbox: the same roots, listed or scanned, handed over or resolved --"
 ## Three spawn records: two children of rig-parent (one under a linked sandbox), one of another.
@@ -249,7 +237,7 @@ rm -rf "$rigWs/.local/agents/children"
 CLAUDE_CODE_SESSION_ID=rig-parent rigHarnessRun children-scanned
 ## The install's own op writes every harness index and leaves the children lists alone.
 ( set +u ; HOME="$rigHome" MDAT_SKILLSET_ROOT="$rigSkills" MMDAPP="$rigWs" "${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh" --make-harness-indices ) > "$rigTmp/make.out" 2> "$rigTmp/make.err"
-rigAssert "the install op wrote every harness index"             "$( ls "$rigWs/.local/agents" | LC_ALL=C grep -c 'harness.roots.index\|harness.hooks.index' )" 2
+rigAssert "the install op wrote every harness index"             "$( ls "$rigWs/.local/agents" | LC_ALL=C grep -c 'harness.roots.index\|harness.hooks.index\|mcp.servers.index' )" 3
 rigAssert "and left the children lists alone"                    "$( [ -e "$rigWs/.local/agents/children" ] && printf yes || printf no )" no
 ## The main loop's repair lists every record and marks the lists complete: a stale list
 ## goes, an id that could name another file is skipped.

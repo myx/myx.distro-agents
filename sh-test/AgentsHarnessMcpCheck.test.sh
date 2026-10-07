@@ -5,7 +5,8 @@
 ## a ninth tool reaching the wire leaves its report byte-identical to a clean one. This
 ## proves the four sites by RUNNING them -- rendered declaration, announce arm, dispatch
 ## arm, server round-trip -- against a fake MCP server and a fake `curl`, both first on
-## PATH or named by absolute path in the rig's own mcp.servers.json. Offline by construction:
+## PATH or named by absolute path in the rig's own mcp.servers.index -- the harness's own
+## registration, written here with the installer's own index writer. Offline by construction:
 ## no socket is opened, no credential is read, and nothing outlives the EXIT trap.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -70,7 +71,29 @@ rigStart(){ ## scenario directory name
 	mkdir -p "$rigScenarioDir"
 	printf '0' > "$rigScenarioDir/round"
 	mkdir -p "$rigScenarioDir/.local/agents"
-	printf '{"mcpServers":{"rigmcp":{"command":"%s/bin/rigmcp","args":[],"env":{"RIG_MCP_PROBE":"rig-not-a-credential"}}}}\n' "$rigTmp" > "$rigScenarioDir/.local/agents/mcp.servers.json"
+	rigRegister "$rigScenarioDir" > "$rigScenarioDir/.local/agents/mcp.servers.index" || rigRefuse "the rig's MCP index could not be written"
+}
+## The rig server registered in a workspace's harness index, with the installer's own
+## writer; given an extra env value, the same server with a changed registration.
+rigRegister(){ ## workspace [extra env value]
+	(
+		harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessMcpConfig.include" || exit 1
+		AgentsHarnessMcpSpecReset
+		if [ -n "${2:-}" ] ; then
+			AgentsHarnessMcpSpecAdd rigmcp "$rigTmp/bin/rigmcp" 2 RIG_MCP_PROBE rig-not-a-credential RIG_MCP_EXTRA "$2"
+		else
+			AgentsHarnessMcpSpecAdd rigmcp "$rigTmp/bin/rigmcp" 1 RIG_MCP_PROBE rig-not-a-credential
+		fi
+		AgentsHarnessMcpIndexText "$1" use-spec
+	)
+}
+## A hook in a workspace's harness hook index: our policy's records plus one rig record.
+rigHookIndex(){ ## workspace, matcher, absolute script
+	mkdir -p "$1/.local/agents"
+	(
+		harnessHere="$rigHere" ; . "$rigHere/AgentsHarnessHooksLoad.include" && AgentsHarnessHooksRecordsComputed \
+			&& AgentsHarnessHooksIndexText "$agentsHooksRecords"$'PreToolUse\tall\trig-record\t'"$2"$'\t'"$3"$'\t\n'
+	) > "$1/.local/agents/harness.hooks.index" || rigRefuse "the rig's hook index could not be written"
 }
 
 ## A round answering with one MCP tool call, then the usage chunk the threshold reads.
@@ -99,7 +122,7 @@ rigRun(){ ## MDAT_HARNESS_CONTEXT_TOKENS, then the harness arguments this scenar
 	local runContextTokens="$1"
 	shift
 	rigRunStatus=0
-	## MMDAPP points at the scenario, so .local/agents/mcp.servers.json and .claude/settings.json are both
+	## MMDAPP points at the scenario, so .local/agents/mcp.servers.index and harness.hooks.index are both
 	## this scenario's own and no file of the real workspace is read.
 	RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir" \
 		MDAT_HARNESS_CONTEXT_TOKENS="$runContextTokens" MDAT_HARNESS_MAX_RESTARTS=3 \
@@ -195,11 +218,11 @@ rigVerdict "declaration, announce, dispatch and round-trip -- enumerated once, k
 
 ## The tool set is dynamic: a registration removed between rounds is gone from the next
 ## request, and one added between rounds is declared in it. No --mcp-server is named, so
-## the set is the workspace's own mcp.servers.json, read again before every round.
+## the set is the workspace's own registration, its mcp.servers.index read again before every round.
 rigStart unregistered-mid-run
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
-RIG_AFTER_ROUND_1="rm -f '$rigScenarioDir/.local/agents/mcp.servers.json'" rigRun 0
+RIG_AFTER_ROUND_1="rm -f '$rigScenarioDir/.local/agents/mcp.servers.index'" rigRun 0
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 ## Read by the declaration's own description: the round-1 call record carries the
@@ -210,10 +233,10 @@ rigAssert "the change was reported"                         "$( rigHolds "$rigSc
 rigVerdict "a registration removed mid-run -- gone from the next round"
 
 rigStart registered-mid-run
-mv "$rigScenarioDir/.local/agents/mcp.servers.json" "$rigScenarioDir/mcp.servers.json.later"
+mv "$rigScenarioDir/.local/agents/mcp.servers.index" "$rigScenarioDir/mcp.servers.index.later"
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
-RIG_AFTER_ROUND_1="mv '$rigScenarioDir/mcp.servers.json.later' '$rigScenarioDir/.local/agents/mcp.servers.json'" rigRun 0
+RIG_AFTER_ROUND_1="mv '$rigScenarioDir/mcp.servers.index.later' '$rigScenarioDir/.local/agents/mcp.servers.index'" rigRun 0
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the first round declares no MCP tool"            "$( rigHolds "$rigScenarioDir/req.1" 'mcp__rigmcp__ping' )" no
@@ -245,13 +268,14 @@ rigVerdict "a server back mid-run -- declared and told in the next round"
 ## A failure inside a mid-run enumeration is stated and the run carries on. The rig
 ## makes one by turning the reply file enumeration writes into a directory; the first
 ## round calls a built-in tool, so nothing but the enumeration writes that file. The
-## registration is rewritten too -- same servers, one more trailing byte -- because an
+## registration is rewritten too -- same server, one more env value -- because an
 ## unchanged one is not enumerated again, and a changed one must be.
 rigStart enumeration-fails-mid-run
+rigRegister "$rigScenarioDir" changed > "$rigScenarioDir/mcp.servers.index.changed" || rigRefuse "the rig's changed MCP index could not be written"
 printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-glob-call","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"*\\"}"}}]}}]}\n' > "$rigScenarioDir/res.1"
 printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigScenarioDir/res.1"
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
-RIG_AFTER_ROUND_1='rigReq="${RIG_REQUEST_FILE%/*}/mcp.reply" ; rm -f "$rigReq" ; mkdir "$rigReq" ; printf " \n" >> "$RIG_SCENARIO/.local/agents/mcp.servers.json"' rigRun 0
+RIG_AFTER_ROUND_1='rigReq="${RIG_REQUEST_FILE%/*}/mcp.reply" ; rm -f "$rigReq" ; mkdir "$rigReq" ; mv "$RIG_SCENARIO/mcp.servers.index.changed" "$RIG_SCENARIO/.local/agents/mcp.servers.index"' rigRun 0
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 rigAssert "the failure's own reason is shown"               "$( rigHolds "$rigScenarioDir/err" 'Is a directory' )" yes
@@ -277,10 +301,12 @@ rigAssert "with the same tools bytes as the first"          "$( [ "$( rigToolsOf
 rigVerdict "an unchanged registration and no failure -- the catalogue is kept, no server re-spawned"
 
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
-## same canned rounds with no server named and no mcp.servers.json to default to, where
-## every probe answers the other way.
+## same canned rounds with no server named and no registration to default to, where
+## every probe answers the other way. A mcp.servers.json naming the server is left in
+## place: it is output for external tools, and our harness never reads it.
 rigStart no-server-named
-rm -f "$rigScenarioDir/.local/agents/mcp.servers.json"
+rm -f "$rigScenarioDir/.local/agents/mcp.servers.index"
+printf '{"mcpServers":{"rigmcp":{"command":"%s/bin/rigmcp","args":[]}}}\n' "$rigTmp" > "$rigScenarioDir/.local/agents/mcp.servers.json"
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun 0
@@ -292,7 +318,7 @@ rigAssert "nothing was enumerated"                    "$( rigHolds "$rigScenario
 rigAssert "no server process was started at all"      "$( rigServerSaw list )" 0
 rigAssert "the call is refused as an unknown tool"    "$( rigHolds "$rigScenarioDir/req.2" 'no MCP server this run enumerated declares it' )" yes
 rigAssert "the answer still comes back"               "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigVerdict "no server named, none configured -- nothing declared, nothing spawned, the call refused"
+rigVerdict "no server named, none registered (a mcp.servers.json naming one ignored) -- nothing declared, nothing spawned, the call refused"
 
 ## A server that hands over its tools and then dies: the call becomes an ERROR the model
 ## reads, and the round carries on rather than the leg restarting or exiting.
@@ -361,8 +387,7 @@ rigVerdict "MDAT_HARNESS_RUN_TIMEOUT -- no bound unset, a set one still kills"
 ## The payload, which is the whole reason a deny hook can decide anything about an MCP
 ## call: the hook denies on a value that reaches it ONLY through `tool_input`.
 rigStart hook-denies-the-call
-mkdir -p "$rigScenarioDir/.claude"
-printf '{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"%s/bin/rigdeny"}]}]}}\n' "$rigTmp" > "$rigScenarioDir/.claude/settings.json"
+rigHookIndex "$rigScenarioDir" '*' "$rigTmp/bin/rigdeny"
 rigMcpStream "$rigScenarioDir/res.1" 20
 rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
 rigRun 0 --mcp-server rigmcp
@@ -374,6 +399,20 @@ rigAssert "the server was never called"             "$( rigServerSaw call )" 0
 rigAssert "no result came back from the server"     "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT' )" no
 rigAssert "the round carried on to an answer"       "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "a PreToolUse hook denies an MCP call -- it reads tool_input and the tool never runs"
+
+## The same deny hook placed only in .claude/settings.json: that file is generated for the
+## *-native clients, and our harness applies none of it -- the call goes through.
+rigStart settings-json-hook-ignored
+mkdir -p "$rigScenarioDir/.claude"
+printf '{"hooks":{"PreToolUse":[{"matcher":"*","hooks":[{"type":"command","command":"%s/bin/rigdeny"}]}]}}\n' "$rigTmp" > "$rigScenarioDir/.claude/settings.json"
+rigMcpStream "$rigScenarioDir/res.1" 20
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+rigRun 0 --mcp-server rigmcp
+rigAssert "the run ends normally"                   "$rigRunStatus" 0
+rigAssert "the settings.json hook did not refuse"   "$( rigHolds "$rigScenarioDir/req.2" 'RIG-HOOK-DENIED' )" no
+rigAssert "the server was called"                   "$( rigServerSaw call )" 1
+rigAssert "its result came back"                    "$( rigHolds "$rigScenarioDir/req.2" 'RIG-MCPRESULT' )" yes
+rigVerdict "a hook only in .claude/settings.json -- never applied by our harness"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MCP CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
