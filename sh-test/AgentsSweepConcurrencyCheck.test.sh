@@ -40,7 +40,7 @@ for rigEntry in "$MDLT_ORIGIN"/myx/* ; do
 done
 cp -R "$rigPackage" "$rigSerial/myx/myx.distro-agents"
 sed -i.rig -E 's/Parallel( --workers [0-9]+)? AgentsToolsMagicSweepAccountOne/Parallel --workers 1 AgentsToolsMagicSweepAccountOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweep.include"
-sed -i.rig 's/Parallel AgentsSessionContextSourceFetchOne/Parallel --workers 1 AgentsSessionContextSourceFetchOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
+sed -i.rig -E 's/Parallel( --workers [^ ]+)? AgentsSessionContextSourceFetchOne/Parallel --workers 1 AgentsSessionContextSourceFetchOne/' "$rigSerial/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include"
 rigHeld="$( cat "$rigSerial/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweep.include" "$rigSerial/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSessionContextScan.include" | LC_ALL=C grep -c 'Parallel --workers 1' || : )"
 [ "$rigHeld" = 2 ] || rigRefuse "the serial copy did not hold both Parallel sites to one worker (found $rigHeld), so no serial run could be compared"
 

@@ -128,6 +128,19 @@ rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the 
 	printf '%s\n' 'client-ndm 🐭 Magic Vane dispatchr' 'keeper-both 🔧 Both Keeper bothkeep' 'keeper-there 🔧 There Keeper therekeep' > "$rigWork/ws-there/.local/agents/team-members-names.registry"
 	printf '%s\n' 'client-ndm 🐭 Rig Persona rigalias' > "$rigWork/ws-rig/.local/agents/team-members-names.registry"
 	rigConsole ws-here HERE ; rigConsole ws-there THERE ; rigConsole ws-third THIRD ; rigConsole ws-rig RIG
+	## client-ndm's own contacts note in each workspace that holds it: a send presenting into
+	## a client workspace passes the outbound contact gate (--intern-op-contact-assert-known)
+	## only for a listed recipient, and these are the rig's own channels and owners there.
+	for wsName in ws-there ws-rig ; do
+		mkdir -p "$rigWork/$wsName/.local/agents/team-data-root/inboxes/client-ndm"
+		printf '%s\n' \
+			'| slack-id | contact | handle | email | organisation | permission level |' \
+			'| --- | --- | --- | --- | --- | --- |' \
+			'| CTHERE0001 | rig-team-there | @rig-team-there | <unresolved> | rig | unset |' \
+			'| UTHEREOWNER | rig-owner-there | @rig-owner-there | <unresolved> | rig | unset |' \
+			'| CRIG000001 | rig-team-rig | @rig-team-rig | <unresolved> | rig | unset |' \
+			> "$rigWork/$wsName/.local/agents/team-data-root/inboxes/client-ndm/note-rig-contacts.md"
+	done
 	: > "$rigTmp/calls" ; : > "$rigTmp/envs" ; : > "$rigTmp/bodies"
 }
 rigIndexOff(){ ## -- the members index and the tracked list set aside, as on a machine that has none
@@ -441,7 +454,13 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'[ "${MDAT_SPAWN_RESUME:-}" != true ] || printf "📦 SubagentHandback\n"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWork/ws-there/DistroAgentsConsole.sh"
 rm -f "$rigTmp"/start.*
-rigSpawnIn ws-here keeper-there --spawn-cli-service rig-service
+## Without --wait: a --wait spawn under --dispatch-doc:none keeps no output file, and the
+## retry reads the output file for the handback, so only this form reaches it.
+rigRc=0
+( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigTmp" \
+	bash "$rigTool" --intern-op-agent-spawn-proxy keeper-there --spawn-cli-service rig-service --dispatch-doc:none --context rig-ws-switch ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
+rigRetryLeft=30
+while [ ! -s "$rigTmp/start.true" ] && [ "$rigRetryLeft" -gt 0 ] ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
 rigAssert "a launch with no handback is retried once"                     "$rigRc $( ls "$rigTmp" | LC_ALL=C grep -c '^start\.' || : )" "0 2"
 rigAssert "the retry gets the launch's own workspace, session id, session thread and CLI args" "$( cat "$rigTmp/start.true" 2> /dev/null )" "$( cat "$rigTmp/start.launch" 2> /dev/null )"
 rigAssert "which are the member's workspace and the asked-for CLI, never the caller's" "$( LC_ALL=C cut -d'|' -f1,4 "$rigTmp/start.true" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" )" "ws-there|--cli rig-service --non-interactive"

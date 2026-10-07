@@ -169,6 +169,8 @@ rigAssert "one pending record"                            "$( rigRecords )" 1
 rigAssert "it is still waiting for a reply"               "$( rigRecordStatus )" reply-pending
 rigAssert "the result names the record"                   "$( rigHolds "$rigScenarioDir/out" 'recorded as pending reply' )" yes
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0
+rigAssert "the last line names the re-wait call"          "$( LC_ALL=C awk 'END { sub( /pending_id=[0-9A-Za-z._-]+ /, "pending_id=<id> " ) ; print ; }' "$rigScenarioDir/out" )" "NEXT: to wait for the answer, call AskUserQuestion pending_id=<id> -- it posts nothing"
+rigAssert "and it is the only NEXT: line, none from the send" "$( LC_ALL=C grep -c '^NEXT: ' "$rigScenarioDir/out" )" 1
 rigVerdict "wait=false -- opener, question in its thread, POSTED with a pending record"
 
 ## ---------------------------------------------------------------------------
@@ -275,6 +277,46 @@ rigAssert "it is not dressed as a refusal"                "$( rigHolds "$rigScen
 rigAssert "two posts: opener and question"                "$( rigCalls chat.postMessage )" 2
 rigAssert "one pending record"                            "$( rigRecords )" 1
 rigVerdict "below the plain-language floor -- measured, never refused: POSTED, and the predicate named"
+
+## ---------------------------------------------------------------------------
+## 7a. The senders' NEXT: line. SendMessage names the Wait for a reply in the
+##     message's thread, built from what the send reported; SubagentHandback, from a
+##     spawned session nobody blocks on, says to keep waiting. Each with a control.
+## ---------------------------------------------------------------------------
+rigServe(){ ## tool, argument object, then env assignments for the call
+	local serveTool="$1" serveArgs="$2"
+	shift 2
+	( cd "$rigScenarioDir/ws" && printf '%s' "$serveArgs" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_CALLER_WAITS \
+		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" "$@" \
+		bash "$rigHarness" --intern-tool "$serveTool" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" || :
+}
+rigLastLine(){ ## file
+	LC_ALL=C awk 'END { print ; }' "$1"
+}
+rigStart send-next
+rigServe SendMessage '{"to":"magic-team","message":"Rig status note."}'
+rigAssert "it was sent"                                   "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=1700000001.000101' )" yes
+rigAssert "a top-level post: wait in its own thread"      "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: to wait for a reply in its thread, call Wait sources=slack:CRIG00001:1700000001.000101:conversation since_utime=1700000001.000101"
+rigServe SendMessage '{"to":"CRIG00001:1700000001.000101","message":"Rig thread note."}'
+rigAssert "a thread reply: the thread root, our own ts as floor" "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: to wait for a reply in its thread, call Wait sources=slack:CRIG00001:1700000001.000101:conversation since_utime=1700000001.000102"
+: > "$rigScenarioDir/post-refuse"
+rigServe SendMessage '{"to":"magic-team","message":"Rig refused note."}'
+rigAssert "control: a refused send names no next step"    "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
+rm -f "$rigScenarioDir/post-refuse"
+rigServe PushNotification '{"to":"magic-team","severity":"info","headline":"Rig push."}'
+rigAssert "control: an announcement names no next step"   "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
+rigVerdict "SendMessage ends with the NEXT: Wait for a reply in its thread -- none on a refusal or an announcement"
+
+rigStart handback-next
+rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session
+rigAssert "it was sent"                                   "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=' )" yes
+rigAssert "a spawned session is told to keep waiting"     "$( rigLastLine "$rigScenarioDir/out" )" "NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED"
+rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}' MDAT_SPAWN_SESSION_ID=rig-spawn-session MDAT_SPAWN_CALLER_WAITS=true
+rigAssert "control: a caller-waits spawn is not"          "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
+rigServe SubagentHandback '{"to":"magic-team","outcome":"Rig work done."}'
+rigAssert "control: a session that is no spawn is not"    "$( rigHolds "$rigScenarioDir/out" 'NEXT:' )" no
+rigAssert "control: and the send itself still went"       "$( rigHolds "$rigScenarioDir/out" 'SENT_MESSAGE_TS=' )" yes
+rigVerdict "SubagentHandback from a spawned session ends with the NEXT: keep-waiting line -- not for a caller-waits spawn or a non-spawn"
 
 ## ---------------------------------------------------------------------------
 ## 8. The wait itself cannot be performed: the question stands, nothing is known,

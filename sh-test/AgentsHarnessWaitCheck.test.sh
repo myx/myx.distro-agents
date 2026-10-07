@@ -498,6 +498,7 @@ rigAssert "it is not dressed as a wait that found nothing" "$( rigHolds "$rigSce
 rigAssert "the model is told nothing is known"           "$( rigHolds "$rigScenarioDir/result" 'NOTHING is known about those sources' )" yes
 rigAssert "the operation's own reason reaches it"        "$( rigHolds "$rigScenarioDir/result" "kind 'pigeon'" )" yes
 rigAssert "and the kinds that do exist"                  "$( rigHolds "$rigScenarioDir/result" 'Kinds this build carries: slack file' )" yes
+rigAssert "a failed wait names no next step"             "$( rigHolds "$rigScenarioDir/result" 'NEXT:' )" no
 rigAssert "the round carried on to an answer"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the Wait tool -- an unwaitable source reaching the model as a failed wait, not as silence"
 
@@ -1246,7 +1247,25 @@ rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$r
 rigAssert "it is shown the mode that ran"                      "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" yes
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
+rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet -- to keep waiting on the same sources, call Wait mode=continue' )" yes
+rigAssert "and names it once"                                  "$( LC_ALL=C awk '{ hitCount += gsub( /NEXT: /, "&" ) ; } END { print hitCount + 0 ; }' "$rigScenarioDir/result" )" 1
 rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
+
+## A RECEIVED through the tool names the continue call too, worded for an arrival.
+rigStart tool-mode-received
+rigDropR="$rigScenarioDir/dropR.txt"
+: > "$rigDropR"
+rigWaitModeStream "$rigScenarioDir/res.1" "file:$rigDropR" 20 default
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigDropAfter 3 "$rigDropR" RIG-ARRIVAL-MARKER
+rigRun --agent "$rigMember"
+rigDropDone
+rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
+rigAssert "the model is shown RECEIVED as its opening"         "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: RECEIVED' )" yes
+rigAssert "the arrival is carried"                             "$( rigHolds "$rigScenarioDir/result" 'RIG-ARRIVAL-MARKER' )" yes
+rigAssert "a RECEIVED names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here' )" yes
+rigAssert "control: not the TIMEOUT wording"                   "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet' )" no
+rigVerdict "the Wait tool's RECEIVED ends with the NEXT: line naming mode=continue"
 
 rigStart tool-mode-omitted
 rigDropU="$rigScenarioDir/dropU.txt"
@@ -1272,6 +1291,7 @@ rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "mode close through the tool: CLOSED opens the result" "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: CLOSED' )" yes
 rigAssert "it is not a wait that ran the 600s bound"           "$( rigHolds "$rigScenarioDir/result" '# waited:' )" no
 rigAssert "no state is left in the session store"              "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 0
+rigAssert "a CLOSED names no next step"                        "$( rigHolds "$rigScenarioDir/result" 'NEXT:' )" no
 rigVerdict "the Wait tool with mode close returns CLOSED at once and leaves no state"
 
 ## ---------------------------------------------------------------------------

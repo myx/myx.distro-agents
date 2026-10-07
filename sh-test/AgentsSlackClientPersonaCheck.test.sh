@@ -43,6 +43,7 @@ trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
 rigWsName="${rigWs##*/}"
 rigAgentsDir="$rigWs/.local/agents"
+rigDataRoot="$rigTmp/team-data"
 rigNamesFile="$rigAgentsDir/$rigNamesName.registry"
 rigMembersFile="$rigAgentsDir/$rigMembersName.registry"
 rigLinkedFile="$rigSkills/.linked.magic-team.members.txt"
@@ -111,6 +112,25 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 	printf 'SLACK_USER_TOKEN=rig-user-token-MEL\nSLACK_BOT_TOKEN=rig-bot-token-MEL\n' > "$rigWs/.local/.agents/client-mel.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
 	: > "$rigTmp/post-answers"
+	## Each client's own contacts note: an external send passes the outbound contact gate
+	## (--intern-op-contact-assert-known) only for a listed recipient, and these are the
+	## rig's own channel, owner and DM. Under the data root every send here is given,
+	## outside .local/agents so the registry folder holds only what the build wrote.
+	local contactsMember
+	rm -rf "$rigDataRoot"
+	for contactsMember in client-ndm client-mel ; do
+		mkdir -p "$rigDataRoot/inboxes/$contactsMember"
+		printf '%s\n' \
+			'| slack-id | contact | handle | email | organisation | permission level |' \
+			'| --- | --- | --- | --- | --- | --- |' \
+			'| CRIG00001 | rig-team | @rig-team | <unresolved> | rig | unset |' \
+			'| URIGOWNER | rig-owner | @rig-owner | <unresolved> | rig | unset |' \
+			'| DRIG00001 | rig-owner-dm | @rig-owner | <unresolved> | rig | unset |' \
+			'| URIGKEEPER | rig-keeper | @rig-keeper | <unresolved> | rig | unset |' \
+			'| URIGNDM | rig-client-ndm | @rig-client-ndm | <unresolved> | rig | unset |' \
+			'| URIGACCT | rig-account | @rig-account | <unresolved> | rig | unset |' \
+			> "$rigDataRoot/inboxes/$contactsMember/note-rig-contacts.md"
+	done
 	rigBuild
 }
 rigWorldPlain(){ ## -- the default world and one more member with no Slack token of its own
@@ -139,13 +159,13 @@ rigIndexSet(){ ## member, field number (2 mark, 3 first, 4 family, 5 alias), val
 rigSend(){ ## member, target, send options... -- one send; rc in rigRc, stderr in $rigTmp/err, calls and bodies of this send alone
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:3}" RIG-BODY ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigSendBody(){ ## member, target, body, send options... -- the same with a body of its own
 	: > "$rigTmp/calls" ; rm -f "$rigTmp/bodies" ; touch "$rigTmp/bodies"
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_DATA_ROOT="$rigDataRoot" \
 		bash "$rigTool" --member-comms-slack-send-message "$1" "$2" "${@:4}" "$3" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 rigN(){ ## file, fixed text -- how many lines hold it

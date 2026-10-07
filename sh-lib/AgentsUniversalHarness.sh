@@ -1634,8 +1634,8 @@ AgentsHarnessParentThread(){
 ## the credential stays inside that operation and never reaches argv. The text goes in
 ## on stdin, where no shell quoting can reach it -- a single apostrophe in a composed
 ## send emptied one live message in this estate.
-AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on)
-	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" sendRc=0 toolShown="" toolParent toolInbox
+AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcast (true: a thread reply also shown in the conversation), no inbox (true: a team member with no Slack DM is refused, since an inbox cannot be waited on), next (reply|handback: a NEXT: line naming the Wait that follows a sent message)
+	local toolTarget="$1" toolMessage="$2" toolAsBot="$3" toolAddressTo="$4" toolBroadcast="${5:-}" toolNoInbox="${6:-}" toolNext="${7:-}" sendRc=0 toolShown="" toolParent toolInbox
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to send under, and one is never guessed here. Nothing was sent. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -1690,6 +1690,26 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		printf 'Sent to %s as %s. What the operation reported follows:\n' "${toolShown:-$toolTarget}" "$harnessAgent"
 	fi
 	cat "$harnessScratch/send.out"
+	## One extra last line naming the Wait that follows, only for a caller that asked (the
+	## SendMessage and SubagentHandback tools) -- never for AskUserQuestion, which waits itself,
+	## or the announcement stubs, which expect no reply. Built from the send's own reported fields.
+	[ "$sendRc" = "0" ] && [ -n "$toolNext" ] || return 0
+	if [ "$toolNext" = "handback" ] ; then
+		[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || return 0
+		printf 'NEXT: you are not done -- call Wait with no sources (your session thread) and obey what arrives, until it returns DISMISSED\n'
+		return 0
+	fi
+	local nextChannel nextTs nextThread nextAddressees
+	nextChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' "$harnessScratch/send.out" | head -1 )"
+	nextTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' "$harnessScratch/send.out" | head -1 )"
+	nextThread="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' "$harnessScratch/send.out" | head -1 )"
+	nextAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' "$harnessScratch/send.out" | head -1 )"
+	[ -n "$nextChannel" ] && [ -n "$nextTs" ] && [ -n "$nextThread" ] || return 0
+	case "$nextAddressees" in
+		'') printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s:conversation since_utime=%s\n' "$nextChannel" "$nextThread" "$nextTs" ;;
+		*' '*) printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s since_utime=%s addressee="%s"\n' "$nextChannel" "$nextThread" "$nextTs" "$nextAddressees" ;;
+		*) printf 'NEXT: to wait for a reply in its thread, call Wait sources=slack:%s:%s since_utime=%s addressee=%s\n' "$nextChannel" "$nextThread" "$nextTs" "$nextAddressees" ;;
+	esac
 }
 
 ## The spawned-sessions registry is what enumerates agents: every spawn has a sandbox, created
@@ -1829,9 +1849,17 @@ AgentsHarnessToolWait(){
 		&& waitDismissedBy="$( LC_ALL=C awk -v agent="$harnessAgent" -f "$harnessHere/AgentsHarnessWaitDismissed.awk" "$harnessScratch/wait.out" )" ; then
 		printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: %s\n' "$waitDismissedBy"
 		tail -n +2 "$harnessScratch/wait.out"
+		[ "$waitStateful" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
 		return 0
 	fi
 	cat "$harnessScratch/wait.out"
+	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
+	## stateless caller (AskUserQuestion) embeds this output and has no stored wait to continue.
+	[ "$waitStateful" = "true" ] || return 0
+	case "$( head -1 "$harnessScratch/wait.out" )" in
+		"WAIT-RESULT: TIMEOUT") printf 'NEXT: nothing new yet -- to keep waiting on the same sources, call Wait mode=continue\n' ;;
+		"WAIT-RESULT: RECEIVED") printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n' ;;
+	esac
 }
 
 ## Helpers behind Agent, TaskStop and TaskOutput. Deliberately NOT named
@@ -2440,12 +2468,12 @@ AgentsHarnessRefusedTargetDecode(){ ## value
 ## named AgentsHarnessTool*: that family is the static tool class
 ## AgentsHarnessSelfCheck.test.awk matches site by site, and a helper with no tool behind it
 ## is reported there as an orphan.
-AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text
+AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional next (see AgentsHarnessToolSendMessage)
 	local formalName="$1" formalTo="$2" formalAsBot="$3" formalBody="$4"
 	if [ -z "$formalTo" ] ; then
 		printf 'ERROR: %s: to is required and was empty, so there is nowhere to post it. Nothing was sent.\n' "$formalName" ; return 0
 	fi
-	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot"
+	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot" "" "" "" "${5:-}"
 }
 
 ## Posting a handback does not end this run and releases nobody waiting on it -- the
@@ -2471,7 +2499,7 @@ AgentsHarnessToolSubagentHandback(){
 		AgentsHarnessFormalField 'Unfinished, and what was not checked:' "$toolUnfinished"
 		AgentsHarnessFormalField 'Answers collected, and questions still open:' "$toolCollected"
 	} )"
-	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody"
+	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback
 }
 
 AgentsHarnessToolReportFindings(){
@@ -2883,6 +2911,7 @@ AgentsHarnessToolAskUserQuestion(){
 	case "$toolWait" in
 		false|0|no)
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s and no wait was asked for, so no answer was collected here. It stands and stays answerable, and can be picked up later%s. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ -- recorded as pending reply $askPendingId}" "$askSent"
+			[ -z "$askPendingId" ] || printf 'NEXT: to wait for the answer, call AskUserQuestion pending_id=%s -- it posts nothing\n' "$askPendingId"
 			return 0
 		;;
 	esac
@@ -3856,7 +3885,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Bash)      harnessResult="$( AgentsHarnessToolBash "${harnessArgV_cwd}" "${harnessArgV_command}" "${harnessArgV_timeout}" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "${harnessArgV_query}" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" )" ;;
-		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" )" ;;
+		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "" "" "" reply )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" )" ;;
