@@ -74,7 +74,7 @@ rigCall always
 rigAssert "it fails"                                    "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigAssert "after the attempt bound, five requests"      "$rigCalls" 5
 rigAssert "with a stated rate-limit reason"             "$( rigHolds "$rigTmp/err" 'rate-limited under bot identity: Slack still refused after 5 attempts' )" yes
-rigAssert "no response-header file is left behind"      "$( ls -1 "$rigWs/.local/temp" 2>/dev/null | LC_ALL=C grep -c '^mdat-slack-headers' )" 0
+rigAssert "no response-header file is left behind"      "$( ls -1 "$rigWs/.local/temp" 2>/dev/null | LC_ALL=C grep -c '^mdat-slack-' )" 0
 
 echo "-- an upload: a 429, then a 200 --"
 printf 'rig upload payload\n' > "$rigTmp/upload.txt"

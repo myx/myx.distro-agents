@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the member-workspace auto-switch, run rather than read, against a fixture machine built here: a
-## HOME holding the members index (member:workspace:link-kind:path) and the tracked workspaces list (absolute paths), and
+## HOME holding the machine-wide member directory (member, workspace root, link kind, path, member directory) and the
+## tracked workspaces list (absolute paths), both in $HOME/.agents/magic-team, and
 ## several workspace directories under one rig tree. The rule held: an operation naming a team member runs in the
 ## current workspace when the member is present there, else in the workspace where the member is a source link, else in
 ## the first tracked workspace that has it; a member the index does not know is not refused by the resolver, and a
@@ -37,8 +38,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigDog=$!
 trap 'pkill -P "$rigDog" 2> /dev/null ; kill "$rigDog" 2> /dev/null ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWork="$rigTmp/work" ; rigHome="$rigTmp/home" ; rigSkills="$rigHome/.claude/skills"
-rigIndexFile="$rigSkills/.linked.magic-team.members.txt"
-rigListFile="$rigSkills/.human-owner.workspaces.md"
+rigIndexFile="$rigHome/.agents/magic-team/members.registry"
+rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"
 mkdir -p "$rigTmp/bin"
 cp "$rigTest/check-fixtures/member-workspace-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/member-workspace-check.curl.test.sh"
@@ -65,7 +66,11 @@ rigMemberDir(){ ## member -- its skill directory with the files a send or a spaw
 	printf -- '---\nname: %s\n---\n\n# %s\n' "$1" "$1" > "$rigSkills/$1/SKILL.md"
 }
 rigIdx(){ ## member, workspace, link kind -- one row of the members index
-	printf '%s:%s:%s:myx/pkg/skillset/%s\n' "$1" "$2" "$3" "$1" >> "$rigIndexFile"
+	## The row carries the workspace root; ws-gone's is where the list says it was.
+	local idxRoot="$rigWork/$2"
+	[ "$2" != ws-gone ] || idxRoot="$rigWork/gone/ws-gone"
+	mkdir -p "${rigIndexFile%/*}"
+	printf '%s\t%s\t%s\tmyx/pkg/skillset/%s\t%s/source/myx/pkg/skillset/%s\n' "$1" "$idxRoot" "$3" "$1" "$idxRoot" "$1" >> "$rigIndexFile"
 }
 rigScopeOf(){ ## workspace, member, lines... -- that member's scope file in that workspace
 	local scopeWs="$1" scopeMember="$2" ; shift 2
@@ -90,7 +95,7 @@ rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the 
 	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/magic-team/magic-team.coworking.routine.md"
 	mkdir -p "$rigSkills/magic-team/templates" ; cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 	## the members index: who is present where, and how
-	: > "$rigIndexFile"
+	mkdir -p "${rigIndexFile%/*}" ; : > "$rigIndexFile"
 	rigIdx keeper-here ws-here source-symlink
 	rigIdx keeper-both ws-here origin-symlink ; rigIdx keeper-both ws-there source-symlink
 	rigIdx client-ndm ws-there source-symlink

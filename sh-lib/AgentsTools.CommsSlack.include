@@ -343,9 +343,20 @@ AgentsToolsResolveSlackBotToken(){
 ## as AgentsToolsResolveSlackBotToken above. See MAGIC.md.
 ## Prints the resolved domain, or nothing when neither scope has one; the caller
 ## is what states `<lookup-failed>`.
+##
+## ONCE PER SCAN, NOT ONCE PER CALL. A caller that makes many Slack calls for one
+## member -- the session-context scan -- resolves the domain once and declares
+## `AgentsToolsSlackDomainCacheFor` (the member) and
+## `AgentsToolsSlackDomainCacheValue` (the answer, possibly empty) local; every
+## call under it, in a subshell or not, then reads that answer instead of two
+## config lookups. Unset, as everywhere else, nothing changes.
 AgentsToolsResolveSlackWorkspaceDomain(){
 	local memberName="$1"
 	local resolvedDomain=""
+	if [ -n "${AgentsToolsSlackDomainCacheFor:-}" ] && [ "$AgentsToolsSlackDomainCacheFor" = "$memberName" ] ; then
+		[ -z "${AgentsToolsSlackDomainCacheValue:-}" ] || printf '%s\n' "$AgentsToolsSlackDomainCacheValue"
+		return 0
+	fi
 	if [ -n "$memberName" ] && [ "$memberName" != "<none>" ] && [ "$memberName" != "magic-team" ] ; then
 		resolvedDomain="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
 		if [ -n "$resolvedDomain" ] ; then
@@ -795,11 +806,15 @@ case "$1" in
 		## A rate-limited call is waited out and retried, never failed at once: sweeps run
 		## unattended and fan out. The response headers land here, for Retry-After; they
 		## are the server's, never the request's, so no credential reaches this file.
-		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile
-		rateHeaderFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-slack-headers.XXXXXX" )" || {
+		## ONE scratch directory per call holds the response headers, the form
+		## values and a JSON body alike -- one mktemp, not one per kind -- and is
+		## removed whole once the call is done.
+		local rateAttempt=0 rateAttemptMax=5 rateLimitReason="" rateVerdict=0 rateHeaderFile callDir
+		callDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || {
 			echo "$MDSC_CMD: slack-call: ⛔ ERROR: could not create the response-header file under $MMDAPP/.local/temp -- nothing was called" >&2
 			set +e ; return 1
 		}
+		rateHeaderFile="$callDir/headers"
 		while true ; do
 			: > "$rateHeaderFile"
 			## DM resolution under THIS identity, when the caller asked for it.
@@ -919,8 +934,7 @@ case "$1" in
 				response="$( printf '%s\n' "$uploadOut" | sed '$d' )"
 			elif [ -n "$jsonBody" ] ; then
 				## The body travels in a file, never argv, which a long one outgrows; stdin is the header's.
-				response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || exit 1
-					trap 'rm -f "$bodyFile"' EXIT
+				response="$( bodyFile="$callDir/body"
 					printf '%s' "$jsonBody" > "$bodyFile" || exit 1
 					curl -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" -X POST "https://slack.com/api/$apiMethod" \
 					-H @- \
@@ -932,12 +946,10 @@ case "$1" in
 			else
 				## Each value travels in its own file, never argv, which a long message outgrows.
 				## Named by the argument count at that point, which no two pairs share.
-				response="$( mkdir -p "$MMDAPP/.local/temp" && formDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-slack-call.XXXXXX" )" || exit 1
-					trap 'rm -rf "$formDir"' EXIT
-					curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
+				response="$( curlArgs=( -sS --connect-timeout 10 --max-time 120 -D "$rateHeaderFile" "https://slack.com/api/$apiMethod" -H @- )
 					for formPair in "${formArgs[@]}" ; do
-						printf '%s' "${formPair#*=}" > "$formDir/${#curlArgs[@]}" || exit 1
-						curlArgs+=( --data-urlencode "${formPair%%=*}@$formDir/${#curlArgs[@]}" )
+						printf '%s' "${formPair#*=}" > "$callDir/form.${#curlArgs[@]}" || exit 1
+						curlArgs+=( --data-urlencode "${formPair%%=*}@$callDir/form.${#curlArgs[@]}" )
 					done
 					curl "${curlArgs[@]}" <<< "$authHeader" 2>&1 )" || {
 					failMsg="$apiMethod transport failure under $sendIdentity identity: $response"
@@ -988,7 +1000,7 @@ case "$1" in
 			fi
 			break
 		done
-		rm -f "$rateHeaderFile"
+		rm -rf "$callDir"
 
 		## THE single exit path -- one failure branch, no degrade.
 		if [ -n "$failMsg" ] ; then
@@ -1076,10 +1088,16 @@ case "$1" in
 		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
 		case "$rc" in
 			0)
-				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
-				local targetUserId=""
-				targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
-				threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				## Read in the shell, not by a sed per field: one per call adds up
+				## over a sweep of hundreds of conversations.
+				local resolvedLine
+				channel="" threadTs=""
+				while IFS= read -r resolvedLine ; do
+					case "$resolvedLine" in
+						CHANNEL=*)	channel="${channel:+$channel$'\n'}${resolvedLine#CHANNEL=}" ;;
+						THREAD_TS=*)	threadTs="${threadTs:+$threadTs$'\n'}${resolvedLine#THREAD_TS=}" ;;
+					esac
+				done <<< "$resolved"
 			;;
 			2)
 				echo "$MDSC_CMD: slack-check: ⛔ ERROR: unrecognized target: $target" >&2

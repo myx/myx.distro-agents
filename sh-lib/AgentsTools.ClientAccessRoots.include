@@ -32,15 +32,16 @@
 ##
 
 ## Member skill directories, resolved to their real (symlink-followed) locations
-## under the resolved skillset root. Skips `trash`. Sorted-unique.
+## under the resolved skillset root -- the member index's members/ view
+## (AgentsTools.TeamRegistry.include), which already holds this workspace's own members
+## and every member other workspaces publish. Never a vendor link folder. Skips
+## `trash`. Sorted-unique.
 ## Purpose picks the set, and the two differ by exactly one rule:
 ##   acting   -- excludes a `status: reference-only` member. Nobody may write the
 ##               identity record, and nobody may be spawned as it.
 ##   readable -- includes it. The escalation path every session must be able to
 ##               read lives inside one, so a read grant that skipped it would
-##               make the mandated route unreadable. Also walks $HOME/.claude/skills,
-##               the read root the Skill tool serves: its members are symlinks, and
-##               a resolved path never falls under that directory itself.
+##               make the mandated route unreadable.
 ## Required, never defaulted: a purpose guessed wrong is a silently wrong grant.
 ##   $1 = acting | readable
 AgentsToolsClientAccessRootsMembers(){
@@ -54,7 +55,6 @@ AgentsToolsClientAccessRootsMembers(){
 	esac
 	set --
 	[ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -d "$MDAT_SKILLSET_ROOT" ] || set -- "$MDAT_SKILLSET_ROOT"/*/
-	[ "$memberPurpose" = "acting" ] || [ ! -d "$HOME/.claude/skills" ] || set -- "$@" "$HOME/.claude/skills"/*/
 	local memberEntry memberName memberReal
 	for memberEntry in "$@" ; do
 		[ -d "${memberEntry%/}" ] || continue
@@ -127,15 +127,15 @@ AgentsToolsClientAccessReferenceRoots(){
 ## on the copilot side is `--add-dir <root>`: a glob cannot be expressed there,
 ## so the containing root is what honours a declared grant at all, and the
 ## widening is the known and accepted cost of honouring it.
-## Read from the permissions registry, which is already every workspace's rows
-## unioned and de-duplicated -- so a grant declared in one workspace reaches a
-## client started in another, and one member's grant is every member's.
+## Read from every workspace's own permissions registry, this workspace's first and
+## then each one the shared pointers name (AgentsToolsTeamGrantRows) -- so a grant
+## declared in one workspace reaches a client started in another, and one member's
+## grant is every member's.
 AgentsToolsClientAccessGrantRoots(){
-	local registryFile="$HOME/.claude/skills/.linked.magic-team.permissions.txt"
-	[ -s "$registryFile" ] || return 0
+	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.TeamRegistry.include" || return 1
 	## Field 4 is taken whole by offset, never by splitting, so a grant carrying
 	## its own colons survives -- the same rule the permissions projection uses.
-	LC_ALL=C awk -F: '
+	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry | LC_ALL=C awk -F: '
 		NF >= 4 {
 			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 			if ( grantText !~ /^Edit\(\// ) next
@@ -149,7 +149,7 @@ AgentsToolsClientAccessGrantRoots(){
 			}
 			if ( rootPath != "" && !seenRoot[rootPath]++ ) print rootPath ;
 		}
-	' "$registryFile"
+	'
 }
 
 ## Widens a declared Edit(/path/glob) grant text to the narrowest directory
@@ -190,16 +190,15 @@ AgentsToolsClientAccessWidenGrantRoot(){
 ## default differently.
 ##   $1 = the widened root path to look up.
 AgentsToolsClientAccessRootTag(){
-	local tagsFile="$HOME/.claude/skills/.linked.magic-team.permissions-tags.txt"
-	[ -s "$tagsFile" ] || return 0
+	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.TeamRegistry.include" || return 1
 	## Field 4 taken whole by offset, same discipline as the main registry --
 	## a colon inside a path must never be read as a field separator.
-	LC_ALL=C awk -F: -v wantRoot="$1" '
+	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions-tags.registry | LC_ALL=C awk -F: -v wantRoot="$1" '
 		NF >= 4 {
 			rowRoot = substr( $0, length($1) + length($2) + length($3) + 4 )
 			if ( rowRoot == wantRoot ) { print $3 ; exit ; }
 		}
-	' "$tagsFile"
+	'
 }
 
 ## The complete flat root set one client is granted, one absolute path per line:

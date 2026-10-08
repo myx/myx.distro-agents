@@ -47,18 +47,13 @@ fi
 set -e
 
 ## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
-## is: the machine's own member set, this workspace's where only
-## --install-skillset-symlinks --scope workspace put one. A SKILL.md decides
-## it, because --owner-workspace-upsert mkdir -p's $HOME/.claude/skills for
-## its own registry, so an empty one exists where there is no member set.
+## is: this workspace's own member index (AgentsTools.TeamRegistry.include), whose
+## members/ view holds this workspace's members first and then every member other
+## workspaces publish. Never a vendor link folder ($HOME/.claude/skills and the rest are
+## generated from this data, and nothing of ours reads them back). An index not built
+## yet is built by --make-workspace-integrations; nothing falls back.
 if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
-	local skillsetMember
-	MDAT_SKILLSET_ROOT="$MMDAPP/.claude/skills"
-	for skillsetMember in "$HOME/.claude/skills"/*/ ; do
-		[ -f "$skillsetMember/SKILL.md" ] || continue
-		MDAT_SKILLSET_ROOT="$HOME/.claude/skills"
-		break
-	done
+	MDAT_SKILLSET_ROOT="$MMDAPP/.local/agents/members"
 	export MDAT_SKILLSET_ROOT
 fi
 

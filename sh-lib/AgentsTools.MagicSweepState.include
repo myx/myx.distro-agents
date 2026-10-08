@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicSweepState.include -- where a member's own comms-sweep
+## position lives, and how it is read. Sourced, never run. Functions only.
+##
+## EVERY CALLER KEEPS ITS OWN CUT-OFF. One record per member, under that
+## member's own inbox; no position is shared with or derived from another
+## member's. The team scan resumes from its calling member's record, each
+## client-* scan from that client's own record.
+##
+
+## Prints the path of <member>'s own sweep-state record. The filename is fixed
+## and unchanged, so magic-coordinator's existing record resolves where it
+## always did.
+AgentsToolsMagicSweepStatePath(){ ## member
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/note-20260812T231137Z-sweep-state.md"
+}
+
+## Prints <member>'s own stored `last_swept_ts`. Three outcomes, told apart by
+## exit status:
+##   rc 0 -- found; the value is on stdout.
+##   rc 3 -- no position stored yet (no record, or a record without the field):
+##           the caller falls back to the scan's own default window.
+##   rc 1 -- a record that cannot be read, or no store at all; stated on stderr.
+##           Never read as "no position": that would silently swap a stored
+##           position for the default window.
+AgentsToolsMagicSweepStoredPosition(){ ## member, op-name
+	local storedMember="$1" storedOp="$2" storedTarget="" storedTs="" storedRc=0
+	[ -n "${MDAT_DATA_ROOT:-}" ] || {
+		echo "⛔ ERROR: $MDSC_CMD --$storedOp: $storedMember: MDAT_DATA_ROOT is not set, so this member's own stored sweep position cannot be read" >&2
+		return 1
+	}
+	storedTarget="$( AgentsToolsMagicSweepStatePath "$storedMember" )"
+	[ -f "$storedTarget" ] || return 3
+	storedTs="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepStateWatermark.awk" < "$storedTarget" )" || storedRc=$?
+	case "$storedRc" in
+		0)
+			case "$storedTs" in
+				*[!0-9.]*|.*|*.*.*|'')
+					echo "⛔ ERROR: $MDSC_CMD --$storedOp: $storedMember: the stored last_swept_ts is not an epoch timestamp: $storedTs" >&2
+					return 1
+				;;
+			esac
+			printf '%s\n' "$storedTs"
+		;;
+		3) return 3 ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --$storedOp: $storedMember: the stored sweep-state record has no frontmatter block, so its own position could not be read. Refusing rather than falling back to the default window. Inspect ${storedTarget##*/} and restore its leading --- block." >&2
+			return 1
+		;;
+	esac
+	return 0
+}

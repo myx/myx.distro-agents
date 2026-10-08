@@ -458,7 +458,7 @@ case "$1" in
 				commsCutoffDefaulted="true"
 			fi
 
-			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial=""
+			local imBlocks="" imInstrument="" imSourcesTotal=0 imSourcesScanned=0 imPartial="" imCapped=""
 			local imFailed="false" imAnySourceFailed="false"
 			if [ "$wantSlack" = "true" ] ; then
 				if [ "$commsCutoffDefaulted" = "true" ] ; then
@@ -487,6 +487,12 @@ case "$1" in
 				##              name for a caller that wants to speak about one source
 				##              in its own records. The scan itself reads nothing by
 				##              it: it holds no per-source position to look up.
+				## The X-Request-Detail workspace domain every Slack call below writes
+				## on stderr, resolved once for the whole scan rather than by two
+				## config lookups per call -- see AgentsToolsResolveSlackWorkspaceDomain.
+				local AgentsToolsSlackDomainCacheFor="" AgentsToolsSlackDomainCacheValue=""
+				AgentsToolsSlackDomainCacheValue="$( AgentsToolsResolveSlackWorkspaceDomain "$actingMember" )" || AgentsToolsSlackDomainCacheValue=""
+				AgentsToolsSlackDomainCacheFor="$actingMember"
 				local slackSourceSpecs=()
 				local slackOwnCredentials="true"
 				local slackRosterIdentityArg="--identity both"
@@ -560,9 +566,11 @@ case "$1" in
 				## conversation is ours. (The `vaneId` test in
 				## AgentsSlackHistoryThreadTargets.awk is a WIDENER, not a filter: it
 				## reads `if (!fresh && !vaneHit) continue`, so it only ever ADDS a
-				## thread that is ours but stale. A fresh thread is discovered with or
-				## without it, in a DM as in a channel. Nothing there needed changing,
-				## and nothing there may be turned into a DM scope test.)
+				## thread that is ours but not shown to be fresh -- and only one whose
+				## parent states no latest reply, since a stated one at or before the
+				## cut-off proves the read would keep nothing. A fresh thread is
+				## discovered with or without it, in a DM as in a channel, and nothing
+				## there may be turned into a DM scope test.)
 				local dmRosterOutput="" dmRosterRc=0
 				if [ "$slackOwnCredentials" = "true" ] ; then
 					dmRosterOutput="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg \
@@ -606,32 +614,51 @@ case "$1" in
 				fi
 
 				local rosterLine rosterIdentity rosterAuth rosterConv rosterKind rosterParty rosterHandle
-				local rosterPersona="" rosterDmCount=0
+				local rosterPersona="" rosterDmCount=0 rosterFields=() rosterField rosterUserId rosterUserName rosterRest
 				## Handles for the `user:` lines, from the roster's OWN users.list fetch
 				## -- no second call. Exported rather than passed, because the same map
 				## has to reach the thread-fetch jobs this scan backgrounds, and a
 				## tenth positional argument to reach them would be worse than a name.
 				COMMS_USER_HANDLES=""
+				## Fields are split in the shell, not by a sed per field: a roster
+				## line is one fork-free read, where six seds a line were most of
+				## this loop's time on a roster of hundreds. Same reading as those
+				## seds -- a name=value field, the last one of a name winning, and a
+				## field the line does not carry left empty.
 				while IFS= read -r rosterLine ; do
+					case "$rosterLine" in
+						"IDENTITY|"*|"CONV|"*)
+							IFS='|' read -r -a rosterFields <<< "$rosterLine"
+							rosterIdentity="" rosterAuth="" rosterConv="" rosterKind="" rosterParty="" rosterHandle=""
+							## The last field closes the line, so it is never a value the
+							## seds read: each of theirs had to be followed by a "|".
+							unset "rosterFields[$(( ${#rosterFields[@]} - 1 ))]"
+							for rosterField in "${rosterFields[@]}" ; do
+								case "$rosterField" in
+									identity=*)	rosterIdentity="${rosterField#identity=}" ;;
+									auth=*)		rosterAuth="${rosterField#auth=}" ;;
+									id=*)		rosterConv="${rosterField#id=}" ;;
+									kind=*)		rosterKind="${rosterField#kind=}" ;;
+									counterparty=*)	rosterParty="${rosterField#counterparty=}" ;;
+									handle=*)	rosterHandle="${rosterField#handle=}" ;;
+								esac
+							done
+						;;
+					esac
 					case "$rosterLine" in
 						"IDENTITY|"*)
 							## The persona's own handle, for the label a reader sees.
-							rosterPersona="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|handle=\([^|]*\)|.*/\1/p' )"
+							rosterPersona="$rosterHandle"
 							continue
 						;;
 						"USER|"*)
-							COMMS_USER_HANDLES="$COMMS_USER_HANDLES$( printf '%s\n' "$rosterLine" | LC_ALL=C awk -F '|' '{ printf("%s\t%s", $2, $3) ; }' )"$'\n'
+							IFS='|' read -r rosterField rosterUserId rosterUserName rosterRest <<< "$rosterLine"
+							COMMS_USER_HANDLES="$COMMS_USER_HANDLES$rosterUserId"$'\t'"$rosterUserName"$'\n'
 							continue
 						;;
 						"CONV|"*)	;;
 						*)	continue ;;
 					esac
-					rosterIdentity="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|identity=\([^|]*\)|.*/\1/p' )"
-					rosterAuth="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|auth=\([^|]*\)|.*/\1/p' )"
-					rosterConv="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|id=\([^|]*\)|.*/\1/p' )"
-					rosterKind="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|kind=\([^|]*\)|.*/\1/p' )"
-					rosterParty="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|counterparty=\([^|]*\)|.*/\1/p' )"
-					rosterHandle="$( printf '%s\n' "$rosterLine" | LC_ALL=C sed -n 's/.*|handle=\([^|]*\)|.*/\1/p' )"
 					[ -n "$rosterConv" ] && [ -n "$rosterAuth" ] || continue
 					if [ -n "$humanOwnerParty" ] && [ "$rosterParty" = "$humanOwnerParty" ] ; then continue ; fi
 					## A channel already named in SLACK_CONVERSATIONS is read once, not
@@ -845,17 +872,29 @@ case "$1" in
 				local sourcePrefetchDir
 				sourcePrefetchDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-sweep-sources.XXXXXX" )" \
 					|| { set +e ; return 1 ; }
+				## EACH WORKER ALSO PARSES WHAT IT READ. The item blocks, the cut-off
+				## trim, the DM identity rows and the thread targets of one source
+				## depend on that source alone, so they are made beside its read, in
+				## parallel, rather than one source after another in the loop below.
+				## The loop below only collects the results, in the sources' own order,
+				## and says exactly what it said when it did this work itself. A
+				## parse failure is a file the loop reads (`fail.<i>`: items or trim;
+				## `disc.<i>`: thread discovery), never a missing result.
 				AgentsSessionContextSourceFetchOne(){ ## index into slackSourceSpecs
-					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchResolved fetchChannel fetchRc=0
+					local fetchSpec="${slackSourceSpecs[$1]}" fetchIdentity fetchTarget fetchLabel fetchResolved fetchChannel fetchRc=0
 					fetchIdentity="${fetchSpec%%|*}"
 					fetchTarget="${fetchSpec#*|}"
+					fetchLabel="${fetchTarget#*|}"
+					fetchLabel="${fetchLabel%%|*}"
 					fetchTarget="${fetchTarget%%|*}"
 					fetchResolved="$( DistroAgentsToolsResolveTarget "$fetchTarget" )" || {
 						printf 'unresolved\n' > "$sourcePrefetchDir/state.$1"
 						return 0
 					}
-					printf '%s\n' "$fetchResolved" > "$sourcePrefetchDir/resolved.$1"
-					fetchChannel="$( printf '%s\n' "$fetchResolved" | sed -n 's/^CHANNEL=//p' )"
+					## CHANNEL= is the resolver's first line, always.
+					fetchChannel="${fetchResolved#CHANNEL=}"
+					fetchChannel="${fetchChannel%%$'\n'*}"
+					printf '%s\n' "$fetchChannel" > "$sourcePrefetchDir/channel.$1"
 					local fetchCheckTarget="$fetchChannel:"
 					if [ "$commsMemberScopeOnly" != "true" ] && [ "$fetchTarget" = "human-owner" ] ; then
 						fetchCheckTarget="$fetchTarget"
@@ -882,6 +921,35 @@ case "$1" in
 					else
 						DistroAgentsTools --intern-op-slack-check "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
 					fi
+					if [ "$fetchRc" = "0" ] || [ "$fetchRc" = "3" ] ; then
+						local parseRaw="" parseJson="" parseRows="" parseBlocks="" parseFound="" parseFail=""
+						parseRaw="$( cat "$sourcePrefetchDir/raw.$1" 2>/dev/null )" || parseRaw=""
+						parseJson="$( printf '%s\n' "$parseRaw" | sed '1d' )"
+						parseRaw=""
+						parseRows="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextDmIdentityMap.awk" | sort -u )"
+						[ -z "$parseRows" ] || printf '%s\n' "$parseRows" > "$sourcePrefetchDir/idmap.$1"
+						parseBlocks="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v kind=slack -v source="$fetchLabel" -v channel="$fetchChannel" -f "$commsItemsAwk" )" || parseFail="items"
+						## Trimmed against THIS source's resume point, the same value the
+						## paging was bounded by -- two different cut-offs over one read is
+						## how a message ends up fetched and then silently dropped.
+						if [ -z "$parseFail" ] && [ -n "$cutoffEpoch" ] && [ -n "$parseBlocks" ] ; then
+							parseBlocks="$( printf '%s\n' "$parseBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || parseFail="trim"
+						fi
+						if [ -n "$parseFail" ] ; then
+							printf '%s\n' "$parseFail" > "$sourcePrefetchDir/fail.$1"
+						else
+							[ -z "$parseBlocks" ] || printf '%s' "$parseBlocks" > "$sourcePrefetchDir/blocks.$1"
+							## Fresh targets carry their latest reply, for the display cap
+							## below; known-stale ones are kept apart -- see that awk.
+							if parseFound="$( printf '%s\n' "$parseJson" | LC_ALL=C awk -v channel="$fetchChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -v stale=1 -v latest=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk" )" ; then
+								if [ -n "$parseFound" ] ; then
+									printf '%s\n' "$parseFound" | LC_ALL=C awk -v stalePath="$sourcePrefetchDir/stale.$1" '$1 == "stale" { print $2 > stalePath ; next } { print }' | sort -u > "$sourcePrefetchDir/threads.$1"
+								fi
+							else
+								printf 'discovery\n' > "$sourcePrefetchDir/disc.$1"
+							fi
+						fi
+					fi
 					printf '%s\n' "$fetchRc" > "$sourcePrefetchDir/rc.$1"
 					printf 'read\n' > "$sourcePrefetchDir/state.$1"
 					return 0
@@ -906,7 +974,11 @@ case "$1" in
 						|| echo "$MDSC_CMD: session-context-scan: ⚠️ WARNING: the concurrent source reads did not all report; each one missing is stated below" >&2
 				fi
 
-				local slackSpec slackName slackResolved slackChannel slackRaw slackJson slackBlocks
+				## Thread targets found in a source, with the latest reply where the
+				## parent states one (`<channel>:<ts> <latest>`), and the known-stale
+				## ones the thread fetch below counts as assessed without reading.
+				local threadLatest="" staleTargets=() dtLatest sourceFail sourceBlockCount=0
+				local slackSpec slackName slackChannel slackBlocks
 				local specIdentity specTarget sourceIndex=-1 sourceState
 				for slackSpec in ${slackSourceSpecs[@]+"${slackSourceSpecs[@]}"} ; do
 					sourceIndex=$(( sourceIndex + 1 ))
@@ -917,7 +989,8 @@ case "$1" in
 					slackName="${slackName%%|*}"
 
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					sourceState="$( cat "$sourcePrefetchDir/state.$sourceIndex" 2>/dev/null )" || sourceState=""
+					sourceState=""
+					[ ! -f "$sourcePrefetchDir/state.$sourceIndex" ] || read -r sourceState < "$sourcePrefetchDir/state.$sourceIndex" || sourceState=""
 					case "$sourceState" in
 						read) ;;
 						unresolved)
@@ -931,10 +1004,8 @@ case "$1" in
 							continue
 						;;
 					esac
-					slackResolved="$( cat "$sourcePrefetchDir/resolved.$sourceIndex" )"
-					slackChannel="$( printf '%s\n' "$slackResolved" | sed -n 's/^CHANNEL=//p' )"
-					local slackUserId=""
-					slackUserId="$( printf '%s\n' "$slackResolved" | sed -n 's/^USER_ID=//p' )" || slackUserId=""
+					slackChannel=""
+					[ ! -f "$sourcePrefetchDir/channel.$sourceIndex" ] || read -r slackChannel < "$sourcePrefetchDir/channel.$sourceIndex" || slackChannel=""
 
 					## WHERE THIS SOURCE RESUMES FROM: the cut-off this pass was GIVEN,
 					## the same one for every source. This scan holds no position of
@@ -946,9 +1017,8 @@ case "$1" in
 					imSourceResume="$imSourceResume$slackName	$slackChannel	$specIdentity	$cutoffEpoch	pass cut-off"$'\n'
 
 					## Read by this source's worker above, under the identity its spec names.
-					local slackCheckRc=0
-					slackCheckRc="$( cat "$sourcePrefetchDir/rc.$sourceIndex" 2>/dev/null )" || slackCheckRc=1
-					slackRaw="$( cat "$sourcePrefetchDir/raw.$sourceIndex" 2>/dev/null )" || slackRaw=""
+					local slackCheckRc=1
+					[ ! -f "$sourcePrefetchDir/rc.$sourceIndex" ] || read -r slackCheckRc < "$sourcePrefetchDir/rc.$sourceIndex" || slackCheckRc=""
 					if [ "$slackCheckRc" != "0" ] && [ "$slackCheckRc" != "3" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
 						imAnySourceFailed="true"
@@ -958,36 +1028,45 @@ case "$1" in
 						imPartial="$imPartial**NOTE:** partial -- $slackName partially scanned, one of the human-owner's two DMs could not be read (--intern-op-slack-check rc=3); the other DM's content below is real, not the missing half"$'\n'
 						imAnySourceFailed="true"
 					fi
-					slackJson="$( printf '%s\n' "$slackRaw" | sed '1d' )"
-					dmIdentityRows="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextDmIdentityMap.awk" | sort -u )"
-					[ -z "$dmIdentityRows" ] || dmIdentityMap="$dmIdentityMap$dmIdentityRows"$'\n'
-					slackBlocks="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v kind=slack -v source="$slackName" -v channel="$slackChannel" -f "$commsItemsAwk" )" || {
-						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
-						imAnySourceFailed="true"
-						continue
-					}
-					## Trimmed against THIS source's resume point, the same value the
-					## paging was bounded by -- two different cut-offs over one read is
-					## how a message ends up fetched and then silently dropped.
-					if [ -n "$cutoffEpoch" ] && [ -n "$slackBlocks" ] ; then
-						slackBlocks="$( printf '%s\n' "$slackBlocks" | LC_ALL=C awk -v cut="$cutoffEpoch" -v ctx=0 "$commsCutoffTrimAwkProgram" )" || {
+					[ ! -s "$sourcePrefetchDir/idmap.$sourceIndex" ] || dmIdentityMap="$dmIdentityMap$( cat "$sourcePrefetchDir/idmap.$sourceIndex" )"$'\n'
+					sourceFail=""
+					[ ! -f "$sourcePrefetchDir/fail.$sourceIndex" ] || read -r sourceFail < "$sourcePrefetchDir/fail.$sourceIndex" || sourceFail=""
+					case "$sourceFail" in
+						items)
+							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, response was an API failure, not an empty channel"$'\n'
+							imAnySourceFailed="true"
+							continue
+						;;
+						trim)
 							imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, cut-off filter over the channel page failed"$'\n'
 							imAnySourceFailed="true"
 							continue
-						}
-					fi
+						;;
+					esac
 					imSourcesScanned=$(( imSourcesScanned + 1 ))
-					[ -z "$slackBlocks" ] || imBlocks="$imBlocks$slackBlocks"$'\n\n'
+					slackBlocks=""
+					[ ! -f "$sourcePrefetchDir/blocks.$sourceIndex" ] || slackBlocks="$( cat "$sourcePrefetchDir/blocks.$sourceIndex" )"
+					if [ -n "$slackBlocks" ] ; then
+						imBlocks="$imBlocks$slackBlocks"$'\n\n'
+						sourceBlockCount=$(( sourceBlockCount + 1 ))
+					fi
 
-					discovered="$( printf '%s\n' "$slackJson" | LC_ALL=C awk -v channel="$slackChannel" -v oldest="$cutoffEpoch" -v vaneId="$ownSlackId" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackHistoryThreadTargets.awk" )" || {
+					if [ -f "$sourcePrefetchDir/disc.$sourceIndex" ] ; then
 						imPartial="$imPartial**NOTE:** partial -- thread discovery failed for $slackName, watched-channel read above unaffected"$'\n'
-						discovered=""
-					}
-					[ -z "$discovered" ] || discovered="$( printf '%s\n' "$discovered" | sort -u )"
-					while IFS= read -r dt ; do
-						[ -n "$dt" ] || continue
-						threadTargets+=( "$dt" )
-					done <<< "$discovered"
+					fi
+					if [ -f "$sourcePrefetchDir/threads.$sourceIndex" ] ; then
+						while read -r dt dtLatest ; do
+							[ -n "$dt" ] || continue
+							threadTargets+=( "$dt" )
+							[ -z "$dtLatest" ] || threadLatest="$threadLatest$dt $dtLatest"$'\n'
+						done < "$sourcePrefetchDir/threads.$sourceIndex"
+					fi
+					if [ -f "$sourcePrefetchDir/stale.$sourceIndex" ] ; then
+						while read -r dt ; do
+							[ -n "$dt" ] || continue
+							staleTargets+=( "$dt" )
+						done < "$sourcePrefetchDir/stale.$sourceIndex"
+					fi
 				done
 				rm -rf "$sourcePrefetchDir"
 				unset -f AgentsSessionContextSourceFetchOne
@@ -1021,10 +1100,8 @@ case "$1" in
 				## Real function, not inline, only because a backgrounded job
 				## needs a callable unit -- single-consumer otherwise.
 				AgentsSessionContextThreadFetchOne(){
-					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMap="$9"
+					local memberName="$1" dt="$2" cutoffEpoch="$3" ctxBefore="$4" commsItemsAwkFile="$5" trimAwkFile="$6" workDir="$7" memberScopeOnly="$8" identityMap="$9" outBase="${10}"
 					local dtChannel="${dt%%:*}"
-					local outBase
-					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
 					local blocksFile="$workDir/blocks.$outBase" statusFile="$workDir/status.$outBase"
 					local fetchRaw fetchJson fetchBlocks
 					local dtIdentity=""
@@ -1068,26 +1145,164 @@ case "$1" in
 					return 0
 				}
 
-				local uniqueThreads dt
+				## How many conversations already read rank strictly above a thread
+				## whose latest reply is $1 -- the rendering's own grouping, recency
+				## key and de-duplication, over the watched sources and every thread
+				## whose read has finished. A finished read is one with its status
+				## file; its blocks file is written before that.
+				AgentsSessionContextImGroupsAbove(){ ## latest-reply ts
+					local aboveStatus aboveFiles=()
+					for aboveStatus in "$threadFetchWorkDir"/status.* ; do
+						[ -f "$aboveStatus" ] || continue
+						[ ! -f "$threadFetchWorkDir/blocks.${aboveStatus##*.}" ] || aboveFiles+=( "$threadFetchWorkDir/blocks.${aboveStatus##*.}" )
+					done
+					{ printf '%s' "$imBlocks" ; [ ${#aboveFiles[@]} -eq 0 ] || cat "${aboveFiles[@]}" ; } | LC_ALL=C awk -v est="$1" '
+						function tskey(v,   d, sec, frac) {
+							gsub(/^[ \t]+|[ \t\r]+$/, "", v)
+							d = index(v, ".")
+							if (d == 0) { sec = v ; frac = "" ; }
+							else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
+							if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
+							frac = substr(frac "000000", 1, 6)
+							if (frac !~ /^[0-9]+$/) return ""
+							while (length(sec) < 16) sec = "0" sec
+							return sec frac
+						}
+						function trim(v) { gsub(/^[ \t]+|[ \t\r]+$/, "", v) ; return v ; }
+						function flush(   g) {
+							if (!inblk) return
+							g = (curSource == "" ? "(source unstated)" : curSource)
+							if (curKey == "") gmax[g] = "~"
+							else if (gmax[g] != "~" && curKey > gmax[g]) gmax[g] = curKey
+							inblk = 0
+						}
+						/^## / { flush() ; dropping = ($0 in hseen) ; hseen[$0] = 1 ; inblk = !dropping ; curKey = "" ; curSource = "" ; next ; }
+						dropping { next ; }
+						/^ts:/     { if (inblk && curKey == "")    curKey    = tskey(substr($0, index($0, ":") + 1)) ; }
+						/^source:/ { if (inblk && curSource == "") curSource = trim(substr($0, index($0, ":") + 1)) ; }
+						END {
+							flush()
+							ek = tskey(est)
+							n = 0
+							if (ek != "") for (g in gmax) if (gmax[g] > ek) n++
+							print n
+						}
+					'
+				}
+
+				## Each target is named by its line number in the sorted list, not by
+				## a checksum of its name: one counter, no fork per target.
+				local uniqueThreads dt dtIndex
 				uniqueThreads="$( printf '%s\n' "${threadTargets[@]+"${threadTargets[@]}"}" | LC_ALL=C sort -u )" || uniqueThreads=""
-				while IFS= read -r dt ; do
+
+				## KNOWN-STALE THREADS ARE ASSESSED, NOT READ. A thread the history
+				## shows with its latest reply at or before the cut-off holds nothing
+				## the trim would keep, so reading it was a conversations.replies call
+				## returning nothing. It still counts as one scanned source, exactly as
+				## its empty read did -- unless the same thread is a target anyway
+				## (a mention, a board item, another source), and then it is read.
+				local staleOnlyCount=0
+				if [ ${#staleTargets[@]} -gt 0 ] ; then
+					staleOnlyCount="$( { printf '%s\n' "$uniqueThreads" | LC_ALL=C sed 's/^/T /' ; printf '%s\n' "${staleTargets[@]}" | LC_ALL=C sort -u | LC_ALL=C sed 's/^/S /' ; } \
+						| LC_ALL=C awk '$1 == "T" { t[$2] = 1 ; next } $1 == "S" && $2 != "" && !($2 in t) { n++ } END { print n + 0 }' )" || staleOnlyCount=0
+				fi
+
+				## THE DISPLAY CAP BOUNDS THE READS TOO. The rendering below shows at
+				## most $sessionContextCapIm conversations, the most recently active.
+				## A thread whose latest reply (stated by its parent in the history)
+				## is older than the newest $sessionContextCapIm conversations already
+				## READ could never be shown, so it is not read: threads are read
+				## newest first, those of unknown recency (mentions, board items)
+				## before any, and reading stops at the first thread the cap already
+				## excludes. Exact, not estimated: a conversation counts against the
+				## cap only once read, with its rendered recency, deduplicated the way
+				## the rendering deduplicates. Engaged only when the conversations
+				## could exceed the cap at all; below it every target is read.
+				local threadOrder="" threadCapEngaged="false" threadCapped=0 threadCappedSet=$'\n'
+				local threadUniqueCount=0
+				[ -z "$uniqueThreads" ] || threadUniqueCount="$( printf '%s\n' "$uniqueThreads" | LC_ALL=C awk 'NF { n++ } END { print n + 0 }' )"
+				if [ $(( sourceBlockCount + threadUniqueCount )) -gt "$sessionContextCapIm" ] ; then
+					threadCapEngaged="true"
+				fi
+				## `<index> <target> <latest-or-empty>`, in launch order.
+				threadOrder="$( printf '%s\n' "$uniqueThreads" | THREAD_LATEST="$threadLatest" LC_ALL=C awk '
+					function tskey(v,   d, sec, frac) {
+						d = index(v, ".")
+						if (d == 0) { sec = v ; frac = "" ; }
+						else { sec = substr(v, 1, d - 1) ; frac = substr(v, d + 1) ; }
+						if (sec !~ /^[0-9]+$/ || length(sec) > 16) return ""
+						frac = substr(frac "000000", 1, 6)
+						if (frac !~ /^[0-9]+$/) return ""
+						while (length(sec) < 16) sec = "0" sec
+						return sec frac
+					}
+					BEGIN {
+						n = split(ENVIRON["THREAD_LATEST"], tl, "\n")
+						for (i = 1; i <= n; i++) {
+							if (tl[i] == "") continue
+							split(tl[i], f, " ")
+							## An unparseable latest reply is no recency at all: read, never capped.
+							if (tskey(f[2]) == "") continue
+							if (!(f[1] in late) || tskey(f[2]) > tskey(late[f[1]])) late[f[1]] = f[2]
+						}
+					}
+					NF { idx++ ; if ($1 in late) { kn++ ; kt[kn] = $1 ; ki[kn] = idx ; } else { print idx, $1 ; } }
+					END {
+						for (x = 2; x <= kn; x++) {
+							v = kt[x] ; w = ki[x] ; j = x - 1
+							while (j >= 1 && tskey(late[kt[j]]) < tskey(late[v])) { kt[j + 1] = kt[j] ; ki[j + 1] = ki[j] ; j-- ; }
+							kt[j + 1] = v ; ki[j + 1] = w
+						}
+						for (x = 1; x <= kn; x++) print ki[x], kt[x], late[kt[x]]
+					}
+				' )" || threadOrder=""
+
+				local threadEst threadCheckedDone=-1 threadDone threadAbove threadInFlight
+				while read -r dtIndex dt threadEst ; do
 					[ -n "$dt" ] || continue
+					if [ "$threadCapEngaged" = "true" ] && [ -n "$threadEst" ] ; then
+						if [ "$threadCapped" -gt 0 ] ; then
+							threadCapped=$(( threadCapped + 1 ))
+							threadCappedSet="$threadCappedSet$dt"$'\n'
+							continue
+						fi
+						threadDone="$( ls -1 "$threadFetchWorkDir" | LC_ALL=C grep -c '^status\.' || : )"
+						if [ "$threadDone" != "$threadCheckedDone" ] ; then
+							threadCheckedDone="$threadDone"
+							threadAbove="$( AgentsSessionContextImGroupsAbove "$threadEst" )" || threadAbove=0
+						fi
+						## Reads still in flight could tip it: wait for them, only then.
+						threadInFlight="$( jobs -pr | wc -l | tr -d '[:space:]' )"
+						if [ "${threadAbove:-0}" -lt "$sessionContextCapIm" ] && [ "${threadInFlight:-0}" -gt 0 ] \
+							&& [ $(( ${threadAbove:-0} + threadInFlight )) -ge "$sessionContextCapIm" ] ; then
+							wait
+							threadCheckedDone="$( ls -1 "$threadFetchWorkDir" | LC_ALL=C grep -c '^status\.' || : )"
+							threadAbove="$( AgentsSessionContextImGroupsAbove "$threadEst" )" || threadAbove=0
+						fi
+						if [ "${threadAbove:-0}" -ge "$sessionContextCapIm" ] ; then
+							threadCapped=1
+							threadCappedSet="$threadCappedSet$dt"$'\n'
+							continue
+						fi
+					fi
 					while [ "$( jobs -pr | wc -l | tr -d '[:space:]' )" -ge "$threadFetchWorkers" ] ; do
 						sleep 0.2
 					done
-					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMap" &
-				done <<< "$uniqueThreads"
+					AgentsSessionContextThreadFetchOne "$actingMember" "$dt" "$cutoffEpoch" "$sessionContextThreadContextBefore" "$commsItemsAwk" "$threadTrimAwkFile" "$threadFetchWorkDir" "$commsMemberScopeOnly" "$dmIdentityMap" "$dtIndex" &
+				done <<< "$threadOrder"
 				wait
 
 				## Merge after `wait`, same sorted order as before -- no
 				## concurrent writer here, so no lock is needed.
+				dtIndex=0
 				while IFS= read -r dt ; do
 					[ -n "$dt" ] || continue
+					dtIndex=$(( dtIndex + 1 ))
+					case "$threadCappedSet" in *$'\n'"$dt"$'\n'*) continue ;; esac
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
-					local outBase statusLine blocksFile statusFile
-					outBase="$( printf '%s' "$dt" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
-					blocksFile="$threadFetchWorkDir/blocks.$outBase"
-					statusFile="$threadFetchWorkDir/status.$outBase"
+					local statusLine blocksFile statusFile
+					blocksFile="$threadFetchWorkDir/blocks.$dtIndex"
+					statusFile="$threadFetchWorkDir/status.$dtIndex"
 					if [ -f "$statusFile" ] ; then statusLine="$( cat "$statusFile" )" ; else statusLine="FAIL:no status file -- job never ran or was lost" ; fi
 					case "$statusLine" in
 						OK)
@@ -1100,9 +1315,14 @@ case "$1" in
 						;;
 					esac
 				done <<< "$uniqueThreads"
+				imSourcesTotal=$(( imSourcesTotal + staleOnlyCount ))
+				imSourcesScanned=$(( imSourcesScanned + staleOnlyCount ))
+				if [ "$threadCapped" -gt 0 ] ; then
+					imCapped="**NOTE:** capped -- $threadCapped thread(s) not read: the latest reply of each is older than the newest $sessionContextCapIm conversations already read, so the $sessionContextCapIm-conversation cap below could never show it. Not a partial read, and not counted in sources-scanned"$'\n'
+				fi
 
 				rm -rf "$threadFetchWorkDir"
-				unset -f AgentsSessionContextThreadFetchOne
+				unset -f AgentsSessionContextThreadFetchOne AgentsSessionContextImGroupsAbove
 				unset COMMS_USER_HANDLES
 
 				[ "$imSourcesScanned" -gt 0 ] || imFailed="true"
@@ -1137,17 +1357,51 @@ case "$1" in
 				if [ -z "$emailHost" ] || [ -z "$emailUser" ] || [ -z "$emailPass" ] ; then
 					emailNotConfigured="true"
 				fi
-				local emailCheck emailUids emailUid
-				if [ "$emailNotConfigured" = "false" ] ; then
-					emailCheck="$( DistroAgentsTools --member-comms-email-check "$actingMember" )" || emailFailed="true"
+				## ONE IMAP SESSION FOR THE WHOLE READ: one login, the search, and a
+				## fetch per message the cap will render (AgentsImapSweepFetch.py),
+				## where this used to log in for the search and again for every
+				## message. Still EXAMINE and BODY.PEEK[] -- nothing read here is
+				## marked seen. The scan's own cut-off narrows the search with
+				## SINCE: IMAP compares dates only, so the day before the cut-off's
+				## UTC date, never a day too late; unread semantics are unchanged.
+				local emailCheck emailUids emailUid emailSince="" emailSinceIso="" emailFetchDir=""
+				if [ "$emailNotConfigured" = "false" ] && [ -n "$cutoffEpoch" ] ; then
+					emailSinceIso="$( printf '%s\n' "$(( ${cutoffEpoch%%.*} - 86400 ))" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEpochToIsoDate.awk" )" || emailSinceIso=""
+					case "$emailSinceIso" in
+						????-??-??)
+							## IMAP spells the month in English whatever the locale.
+							case "${emailSinceIso:5:2}" in
+								01) emailSince="Jan" ;; 02) emailSince="Feb" ;; 03) emailSince="Mar" ;;
+								04) emailSince="Apr" ;; 05) emailSince="May" ;; 06) emailSince="Jun" ;;
+								07) emailSince="Jul" ;; 08) emailSince="Aug" ;; 09) emailSince="Sep" ;;
+								10) emailSince="Oct" ;; 11) emailSince="Nov" ;; 12) emailSince="Dec" ;;
+							esac
+							[ -z "$emailSince" ] || emailSince="${emailSinceIso:8:2}-$emailSince-${emailSinceIso:0:4}"
+						;;
+					esac
+					case "$emailSince" in
+						??-???-????)	;;
+						*)
+							echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: the email search date could not be derived from cut-off $cutoffEpoch -- the mailbox is reported as not scanned rather than searched without its bound" >&2
+							emailFailed="true"
+						;;
+					esac
+					[ -z "$emailSince" ] || emailInstrument="unread-semantics (IMAP UID SEARCH UNSEEN SINCE $emailSince)"
 				fi
+				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
+					emailFetchDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-sweep-email.XXXXXX" )" || { set +e ; return 1 ; }
+					emailCheck="$( AGENTS_IMAP_HOST="$emailHost" AGENTS_IMAP_USER="$emailUser" AGENTS_IMAP_PASS="$emailPass" \
+						AGENTS_IMAP_MAILBOX="INBOX" AGENTS_IMAP_SINCE="$emailSince" AGENTS_IMAP_MAX="$sessionContextCapEmail" \
+						AGENTS_IMAP_OUT_DIR="$emailFetchDir" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsImapSweepFetch.py" )" || emailFailed="true"
+				fi
+				emailPass=""
 				if [ "$emailNotConfigured" = "false" ] && [ "$emailFailed" = "false" ] ; then
 					emailUids="$( printf '%s\n' "$emailCheck" | LC_ALL=C awk '
 						{ sub(/\r$/, ""); }
 						/^\* SEARCH/ { seenSearch = 1; for (i = 3; i <= NF; i++) print $i; }
 						END {
 							if (!seenSearch) {
-								printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: --member-comms-email-check returned no SEARCH response line -- treat as NOT SCANNED, never as empty\n") > "/dev/stderr"
+								printf("⛔ ERROR: AgentsTools.InternOpSessionContextScan.include: the IMAP session returned no SEARCH response line -- treat as NOT SCANNED, never as empty\n") > "/dev/stderr"
 								exit 1
 							}
 						}
@@ -1155,33 +1409,31 @@ case "$1" in
 				fi
 				if [ "$emailFailed" = "false" ] ; then
 					local emailReadRc emailBlock emailFetched=0
-					local emailWorkFile
-					emailWorkFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-sweep-email.XXXXXX" )" || { set +e ; return 1 ; }
 					while IFS= read -r emailUid ; do
 						[ -n "$emailUid" ] || continue
 						emailUidsTotal=$(( emailUidsTotal + 1 ))
-						## Fetch only what the cap will render: every read is its own IMAP login.
+						## Only what the cap will render was fetched, by the session above.
 						[ "$emailFetched" -lt "$sessionContextCapEmail" ] || continue
 						emailFetched=$(( emailFetched + 1 ))
-						emailReadRc=0
-						## A subshell and a file, never $(): a command substitution truncates
-						## raw message bytes at the first NUL, and a direct call would leak
-						## the op's own `set +e` into the rest of this scan.
-						( DistroAgentsTools --member-comms-email-read "$actingMember" "$emailUid" ) > "$emailWorkFile" || emailReadRc=$?
-						if [ "$emailReadRc" -ne 0 ] ; then
-							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not read -- --member-comms-email-read returned $emailReadRc; the message is UNKNOWN, not empty"$'\n'$'\n'
+						## The raw message is a file, never $(): a command substitution
+						## truncates raw message bytes at the first NUL. No .rc file is a
+						## UID the session broke before reaching.
+						emailReadRc=2
+						[ ! -f "$emailFetchDir/$emailUid.rc" ] || read -r emailReadRc < "$emailFetchDir/$emailUid.rc" || emailReadRc=2
+						if [ "$emailReadRc" != "0" ] ; then
+							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not read -- the IMAP session returned $emailReadRc for this UID; the message is UNKNOWN, not empty"$'\n'$'\n'
 							continue
 						fi
 						emailBlock=""
-						emailBlock="$( AGENTS_EMAIL_UID="$emailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextEmailItem.py" < "$emailWorkFile" )" || emailBlock=""
+						emailBlock="$( AGENTS_EMAIL_UID="$emailUid" AGENTS_EMAIL_MAILBOX="INBOX" AGENTS_EMAIL_STATUS="unseen" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionContextEmailItem.py" < "$emailFetchDir/$emailUid.eml" )" || emailBlock=""
 						if [ -z "$emailBlock" ] ; then
 							emailBlocks="$emailBlocks## email-message $emailUid"$'\n'"mailbox: INBOX"$'\n'"status: unseen"$'\n'"fetch: not rendered -- the message was fetched but could not be parsed into a block"$'\n'$'\n'
 							continue
 						fi
 						emailBlocks="$emailBlocks$emailBlock"$'\n'$'\n'
 					done <<< "$emailUids"
-					rm -f "$emailWorkFile"
 				fi
+				[ -z "$emailFetchDir" ] || rm -rf "$emailFetchDir"
 			fi
 
 			local trelloBlocks="" trelloInstrument="" trelloFailed="false"
@@ -1285,6 +1537,7 @@ case "$1" in
 				printf 'cap: %s conversations -- a thread, channel or DM is ONE unit however many messages it carries\n' "$sessionContextCapIm"
 				printf 'messages-read: %s\n' "$imCount"
 				[ -z "$imPartial" ] || printf '%s' "$imPartial"
+				[ -z "$imCapped" ] || printf '%s' "$imCapped"
 				if [ "$imCount" = "0" ] ; then
 					printf '**NOTE:** no new incoming IM updates -- scanned %s of %s sources, 0 messages matched %s\n\n' \
 						"$imSourcesScanned" "$imSourcesTotal" "$imInstrument"
@@ -1314,13 +1567,17 @@ case "$1" in
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
 				printf 'sources-scanned: 0 of 1\n'
-				printf '**NOTE:** no scan was made -- --member-comms-email-check failed\n\n'
+				printf '**NOTE:** no scan was made -- the IMAP session (login, EXAMINE or UID SEARCH) failed\n\n'
 			else
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
 				printf 'sources-scanned: 1 of 1\n'
 				printf 'cap: %s\n' "$sessionContextCapEmail"
-				[ -z "$commsCutoffKind" ] || printf 'cut-off-applied: no -- this service accepts no cut-off; unread semantics used instead\n'
+				if [ -n "$emailSince" ] ; then
+					printf 'cut-off-applied: by date -- IMAP SINCE %s, the day before the cut-off (IMAP compares dates, not times), on top of unread semantics\n' "$emailSince"
+				else
+					[ -z "$commsCutoffKind" ] || printf 'cut-off-applied: no -- this service accepts no cut-off; unread semantics used instead\n'
+				fi
 				if [ "$emailCount" = "0" ] ; then
 					printf '**NOTE:** no new incoming email updates -- scanned 1 of 1 sources, 0 messages matched %s\n\n' "$emailInstrument"
 				else

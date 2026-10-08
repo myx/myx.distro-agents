@@ -290,6 +290,7 @@ A board item is cited in prose as `board://<state>/<item-filename>`; a tool take
 
 - A workspace is named, never pathed, in any skillset file. A path comes only from `--owner-workspace-list` at the point of use.
 - The team on a machine is the members published by the tracked workspaces. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
+- Where that is recorded: the machine-wide directory `~/.agents/magic-team/` -- `members.registry` (each member a workspace publishes, with that workspace's root and the member's folder) and `known-workspaces.registry` (the tracked workspaces). A workspace's own data is in its `.local/agents/`: `members.index` lists every member it reaches, its own first. `~/.claude/skills`, `~/.agents/skills` and `~/.copilot/skills` are link folders generated for the vendor clients and are never a source.
 - The team edits only inside the workspace holding its own source tree. Other workspaces are clients: read, never edited. A member's own skillset files are the exception, at the path its folder resolves to.
 - A member never edits tooling source or `$MMDAPP/.local/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 

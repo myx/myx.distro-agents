@@ -368,15 +368,17 @@ if [ -n "$harnessToolOnly" ] && [ -z "$harnessAgent" ] ; then
 		esac
 	done
 	## The skillset root the Skill tool also falls back to, so a served call resolves its
-	## member where MDAT_SKILLSET_ROOT is unset; one it still cannot find is said, not dropped.
-	harnessServedSkillset="${MDAT_SKILLSET_ROOT:-${HOME:+$HOME/.claude/skills}}"
+	## member where MDAT_SKILLSET_ROOT is unset: this workspace's member index view
+	## (AgentsTools.TeamRegistry.include), never a vendor link folder. One it still cannot
+	## find is said, not dropped.
+	harnessServedSkillset="${MDAT_SKILLSET_ROOT:-${MMDAPP:+$MMDAPP/.local/agents/members}}"
 	## Announced, then exported, so every later check and every child the call runs reads the same root.
 	if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then
-		printf 'WARNING: MDAT_SKILLSET_ROOT is not set in this process, so the served identity is read from the fallback %s\n' "${harnessServedSkillset:-<HOME unset too>}" >&2
+		printf 'WARNING: MDAT_SKILLSET_ROOT is not set in this process, so the served identity is read from the fallback %s\n' "${harnessServedSkillset:-<MMDAPP unset too>}" >&2
 		[ -z "$harnessServedSkillset" ] || export MDAT_SKILLSET_ROOT="$harnessServedSkillset"
 	fi
 	if [ -n "$harnessAgent" ] && [ ! -r "$harnessServedSkillset/$harnessAgent/$harnessAgent.basic.md" ] ; then
-		harnessAgentMissing="no team identity resolved: ${harnessServedSkillset:-<MDAT_SKILLSET_ROOT and HOME unset>}/$harnessAgent/$harnessAgent.basic.md is not readable -- set MDAT_SKILLSET_ROOT in the MCP server environment"
+		harnessAgentMissing="no team identity resolved: ${harnessServedSkillset:-<MDAT_SKILLSET_ROOT and MMDAPP unset>}/$harnessAgent/$harnessAgent.basic.md is not readable -- set MDAT_SKILLSET_ROOT in the MCP server environment"
 		harnessAgent=""
 	fi
 fi
@@ -3535,7 +3537,8 @@ AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in sear
 ## under the root, whatever that root later resolves to.
 AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7"
-	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate
+	local skillVendor=()
 	## skill is the native call shape: the name resolved and the skill rendered as the
 	## client does both. A path of its own, apart from name, file and list.
 	if [ -n "$toolSkill" ] ; then
@@ -3557,9 +3560,19 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 			fi
 		done
 		if [ -z "$skillPrefix" ] ; then
-			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$skillLeaf/SKILL.md" "$HOME/.claude/skills/$skillLeaf/SKILL.md" "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"/*/SKILL.md "$HOME"/.claude/skills/*/SKILL.md )"
+			## Team members from the member index; then a skill the user or a vendor put in
+			## $HOME/.claude/skills as a real folder. A link there is one our installer
+			## generated, and is never read back.
+			skillOwnRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}"
+			skillVendor=()
+			for skillCandidate in "$HOME/.claude/skills/$skillLeaf" "$HOME"/.claude/skills/*/ ; do
+				skillCandidate="${skillCandidate%/}"
+				[ ! -L "$skillCandidate" ] && [ -f "$skillCandidate/SKILL.md" ] || continue
+				skillVendor+=( "$skillCandidate/SKILL.md" )
+			done
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$skillOwnRoot/$skillLeaf/SKILL.md" "$skillOwnRoot"/*/SKILL.md ${skillVendor[@]+"${skillVendor[@]}"} )"
 			skillPath="$skillDir/SKILL.md"
-			skillSought="a skill folder or a SKILL.md frontmatter name $skillLeaf under ${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills} and $HOME/.claude/skills"
+			skillSought="a skill folder or a SKILL.md frontmatter name $skillLeaf under $skillOwnRoot and the real folders of $HOME/.claude/skills"
 		elif [ "$skillPrefix" = anthropic-skills ] ; then
 			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$HOME"/.claude/skills/synced/*/"$skillLeaf"/SKILL.md "$HOME"/.claude/skills/synced/*/*/SKILL.md )"
 			skillPath="$skillDir/SKILL.md"
@@ -3623,10 +3636,11 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	if ! AgentsHarnessSkillSegmentOk "$toolName" ; then
 		printf 'ERROR: Skill: name is not a bare skill folder name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "${toolName:-<none>}" ; return 0
 	fi
-	## $HOME/.claude/skills is where every member is linked, whichever skillset this
-	## process resolved: a workspace-scoped one carries only some of them.
-	skillDir="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$toolName"
-	[ -d "$skillDir" ] || skillDir="$HOME/.claude/skills/$toolName"
+	## The member index holds every member this workspace reaches, its own and the ones
+	## other workspaces publish. A real folder in $HOME/.claude/skills is a skill the user
+	## or a vendor put there; a link there is our own generated output, never read back.
+	skillDir="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$toolName"
+	[ -d "$skillDir" ] || [ -L "$HOME/.claude/skills/$toolName" ] || skillDir="$HOME/.claude/skills/$toolName"
 	if [ ! -d "$skillDir" ] ; then
 		printf 'ERROR: Skill: no such skill folder: %s\n' "$toolName" ; return 0
 	fi

@@ -21,7 +21,7 @@
 AgentsToolsSpawnRoutineDefaultName(){
 	local routineDefaultKind="coworking" routineRoot routineFile routineDefaultValue
 	local routineDefaultMatches=()
-	routineRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
 	for routineFile in "$routineRoot"/*/*.routine.md ; do
 		[ -f "$routineFile" ] || continue
 		routineDefaultValue="$( LC_ALL=C awk -v headers="default-for-session-kind" \
@@ -43,7 +43,7 @@ AgentsToolsSpawnRoutineDefaultName(){
 ## named for a reader to narrow the selector by.
 AgentsToolsSpawnRoutineResolve(){ ## selector
 	local routineSelector="$1" routineRoot routineFile routineMatches=()
-	routineRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
 	for routineFile in "$routineRoot"/*/*.routine.md ; do
 		[ -f "$routineFile" ] || continue
 		case "${routineFile##*/}" in

@@ -314,6 +314,13 @@ case "$1" in
 	## the thing that must be re-fetched every pass; and a named op makes "the
 	## roster could not be fetched" a reportable partial instead of an empty source
 	## list that reads as "this identity has no DMs".
+	##
+	## MEMBERSHIP ONLY. conversations.list answers with every channel the token
+	## can SEE, and a user token sees every public channel in the workspace; a
+	## channel (kind other) is kept only when Slack marks it is_member, so a
+	## roster widened to channel types names the channels this identity is IN,
+	## not the workspace directory. DMs and group DMs carry no is_member and are
+	## kept as before: a conversation of that kind exists only with us in it.
 	--magic-comms-slack-conversations-roster)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
@@ -421,7 +428,7 @@ case "$1" in
 
 			local rosterLines="" rosterLinesRc=0
 			rosterLines="$( printf '%s\n' "$rosterConvPages" \
-				| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted \
+				| LC_ALL=C awk -v array=channels -v want=id,is_im,is_mpim,user,is_user_deleted,is_member \
 					-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterLinesRc=$?
 			rosterConvPages=""
 			if [ "$rosterLinesRc" != "0" ] ; then
@@ -454,6 +461,8 @@ case "$1" in
 				$1 == "" { next ; }
 				{
 					kind = ($3 == "true") ? "mpim" : (($2 == "true") ? "im" : "other")
+					## A channel this identity can see but is not in is not ours.
+					if (kind == "other" && $6 != "true") next
 					who = ($4 == "") ? "-" : $4
 					name = (who in handleOf && handleOf[who] != "") ? handleOf[who] : "-"
 					printf("CONV|identity=%s|auth=%s|id=%s|kind=%s|counterparty=%s|handle=%s|counterparty-deleted=%s\n", \

@@ -64,21 +64,36 @@ case "$1" in
 				;;
 			esac
 		done
-		## NO STORED POSITION IS CONSULTED. This scan is stateless: the cut-off is
-		## whatever the caller stated, and with none stated the session-context
-		## scan's own default window applies. Recording how far a sweep got is the
-		## calling reader's business, in the calling reader's own note.
+		## THIS MEMBER'S OWN STORED POSITION, and nobody else's. With no cut-off
+		## stated, the scan resumes from this client's own `last_swept_ts`
+		## (--magic-sweep-state-read <this member>); only when it has none stored
+		## does the session-context scan's own default window apply. A stated
+		## cut-off always wins: it is how material below the pointer is re-read.
 		##
-		## What must still NOT happen is inheriting the CALLER's cut-off: the
-		## calling routine's position is a position in the TEAM's traffic, and
-		## applying it to a client's own conversations silently drops every client
-		## message older than the team's last team-side pass -- measured against the
-		## live NDM workspace, that hid all ten of its messages behind a cut-off
-		## that had nothing to do with them. `--magic-sweep-input-scan` therefore
-		## forwards nothing here, and that is unchanged.
+		## What must NOT happen is inheriting the CALLER's cut-off: the calling
+		## routine's position is a position in the TEAM's traffic, and applying it
+		## to a client's own conversations silently drops every client message
+		## older than the team's last team-side pass -- measured against the live
+		## NDM workspace, that hid all ten of its messages behind a cut-off that
+		## had nothing to do with them. `--magic-sweep-input-scan` forwards nothing
+		## here; this member resolves its own.
 		local clientCutoffOrigin="stated on the command line"
 		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then
-			clientCutoffOrigin="none stated -- the scan's own default window"
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
+			local clientStoredTs="" clientStoredRc=0
+			clientStoredTs="$( AgentsToolsMagicSweepStoredPosition "$clientMember" client-sweep-input-scan )" || clientStoredRc=$?
+			case "$clientStoredRc" in
+				0)
+					commsCutoffArgs=( --comms-since-utime "$clientStoredTs" )
+					clientCutoffOrigin="this member's own stored sweep position"
+				;;
+				3)
+					clientCutoffOrigin="none stated and none stored -- the scan's own default window"
+				;;
+				*)
+					set +e ; return 1
+				;;
+			esac
 		fi
 
 		## Written whole before any of it is emitted: a run that failed before it had a
@@ -105,7 +120,7 @@ case "$1" in
 				--all-types --filter-owner "$clientMember" \
 				--do-inbox-inquiry-active --do-inbox-reflections \
 				--do-inbox-notes --do-inbox-other \
-				--do-all --member-scope-only "${commsCutoffArgs[@]}" \
+				--do-all --member-scope-only --do-slack-tags "${commsCutoffArgs[@]}" \
 				--context --client-sweep-input-scan
 		)" || clientSweepStatus=$?
 

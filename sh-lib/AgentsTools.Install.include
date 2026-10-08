@@ -36,17 +36,44 @@ AgentsToolsInstallScanMembers(){
 		## spec and lands on a cache directory that is not there, rebuilding the
 		## index on every touch. Bootstrap is the one every *.fn.sh tail carries,
 		## since this op also runs with no distro context at all.
+		## The index tier is established here rather than inherited, exactly as
+		## --install-claude-permissions does for its grants, and for the same reasons: reached
+		## with no tier selected (an MCP execute call, a shell function) the scan reads no
+		## index at all, and an inherited prepared or output cache that lags source drops real
+		## team-member declarations. Source, the tier the agents console selects.
+		## Another workspace is scanned in a subshell moved to its root, so its own index
+		## is read and this process keeps its own.
+		local scanSwitch=""
+		[ "$scanWorkspace" = "$MMDAPP" ] || scanSwitch="$scanWorkspace"
+		if [ -z "$scanSwitch" ] && ! DistroAgentsContext --distro-from-source ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: cannot establish an input spec for workspace $scanWorkspace" >&2
+			scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
+			return 0
+		fi
 		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
 		Require ListDistroProjects || :
 		Require ListDistroDeclares || :
 
 		selectStatus=0
-		selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
+		if [ -z "$scanSwitch" ] ; then
+			selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
+		else
+			selectedProjects="$( AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; Distro ListDistroProjects --select-all )" || selectStatus=$?
+			if [ "$selectStatus" = "97" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: cannot establish an input spec for workspace $scanWorkspace" >&2
+				scanDiscoveryError="true" ; scanDiscoveryTrusted="false"
+				return 0
+			fi
+		fi
 
 		## --select-from-env refuses an empty selection, so an empty one is never
 		## handed to it: the arm below reports that case for itself.
 		declaredStatus=0
-		[ -z "$selectedProjects" ] || declaredMembers="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+		if [ -z "$scanSwitch" ] ; then
+			[ -z "$selectedProjects" ] || declaredMembers="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+		else
+			[ -z "$selectedProjects" ] || declaredMembers="$( AgentsToolsWorkspaceSwitch "$scanSwitch" ; DistroAgentsContext --distro-from-source || exit 97 ; MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:team-member' )" || declaredStatus=$?
+		fi
 
 		if [ "$selectStatus" != "0" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: COULD-NOT-CHECK declared team-members: ListDistroProjects --select-all exited $selectStatus for workspace $scanWorkspace" >&2
@@ -54,8 +81,10 @@ AgentsToolsInstallScanMembers(){
 		elif [ -z "$selectedProjects" ] ; then
 			## A scan that succeeded and found nothing: with no project there is no
 			## project declaring a member, so nothing was left undone and this is
-			## not an error. An empty set is still never read as 'every member
-			## disappeared', so removal stays suppressed.
+			## not an error. A scan that could not read the index is not this case:
+			## ListDistroProjects exits non-zero then, and the arm above reports it.
+			## An empty set is still never read as 'every member disappeared', so
+			## removal stays suppressed.
 			echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: workspace $scanWorkspace selects no distro projects, so none declares a team-member -- the bundled members are linked and nothing is removed" >&2
 			scanDiscoveryTrusted="false"
 		elif [ "$declaredStatus" != "0" ] ; then
@@ -317,6 +346,16 @@ case "$1" in
 				DistroAgentsTools --install-skillset-report-render
 				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
 			fi
+			## The member index follows every registry change, whichever scope made it.
+			if [ -d "$workspace/.local" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+				if AgentsToolsTeamMemberIndexWrite "$workspace" ; then
+					echo "🧭 member index written: .local/agents/members.index" >&2
+				else
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: could not write the member index in $workspace/.local/agents" >&2
+					fanStatus=1
+				fi
+			fi
 			if [ "$fanStatus" != "0" ] ; then
 				set +e ; return 1
 			fi
@@ -393,7 +432,28 @@ case "$1" in
 
 		local workspaceName registryFile compositeRoot originRoot
 		workspaceName="$( basename "$workspace" )"
-		registryFile="$targetRoot/.linked.magic-team.members.txt"
+		## The member registry is our own data, never a file inside a vendor link folder
+		## (AgentsTools.TeamRegistry.include): the user-home scope writes the machine-wide
+		## directory every workspace reads, the workspace scope this workspace's own.
+		## Rows are TAB-separated: member, workspace root, link kind, relative path,
+		## member directory.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		case "$scope" in
+			user-home) registryFile="$( AgentsToolsTeamSharedMembers )" ;;
+			*) registryFile="$( AgentsToolsTeamLocalFile "$workspace" members.registry )" ;;
+		esac
+		mkdir -p "${registryFile%/*}" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create the registry directory: ${registryFile%/*}" >&2
+			set +e ; return 1
+		}
+		## Every vendor folder this scope fans into: a member no workspace registers any
+		## more is unlinked from all of them at once, since the one registry serves them all.
+		local scopeRoots
+		case "$scope" in
+			user-home) scopeRoots="$HOME/.agents/skills"$'\n'"$HOME/.copilot/skills"$'\n'"$HOME/.claude/skills" ;;
+			*) scopeRoots="$workspace/.agents/skills"$'\n'"$workspace/.claude/skills" ;;
+		esac
+		case $'\n'"$scopeRoots"$'\n' in *$'\n'"$targetRoot"$'\n'*) ;; *) scopeRoots="$targetRoot"$'\n'"$scopeRoots" ;; esac
 		compositeRoot="$workspace/.local/agents/magic-team-composite"
 		originRoot="${MDLT_ORIGIN:-}"
 		[ -n "$originRoot" ] || originRoot="$compositeRoot"
@@ -606,7 +666,7 @@ case "$1" in
 				hadError="true"
 			}
 
-			local regEntry regName regResolved regType regRel regLine regTmp regContent
+			local regEntry regName regResolved regType regRel regLine regTmp regContent regDir regVerdict=""
 			local regReadFailed="false"
 			regContent=$'\n'"$( cat "$registryFile" 2>/dev/null )"$'\n' || {
 				echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed: $registryFile -- removing NOTHING" >&2
@@ -616,6 +676,7 @@ case "$1" in
 				[ -n "$regEntry" ] || continue
 				regName="${regEntry%% *}"
 				regResolved="${regEntry#* }"
+				regVerdict=""
 
 				local regRulesMatch="false" regRulesEntry regBundled regVerdict regSlot
 				for regRulesEntry in $rulesFiles ; do
@@ -656,7 +717,7 @@ case "$1" in
 									## rules entry (a file) and a member (a directory) alike.
 									if diff -r -q "$regResolved" "$regBundled" >/dev/null 2>&1 ; then
 										regVerdict="same"
-									elif [[ "$regContent" == *$'\n'"$regName:"* ]] ; then
+									elif [[ "$regContent" == *$'\n'"$regName"$'\t'* ]] ; then
 										## Content differs, but one of our own workspaces registered this
 										## member into this shared root: known, so not foreign.
 										regVerdict="ours"
@@ -710,12 +771,14 @@ case "$1" in
 						;;
 					esac
 				fi
-				regLine="$regName:$workspaceName:$regType:$regRel"
+				regDir="$regResolved"
+				[ "$regVerdict" != "same" ] || regDir="$regBundled"
+				regLine="$regName"$'\t'"$workspace"$'\t'"$regType"$'\t'"$regRel"$'\t'"$regDir"
 
 				case "$regContent" in *$'\n'"$regLine"$'\n'*) continue ;; esac
-				if [[ "$regContent" == *$'\n'"$regName:$workspaceName:"* ]] ; then
+				if [[ "$regContent" == *$'\n'"$regName"$'\t'"$workspace"$'\t'* ]] ; then
 					regTmp="$registryFile.tmp.$$"
-					if awk -F: -v m="$regName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
+					if LC_ALL=C awk -F'\t' -v m="$regName" -v w="$workspace" '!( $1 == m && $2 == w )' "$registryFile" > "$regTmp" ; then
 						printf '%s\n' "$regLine" >> "$regTmp" || {
 							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed for $regLine" >&2
 							rm -f "$regTmp" 2>/dev/null || true
@@ -757,64 +820,70 @@ case "$1" in
 			else
 				local rcOwned rcEntry rcName rcType rcRel rcPath rcSlot rcTmp
 				rcOwned="$(
-					LC_ALL=C awk -F: -v w="$workspaceName" '
-						$2 == w {
-							rest = substr( $0, length($1) + length($2) + length($3) + 4 )
-							printf "%s\t%s\t%s\n", $1, $3, rest
-						}
+					LC_ALL=C awk -F'\t' -v w="$workspace" '
+						$2 == w && NF >= 5 { printf "%s\t%s\t%s\n", $1, $3, $5 }
 					' "$registryFile"
 				)" || {
-					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while listing $workspaceName's entries -- removing NOTHING" >&2
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while listing $workspace's entries -- removing NOTHING" >&2
 					rcOwned="" ; hadError="true"
 				}
 				while IFS=$'\t' read -r rcName rcType rcRel ; do
 					[ -n "$rcName" ] || continue
 					case " $ownedNames " in *" $rcName "*) continue ;; esac
 
+					## rcRel is the member directory the row recorded.
 					case "$rcType" in
-						source-symlink) rcPath="$workspace/source/$rcRel" ;;
 						rules-symlink)  rcPath="$workspace/.claude/rules/$rcName" ;;
-						*)              rcPath="$workspace/.local/$rcRel" ;;
+						*)              rcPath="$rcRel" ;;
 					esac
 					if [ "$removeMode" != "true" ] && [ -e "$rcPath" ] ; then
 						continue
 					fi
 
 					rcTmp="$registryFile.tmp.$$"
-					if ! awk -F: -v m="$rcName" -v w="$workspaceName" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName:$workspaceName -- registry left untouched" >&2
+					if ! LC_ALL=C awk -F'\t' -v m="$rcName" -v w="$workspace" '!( $1 == m && $2 == w )' "$registryFile" > "$rcTmp" ; then
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry read failed while removing $rcName of $workspace -- registry left untouched" >&2
 						rm -f "$rcTmp" 2>/dev/null || true
 						hadError="true"
 						continue
 					fi
 					if ! mv -f "$rcTmp" "$registryFile" ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName:$workspaceName" >&2
+						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: registry rewrite failed removing $rcName of $workspace" >&2
 						rm -f "$rcTmp" 2>/dev/null || true
 						hadError="true"
 						continue
 					fi
 					deletedMembers="${deletedMembers}${rcName} "
 
-					if awk -F: -v m="$rcName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
+					if LC_ALL=C awk -F'\t' -v m="$rcName" '$1 == m { hit = 1; } END { exit !hit; }' "$registryFile" 2>/dev/null ; then
 						continue
 					fi
+					## a rules-file link lives beside the workspace's .claude/skills, not
+					## under it; a member link is unlinked from every folder of this scope.
+					local rcSlots="" rcScopeRoot
 					case "$rcType" in
-						## a rules-file link lives beside $targetRoot, not under it -- see
-						## the rcPath case above for the same distinction.
-						rules-symlink) rcSlot="$workspace/.claude/rules/$rcName" ;;
-						*)              rcSlot="$targetRoot/$rcName" ;;
+						rules-symlink) rcSlots="$workspace/.claude/rules/$rcName" ;;
+						*)
+							while IFS= read -r rcScopeRoot ; do
+								[ -n "$rcScopeRoot" ] || continue
+								rcSlots="$rcSlots$rcScopeRoot/$rcName"$'\n'
+							done <<< "$scopeRoots"
+						;;
 					esac
-					if [ -L "$rcSlot" ] ; then
-						if rm -f "$rcSlot" ; then
-							echo "🔗 unlinked $rcName, no workspace registers it any more" >&2
-						else
-							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
+					while IFS= read -r rcSlot ; do
+						[ -n "$rcSlot" ] || continue
+						if [ -L "$rcSlot" ] ; then
+							if rm -f "$rcSlot" ; then
+								echo "🔗 unlinked $rcSlot, no workspace registers $rcName any more" >&2
+							else
+								echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to unlink: $rcSlot" >&2
+								hadError="true"
+							fi
+						elif [ -e "$rcSlot" ] ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
 							hadError="true"
 						fi
-					elif [ -e "$rcSlot" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: $rcSlot is not a symlink, refusing to remove real content" >&2
-						hadError="true"
-					fi
+					done <<< "$rcSlots"
 				done <<< "$rcOwned"
 			fi
 
@@ -827,9 +896,9 @@ case "$1" in
 		## members another workspace registered into this same root: present and real, not ours to touch,
 		## but they are in the root and the count has to say so
 		if [ -f "$registryFile" ] ; then
-			while IFS=: read -r regLineName regLineWs regLineRest ; do
+			while IFS=$'\t' read -r regLineName regLineWs regLineRest ; do
 				[ -n "$regLineName" ] || continue
-				[ "$regLineWs" != "$workspaceName" ] || continue
+				[ "$regLineWs" != "$workspace" ] || continue
 				[ -e "$targetRoot/$regLineName" ] || continue
 				case " $foreignMembers " in *" $regLineName "*) continue ;; esac
 				## a rules file is not a skill member -- keep it out of the
@@ -1091,16 +1160,22 @@ case "$1" in
 			grantRows="${grantRows}$( basename "$gOne" ):${workspaceName}:member:Edit(/${gOne}/**)"$'\n'
 		done <<< "$( AgentsToolsClientAccessRootsMembers acting )"
 
-		## Marks live in $HOME beside the members registry and follow its own record
-		## discipline: one row per (member, workspace), workspace in field 2, grant
-		## last so a colon inside a path can never displace it.
-		local permissionsRegistry="$HOME/.claude/skills/.linked.magic-team.permissions.txt"
-		mkdir -p "$HOME/.claude/skills" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $HOME/.claude/skills" >&2
-			set +e ; return 1
-		}
+		## The rows are this workspace's own data and live in its own .local/agents
+		## (AgentsTools.TeamRegistry.include): one row per (member, workspace), workspace
+		## in field 2, grant last so a colon inside a path can never displace it. The
+		## machine-wide set is every workspace's own file, found through the pointers in
+		## $HOME/.agents/magic-team/permissions.registry, which name the workspaces
+		## that publish one and hold nothing else.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		local permissionsRegistry tagsRegistry
+		permissionsRegistry="$( AgentsToolsTeamLocalFile "$workspace" permissions.registry )"
+		tagsRegistry="$( AgentsToolsTeamLocalFile "$workspace" permissions-tags.registry )"
+		mkdir -p "${permissionsRegistry%/*}" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create ${permissionsRegistry%/*}" >&2
+			set +e ; return 1
+		}
 		local regLock="$permissionsRegistry.lock" regWait=0 regLocked="false"
 		while [ "$regWait" -lt 10 ] ; do
 			if mkdir "$regLock" 2>/dev/null ; then regLocked="true" ; break ; fi
@@ -1120,80 +1195,50 @@ case "$1" in
 			mkdir -p "$MMDAPP/.local/temp" || exit 1
 			[ -f "$permissionsRegistry" ] || : > "$permissionsRegistry" || exit 1
 
-			## What the registry claimed BEFORE this run. An entry here but not in the
-			## post-rewrite projection is one this workspace has just given up, and is
+			## What the machine-wide set claimed BEFORE this run. An entry here but not in
+			## the post-rewrite projection is one this workspace has just given up, and is
 			## the only thing that may be removed -- nothing is identified by shape.
-			LC_ALL=C awk -F: 'NF >= 4 {
+			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '{
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
-			}' "$permissionsRegistry" > "$grantsFile.prev" || {
+			}' > "$grantsFile.prev" || {
 				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry snapshot failed for workspace $workspaceName -- registry left untouched" >&2
 				exit 1
 			}
 
-			## Rows are reconciled for THIS workspace only; every other workspace's
-			## rows pass through untouched. Suppressed entirely when the scan is not
-			## trusted, so a failed or empty read can never mean "all grants gone".
+			## This workspace's own file is rewritten whole; every other workspace's is
+			## theirs and is never touched. Suppressed entirely when the scan is not
+			## trusted, so a failed or empty read can never mean "all grants gone". The
+			## tags file is rewritten in the same critical section, so the two are never
+			## observed with only one of them rewritten.
 			if [ "$grantsTrusted" = "true" ] ; then
 				regTmp="$permissionsRegistry.tmp.$$"
-				if awk -F: -v w="$workspaceName" '!( $2 == w )' "$permissionsRegistry" > "$regTmp" ; then
-					printf '%s' "$grantRows" >> "$regTmp" || {
-						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry append failed for workspace $workspaceName -- registry left untouched" >&2
-						rm -f "$regTmp" 2>/dev/null || true
-						exit 1
-					}
-					mv -f "$regTmp" "$permissionsRegistry" || {
-						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry rewrite failed for workspace $workspaceName" >&2
-						rm -f "$regTmp" 2>/dev/null || true
-						exit 1
-					}
-				else
-					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry read failed for workspace $workspaceName -- registry left untouched" >&2
+				if ! { printf '%s' "$grantRows" > "$regTmp" && mv -f "$regTmp" "$permissionsRegistry" ; } ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry rewrite failed for workspace $workspaceName" >&2
 					rm -f "$regTmp" 2>/dev/null || true
 					exit 1
 				fi
-			fi
-
-			## The tags sidecar rides in the SAME regLock-protected critical section
-			## as the registry above, reconciled the same way (this workspace's rows
-			## only) -- so the two files can never be observed mid-way through only
-			## one of them having been rewritten under a concurrent multi-workspace
-			## install.
-			tagsRegistry="$HOME/.claude/skills/.linked.magic-team.permissions-tags.txt"
-			[ -f "$tagsRegistry" ] || printf '%s\n' "# generated by $MDSC_CMD --install-claude-permissions -- do not hand-edit, this file is fully rewritten per-workspace on every run" > "$tagsRegistry" || {
-				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar header write failed for workspace $workspaceName -- no sidecar was created" >&2
-				[ -L "$tagsRegistry" ] || rm -f "$tagsRegistry" 2>/dev/null || true
-				exit 1
-			}
-			if [ "$grantsTrusted" = "true" ] ; then
 				tagsTmp="$tagsRegistry.tmp.$$"
-				if awk -F: -v w="$workspaceName" '!( $2 == w )' "$tagsRegistry" > "$tagsTmp" ; then
-					printf '%s' "$grantTagRows" >> "$tagsTmp" || {
-						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar append failed for workspace $workspaceName -- sidecar left untouched" >&2
-						rm -f "$tagsTmp" 2>/dev/null || true
-						exit 1
-					}
-					mv -f "$tagsTmp" "$tagsRegistry" || {
-						echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar rewrite failed for workspace $workspaceName" >&2
-						rm -f "$tagsTmp" 2>/dev/null || true
-						exit 1
-					}
-				else
-					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags sidecar read failed for workspace $workspaceName -- sidecar left untouched" >&2
+				if ! { { printf '%s\n' "# generated by $MDSC_CMD --install-claude-permissions -- do not hand-edit, this file is fully rewritten on every run" ; printf '%s' "$grantTagRows" ; } > "$tagsTmp" && mv -f "$tagsTmp" "$tagsRegistry" ; } ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags registry rewrite failed for workspace $workspaceName" >&2
 					rm -f "$tagsTmp" 2>/dev/null || true
 					exit 1
 				fi
+				AgentsToolsTeamGrantPointerUpsert "$workspace" || {
+					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not record $workspace in $( AgentsToolsTeamSharedGrants )" >&2
+					exit 1
+				}
 			fi
 
-			## Grants are a projection of the WHOLE registry, every workspace's rows
-			## unioned and de-duplicated: a member registered by several workspaces
-			## holds a row per workspace, and its grant survives until the last goes.
-			## Field 4 is taken whole by offset, never by splitting, so a grant
-			## carrying its own colons is reproduced exactly.
-			LC_ALL=C awk -F: 'NF >= 4 {
+			## Grants are a projection of the WHOLE machine-wide set, every workspace's rows
+			## unioned and de-duplicated: a member registered by several workspaces holds a
+			## row per workspace, and its grant survives until the last goes. Field 4 is
+			## taken whole by offset, never by splitting, so a grant carrying its own colons
+			## is reproduced exactly.
+			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '{
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
-			}' "$permissionsRegistry" > "$grantsFile"
+			}' > "$grantsFile"
 		) || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
 
 		local settingsTmp="$settingsFile.tmp.$$"

@@ -9,13 +9,15 @@
 ##
 ## Why it exists. A member folder under $HOME/.claude/skills is a symlink into the tree
 ## that owns it, and Read resolves a path before matching it, so the granted skills
-## directory never covered a member file: whether one read at all depended on the
-## process having resolved a skillset root that happened to hold that member.
+## directory never covers a member file: what makes it readable is the member being in
+## the workspace's member index (AgentsTools.TeamRegistry.include), whose members/ view
+## is MDAT_SKILLSET_ROOT -- every member another workspace publishes included. A member
+## linked only in the vendor folder $HOME/.claude/skills is never read from there.
 ##
 ## Offline and unmetered: --intern-tool reaches no endpoint and needs no credential.
 ## HOME and MMDAPP are this rig's own fixtures, so no file of the real machine is read.
 ##
-## Red recipe, run: drop the `$HOME/.claude/skills"/*/` walk from
+## Red recipe, run: drop the `$MDAT_SKILLSET_ROOT"/*/` walk from
 ## AgentsToolsClientAccessRootsMembers, or the `*/*)` split from AgentsHarnessToolSkill,
 ## or the status capture around AgentsToolsClientAccessRoots in the harness or in
 ## AgentsConsoleShellScript.template.sh, or pass only name, file, list, offset and limit
@@ -35,17 +37,27 @@ rigRefuse(){
 rigTmp="$( mktemp -d -t AgentsHarnessSkillReadCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
-## The shape of this machine: members live in their owning trees and are linked into
-## $HOME/.claude/skills, while this workspace resolved its own skillset, which holds
-## none of them. No permissions registry, so no declared grant covers them either.
-mkdir -p "$rigTmp/home/.claude/skills" "$rigTmp/ws/source" "$rigTmp/ws/.claude/skills" \
-	"$rigTmp/owners/rig-keeper" "$rigTmp/owners/magic-team" "$rigTmp/OUTSIDE"
+## The shape of this machine: members live in their owning trees, are linked into
+## $HOME/.claude/skills for the vendor clients, and reach this workspace through its
+## member index view, which links them as another workspace publishes them. No
+## permissions registry, so no declared grant covers them either.
+rigWsSkills="$rigTmp/ws/.local/agents/members"
+mkdir -p "$rigTmp/home/.claude/skills" "$rigTmp/ws/source" "$rigWsSkills" \
+	"$rigTmp/owners/rig-keeper" "$rigTmp/owners/magic-team" "$rigTmp/owners/rig-vendor-only" "$rigTmp/OUTSIDE"
 printf 'rig-keeper-boot\n' > "$rigTmp/owners/rig-keeper/SKILL.md"
 printf 'rig-keeper-armed\n' > "$rigTmp/owners/rig-keeper/rig-keeper.armed.md"
 printf 'rig-team-armed\n' > "$rigTmp/owners/magic-team/magic-team.armed.md"
 printf 'rig-outside\n' > "$rigTmp/OUTSIDE/secret.txt"
 ln -s "$rigTmp/owners/rig-keeper" "$rigTmp/home/.claude/skills/rig-keeper"
 ln -s "$rigTmp/owners/magic-team" "$rigTmp/home/.claude/skills/magic-team"
+ln -s "$rigTmp/owners/rig-keeper" "$rigWsSkills/rig-keeper"
+ln -s "$rigTmp/owners/magic-team" "$rigWsSkills/magic-team"
+## In the vendor folder only, as a link: ours, generated, never read back.
+printf 'rig-vendor-only-boot\n' > "$rigTmp/owners/rig-vendor-only/SKILL.md"
+ln -s "$rigTmp/owners/rig-vendor-only" "$rigTmp/home/.claude/skills/rig-vendor-only"
+## In the vendor folder as a real folder: a skill the user or a vendor put there.
+mkdir -p "$rigTmp/home/.claude/skills/rig-user-own"
+printf 'rig-user-own-boot\n' > "$rigTmp/home/.claude/skills/rig-user-own/SKILL.md"
 
 export HARNESS_PROVIDER_NAME="skill-read check rig"
 export HARNESS_SELF_NAME="AgentsHarnessSkillReadCheck.test.sh"
@@ -62,7 +74,7 @@ export HARNESS_TOKEN_MAIN="rig-not-a-credential"
 ## server returns. A refused call exits non-zero by design, so only silence is a fault.
 rigCall(){ ## tool, argument object
 	local rigOut
-	rigOut="$( printf '%s' "$2" | HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/ws/.claude/skills" \
+	rigOut="$( printf '%s' "$2" | HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
 		"$rigHarness" --intern-tool "$1" 2>/dev/null )" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from $1 $2, so the tool was never exercised"
 	case "$rigOut" in
@@ -106,7 +118,6 @@ rigAssert "Skill <member>/<file> steps out of no folder" \
 ## skill as the native tool takes it: the workspace skillset, a synced skill, a synced
 ## plugin holding skills and a command, and a working directory holding a project skill
 ## plus a decoy named like the plugin, which the plugin must win over.
-rigWsSkills="$rigTmp/ws/.claude/skills"
 rigPlugin="$rigTmp/home/.claude/plugins/synced/rig-bucket/rig-plugin-dir"
 mkdir -p "$rigWsSkills/rig-bare" "$rigWsSkills/rig-folder" "$rigWsSkills/rig-manual" "$rigWsSkills/rig-args" \
 	"$rigWsSkills/rig-noph" "$rigWsSkills/rig-issue" "$rigTmp/home/.claude/skills/synced/rig-bucket/rig-synced" \
@@ -145,8 +156,14 @@ rigAssert "skill <bare> renders from the workspace skillset" \
 	"$( rigSkill '{"skill":"rig-bare"}' )" "Base directory for this skill: $rigWsSkills/rig-bare"$'\n'"rig-bare-one"$'\n'"rig-bare-two"
 rigAssert "skill <bare> finds a folder by its frontmatter name" \
 	"$( rigSkill '{"skill":"rig-named"}' )" "Base directory for this skill: $rigWsSkills/rig-folder"$'\n'"rig-folder-body"
-rigAssert "skill <bare> falls back to \$HOME/.claude/skills" \
-	"$( rigSkill '{"skill":"rig-keeper"}' )" "Base directory for this skill: $rigTmp/home/.claude/skills/rig-keeper"$'\n'"rig-keeper-boot"
+rigAssert "skill <bare> reads a member another workspace publishes, from the member index" \
+	"$( rigSkill '{"skill":"rig-keeper"}' )" "Base directory for this skill: $rigWsSkills/rig-keeper"$'\n'"rig-keeper-boot"
+rigAssert "skill <bare> never reads a link in \$HOME/.claude/skills" \
+	"$( rigSkill '{"skill":"rig-vendor-only"}' | cut -c1-29 )" "ERROR: Skill: no such skill: "
+rigAssert "Skill name never reads a link in \$HOME/.claude/skills" \
+	"$( rigSkill '{"name":"rig-vendor-only"}' | cut -c1-36 )" "ERROR: Skill: no such skill folder: "
+rigAssert "skill <bare> still reads a real folder a user put in \$HOME/.claude/skills" \
+	"$( rigSkill '{"skill":"rig-user-own"}' )" "Base directory for this skill: $rigTmp/home/.claude/skills/rig-user-own"$'\n'"rig-user-own-boot"
 rigAssert "skill anthropic-skills:<S> reads a synced skill" \
 	"$( rigSkill '{"skill":"anthropic-skills:rig-synced"}' )" "Base directory for this skill: $rigTmp/home/.claude/skills/synced/rig-bucket/rig-synced"$'\n'"rig-synced-body"
 rigAssert "skill <plugin>:<S> finds a plugin by its plugin.json name, a skill by its frontmatter name" \
@@ -207,7 +224,7 @@ rigConsole(){
 		unset HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST HARNESS_WIRE \
 			HARNESS_CREDENTIAL_NAMES HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_MAIN \
 			SCALEWAY_DEEPSEEK SCALEWAY_GEMMA
-		HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/ws/.claude/skills" \
+		HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigWsSkills" \
 			bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsConsoleShellScript.template.sh" \
 			--cli scaleway --non-interactive RIG-PROMPT 2>&1 < /dev/null
 	)" || :

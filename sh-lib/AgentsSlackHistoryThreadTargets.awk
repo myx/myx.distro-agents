@@ -13,9 +13,18 @@
 #   in the parent's own reply_users array (Vane already replied in this
 #   thread), OR the parent's own text contains a literal "<@vaneId>" mention
 #   (Vane was tagged in this thread's parent). A vane-hit bypasses the
-#   freshness gate -- it exists to keep surfacing a thread Vane already
-#   participated in / was tagged in even when its latest reply happens to
-#   predate --oldest.
+#   freshness gate ONLY where the parent carries no latest_reply to judge it
+#   by. A thread whose latest reply is known to be no newer than --oldest
+#   holds nothing a cut-off read could show: expanding it cost one
+#   conversations.replies read (limit=999) whose every message the caller's
+#   own trim then dropped.
+#
+# -v stale=1 also prints each such skipped vane-hit thread, as
+# "stale <channel>:<parent-ts>", so a caller can count it as assessed rather
+# than unread. Without it nothing is printed for them.
+#
+# -v latest=1 appends " <latest_reply>" to each printed target whose parent
+# states one, so a caller can rank threads by recency before reading any.
 #
 # This is intentionally a best-effort widening of the watched-channel sweep,
 # not a global mention search: it only sees parent messages present in the
@@ -315,7 +324,14 @@ function flushDoc(   i, ts, replyCount, latestReply, vaneHit) {
 		}
 
 		if (!fresh && !vaneHit) continue
-		print docChannel ":" ts
+		## Known stale: the newest reply is at or before the cut-off, so the
+		## thread read would be trimmed to nothing. Only a vane hit gets here.
+		if (!fresh && (i in latestReplyOf) && latestReplyOf[i] != "") {
+			if (stale) print "stale " docChannel ":" ts
+			continue
+		}
+		if (latest && (i in latestReplyOf) && latestReplyOf[i] != "") print docChannel ":" ts " " latestReplyOf[i]
+		else print docChannel ":" ts
 	}
 }
 

@@ -60,7 +60,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 - `roster-note` — the team roster cache: member, domain and posture rows, plus each member's persona fields. Read with `--magic-team-roster-read`, written with `--magic-team-roster-upsert`. The members' own `SKILL.md` and `.basic.md` stay the source of truth.
 - `heartbeat-state-note` — `magic-coordinator.heartbeat.routine`'s day-rhythm record. Read with `--magic-heartbeat-state-read`, written with `--magic-heartbeat-state-upsert`.
-- `sweep-state-note` — one member's comms-sweep position. Read with `--magic-sweep-state-read`, written with `--magic-sweep-state-upsert`.
+- `sweep-state-note` — one member's comms-sweep position. Read with `--magic-sweep-state-read`, advanced with `--magic-sweep-state-advance`, written with `--magic-sweep-state-upsert`.
 - `resume-review` — on reactivating tracked work, dispatch the sub-pieces already settled and shrink the tracked scope to what is still open.
 - `comms-action record` — a `note-*` this member files in its own inbox, queuing one deferred comms action: `note-pending-slack-reaction-<matter>` or `note-pending-trello-update-<matter>`. One record per action. Another member wanting a Trello update asks for it by `post-inquiry`.
 

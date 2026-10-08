@@ -10,6 +10,14 @@ case "$1" in
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		AgentsToolsRegistryAgentsIndicesBuild || { set +e ; return 1 ; }
+		## The member index, from this workspace's own member registry first and the
+		## machine-wide directory second (AgentsTools.TeamRegistry.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		AgentsToolsTeamMemberIndexWrite "$MMDAPP" || {
+			echo "$MDSC_CMD: ⛔ ERROR: --make-agents-indices: could not write the member index in $MMDAPP/.local/agents" >&2
+			set +e ; return 1
+		}
+		echo "# $MDSC_CMD --make-agents-indices: wrote $MMDAPP/.local/agents/members.index" >&2
 		return 0
 	;;
 
@@ -24,17 +32,15 @@ case "$1" in
 		DistroAgentsTools --make-agents-indices || { set +e ; return 1 ; }
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
-		## The restrictions -- the hooks that route a client's tool calls to this
-		## workspace's own myx.distro tooling -- are part of what an integrated
-		## workspace IS, so making the integrations installs them, every run and
-		## with nothing asked first: the op writes its own named hook set over
-		## whatever it finds, so reinstalling is how they stay current and there
-		## is no second state saying whether they are there.
+		## The restrictions are a manual opt-in (--install-workspace-restrictions). Where the
+		## user installed them, their reroute hook is in place, and they are kept current
+		## here; where not, they are never installed by this op.
 		## Given no "$@": what this op forwards is --quiet and --scope, which
 		## that op does not take, and the workspace it works on is the $MMDAPP
-		## default it resolves for itself -- the same one --make-console-command
-		## above writes its console into.
-		DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
+		## default it resolves for itself.
+		if [ -f "$MMDAPP/.claude/hooks/deny-native-tool-reroute.sh" ] ; then
+			DistroAgentsTools --install-workspace-restrictions || { set +e ; return 1 ; }
+		fi
 		## Last, so the indexes describe the access roots, grants and servers every step
 		## above has just finished registering.
 		DistroAgentsTools --make-harness-indices || { set +e ; return 1 ; }

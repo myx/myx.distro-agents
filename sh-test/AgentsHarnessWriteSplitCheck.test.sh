@@ -180,11 +180,12 @@ rigAssert "with no CLAUDE_CODE_SESSION_ID at all, the scratchpad is not readable
 	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="" MDAT_SPAWN_SESSION_ID="" rigRead "$rigScratchDir/seed.txt" )" "refused-not-granted"
 
 echo "-- no root flag at all, as the MCP server calls it: writes narrow the way the console's do --"
-## HOME is the fixture's, so its skills root and permissions registry are this rig's own.
-## One declared Edit grant names GRANTED; nothing names the skills root or the source tree.
-mkdir -p "$rigTmp/home/.claude/skills/rig-member" "$rigTmp/source" "$rigTmp/.local/temp/team" "$rigTmp/GRANTED"
+## HOME is the fixture's, so its skills root is this rig's own; the workspace is the rig, so
+## its own permissions registry is too. One declared Edit grant names GRANTED; nothing
+## names the skills root or the source tree.
+mkdir -p "$rigTmp/home/.claude/skills/rig-member" "$rigTmp/source" "$rigTmp/.local/temp/team" "$rigTmp/.local/agents" "$rigTmp/GRANTED"
 printf 'rig-seed\n' > "$rigTmp/home/.claude/skills/rig-member/seed.txt"
-printf 'rig:rig:rig:Edit(%s/**)\n' "$rigTmp/GRANTED" > "$rigTmp/home/.claude/skills/.linked.magic-team.permissions.txt"
+printf 'rig:rig:rig:Edit(%s/**)\n' "$rigTmp/GRANTED" > "$rigTmp/.local/agents/permissions.registry"
 rigAssert "the skills root stays readable" \
 	"$( HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="" CLAUDE_CODE_SESSION_ID="" rigRead "$rigTmp/home/.claude/skills/rig-member/seed.txt" )" "read"
 rigAssert "and refuses a write" \

@@ -54,7 +54,7 @@ The live-platform set changes only on a human-reported status change, or a check
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first. Inside those, the caller already did.
-2. **check**: Read the `sweep-state-note` (`--magic-sweep-state-read`), then run `--magic-sweep-input-scan <team-member> --comms-since-utime <last_swept_ts>`. Read the result this way:
+2. **check**: Run `--magic-sweep-input-scan <team-member>`. Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
    - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
    - A thread this member started, was answered in or was tagged in is followed whatever its age.
    - The executor's own new messages form one set, ascending by timestamp. Each member's part is attributed by the member it names, and read in the order it declares. Messages are never ordered across sources.
@@ -77,12 +77,12 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - A reply the addressee must act on tags them (`magic-team.conversations.md`'s **address-messages-clearly**).
       - A question goes standalone. Distinct points go as threaded replies under one root message, never one long message (**one-message-one-speech-act**).
       - Mark it read on every platform (`--member-comms-email-mark-seen` for email). Slack: react per `slack-reaction-tracking`'s reply stage.
-   5. **advance-watermark**: Only now is this message swept. Record its timestamp as this member's running high-water mark.
+   5. **advance-pointer**: Only now is this message swept. Move this member's pointer to it (`--magic-sweep-state-advance <team-member> <ts>`) before the next message.
 
 # Closure steps
 
 1. **update-context**: steps:
-   - Write each swept member's own `sweep-state-note` (`--magic-sweep-state-upsert <team-member>`), one call per member, carrying that member's high-water mark as `last_swept_ts`. Never wall-clock time. With no message found, leave it unchanged.
+   - Sources a pass could not read go in that member's `sweep-state-note` (`--magic-sweep-state-upsert`).
    - Fold identity and routing changes into the `roster-note` (`--magic-team-roster-upsert`).
    - Post today's status and what is blocked on the human team to the own-status Trello card (`--magic-comms-trello-post-comment`).
    - Post milestones and blockers to `magic-team` as threaded replies under the session's root message, as they happen, in plain language. No dispatch mechanics, ids or scores.
@@ -123,6 +123,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 - `--magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`
 - `--magic-sweep-state-read <team-member>`
+- `--magic-sweep-state-advance <team-member> <ts>`
 - `--magic-sweep-state-upsert <team-member>`
 - `--member-comms-slack-read <team-member> <channel>:<ts> [--thread]`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`

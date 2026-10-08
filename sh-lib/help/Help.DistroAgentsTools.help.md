@@ -131,6 +131,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance <team-member> <ts>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
@@ -576,7 +577,9 @@
 
 			Default --identity both reports the user-token persona
 			and the bot identity; --types defaults to `im,mpim`, any
-			`conversations.list` types= csv.
+			`conversations.list` types= csv. A channel is listed only
+			when Slack marks it `is_member` for that identity: the
+			channels it is in, never every channel it can see.
 
 			Output: `IDENTITY|identity=|auth=|handle=|status=|
 			conversations=` once per identity, then
@@ -1856,7 +1859,7 @@
 
 		--owner-workspace-upsert <path>
 			Adds one filesystem path to the human-owner's tracked workspace
-			list at $HOME/.claude/skills/.human-owner.workspaces.md -- a
+			list at $HOME/.agents/magic-team/known-workspaces.registry -- a
 			bare, one-absolute-path-per-line file, the ONLY authoritative
 			source for the workspace paths the magic-* team tracks.
 			<path> must be absolute (starts with `/`); a trailing slash
@@ -2001,6 +2004,15 @@
 			workspace's rows are reconciled. A revoked grant can
 			still apply while another workspace still records it.
 
+			Each workspace's declared grants and their provenance tags
+			are its own data, in `<workspace>/.local/agents/
+			permissions.registry` and `permissions-tags.registry`,
+			rewritten whole on every trusted run. The machine-wide
+			`$HOME/.agents/magic-team/permissions.registry` holds only
+			pointers -- the root of each workspace that publishes
+			grants -- and the grant set written here is the union of
+			every such workspace's own file.
+
 			Upserts the fixed grants (`mcp__myx_common`,
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
 			`Edit(<path>/**)` per acting team member's skillset
@@ -2096,6 +2108,20 @@
 			as such. Real content already at a target is deleted
 			and replaced by the link.
 
+			The link folders are generated output for the vendor
+			clients, never a source. What was linked is recorded as
+			our own data: `--scope workspace` in
+			`<workspace>/.local/agents/members.registry`, `--scope
+			user-home` in the machine-wide
+			`$HOME/.agents/magic-team/members.registry` -- one row per
+			member, TAB-separated: member, workspace root, link kind,
+			relative path, member directory. Every run then rewrites
+			the workspace's member index, `.local/agents/members.index`
+			and its `members/` view: this workspace's own members
+			first, then the members other workspaces publish (a source
+			link preferred), each name once. `MDAT_SKILLSET_ROOT`
+			defaults to that view.
+
 		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code MCP
 			integrations and the Magic-Team panel. Installs no chat-
@@ -2162,7 +2188,9 @@
 			(member, workspace, link kind, skillset path) and
 			`team-members-names.registry` (member, mark, first name,
 			family name, alias), rows only for members that have a path
-			in this workspace. Names come from each member's
+			in this workspace, read from its own
+			`.local/agents/members.registry` -- and the member index,
+			`members.index` and its `members/` view. Names come from each member's
 			basic.md (the Name bullet split at its first space, and the
 			Alias bullet), replaced by the member's scope key
 			FIRST_NAME, FAMILY_NAME or ALIAS when set; a value that
@@ -2332,10 +2360,15 @@
 			coverage still gets a `no scan was made` block --
 			never silently missing.
 
-			An optional cut-off narrows the read:
-			--comms-since-utime or --comms-since-date-time,
-			mutually exclusive, passed unchanged to every client
-			member's own sweep.
+			Every member resumes from its OWN cut-off. With none
+			stated, the team part resumes from the calling
+			member's own stored `last_swept_ts`
+			(--magic-sweep-state-read), and each client member's
+			part from that client's own; the scan's default window
+			applies only to a member with no position stored. A
+			stated --comms-since-utime or --comms-since-date-time
+			(mutually exclusive) applies to the team part only and
+			is never forwarded to a client.
 
 			Every `## slack-message` item block carries `author:` and
 			`addressees:` right after `user:`, so no reader parses a
@@ -2383,21 +2416,17 @@
 		--magic-sweep-state-read <team-member>
 			Reads back the whole record written by --magic-sweep-state-upsert
 			for that member, verbatim. Outputs `NO_STATE` if nothing is stored
-			yet. Read-only.
+			yet. Read-only. There is one pointer per member, `last_swept_ts`;
+			no per-source pointer is stored or read.
 
-			With a <source-key> it prints THAT source's own pointer instead --
-			the `source-<key>-last-swept-ts:` entry -- under exactly the same
-			three-outcome contract, where rc 3 means this member has never
-			swept that source. A caller getting rc 3 falls back to the global
-			pointer as that source's floor: never to 0, and never to "nothing
-			to read".
-
-			The key is `<auth-user-id>-<conversation-id>`: persona AND
-			conversation, never the conversation alone. The same DM is
-			reachable under two identities, so a key naming only the
-			conversation would let whichever persona swept first move the
-			pointer for the other, and the second persona's unread messages
-			would then sit below a pointer it never set.
+		--magic-sweep-state-advance <team-member> <ts>
+			Moves that member's own `last_swept_ts` to <ts>, the newest
+			message its pass actually processed. The rest of the record is
+			kept, except stale `source-<key>-last-swept-ts:` entries, which
+			are dropped (a missing record is created). Call it once per
+			swept member at the end of every pass that processed a message.
+			The same value is a no-op; an older one is REFUSED, as is a
+			<ts> more than a minute in the future. Commits the record.
 
 		--magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 			Writes the team's roster cache -- member/domain/posture rows plus
@@ -2481,11 +2510,13 @@
 
 			A cut-off (--comms-since-utime or
 			--comms-since-date-time, mutually exclusive) is
-			optional to pass but never absent from the call: given
-			neither, this operation defaults to
-			`--comms-since-utime 0` itself, so a first-time sweep
-			isn't reported empty. The cut-off actually used is in
-			each section's own `instrument:` line.
+			optional. Given neither, the scan resumes from this
+			member's OWN stored `last_swept_ts`
+			(--magic-sweep-state-read <this member>), never the
+			caller's; with none stored, the scan's default window
+			applies. `resumed-from:` says which, and the cut-off
+			actually used is in each section's own `instrument:`
+			line.
 
 			Exit code: 0 every source scanned, 3 some scanned and
 			some not, 4 none scanned, 1 failed before producing a

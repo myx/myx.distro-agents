@@ -194,7 +194,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			''|human-owner|advance.routine) continue ;;
 			*:*) reviewId="${reviewBy%%:*}" ;;
 			magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) continue ;;
-			*) [ ! -f "${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}/$reviewBy/SKILL.md" ] || continue ; reviewId="$reviewBy" ;;
+			*) [ ! -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$reviewBy/SKILL.md" ] || continue ; reviewId="$reviewBy" ;;
 		esac
 		sessionKind="$( printf '%s\n' "$measureText" | LC_ALL=C awk -v wantSession="$reviewId" '
 			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $13 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }

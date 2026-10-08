@@ -17,28 +17,38 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	unset MDAT_DATA_ROOT
 	## by prefix, so a new index variable needs no edit here
 	for switchStale in ${!MDSC_ID*} ; do unset "$switchStale" ; done
+	## ...and the input tier derived again now, from the new root, the way the front door
+	## (DistroAgentsTools.fn.sh's tail) derived it for the previous one -- so a reader of
+	## the distro index finds the same tier selected as a direct run in that workspace.
+	## Quiet and non-fatal: a root with no detectable input still switches, and a reader
+	## that needs an index then names the failure itself.
+	if type DistroSystemContext >/dev/null 2>&1 ; then
+		DistroSystemContext --distro-path-auto 2>/dev/null || :
+	fi
 }
 
-## The workspace a member operation runs in, from the machine-wide members index and the
-## list of tracked workspaces. Order: the current workspace when the member is there, else
-## the workspace where the member is a source link, else the first tracked workspace that
-## has it. Prints the path to switch to, and nothing when no switch is needed: the member is
-## in the current workspace, is not in the index (its operation refuses as it always has),
-## or the current workspace is not tracked. Refuses, naming the cause, when the member is in
-## no tracked workspace or the chosen workspace is not on this machine.
+## The workspace a member operation runs in, from the machine-wide member directory and
+## the list of tracked workspaces, both in $HOME/.agents/magic-team
+## (AgentsTools.TeamRegistry.include). Order: the current workspace when the member is
+## there, else the tracked workspace where the member is a source link, else the first
+## tracked workspace that has it. Prints the path to switch to, and nothing when no switch
+## is needed: the member is in the current workspace, is not in the directory (its
+## operation refuses as it always has), or the current workspace is not in it. Refuses,
+## naming the cause, when the member is in no tracked workspace or the chosen workspace
+## is not on this machine.
 AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	local resolveMember="$1" resolveOp="$2"
-	local resolveDir="$HOME/.claude/skills"
-	local resolveIndex="$resolveDir/.linked.magic-team.members.txt" resolveList="$resolveDir/.human-owner.workspaces.md"
-	local resolveHere="${MMDAPP%/}" resolveRows resolveWanted resolveName resolveKind resolveLine resolvePath=""
+	local resolveIndex="${HOME:-}/.agents/magic-team/members.registry" resolveList="${HOME:-}/.agents/magic-team/known-workspaces.registry"
+	local resolveHere resolveRows resolveWanted resolveRoot resolveKind resolveLine resolvePath=""
 	case "$resolveMember" in
 		''|magic-team|human-owner) return 0 ;;
 	esac
 	[ -f "$resolveIndex" ] || return 0
-	resolveHere="${resolveHere##*/}"
-	resolveRows="$( LC_ALL=C awk -F: -v who="$resolveMember" -v here="$resolveHere" '
+	resolveHere="$( cd "$MMDAPP" 2>/dev/null && pwd )" || resolveHere="${MMDAPP%/}"
+	resolveRows="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" -v here="$resolveHere" '
+		NF < 5 { next ; }
 		$2 == here { tracked = 1 ; }
-		$1 == who { found = 1 ; if ( $2 == here ) { present = 1 ; } rows = rows $2 ":" $3 "\n" ; }
+		$1 == who { found = 1 ; if ( $2 == here ) { present = 1 ; } rows = rows $2 "\t" $3 "\n" ; }
 		END {
 			if ( ! found ) { print "unknown" ; exit ; }
 			if ( ! tracked ) { print "untracked" ; exit ; }
@@ -51,13 +61,13 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	resolveRows="${resolveRows#*$'\n'}"
 	if [ -f "$resolveList" ] ; then
 		for resolveWanted in source-symlink any ; do
-			while IFS=: read -r resolveName resolveKind ; do
-				[ -n "$resolveName" ] || continue
+			while IFS=$'\t' read -r resolveRoot resolveKind ; do
+				[ -n "$resolveRoot" ] || continue
 				[ "$resolveWanted" = "any" ] || [ "$resolveKind" = "source-symlink" ] || continue
+				## Only a tracked workspace is switched to.
 				while IFS= read -r resolveLine ; do
 					resolveLine="${resolveLine%/}"
-					case "$resolveLine" in /*) ;; *) continue ;; esac
-					[ "${resolveLine##*/}" = "$resolveName" ] || continue
+					[ "$resolveLine" = "$resolveRoot" ] || continue
 					resolvePath="$resolveLine"
 					break
 				done < "$resolveList"

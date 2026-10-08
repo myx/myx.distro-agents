@@ -46,7 +46,7 @@ rigAgentsDir="$rigWs/.local/agents"
 rigDataRoot="$rigTmp/team-data"
 rigNamesFile="$rigAgentsDir/$rigNamesName.registry"
 rigMembersFile="$rigAgentsDir/$rigMembersName.registry"
-rigLinkedFile="$rigSkills/.linked.magic-team.members.txt"
+rigLinkedFile="$rigWs/.local/agents/members.registry"
 mkdir -p "$rigTmp/bin" "$rigHome"
 cp "$rigTest/check-fixtures/slack-client-persona-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-client-persona-check.curl.test.sh"
@@ -85,11 +85,12 @@ rigSkill(){ ## member, status -- that member's SKILL.md: the status, and decoy n
 		printf -- 'first-name: DecoyFirst\nfamily-name: DecoyFamily\nalias: decoyalias\ndescription: rig\n---\n\n# %s\n' "$1"
 	} > "$rigSkills/$1/SKILL.md"
 }
-rigLinkAdd(){ ## member, workspace, path -- one line of the installer's linked-members index: member:workspace:link-kind:path
-	printf '%s:%s:source-symlink:%s\n' "$1" "$2" "${3:-myx/pkg/skillset/$1}" >> "$rigLinkedFile"
+rigLinkAdd(){ ## member, workspace, path -- one row of the installer's member registry: member, workspace root, link kind, path, member directory
+	mkdir -p "${rigLinkedFile%/*}"
+	printf '%s\t%s\tsource-symlink\t%s\t%s\n' "$1" "$rigTmp/$2" "${3:-myx/pkg/skillset/$1}" "$rigTmp/$2/source/${3:-myx/pkg/skillset/$1}" >> "$rigLinkedFile"
 }
-rigLinkDrop(){ ## member -- every line of that member out of the linked-members index
-	LC_ALL=C grep -v "^$1:" "$rigLinkedFile" > "$rigLinkedFile.next" ; mv "$rigLinkedFile.next" "$rigLinkedFile"
+rigLinkDrop(){ ## member -- every row of that member out of the member registry
+	LC_ALL=C grep -v "^$1	" "$rigLinkedFile" > "$rigLinkedFile.next" ; mv "$rigLinkedFile.next" "$rigLinkedFile"
 }
 rigBuild(){ ## options... -- the registries build in the rig workspace; rc in rigBuildRc, stdout in $rigTmp/build.out, stderr in $rigTmp/build.err
 	rigBuildRc=0
@@ -104,7 +105,7 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 	rigBullets client-mel '' '' 🦊 ; rigSkill client-mel active
 	rigBasic magic-team '# the team, no mark of its own'
 	rigBullets keeper-myx 'Forge Keeper.' forge 🔧 ; rigSkill keeper-myx active
-	: > "$rigLinkedFile"
+	mkdir -p "${rigLinkedFile%/*}" ; : > "$rigLinkedFile"
 	rigLinkAdd "$rigPersona" "$rigWsName" ; rigLinkAdd client-ndm "$rigWsName" ; rigLinkAdd client-mel "$rigWsName" ; rigLinkAdd keeper-myx "$rigWsName"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-COORD\n' > "$rigWs/.local/.agents/$rigPersona.agent.env"
@@ -538,7 +539,7 @@ printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 's
 rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the two registries and keeps the other files: the folder holds the two and the three seeded" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.log pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the build makes exactly the two registries and the member index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.log members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
 rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )" "$rigSeedSum"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
@@ -583,7 +584,8 @@ rigAssert "and both registries are as they were"                           "$( c
 rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
 rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
-rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 5"
+rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 8"
+cp "$rigLinkedFile" "$rigTmp/linked.keep"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild
 rigAssert "registries that cannot be written (the folder is a file): exit 1, each path named, nothing on stdout" "$rigBuildRc $( rigN "$rigTmp/build.err" "ERROR: DistroAgentsTools $rigOpName: could not write $rigMembersFile" ) $( rigN "$rigTmp/build.err" "ERROR: DistroAgentsTools $rigOpName: could not write $rigNamesFile" ) $( rigLines "$rigTmp/build.out" )" "1 1 1 0"
@@ -592,6 +594,7 @@ rigBuild
 rigAssert "a folder that cannot be written into: exit 1, each path named"  "$rigBuildRc $( rigN "$rigTmp/build.err" "could not write $rigMembersFile" ) $( rigN "$rigTmp/build.err" "could not write $rigNamesFile" )" "1 1 1"
 rigAssert "and it left no file"                                            "$( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" 0
 chmod 755 "$rigAgentsDir"
+cp "$rigTmp/linked.keep" "$rigLinkedFile"
 rigBuild
 rigAssert "control: once writable the same build exits 0 and writes both"  "$rigBuildRc $( [ -s "$rigNamesFile" ] && printf written || printf missing ) $( [ -s "$rigMembersFile" ] && printf written || printf missing )" "0 written written"
 rigWorld

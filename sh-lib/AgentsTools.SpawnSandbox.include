@@ -66,7 +66,7 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 		cp -p "$MMDAPP/MAGIC.md" "$fillInput/MAGIC.workspace.md" 2>/dev/null
 	fi
 	## Routines and skillset files: a named routine is copied; every skillset file is a pointer.
-	fillSkillsRoot="${MDAT_SKILLSET_ROOT:-$HOME/.claude/skills}"
+	fillSkillsRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
 	{
 		printf '%s\n' "# Pointers for this spawn" ""
 		printf '%s\n' "Credentials: none are copied here. The team tooling acts as \`$fillMember\` for this spawn and resolves that member's credentials itself."

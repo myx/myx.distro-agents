@@ -94,7 +94,7 @@ rigExpect "and it is still stored" \
 rigExpect "a flag with no value at all is still refused" \
 	"$( rigRun --owner-setup-storage --team-data-git-remote )" "a value is required"
 
-## A home that has never held a skills directory: the lock beside the registry must still be taken.
+## A home that has never held a skills directory: the lock beside the workspace's own registry must still be taken.
 rigInstallHome="$rigTmp/home-without-skills"
 mkdir -p "$rigInstallHome"
 rigInstallOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigInstallHome" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -103,7 +103,7 @@ rigInstallOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOM
 rigExpect "install-claude-permissions without ~/.claude/skills is not reported busy" \
 	"$( case "$rigInstallOut" in (*"registry busy"*) printf busy ;; (*) printf not-busy ;; esac )" "not-busy"
 rigExpect "and its permissions registry is created" \
-	"$( [ -f "$rigInstallHome/.claude/skills/.linked.magic-team.permissions.txt" ] && printf present || printf absent )" "present"
+	"$( [ -f "$rigWs/.local/agents/permissions.registry" ] && printf present || printf absent )" "present"
 
 ## A workspace whose scan selects no project is a state, not a failure: the run says so as a warning, exits 0, and
 ## keeps the settings the registry already holds.

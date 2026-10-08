@@ -293,15 +293,15 @@ case "$1" in
 			;;
 		esac
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		## Local machine data, held beside the skill symlinks rather than inside
-		## the packaged skill folder, which is a public git working tree. See MAGIC.md.
-		## The directory is storage for that data, not a member set, so it is created on first use.
-		local ownerDir="$HOME/.claude/skills"
+		## Local machine data, in the team's machine-wide directory $HOME/.agents/magic-team
+		## (AgentsTools.TeamRegistry.include) rather than inside the packaged skill folder,
+		## which is a public git working tree. See MAGIC.md. Created on first use.
+		local ownerDir="$HOME/.agents/magic-team"
 		mkdir -p "$ownerDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: can't create skills directory: $ownerDir" >&2
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: can't create the team directory: $ownerDir" >&2
 			set +e ; return 1
 		}
-		local ownerFile="$ownerDir/.human-owner.workspaces.md"
+		local ownerFile="$ownerDir/known-workspaces.registry"
 		touch "$ownerFile"
 		if grep -Fxq -- "$wsPath" "$ownerFile" ; then
 			echo "# $MDSC_CMD --owner-workspace-upsert: already tracked: $wsPath" >&2
@@ -328,7 +328,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		local ownerFile="$HOME/.claude/skills/.human-owner.workspaces.md"
+		local ownerFile="$HOME/.agents/magic-team/known-workspaces.registry"
 		if [ ! -f "$ownerFile" ] ; then
 			echo "# $MDSC_CMD --owner-workspace-forget: $ownerFile does not exist -- nothing to forget" >&2
 			return 0
@@ -354,7 +354,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local ownerFile="$HOME/.claude/skills/.human-owner.workspaces.md"
+		local ownerFile="$HOME/.agents/magic-team/known-workspaces.registry"
 		if [ ! -f "$ownerFile" ] ; then
 			echo "# $MDSC_CMD --owner-workspace-list: $ownerFile does not exist -- no workspaces tracked yet" >&2
 			return 0
@@ -1891,7 +1891,7 @@ case "$1" in
 				AgentsToolsOwnerSetupBlock1Verdict "$setupDomain"
 			;;
 			claude)
-				local setupRegistry="$MDAT_SKILLSET_ROOT/.linked.magic-team.members.txt"
+				local setupRegistry="$HOME/.agents/magic-team/members.registry"
 				## Trailing slash stripped once, because every basename and prefix
 				## test below reads this: "$MMDAPP/" yields an empty basename, and a
 				## run keyed on it diagnoses nothing while still exiting 0.
@@ -1962,74 +1962,32 @@ case "$1" in
 					AgentsToolsOwnerSetupRow "Claude harness leg" "installed"
 				fi
 
-				## Every root actually diagnosed, one absolute path per line, and the
-				## registered names no live member link reaches. Resolving to roots
-				## rather than iterating names is what keeps two workspaces sharing a
-				## basename apart, since the registry records only the basename.
-				local setupTargets="" setupUnresolved="" setupLabels="" setupSlot setupWalk setupPick
+				## Every root actually diagnosed, one absolute path per line: this one, or
+				## every workspace root the machine-wide member directory records. The roots
+				## are recorded there, so nothing is recovered from where a link points.
+				local setupTargets="" setupUnresolved=""
 				if [ -z "$setupAllWorkspaces" ] ; then
 					setupTargets="$setupHere"$'\n'
 				else
 					if [ ! -s "$setupRegistry" ] ; then
 						echo "WORKSPACE_REGISTRY: FAIL"
-						echo "  warn: the skillset installer's own workspace registry is missing or empty,"
+						echo "  warn: the team's machine-wide member directory is missing or empty,"
 						echo "        so there is no list of workspaces to diagnose"
 						echo "  path: $setupRegistry"
 						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
 						set +e ; return 1
 					fi
-					setupLabels=" $( LC_ALL=C awk -F: 'NF >= 4 { print $2 ; }' "$setupRegistry" | sort -u | tr '\n' ' ' )"
-					if [ "$setupLabels" = " " ] ; then
+					setupTargets="$( LC_ALL=C awk -F'\t' 'NF >= 5 && $2 ~ /^\// && !seen[$2]++ { print $2 ; }' "$setupRegistry" )"
+					if [ -z "$setupTargets" ] ; then
 						echo "WORKSPACE_REGISTRY: FAIL"
-						echo "  warn: the registry holds no line carrying a workspace name, so it names"
+						echo "  warn: the directory holds no line carrying a workspace root, so it names"
 						echo "        nothing to diagnose -- a non-empty file is not a readable one"
 						echo "  path: $setupRegistry"
 						echo "  fix:  $setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-workspace-integrations"
 						set +e ; return 1
 					fi
+					setupTargets="$setupTargets"$'\n'
 					[ "$setupOperation" != "--check" ] || echo "WORKSPACE_REGISTRY: OK"
-
-					## A root is recovered by walking a live member link up to an
-					## ancestor carrying a registered name, preferring the innermost
-					## one that is a workspace: a bare innermost match picks a mid-path
-					## directory that merely shares a name. Where no candidate is a
-					## workspace the innermost match still stands, so an unmounted
-					## volume reports as unreachable instead of as unknown. The glob
-					## carries no trailing slash for the same reason -- that form
-					## matches directories, and a link into an unmounted volume dangles.
-					for setupSlot in "$MDAT_SKILLSET_ROOT"/* ; do
-						[ -L "$setupSlot" ] || continue
-						setupWalk="$( readlink "$setupSlot" || : )"
-						case "$setupWalk" in /*) ;; *) continue ;; esac
-						setupPick=""
-						while [ -n "$setupWalk" ] ; do
-							setupWalk="${setupWalk%/*}"
-							case "$setupLabels " in
-								*" ${setupWalk##*/} "*)
-									[ -n "$setupPick" ] || setupPick="$setupWalk"
-									if [ -d "$setupWalk/.local" ] ; then setupPick="$setupWalk" ; break ; fi
-								;;
-							esac
-						done
-						[ -n "$setupPick" ] || continue
-						case "$setupTargets" in
-							*$'\n'"$setupPick"$'\n'*) ;;
-							"$setupPick"$'\n'*) ;;
-							*) setupTargets="${setupTargets}${setupPick}"$'\n' ;;
-						esac
-					done
-
-					## A registered name nothing resolved to is reported by name, since
-					## its root is exactly what could not be established.
-					local setupSeen
-					for setupPick in $setupLabels ; do
-						setupSeen=""
-						while IFS= read -r setupWalk ; do
-							[ "${setupWalk##*/}" = "$setupPick" ] || continue
-							setupSeen="yes"
-						done <<< "$setupTargets"
-						[ -n "$setupSeen" ] || setupUnresolved="$setupUnresolved $setupPick"
-					done
 				fi
 
 				local setupLabel setupRoot setupToolPath setupDiagnosed=0

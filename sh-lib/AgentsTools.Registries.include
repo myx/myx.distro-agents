@@ -5,7 +5,7 @@
 ## maintained beside it, built like the distro's own indices -- whitespace columns,
 ## temp name renamed into place. A missing value is always `-`, never empty. No
 ## registry stores a date or liveness, both measured live.
-##   team-members        <- the skillset's own linked-members index, this workspace's members
+##   team-members        <- this workspace's own member registry, .local/agents/members.registry
 ##   team-members-names  <- those members' names, alias and mark
 ##   spawned-sessions    <- the spawn sandbox roots in this workspace
 ##   pending-replies     <- the questions AskUserQuestion posted, and the board items
@@ -60,29 +60,27 @@ AgentsToolsRegistryFrontmatter(){ ## file
 ## team-members -- every team-member that has a path in this workspace.
 ## Columns: member workspace link-kind skillset-path
 ##
-## Built from the skillset's own linked-members index, which the skillset-symlink
-## installer already writes and already keys by member and workspace. That index IS
-## this registry's store; this is the same records in the common column format, so
-## nothing enumerates members a second way. Only the rows whose workspace is this
-## one are kept: a member with paths only in other workspaces has no row here.
+## Built from this workspace's own member registry, .local/agents/members.registry,
+## which the skillset-symlink installer writes (AgentsTools.TeamRegistry.include). That
+## registry IS this one's store; this is the same records in the common column format,
+## so nothing enumerates members a second way. A rules-file row is not a member and has
+## no row here.
 ##
 AgentsToolsRegistryTeamMembersRows(){
-	local membersIndex membersLine thisWorkspace
-	membersIndex="$MDAT_SKILLSET_ROOT/.linked.magic-team.members.txt"
+	local membersIndex thisRoot
+	membersIndex="$MMDAPP/.local/agents/members.registry"
 	[ -f "$membersIndex" ] || return 0
-	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
-	while IFS= read -r membersLine ; do
-		[ -n "$membersLine" ] || continue
-		case "$membersLine" in '#'*) continue ;; esac
-		## The store's own separator is a colon; the registries' is whitespace. The
-		## fields are a member name, a workspace name, a link kind and a path
-		## relative to that workspace, none of which contains either.
-		printf '%s\n' "$membersLine" | LC_ALL=C awk -F: -v here="$thisWorkspace" '
-			$2 != here { next ; }
-			NF >= 4 { printf "%s %s %s %s\n", $1, $2, $3, $4 ; next ; }
-			{ printf "%s %s %s %s\n", ($1 == "" ? "-" : $1), ($2 == "" ? "-" : $2), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) ; }
-		'
-	done < "$membersIndex"
+	thisRoot="$( cd "$MMDAPP" 2>/dev/null && pwd )" || thisRoot="${MMDAPP%/}"
+	## The store's separator is a TAB; the registries' is whitespace. The fields are a
+	## member name, a workspace root, a link kind and a path relative to that kind's
+	## base, none of which contains either; the root is written as its basename.
+	LC_ALL=C awk -F'\t' -v here="$thisRoot" '
+		$1 == "" || $2 != here || $3 == "rules-symlink" { next ; }
+		{
+			ws = $2 ; sub( /.*\//, "", ws ) ;
+			printf "%s %s %s %s\n", $1, (ws == "" ? "-" : ws), ($3 == "" ? "-" : $3), ($4 == "" ? "-" : $4) ;
+		}
+	' "$membersIndex"
 	return 0
 }
 

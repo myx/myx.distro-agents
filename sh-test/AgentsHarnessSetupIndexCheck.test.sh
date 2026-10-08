@@ -3,8 +3,9 @@
 ##   harness.roots.index (AgentsHarnessRootsIndex.include) and harness.hooks.index
 ##   (AgentsHarnessHooksLoad.include) -- one index each, whichever origin reads it --
 ##   and the children lists the main loop repairs (AgentsTools.ChildrenIndex.include).
-##   1. Unit: from a fixture workspace -- member links under a skillset root and under
-##      $HOME/.claude/skills, a `trash` entry, declared grants, a root that does not exist
+##   1. Unit: from a fixture workspace -- member links under a skillset root (a link under
+##      $HOME/.claude/skills is never read), a `trash` entry, the workspace's own declared
+##      grants, a root that does not exist
 ##      -- the index yields the read and write sets, and their resolutions, the producer
 ##      and `cd && pwd -P` yield, with no member and with one; and proves it is the index
 ##      answering by leaving the producer unable to run. A changed input never uses it;
@@ -55,7 +56,7 @@ ln -s "$rigTmp/src/alpha" "$rigSkills/alpha"
 ln -s "$rigTmp/src/beta" "$rigSkills/beta"
 mkdir -p "$rigSkills/plain"
 ln -s "$rigTmp/src/gamma" "$rigHome/.claude/skills/gamma"
-printf 'a:b:c:Edit(/%s/granted/deep/**)\na:b:c:Edit(/%s/not-there/*.md)\na:b:c:Read(/x)\n' "$rigTmp" "$rigTmp" > "$rigHome/.claude/skills/.linked.magic-team.permissions.txt"
+printf 'a:b:c:Edit(/%s/granted/deep/**)\na:b:c:Edit(/%s/not-there/*.md)\na:b:c:Read(/x)\n' "$rigTmp" "$rigTmp" > "$rigWs/.local/agents/permissions.registry"
 
 ## The unit side runs in a subshell with the fixture's environment.
 rigUnit(){
@@ -124,6 +125,7 @@ done
 mkdir -p "$rigWs/.local/temp/member/alpha"
 rigAssert "a root created since is resolved now, not as stored" "$( rigUnit rigIndexed alpha )" "$( rigUnit rigComputed alpha )"
 rigAssert "control: the producer itself was never needed" "$( rigUnit rigIndexed "" | LC_ALL=C grep -c 'index-not-used' )" 0
+rigAssert "a member linked only in \$HOME/.claude/skills is no root" "$( LC_ALL=C grep -c "src/gamma" "$rigWs/.local/agents/harness.roots.index" )" 0
 for rigMember in "" alpha ; do
 	rigWant="$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigComputed "$rigMember"' )"
 	rigAssert "another origin [$rigMember]: the same index is used" "$( rigUnit eval 'MDLT_ORIGIN="$rigTmp/origin-b" ; rigIndexed "$rigMember"' | cut -c1-14 )" "$( printf '%s' "$rigWant" | cut -c1-14 )"
@@ -137,7 +139,7 @@ ln -s "$rigTmp/src/gamma" "$rigSkills/delta"
 rigAssert "a member added to the skillset root"   "$( rigUnit rigIndexed "" )" index-not-used
 rm -f "$rigSkills/delta" ; sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
 rigAssert "control: rewritten, it is used again"  "$( rigUnit rigIndexed "" | cut -c1-14 )" "$( rigUnit rigComputed "" | cut -c1-14 )"
-printf 'a:b:c:Edit(/%s/src/**)\n' "$rigTmp" >> "$rigHome/.claude/skills/.linked.magic-team.permissions.txt"
+printf 'a:b:c:Edit(/%s/src/**)\n' "$rigTmp" >> "$rigWs/.local/agents/permissions.registry"
 rigAssert "a grant declared since"                "$( rigUnit rigIndexed "" )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
 rigAssert "control: rewritten, it is used again"  "$( rigUnit rigIndexed "" | cut -c1-14 )" "$( rigUnit rigComputed "" | cut -c1-14 )"
@@ -147,11 +149,11 @@ rigAssert "another HOME"                           "$( rigUnit eval 'HOME="$rigT
 sleep 1 ; touch "$rigSkills"
 rigAssert "a skillset root touched after it"       "$( rigUnit rigIndexed "" )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
-printf 'myx.distro harness.roots.index 2\nprint\tx\n' > "$rigTmp/cut"
+printf 'myx.distro harness.roots.index 3\nprint\tx\n' > "$rigTmp/cut"
 rigAssert "an index cut short"                     "$( rigUnit eval 'cp "$rigTmp/cut" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
-sed '1s/ 2$/ 1/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
-rigAssert "an index of format version 1"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
+sed '1s/ 3$/ 2/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
+rigAssert "an index of format version 2"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 
 echo "-- the hooks index answers as the policy does, and settings.json is never read --"
 mkdir -p "$rigWs/.claude"

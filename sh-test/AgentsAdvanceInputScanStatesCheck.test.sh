@@ -23,8 +23,8 @@ rigRefuse(){
 rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
 rigHolder=""
 trap '[ -z "$rigHolder" ] || { kill "$rigHolder" ; wait "$rigHolder" ; } 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator"
-printf '# magic-coordinator\n' > "$rigTmp/home/.claude/skills/magic-coordinator/SKILL.md"
+mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator"
+printf '# magic-coordinator\n' > "$rigTmp/ws/.local/agents/members/magic-coordinator/SKILL.md"
 for rigState in backlog pending running blocked parked ; do
 	mkdir -p "$rigTmp/data/board/$rigState"
 	printf -- '---\ntype: task\nowner: magic-coordinator\n---\n\n# Rig item in %s\n' "$rigState" > "$rigTmp/data/board/$rigState/task-rig-$rigState.md"
@@ -64,8 +64,8 @@ rigCheck(){ ## what is asserted, got, want
 }
 rigNew(){ ## rig name -- a fresh fake workspace, data root and home of this rig's own; sets rigW rigD rigH
 	rigW="$rigTmp/$1/ws" rigD="$rigTmp/$1/data" rigH="$rigTmp/$1/home"
-	mkdir -p "$rigW/.local/agents/spawned" "$rigD/inboxes/magic-coordinator" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed" "$rigH/.claude/skills/magic-coordinator"
-	printf '# magic-coordinator\n' > "$rigH/.claude/skills/magic-coordinator/SKILL.md"
+	mkdir -p "$rigW/.local/agents/spawned" "$rigD/inboxes/magic-coordinator" "$rigD/board/running" "$rigD/board/review" "$rigD/board/processed" "$rigW/.local/agents/members/magic-coordinator"
+	printf '# magic-coordinator\n' > "$rigW/.local/agents/members/magic-coordinator/SKILL.md"
 }
 rigExtraEnv=()
 rigRun(){ ## result file, DistroAgentsTools.fn.sh arguments... -- one op against the current rig, its rc into <result>.rc

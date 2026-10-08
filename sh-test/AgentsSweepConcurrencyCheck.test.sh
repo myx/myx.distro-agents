@@ -74,15 +74,15 @@ rigNow="$( date +%s )"
 ## One sweep from the given origin, in a fresh fixture tree, guarded.
 rigSweep(){ ## name, origin
 	local sweepDir="$rigTmp/$1" sweepClient
-	mkdir -p "$sweepDir/bin" "$sweepDir/ws/.local/.agents" "$sweepDir/ws/.local/temp" "$sweepDir/home/.claude/skills/magic-coordinator" \
+	mkdir -p "$sweepDir/bin" "$sweepDir/ws/.local/.agents" "$sweepDir/ws/.local/temp" "$sweepDir/ws/.local/agents/members/magic-coordinator" \
 		"$sweepDir/data/inboxes/magic-coordinator" "$sweepDir/data/board/running" "$sweepDir/data/audit"
 	cp "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.test.sh" "$sweepDir/bin/curl" && chmod +x "$sweepDir/bin/curl"
-	printf '# fixture\n' > "$sweepDir/home/.claude/skills/magic-coordinator/SKILL.md"
+	printf '# fixture\n' > "$sweepDir/ws/.local/agents/members/magic-coordinator/SKILL.md"
 	printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$sweepDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$sweepDir/ws/.local/.agents/magic-coordinator.agent.env"
 	for sweepClient in 1 2 ; do
-		mkdir -p "$sweepDir/home/.claude/skills/client-fix$sweepClient" "$sweepDir/data/inboxes/client-fix$sweepClient"
-		printf '# fixture\n' > "$sweepDir/home/.claude/skills/client-fix$sweepClient/SKILL.md"
+		mkdir -p "$sweepDir/ws/.local/agents/members/client-fix$sweepClient" "$sweepDir/data/inboxes/client-fix$sweepClient"
+		printf '# fixture\n' > "$sweepDir/ws/.local/agents/members/client-fix$sweepClient/SKILL.md"
 		printf 'SLACK_USER_TOKEN=xoxp-fixture-client%s\nSLACK_CONVERSATIONS=CFIXAAAA00%s,CFIXBBBB00%s,CFIXCCCC00%s\n' \
 			"$sweepClient" "$sweepClient" "$sweepClient" "$sweepClient" > "$sweepDir/ws/.local/.agents/client-fix$sweepClient.agent.env"
 	done

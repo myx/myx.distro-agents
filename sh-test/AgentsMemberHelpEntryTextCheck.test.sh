@@ -18,11 +18,11 @@ rigRefuse(){
 
 rigTmp="$( mktemp -d -t "AgentsMemberHelpEntryTextCheck-XXXXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-mkdir -p "$rigTmp/ws" "$rigTmp/home/.claude/skills/keeper-rig" "$rigTmp/home/.claude/skills/magic-team"
-printf '# keeper-rig\n' > "$rigTmp/home/.claude/skills/keeper-rig/SKILL.md"
-printf '# keeper-rig\n' > "$rigTmp/home/.claude/skills/keeper-rig/keeper-rig.armed.md"
-printf '# magic-team\n' > "$rigTmp/home/.claude/skills/magic-team/SKILL.md"
-printf '# magic-team\n' > "$rigTmp/home/.claude/skills/magic-team/magic-team.armed.md"
+mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/keeper-rig" "$rigTmp/ws/.local/agents/members/magic-team"
+printf '# keeper-rig\n' > "$rigTmp/ws/.local/agents/members/keeper-rig/SKILL.md"
+printf '# keeper-rig\n' > "$rigTmp/ws/.local/agents/members/keeper-rig/keeper-rig.armed.md"
+printf '# magic-team\n' > "$rigTmp/ws/.local/agents/members/magic-team/SKILL.md"
+printf '# magic-team\n' > "$rigTmp/ws/.local/agents/members/magic-team/magic-team.armed.md"
 
 rigOut="$( cd "$rigTmp/ws" && env -u MDAT_SKILLSET_ROOT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	bash "$rigTool" --member-help keeper-rig 2>/dev/null )" || rigRefuse "--member-help keeper-rig failed"

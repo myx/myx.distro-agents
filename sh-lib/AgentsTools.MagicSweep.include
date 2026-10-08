@@ -14,10 +14,10 @@
 ## of this note quotes watermarks in prose, pass after pass, and a whole-file
 ## grep would happily return one of those instead of the field.
 ##
-## Serves the write guard below and nothing else. No `--*-input-scan` reads a
-## position from here: a scan takes its cut-off as an argument and holds none,
-## and the reader that called it records how far it got in its own
-## `*-state-and-lock` note.
+## Serves the write guards below, and -- through AgentsToolsMagicSweepStoredPosition
+## (AgentsTools.MagicSweepState.include) -- the input scans: with no cut-off
+## stated, --magic-sweep-input-scan resumes from the calling member's own
+## record and --client-sweep-input-scan from that client's own record.
 ##
 ## THREE OUTCOMES, TOLD APART BY EXIT STATUS, never by the printed string -- two
 ## of them print nothing and must not be confused:
@@ -112,6 +112,28 @@ case "$1" in
 		## persona's mentions are only ever the ones sitting in a conversation
 		## already read above. A member holding no SLACK_USER_TOKEN says so in its
 		## own partial note rather than reporting silence.
+		## THE TEAM PART RESUMES FROM THE CALLING MEMBER'S OWN STORED POSITION when
+		## no cut-off is stated -- the default window only when none is stored. A
+		## stated cut-off wins and applies to the team part alone: it is never
+		## forwarded to a client, which resolves its own (below).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
+		if [ ${#commsCutoffArgs[@]} -eq 0 ] ; then
+			local teamStoredTs="" teamStoredRc=0
+			teamStoredTs="$( AgentsToolsMagicSweepStoredPosition "$callingMember" magic-sweep-input-scan )" || teamStoredRc=$?
+			case "$teamStoredRc" in
+				0)
+					commsCutoffArgs=( --comms-since-utime "$teamStoredTs" )
+					echo "# $MDSC_CMD --magic-sweep-input-scan: $callingMember: resuming from its own stored sweep position $teamStoredTs" >&2
+				;;
+				3)
+					echo "# $MDSC_CMD --magic-sweep-input-scan: $callingMember: no sweep position stored -- the scan's own default window applies" >&2
+				;;
+				*)
+					set +e ; return 1
+				;;
+			esac
+		fi
+
 		local commsArgs=( --do-all --do-slack-tags "${commsCutoffArgs[@]}" )
 
 		local phaseBArgs=( --state backlog --state pending --state running --state review --state blocked ) n
@@ -165,8 +187,9 @@ case "$1" in
 				## common position. Forwarding it -- which is what this call used to do
 				## -- filtered every client's messages by the team's last team-side pass
 				## and reported the remainder as "nothing new": against the live NDM
-				## workspace that hid all ten of its messages. Each member resolves its
-				## OWN stored position instead, inside --client-sweep-input-scan.
+				## workspace that hid all ten of its messages. --client-sweep-input-scan
+				## resolves that member's OWN stored position itself (its own
+				## sweep-state record, the default window only when it has none).
 				DistroAgentsTools --client-sweep-input-scan "$2" \
 					> "$clientSweepDir/$2.document" || accountStatus=$?
 				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
@@ -248,7 +271,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-upsert: can't create inbox directory: $stateDir" >&2
 			set +e ; return 1
 		}
-		local target="$stateDir/note-20260812T231137Z-sweep-state.md"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
+		local target="" ; target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
 		local content contentFromFile="false" bodyMode="" bodyModeCount=0
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -335,6 +359,79 @@ case "$1" in
 		return 0
 	;;
 
+	## Moves ONE member's own pointer to the newest message that member's pass
+	## actually processed, and touches nothing else in its record. The pointer
+	## is the one field a sweep has to move every pass; making that a rewrite of
+	## the whole record left it to whoever composed the record, and it stopped
+	## moving. Same backwards-move guard as --magic-sweep-state-upsert; an equal
+	## value is a no-op, not an error; a missing record is created.
+	--magic-sweep-state-advance)
+		shift
+		local callingMember="${1:-}" advanceTs="${2:-}"
+		if [ -z "$callingMember" ] || [ -z "$advanceTs" ] || [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: syntax is <team-member> <ts> -- <ts> is the newest message this member's pass processed" >&2
+			set +e ; return 1
+		fi
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-sweep-state-advance || { set +e ; return 1 ; }
+		case "$advanceTs" in
+			*[!0-9.]*|.*|*.|*.*.*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: $callingMember: <ts> must be epoch seconds, optionally with a fractional part (a Slack ts): $advanceTs" >&2
+				set +e ; return 1
+			;;
+		esac
+		## A pointer set past now hides every message until then, permanently --
+		## the one mistake this field cannot recover from. A minute of clock skew
+		## is allowed.
+		local advanceNow=""
+		advanceNow="$( date +%s )" || advanceNow=""
+		case "$advanceNow" in ''|*[!0-9]*) advanceNow="" ;; esac
+		local advanceSec="${advanceTs%%.*}"
+		if [ -z "$advanceNow" ] || [ "${#advanceSec}" -gt 12 ] || [ "$advanceSec" -gt "$(( advanceNow + 60 ))" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: $callingMember: refusing a pointer in the future ($advanceTs, now $advanceNow) -- it would hide every message until then" >&2
+			set +e ; return 1
+		fi
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
+		local stateDir="$MDAT_DATA_ROOT/inboxes/$callingMember" target=""
+		target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
+		mkdir -p "$stateDir" || {
+			echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: can't create inbox directory: $stateDir" >&2
+			set +e ; return 1
+		}
+		local existingTs="" existingRc=0 newContent=""
+		existingTs="$( AgentsToolsMagicSweepStoredPosition "$callingMember" magic-sweep-state-advance )" || existingRc=$?
+		case "$existingRc" in
+			0)
+				if [ "$existingTs" = "$advanceTs" ] ; then
+					echo "# $MDSC_CMD --magic-sweep-state-advance: $callingMember: already at $advanceTs, nothing written" >&2
+					return 0
+				fi
+				if ! AgentsMagicSweepStateTsNotOlder "$advanceTs" "$existingTs" ; then
+					echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: $callingMember: refusing to move the sweep pointer BACKWARDS, from $existingTs to $advanceTs. To re-read material below the pointer, pass an explicit --comms-since-utime to the scan; a read does not move the pointer." >&2
+					set +e ; return 1
+				fi
+			;;
+			3) ;;
+			*) set +e ; return 1 ;;
+		esac
+		if [ -f "$target" ] ; then
+			newContent="$( LC_ALL=C awk -v ts="$advanceTs" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMagicSweepStateWatermarkSet.awk" < "$target" )" || {
+				echo "⛔ ERROR: $MDSC_CMD --magic-sweep-state-advance: $callingMember: could not set last_swept_ts in ${target##*/} -- its frontmatter block is missing or unclosed; nothing written" >&2
+				set +e ; return 1
+			}
+		else
+			newContent="$( printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$advanceTs" )"
+		fi
+		printf '%s\n' "$newContent" > "$target"
+		echo "# $MDSC_CMD --magic-sweep-state-advance: $callingMember: last_swept_ts ${existingTs:-<none>} -> $advanceTs" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "magic-sweep-state-advance, $callingMember" "$target"
+		return 0
+	;;
+
 	--magic-sweep-state-read)
 		shift
 		local callingMember="$1"
@@ -352,11 +449,11 @@ case "$1" in
 			set +e ; return 1
 		}
 		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-sweep-state-read || { set +e ; return 1 ; }
-		## Same member-scoped directory and same fixed literal filename as
-		## --magic-sweep-state-upsert above -- must match exactly, since this is a
-		## read of the SAME document, and a member reading another member's
+		## Same path as every other writer and reader of this record
+		## (AgentsToolsMagicSweepStatePath) -- a member reading another member's
 		## position would resume from a place its own sources were never swept to.
-		local target="$MDAT_DATA_ROOT/inboxes/$callingMember/note-20260812T231137Z-sweep-state.md"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicSweepState.include"
+		local target="" ; target="$( AgentsToolsMagicSweepStatePath "$callingMember" )"
 		if [ -f "$target" ] ; then
 			cat "$target"
 		else

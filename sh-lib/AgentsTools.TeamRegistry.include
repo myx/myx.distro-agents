@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.TeamRegistry.include -- where the team's data lives, and the member index.
+##
+## TWO PLACES, NEVER A THIRD (human-owner, 2026-10-07):
+##   $MMDAPP/.local/agents/              ALL of a workspace's own data: its member
+##                                       registry, its grants and tags, its indices.
+##   $HOME/.agents/magic-team/           ONLY the machine-wide directory of what exists
+##                                       and where to look: which members each workspace
+##                                       publishes and that workspace's root, the tracked
+##                                       workspaces, and which workspaces publish grants.
+## The vendor link folders ($HOME/.claude/skills, $HOME/.agents/skills,
+## $HOME/.copilot/skills and a workspace's .claude/.agents/skills) are generated from
+## this data for the vendors' clients, and nothing of ours reads them back.
+##
+## Files, by function:
+##   members.registry   one row per member a workspace publishes, TAB-separated:
+##                        member, workspace root, link kind, path relative to the kind's
+##                        base, member directory
+##                      $MMDAPP/.local/agents/members.registry -- this workspace's rows
+##                      $HOME/.agents/magic-team/members.registry -- every workspace's
+##   known-workspaces.registry   the tracked workspaces, one absolute root per line
+##   permissions.registry   $MMDAPP/.local/agents/ -- this workspace's declared grants,
+##                          `member:workspace:kind:grant`; $HOME/.agents/magic-team/ --
+##                          only pointers: one workspace root per line that publishes one
+##   permissions-tags.registry   $MMDAPP/.local/agents/ -- this workspace's grant-root
+##                          provenance tags, `member:workspace:tag:root`
+##   members.index + members/   $MMDAPP/.local/agents/ -- THE MEMBER INDEX: every member
+##                          this workspace can reach, its own first, then the members other
+##                          workspaces publish; members/<name> links to each one's
+##                          directory, and is what MDAT_SKILLSET_ROOT names.
+##
+## Dot-sourced; functions only.
+##
+
+AgentsToolsTeamSharedDir(){
+	printf '%s\n' "${HOME:-}/.agents/magic-team"
+}
+AgentsToolsTeamSharedMembers(){
+	printf '%s\n' "$( AgentsToolsTeamSharedDir )/members.registry"
+}
+AgentsToolsTeamSharedWorkspaces(){
+	printf '%s\n' "$( AgentsToolsTeamSharedDir )/known-workspaces.registry"
+}
+AgentsToolsTeamSharedGrants(){
+	printf '%s\n' "$( AgentsToolsTeamSharedDir )/permissions.registry"
+}
+AgentsToolsTeamLocalFile(){ ## workspace, name
+	printf '%s\n' "${1%/}/.local/agents/$2"
+}
+
+## The workspace roots whose own grant files make up the machine-wide grant set: the
+## given workspace first, then every root the shared pointer file lists, each once.
+AgentsToolsTeamGrantWorkspaces(){ ## workspace
+	local grantSelf="${1%/}" grantRoot grantSeen=$'\n'
+	if [ -n "$grantSelf" ] ; then
+		printf '%s\n' "$grantSelf"
+		grantSeen="$grantSeen$grantSelf"$'\n'
+	fi
+	[ -f "$( AgentsToolsTeamSharedGrants )" ] || return 0
+	while IFS= read -r grantRoot ; do
+		grantRoot="${grantRoot%/}"
+		case "$grantRoot" in /*) ;; *) continue ;; esac
+		case "$grantSeen" in *$'\n'"$grantRoot"$'\n'*) continue ;; esac
+		grantSeen="$grantSeen$grantRoot"$'\n'
+		printf '%s\n' "$grantRoot"
+	done < "$( AgentsToolsTeamSharedGrants )"
+}
+
+## The machine-wide grant rows (`member:workspace:kind:grant`), or tag rows: each
+## workspace's own file, in AgentsToolsTeamGrantWorkspaces order. A workspace whose file
+## cannot be read -- an unmounted volume -- contributes nothing, and the caller's
+## revocation, which removes only what a rewrite dropped, never reads that as revoked.
+AgentsToolsTeamGrantRows(){ ## workspace, permissions.registry|permissions-tags.registry
+	local rowsRoot
+	while IFS= read -r rowsRoot ; do
+		[ -n "$rowsRoot" ] || continue
+		[ -r "$rowsRoot/.local/agents/$2" ] || continue
+		LC_ALL=C awk -F: 'NF >= 4' "$rowsRoot/.local/agents/$2"
+	done <<< "$( AgentsToolsTeamGrantWorkspaces "$1" )"
+}
+
+## Adds a workspace root to the shared grant pointers when it is not there yet, under a
+## lock. Non-zero only when the file could not be written.
+AgentsToolsTeamGrantPointerUpsert(){ ## workspace
+	local upsertFile upsertLock upsertWait=0 upsertRc=0
+	upsertFile="$( AgentsToolsTeamSharedGrants )"
+	mkdir -p "${upsertFile%/*}" || return 1
+	upsertLock="$upsertFile.lock"
+	until mkdir "$upsertLock" 2>/dev/null ; do
+		upsertWait=$(( upsertWait + 1 ))
+		[ "$upsertWait" -le 10 ] || return 1
+		sleep 1
+	done
+	if [ ! -f "$upsertFile" ] || ! LC_ALL=C grep -Fxq -- "${1%/}" "$upsertFile" ; then
+		printf '%s\n' "${1%/}" >> "$upsertFile" || upsertRc=1
+	fi
+	rmdir "$upsertLock" 2>/dev/null || :
+	return "$upsertRc"
+}
+
+## THE MEMBER INDEX, on stdout: `member<TAB>directory<TAB>workspace root<TAB>link kind`.
+## This workspace's own rows first, from its own members.registry, then, for every name
+## not already listed, another workspace's row from the shared registry -- the one whose
+## kind is source-symlink (the workspace holding that member's source), else the first.
+## Rules files are not members and are never listed. Each name once.
+AgentsToolsTeamMemberIndexText(){ ## workspace
+	local indexWs="${1%/}" indexOwn indexShared
+	[ -n "$indexWs" ] && [ -d "$indexWs" ] || return 1
+	indexWs="$( cd "$indexWs" && pwd )" || return 1
+	indexOwn="$indexWs/.local/agents/members.registry"
+	indexShared="$( AgentsToolsTeamSharedMembers )"
+	[ -f "$indexOwn" ] || indexOwn=/dev/null
+	[ -f "$indexShared" ] || indexShared=/dev/null
+	LC_ALL=C awk -F'\t' -v here="$indexWs" '
+		NF < 5 || $3 == "rules-symlink" || $1 == "" || $1 == "trash" { next ; }
+		FILENAME == ARGV[1] {
+			if ($2 != here || ($1 in own)) next ;
+			own[$1] = 1 ; order[++count] = $1 ; line[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ;
+			next ;
+		}
+		$2 == here || ($1 in own) { next ; }
+		!($1 in other) { other[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ; otherOrder[++otherCount] = $1 ; otherKind[$1] = $3 ; next ; }
+		otherKind[$1] != "source-symlink" && $3 == "source-symlink" { other[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ; otherKind[$1] = $3 ; }
+		END {
+			for (i = 1 ; i <= count ; i++) print line[order[i]] ;
+			for (i = 1 ; i <= otherCount ; i++) print other[otherOrder[i]] ;
+		}
+	' "$indexOwn" "$indexShared"
+}
+
+## Writes the member index and its members/ view for one workspace. The view is updated
+## link by link, never removed as a whole, so a reader never finds it missing; a stale
+## link goes, real content there is refused rather than removed. Non-zero on a failure.
+AgentsToolsTeamMemberIndexWrite(){ ## workspace
+	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n'
+	writeWs="$( cd "$writeWs" && pwd )" || return 1
+	writeDir="$writeWs/.local/agents"
+	mkdir -p "$writeDir/members" || return 1
+	writeText="$( AgentsToolsTeamMemberIndexText "$writeWs" )" || return 1
+	if ! { printf '%s\n' "$writeText" | LC_ALL=C awk 'NF' > "$writeDir/members.index.tmp.$$" && mv -f "$writeDir/members.index.tmp.$$" "$writeDir/members.index" ; } ; then
+		rm -f "$writeDir/members.index.tmp.$$"
+		return 1
+	fi
+	while IFS=$'\t' read -r writeName writeTarget writeRest ; do
+		[ -n "$writeName" ] && [ -n "$writeTarget" ] || continue
+		writeNames="$writeNames$writeName"$'\n'
+		writeSlot="$writeDir/members/$writeName"
+		if [ -e "$writeSlot" ] && [ ! -L "$writeSlot" ] ; then
+			echo "⛔ ERROR: $writeSlot is real content, not a member link -- left untouched" >&2
+			writeRc=1 ; continue
+		fi
+		[ -L "$writeSlot" ] && [ "$( readlink "$writeSlot" )" = "$writeTarget" ] && continue
+		ln -sfn "$writeTarget" "$writeSlot" || writeRc=1
+	done <<< "$writeText"
+	for writeSlot in "$writeDir/members"/* "$writeDir/members"/.[!.]* ; do
+		[ -L "$writeSlot" ] || continue
+		case "$writeNames" in *$'\n'"${writeSlot##*/}"$'\n'*) continue ;; esac
+		rm -f "$writeSlot" || writeRc=1
+	done
+	return "$writeRc"
+}
+
+## The member set root this workspace's tools read: the index's members/ view.
+AgentsToolsTeamMemberIndexRoot(){ ## workspace
+	printf '%s\n' "${1%/}/.local/agents/members"
+}
