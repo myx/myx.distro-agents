@@ -246,11 +246,11 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
-- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. A permission the session will need is planned into its `dispatch-*` item's `allows:`.
+- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. A permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]`), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
 - **A batch of tasks is dispatched as a coworking session**, the quorum group as participants and the specialists as invitees, never as a series of solo dispatches. Solo is only for clear, checkable, single-dispatchable work one member fully owns. A restarted session re-notifies every participant and invitee.
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
-  - Members ask participants for facts, and this member, by `AskUserQuestion`, for consent, decisions and permissions (`magic-team.armed.md`'s "Escalation and chain of command").
+  - Members ask participants for facts, and this member, by `AskUserQuestion`, for consent and decisions (`magic-team.armed.md`'s "Escalation and chain of command"); their permission asks go to `magic-coordinator.permission-escalation.routine`, which this member runs.
   - It settles a simple question itself and answers with `--magic-escalation-answer`, permission verdicts only for permissions it holds; tooling routes the rest up.
   - A question whose answer binds the team is registered as a board item blocking the work it gates, and forwarded to him at once with `--magic-escalation-forward`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
@@ -336,6 +336,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--magic-team-roster-upsert <team-member>`
 - `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
 - `--magic-escalation-forward <coordinator> <request-id>`
+- `--magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>...`
 - `--magic-permission-list --member <member>`
 - `--magic-permission-revoke <ref>`
 - `--magic-permission-escalation-input-scan <team-member>`

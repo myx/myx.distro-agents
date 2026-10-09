@@ -826,6 +826,9 @@ case "$1" in
 	## enforces only the limits: no more than the passer holds, no longer than its own
 	## grant lives, and only to a participant of the session or task, or a member it
 	## spawned for it. Written as a grant of the receiver's own, signed by the passer.
+	## The target may name a place, @<name>[:<glob>], resolved as a set request's entry is;
+	## a write in a read-only place is refused with its route; a session pass needs the
+	## passer in the session too; the store is touched, so session indices rebuild.
 	--member-permission-pass|--intern-op-permission-pass)
 		local passOp="$1"
 		shift
@@ -874,6 +877,11 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## The target: a place by name resolved to its path, a path in a place said as
+		## name:relative, a write in a read-only place refused (AgentsToolsPermissionEntryPlace).
+		local permEntryTool permEntryTarget permEntryPlace passPlace
+		AgentsToolsPermissionEntryPlace "$passTool:$passTarget" "$passSession" || { set +e ; return 1 ; }
+		passTarget="$permEntryTarget" ; passPlace="$permEntryPlace"
 		## Limit one: no more than the passer holds.
 		local passHeld passLayer passFromKind passFromRef passFromTask="" passStore
 		if ! passHeld="$( AgentsToolsPermissionHolds "$passBy" "$passTool" "$passTarget" "$passSession" )" ; then
@@ -913,6 +921,11 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $passTo takes no part in session $passSession${passTask:+ or task $passTask}, so $passBy cannot pass it a permission there" >&2
 			set +e ; return 1
 		fi
+		## A session pass: the passer takes part in that session too.
+		if [ "$passKind" = "session" ] && ! AgentsToolsPermissionParticipants "$passSession" "" | LC_ALL=C grep -q -x -F -- "$passBy" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy takes no part in session $passSession, so it cannot pass a permission for it" >&2
+			set +e ; return 1
+		fi
 		## Kept where the receiver reads it: the coworking session's store, or the passer's own.
 		local passRef passDir
 		passDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$passSession" )"
@@ -943,130 +956,20 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the pass record, so nothing is passed" >&2
 			set +e ; return 1
 		}
+		## The place its path lies in, as name:relative, recorded beside it as a hint.
+		if [ -n "$passPlace" ] ; then
+			printf '%s\t%s\n' "$passTarget" "$passPlace" > "$passDir/$passRef.places" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the place of $passRef was not recorded: $passPlace" >&2
+			printf 'PLACE: %s:%s is %s\n' "$passTool" "$passTarget" "$passPlace"
+		fi
 		printf '%s:%s:%s:%s:%s:%s\n' "$passKind" "$passTool" "$( AgentsToolsPermissionEscape "$passTarget" )" "$passBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$passRef" >> "$passDir/grants" || {
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $passRef, so nothing is passed" >&2
+			AgentsToolsGrantsStoreTouch "$passDir"
 			set +e ; return 1
 		}
-		printf 'GRANT: %s %s\n' "$passKind" "$passRef"
-		return 0
-	;;
-
-	## Passing held permissions on for the session only (plan step 3b): the way a keeper invited
-	## into a session widens another participant's base access. Each --entry is <tool>:<target>,
-	## the target a path, a pattern, or a place by name, @<name>[:<glob>], resolved as a set
-	## request's entry is (AgentsToolsPermissionEntryPlace); a path in a place is said and recorded
-	## as name:relative. Refused before anything is written: a write in a read-only place, naming
-	## the route; an entry the passer does not hold in this session, or holds only for a task; a
-	## passer or receiver taking no part in the session. Each entry is its own session grant of the
-	## receiver, signed by the passer, in the store the participants read: it ends with that
-	## session, and --magic-permission-revoke takes it by its pass-<id>. The member stub and the
-	## implementation are one arm, as pass is.
-	--member-permission-session-pass|--intern-op-permission-session-pass)
-		local spOp="$1"
-		shift
-		MDSC_CMD="$MDSC_CMD $spOp"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local spBy="${1:-}" spTo="" spEntries="" spSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
-		shift || true
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--to) spTo="${2:-}" ; shift 2 ;;
-				--entry) spEntries="${spEntries}${2:-}"$'\n' ; shift 2 ;;
-				--session-id) spSession="${2:-}" ; shift 2 ;;
-				*)
-					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -z "$spBy" ] || [ -z "$spTo" ] || [ -z "$spEntries" ] || [ -z "$spSession" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <passing-member> --to <member> --entry <tool:target>... [--session-id <id>]" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAssertBareName "$spBy" "<passing-member>" permission-session-pass || { set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$spTo" "--to" permission-session-pass || { set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$spSession" "--session-id" permission-session-pass || { set +e ; return 1 ; }
-		[ "$spOp" != "--member-permission-session-pass" ] || AgentsToolsActingMemberCheck "$spBy" "${spOp#--}" || { set +e ; return 1 ; }
-		if [ "$spTo" = "$spBy" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: $spBy cannot pass a permission to itself, so nothing is passed" >&2
-			set +e ; return 1
-		fi
-		## Both take part in the session, by its spawn records and the coworking session's.
-		local spParticipants spWho
-		spParticipants="$( AgentsToolsPermissionParticipants "$spSession" "" )"
-		for spWho in "$spBy" "$spTo" ; do
-			printf '%s\n' "$spParticipants" | LC_ALL=C grep -q -x -F -- "$spWho" && continue
-			echo "$MDSC_CMD: ⛔ ERROR: $spWho takes no part in session $spSession, so $spBy cannot pass $spTo a permission there; nothing is passed" >&2
-			set +e ; return 1
-		done
-		## Every entry checked before anything is written: its place, the ceiling, what the passer holds.
-		local spOne spHeld spTools=() spTargets=() spPlaces=() spHelds=() permEntryTool permEntryTarget permEntryPlace
-		while IFS= read -r spOne ; do
-			[ -n "$spOne" ] || continue
-			AgentsToolsPermissionEntryPlace "$spOne" "$spSession" || { set +e ; return 1 ; }
-			case "$permEntryTarget" in
-				*/../*|*/..) echo "$MDSC_CMD: ⛔ ERROR: an entry target has a .. segment, so nothing is passed: $spOne" >&2 ; set +e ; return 1 ;;
-			esac
-			if ! spHeld="$( AgentsToolsPermissionHolds "$spBy" "$permEntryTool" "$permEntryTarget" "$spSession" )" ; then
-				echo "$MDSC_CMD: ⛔ ERROR: $spBy does not hold $permEntryTool ${permEntryTarget:-(any target)} in session $spSession, so it cannot pass it on; nothing is passed -- ask for it instead" >&2
-				set +e ; return 1
-			fi
-			## A task grant lives while its item is open, which the session may outlive.
-			case "$spHeld" in
-				*' task '*)
-					echo "$MDSC_CMD: ⛔ ERROR: $spBy holds $permEntryTool ${permEntryTarget:-(any target)} only for a task ($spHeld), so it does not pass it on for the session; nothing is passed" >&2
-					set +e ; return 1
-				;;
-			esac
-			spTools+=( "$permEntryTool" ) ; spTargets+=( "$permEntryTarget" ) ; spPlaces+=( "$permEntryPlace" ) ; spHelds+=( "$spHeld" )
-		done <<< "$spEntries"
-		## Kept where every participant reads it: the coworking session's store, or the session's own.
-		local spDir spRef spStamp spI
-		spDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$spSession" )"
-		mkdir -p "$spDir" 2>/dev/null || {
-			echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $spSession, so nothing is passed" >&2
-			set +e ; return 1
-		}
-		spStamp="$( date -u +%Y%m%dT%H%M%SZ )"
-		for (( spI = 0 ; spI < ${#spTools[@]} ; spI++ )) ; do
-			spRef="$( AgentsToolsPermissionNewRef pass- )" || {
-				echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so ${spTools[$spI]}:${spTargets[$spI]} and the entries after it are not passed" >&2
-				AgentsToolsGrantsStoreTouch "$spDir"
-				set +e ; return 1
-			}
-			{
-				printf '%s\n' "---"
-				printf 'status: %s\n' "passed"
-				printf 'owner: %s\n' "$spTo"
-				printf 'passed-by: %s\n' "$spBy"
-				printf 'held-as: %s\n' "${spHelds[$spI]}"
-				printf 'session-id: %s\n' "$spSession"
-				printf 'tool: %s\n' "${spTools[$spI]}"
-				printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "${spTargets[$spI]}" )"
-				printf 'kind: %s\n' "session"
-				printf 'passed-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-				printf '%s\n' "---"
-				printf '\n# Passed\n\n%s passed %s %s to %s for session %s.\n' "$spBy" "${spTools[$spI]}" "${spTargets[$spI]:-(any target)}" "$spTo" "$spSession"
-			} > "$spDir/$spRef.md" || {
-				rm -f "$spDir/$spRef.md"
-				echo "$MDSC_CMD: ⛔ ERROR: can't write the pass record, so ${spTools[$spI]}:${spTargets[$spI]} and the entries after it are not passed" >&2
-				AgentsToolsGrantsStoreTouch "$spDir"
-				set +e ; return 1
-			}
-			if [ -n "${spPlaces[$spI]}" ] ; then
-				printf '%s\t%s\n' "${spTargets[$spI]}" "${spPlaces[$spI]}" > "$spDir/$spRef.places" \
-					|| echo "⚠️ WARNING: $MDSC_CMD: the place of $spRef was not recorded: ${spPlaces[$spI]}" >&2
-				printf 'PLACE: %s:%s is %s\n' "${spTools[$spI]}" "${spTargets[$spI]}" "${spPlaces[$spI]}"
-			fi
-			printf 'session:%s:%s:%s:%s:%s\n' "${spTools[$spI]}" "$( AgentsToolsPermissionEscape "${spTargets[$spI]}" )" "$spBy" "$spStamp" "$spRef" >> "$spDir/grants" || {
-				echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $spRef, so ${spTools[$spI]}:${spTargets[$spI]} and the entries after it are not passed" >&2
-				AgentsToolsGrantsStoreTouch "$spDir"
-				set +e ; return 1
-			}
-			printf 'GRANT: session %s\n' "$spRef"
-		done
 		## Every session index joining this store is rebuilt at its next check.
-		AgentsToolsGrantsStoreTouch "$spDir"
+		AgentsToolsGrantsStoreTouch "$passDir"
+		printf 'GRANT: %s %s\n' "$passKind" "$passRef"
 		return 0
 	;;
 

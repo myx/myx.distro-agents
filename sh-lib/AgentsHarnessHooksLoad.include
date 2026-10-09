@@ -87,7 +87,8 @@ AgentsHarnessHooksRecordSplit(){ ## record
 
 ## The harness's own globals from the records given: harnessHooksList grows by one
 ## `matcher<TAB>command` line per PreToolUse record of class `all`, harnessHooksSkipped
-## counts the `reroute` ones, and harnessHooksFault is set on a record this cannot read.
+## counts the `reroute` ones, a `native` one (a decision this harness makes itself) is
+## left out unsaid, and harnessHooksFault is set on a record this cannot read.
 AgentsHarnessHooksFromRecords(){ ## records
 	local fromRecord fromScript fromCommand
 	while IFS= read -r fromRecord ; do
@@ -99,6 +100,7 @@ AgentsHarnessHooksFromRecords(){ ## records
 		[ "$agentsHookEvent" = PreToolUse ] || continue
 		case "$agentsHookClass" in
 			reroute) harnessHooksSkipped=$(( harnessHooksSkipped + 1 )) ; continue ;;
+			native) continue ;;
 			all) ;;
 			*)
 				harnessHooksFault="the client tool policy states a PreToolUse hook of unknown class '$agentsHookClass'"

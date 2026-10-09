@@ -193,6 +193,13 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		0)
 			collectOutcome="ANSWERED"
 			printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$collectAnswer"
+			## The answer is the reply's first line; the rest of it and every later reply are its
+			## clarifications, kept on the record and the item's Decisions.
+			local oneClarify=""
+			oneClarify="$( printf '%s\n' "$oneBody" | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || oneClarify=""
+			[ -z "$oneClarify" ] || printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --context collect > /dev/null 2>&1 \
+				|| echo "$MDSC_CMD: ⚠️ WARNING: $oneId is closed, but its clarifications were not kept" >&2
 		;;
 		3)
 			collectOutcome="ALREADY-CLOSED"

@@ -1115,11 +1115,11 @@ case "$1" in
 			}
 		fi
 
-		## The grants are the permissions registries --make-agents-indices writes, every
-		## workspace's own (AgentsTools.Grants.include); this op only projects them, never
-		## writes them. What its last run projected is kept beside them, so an entry it put in
-		## the settings is dropped once no registry claims it any more, and nothing else is:
-		## nothing is identified by shape. A first run has no such record, and drops nothing.
+		## No file grant is projected any more: the PreToolUse hooks decide every call, so
+		## no Read or Edit entry is written. What earlier runs projected from the permissions
+		## registries is kept beside them, and every entry it names is dropped, nothing else:
+		## nothing is identified by shape. With no such record, the entries the registries
+		## claim now are taken as what an earlier run wrote. The record is then left empty.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
@@ -1129,10 +1129,10 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $MMDAPP/.local/temp" >&2
 			set +e ; return 1
 		}
-		## The WHOLE machine-wide set, every workspace's rows unioned and de-duplicated: a member
-		## registered by several workspaces holds a row per workspace, and its grant survives
-		## until the last goes. Field 4 is taken whole by offset, never by splitting, so a grant
-		## carrying its own colons is reproduced exactly. Tool rows and unresolved rows name no path.
+		## The WHOLE machine-wide set, every workspace's rows unioned and de-duplicated: what an
+		## earlier run projected, where it left no record. Field 4 is taken whole by offset, never
+		## by splitting, so a grant carrying its own colons is reproduced exactly. Tool rows and
+		## unresolved rows name no path.
 		if ! AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" && $3 != "unresolved" {
 			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 			if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
@@ -1168,7 +1168,6 @@ case "$1" in
 				MYX_CLAUDEPERMS_DENY_ADD_JSON="$( AgentsToolsClientToolPolicyClaudeDenyJson )" \
 				MYX_CLAUDEPERMS_MCP_SERVERS_JSON="$( AgentsToolsClientToolPolicyClaudeMcpServersJson )" \
 				MYX_CLAUDEPERMS_MEMBERS_FILE="$memberPathsFile" \
-				MYX_CLAUDEPERMS_GRANTS_FILE="$grantsFile" \
 				MYX_CLAUDEPERMS_GRANTS_PREV_FILE="$grantsFile.prev" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeSettingsPermissionsUpsert.awk" \
 				"$settingsFile" > "$settingsTmp" || exit 1
@@ -1190,15 +1189,15 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## What this run projected, for the next run's drop of what no registry claims any more.
-		mkdir -p "${projectedFile%/*}" && cp "$grantsFile" "$projectedFile.tmp.$$" && mv -f "$projectedFile.tmp.$$" "$projectedFile" || {
+		## What this run projected: nothing, so the next run drops nothing more.
+		mkdir -p "${projectedFile%/*}" && : > "$projectedFile.tmp.$$" && mv -f "$projectedFile.tmp.$$" "$projectedFile" || {
 			rm -f "$projectedFile.tmp.$$"
-			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: could not record what was projected in $projectedFile, so the next run drops nothing it projected" >&2
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: could not record in $projectedFile that nothing was projected, so the next run drops again what earlier runs projected" >&2
 		}
 		## Read only by the merge above and the record, so they go as soon as both are done.
 		rm -f "$grantsFile" "$grantsFile.prev"
 
-		echo "✅ claude permissions $settingsState: $settingsFile ($memberCount member grant(s))" >&2
+		echo "✅ claude permissions $settingsState: $settingsFile (fixed grants only, no file grant: the hooks decide; $memberCount acting member(s))" >&2
 		return 0
 	;;
 
@@ -1404,26 +1403,15 @@ case "$1" in
 
 		local settingsTmp="$settingsFile.tmp.$$"
 
-		local sourceRoot="$workspace/source"
-
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 
-		## The two reference sets stay apart all the way to the merge: the awk
-		## grants Read on one and Read+Edit on the other, so concatenating them
-		## would silently make the scratchpad read-only. No member is in scope --
-		## one settings file serves every member -- so the write half is the team
-		## scratchpad alone, never one member's own.
-		local allowExtraRootsJson allowWriteRootsJson
-		allowExtraRootsJson="$( AgentsToolsClientAccessReferenceRoots read "$workspace" | LC_ALL=C awk '
-			BEGIN { printf "["; }
-			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
-			END { printf "]"; }
-		' )"
-		allowWriteRootsJson="$( AgentsToolsClientAccessReferenceRoots write "$workspace" | LC_ALL=C awk '
-			BEGIN { printf "["; }
-			{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? "," : ""), $0; }
-			END { printf "]"; }
-		' )"
+		## No file grant is written: the PreToolUse hooks decide every call. The Read and
+		## Edit entries earlier installs wrote are dropped, each on an exact match.
+		local retiredAllowEntries
+		retiredAllowEntries="$( AgentsToolsClientToolPolicyRetiredAllowEntries "$workspace" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-restrictions: the allow entries earlier installs wrote could not be named, so $settingsFile is left untouched" >&2
+			set +e ; return 1
+		}
 
 		## Every settings.json hook entry below is generated from the index records read
 		## above. Checked in THIS shell, so an index with no reroute entry stops the op
@@ -1479,10 +1467,7 @@ case "$1" in
 				MYX_WSRESTRICT_RETIRED_HOOKS="$hooksRetiredNames" \
 				MYX_WSRESTRICT_RETIRED_DENY="$denyRetiredEntries" \
 				MYX_WSRESTRICT_SETTINGS="$( AgentsToolsClientToolPolicyClaudeSettings )" \
-				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$sourceRoot" \
-				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
-				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON="$allowExtraRootsJson" \
-				MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON="$allowWriteRootsJson" \
+				MYX_WSRESTRICT_RETIRED_ALLOW="$retiredAllowEntries" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 				"$settingsFile" > "$settingsTmp"
 		) ; then
@@ -2058,8 +2043,17 @@ case "$1" in
 			printf '{}\n' > "$settingsFile" || { echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: cannot create $settingsFile" >&2 ; set +e ; return 1 ; }
 		fi
 		local allowSettingsTmp="$settingsFile.tmp.$$"
-		## The hooks description is empty on purpose -- this op adds allow-grants
-		## and installs no hooks -- but the merge .awk still reads it by path. Same
+		## No allow grant is added any more -- the PreToolUse hooks decide every call --
+		## so this merge only drops the Read entries earlier runs added, each on an exact
+		## match (AgentsToolsClientToolPolicyRetiredAllowEntries).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
+		local allowRetiredEntries
+		allowRetiredEntries="$( AgentsToolsClientToolPolicyRetiredAllowEntries "$workspace" )" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-workspace-integrations: the allow entries earlier installs wrote could not be named, so $settingsFile is left untouched" >&2
+			set +e ; return 1
+		}
+		## The hooks description is empty on purpose -- this op installs no hooks --
+		## but the merge .awk still reads it by path. Same
 		## subshell-scoped trap as --install-workspace-restrictions above: armed
 		## before the file exists, never the caller's, and the merge output goes to
 		## $allowSettingsTmp, a file, so nothing has to escape.
@@ -2072,9 +2066,7 @@ case "$1" in
 			}
 			MYX_WSRESTRICT_DENY_ADD_JSON='[]' \
 				MYX_WSRESTRICT_HOOKS_FILE="$allowHooksDescFile" \
-				MYX_WSRESTRICT_ALLOW_SOURCE_ROOT="$workspace/source" \
-				MYX_WSRESTRICT_ALLOW_AGENTS_ROOT="$workspace/.claude/skills" \
-				MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON='[]' \
+				MYX_WSRESTRICT_RETIRED_ALLOW="$allowRetiredEntries" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeWorkspaceRestrictionsUpsert.awk" \
 				"$settingsFile" > "$allowSettingsTmp"
 		) ; then

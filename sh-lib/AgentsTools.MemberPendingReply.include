@@ -81,18 +81,25 @@ case "$1" in
 	## no longer needs an answer. Only the member that asked it, and only a plain question:
 	## a readback, decision or permission closes through its own escalation ops. The
 	## --magic-* stub is the coordinator settling another member's question on its behalf.
+	## --withdraw instead discards the asker's own open question, of any kind: the record
+	## closes as withdrawn, with the reason and no verdict, so it answers, grants and decides
+	## nothing; reminders stop with it, and a short note in its thread tells the person it is
+	## no longer needed. Only the member that asked it, on either stub.
 	--member-pending-reply-settle|--magic-pending-reply-settle)
 		local settleOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $settleOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0
+		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0 settleWithdraw=""
 		shift 2 2>/dev/null || shift $#
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--reason)
 					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason requires a value (<text>)" >&2 ; set +e ; return 1 ; }
 					settleReason="$2" ; shift 2
+				;;
+				--withdraw)
+					settleWithdraw=1 ; shift
 				;;
 				*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
@@ -101,7 +108,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$settleMember" ] || [ -z "$settleId" ] || [ -z "$settleReason" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text>" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text> [--withdraw]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
@@ -114,9 +121,35 @@ case "$1" in
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
 		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
 		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
-		if [ "$settleOp" = "--member-pending-reply-settle" ] && [ "$settleOwner" != "$settleMember" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot settle it; it stays as it is" >&2
+		if { [ "$settleOp" = "--member-pending-reply-settle" ] || [ -n "$settleWithdraw" ] ; } && [ "$settleOwner" != "$settleMember" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it; it stays as it is" >&2
 			set +e ; return 1
+		fi
+		if [ -n "$settleWithdraw" ] ; then
+			DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status withdrawn \
+				--withdrawn-by "$settleMember" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
+			case "$settleRc" in
+				0) ;;
+				3) return 0 ;;
+				*) set +e ; return 1 ;;
+			esac
+			## Said in the question's own thread, under the identity it was asked with, so the
+			## person knows it needs no answer. Best effort: the record is already closed.
+			local settleChannel settleThread settleNote
+			settleChannel="$( AgentsToolsPendingReplyField "$settleFile" channel )"
+			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
+				settleNote="Withdrawn by $settleMember: $settleReason"$'\n'"This question no longer needs an answer."
+				if [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" = "bot" ] ; then
+					printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$settleMember" "$settleChannel:$settleThread" --identity-bot --from-stdin > /dev/null 2>&1 \
+						|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
+				else
+					printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$settleMember" "$settleChannel:$settleThread" --from-stdin > /dev/null 2>&1 \
+						|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
+				fi
+			fi
+			printf 'WITHDRAWN %s\n' "$settleId"
+			return 0
 		fi
 		settleKind="$( AgentsToolsPendingReplyField "$settleFile" kind )"
 		case "$settleKind" in

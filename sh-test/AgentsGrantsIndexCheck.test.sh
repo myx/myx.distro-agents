@@ -11,6 +11,8 @@
 ##   2. grants.index: fully unrolled per member, the ceilings deepest first, the floor (temp in
 ##      every tooling workspace, the source docs where agents are installed), unresolved rows,
 ##      magic-tester's grants as myx.distro-agents/project.inf declares them;
+##   2b. the roots a member is granted, off that index: whole-directory rows only, the
+##      globbed source rows none, read (a read-only place included) and write;
 ##   3. the harness gate, read and write, decided by the session permission index: librarian
 ##      reads source/** and another member does not, the docs floor, namespace and directory
 ##      grants, a single * that stays in its segment, the ceiling refused first with its route;
@@ -171,6 +173,23 @@ done
 rigAssert "magic-tester reads sh-test, test, tests and .local/myx in every workspace" "$rigTesterRows" "1111 1111 1111 1111 1111 "
 rigAssert "and no other member does"                            "$( LC_ALL=C awk -F'\t' '$1 != "magic-tester" && $2 == "read" && ( $3 ~ /\/source\/\*\*\/(sh-test|test|tests)\/\*\*$/ || $3 ~ /\/\.local\/myx\/\*\*$/ )' "$rigIndex" | LC_ALL=C grep -c . )" 0
 rigAssert "magic-tester writes ** in the testbeds only"         "$( rigIdx magic-tester write "$rigTestbedA/**" ):$( rigIdx magic-tester write "$rigTestbedB/**" ):$( rigIdx magic-tester write "$rigDecoy/**" ):$( rigIdx magic-tester write "$rigMain/**" ):$( rigIdx magic-tester write "$rigSide/**" )" "1:1:0:0:0"
+
+echo "-- 2b. the roots a member is granted, off the index (AgentsToolsClientAccessMemberRoots) --"
+rigRoots(){ ## member, purpose, root -- 1 when the root is in that set, 0 when not
+	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
+		bash -c '. "'"$rigHere"'/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessMemberRoots "$MMDAPP" "$@"' rig "$1" "$2" 2>/dev/null \
+		| LC_ALL=C grep -c -x -F -- "$3" || :
+}
+rigOrigin="$( cd "$rigPackage/skillset" && pwd -P )"
+rigAssert "magic-librarian's read roots hold all of source/"    "$( rigRoots magic-librarian read "$rigMain/source" )" 1
+rigAssert "another member's do not, the docs floor no root"     "$( rigRoots magic-tester read "$rigMain/source" ):$( rigRoots keeper-w read "$rigMain/source" )" "0:0"
+rigAssert "a namespace grant is its own root, a write grant a read root" "$( rigRoots keeper-w read "$rigMain/source/rig" ):$( rigRoots keeper-w read "$rigMain/shared" )" "1:1"
+rigAssert "magic-tester's globbed source rows are no root, .local/myx is" "$( rigRoots magic-tester read "$rigMain/source/rig" ):$( rigRoots magic-tester read "$rigMain/.local/myx" )" "0:1"
+rigAssert "the floor: readable members, temp, this origin's skillset" "$( rigRoots keeper-d read "$rigSkills/keeper-w" ):$( rigRoots keeper-d read "$rigMain/.local/temp" ):$( rigRoots keeper-d read "$rigOrigin" )" "1:1:1"
+rigAssert "write roots: temp and the testbeds, not a read row nor the origin" "$( rigRoots magic-tester write "$rigMain/.local/temp" ):$( rigRoots magic-tester write "$rigTestbedA" ):$( rigRoots magic-tester write "$rigMain/.local/myx" ):$( rigRoots magic-tester write "$rigOrigin" )" "1:1:0:0"
+rigAssert "a capped grant is a read root, never a write root"   "$( rigRoots keeper-d read "$rigTmp/ro-dir" ):$( rigRoots keeper-d write "$rigTmp/ro-dir" )" "1:0"
+rigAssert "a glob inside a directory (rw-dir/*.md) is no root"  "$( rigRoots keeper-d read "$rigTmp/rw-dir" ):$( rigRoots keeper-d write "$rigTmp/rw-dir" )" "0:0"
+rigAssert "an unknown purpose is refused"                        "$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigMain" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c '. "'"$rigHere"'/AgentsTools.ClientAccessRoots.include" ; AgentsToolsClientAccessMemberRoots "$MMDAPP" keeper-d all' > /dev/null 2>&1 && printf taken || printf refused )" refused
 
 echo "-- 3. the harness gate, read and write --"
 ## One served call, as the MCP server makes it; output in call.out.

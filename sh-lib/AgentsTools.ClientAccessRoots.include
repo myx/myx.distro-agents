@@ -222,3 +222,56 @@ AgentsToolsClientAccessRoots(){
 	## already yield, and a repeated root is a duplicate `--add-dir`.
 	printf '%s\n' "$accessRoots" | LC_ALL=C sort -u | LC_ALL=C awk 'NF'
 }
+
+## The roots one member is granted, read off the finished grants index (AgentsTools.Grants.include),
+## one absolute path per line, sorted-unique: each of its floor and standing read and write rows
+## that names a whole directory, `<dir>/**`, and this origin's skillset, which every session index
+## adds to the floor. A row whose glob holds a wildcard before that end (`source/**/MAGIC.md`,
+## `source/**/sh-test/**`, `docs/*.md`) is no root: widened it would be its whole literal base, all
+## of source/ for the floor, so it stays with the decision made at each call (the harness gate, a
+## client hook). Never the union of every member, and never all of source/ unless granted.
+## Purpose picks the set, required and never defaulted:
+##   read      every root it may read or write: its read rows and its write rows, a read-only
+##             place included -- also the set for a flag that carries no verb (--add-dir)
+##   write     its write rows only, which the index already caps to read in a read-only place
+## A stale or missing index is rebuilt first; rc 1, said on stderr, when none can be had.
+##   $1 = workspace root, $2 = member name, $3 = read | write
+AgentsToolsClientAccessMemberRoots(){
+	local memberWs="${1%/}" memberName="$2" memberPurpose="$3" memberWho memberVerb memberGlob memberPattern memberRest
+	local memberBase memberRoots="" memberOrigin
+	case "$memberPurpose" in
+		read|write) : ;;
+		*)
+			echo "⛔ ERROR: AgentsToolsClientAccessMemberRoots: purpose must be 'read' or 'write', got: ${memberPurpose:-<none>}" >&2
+			return 1
+		;;
+	esac
+	if [ -z "$memberWs" ] || [ -z "$memberName" ] ; then
+		echo "⛔ ERROR: AgentsToolsClientAccessMemberRoots: a workspace and a member are both required" >&2
+		return 1
+	fi
+	type AgentsToolsGrantsIndexEnsure >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.Grants.include" || return 1
+	if ! AgentsToolsGrantsIndexEnsure "$memberWs" ; then
+		echo "⛔ ERROR: AgentsToolsClientAccessMemberRoots: no grants index could be read or built for $memberWs" >&2
+		return 1
+	fi
+	while IFS=$'\t' read -r memberWho memberVerb memberGlob memberPattern memberRest ; do
+		[ "$memberWho" = "$memberName" ] || continue
+		case "$memberVerb" in
+			write) : ;;
+			read) [ "$memberPurpose" != write ] || continue ;;
+			*) continue ;;
+		esac
+		case "$memberGlob" in
+			/?*/'**') memberBase="${memberGlob%/\*\*}" ;;
+			*) continue ;;
+		esac
+		case "$memberBase" in *'*'*|*'?'*|*'['*) continue ;; esac
+		memberRoots="$memberRoots$memberBase"$'\n'
+	done < <( if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi )
+	if [ "$memberPurpose" != write ] && [ -n "${MDLT_ORIGIN:-}" ] ; then
+		memberOrigin="$( cd "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" 2>/dev/null && pwd -P )" || memberOrigin=""
+		[ -z "$memberOrigin" ] || memberRoots="$memberRoots$memberOrigin"$'\n'
+	fi
+	printf '%s' "$memberRoots" | LC_ALL=C sort -u | LC_ALL=C awk 'NF'
+}

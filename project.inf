@@ -4,8 +4,8 @@ Augments: developer-sdk:recommended
 
 Declares: \
 	distro-image-sync:source-prepare-pull:repo:myx/myx.distro-agents:main:git@github.com:myx/myx.distro-agents.git \
-	magic-team:permissions:workspace:*:allow-write:*:source/**/MAGIC.md \
-	magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
+	--magic-team:permissions:workspace:*:allow-write:*:source/**/MAGIC.md \
+	--magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
 	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
 	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
 	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \

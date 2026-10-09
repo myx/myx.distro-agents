@@ -244,17 +244,17 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member>
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-session-pass <team-member> --to <member> --entry <tool:target>... [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-escalation-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-decision-record <team-member> <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-review-request <team-member> <item-filename> --reason <text>" >&2

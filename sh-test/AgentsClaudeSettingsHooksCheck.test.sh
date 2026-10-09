@@ -3,9 +3,10 @@
 ## than one hooks event. A descriptor with a third field lands under that event, one
 ## without it under PreToolUse; a second merge changes nothing; the verifier finds
 ## each entry under its own event and reports one that is absent. A retired deny entry
-## is removed on an exact match and the user's own deny rules stay. Then the real
+## is removed on an exact match and the user's own deny rules stay. No allow entry is
+## written; the file grants earlier installs wrote go, the user's own stay. Then the real
 ## --install-workspace-restrictions writes the policy's memory guard, fresh and over a
-## hand-wired entry. Offline: everything in this check's own temp tree and HOME.
+## hand-wired entry, and no file grant. Offline: everything in this check's own temp tree and HOME.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -37,8 +38,7 @@ printf '{\n  "permissions": {"allow": [], "deny": []},\n  "hooks": {"PreToolUse"
 rigMerge(){ ## input settings, output settings
 	MYX_WSRESTRICT_DENY_ADD_JSON='["Bash(rm *)"]' MYX_WSRESTRICT_HOOKS_FILE="$rigTmp/hooks.txt" MYX_WSRESTRICT_RETIRED_HOOKS="" \
 		MYX_WSRESTRICT_RETIRED_DENY="Bash" \
-		MYX_WSRESTRICT_ALLOW_SOURCE_ROOT=/rig/source MYX_WSRESTRICT_ALLOW_AGENTS_ROOT=/rig/.claude/skills \
-		MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON='[]' MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON='[]' \
+		MYX_WSRESTRICT_RETIRED_ALLOW="$( printf '%s\n' 'Read(//rig/.claude/skills/**)' 'Read(//rig/.local/temp/team/**)' 'Edit(//rig/.local/temp/team/**)' )" \
 		LC_ALL=C awk -f "$rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk" "$1" > "$2"
 }
 rigVerify(){ ## event (empty for the default), key, settings
@@ -60,6 +60,18 @@ rigAssert "a fresh merge writes no blanket Bash deny" "$( rigDeny "$rigTmp/merge
 printf '{\n  "permissions": {"allow": [], "deny": ["Bash", "Bash(git push*)", "WebFetch"]},\n  "hooks": {"PreToolUse": []}\n}\n' > "$rigTmp/old.json"
 rigMerge "$rigTmp/old.json" "$rigTmp/old-merged.json" || rigRefuse "the merge failed on a settings file carrying the retired deny"
 rigAssert "the retired Bash deny goes, the user's own deny rules stay" "$( rigDeny "$rigTmp/old-merged.json" )" '["Bash(git push*)", "Bash(rm *)", "WebFetch"]'
+rigAllow(){ ## settings -- the permissions.allow array, on one line, or none
+	tr -d '\n' < "$1" | sed -n 's/.*"allow": *\(\[[^]]*\]\).*/\1/p'
+}
+rigAssert "a fresh merge writes no allow entry at all" "$( rigAllow "$rigTmp/merged.json" )" '[]'
+printf '{"model": "rig-model"}\n' > "$rigTmp/bare.json"
+rigMerge "$rigTmp/bare.json" "$rigTmp/bare-merged.json" || rigRefuse "the merge failed on a settings file with no permissions"
+rigAssert "and adds no allow key where there is none" "$( LC_ALL=C grep -c '"allow"' "$rigTmp/bare-merged.json" )" 0
+printf '{\n  "permissions": {"allow": ["Read(//rig/source/**)", "Read(//rig-old/source/**)", "Read(//rig/.claude/skills/**)", "Read(//rig-old/.agents/**)", "Read(//rig/.local/temp/team/**)", "Edit(//rig/.local/temp/team/**)", "Read(//rig-user/notes/**)", "Bash(ls *)"], "deny": []},\n  "hooks": {"PreToolUse": []}\n}\n' > "$rigTmp/granted.json"
+rigMerge "$rigTmp/granted.json" "$rigTmp/granted-merged.json" || rigRefuse "the merge failed on a settings file carrying earlier file grants"
+rigAssert "the file grants earlier installs wrote go, the user's own entries stay in place" "$( rigAllow "$rigTmp/granted-merged.json" )" '["Read(//rig-user/notes/**)", "Bash(ls *)"]'
+rigMerge "$rigTmp/granted-merged.json" "$rigTmp/granted-merged2.json" || rigRefuse "the second merge over dropped grants failed"
+rigAssert "and a second merge changes nothing" "$( cmp -s "$rigTmp/granted-merged.json" "$rigTmp/granted-merged2.json" && printf same || printf changed )" same
 printf '%s\t%s\t%s\n' ".claude/hooks/rig-bad.sh" '{"hooks": []}' "Pre Tool" > "$rigTmp/hooks.txt"
 rigAssert "an event that is not a plain name is refused" "$( rigMerge "$rigTmp/settings.json" "$rigTmp/bad.json" 2>/dev/null && printf merged || printf refused )" refused
 
@@ -91,6 +103,17 @@ cp "$rigTmp/fresh/.claude/settings.json" "$rigTmp/fresh.first.json"
 rigInstall "$rigTmp/fresh" || rigRefuse "a second --install-workspace-restrictions failed"
 rigAssert "install: a second run changes nothing" "$( cmp -s "$rigTmp/fresh.first.json" "$rigTmp/fresh/.claude/settings.json" && printf same || printf changed )" same
 rigAssert "install: its script is the package's" "$( cmp -s "$rigGuard" "$rigTmp/fresh/.claude/hooks/protect-memory-md.sh" && [ -x "$rigTmp/fresh/.claude/hooks/protect-memory-md.sh" ] && printf same || printf differs )" same
+rigAssert "install: no file grant is written, Read, Edit or Write" "$( LC_ALL=C grep -c -e '"Read(' -e '"Edit(' -e '"Write(' "$rigTmp/fresh/.claude/settings.json" )" 0
+rigAssert "install: the granted-call allow hook is wired, its script the package's" \
+	"$( rigVerify "" .claude/hooks/allow-granted-native-tool.sh "$rigTmp/fresh/.claude/settings.json" ) / $( cmp -s "$rigHere/client-hooks/allow-granted-native-tool.sh" "$rigTmp/fresh/.claude/hooks/allow-granted-native-tool.sh" && [ -x "$rigTmp/fresh/.claude/hooks/allow-granted-native-tool.sh" ] && printf same || printf differs )" \
+	"hooks.PreToolUse .claude/hooks/allow-granted-native-tool.sh: OK / same"
+## The entries an earlier install wrote here, beside one of the user's own: they go, it stays.
+rigOld="$rigTmp/old-grants"
+mkdir -p "$rigOld/.claude"
+printf '{"permissions": {"allow": ["Read(/%s/source/**)", "Read(/%s/.claude/skills/**)", "Read(/%s/**)", "Read(/%s/**)", "Read(/%s/.local/temp/team/**)", "Edit(/%s/.local/temp/team/**)", "Read(//rig-user/notes/**)"], "deny": []}}\n' \
+	"$rigOld" "$rigOld" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset" "$rigTmp/home/.claude/skills" "$rigOld" "$rigOld" > "$rigOld/.claude/settings.json"
+rigInstall "$rigOld" || { cat "$rigOld.log" >&2 ; rigRefuse "--install-workspace-restrictions failed over earlier file grants" ; }
+rigAssert "install: the file grants an earlier install wrote are dropped, the user's own stays" "$( rigAllow "$rigOld/.claude/settings.json" )" '["Read(//rig-user/notes/**)"]'
 mkdir -p "$rigTmp/wired/.claude/hooks"
 printf '{\n  "autoMemoryEnabled": true,\n  "model": "rig-model",\n  "hooks": {\n    "PreToolUse": [\n      {\n        "matcher": "Edit|Write",\n        "hooks": [\n          {\n            "type": "command",\n            "command": "\\"$CLAUDE_PROJECT_DIR\\"/.claude/hooks/protect-memory-md.sh"\n          }\n        ]\n      }\n    ]\n  }\n}\n' > "$rigTmp/wired/.claude/settings.json"
 printf '#!/bin/bash\n## the old hand-wired copy\nexit 0\n' > "$rigTmp/wired/.claude/hooks/protect-memory-md.sh"

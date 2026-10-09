@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 ## A claude-native console generated from the template, run with a spawn sandbox root,
 ## hands claude --add-dir for the sandbox's input/ and output/ and prints no `command not
-## found`. The console is generated here by --make-console-command into this rig's own
+## found`. A spawned member gets the roots it is granted, off the grants index, and not
+## source/: claude-native and copilot-native as --add-dir (one set, a read-only place
+## included), a leg as --access-read-root and --access-write-root apart.
+## The console is generated here by --make-console-command into this rig's own
 ## workspace; RIG_CONSOLE may name another console file to judge instead, for a red run.
 ## Every run goes through one `env -i` whose child refuses to start outside the rig tree.
 set -u
@@ -59,6 +62,47 @@ rigAdded(){ ## directory
 rigAssert "no command is missing"                      "$( LC_ALL=C grep -c 'command not found' "$rigTmp/err" || : )" 0
 rigAssert "claude gets --add-dir for input/"           "$( rigAdded "$rigTmp/sandbox/input" )" yes
 rigAssert "and for output/"                            "$( rigAdded "$rigTmp/sandbox/output" )" yes
+
+echo "-- the roots the spawned member is granted, off the grants index --"
+## rig-member: a write grant, a read grant on a folder holding a read-only place, and a read
+## grant in that place; rig-other: a write grant of its own. source/ exists and is no one's.
+mkdir -p "$rigWs/.local/agents" "$rigWs/source/rig" "$rigTmp/granted" "$rigTmp/places/ro" "$rigTmp/others"
+printf '%s\t%s\t%s\t%s\t%s\n' "ws" workspace read-write "$rigWs" workspace "ro" directory read-only "$rigTmp/places/ro" owner > "$rigWs/.local/agents/directories.registry"
+printf 'rig-member:ws:workspace:Edit(/%s/granted/**)\nrig-member:ws:directory:Read(/%s/places/**)\nrig-member:ws:directory:Read(/%s/places/ro/**)\nrig-other:ws:workspace:Edit(/%s/others/**)\n' \
+	"$rigTmp" "$rigTmp" "$rigTmp" "$rigTmp" > "$rigWs/.local/agents/permissions.registry"
+printf '#!/bin/sh\nfor a in "$@" ; do printf "%%s\\n" "$a" ; done > "%s/copilot.argv"\n' "$rigTmp" > "$rigTmp/bin/copilot"
+printf '#!/bin/sh\nfor a in "$@" ; do printf "%%s\\n" "$a" ; done > "%s/leg.argv"\n' "$rigTmp" > "$rigTmp/bin/rig-leg.sh"
+chmod +x "$rigTmp/bin/copilot" "$rigTmp/bin/rig-leg.sh"
+rigMemberConsole(){ ## cli -- a spawn of rig-member, the claude leg being the rig stub
+	env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		MDAT_SPAWN_AGENT=rig-member MDAT_CLAUDE_HARNESS="$rigTmp/bin/rig-leg.sh" RIG_TMP="$rigTmp" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
+			cd "$MMDAPP" && exec bash "$MMDAPP/DistroAgentsConsole.sh" --cli "$1" --non-interactive RIG-PROMPT
+		' rig "$1" < /dev/null > "$rigTmp/member.out" 2> "$rigTmp/member.err"
+}
+rigFlagged(){ ## argv file, flag, directory -- yes when the flag names the directory
+	LC_ALL=C awk -v wantFlag="$2" -v wantDir="$3" 'previous == wantFlag && $0 == wantDir { found = 1 ; } { previous = $0 ; } END { print found ? "yes" : "no" ; }' "$1" 2>/dev/null
+}
+rm -f "$rigTmp/claude.argv"
+rigMemberConsole claude-native
+[ -f "$rigTmp/claude.argv" ] || rigRefuse "the member spawn never started claude: $( tail -3 "$rigTmp/member.err" )"
+rigAssert "claude-native: its write and read grants, the read-only place too" \
+	"$( rigFlagged "$rigTmp/claude.argv" --add-dir "$rigTmp/granted" ):$( rigFlagged "$rigTmp/claude.argv" --add-dir "$rigTmp/places" ):$( rigFlagged "$rigTmp/claude.argv" --add-dir "$rigTmp/places/ro" )" "yes:yes:yes"
+rigAssert "and not source/, nor another member's grant" \
+	"$( rigFlagged "$rigTmp/claude.argv" --add-dir "$rigWs/source" ):$( rigFlagged "$rigTmp/claude.argv" --add-dir "$rigTmp/others" )" "no:no"
+rigMemberConsole copilot-native
+[ -f "$rigTmp/copilot.argv" ] || rigRefuse "the member spawn never started copilot: $( tail -3 "$rigTmp/member.err" )"
+rigAssert "copilot-native: the same set, the read-only place included" \
+	"$( rigFlagged "$rigTmp/copilot.argv" --add-dir "$rigTmp/granted" ):$( rigFlagged "$rigTmp/copilot.argv" --add-dir "$rigTmp/places/ro" ):$( rigFlagged "$rigTmp/copilot.argv" --add-dir "$rigTmp/places" )" "yes:yes:yes"
+rigAssert "and not source/, nor another member's grant" \
+	"$( rigFlagged "$rigTmp/copilot.argv" --add-dir "$rigWs/source" ):$( rigFlagged "$rigTmp/copilot.argv" --add-dir "$rigTmp/others" )" "no:no"
+rigMemberConsole claude
+[ -f "$rigTmp/leg.argv" ] || rigRefuse "the member spawn never started the leg: $( tail -3 "$rigTmp/member.err" )"
+rigAssert "a leg reads its grants, the read-only place too, and not source/" \
+	"$( rigFlagged "$rigTmp/leg.argv" --access-read-root "$rigTmp/granted" ):$( rigFlagged "$rigTmp/leg.argv" --access-read-root "$rigTmp/places/ro" ):$( rigFlagged "$rigTmp/leg.argv" --access-read-root "$rigWs/source" )" "yes:yes:no"
+rigAssert "and writes its write grant only" \
+	"$( rigFlagged "$rigTmp/leg.argv" --access-write-root "$rigTmp/granted" ):$( rigFlagged "$rigTmp/leg.argv" --access-write-root "$rigTmp/places/ro" ):$( rigFlagged "$rigTmp/leg.argv" --access-write-root "$rigTmp/others" )" "yes:no:no"
 
 echo "-- the harness path with a sandbox root --"
 mkdir -p "$rigTmp/skills/rig-member"

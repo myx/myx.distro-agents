@@ -133,6 +133,25 @@ AgentsToolsClientToolPolicyRetiredDenyEntries(){
 	printf '%s\n' "Bash"
 }
 
+## The permissions.allow entries earlier installs wrote into a workspace's
+## .claude/settings.json and none writes any more, one per line, each the exact entry
+## text: the PreToolUse hooks decide every call, so no file grant is written. A Read
+## on the workspace's skills root and on each reference read root, a Read and an Edit
+## on the team scratchpad, as AgentsTools.ClientAccessRoots.include yields them. The
+## settings merge removes each on an exact match, so a rule a user added stays; a Read
+## on a source/ or .agents root goes there by its shape.
+##   $1 = workspace root
+AgentsToolsClientToolPolicyRetiredAllowEntries(){
+	local retiredWs="${1%/}" retiredRoots
+	[ -n "$retiredWs" ] || return 1
+	type AgentsToolsClientAccessReferenceRoots >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.ClientAccessRoots.include" || return 1
+	retiredRoots="$( AgentsToolsClientAccessReferenceRoots read "$retiredWs" )" || return 1
+	printf 'Read(/%s/**)\n' "$retiredWs/.claude/skills"
+	printf '%s\n' "$retiredRoots" | LC_ALL=C awk 'NF { print "Read(/" $0 "/**)" ; }'
+	retiredRoots="$( AgentsToolsClientAccessReferenceRoots write "$retiredWs" )" || return 1
+	printf '%s\n' "$retiredRoots" | LC_ALL=C awk 'NF { print "Read(/" $0 "/**)" ; print "Edit(/" $0 "/**)" ; }'
+}
+
 ## The deny-reroute keys, one per line: the hooks that exist to route a *-native
 ## client toward this estate's own MCP tooling, and which therefore must not apply
 ## inside our own universal harness -- there the destination is already what is
@@ -163,7 +182,8 @@ AgentsToolsClientToolPolicyRerouteHookKeys(){
 ##   event <TAB> class <TAB> key <TAB> matcher <TAB> script <TAB> argument
 ## event is the client hook event; class is `all` (applies everywhere, our own harness
 ## included), `reroute` (routes a *-native client to our MCP tooling, so never applies in
-## our harness) or `native` (an event our harness has no counterpart for); key is the
+## our harness) or `native` (a *-native client only: an event our harness has no
+## counterpart for, or a decision our harness makes itself); key is the
 ## dedupe key the settings merge and verifier recognise the entry by; script is a file
 ## name under sh-lib/client-hooks (installed under .claude/hooks); matcher and argument
 ## may be empty. Ordered as the installer has always written them.
@@ -178,6 +198,9 @@ AgentsToolsClientToolPolicyHookRecords(){
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Glob	Glob	deny-memory-md-read.sh	Glob"$'\n'
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/deny-memory-md-read.sh Grep	Grep	deny-memory-md-read.sh	Grep"$'\n'
 	recordOut="${recordOut}PreToolUse	all	.claude/hooks/protect-memory-md.sh	Edit|Write	protect-memory-md.sh	"$'\n'
+	## A spawned member: allow a native file tool call its session index grants, deny a write
+	## in a read-only place, and leave anything else to the client and the PermissionRequest hook.
+	recordOut="${recordOut}PreToolUse	native	.claude/hooks/allow-granted-native-tool.sh	Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob	allow-granted-native-tool.sh	"$'\n'
 	recordOut="${recordOut}PermissionRequest	native	.claude/hooks/permission-request-escalation.sh		permission-request-escalation.sh	"$'\n'
 	while IFS= read -r recordTool ; do
 		[ -n "$recordTool" ] || continue
@@ -207,7 +230,7 @@ AgentsToolsClientToolPolicyHookKeys(){
 		echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: the reroute tool set yielded no keys, so the verifier would assert nothing about the reroute hooks" >&2
 		return 1
 	fi
-	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-memory-md-read.sh Glob" ".claude/hooks/deny-memory-md-read.sh Grep" ".claude/hooks/protect-memory-md.sh" ; do
+	for policyHookKey in ".claude/hooks/deny-memory-md-read.sh" ".claude/hooks/deny-memory-md-read.sh Glob" ".claude/hooks/deny-memory-md-read.sh Grep" ".claude/hooks/protect-memory-md.sh" ".claude/hooks/allow-granted-native-tool.sh" ; do
 		case "$policyHookKey" in
 			""|*$'\t'*|*$'\n'*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyHookKeys: a hook key is empty or carries a tab or a newline, which the verifier reads as an assertion it never made" >&2

@@ -325,7 +325,7 @@ rigAskFinish(){ ## guard seconds; prints yes when the ask ended on its own
 
 ## A permission question for one refusal, answered in its thread by the addressee.
 rigAskPermission(){ ## session id, refusal id, reply text
-	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"%s","thread_ts":"1700000001.000101"}],"has_more":false}\n' "$3" > "$rigScenarioDir/replies.json"
+	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"%s","thread_ts":"1700000001.000101"}],"has_more":false}\n' "$3" > "$rigScenarioDir/replies.json"
 	rm -f "$rigScenarioDir/posts"
 	rigTool "$1" AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$2\",\"reason\":\"the task report goes there\",\"task_ref\":\"dispatch-rig\"}"
 }
@@ -345,7 +345,7 @@ rigAskPermission rig-session "$rigIdP" "allow-once"
 rigAssert "the answer arrived"                             "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
 rigAssert "the verdict is allow-once"                      "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "the tooling wrote the grant"                    "$( rigLineOf 'GRANT: ' )" "GRANT: once $rigIdP"
-rigAssert "the post shows the refused call from the record" "$( rigHolds "$rigScenarioDir/post.2" "$rigTarget" )" yes
+rigAssert "the post shows the refused call from the record" "$( rigHolds "$rigScenarioDir/post.1" "$rigTarget" )" yes
 rigAssert "the grant is signed by the addressee"           "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ':URIGOWNER:' )" yes
 rigAssert "the exact retry is admitted"                    "$( rigWriteCall rig-session "$rigTarget" )" "$( rigOkLine "$rigTarget" )"
 rigAssert "the next one is refused"                        "$( rigWriteCall rig-session "$rigTarget" )" "ERROR: path not in the allowed write-root set -- it may still be readable: $rigTarget"
@@ -363,20 +363,20 @@ rigAssert "no grant is written"                            "$( rigLineOf 'GRANT:
 rigAssert "the retry is refused"                           "$( rigWriteCall rig-session "$rigTarget" )" "ERROR: path not in the allowed write-root set -- it may still be readable: $rigTarget"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdLater="$( rigRefusalId )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rm -f "$rigScenarioDir/posts"
 ## Worded apart from the denied ask above: the same session asking the same permission
 ## question again gets that deny back unasked (Asked once, in MAGIC.md).
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task now write the refused file after all?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdLater\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "an answer naming no option returns UNCLASSIFIED" "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
-rigAssert "and nothing is posted for it"                   "$( cat "$rigScenarioDir/posts" )" 2
+rigAssert "and nothing is posted for it"                   "$( cat "$rigScenarioDir/posts" )" 1
 rigAssert "and no grants file exists"                      "$( [ -e "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ] && printf yes || printf no )" no
 rigRewaitId="$( LC_ALL=C sed -n 's/^AskUserQuestion pending_id=//p' "$rigScenarioDir/out" | tail -1 )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"deny","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"deny","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "a re-wait on its id finds the valid answer"     "$( rigLineOf 'VERDICT: ' )" "VERDICT: deny"
 rigAssert "and still no grant"                             "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
-rigAssert "and the re-wait posted nothing"                 "$( cat "$rigScenarioDir/posts" )" 2
+rigAssert "and the re-wait posted nothing"                 "$( cat "$rigScenarioDir/posts" )" 1
 rigTool other-session AskUserQuestion "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "another session may not re-wait on it"          "$( rigHolds "$rigScenarioDir/out" 'belongs to session rig-session' )" yes
 rigVerdict "permission deny, or an unrecognised answer -- nothing is granted, and a re-wait finds the real answer"
@@ -404,7 +404,7 @@ rigStart self-answer no
 rigTarget="$rigScenarioDir/ws/OUT/w.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGSELF1\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "a self-answer is not a verdict"                 "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
 rigAssert "and says why"                                   "$( rigHolds "$rigScenarioDir/out" 'the answer came from the account that asked' )" yes
@@ -417,7 +417,7 @@ rigStart self-answer-nested no
 rigTarget="$rigScenarioDir/ws/OUT/w.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGSELF1\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "a nested user ahead of the sender does not hide the sender" "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
 rigAssert "no grant is written"                            "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
@@ -426,7 +426,7 @@ rigStart self-unknown no
 rigTarget="$rigScenarioDir/ws/OUT/w.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "an unknown asking account takes no answer"      "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
 rigAssert "and says why"                                   "$( rigHolds "$rigScenarioDir/out" 'the asking account could not be established' )" yes
@@ -440,7 +440,7 @@ rigStart annotated-reply no
 rigTarget="$rigScenarioDir/ws/OUT/n.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdN="$( rigRefusalId )"
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101","reactions":[{"name":"eyes","count":1,"users":["URIGOTHER"]}]}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101","reactions":[{"name":"eyes","count":1,"users":["URIGOTHER"]}]}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdN\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "the annotated reply is still the verdict"      "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigVerdict "an annotated reply head is skipped to its first word"

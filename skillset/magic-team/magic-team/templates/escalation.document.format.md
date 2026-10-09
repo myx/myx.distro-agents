@@ -32,7 +32,7 @@ One ask, to one addressee, about one thing a member needs before one part of its
 
 # Skeleton
 
-Every kind: `to` and `address_to` name the addressee — a member, a session thread, or the human-owner. The question is one line a reader can answer holding none of the member's context.
+Every kind: `to` and `address_to` name the addressee — a member, a routine (its executors answer), a session thread, or the human-owner. The question is one line a reader can answer holding none of the member's context.
 
 ```
 kind: readback

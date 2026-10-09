@@ -152,10 +152,13 @@ Both families are plain `Provides:`/`Declares:` tokens with no key of their own.
 - **The handling rule binds the values, not the file.** A real account's hash, key and oauth-id values are
   not reproduced outside the project declaring them — no other file, document, message, report or commit
   message. Editing such a project in place is ordinary work; an example uses an obvious placeholder.
-- **Skillset registration is two `Declares:` token families**:
+- **Skillset registration is three `Declares:` token families**:
   `magic-team:team-member:<path to the member's folder>:<selector>` contributes a member from that
-  project, and `magic-team:permissions:<scope>:<target>:<action>:<member>[:<glob>]` grants write access,
-  with `*` accepted for target, member and workspace scope.
+  project; `magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>` and
+  `magic-team:workspace:<name>:<path>:<host-glob>` register a place, granting nothing; and
+  `magic-team:permissions:<namespace|workspace|directory|project>:<selector>:<allow-read|allow-write|allow-tool>:<member>[:<glob>]`
+  grants. Their selectors and defaults are in `--help`, under `--owner-workspace-upsert` and
+  `--make-agents-indices`. Any of them with `--` glued in front is an inert reference line.
 
 ## Fragment file conventions
 

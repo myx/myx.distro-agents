@@ -281,8 +281,8 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   `$HOME/.agents/magic-team/` holds only what exists and where to look: `members.registry` (member,
   workspace root, link kind, path, member dir, TAB-separated), `directories.registry` (pointers: place
   name, workspace root), `member-homes.registry` (member, home workspace root), and
-  `permissions.registry` (pointers to workspaces that publish grants; needed machine-wide because
-  `~/.claude/settings.json` is machine-wide). Defined in `AgentsTools.TeamRegistry.include`.
+  `permissions.registry` (pointers to workspaces that publish grants, whose rows every `grants.index`
+  joins). Defined in `AgentsTools.TeamRegistry.include`.
 - **Places** (`AgentsTools.Places.include`). A place is a `workspace` (always read-write) or a
   `directory` (`read-only` or `read-write`); registering one grants nothing. A workspace's own
   `.local/agents/directories.registry` holds its places for this host (name, kind, ceiling, path,
@@ -314,27 +314,29 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   No fallback to a vendor link folder.
 - **Sites that stay `$HOME` on purpose**: the `--scope user-home` fan targets, `~/.claude/settings.json`,
   `~/.claude.json`, and `~/.agents/magic-team/`.
-- **`--install-claude-permissions` writes the machine-global `~/.claude/settings.json`** from the member
-  index of the workspace it runs for, plus every workspace's grants. It reads the permissions
-  registries and writes none; what it projected is kept in `claude-permissions.projected`, for the next
-  run's drop of what no registry claims any more.
+- **`--install-claude-permissions` writes the machine-global `~/.claude/settings.json`** with the fixed
+  grants only, and no file grant (`Read`, `Edit`, `Write`): the `PreToolUse` hooks decide. It drops the
+  ones earlier runs wrote: what `claude-permissions.projected` records (with no record, what the
+  permissions registries claim now), board grants and acting members' `Edit`/`Write` grants. The record
+  is then left empty.
 - **The workspace set is a publication list, not team membership.** A member absent from the current
   workspace is not an error.
 - **The access-root set is defined once, in `AgentsTools.ClientAccessRoots.include`.**
   `AgentsUniversalHarness.sh` uses it whenever no `--access-root` is given. The copilot fragment is a
   consumer, never a source. Where the include is missing, the harness refuses; it never falls back.
-- **The workspace root is not in the access set, and `MAGIC.md` is why.** Every `MAGIC.md` sits in a
-  git-tracked project tree under `$MMDAPP/source`, which is granted. The workspace root holds nothing
-  worth reading. Installed copies under `.local/myx/` are deliberately unreachable. Do not widen the
-  include.
+- **The workspace root is not in the access set.** Every `MAGIC.md` sits under `$MMDAPP/source`, which
+  the unnamed set grants whole and a member reads by the floor's `source/**/MAGIC.md`. The workspace
+  root holds nothing worth reading. Installed copies under `.local/myx/` are reachable only by a grant
+  (magic-tester's). Do not widen the include.
 - **A root flag replaces the whole default set**, and `--access-write-root` narrows writes to the roots
   it names. Adding one write root to grant a work directory revokes every other write, and the call
   still succeeds. The include keeps reads and writes apart; a verb-less flag like `--add-dir` cannot,
   so there a read root is also a write root. Writes are the work directories plus the roots a declared
   `Edit` grant names.
-- **A grant's cost is two numbers.** What the glob matches for claude, and what it widens to for copilot,
-  whose `--add-dir` takes no glob and grants the containing directory. `namespace:` declares carry no
-  glob and grant the whole tree; use `project:` or `workspace:` for a narrow grant.
+- **A grant's glob is decided per call** (the harness gate, the native hook). Only a `<dir>/**` row
+  becomes an `--add-dir` root; the fallback fragment widens a glob to its literal base. A `namespace:`
+  grant with no glob covers the whole namespace tree; give a glob, or use `project:` or `workspace:`,
+  for a narrow grant.
 - **Workspace paths are machine data.** `--owner-workspace-*` keeps them in the places registries
   above, never in a skill folder. A skill folder is a symlink into a repository's
   working tree, so data must never be written there. `.gitignore` keeps
@@ -350,6 +352,8 @@ User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are 
   (`--render-full`, `--render-missing`) are internal.
 - **A setting is judged by its value at its use site.** Unset or empty is FAIL. A config file existing is
   never the check. An installation artefact (console script, access fragment) is judged by presence.
+  The fragment, a fallback, only warns when missing or stale; it fails only where grants.index cannot
+  give the roots either.
 - **Settings and preconditions are separate lists.** A setting is a value the engine stores; a
   precondition is a state of the installation. `--apply` carries out both. For `claude`: settings are
   the workspace root and service selection; trust, console freshness and access grants are preconditions.
@@ -499,10 +503,15 @@ User view: [docs/installation.md](docs/installation.md#workspace-restrictions-op
   into it. The harness runs the package's script, never the `.claude/hooks` copy.
 - **A deny hook uses shell builtins only.** A missing external binary yields empty stdout and exit 0,
   which reads as allow. Fail closed on anything unparsed.
-- **Two kinds of hook.** A REROUTE drains stdin unread, denies every call alike, and names the MCP method
+- **Two kinds of deny hook.** A REROUTE drains stdin unread, denies every call alike, and names the MCP method
   to use instead; it applies to `*-native` clients only. A CONDITIONAL guard reads the payload, matches
   one thing, allows the rest, and applies everywhere, our harness included. Do not mix them. A reroute is
   a router, not a security wall.
+- **The grant hook** `allow-granted-native-tool.sh` (class `native`: the harness makes the same decision
+  itself) answers only in a spawned member session, from its session permission index: a write in a
+  read-only place `deny` first, a granted native file call `allow` (an allow-once used up through the
+  tooling first), anything else no answer, left to the client rules and the `PermissionRequest` hook.
+  Another hook's deny wins over its allow.
 - **`AgentsTools.ClientToolPolicy.include` is the single source** of the reroute set, hook paths, every
   hook record with its class, and entry keys. The refusal wording lives in the hook script. The script's
   last arm denies loudly, since no decision reads as allow.
@@ -609,8 +618,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   served `--intern-tool` calls and non-spawned sessions are never gated. The first redirect posts once to
   event-track. The close records `armed: yes|no|unknown` (`unknown` where no harness loop ran, i.e.
   native CLIs).
-- **A document reaches a spawn by grant and pointer, not copy.** Member skill dirs and the source tree are
-  granted roots. `held-context:` is conversation context, not documents. A spawn takes its brief from one
+- **A document reaches a spawn by grant and pointer, not copy.** Member skill dirs are granted roots;
+  under `source/` a member reads the docs floor and what its own grants name. `held-context:` is
+  conversation context, not documents. A spawn takes its brief from one
   source.
 - **Sandbox `input/`** (`AgentsTools.SpawnSandbox.include`): `dispatch.md`; a copy of the board item;
   `MAGIC.<package>.md` copies of the nearest MAGIC.md above every named path (never above `source/`);
@@ -844,6 +854,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   or `MDAT_MCP_WAIT_BOUND_PROGRESS` (14400) with progress notifications every
   `MDAT_MCP_PROGRESS_SECONDS` (60).
 - **Access roots** are rendered by the console into each client's flag (`--add-dir`, `--access-root`).
+  They are the roots the spawned member is granted, off the grants index
+  (`AgentsToolsClientAccessMemberRoots`): its rows naming a whole `<dir>/**`, never all of `source/`
+  unless granted; a globbed row (the source docs floor) is decided per call. A leg gets the read and
+  write sets apart; claude-native and copilot-native get one `--add-dir` set, every root the member
+  may read or write, a read-only place included; with no index, they fall back to the install fragment.
   `own`/`explicit` lines are trusted; `wildcard` and untagged lines are existence-checked. The harness's
   own fragment read is only a fallback for consoles generated before `--access-root`; it keeps the text
   after the last tab if absolute. No roots is a refusal.
@@ -1292,11 +1307,41 @@ op's own option arm.
 - **The ask's wait is the session's `Wait`**: the item `ask:<pending-id>` joins the stored wait
   (`--wait-add`) and is resolved by `AgentsHarnessAskResolve`, called by both `AskUserQuestion` and
   `Wait`.
-- **One person, one running thread** (`AgentsTools.AskThread.include`). Questions are numbered `Q<n>` per
-  addressee under the ask lock. An identical open question returns `ALREADY-OPEN` and posts nothing. A
-  leading `Q<n>` in the question text is removed. In a shared thread: a reply starting `Q<n>` answers
-  that one; an unnumbered reply answers the latest question above it while open, and none after it is
-  closed (`resolved-epoch`). `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
+- **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
+  conversation the question itself is one new top-level message, with no opener, in the member's DM or
+  the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another
+  question. Only `to=<channel>:<ts>` or `session-parent` posts inside an existing thread, and only such a
+  question is numbered, `Q<n>` per addressee under the ask lock; a top-level question carries no number
+  (its record has no `question-tag`). An identical open question returns `ALREADY-OPEN`
+  and posts nothing. The same question asked again once closed (`SAME`; another session, since the
+  asking session gets `NOT ASKED AGAIN`) goes into that question's own thread under its number and the
+  identity it was asked with, offered only where the asker can post again (asked as the bot, or by this
+  member). A question asked with `to=<channel>:<ts>` naming the thread a question opened for itself is a
+  follow-up on it and takes no new number (`AgentsToolsAskThreadRootTag`). A leading `Q<n>` in the question text is removed. In a thread several questions
+  share (only one the asker named): a reply starting `Q<n>` answers that one; an unnumbered reply answers
+  the latest question above it while open, and none after it is closed (`resolved-epoch`).
+  `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
+- **First line, then clarifications.** A reply's first line is its answer or verdict; the rest of that
+  reply and every later reply from the person in the question's thread are kept as clarifications
+  (`AgentsPendingReplyClarifications.awk`, `--intern-op-pending-reply-clarify`): under the record's own
+  `## Clarifications`, and as `clarification` lines on its item's `## Decisions`, once each by ts. The
+  harness, collect and the escalation read all keep them when they close a question.
+- **Plain affirmations** (`AgentsEscalationVerdict.awk`): a first word ok, okay, yes, agree, agreed, confirm
+  or confirmed (also after "I", any case), or a +1, ok_hand or white_check_mark reaction, is yes for a
+  readback and, for a decision, the option whose line holds `(recommended)` -- at most one may, refused
+  at ask time otherwise; with none marked it stays UNCLASSIFIED. Never for a permission.
+- **The asker's readback** (`--member-escalation-readback`, AskUserQuestion `pending_id` + `readback`):
+  once a decision's reply names no option, its asker may post, in the question's thread under the ask's
+  identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
+  readback` (on its Decisions line too) and `follow-floor: <readback ts>`; the replies are kept as
+  clarifications. Its `ask:` item stays in the Wait set, and the ask probe then reads only what follows
+  the floor, so a later objection arrives as `ASK-RESULT: CLARIFIED` and is kept. The asker only, never
+  a permission, never before a reply, never over a reply that names an option.
+- **Withdraw** (`--member-pending-reply-settle --withdraw`, AskUserQuestion `pending_id` + `withdraw`): the
+  asker discards its own open question of any kind. Status `withdrawn` (a close status of its own, with
+  `withdrawn-by` and `withdraw-reason`, never a verdict), so it answers, grants and decides nothing;
+  reminders stop, its Decisions line is `dismissed`, a note goes into its thread, and its `ask:` item
+  leaves the Wait set. The escalation read reports it `closed withdrawn`.
 - **Collect** (`--intern-op-pending-reply-collect`, `AgentsTools.PendingReplyCollect.include`), no model:
   reads each open plain question once with a zero-bound wait. Readbacks, decisions and permissions are
   never collected by default. Runs at `SubagentHandback`, at spawn close (marking `collect: ended`) and in
@@ -1306,8 +1351,9 @@ op's own option arm.
   Results in `.local/agents/pending-collect.last`.
 - **Remind** (`--intern-op-pending-reply-remind`, `AgentsTools.PendingReplyRemind.include`), tooling only,
   every main-loop iteration: at 30 min, 2 h, and daily after 09:00 local for asks 4 h+ old
-  (`.local/agents/pending-remind.daily`). More than 10 due for one person: one DM digest; otherwise a reply
-  in each thread. Sent as the ask's owner under `ask-identity`. A failed send stamps nothing.
+  (`.local/agents/pending-remind.daily`). Always a reply in each ask's own thread, never a top-level
+  message (`digests=` stays 0 in its summary line). Sent as the ask's owner under `ask-identity`. A failed
+  send stamps nothing.
 - **A pending record never expires by age**, and a reminder never closes one. Every close holds the
   record's lock; `--if-open` makes a second closer get `ALREADY-CLOSED`. A resolved question gets
   reactions (`:eyes:` on the answer, `:white_check_mark:` or `:ballot_box_with_check:` on the question);
@@ -1374,7 +1420,7 @@ op's own option arm.
   and every row declared for `*` (every member), so it reads the read floor plus those `Edit` and
   `Read` rows, and never the harness index's
   union. A served call with no `MDAT_SPAWN_AGENT` (the human-owner's own session under the default
-  identity) and the native clients' settings keep every member's rows.
+  identity) keeps every member's rows; a native client gets its member's roots (section 14).
 - **A named member's file tools are decided by its session permission index** when the harness is given
   no root flags: `sessions/<id>/permissions.<member>.index`, the member's rows of `grants.index` joined
   with the session's own grants (session, task, once; its own, coworking and parent stores). Every check
@@ -1410,20 +1456,19 @@ op's own option arm.
   check (the human-owner holds everything, and the harness would refuse the grant anyway), naming the
   route. The `name:relative` hint (`--intern-directory-of`) is printed as `PLACE:` and recorded as
   `<ref>.places` (natural target, TAB, hint) beside the grant's record, the way `.task` is.
-- **Session pass** (`--member-permission-session-pass`, implemented as `--intern-op-permission-session-pass`):
-  `--entry <tool>:<target>` entries resolved as a set request's (`AgentsToolsPermissionEntryPlace`: `@name`,
-  ceiling, `PLACE:`, `<ref>.places`), all checked before anything is written: `AgentsToolsPermissionHolds`
-  in that session, never a task-held one; passer and receiver both in `AgentsToolsPermissionParticipants`
-  of the session (no task). Each entry is its own `pass-<uuid>` `session` grant, signed by the passer, in
-  `AgentsToolsPermissionShareStore`'s store, then `AgentsToolsGrantsStoreTouch`; it ends with that
-  store's session and is revoked by its ref. `--member-permission-pass` (once/session/task, a plain
-  target, no store touch) stands beside it unchanged.
+- **Pass** (`--member-permission-pass`, implemented as `--intern-op-permission-pass`; `--kind
+  once|session|task`): its `--target` goes through `AgentsToolsPermissionEntryPlace` first (`@name`
+  resolved, the ceiling refused with its route, `PLACE:` and `<ref>.places`), then the holds, lifetime
+  and participant limits; `--kind session` also needs the passer in `AgentsToolsPermissionParticipants`
+  of the session. One `pass-<uuid>` grant, signed by the passer, in `AgentsToolsPermissionShareStore`'s
+  store, then `AgentsToolsGrantsStoreTouch`; a session pass ends with that store's session, and every
+  pass is revoked by its ref.
 - **`--magic-permission-list` / `--member-permission-list`** (`--intern-op-permission-list`) are
   `AgentsGrantsSessionIndex.awk` in `mode=list`: the same filters as the index, plus a once grant's
   use and TTL and a task's item, read in the awk.
 - **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
   layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
-  roots and the Claude settings as `Read(...)`, and never a write set or `Edit`.
+  roots, and never a write set or `Edit`. No grant is written into the Claude settings.
 - **Escalation kinds** readback, decision and permission always wait. `AgentsTools.MemberEscalation.include`
   applies a verdict once, under a `mkdir` lock.
 - **Attended only for an interactive Claude Code client**: `CLAUDE_CODE_ENTRYPOINT` `cli` or

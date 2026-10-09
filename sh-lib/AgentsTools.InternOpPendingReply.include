@@ -185,7 +185,7 @@ case "$1" in
 		local pendingId="$1"
 		shift || true
 		local pendingStatus="" pendingVerdict="" pendingAnsweredBy="" pendingIfOpen="" pendingAnswerTs="" pendingMark=""
-		local pendingAmend="" pendingAmendedBy="" pendingAmendReason="" pendingNoDecision=""
+		local pendingAmend="" pendingAmendedBy="" pendingAmendReason="" pendingNoDecision="" pendingWithdrawnBy="" pendingWithdrawReason=""
 		## Closed with no reaction: the main loop's pass closing an ask whose session still runs
 		## (--quiet, or MDAT_PENDING_CLOSE_QUIET=1 through the escalation op it calls).
 		local pendingQuiet="${MDAT_PENDING_CLOSE_QUIET:-}"
@@ -246,6 +246,15 @@ case "$1" in
 					pendingAnsweredBy="${2:-}"
 					shift 2
 				;;
+				## A question its asker withdrew (--status withdrawn): who, and why. No verdict.
+				--withdrawn-by)
+					pendingWithdrawnBy="${2:-}"
+					shift 2
+				;;
+				--withdraw-reason)
+					pendingWithdrawReason="${2:-}"
+					shift 2
+				;;
 				--context)
 					shift 2
 				;;
@@ -256,19 +265,27 @@ case "$1" in
 			esac
 		done
 		if [ -z "$pendingId" ] || [ -z "$pendingStatus" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --status <reply-received|reply-unknown>" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --status <reply-received|reply-unknown|withdrawn>" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$pendingId" "<pending-reply-id>" pending-reply-close || { set +e ; return 1 ; }
 		case "$pendingStatus" in
 			reply-received|reply-unknown) ;;
+			## Withdrawn by its asker: never an answer, so it carries no verdict and grants or
+			## decides nothing; who withdrew it and why are both required.
+			withdrawn)
+				if [ -n "$pendingVerdict" ] || [ -n "$pendingAmend" ] || [ -z "$pendingWithdrawnBy" ] || [ -z "$pendingWithdrawReason" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: --status withdrawn takes --withdrawn-by and --withdraw-reason, and never a --verdict or --amend" >&2
+					set +e ; return 1
+				fi
+			;;
 			*)
-				## Enumerated rather than free text, because these two direct
-				## different next steps: a received reply resumes the work, and an
-				## unknown is neither until someone looks. No timeout status: a
-				## pending record never expires by age (MAGIC.md). An old record
+				## Enumerated rather than free text, because these direct different next
+				## steps: a received reply resumes the work, an unknown is neither until
+				## someone looks, and a withdrawn question needs nothing more. No timeout
+				## status: a pending record never expires by age (MAGIC.md). An old record
 				## already closed as reply-timeout is still read like any closed one.
-				echo "$MDSC_CMD: ⛔ ERROR: --status must be reply-received|reply-unknown: $pendingStatus" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: --status must be reply-received|reply-unknown|withdrawn: $pendingStatus" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -328,6 +345,8 @@ case "$1" in
 			fi
 			[ -z "$pendingVerdict" ] || printf 'upsert\tverdict\t%s\n' "${pendingVerdict//$'\n'/ }"
 			[ -z "$pendingAnsweredBy" ] || printf 'upsert\tanswered-by\t%s\n' "${pendingAnsweredBy//$'\n'/ }"
+			[ -z "$pendingWithdrawnBy" ] || printf 'upsert\twithdrawn-by\t%s\n' "${pendingWithdrawnBy//$'\n'/ }"
+			[ -z "$pendingWithdrawReason" ] || printf 'upsert\twithdraw-reason\t%s\n' "${pendingWithdrawReason//$'\n'/ }"
 		} > "$pendingOps" || { rm -f "$pendingOps" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		pendingBody="$( LC_ALL=C awk -v opsFile="$pendingOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$pendingFile" )" || pendingBody=""
 		rm -f "$pendingOps"
@@ -373,16 +392,74 @@ case "$1" in
 				[ -z "$reactQuestion" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId"
 				## The opener is ours only where the question opened its own thread; a question
 				## asked inside someone's thread (<channel>:<ts>) leaves that thread's root alone.
+				## A question posted as the root of its own thread has no opener: it is that root,
+				## and is marked above. Only records from before questions were posted that way
+				## carry an opener ahead of the question.
 				case "$reactTo" in
 					*:*) ;;
 					*)
-						if [ -n "$reactThread" ] && ! AgentsToolsPendingReplyThreadHasOpen "$reactChannel" "$reactThread" ; then
+						if [ -n "$reactThread" ] && [ "$reactThread" != "$reactQuestion" ] && ! AgentsToolsPendingReplyThreadHasOpen "$reactChannel" "$reactThread" ; then
 							AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactThread" white_check_mark "$pendingId"
 						fi
 					;;
 				esac
 			fi
 		fi
+		return 0
+	;;
+
+	## Keeps the clarifications and corrections on a question's answer: the rest of the message
+	## its answer was read from, and every later message the person wrote in its thread
+	## (AgentsPendingReplyClarifications.awk). Read from stdin as "<ts>\t<author>\t<text>" lines;
+	## each new one is appended under the record's own `## Clarifications` section, and, where
+	## the question belongs to an item, as a `clarification` line on its Decisions. A message
+	## already kept, by its ts, is never kept twice. Open or closed records alike. Prints
+	## `CLARIFIED <id> <how many were new>`.
+	--intern-op-pending-reply-clarify)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-clarify"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local clarId="${1:-}" clarFile clarIn clarTs clarBy clarText clarNew="" clarCount=0 clarLock=""
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-stdin) shift ;;
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- syntax is <pending-reply-id> --from-stdin" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ -n "$clarId" ] || { echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --from-stdin" >&2 ; set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$clarId" "<pending-reply-id>" pending-reply-clarify || { set +e ; return 1 ; }
+		clarFile="$MMDAPP/.local/agents/pending/$clarId.md"
+		[ -f "$clarFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $clarFile" >&2 ; set +e ; return 1 ; }
+		clarIn="$( cat )"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+		AgentsToolsLocalLockTake "pending-reply-$clarId" 30 || { echo "$MDSC_CMD: ⛔ ERROR: the lock on $clarId could not be taken, so nothing was kept" >&2 ; set +e ; return 1 ; }
+		clarLock="$agentsLocalLockPath"
+		while IFS=$'\t' read -r clarTs clarBy clarText ; do
+			[ -n "$clarTs" ] && [ -n "$clarText" ] || continue
+			! LC_ALL=C grep -q -F -- "- $clarTs " "$clarFile" || continue
+			case "$clarNew" in *"- $clarTs "*) continue ;; esac
+			clarNew="$clarNew- $clarTs ${clarBy:-unknown}: ${clarText//$'\n'/ }"$'\n'
+			clarCount=$(( clarCount + 1 ))
+		done <<< "$clarIn"
+		if [ -n "$clarNew" ] ; then
+			{ LC_ALL=C grep -q -x -F '## Clarifications' "$clarFile" || printf '\n## Clarifications\n\n' ; printf '%s' "$clarNew" ; } >> "$clarFile" \
+				|| { AgentsToolsLocalLockGive "$clarLock" ; echo "$MDSC_CMD: ⛔ ERROR: the clarifications could not be written to $clarFile" >&2 ; set +e ; return 1 ; }
+		fi
+		AgentsToolsLocalLockGive "$clarLock"
+		if [ -n "$clarNew" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+			while IFS= read -r clarText ; do
+				[ -n "$clarText" ] || continue
+				clarText="${clarText#- }" ; clarTs="${clarText%% *}" ; clarText="${clarText#* }" ; clarBy="${clarText%%: *}" ; clarText="${clarText#*: }"
+				AgentsToolsDecisionsClarification "$clarId" "$clarFile" "$clarBy" "$clarText" "$clarTs"
+			done <<< "$clarNew"
+		fi
+		printf 'CLARIFIED %s %s\n' "$clarId" "$clarCount"
 		return 0
 	;;
 

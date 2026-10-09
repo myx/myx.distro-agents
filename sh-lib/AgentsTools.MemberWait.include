@@ -279,9 +279,12 @@ AgentsWaitProbeBoard(){
 ## status line too, which is how an answer taken elsewhere is seen. Arrivals only, so its
 ## baseline is empty (agentsWaitKindEmptyBaseline). Turning the answer into the record's verdict
 ## is the asking harness's (AgentsHarnessAskResolve), never this probe's.
+## A decision its asker closed by readback keeps a `follow-floor`, the readback's own ts: it
+## is then watched from there, with no closed line, so what arrives is only what the person
+## wrote after the readback -- an objection, or more -- which the asking harness keeps.
 AgentsWaitProbeAsk(){
 	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
-	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees=""
+	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
 	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
 	[ -f "$probeRecord" ] || return 2
 	while IFS= read -r probeLine ; do
@@ -291,15 +294,17 @@ AgentsWaitProbeAsk(){
 			'question-ts: '*) probeTs="${probeLine#question-ts: }" ;;
 			'thread-ts: '*) probeThreadTs="${probeLine#thread-ts: }" ;;
 			'addressees: '*) probeAddressees="${probeLine#addressees: }" ;;
+			'follow-floor: '*) probeFollow="${probeLine#follow-floor: }" ;;
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
+	[ "$probeStatus" != "reply-pending" ] || probeFollow=""
 	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
-		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut" "$probeAddressees" "false" || return 2
+		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-$probeTs}" "$probeOut" "$probeAddressees" "false" || return 2
 	else
 		: > "$probeOut" || return 2
 	fi
-	[ "$probeStatus" = "reply-pending" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
+	[ "$probeStatus" = "reply-pending" ] || [ -n "$probeFollow" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
 	return 0
 }
 

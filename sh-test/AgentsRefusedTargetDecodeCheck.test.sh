@@ -52,7 +52,7 @@ rigHolds(){ ## file, text
 }
 
 ## One scenario directory per case, each with its own workspace and curl log, so the
-## fake curl's own post counter starts fresh and post.1/post.2 never carry over.
+## fake curl's own post counter starts fresh and post.1 never carries over.
 rigScenarioDir=""
 rigStart(){ ## scenario directory name
 	rigScenarioDir="$rigTmp/$1"
@@ -88,9 +88,8 @@ rigRecord(){ ## session id, refusal id, target (already escaped, as the record s
 ## One AskUserQuestion kind=permission call. A typed kind always waits for its answer
 ## regardless of wait=false (AgentsUniversalHarness.sh's own escalation rule), and the
 ## fake curl holds no reply, so this runs in the background and is killed once its
-## question is posted -- the post is all this check needs. Each scenario uses its own
-## address_to, so no scenario's question can thread into another's open ask-thread and
-## shift the post numbering.
+## question is posted -- the post is all this check needs. The question is one top-level
+## post, so it is post.1; each scenario still uses its own address_to.
 rigAsk(){ ## session id, refusal id, question, address-to
 	local askPid askLeft=10
 	set -m
@@ -100,7 +99,7 @@ rigAsk(){ ## session id, refusal id, question, address-to
 			MDAT_HARNESS_WAIT_TIMEOUT=1 bash "$rigHarness" --intern-tool AskUserQuestion ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err" &
 	askPid=$!
 	set +m
-	while kill -0 "$askPid" 2>/dev/null && [ ! -f "$rigScenarioDir/post.2" ] && [ "$askLeft" -gt 0 ] ; do
+	while kill -0 "$askPid" 2>/dev/null && [ ! -f "$rigScenarioDir/post.1" ] && [ "$askLeft" -gt 0 ] ; do
 		sleep 1
 		askLeft=$(( askLeft - 1 ))
 	done
@@ -114,31 +113,31 @@ echo "-- a record's own escapes reach the decider decoded --"
 rigStart record-escaped
 rigRecord rig-session-1 refusal-rig1 "100%25 sure%0Asecond line"
 rigAsk rig-session-1 refusal-rig1 "May that be allowed" URIGOWNER1
-rigAssert "the question was posted"                "$( [ -f "$rigScenarioDir/post.2" ] && printf yes || printf no )" yes
-rigAssert "the percent is shown as a percent"      "$( rigHolds "$rigScenarioDir/post.2" "target: 100% sure" )" yes
-rigAssert "the escaped percent is gone"            "$( rigHolds "$rigScenarioDir/post.2" "%25" )" no
-rigAssert "the escaped newline is gone"            "$( rigHolds "$rigScenarioDir/post.2" "%0A" )" no
+rigAssert "the question was posted"                "$( [ -f "$rigScenarioDir/post.1" ] && printf yes || printf no )" yes
+rigAssert "the percent is shown as a percent"      "$( rigHolds "$rigScenarioDir/post.1" "target: 100% sure" )" yes
+rigAssert "the escaped percent is gone"            "$( rigHolds "$rigScenarioDir/post.1" "%25" )" no
+rigAssert "the escaped newline is gone"            "$( rigHolds "$rigScenarioDir/post.1" "%0A" )" no
 
 echo "-- a URL target reaches the decider as it is --"
 rigStart url-target
 rigRecord rig-session-6 refusal-rig6 "https://api.slack.com/reference/block-kit/blocks"
 rigAsk rig-session-6 refusal-rig6 "May api.slack.com be added to the allowlist" URIGOWNER6
-rigAssert "the URL is shown readable"              "$( rigHolds "$rigScenarioDir/post.2" "target: https://api.slack.com/reference/block-kit/blocks" )" yes
-rigAssert "no colon escape is shown"               "$( rigHolds "$rigScenarioDir/post.2" "%3A" )" no
+rigAssert "the URL is shown readable"              "$( rigHolds "$rigScenarioDir/post.1" "target: https://api.slack.com/reference/block-kit/blocks" )" yes
+rigAssert "no colon escape is shown"               "$( rigHolds "$rigScenarioDir/post.1" "%3A" )" no
 
 echo "-- a target with no escapes is unchanged --"
 rigStart plain-target
 rigRecord rig-session-2 refusal-rig2 "plain/target/no-escapes"
 rigAsk rig-session-2 refusal-rig2 "plain case" URIGOWNER2
-rigAssert "a plain target is shown exactly as it was" "$( rigHolds "$rigScenarioDir/post.2" "target: plain/target/no-escapes" )" yes
+rigAssert "a plain target is shown exactly as it was" "$( rigHolds "$rigScenarioDir/post.1" "target: plain/target/no-escapes" )" yes
 
 echo "-- a malformed escape, a lone percent, does not break the message --"
 rigStart malformed-escape
 rigRecord rig-session-3 refusal-rig3 "weird%target"
 rigAsk rig-session-3 refusal-rig3 "malformed case" URIGOWNER3
-rigAssert "the question was still posted"                  "$( [ -f "$rigScenarioDir/post.2" ] && printf yes || printf no )" yes
-rigAssert "the question text survives beside the target"   "$( rigHolds "$rigScenarioDir/post.2" "malformed case" )" yes
-rigAssert "the lone-percent target is shown, not dropped"  "$( rigHolds "$rigScenarioDir/post.2" "weird" )" yes
+rigAssert "the question was still posted"                  "$( [ -f "$rigScenarioDir/post.1" ] && printf yes || printf no )" yes
+rigAssert "the question text survives beside the target"   "$( rigHolds "$rigScenarioDir/post.1" "malformed case" )" yes
+rigAssert "the lone-percent target is shown, not dropped"  "$( rigHolds "$rigScenarioDir/post.1" "weird" )" yes
 
 echo "-- the record itself is stored presentable, and a grant still matches the natural target --"
 rigStart stored-natural

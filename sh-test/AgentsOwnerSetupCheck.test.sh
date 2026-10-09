@@ -5,7 +5,8 @@
 ## `KEY=` does, in every domain; a required key is still refused; and with
 ## TEAM_DATA_DIRECTORY unset the team data is the workspace's own
 ## .local/agents/team-data-root, for the resolver, --owner-setup-storage --check and
-## the main-loop readiness floor alike. Offline: no host, no network, no credential.
+## the main-loop readiness floor alike; and a missing access fragment is a WARN while
+## grants.index is usable, a FAIL only with neither. Offline: no host, no network, no credential.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -139,6 +140,27 @@ rigExpect "and the registry is kept as it stood, none" \
 	"$( [ -f "$rigWs/.local/agents/permissions.registry" ] && printf present || printf absent )" "absent"
 rigExpect "and the settings file is still there" \
 	"$( [ -f "$rigInstallHome/.claude/settings.json" ] && printf present || printf absent )" "present"
+
+## CLIENT_ACCESS_ROOTS: the access fragment is only a fallback for the member roots off
+## grants.index, so its absence is a WARN while the index is usable, and a FAIL only with
+## neither. A stand-in claude first on PATH, so no vendor binary runs. The index is made
+## unusable by pointing harnessHere, the lib directory the grants code loads from, at an
+## empty directory, with no index file left in the rig.
+printf '#!/bin/sh\nexit 0\n' > "$rigTmp/bin/claude" && chmod +x "$rigTmp/bin/claude"
+rm -f -- "$rigWs/.claude/copilot-add-dir.fragment"
+rigAccessCheck(){ ## extra env assignments
+	( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigInstallHome" PATH="$rigTmp/bin:$PATH" \
+		MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" "$@" bash "$rigTool" --owner-setup-claude-native --check 2>&1 ) \
+		| grep -A2 '^CLIENT_ACCESS_ROOTS:'
+}
+rigExpect "access roots: no fragment, grants.index usable, is a WARN" \
+	"$( rigAccessCheck RIG_NONE=1 )" "CLIENT_ACCESS_ROOTS: WARN"
+mkdir -p "$rigTmp/no-lib"
+rm -f -- "$rigWs/.local/agents/grants.index"
+rigExpect "access roots: neither grants.index nor a fragment is a FAIL" \
+	"$( rigAccessCheck harnessHere="$rigTmp/no-lib" )" "CLIENT_ACCESS_ROOTS: FAIL"
+rigExpect "and it says neither gives the roots" \
+	"$( rigAccessCheck harnessHere="$rigTmp/no-lib" )" "neither grants.index nor an access fragment"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ OWNER SETUP CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -184,13 +184,13 @@ rigAssert "the result says it is not a verdict"            "$( rigHas "$rigTmp/o
 rigAssert "the result names how to ask"                    "$( rigHas "$rigTmp/out" "kind=permission, refusal_id=$rigId" )" yes
 rigAssert "nothing of the file came back"                  "$( rigHas "$rigTmp/out" 'rig-seed OUT' )" no
 ## The escalation, answered allow-once by the human-owner's account in the question's thread.
-printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigTmp/replies.json"
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigTmp/replies.json"
 rm -f "$rigTmp/posts"
 rigCall magic-tester rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task read the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigId\",\"reason\":\"the task input is there\",\"task_ref\":\"task-rig\"}"
 rigAssert "the escalation's answer arrived"                "$( rigFirstLine )" "ASK-RESULT: RECEIVED"
 rigAssert "the verdict is allow-once"                      "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "the tooling wrote the grant from the record"    "$( rigLineOf 'GRANT: ' )" "GRANT: once $rigId"
-rigAssert "the question showed the refused read"           "$( rigHas "$rigTmp/post.2" "$rigTarget" )" yes
+rigAssert "the question showed the refused read"           "$( rigHas "$rigTmp/post.1" "$rigTarget" )" yes
 rigAssert "the exact retry is admitted"                    "$( rigRead magic-tester rig-session "$rigTarget" )" read
 rigAssert "the next one is refused"                        "$( rigRead magic-tester rig-session "$rigTarget" )" refused
 rigAssert "under a new refusal id"                         "$( rigIdNext="$( rigRefusalId )" ; [ -n "$rigIdNext" ] && [ "$rigIdNext" != "$rigId" ] && printf yes || printf no )" yes
@@ -256,7 +256,7 @@ rigAssert "every Grep retry in the session is admitted"    "$( rigGrep magic-tes
 rigAssert "the Grep grant opens no Read beneath it"        "$( rigRead magic-tester rig-session "$rigWs/OUT/seed.txt" )" refused
 
 rigAssert "no request left this box"                       "$( LC_ALL=C awk '/^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 0
-rigAssert "the escalation's two posts are the only ones"   "$( LC_ALL=C awk '$0 == "chat.postMessage" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 2
+rigAssert "the escalation's one post is the only one"      "$( LC_ALL=C awk '$0 == "chat.postMessage" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ READ GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

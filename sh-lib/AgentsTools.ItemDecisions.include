@@ -358,7 +358,7 @@ AgentsToolsItemIsParty(){ ## item path, member
 ## a board edit that fails, is logged and never undoes the close.
 AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 or empty), answer ts
 	local decId="$1" decFile="$2" decStatus="$3" decAmend="$4" decAnswerTs="$5" decKey decValue
-	local decItem="" decKind="" decTag="" decVerdict="" decVerdictText="" decBy="" decTo="" decQts="" decTts="" decChannel="" decAmendBy="" decFirst=""
+	local decItem="" decKind="" decTag="" decVerdict="" decVerdictText="" decBy="" decTo="" decQts="" decTts="" decChannel="" decAmendBy="" decFirst="" decWithdrawnBy="" decWithdrawReason="" decClosedBy=""
 	local decLineKind decWho decText decMentions=""
 	[ -f "$decFile" ] || return 0
 	while IFS=$'\t' read -r decKey decValue ; do
@@ -374,6 +374,9 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 			thread-ts) decTts="$decValue" ;;
 			channel) decChannel="$decValue" ;;
 			amended-by) decAmendBy="$decValue" ;;
+			withdrawn-by) decWithdrawnBy="$decValue" ;;
+			withdraw-reason) decWithdrawReason="$decValue" ;;
+			closed-by) decClosedBy="$decValue" ;;
 			first) decFirst="$decValue" ;;
 		esac
 	done < <( LC_ALL=C awk '
@@ -385,6 +388,8 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 	decWho="${decBy:-${decTo:-unknown}}"
 	case "${decKind:-question}:$decStatus" in
 		*:reply-unknown) decLineKind="dismissed" ; decVerdict="no answer known" ;;
+		## Withdrawn by its asker: never an answer, so it decides nothing.
+		*:withdrawn) decLineKind="dismissed" ; decWho="${decWithdrawnBy:-$decWho}" ; decVerdict="withdrawn by its asker, no answer taken: ${decWithdrawReason:-no reason given}" ;;
 		question:*)
 			decLineKind="answer"
 			case "$decVerdict" in settled:*) decLineKind="resolved" ;; esac
@@ -392,6 +397,7 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 		*) decLineKind="verdict" ;;
 	esac
 	[ -z "$decVerdictText" ] || decVerdict="$decVerdict -- $decVerdictText"
+	[ "$decClosedBy" != "readback" ] || decVerdict="$decVerdict (closed by the asker's readback)"
 	if [ -n "$decAmend" ] ; then
 		decLineKind="answer" ; decWho="${decAmendBy:-$decWho}" ; decVerdict="amended: $decVerdict"
 	fi
@@ -402,6 +408,24 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 		$( for decKey in $decMentions ; do printf -- '--clear-if-mentions %s ' "$decKey" ; done ) \
 		--context "${MDSC_CMD:-pending-reply-close}" > /dev/null 2>&1 \
 		|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: $decId is closed, but its outcome was not recorded on item $decItem's Decisions" >&2
+	return 0
+}
+
+## One clarification or correction on a question's answer, as a `clarification` line on the
+## Decisions of the item the question belongs to: who wrote it, its text, and the question it
+## is on by its pending id. Best effort, as for the answer line: a record with no item records
+## nothing here, and a board edit that fails is logged.
+AgentsToolsDecisionsClarification(){ ## pending id, record file, author, text, message ts
+	local clItem clTag clChannel
+	[ -f "$2" ] || return 0
+	clItem="$( AgentsToolsDecisionsField "$2" item )"
+	[ -n "$clItem" ] || return 0
+	clTag="$( AgentsToolsDecisionsField "$2" question-tag )"
+	clChannel="$( AgentsToolsDecisionsField "$2" channel )"
+	DistroAgentsTools --intern-op-decisions-append "${3:-unknown}" "$clItem" --kind clarification \
+		--text "on $1${clTag:+ ($clTag)}: $4" --source "${5:+${clChannel:+$clChannel:}$5}" \
+		--context "${MDSC_CMD:-pending-reply-clarify}" > /dev/null 2>&1 \
+		|| echo "${MDSC_CMD:-pending-reply-clarify}: ⚠️ WARNING: a clarification on $1 was kept on its record, but not on item $clItem's Decisions" >&2
 	return 0
 }
 

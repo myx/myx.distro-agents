@@ -118,7 +118,7 @@ All statements apply at the same time, always. These rules override a magic-team
 # Escalation and chain of command
 
 - The team trusts `magic-coordinator` (any instance) as the human-owner's relay and his mandated representative in team work. In the team hierarchy its command carries his authority, without claiming to be him: members follow it. Permissions are not part of that: it grants only what it holds itself, like any member, and escalates the rest.
-- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision, a permission or a problem goes as an `AskUserQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to. A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the human-owner. How to ask and wait: `magic-team.shared.md`'s "Nothing stops on its own: log, escalate, resolve".
+- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskUserQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to. A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the human-owner. How to ask and wait, and where a permission ask goes: `magic-team.shared.md`'s "Nothing stops on its own: log, escalate, resolve".
   - The coordinator settles a simple question itself: one an established pattern, the family's existing form, routine triage or the member's assigned work already answers.
   - A question whose answer binds the team — a design ruling, a scope, plan or goal change, a new name, dependency or structure, a conflict between instructions, approved content, an owner-guaranteed rule — goes to the human-owner, or the person whose decision it is. The coordinator registers it as a board item blocking the work it gates. No agent settles it. Unsure whether it binds means it binds.
   - The coordinator's answer, and its relayed words, are the chain's consent. An allow covers the operation and route the ask named.
@@ -150,7 +150,7 @@ Writing:
 
 Git, scope and finishing:
 - **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`, and the member asks with a `permission` ask ("Nothing stops on its own"); the grant is `allow-once`, `allow-session` or `allow-task`.
-- What a member holds is computed by tooling only (`--intern-op-permission-holds`): the team floor, its standing defaults, its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner. Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--member-permission-pass`) to a participant or a member it spawned for the work, never wider or longer than its own.
+- What a member holds is computed by tooling only, and `--member-permission-list <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner. The floor: the team tools, its session sandbox (read `input/`, write `output/`), writing `.local/temp/**`, and under `source/` reading every `MAGIC.md`, `README.md` and `docs/**.md` and writing `MAGIC.md`. Anything else under `source/` needs a grant. Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--member-permission-pass`) to a participant or a member it spawned for the work, never wider or longer than its own.
 - A routine may allow its participants permissions for its run (`allows:` in its frontmatter).
 - A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (`magic-team.conversations.md`'s **anchor-refusal-safeguard**).
 - **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, and never uses the human's account or key, unless explicitly tasked. Git state there is never evidence: other sessions and the human share the same uncommitted tree, so a member may look but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
@@ -292,11 +292,12 @@ A board item is cited in prose as `board://<state>/<item-filename>`; a tool take
 
 # Workspace
 
-- A workspace is named, never pathed, in any skillset file. A path comes only from `--owner-workspace-list` at the point of use.
+- A workspace or directory is named, never pathed, in any skillset file. A path comes only from `--member-directory-path <name>[/<relative>]` at the point of use.
+- Each such place has a ceiling, `read-only` or `read-write` (`--member-directory-list`). Registering a place grants nothing, and nothing is written in a read-only place, whatever the grant. A permission target may name a place, `@<name>[:<glob>]`.
 - The team on a machine is the members published by the tracked workspaces. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
-- Where that is recorded: the machine-wide directory `~/.agents/magic-team/` -- `members.registry` (each member a workspace publishes, with that workspace's root and the member's folder) and `known-workspaces.registry` (the tracked workspaces). A workspace's own data is in its `.local/agents/`: `members.index` lists its own members only. A member of another workspace has no folder there and none is created: it is found through `members.registry`. `~/.claude/skills`, `~/.agents/skills` and `~/.copilot/skills` are link folders generated for the vendor clients and are never a source.
-- The team edits only inside the workspace holding its own source tree. Other workspaces are clients: read, never edited. A member's own skillset files are the exception, at the path its folder resolves to.
-- A member never edits tooling source or `$MMDAPP/.local/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
+- Where that is recorded: the machine-wide directory `~/.agents/magic-team/` -- `members.registry` (each member a workspace publishes, with that workspace's root and the member's folder) and `directories.registry` (each registered place, by name, with the workspace registering it; those workspaces are the tracked ones). A workspace's own data is in its `.local/agents/`: `members.index` lists its own members only. A member of another workspace has no folder there and none is created: it is found through `members.registry`. `~/.claude/skills`, `~/.agents/skills` and `~/.copilot/skills` are link folders generated for the vendor clients and are never a source.
+- The team edits inside the workspace holding its own source tree. Another workspace or directory is a client: read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
+- A member never edits tooling source or `$MMDAPP/.local/` outside `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Domain knowledge: team routines
 
@@ -343,10 +344,9 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 - `--member-vault-item-read`
 - `--member-append-session-transcript`
 - `--member-permission-list <team-member>`
-- `--member-permission-session-pass <team-member> --to <member> --entry <tool:target>...`
+- `--member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task`
 - `--member-directory-list` / `--member-directory-path <name>[/<relative>]`
 - `--member-namespace-list [<namespace>]`
-- `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`
 - `--owner-cleanup-purge`
 
 ## Execution mechanisms

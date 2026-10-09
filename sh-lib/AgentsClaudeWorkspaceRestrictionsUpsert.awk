@@ -7,9 +7,12 @@
 # (AgentsTools.Install.include) is the only caller.
 #
 # Every entry already present that this script did not itself add is kept, in
-# its original position. The two removals are a hooks.PreToolUse entry running a
-# retired hook script (MYX_WSRESTRICT_RETIRED_HOOKS) and a permissions.deny entry
-# equal to a retired one (MYX_WSRESTRICT_RETIRED_DENY); everything else only
+# its original position. The removals are a hooks.PreToolUse entry running a
+# retired hook script (MYX_WSRESTRICT_RETIRED_HOOKS), a permissions.deny entry
+# equal to a retired one (MYX_WSRESTRICT_RETIRED_DENY), and the permissions.allow
+# file grants earlier installs wrote (MYX_WSRESTRICT_RETIRED_ALLOW, and a Read on a
+# workspace source/ or .agents root, by its shape): this script writes no
+# permissions.allow entry at all, the PreToolUse hooks decide. Everything else only
 # appends missing entries. Prints the new document on stdout; never opens the
 # target itself.
 #
@@ -32,53 +35,16 @@
 #                                        hooks.PreToolUse array's raw text --
 #                                        present means "already installed, skip";
 #                                        absent means "append this element".
-#   MYX_WSRESTRICT_ALLOW_SOURCE_ROOT  -- resolved `<workspace>/source` absolute
-#                                        path (raw, not JSON-escaped -- escaped
-#                                        here via jsonEscape() same as every
-#                                        other value this script writes).
-#                                        Upserted into permissions.allow as
-#                                        `Read(//<this>/**)`. A prior grant for
-#                                        a DIFFERENT source root (e.g. after a
-#                                        workspace move) is replaced, not
-#                                        accumulated alongside the new one --
-#                                        same pattern
-#                                        AgentsClaudeSettingsPermissionsUpsert.awk's
-#                                        own board-grant replace uses.
-#   MYX_WSRESTRICT_ALLOW_AGENTS_ROOT  -- resolved `<workspace>/.agents` absolute
-#                                        path (raw, not JSON-escaped -- escaped
-#                                        here via jsonEscape() same as every
-#                                        other value this script writes).
-#                                        Upserted into permissions.allow as
-#                                        `Read(//<this>/**)`, Read alone -- the
-#                                        member entries beneath it are symlinks,
-#                                        and writing through one is refused
-#                                        whatever the permissions say. A prior
-#                                        grant for a DIFFERENT .agents root is
-#                                        replaced, same as
-#                                        MYX_WSRESTRICT_ALLOW_SOURCE_ROOT's own.
-#   MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON -- fixed extra permissions.allow Read
-#                                        roots, JSON string array (literal,
-#                                        same shape as MYX_WSRESTRICT_DENY_ADD_JSON).
-#                                        Each element is a raw absolute path,
-#                                        upserted into permissions.allow as its
-#                                        own `Read(//<element>/**)`. Unlike
-#                                        MYX_WSRESTRICT_ALLOW_SOURCE_ROOT, these
-#                                        are FIXED external reference roots --
-#                                        not derived from the target workspace,
-#                                        so there is no "workspace moved" stale
-#                                        entry to replace: simple add-if-missing,
-#                                        same as MYX_WSRESTRICT_DENY_ADD_JSON's
-#                                        own merge (nothing removed if an
-#                                        element is later dropped from the
-#                                        caller's list).
-#   MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON -- same shape and same add-if-missing
-#                                        merge, but each element is upserted as
-#                                        BOTH `Read(//<element>/**)` and
-#                                        `Edit(//<element>/**)`. The verb is the
-#                                        whole difference: a scratchpad is
-#                                        written to, a reference root is not.
-#                                        Optional -- unset is an empty list, so
-#                                        a caller predating it is unaffected.
+#   MYX_WSRESTRICT_RETIRED_ALLOW      -- the permissions.allow entries earlier
+#                                        installs wrote, one per line, each the
+#                                        exact entry text. An entry equal to one
+#                                        is removed; nothing else is, so a rule
+#                                        the user added stays. Beside these, a
+#                                        `Read|Edit|Write(//<path>/source/**)` and
+#                                        a `Read(//<path>/.agents/**)` go by their
+#                                        shape, as a moved workspace's always
+#                                        did. Optional -- unset removes only
+#                                        those two shapes.
 #   MYX_WSRESTRICT_RETIRED_HOOKS      -- retired hook script names, one per
 #                                        line. A hooks.PreToolUse entry whose
 #                                        raw text runs `.claude/hooks/<name>`
@@ -345,19 +311,12 @@ function arraySliceAt(arrStart,   savedP, closeAt, slice) {
 BEGIN {
 	denyAddRaw = ENVIRON["MYX_WSRESTRICT_DENY_ADD_JSON"]
 	hooksFile = ENVIRON["MYX_WSRESTRICT_HOOKS_FILE"]
-	allowSourceRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_SOURCE_ROOT"]
-	allowAgentsRoot = ENVIRON["MYX_WSRESTRICT_ALLOW_AGENTS_ROOT"]
-	allowExtraRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON"]
-	## Unset is an empty list, never a usage failure: every caller predating this
-	## input passes only the read-scoped one and must keep working unchanged.
-	allowWriteRootsRaw = ENVIRON["MYX_WSRESTRICT_ALLOW_WRITE_ROOTS_JSON"]
-	if (allowWriteRootsRaw == "") allowWriteRootsRaw = "[]"
-	if (denyAddRaw == "" || hooksFile == "" || allowSourceRoot == "" || allowAgentsRoot == "" || allowExtraRootsRaw == "") fail("usage")
+	if (denyAddRaw == "" || hooksFile == "") fail("usage")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
-	if (!validJson(allowExtraRootsRaw, "[")) fail("allow-extra-roots-not-a-json-array")
-	if (!validJson(allowWriteRootsRaw, "[")) fail("allow-write-roots-not-a-json-array")
 	retiredCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_HOOKS"], retiredHook, "\n")
 	retiredDenyCount = split(ENVIRON["MYX_WSRESTRICT_RETIRED_DENY"], retiredDeny, "\n")
+	retiredAllowLines = split(ENVIRON["MYX_WSRESTRICT_RETIRED_ALLOW"], retiredAllowLine, "\n")
+	for (i = 1; i <= retiredAllowLines; i++) if (retiredAllowLine[i] != "") retiredAllow[retiredAllowLine[i]] = 1
 	settingsCount = 0
 	settingsLines = split(ENVIRON["MYX_WSRESTRICT_SETTINGS"], settingsLine, "\n")
 	for (i = 1; i <= settingsLines; i++) {
@@ -374,14 +333,6 @@ BEGIN {
 	s = denyAddRaw; n = length(s); p = 1; skipws()
 	denyAddCount = stringArrayAt(p)
 	for (i = 0; i < denyAddCount; i++) denyAdd[i] = ELEMS[i]
-
-	s = allowExtraRootsRaw; n = length(s); p = 1; skipws()
-	allowExtraRootsCount = stringArrayAt(p)
-	for (i = 0; i < allowExtraRootsCount; i++) allowExtraRoots[i] = ELEMS[i]
-
-	s = allowWriteRootsRaw; n = length(s); p = 1; skipws()
-	allowWriteRootsCount = stringArrayAt(p)
-	for (i = 0; i < allowWriteRootsCount; i++) allowWriteRoots[i] = ELEMS[i]
 
 	hooksCount = 0
 	while ((getline hooksLine < hooksFile) > 0) {
@@ -415,78 +366,30 @@ END {
 	rootStart = p
 
 	## --- permissions.allow ---
-	## Standing Read grant on the target workspace's own source/ tree, so a
-	## plain skillset/MAGIC.md read inside it never triggers an interactive
-	## permission prompt -- covers every source-symlinked skillset file for
-	## this workspace already (see AgentsTools.Install.include's
-	## --install-skillset-symlinks: a member's skills-dir slot is a symlink
-	## into this same source/ tree). Merge-only, same replace-not-accumulate
-	## shape the deny section below and the sibling
-	## AgentsClaudeSettingsPermissionsUpsert.awk's own board grant both use.
-	s = ensureKey(rootStart, "permissions", "{}")
-	n = length(s); p = 1; skipws(); rootStart = p
+	## No file grant is written here: the PreToolUse hooks decide every call. The
+	## ones earlier installs wrote go -- the retired entries on an exact match, and
+	## a Read on a workspace source/ or .agents root by its shape, as a moved
+	## workspace's always did -- and every other entry stays where it is. An array
+	## with nothing to drop, or none at all, is left exactly as it stands.
 	if (!findKeyInObjectAt(rootStart, "permissions")) fail("unparsable")
-	permStart = VALUE_START
-	if (substr(s, permStart, 1) != "{") fail("permissions-not-an-object")
-
-	s = ensureKey(permStart, "allow", "[]")
-	n = length(s); p = 1; skipws(); rootStart = p
-	if (!findKeyInObjectAt(rootStart, "permissions")) fail("unparsable")
-	permStart = VALUE_START
-	if (!findKeyInObjectAt(permStart, "allow") || !FOUND) fail("unparsable")
-	if (substr(s, VALUE_START, 1) != "[") fail("allow-not-an-array")
-
-	oldAllowCount = stringArrayAt(VALUE_START)
-	for (i = 0; i < oldAllowCount; i++) oldAllow[i] = ELEMS[i]
-
-	## `//` (not a single `/`) is required for an absolute filesystem path --
-	## a single leading slash anchors at the settings source (e.g. $HOME for
-	## a user-scope file), not the filesystem root (Claude Code's own
-	## permissions docs, "Read and Edit" pattern table). allowSourceRoot is
-	## already absolute (carries its own leading "/"), so exactly ONE more
-	## "/" here yields the required "//" -- prepending "//" would double it.
-	## Read alone -- write comes from a member's own folder, temps and grants.
-	newAllowCount = 0
-	for (i = 0; i < oldAllowCount; i++) {
-		v = oldAllow[i]
-		if ((v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) && v != ("Read(/" allowSourceRoot "/**)")) continue
-		## Anchored on Read alone: no other verb is ever written on a .agents
-		## path here, so a wider pattern could only drop a hand-added grant.
-		if ((v ~ /^Read\(\/\/.*\/\.agents\/\*\*\)$/) && v != ("Read(/" allowAgentsRoot "/**)")) continue
-		newAllow[newAllowCount++] = v
+	if (FOUND && substr(s, VALUE_START, 1) == "{") {
+		permStart = VALUE_START
+		if (!findKeyInObjectAt(permStart, "allow")) fail("unparsable")
+		if (FOUND) {
+			if (substr(s, VALUE_START, 1) != "[") fail("allow-not-an-array")
+			oldAllowCount = stringArrayAt(VALUE_START)
+			for (i = 0; i < oldAllowCount; i++) oldAllow[i] = ELEMS[i]
+			newAllowCount = 0
+			for (i = 0; i < oldAllowCount; i++) {
+				v = oldAllow[i]
+				if (v ~ /^(Read|Edit|Write)\(\/\/.*\/source\/\*\*\)$/) continue
+				if (v ~ /^Read\(\/\/.*\/\.agents\/\*\*\)$/) continue
+				if (v in retiredAllow) continue
+				newAllow[newAllowCount++] = v
+			}
+			if (newAllowCount < oldAllowCount) s = upsertKeyValue(permStart, "allow", arrayJson(newAllow, newAllowCount))
+		}
 	}
-	desiredAllowEntry = "Read(/" allowSourceRoot "/**)"
-	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
-
-	## The workspace's own .agents root, where a spawned agent reads the skill
-	## files it needs before it can arm at all. Those entries are symlinks into
-	## the source trees, and an allow rule has to match the literal symlink path
-	## as well as its target, so the source-root grant above never reaches them.
-	## Read alone: writing through a symlink is refused whatever is granted.
-	desiredAllowEntry = "Read(/" allowAgentsRoot "/**)"
-	if (!inList(newAllow, newAllowCount, desiredAllowEntry)) newAllow[newAllowCount++] = desiredAllowEntry
-
-	## Fixed extra reference roots (MYX_WSRESTRICT_ALLOW_EXTRA_ROOTS_JSON) --
-	## unlike allowSourceRoot above, these are NOT derived from the target
-	## workspace, so there is no stale "workspace moved" entry to replace:
-	## add-if-missing only, same shape MYX_WSRESTRICT_DENY_ADD_JSON's own merge
-	## below uses. Read alone, same as above.
-	for (i = 0; i < allowExtraRootsCount; i++) {
-		desiredExtraAllowEntry = "Read(/" allowExtraRoots[i] "/**)"
-		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
-	}
-
-	## The write-scoped half, kept a separate input because the verb is the whole
-	## difference: a team scratchpad is written to, a reference root is not.
-	for (i = 0; i < allowWriteRootsCount; i++) {
-		desiredExtraAllowEntry = "Read(/" allowWriteRoots[i] "/**)"
-		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
-		desiredExtraAllowEntry = "Edit(/" allowWriteRoots[i] "/**)"
-		if (!inList(newAllow, newAllowCount, desiredExtraAllowEntry)) newAllow[newAllowCount++] = desiredExtraAllowEntry
-	}
-
-	sortList(newAllow, newAllowCount)
-	s = upsertKeyValue(permStart, "allow", arrayJson(newAllow, newAllowCount))
 
 	## --- permissions.deny ---
 	n = length(s); p = 1; skipws(); rootStart = p

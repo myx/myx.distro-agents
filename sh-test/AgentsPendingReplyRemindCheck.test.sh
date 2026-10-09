@@ -3,7 +3,7 @@
 ## asks still waiting: a stage is due at 30 minutes and at 2 hours, once each; the daily
 ## reminder only in the first run after 09:00 local, only for an ask 4+ hours old, and
 ## once a day; a repeat run sends nothing; 10 due asks to one person are 10 thread
-## replies, 11 are one DM digest with a link per ask; persons are grouped apart; a record
+## replies, and 11 are 11 thread replies too, never a top-level message; a record
 ## with no thread is skipped; a failed send stamps nothing; the identity the ask used is
 ## the one reminded under; no record is ever closed; and the main loop goes on when the
 ## reminders fail. Offline: a Slack-shaped fake curl is first on PATH, model CLIs on PATH
@@ -176,33 +176,20 @@ rigRemind out
 rigAssert "ten replies in their threads"                   "$( rigHolds "$rigScenarioDir/out" 'REMIND: reminded=10 threads=10 digests=0 ' )" yes
 rigAssert "ten posts"                                      "$( rigPosts )" 10
 
-echo "-- 11 to one person are one DM digest; another person's asks stay in their threads --"
+echo "-- 11 to one person are 11 thread replies, never a top-level digest; another person's too --"
 rigStart eleven
 for rigI in 1 2 3 4 5 6 7 8 9 10 11 ; do rigRecord "ask-$rigI" $(( 31 * 60 + rigI )) human-owner ; done
 rigRecord other-1 $(( 31 * 60 )) "$rigOther"
 rigRecord other-2 $(( 31 * 60 )) "$rigOther"
 rigRemind out
-rigAssert "one digest, two thread replies"                 "$( rigHolds "$rigScenarioDir/out" 'REMIND: reminded=13 threads=2 digests=1 ' )" yes
-rigAssert "the digest names the person and the count"      "$( rigHolds "$rigScenarioDir/out" 'DIGEST human-owner 11' )" yes
-rigAssert "three posts"                                    "$( rigPosts )" 3
-rigDigest="$( LC_ALL=C grep -l -F 'questions are still waiting for your answer' "$rigScenarioDir"/post.[0-9]* | head -1 )"
-rigAssert "the digest leads with the count"                "$( rigHolds "$rigDigest" '11 questions are still waiting for your answer:' )" yes
-rigAssert "it is not posted into an ask's thread"          "$( rigHolds "$rigDigest" '"thread_ts"' )" no
-rigAssert "it links each ask's thread"                     "$( LC_ALL=C grep -o 'https://rigspace.slack.com/archives/CRIG00001/p[0-9]*?thread_ts=[0-9.]*' "$rigDigest" | LC_ALL=C sort -u | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 11
-rigAssert "the link is to the question, in its thread"     "$( rigHolds "$rigDigest" "https://rigspace.slack.com/archives/CRIG00001/p$(( rigNow - 31 * 60 - 1 ))000100?thread_ts=$(( rigNow - 31 * 60 - 2 )).000100" )" yes
-rigAssert "with a short excerpt and the asked date"        "$( rigHolds "$rigDigest" '- May the rig keep report ask-1? It is the second line. (asked 2026-09-29 12:00)' )" yes
-rigAssert "it asks for replies in the threads"             "$( rigHolds "$rigDigest" 'Please reply in each linked thread.' )" yes
-rigAssert "every digest ask is stamped"                    "$( LC_ALL=C grep -l -x -F 'reminders: 1' "$rigScenarioDir/ws/.local/agents/pending/ask-"*.md | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 11
+rigAssert "thirteen thread replies, no digest"             "$( rigHolds "$rigScenarioDir/out" 'REMIND: reminded=13 threads=13 digests=0 ' )" yes
+rigAssert "no digest line"                                 "$( rigHolds "$rigScenarioDir/out" 'DIGEST ' )" no
+rigAssert "thirteen posts"                                 "$( rigPosts )" 13
+rigAssert "every one inside a thread"                      "$( LC_ALL=C grep -l -F '"thread_ts"' "$rigScenarioDir"/post.[0-9]* | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 13
+rigAssert "every ask is stamped"                           "$( LC_ALL=C grep -l -x -F 'reminders: 1' "$rigScenarioDir/ws/.local/agents/pending/ask-"*.md | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 11
 rigAssert "the other person's asks were replied in thread" "$( rigHolds "$rigScenarioDir/out" "REMINDED other-1 $rigOther thread" )$( rigHolds "$rigScenarioDir/out" "REMINDED other-2 $rigOther thread" )" yesyes
 rigRemind again
-rigAssert "a repeat sends nothing"                         "$( rigPosts )" 3
-
-echo "-- no workspace domain: the link comes from chat.getPermalink --"
-rigStart permalink
-LC_ALL=C sed -i.bak '/^SLACK_WORKSPACE_DOMAIN=/d' "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
-for rigI in 1 2 3 4 5 6 7 8 9 10 11 ; do rigRecord "ask-$rigI" $(( 31 * 60 + rigI )) human-owner ; done
-rigRemind out
-rigAssert "the permalink is used"                          "$( LC_ALL=C grep -c -F 'https://rigperma.slack.com/archives/CRIG00001/p1' "$rigScenarioDir/post.1" )" 1
+rigAssert "a repeat sends nothing"                         "$( rigPosts )" 13
 
 echo "-- unresolvable: skipped and logged, nothing sent, nothing changed --"
 rigStart unresolvable

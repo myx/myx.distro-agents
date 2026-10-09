@@ -28,6 +28,14 @@ AgentsToolsOwnerConsoleDrifted(){
 	return 0
 }
 
+## True when the console can give a native CLI the spawned member roots off grants.index:
+## the index is there, or can be computed. Writes nothing. The access fragment is then only
+## a fallback, so a missing or stale one is a warning.
+AgentsToolsOwnerGrantsIndexUsable(){ ## workspace
+	[ ! -f "${1%/}/.local/agents/grants.index" ] || return 0
+	( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include" && AgentsToolsGrantsIndexText "$1" ) > /dev/null 2>&1
+}
+
 ## The WORKSPACE_HOOK_SCRIPTS row, for every domain that renders workspace rows:
 ## each command hook <workspace>/.claude/settings.json runs out of .claude/hooks
 ## has to exist and be executable, this package's or not. A missing one exits
@@ -1533,14 +1541,23 @@ case "$1" in
 					AgentsToolsOwnerSetupRow "Agents console" "current"
 				fi
 
-				## The console feeds this same fragment into claude-native's own --add-dir argv.
+				## claude-native gets the spawned member's roots off grants.index as --add-dir; this
+				## fragment is only the fallback the console uses when those cannot be read.
 				setupFragment="$setupHere/.claude/copilot-add-dir.fragment"
-				if [ ! -s "$setupFragment" ] ; then
+				if [ ! -s "$setupFragment" ] && AgentsToolsOwnerGrantsIndexUsable "$setupHere" ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "CLIENT_ACCESS_ROOTS: WARN"
+						echo "  warn: no access fragment: claude gets the spawned member roots off"
+						echo "        grants.index, with no fallback when those cannot be read"
+						echo "  path: $setupFragment"
+						echo "  fix:  $setupToolPath --make-workspace-integrations"
+					}
+					AgentsToolsOwnerSetupRow "Skill access roots" "grants.index, no fallback"
+				elif [ ! -s "$setupFragment" ] ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "CLIENT_ACCESS_ROOTS: FAIL"
-						echo "  warn: no access fragment, so the console launches claude with no --add-dir"
-						echo "        root at all and a spawned agent is denied on its very first read of"
-						echo "        .agents/skills/<member>/<member>.basic.md"
+						echo "  warn: neither grants.index nor an access fragment gives the roots, so"
+						echo "        claude starts with no --add-dir root at all"
 						echo "  path: $setupFragment"
 						echo "  fix:  $setupToolPath --make-workspace-integrations"
 					}
@@ -1569,11 +1586,12 @@ case "$1" in
 						[ "$setupOperation" != "--check" ] || echo "CLIENT_ACCESS_ROOTS: OK"
 						AgentsToolsOwnerSetupRow "Skill access roots" "current"
 					else
+						## A stale fragment still gives roots: a warning, whatever grants.index says.
 						[ "$setupOperation" != "--check" ] || {
-							echo "CLIENT_ACCESS_ROOTS: FAIL"
-							echo "  warn: the fragment no longer matches the access-root set it was built"
-							echo "        from, so claude is launched against the directories below and"
-							echo "        not the ones this workspace now resolves:"
+							echo "CLIENT_ACCESS_ROOTS: WARN"
+							echo "  warn: the fallback fragment no longer matches the access-root set it was"
+							echo "        built from, so where the console falls back to it, claude is launched"
+							echo "        against the directories below and not the ones this workspace resolves:"
 							while IFS= read -r setupRootLine ; do
 								[ -n "$setupRootLine" ] || continue
 								echo "        granted, no longer in the set: $setupRootLine"
@@ -1585,10 +1603,7 @@ case "$1" in
 							echo "  path: $setupFragment"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}
-						AgentsToolsOwnerSetupRow "Skill access roots" "STALE"
-						setupNeedsApply="yes"
-						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
-						setupRc=1
+						AgentsToolsOwnerSetupRow "Skill access roots" "fallback stale"
 					fi
 				fi
 
@@ -1603,8 +1618,9 @@ case "$1" in
 				## What a spawn actually needs: the proxy runs
 				## DistroAgentsConsole.sh --cli-configured --non-interactive, which
 				## takes SPAWN_CLI_SERVICE, refuses to guess when it is unset, and
-				## execs copilot with --allow-all-tools and the access fragment's
-				## --add-dir tokens. Each of those is a subject below. Authentication
+				## execs copilot with --allow-all-tools and the member roots off
+				## grants.index as --add-dir, the access fragment as their fallback.
+				## Each of those is a subject below. Authentication
 				## is the one gate nothing here can read.
 				local setupHere="${setupWorkspaceRoot:-${MMDAPP%/}}"
 				local setupToolPath="$setupHere/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -1769,19 +1785,27 @@ case "$1" in
 					AgentsToolsOwnerSetupRow "Agents console" "current"
 				fi
 
-				## The fragment is copilot's whole access grant -- it carries no
-				## settings.json -- and only --install-copilot-access-fragment
-				## rewrites it, so a root added to or dropped from the access set
-				## after the last install leaves it granting the wrong directories
-				## with nothing else saying so. Current means: what the installer
+				## copilot-native gets the spawned member's roots off grants.index as --add-dir; the
+				## fragment is the fallback when those cannot be read. Only
+				## --install-copilot-access-fragment rewrites it, so a root added to or dropped from
+				## the access set after the last install leaves the fallback granting the wrong
+				## directories with nothing else saying so. Current means: what the installer
 				## would write from here right now, root for root.
 				setupFragment="$setupHere/.claude/copilot-add-dir.fragment"
-				if [ ! -s "$setupFragment" ] ; then
+				if [ ! -s "$setupFragment" ] && AgentsToolsOwnerGrantsIndexUsable "$setupHere" ; then
+					[ "$setupOperation" != "--check" ] || {
+						echo "CLIENT_ACCESS_ROOTS: WARN"
+						echo "  warn: no access fragment: copilot gets the spawned member roots off"
+						echo "        grants.index, with no fallback when those cannot be read"
+						echo "  path: $setupFragment"
+						echo "  fix:  $setupToolPath --make-workspace-integrations"
+					}
+					AgentsToolsOwnerSetupRow "Skill access roots" "grants.index, no fallback"
+				elif [ ! -s "$setupFragment" ] ; then
 					[ "$setupOperation" != "--check" ] || {
 						echo "CLIENT_ACCESS_ROOTS: FAIL"
-						echo "  warn: no access fragment, so the console launches copilot with no"
-						echo "        --add-dir root at all and a spawned agent is denied on its very"
-						echo "        first read of .agents/skills/<member>/<member>.basic.md"
+						echo "  warn: neither grants.index nor an access fragment gives the roots, so"
+						echo "        copilot starts with no --add-dir root at all"
 						echo "  path: $setupFragment"
 						echo "  fix:  $setupToolPath --make-workspace-integrations"
 					}
@@ -1817,11 +1841,12 @@ case "$1" in
 						[ "$setupOperation" != "--check" ] || echo "CLIENT_ACCESS_ROOTS: OK"
 						AgentsToolsOwnerSetupRow "Skill access roots" "current"
 					else
+						## A stale fragment still gives roots: a warning, whatever grants.index says.
 						[ "$setupOperation" != "--check" ] || {
-							echo "CLIENT_ACCESS_ROOTS: FAIL"
-							echo "  warn: the fragment no longer matches the access-root set it was built"
-							echo "        from, so copilot is launched against the directories below and"
-							echo "        not the ones this workspace now resolves:"
+							echo "CLIENT_ACCESS_ROOTS: WARN"
+							echo "  warn: the fallback fragment no longer matches the access-root set it was"
+							echo "        built from, so where the console falls back to it, copilot is launched"
+							echo "        against the directories below and not the ones this workspace resolves:"
 							while IFS= read -r setupRootLine ; do
 								[ -n "$setupRootLine" ] || continue
 								echo "        granted, no longer in the set: $setupRootLine"
@@ -1836,10 +1861,7 @@ case "$1" in
 							echo "  path: $setupFragment"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}
-						AgentsToolsOwnerSetupRow "Skill access roots" "STALE"
-						setupNeedsApply="yes"
-						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
-						setupRc=1
+						AgentsToolsOwnerSetupRow "Skill access roots" "fallback stale"
 					fi
 				fi
 
@@ -2281,12 +2303,20 @@ case "$1" in
 						setupNeedsApply="yes"
 						setupBlockers="$setupBlockers CLIENT_ACCESS_ROOTS"
 						setupRc=1
+					elif [ ! -s "$setupFragment" ] && AgentsToolsOwnerGrantsIndexUsable "$setupRoot" ; then
+						[ "$setupOperation" != "--check" ] || {
+							echo "CLIENT_ACCESS_ROOTS: WARN"
+							echo "  warn: no access fragment: a spawn gets its member roots off grants.index,"
+							echo "        with no fallback --add-dir set when those cannot be read"
+							echo "  path: $setupFragment"
+							echo "  fix:  $setupToolPath --make-workspace-integrations"
+						}
+						AgentsToolsOwnerSetupRow "Skill access roots" "grants.index, no fallback"
 					elif [ ! -s "$setupFragment" ] ; then
 						[ "$setupOperation" != "--check" ] || {
 							echo "CLIENT_ACCESS_ROOTS: FAIL"
-							echo "  warn: no access fragment, so the console launches the CLI with no --add-dir"
-							echo "        root at all and a spawned agent is denied on its very first read of"
-							echo "        .agents/skills/<member>/<member>.basic.md"
+							echo "  warn: neither grants.index nor an access fragment gives the roots, so"
+							echo "        a native CLI starts with no --add-dir root at all"
 							echo "  path: $setupFragment"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"
 						}

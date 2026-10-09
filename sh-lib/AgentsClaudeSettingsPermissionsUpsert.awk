@@ -8,10 +8,11 @@
 # otherwise; neither is a hard dependency of the op itself.
 #
 # Every entry already present that this script did not itself add is kept, in
-# its original position -- this only ever appends missing entries (and, for
-# the board grant specifically, first drops any stale prior grant so a moved
-# board path does not accumulate old entries alongside the new one). Prints
-# the new document on stdout; never opens the target itself.
+# its original position -- this only ever appends the fixed grants, and drops
+# the file grants earlier runs wrote (a board grant, a member Edit or Write
+# grant, an entry the previous projection names): no Read, Edit or Write
+# entry is written any more, the PreToolUse hooks decide. Prints the new
+# document on stdout; never opens the target itself.
 #
 # Same structural JSON-walker core as AgentsMcpServerJsonUpsert.awk
 # (skipString/skipValue/skipObject/skipArray/findKeyInObjectAt/
@@ -20,11 +21,13 @@
 # not reusable as a library without a refactor out of this task's scope.
 #
 # Params via ENVIRON:
-#   MYX_CLAUDEPERMS_BOARD_ROOT        -- resolved $MDAT_DATA_ROOT/board path
 #   MYX_CLAUDEPERMS_STATIC_ALLOW_JSON -- fixed allow-grant JSON string array (literal)
 #   MYX_CLAUDEPERMS_DENY_ADD_JSON     -- fixed deny-grant JSON string array (literal)
 #   MYX_CLAUDEPERMS_MEMBERS_FILE      -- path to a plain text file, one acting
-#                                        member's real skillset directory per line
+#                                        member's real skillset directory per line,
+#                                        whose earlier Edit or Write grant is dropped
+#   MYX_CLAUDEPERMS_GRANTS_PREV_FILE  -- optional, one entry per line that an
+#                                        earlier run projected, dropped
 #   MYX_CLAUDEPERMS_MCP_SERVERS_JSON  -- optional JSON string array of project
 #                                        `.mcp.json` server names to persist as
 #                                        approved in root `enabledMcpjsonServers`
@@ -261,45 +264,21 @@ function upsertKeyValue(objStart, targetKey, newValueJson,   head, tail, sep) {
 	return head newValueJson tail
 }
 
-# Every string this op always wants present in permissions.allow: the board
-# grant (against the resolved $MDAT_DATA_ROOT/board path), the fixed static
-# tool grants, then one grant per acting member path (from MEMBERPATH[],
-# loaded once by loadMembers() before this runs).
-function buildDesiredAllow(   dCount, k) {
-	## `//` (not a single `/`) is required for an absolute filesystem path --
-	## a single leading slash anchors at the settings source ($HOME, for this
-	## user-scope file), not the filesystem root (Claude Code's own
-	## permissions docs, "Read and Edit" pattern table; same rule
-	## AgentsClaudeWorkspaceRestrictionsUpsert.awk's own allow-grant comment
-	## documents and applies). boardRoot/MEMBERPATH[] are already absolute
-	## (each carries its own leading "/"), so exactly ONE more "/" here
-	## yields the required "//" -- prepending "//" would double it.
-	##
-	## Edit(...) only, never Write(...): a Write rule is not matched by file
-	## permission checks at all, and Claude reports each one as a warning at
-	## startup. An Edit rule covers every file-editing tool, Write included.
-	## Any Write grant already present is dropped by the keep-filter that
-	## reads this list's own grant shapes, and never re-added here.
+# Every string this op always wants present in permissions.allow: the fixed
+# static tool grants, and nothing else. No file grant -- no Read, Edit or
+# Write entry for the board, a member or a declared grant -- is written: the
+# PreToolUse hooks decide every call. The ones earlier runs wrote are dropped
+# by the keep-filter below.
+function buildDesiredAllow(   dCount) {
 	dCount = 0
-	## A board is not configured in most installations. Add the board grant
-	## only when a board path was actually supplied; an empty boardRoot
-	## contributes no grant (and any stale board grant is still dropped below).
-	if (boardRoot != "") DESIRED[dCount++] = "Edit(/" boardRoot "/**)"
 	for (i = 0; i < staticAllowCount; i++) DESIRED[dCount++] = staticAllow[i]
-	for (k = 0; k < MEMBERPATHCOUNT; k++) DESIRED[dCount++] = "Edit(/" MEMBERPATH[k] "/**)"
-	## Declared allow-write grants, already whole strings from the registry
-	## projection -- every workspace's rows unioned, so a grant survives here
-	## until the last row claiming it is gone.
-	for (k = 0; k < grantCount; k++) DESIRED[dCount++] = GRANT[k]
 	return dCount
 }
 
 BEGIN {
-	boardRoot = ENVIRON["MYX_CLAUDEPERMS_BOARD_ROOT"]
 	membersFile = ENVIRON["MYX_CLAUDEPERMS_MEMBERS_FILE"]
 	staticAllowRaw = ENVIRON["MYX_CLAUDEPERMS_STATIC_ALLOW_JSON"]
 	denyAddRaw = ENVIRON["MYX_CLAUDEPERMS_DENY_ADD_JSON"]
-	## boardRoot is optional (no board in most installations); the other three are required.
 	if (membersFile == "" || staticAllowRaw == "" || denyAddRaw == "") fail("usage")
 	if (!validJson(staticAllowRaw, "[")) fail("static-allow-not-a-json-array")
 	if (!validJson(denyAddRaw, "[")) fail("deny-add-not-a-json-array")
@@ -316,16 +295,10 @@ BEGIN {
 	denyAddCount = stringArrayAt(p)
 	for (i = 0; i < denyAddCount; i++) denyAdd[i] = ELEMS[i]
 
-	## Declared allow-write grants, as a projection of the whole permissions
-	## registry: what it claims NOW, and what it claimed BEFORE this run. An
-	## entry in the previous set is one this tooling wrote and may be dropped;
-	## anything else present belongs to somebody else and is kept untouched.
-	## Nothing is recognised by shape here -- the record is the only authority.
-	grantsFile = ENVIRON["MYX_CLAUDEPERMS_GRANTS_FILE"]
-	if (grantsFile != "") {
-		while ((getline grantLine < grantsFile) > 0) if (grantLine != "") GRANT[grantCount++] = grantLine
-		close(grantsFile)
-	}
+	## Declared grants an earlier run projected from the permissions registry. An
+	## entry in that set is one this tooling wrote, and is dropped; anything else
+	## present belongs to somebody else and is kept untouched. Nothing is
+	## recognised by shape here -- the record is the only authority.
 	grantsPrevFile = ENVIRON["MYX_CLAUDEPERMS_GRANTS_PREV_FILE"]
 	if (grantsPrevFile != "") {
 		while ((getline grantLine < grantsPrevFile) > 0) if (grantLine != "") priorClaimed[grantLine] = 1
@@ -373,19 +346,14 @@ END {
 		v = oldAllow[i]
 		if ((v ~ /^Edit\(.*\/board\/\*\*\)$/) || (v ~ /^Write\(.*\/board\/\*\*\)$/)) continue
 		## a prior Edit/Write grant for a member still acting today, at
-		## whatever path it used to resolve to -- drop it here, the fresh
-		## grant at its CURRENT path gets appended below via DESIRED. Same
-		## replace-not-accumulate rule as the board grant, keyed by member
-		## name (this codebase's own identity convention) instead of a
-		## fixed suffix, so a member converted from a real directory to a
-		## symlink (or moved to a different repo) doesn't end up granted
-		## at both its old and new location at once.
+		## whatever path it used to resolve to -- an earlier run wrote it,
+		## keyed by member name (this codebase's own identity convention), and
+		## none is written any more, so it goes.
 		bn = grantBasename(v)
 		if (bn != "" && (bn in memberNameSet)) continue
-		## Written by a previous run of this op, per the permissions registry --
-		## dropped here and re-added below only if the registry still claims it.
-		## A grant whose last row went is therefore gone, which is the whole of
-		## the revoke behaviour; an entry no record ever claimed is never touched.
+		## Written by a previous run of this op, per its record of what it
+		## projected from the permissions registry -- dropped, never re-added.
+		## An entry no record ever claimed is never touched.
 		if (v in priorClaimed) continue
 		keptAllow[keptAllowCount++] = v
 	}

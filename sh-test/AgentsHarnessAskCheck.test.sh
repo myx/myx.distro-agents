@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the AskUserQuestion harness tool, run through --intern-tool,
 ## the path the myx.distro MCP stub uses. Covers the mechanisms the typed escalation
-## kinds will reuse: opener then question in its thread, the pending-reply record,
+## kinds will reuse: the question as one top-level message, no opener, the pending-reply record,
 ## who counts as the answerer, the TIMEOUT re-wait, and the refusals that post nothing.
 ## Offline: a Slack-shaped fake curl is first on PATH, and every scenario runs in its
 ## own workspace under this check's temp tree.
@@ -111,10 +111,10 @@ rigStart(){ ## scenario directory name
 	: > "$RIG_CURL_LOG"
 }
 
-## One thread as conversations.replies returns it: the opener, the question, then
+## One thread as conversations.replies returns it: the question, its root, then
 ## whatever the scenario adds after the question.
 rigReplies(){ ## question extra fields (may be empty), later messages (may be empty)
-	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"question","thread_ts":"1700000001.000101"%s}%s],"has_more":false}\n' \
+	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"%s}%s],"has_more":false}\n' \
 		"$1" "$2" > "$rigScenarioDir/replies.json"
 }
 
@@ -153,18 +153,18 @@ rigAsk(){ ## guard seconds, argument object, optional from-read
 rigQuestion='Should the rig proceed with the second scenario now?'
 
 ## ---------------------------------------------------------------------------
-## 1. Posted with no wait: opener to the conversation, the question inside its
-##    thread, and the record opened only after the send.
+## 1. Posted with no wait: the question itself, one top-level message in the
+##    conversation with no opener, and the record opened only after the send.
 ## ---------------------------------------------------------------------------
 rigStart posted
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"wait\":\"false\"}"
 [ "$( rigCalls chat.postMessage )" != 0 ] || rigRefuse "no send reached the fake curl at all, so nothing below would be measured"
 rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "the result opens with POSTED"                  "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: POSTED"
-rigAssert "two posts: opener and question"                "$( rigCalls chat.postMessage )" 2
-rigAssert "the opener is not inside a thread"             "$( rigPostThread 1 )" ""
-rigAssert "the question is in the opener's thread"        "$( rigPostThread 2 )" "1700000001.000101"
-rigAssert "the question text reached the question post"   "$( rigHolds "$rigScenarioDir/post.2" "$rigQuestion" )" yes
+rigAssert "one post: the question, no opener"             "$( rigCalls chat.postMessage )" 1
+rigAssert "the question is top-level, inside no thread"   "$( rigPostThread 1 )" ""
+rigAssert "the question text reached the question post"   "$( rigHolds "$rigScenarioDir/post.1" "$rigQuestion" )" yes
+rigAssert "the record names the question as its own thread" "$( LC_ALL=C cat "$rigScenarioDir/ws/.local/agents/pending/"*.md 2>/dev/null | LC_ALL=C grep -c -x -E 'question-ts: 1700000001\.000101|thread-ts: 1700000001\.000101' )" 2
 rigAssert "one pending record"                            "$( rigRecords )" 1
 rigAssert "it is still waiting for a reply"               "$( rigRecordStatus )" reply-pending
 rigAssert "the result names the record"                   "$( rigHolds "$rigScenarioDir/out" 'recorded as pending reply' )" yes
@@ -173,7 +173,7 @@ rigPostedId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | ta
 rigAssert "it names its wait item, the pending record"   "$( [ -n "$rigPostedId" ] && [ -f "$rigScenarioDir/ws/.local/agents/pending/$rigPostedId.md" ] && printf yes || printf no )" yes
 rigAssert "the last line names the Wait for the answer"   "$( LC_ALL=C awk 'END { gsub( /ask:[0-9A-Za-z._-]+/, "ask:<id>" ) ; print ; }' "$rigScenarioDir/out" )" "NEXT: to wait for the answer, call Wait sources=ask:<id> -- it posts nothing"
 rigAssert "and it is the only NEXT: line, none from the send" "$( LC_ALL=C grep -c '^NEXT: ' "$rigScenarioDir/out" )" 1
-rigVerdict "wait=false -- opener, question in its thread, POSTED with a pending record"
+rigVerdict "wait=false -- the question as one top-level message, POSTED with a pending record"
 
 ## ---------------------------------------------------------------------------
 ## 2. The addressee's reply is the answer; the same reply from anybody else is not.
@@ -184,7 +184,7 @@ rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\
 rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "the result opens with RECEIVED"                "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
 rigAssert "the answer text is carried"                    "$( rigHolds "$rigScenarioDir/out" 'RIG-ANSWER-MARKER' )" yes
-rigAssert "the wait watched the opener's thread"          "$( rigHolds "$rigScenarioDir/out" 'slack:CRIG00001:1700000001.000101' )" yes
+rigAssert "the wait watched the question's own thread"    "$( rigHolds "$rigScenarioDir/out" 'slack:CRIG00001:1700000001.000101' )" yes
 rigAssert "one pending record"                            "$( rigRecords )" 1
 rigAssert "the record is closed as received"              "$( rigRecordStatus )" reply-received
 rigVerdict "the addressee's reply answers the question and closes the record"
@@ -245,7 +245,7 @@ rigStart send-refused
 : > "$rigScenarioDir/post-refuse"
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the thread this question needed could not be opened, so the question was never posted and nobody was asked. THE QUESTION DOES NOT EXIST. The send measures the plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:"
+rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The send measures the plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:"
 rigAssert "it is not dressed as POSTED"                   "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
 rigAssert "no record was written"                         "$( rigRecords )" 0
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0
@@ -276,7 +276,7 @@ rigAssert "the result opens with POSTED"                  "$( rigFirstLine "$rig
 rigAssert "the send's floor warning is carried"           "$( rigHolds "$rigScenarioDir/out" 'IT WAS WRITTEN ANYWAY' )" yes
 rigAssert "the warning names the predicate"               "$( rigHolds "$rigScenarioDir/out" 'a semicolon, which this floor does not allow' )" yes
 rigAssert "it is not dressed as a refusal"                "$( rigHolds "$rigScenarioDir/out" 'THE QUESTION DOES NOT EXIST' )" no
-rigAssert "two posts: opener and question"                "$( rigCalls chat.postMessage )" 2
+rigAssert "one post: the question, no opener"             "$( rigCalls chat.postMessage )" 1
 rigAssert "one pending record"                            "$( rigRecords )" 1
 rigVerdict "below the plain-language floor -- measured, never refused: POSTED, and the predicate named"
 
@@ -331,7 +331,7 @@ rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "the result says it WAS posted"                 "$( rigHolds "$rigScenarioDir/out" 'the question WAS posted' )" yes
 rigAssert "and that nothing is known"                     "$( rigHolds "$rigScenarioDir/out" 'NOTHING is known' )" yes
 rigAssert "it is not dressed as a result"                 "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
-rigAssert "the question was posted"                       "$( rigCalls chat.postMessage )" 2
+rigAssert "the question was posted"                       "$( rigCalls chat.postMessage )" 1
 rigAssert "one pending record"                            "$( rigRecords )" 1
 rigAssert "the record stays open"                         "$( rigRecordStatus )" reply-pending
 rigVerdict "a wait that cannot be performed -- posted, NOTHING known, record open"
@@ -400,9 +400,9 @@ rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"<@URIGSELF1
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",$rigReadbackArgs}"
 rigAssert "the result opens with RECEIVED"                "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
 rigAssert "the verdict is yes"                            "$( rigVerdictLine )" "VERDICT: yes"
-rigAssert "the post carries the readback heading"         "$( rigHolds "$rigScenarioDir/post.2" 'Readback' )" yes
-rigAssert "the understood text reached the post intact"   "$( rigHolds "$rigScenarioDir/post.2" 'deploy tag v1 with $HOME and `x` kept' )" yes
-rigAssert "the will-do text reached the post"             "$( rigHolds "$rigScenarioDir/post.2" 'run the tag step' )" yes
+rigAssert "the post carries the readback heading"         "$( rigHolds "$rigScenarioDir/post.1" 'Readback' )" yes
+rigAssert "the understood text reached the post intact"   "$( rigHolds "$rigScenarioDir/post.1" 'deploy tag v1 with $HOME and `x` kept' )" yes
+rigAssert "the will-do text reached the post"             "$( rigHolds "$rigScenarioDir/post.1" 'run the tag step' )" yes
 rigAssert "the record closed as received"                 "$( rigRecordStatus )" reply-received
 rigAssert "and carries the verdict"                       "$( rigRecordVerdict )" yes
 rigVerdict "readback -- fields posted, the addressee's yes is the verdict, the record carries it"
@@ -456,7 +456,7 @@ rigStart decision-beta
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Beta, please","thread_ts":"1700000001.000101"}'
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"alpha -- keep the old tag\\nbeta -- cut a new tag\"}"
 rigAssert "the verdict is the option's own word"          "$( rigVerdictLine )" "VERDICT: beta"
-rigAssert "the post carries the decision heading"         "$( rigHolds "$rigScenarioDir/post.2" 'Decision' )" yes
+rigAssert "the post carries the decision heading"         "$( rigHolds "$rigScenarioDir/post.1" 'Decision' )" yes
 rigStart decision-other
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"gamma","thread_ts":"1700000001.000101"}'
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"alpha -- keep the old tag\\nbeta -- cut a new tag\"}" from-read
@@ -464,7 +464,7 @@ rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "any other word is UNCLASSIFIED"                "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
 rigAssert "the reply text is returned"                    "$( rigHolds "$rigScenarioDir/out" 'gamma' )" yes
 rigAssert "the record stays open"                         "$( rigRecordStatus )" reply-pending
-rigAssert "nothing is posted for it"                      "$( rigCalls chat.postMessage )" 2
+rigAssert "nothing is posted for it"                      "$( rigCalls chat.postMessage )" 1
 rigVerdict "decision -- the option's word is the verdict, anything else returns UNCLASSIFIED"
 
 ## ---------------------------------------------------------------------------

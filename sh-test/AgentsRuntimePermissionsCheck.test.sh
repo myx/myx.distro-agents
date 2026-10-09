@@ -19,7 +19,7 @@
 ##      later dispatch tracking the item does not get it;
 ##   9. a session pass: a keeper passes a held write, by place name and by path, to the tester
 ##      in its coworking session, and the tester's next check admits it; not held, a
-##      non-participant, a read-only place and another member's name are refused; revoke
+##      non-participant receiver or passer, a read-only place and another member's name are refused; revoke
 ##      takes it, and it ends with the session.
 ## Offline: HOME, the workspace, every registry and the team data are this rig's own; a fake
 ## curl is first on PATH.
@@ -285,20 +285,28 @@ printf -- '---\nsession-id: s-cw\nspawn-id: s-cw-t\nowner: magic-tester\nstatus:
 for rigName in rw-dir/p.md rw-dir/q.md ; do printf 'rig-seed %s\n' "$rigName" > "$rigTmp/$rigName" ; done
 rigAssert "control: the tester does not write there unpassed"  "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" )" refused
 RIG_AGENT=keeper-d RIG_SESSION=s-cw
-rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:p.md" --entry "Write:$rigTmp/rw-dir/q.md"
-rigPassP="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | sed -n 1p )"
-rigPassQ="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | sed -n 2p )"
-rigAssert "passed by place name and by path, each its own"     "$rigRc:$( LC_ALL=C grep -c '^GRANT: session pass-' "$rigTmp/out" ):$( [ -n "$rigPassP" ] && [ "$rigPassP" != "$rigPassQ" ] && printf refs || printf none )" "0:2:refs"
-rigAssert "each said with its name:relative"                   "$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/p.md is rw-dir:p.md" ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/q.md is rw-dir:q.md" )" "1:1"
-rigAssert "a session grant signed by the passer, in its store" "$( LC_ALL=C grep -c -E "^session:Write:[^:]*:keeper-d:[0-9TZ]*:$rigPassP\$" "$rigMain/.local/agents/sessions/s-cw/grants" ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'owner: magic-tester' ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'passed-by: keeper-d' )" "1:1:1"
-rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:sub/**"
+rigPassRef(){ ## -- the pass reference GRANT: session printed, or empty
+	LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | head -1
+}
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
+rigPassP="$( rigPassRef )"
+rigAssert "passed by place name, said with its name:relative"  "$rigRc:$( [ -n "$rigPassP" ] && printf ref || printf none ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/p.md is rw-dir:p.md" )" "0:ref:1"
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "$rigTmp/rw-dir/q.md" --kind session
+rigPassQ="$( rigPassRef )"
+rigAssert "and by path, its own, with the same hint"           "$rigRc:$( [ -n "$rigPassQ" ] && [ "$rigPassQ" != "$rigPassP" ] && printf ref || printf none ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/q.md is rw-dir:q.md" )" "0:ref:1"
+rigAssert "a session grant signed by the passer, in its store" "$( LC_ALL=C grep -c -E "^session:Write:[^:]*:keeper-d:[0-9TZ]*:$rigPassP\$" "$rigMain/.local/agents/sessions/s-cw/grants" ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'owner: magic-tester' ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'passed-by: keeper-d' ):$( cat "$rigMain/.local/agents/sessions/s-cw/$rigPassP.places" 2>/dev/null )" "1:1:1:$rigTmp/rw-dir/p.md"$'\t'"rw-dir:p.md"
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "@rw-dir:sub/**" --kind session
 rigAssert "what it does not hold is refused"                   "$rigRc:$( rigN "$rigTmp/err" 'keeper-d does not hold Write' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/out" )" "1:1:0"
-rigRun --member-permission-session-pass keeper-d --to magic-coordinator --entry "Write:@rw-dir:p.md"
+rigRun --member-permission-pass keeper-d --to magic-coordinator --tool Write --target "@rw-dir:p.md" --kind session
 rigAssert "a member outside the session is refused"            "$rigRc:$( rigN "$rigTmp/err" 'magic-coordinator takes no part in session s-cw' )" "1:1"
-rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@ro-dir:x.txt"
+## Session s-solo: magic-tester alone. keeper-d holds the write, the tester takes part, keeper-d does not.
+rigSpawn sb-solo s-solo magic-tester
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session --session-id s-solo
+rigAssert "a session pass by a passer outside that session is refused" "$rigRc:$( rigN "$rigTmp/err" 'keeper-d takes no part in session s-solo, so it cannot pass a permission for it' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/out" ):$( [ -e "$rigMain/.local/agents/sessions/s-solo/grants" ] && printf written || printf none )" "1:1:0:none"
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "@ro-dir:x.txt" --kind session
 rigAssert "a write in a read-only place is refused, its route named" "$rigRc:$( rigN "$rigTmp/err" "ro-dir is a read-only place, so no write is granted there: Write:@ro-dir:x.txt -- write to the session sandbox output/ instead, or a folder under it: $rigMain/.local/agents/spawned/sb-cw/output/" )" "1:1"
 RIG_AGENT=magic-tester RIG_SESSION=s-cw-t
-rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:p.md"
+rigRun --member-permission-pass keeper-d --to magic-tester --tool Write --target "@rw-dir:p.md" --kind session
 rigAssert "a member cannot pass as another"                    "$rigRc:$( rigN "$rigTmp/err" 'acts as magic-tester, so it cannot act as keeper-d' )" "1:1"
 RIG_AGENT="" RIG_SESSION=""
 rigAssert "the refused passes wrote nothing"                   "$( LC_ALL=C grep -c . "$rigMain/.local/agents/sessions/s-cw/grants" )" 2

@@ -17,8 +17,9 @@
 ##      the shared pointers, the provenance tags and the tracked-workspace list all read
 ##      the new files;
 ##   5. --make-agents-indices turns a declared allow-read into Read(...) rows, its
-##      selector resolved exactly as allow-write's, tagged alike, projected into the
-##      settings as Read only and into the read roots only; a malformed verb of either is
+##      selector resolved exactly as allow-write's, tagged alike, and into the read roots
+##      only; --install-claude-permissions writes no file grant into the settings, drops
+##      the one an earlier run wrote and keeps the user's own; a malformed verb of either is
 ##      refused alike and leaves the registry as it stood.
 ## Offline: every path is under this rig's own mktemp tree, HOME included.
 set -u
@@ -269,6 +270,10 @@ rigGrantDeclares "magic-team:permissions:workspace:.:allow-read:keeper-o:ronly/*
 ## The registry is --make-agents-indices's; --install-claude-permissions projects it.
 rigGrantRun --make-agents-indices
 rigAssert "control: the registry was written on a trusted scan, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'make-agents-indices: wrote .*permissions.registry' "$rigTmp/grants.out" )" "0 1"
+## Settings an earlier run left: the Edit it projected for a registry row, with no record of it,
+## and an entry of the user's own.
+mkdir -p "$rigGHome/.claude"
+printf '{"permissions": {"allow": ["Edit(/%s/shared/**)", "Read(//rig-user/own/**)"]}}\n' "$rigG1" > "$rigGSettings"
 rigGrantRun --install-claude-permissions
 rigAssert "control: the install ran, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'claude permissions installed' "$rigTmp/grants.out" )" "0 1"
 ## A namespace grant applies in every tooling workspace: `.` and `*` both name the one
@@ -287,10 +292,17 @@ rigAssert "allow-read roots are tagged as the allow-write roots are" \
 	"$( rigGrantRows "$rigGTags" keeper-r )" "$( rigGrantRows "$rigGTags" keeper-w )"
 rigAssert "a lone allow-read is one Read row, for its own member" \
 	"$( LC_ALL=C awk -F: '$1 == "keeper-o"' "$rigGReg" )" "keeper-o:gws-one:workspace:Read(/$rigG1/ronly/**)"
-rigAssert "the settings carry it as Read" "$( rigCount "\"Read(/$rigG1/ronly/**)\"" "$rigGSettings" )" 1
-rigAssert "and never as Edit or Write" "$( rigCount "Edit(/$rigG1/ronly" "$rigGSettings" ) $( rigCount "Write(/$rigG1/ronly" "$rigGSettings" )" "0 0"
-rigAssert "control: the settings carry the allow-write Edit and the allow-read Read side by side" \
-	"$( rigCount "\"Edit(/$rigG1/shared/**)\"" "$rigGSettings" ) $( rigCount "\"Read(/$rigG1/shared/**)\"" "$rigGSettings" )" "1 1"
+## No file grant is written into the settings: the PreToolUse hooks decide.
+rigAssert "the settings carry no file grant for it, Read, Edit or Write" "$( rigCount "Read(/$rigG1/ronly" "$rigGSettings" ) $( rigCount "Edit(/$rigG1/ronly" "$rigGSettings" ) $( rigCount "Write(/$rigG1/ronly" "$rigGSettings" )" "0 0 0"
+rigAssert "nor for the allow-write and allow-read grants beside it" \
+	"$( rigCount "Edit(/$rigG1/shared/**)" "$rigGSettings" ) $( rigCount "Read(/$rigG1/shared/**)" "$rigGSettings" )" "0 0"
+rigAssert "nor an Edit for an acting member's skillset directory" "$( rigCount '"Edit(' "$rigGSettings" )" 0
+rigAssert "the Edit an earlier run wrote is dropped, the user's own entry stays, the fixed grants are in" \
+	"$( rigCount "Edit(/$rigG1/shared/**)" "$rigGSettings" ) $( rigCount '"Read(//rig-user/own/**)"' "$rigGSettings" ) $( rigCount '"mcp__myx_distro"' "$rigGSettings" )" "0 1 1"
+rigAssert "the record says nothing was projected" "$( if [ -f "$rigG1/.local/agents/claude-permissions.projected" ] ; then LC_ALL=C grep -c . "$rigG1/.local/agents/claude-permissions.projected" || : ; else printf absent ; fi )" 0
+cp "$rigGSettings" "$rigTmp/grants.settings.first"
+rigGrantRun --install-claude-permissions
+rigAssert "a second run changes nothing" "$rigGrantRc $( cmp -s "$rigTmp/grants.settings.first" "$rigGSettings" && printf same || printf changed )" "0 same"
 rigAssert "our read-grant roots name it for its member" "$( rigGrantRoots AgentsToolsClientAccessReadGrantRoots keeper-o )" "$rigG1/ronly"
 rigAssert "it joins the read roots a client is granted" "$( rigGrantRoots AgentsToolsClientAccessRoots "$rigG1" "" | LC_ALL=C grep -c -x -F "$rigG1/ronly" )" 1
 rigAssert "it is no write root of its member" "$( rigGrantRoots AgentsToolsClientAccessGrantRoots keeper-o )" ""

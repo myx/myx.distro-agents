@@ -57,10 +57,10 @@ rigStart(){ ## scenario directory name
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"
 }
-## The thread: opener, question, then the scenario's later messages. The fixture's own
-## account, URIGSELF1, is the asker's.
+## The thread: the question, its root, then the scenario's later messages. The fixture's
+## own account, URIGSELF1, is the asker's.
 rigReplies(){ ## later messages (may be empty)
-	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"question","thread_ts":"1700000001.000101"}%s],"has_more":false}\n' "$1" > "$rigScenarioDir/replies.json"
+	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"}%s],"has_more":false}\n' "$1" > "$rigScenarioDir/replies.json"
 }
 ## One tool call under a stated session, in a process of its own, with a guard: an ask
 ## nobody answers waits by design, so the guard ends it and says so.

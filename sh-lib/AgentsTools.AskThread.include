@@ -110,70 +110,96 @@ AgentsToolsAskThreadNextTag(){ ## addressee
 	printf 'Q%s\n' "$tagNext"
 }
 
-## Before a question is posted: prints one line saying where it goes.
+## Before a question is posted: prints one line saying whether it is, and where.
 ##   DUPLICATE<TAB><pending id><TAB><owner><TAB><session>  -- an open question to the same
 ##       addressee with the same key already stands; nothing is to be posted
-##   REUSE<TAB><channel><TAB><thread ts><TAB><tag>         -- post into that open thread
-##   NEW<TAB>Q1                                           -- open a thread of its own
-## The thread reused is an open question's to the same conversation and addressee, from
-## any member or session: one person, one running thread. <to> naming a thread already
-## (channel:ts) is never reused over, so only DUPLICATE or NEW come back for it.
-AgentsToolsAskThreadFind(){ ## to, address_to, question key
-	local findTo="$1" findAddress="$2" findKey="$3" findFile findLine
-	local reuseChannel="" reuseThread="" dupId="" dupOwner="" dupSession=""
-	local fileStatus fileTo fileAddress fileKey fileChannel fileThread fileOwner fileSession
+##   SAME<TAB><channel><TAB><thread ts><TAB><tag><TAB><pending id><TAB><identity> -- the same
+##       question to the same addressee was asked before and is closed: asked again, it is
+##       still that question, so it goes into that question's own thread, under its own
+##       number (or none), and under the identity (bot|member) it was asked with there
+##   NEW<TAB>Q1                                           -- post it, as a message of its own
+## A different question never takes over another question's thread: each new question to a
+## person or a conversation opens its own thread, which belongs to that question alone, and
+## only a <to> naming a thread already (channel:ts) puts a question inside one. SAME comes
+## back only for a <to> that would otherwise open a new top-level message, and only for a
+## thread the asker can post in again: one asked as the team bot, or by this same member.
+## The newest such record wins.
+AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
+	local findTo="$1" findAddress="$2" findKey="$3" findAsker="${4:-}" findFile findLine
+	local dupId="" dupOwner="" dupSession=""
+	local sameId="" sameChannel="" sameThread="" sameTag="" sameTs="" sameIdentity=""
+	local fileStatus fileAddress fileKey fileOwner fileSession fileChannel fileThread fileTag fileTs fileIdentity
 	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
 		[ -f "$findFile" ] || continue
-		fileStatus="" fileTo="" fileAddress="" fileKey="" fileChannel="" fileThread="" fileOwner="" fileSession=""
+		fileStatus="" fileAddress="" fileKey="" fileOwner="" fileSession="" fileChannel="" fileThread="" fileTag="" fileTs="" fileIdentity=""
 		while IFS= read -r findLine ; do
 			case "$findLine" in
 				'status: '*) fileStatus="${findLine#status: }" ;;
-				'communication-channel-id: slack:'*) fileTo="${findLine#communication-channel-id: slack:}" ;;
 				'address-to: '*) fileAddress="${findLine#address-to: }" ;;
 				'question-key: '*) fileKey="${findLine#question-key: }" ;;
-				'channel: '*) fileChannel="${findLine#channel: }" ;;
-				'thread-ts: '*) fileThread="${findLine#thread-ts: }" ;;
 				'owner: '*) fileOwner="${findLine#owner: }" ;;
 				'session-id: '*) fileSession="${findLine#session-id: }" ;;
+				'channel: '*) fileChannel="${findLine#channel: }" ;;
+				'thread-ts: '*) fileThread="${findLine#thread-ts: }" ;;
+				'question-tag: '*) fileTag="${findLine#question-tag: }" ;;
+				'question-ts: '*) fileTs="${findLine#question-ts: }" ;;
+				'ask-identity: '*) fileIdentity="${findLine#ask-identity: }" ;;
 				'# '*) break ;;
 			esac
 		done < "$findFile"
-		[ "$fileStatus" = "reply-pending" ] && [ "$fileAddress" = "$findAddress" ] || continue
-		if [ -n "$findKey" ] && [ "$fileKey" = "$findKey" ] ; then
+		[ "$fileAddress" = "$findAddress" ] && [ -n "$findKey" ] && [ "$fileKey" = "$findKey" ] || continue
+		if [ "$fileStatus" = "reply-pending" ] ; then
 			dupId="${findFile##*/}" ; dupId="${dupId%.md}" ; dupOwner="$fileOwner" ; dupSession="$fileSession"
 			break
 		fi
-		case "$findTo" in
-			*:*) ;;
-			*)
-				if [ -z "$reuseThread" ] && [ "$fileTo" = "$findTo" ] && [ -n "$fileChannel" ] && [ -n "$fileThread" ] ; then
-					reuseChannel="$fileChannel" ; reuseThread="$fileThread"
-				fi
-			;;
-		esac
+		[ -n "$fileChannel" ] && [ -n "$fileThread" ] || continue
+		[ "$fileIdentity" = "bot" ] || { [ -n "$findAsker" ] && [ "$fileOwner" = "$findAsker" ] ; } || continue
+		if [ -z "$sameId" ] || [[ "$fileTs" > "$sameTs" ]] ; then
+			sameId="${findFile##*/}" ; sameId="${sameId%.md}" ; sameChannel="$fileChannel" ; sameThread="$fileThread" ; sameTag="$fileTag" ; sameTs="$fileTs"
+			sameIdentity="${fileIdentity:-member}"
+		fi
 	done
 	if [ -n "$dupId" ] ; then
 		printf 'DUPLICATE\t%s\t%s\t%s\n' "$dupId" "$dupOwner" "$dupSession"
 		return 0
 	fi
-	if [ -z "$reuseThread" ] ; then
-		printf 'NEW\tQ1\n'
-		return 0
-	fi
-	## The next tag counts every question the thread has held, answered ones included,
-	## so a tag is never used twice in one thread.
-	local reuseCount=0
-	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
-		[ -f "$findFile" ] || continue
-		fileChannel="" fileThread=""
-		while IFS= read -r findLine ; do
-			case "$findLine" in
-				'channel: '*) fileChannel="${findLine#channel: }" ;;
-				'thread-ts: '*) fileThread="${findLine#thread-ts: }" ;;
+	case "$findTo" in
+		*:*|*.routine) ;;
+		*)
+			if [ -n "$sameId" ] ; then
+				printf 'SAME\t%s\t%s\t%s\t%s\t%s\n' "$sameChannel" "$sameThread" "$sameTag" "$sameId" "$sameIdentity"
+				return 0
+			fi
+		;;
+	esac
+	printf 'NEW\tQ1\n'
+}
+
+## Whether <channel>:<ts> is the thread a question opened for itself -- its top-level
+## message, or the opener a question posted before this design put ahead of it. Prints that
+## question's number (empty for a question with none) and returns 0 when it is; returns 1
+## otherwise. <channel> may be the conversation id the record names, or the <to> it was asked to.
+## A question asked into such a thread is a follow-up on the same question, so it takes no
+## number of its own.
+AgentsToolsAskThreadRootTag(){ ## channel or to, thread ts
+	local rootWhere="$1" rootTs="$2" rootFile rootLine rootChannel rootTo rootTag
+	[ -n "$rootWhere" ] && [ -n "$rootTs" ] && [ -d "$MMDAPP/.local/agents/pending" ] || return 1
+	while IFS= read -r rootFile ; do
+		[ -f "$rootFile" ] || continue
+		rootChannel="" rootTo="" rootTag=""
+		while IFS= read -r rootLine ; do
+			case "$rootLine" in
+				'channel: '*) rootChannel="${rootLine#channel: }" ;;
+				'communication-channel-id: slack:'*) rootTo="${rootLine#communication-channel-id: slack:}" ;;
+				'question-tag: '*) rootTag="${rootLine#question-tag: }" ;;
 				'# '*) break ;;
 			esac
-		done < "$findFile"
-		[ "$fileChannel" = "$reuseChannel" ] && [ "$fileThread" = "$reuseThread" ] && reuseCount=$(( reuseCount + 1 ))
-	done
-	printf 'REUSE\t%s\t%s\tQ%s\n' "$reuseChannel" "$reuseThread" "$(( reuseCount + 1 ))"
+		done < "$rootFile"
+		## Only a question that opened this thread: one asked into it names a thread as its <to>.
+		case "$rootTo" in *:*|'') continue ;; esac
+		[ "$rootChannel" = "$rootWhere" ] || [ "$rootTo" = "$rootWhere" ] || continue
+		printf '%s\n' "$rootTag"
+		return 0
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "thread-ts: $rootTs" "$MMDAPP/.local/agents/pending" 2>/dev/null )
+	return 1
 }

@@ -490,14 +490,18 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
-	## Reads are what this member may read: the read floor plus its own declared Edit
-	## and Read grants, never every member's; the core records a read outside them as a
-	## refusal, as it does a write. Writes narrow to what may actually be written: the work
-	## directories, plus the roots this member's declared Edit grants name.
+	## Reads and writes are the roots this member is granted, off the grants index: its floor
+	## and standing rows that name a whole directory, never every member's and never all of
+	## source/ unless granted. A row with a wildcard inside (the source docs floor) is no
+	## root; the core asks the grants for such a call, and records a refusal, read or write.
 	## Captured with its status and stderr, so a failed producer refuses the spawn with
 	## its reason: read through the herestring directly, a short set passes as whole.
-	if ! DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" "$MDAT_SPAWN_AGENT" 2>&1 )" ; then
+	if ! DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessMemberRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" read 2>&1 )" ; then
 		echo "⛔ ERROR: DistroAgentsConsole: the access-root set could not be computed, refusing rather than starting $DAGC_CLI on a partial set: $DAGC_ACCESS_ROOTS" >&2
+		exit 1
+	fi
+	if ! DAGC_ACCESS_WRITE_ROOTS="$( AgentsToolsClientAccessMemberRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" write 2>&1 )" ; then
+		echo "⛔ ERROR: DistroAgentsConsole: the write-root set could not be computed, refusing rather than starting $DAGC_CLI on a partial set: $DAGC_ACCESS_WRITE_ROOTS" >&2
 		exit 1
 	fi
 	while IFS= read -r DAGC_ACCESS_LINE ; do
@@ -505,7 +509,7 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	done <<< "$DAGC_ACCESS_ROOTS"
 	while IFS= read -r DAGC_ACCESS_LINE ; do
 		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$DAGC_ACCESS_LINE" ;; esac
-	done <<< "$( { AgentsToolsClientAccessReferenceRoots write "$MMDAPP" "$MDAT_SPAWN_AGENT" ; AgentsToolsClientAccessGrantRoots "$MDAT_SPAWN_AGENT" ; } | LC_ALL=C sort -u )"
+	done <<< "$DAGC_ACCESS_WRITE_ROOTS"
 	## This spawn's own sandbox, per-spawn and named by its tracking id: input/ is
 	## readable and output/ is writable. ADDED to the two sets above rather than
 	## replacing them, which is the whole reason the write set is rendered on its own
@@ -521,8 +525,23 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	## exactly like a full one.
 	echo "# console: $DAGC_CLI access roots: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added; member set from ${MDAT_SKILLSET_ROOT:-<unresolved>}" >&2
 elif [ -n "$DAGC_ACCESS_FLAG" ] ; then
+	## Per member: every root this member may read or write, off the grants index, so reads
+	## there need no prompt; the hooks still decide every call. copilot gets the same set, a
+	## read-only place included: its flag takes no verb, and leaving a place out would leave
+	## the member unable to work there at all. Best effort: where the index cannot be had,
+	## the install fragment below serves, as before.
+	DAGC_ACCESS_BY_MEMBER=""
+	if DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessMemberRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" read 2>/dev/null )" ; then
+		DAGC_ACCESS_BY_MEMBER="$MDAT_SPAWN_AGENT"
+		while IFS= read -r DAGC_ACCESS_LINE ; do
+			case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_FLAG" "$DAGC_ACCESS_LINE" ;; esac
+		done <<< "$DAGC_ACCESS_ROOTS"
+		echo "# console: $DAGC_CLI $DAGC_ACCESS_FLAG for $MDAT_SPAWN_AGENT: $DAGC_ACCESS_GUARANTEED install-guaranteed + $DAGC_ACCESS_WILDCARD_ADDED of $DAGC_ACCESS_WILDCARD_TOTAL live-checked candidates existed, added" >&2
+	else
+		echo "🙋 WARNING: DistroAgentsConsole: the roots $MDAT_SPAWN_AGENT is granted could not be read off the grants index, so $DAGC_CLI gets the install fragment instead" >&2
+	fi
 	DAGC_ACCESS_FRAGMENT="$MMDAPP/.claude/copilot-add-dir.fragment"
-	if [ -f "$DAGC_ACCESS_FRAGMENT" ] ; then
+	if [ -z "$DAGC_ACCESS_BY_MEMBER" ] && [ -f "$DAGC_ACCESS_FRAGMENT" ] ; then
 		while IFS= read -r DAGC_ACCESS_LINE ; do
 			[ -n "$DAGC_ACCESS_LINE" ] || continue
 			case "$DAGC_ACCESS_LINE" in

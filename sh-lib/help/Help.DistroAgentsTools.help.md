@@ -110,7 +110,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-directory-list
 📘 syntax: DistroAgentsTools.fn.sh --member-directory-path <name>[/<relative>]
 📘 syntax: DistroAgentsTools.fn.sh --member-namespace-list [<namespace>]
-📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions
+📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
@@ -146,17 +146,17 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
+📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --member-permission-session-pass <team-member> --to <member> --entry <tool:target>... [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-escalation-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
-📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
-📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
+📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]
+📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --member-decision-record <team-member> <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
 📘 syntax: DistroAgentsTools.fn.sh --member-review-request <team-member> <item-filename> --reason <text>
@@ -2065,47 +2065,49 @@
 			unparseable/absent `.claude.json` or empty MYXROOT
 			leaves MCP_REGISTRATION a warning, undetermined.
 
-		--install-claude-permissions
+		--install-claude-permissions [--workspace <path>]
 			Merges this package's mandatory Claude Code permission
 			grants into `$HOME/.claude/settings.json`
 			(`permissions.allow`/`permissions.deny`) -- additive,
 			existing entries this op didn't add are kept.
 			`--workspace <path>` (default `$MMDAPP`) selects the
-			workspace whose registries are read. A revoked grant can
-			still apply while another workspace still records it.
+			workspace whose registries name what earlier runs wrote.
 
-			Projects the permissions registries
-			`--make-agents-indices` writes, every workspace's own,
-			and writes none. What a run projected is kept in
-			`<workspace>/.local/agents/claude-permissions.projected`,
-			so the next run drops an entry no registry claims any
-			more, and nothing else; a first run drops nothing.
+			Writes no file grant (`Read`, `Edit`, `Write`): the
+			`PreToolUse` hooks decide every call. Drops the ones
+			earlier runs wrote -- what they projected from the
+			permissions registries, recorded in
+			`<workspace>/.local/agents/claude-permissions.projected`
+			(with no record, what the registries claim now), every
+			board grant and every `Edit`/`Write` grant on an acting
+			member's skillset directory -- and nothing else.
 
 			Upserts the fixed grants (`mcp__myx_common`,
-			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
-			`Edit(<path>/**)` per acting team member's skillset
-			directory) and denies the native Slack MCP server
+			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`) and
+			denies the native Slack MCP server
 			(`mcp__claude_ai_Slack`) unconditionally -- route Slack
 			through the team's own `--member-comms-slack-*` ops.
 			Sets `enabledMcpjsonServers` to `myx.common` and
-			`myx.distro`. Not purely additive: it also drops every
-			prior board grant and every prior `Write` grant a
-			member held.
+			`myx.distro`.
 
 			A failure fails loud, file untouched. A no-op run is
 			reported as such.
 
 		--install-workspace-restrictions [--workspace <path>]
-			Installs Claude Code WORKSPACE-level permission rules (a
-			standing Read allow-grant, deny rules, `PreToolUse`
-			hooks) into the target workspace's own
-			`.claude/settings.json` -- distinct from
+			Installs Claude Code WORKSPACE-level permission rules
+			(deny rules, `PreToolUse` hooks) into the target
+			workspace's own `.claude/settings.json` -- distinct from
 			`--install-claude-permissions`, which is $HOME-scoped.
 			Default target is the current shell directory;
 			`--workspace <path>` overrides it.
 
-			Also grants `Read` on the reference read roots (this
-			origin's skillset, `$HOME/.claude/skills`).
+			Writes no `permissions.allow` file grant: the hooks
+			decide every call. Drops the `Read`/`Edit` entries
+			earlier installs wrote (on the workspace `source/`, its
+			skills root, the reference read roots, the team
+			scratchpad), each on an exact match or, for a `source/`
+			or `.agents` root, by its shape; a rule the user added
+			stays.
 
 			Refuses (exit 1, nothing written) when `<workspace>`
 			isn't a genuine workspace root (no `<workspace>/.local`),
@@ -2128,7 +2130,13 @@
 			into it -- the two memory guards refuse naming
 			`MAGIC.md`, reflection, inbox note or inquiry and
 			escalation instead, and the universal harness applies
-			them too), and sets `"autoMemoryEnabled": false`,
+			them too), and one more for a spawned member only:
+			`allow-granted-native-tool.sh` allows a native
+			`Read`/`Edit`/`Write`/`MultiEdit`/`NotebookEdit`/`Grep`/
+			`Glob` call its session permission index grants,
+			denies a write in a read-only place, and leaves any
+			other call to the client and the `PermissionRequest`
+			hook; it sets `"autoMemoryEnabled": false`,
 			touching no other top-level key; a hand-wired entry
 			running the same script is kept as the policy's own and
 			its script replaced; it
@@ -2803,7 +2811,23 @@
 			waiting question applies it. With none:
 			`ESCALATION: <id> open` + `VERDICT: UNCLASSIFIED`, with
 			`VERDICT-REASON:` when an answer was seen and not taken.
-			An answer from the account that asked is never taken.
+			An answer from the account that asked is never taken. A
+			question withdrawn by its asker prints `ESCALATION: <id>
+			closed withdrawn` and takes no verdict.
+
+			Only a reply's first line gives its verdict. A plain
+			affirmation -- a first word ok, okay, yes, agree, agreed,
+			confirm or confirmed, also after a leading "I", in any
+			case, or a +1, ok_hand or white_check_mark reaction on the
+			question -- is yes for a readback, and for a decision the
+			option whose line holds `(recommended)`; with none marked
+			it answers nothing. A permission takes only its own words.
+			Once a verdict is applied, the rest of the reply it came
+			from and every later reply there are kept as
+			clarifications: under the record's `## Clarifications`,
+			and as `clarification` lines on its item's `## Decisions`
+			(`CLARIFIED <id> <n>`). A decision closed by its asker's
+			readback also prints `CLOSED-BY: readback`.
 
 			While a typed escalation waits, the first reply from an
 			addressee ends the wait, judged against every reply since
@@ -2858,6 +2882,26 @@
 			magic-coordinator. Never a question magic-coordinator asked.
 			Only magic-coordinator, or the console, may call it.
 
+		--member-escalation-readback <team-member> <request-id> <option word> [text]
+			The asker closes its own open decision by reading the
+			reply back, once the person has replied and no reply names
+			an option. It posts in the question's own thread, under the
+			identity the question was asked with, which option it takes
+			the reply to mean, with [text] saying why. The record closes
+			with that option as its verdict, answered-by `<team-member>
+			(readback)`, `closed-by: readback`, and `follow-floor:` the
+			readback's ts; the replies there are kept as
+			clarifications. Prints the result lines with `CLOSED-BY:
+			readback` and `FOLLOW-FLOOR: <ts>`. A later reply from the
+			person there, such as an objection, arrives on the asking
+			session's Wait (its `ask:<request-id>` stays in the stored
+			wait) and is kept the same way. Refused for anything but a
+			decision, never for a permission, for any member but the
+			asker, with no reply yet, and when a reply already names an
+			option. AskUserQuestion pending_id=<id> readback=<option
+			word> calls it. A spawned session reads back only as its
+			own member.
+
 		--magic-escalation-forward <coordinator> <request-id>
 			Forwards one open escalation addressed to <coordinator> to
 			the human-owner, keeping the same record. The question is
@@ -2882,25 +2926,14 @@
 			<team-member>. The session is the caller's own unless
 			--session-id names it. A spawned session passes only as
 			its own member.
-
-		--member-permission-session-pass <team-member> --to <member> --entry <tool:target>... [--session-id <id>]
-			Passes permissions <team-member> holds on to <member>, a
-			participant of the same session, for that session only:
-			how a keeper invited into a session widens the access of
-			the others there. Each entry is <tool>:<target>, the target
-			a path, a <path>/** pattern, a URL prefix written <prefix>*,
-			or a registered place, `<tool>:@<name>[:<glob>]`, as
-			--magic-permission-set-request takes it. A path in a place
-			is said as `PLACE: <entry> is <name>:<relative>`. Tooling
-			refuses, before anything is passed: a write in a read-only
-			place, naming the route to take instead; an entry
-			<team-member> does not hold in the session, or holds only
-			for a task; and either member taking no part in the
-			session. Prints `GRANT: session pass-<id>` for each entry;
-			each is <member>'s own, signed by <team-member>, ends with
-			the session, and is revoked by its reference. The session
-			is the caller's own unless --session-id names it. A
-			spawned session passes only as its own member.
+			<target> may also name a registered place, `@<name>[:<glob>]`,
+			as --magic-permission-set-request takes it; a path in a
+			place is said as `PLACE: <tool>:<target> is
+			<name>:<relative>`. A write in a read-only place is refused,
+			naming the route to take instead. With --kind session both
+			members take part in the session, and the grant ends with
+			it: how a keeper invited into a session widens the access
+			of the others there.
 
 		--magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
 			Asks for a task's or session's permission set at spawn or
@@ -2982,12 +3015,12 @@
 			shown here.
 			An open question is also reminded by the main loop itself
 			(30 minutes, 2 hours, then daily after 09:00 once 4+ hours
-			old; more than 10 to one person go as one DM digest). The
+			old), always by a reply in that question's own thread. The
 			record keeps the stamps: reminder-30m, reminder-2h,
 			last-daily-reminder, reminders and last-reminder-at. A
 			reminder never closes a record.
 
-		--member-pending-reply-settle <team-member> <pending-id> --reason <text>
+		--member-pending-reply-settle <team-member> <pending-id> --reason <text> [--withdraw]
 			Closes one of the member's own open questions that no longer
 			needs an answer, such as one settled elsewhere. It is
 			recorded as received, with verdict `settled: <text>` and
@@ -2997,15 +3030,25 @@
 			it closes through its own escalation ops. A record already
 			closed prints `ALREADY-CLOSED <id> <status>` and is left
 			as it is. A spawned session settles only as its own member.
+			--withdraw discards the member's own open question instead,
+			of any kind, decision, readback and permission included:
+			it closes with status `withdrawn`, `withdrawn-by:` and
+			`withdraw-reason: <text>`, and no verdict, so it answers,
+			grants and decides nothing, and is reminded no more. Its
+			item's `## Decisions` gets a `dismissed` line. A short note
+			in the question's own thread tells the person it is no
+			longer needed. Prints `WITHDRAWN <id>`. AskUserQuestion
+			pending_id=<id> withdraw=<reason> calls it.
 
-		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
+		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
 			The coordinator settles another member's open plain question
 			on its behalf, as --member-pending-reply-settle does for the
 			asker: verdict `settled: <text>`, answered-by
 			`magic-coordinator (settled)`, `SETTLED <id>`. A readback,
 			decision or permission is refused, and a closed record is
-			left as it is. Only magic-coordinator, or the console, may
-			call it.
+			left as it is. --withdraw withdraws only a question
+			magic-coordinator asked itself, as the member stub does.
+			Only magic-coordinator, or the console, may call it.
 
 		--magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
 			Corrects the verdict of a plain question already closed with

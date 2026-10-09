@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 ## Behavioural check on --intern-op-pending-reply-collect, the collector of answers to
-## questions nobody waits on: a session's answered question is closed with its answer,
-## :eyes: on the reply, :white_check_mark: on the question and, once nothing in the thread
-## is open, on its opener; a question still open is marked for the main loop and the
-## opener is left alone; the main loop's --ended pass closes a later answer and leaves a
+## questions nobody waits on: a session's answered question, the root of its own thread,
+## is closed with its answer, :eyes: on the reply and one :white_check_mark: on the
+## question; in a thread from before questions were posted that way, the opener is marked
+## once nothing in the thread is open, and left alone while a question still open is
+## marked for the main loop; the main loop's --ended pass closes a later answer and leaves a
 ## note in the asker's inbox; an unreadable thread stays open and is never closed; a
 ## readback is never collected; a collect racing a settle closes the record once; a
 ## refused reaction leaves the close intact; a handback carries what was collected; and
@@ -59,17 +60,21 @@ rigStart(){ ## scenario directory name
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"
 }
-rigRecord(){ ## id, question ts, tag, session, kind (empty for a plain question)
+rigRecord(){ ## id, question ts, tag, session, kind (empty for a plain question), thread ts (default: the shared thread below)
 	{
 		printf -- '---\nstatus: reply-pending\nowner: %s\nhost: rig\n' "$rigMember"
 		printf 'communication-channel-id: slack:human-owner\nblocked-on: reply from human-owner\nsession-id: %s\n' "$4"
 		[ -z "$5" ] || printf 'kind: %s\n' "$5"
-		printf 'address-to: human-owner\nchannel: CRIG00001\nquestion-ts: %s\nthread-ts: 1700000001.000101\n' "$2"
+		printf 'address-to: human-owner\nchannel: CRIG00001\nquestion-ts: %s\nthread-ts: %s\n' "$2" "${6:-1700000001.000101}"
 		printf 'addressees: URIGOWNER\nasking-accounts: URIGSELF1\nquestion-tag: %s\nasked-at: 2026-09-29 12:00 +0300\n---\n\n' "$3"
 		printf '# Question asked\n\n# ❓ Question %s\n\nMay the rig keep report %s?\n' "$3" "$3"
 	} > "$rigScenarioDir/ws/.local/agents/pending/$1.md"
 }
-## The shared thread: opener, Q1, Q2, then the scenario's later messages.
+## A question posted as the root of its own thread, then the scenario's later messages.
+rigOwnReplies(){ ## later messages
+	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"Q1"}%s],"has_more":false}\n' "$1" > "$rigScenarioDir/replies.json"
+}
+## A thread from before questions were their own roots: opener, Q1, Q2, then the scenario's later messages.
 rigReplies(){ ## later messages
 	printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"opener"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"Q1","thread_ts":"1700000001.000101"},{"ts":"1700000001.000103","user":"URIGSELF1","text":"Q2","thread_ts":"1700000001.000101"}%s],"has_more":false}\n' "$1" > "$rigScenarioDir/replies.json"
 }
@@ -96,8 +101,8 @@ rigQ2=22222222-0000-0000-0000-000000000002
 
 echo "-- a question nobody waited on is answered: its session's collect closes it --"
 rigStart answered
-rigRecord "$rigQ1" 1700000001.000102 Q1 rig-sess-a ""
-rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it","thread_ts":"1700000001.000101"}'
+rigRecord "$rigQ1" 1700000001.000101 Q1 rig-sess-a "" 1700000001.000101
+rigOwnReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it","thread_ts":"1700000001.000101"}'
 rigCollect out --session-id rig-sess-a
 rigHolds "$rigScenarioDir/out" 'COLLECT: ' | grep -q yes || rigRefuse "the collect never answered: $( grep -m1 ERROR "$rigScenarioDir/out.err" )"
 rigAssert "it says answered, with the answer"             "$( rigHolds "$rigScenarioDir/out" "ANSWERED $rigQ1 Q1 | May the rig keep report Q1? | yes, keep it" )" yes
@@ -105,10 +110,9 @@ rigAssert "the record is closed as received"              "$( rigStatus "$rigQ1"
 rigAssert "with the answer as its verdict"                "$( rigField "$rigQ1" verdict )" "yes, keep it"
 rigAssert "answered by the addressee"                     "$( rigField "$rigQ1" answered-by )" URIGOWNER
 rigAssert ":eyes: on the reply taken"                     "$( rigReacted '1700000001.000200 eyes' )" 1
-rigAssert ":white_check_mark: on the question"            "$( rigReacted '1700000001.000102 white_check_mark' )" 1
-rigAssert "and on the opener, nothing else being open"    "$( rigReacted '1700000001.000101 white_check_mark' )" 1
+rigAssert ":white_check_mark: once on the question, its own thread root" "$( rigReacted '1700000001.000101 white_check_mark' )" 1
 
-echo "-- a session ends with one answered and one open --"
+echo "-- a thread from before questions were their own roots: one answered and one open --"
 rigStart ended
 rigRecord "$rigQ1" 1700000001.000102 Q1 rig-sess-b ""
 rigRecord "$rigQ2" 1700000001.000103 Q2 rig-sess-b ""

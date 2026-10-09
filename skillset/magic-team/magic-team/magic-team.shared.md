@@ -206,9 +206,9 @@ A question, link or blocking decision reaches him at once on his direct channel,
 A refusal, a failed mechanism, a missing operation or grant, an unverified source, an open question or a finding needing confirmation never ends the task, is never only logged, and never changes its scope.
 
 - Who answers: `magic-team.armed.md`'s "Escalation and chain of command".
-- An escalation is an `AskUserQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay. The coordinator answers it or forwards it to the human-owner. The kinds: `templates/escalation.document.format.md`.
+- An escalation is an `AskUserQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it or forwards it to the human-owner. The kinds: `templates/escalation.document.format.md`.
 - An escalation is synchronous. A typed ask (readback, decision, permission) waits inside its own call. A plain question waits with `Wait`, per `magic-team.armed.md`'s **wait-never-quit**.
-- Every refusal is escalated as a `permission` ask citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named.
+- Every refusal is escalated as a `permission` ask to `magic-coordinator.permission-escalation.routine` (its `to`), citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named. A write refused in a read-only place is not asked for: write to the session sandbox `output/`, or find another suitable location.
 - A problem or contradiction is escalated even when it does not block. Another non-blocking matter is filed with `post-inquiry` and the member carries on; answers are collected before closure steps.
 - The gated part stays open until a verdict. No answer is not a verdict. A deny is a verdict: report that part denied and open, never work around it.
 - A verdict returned by the tooling is acted on as returned.
