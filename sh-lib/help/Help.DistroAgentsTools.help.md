@@ -145,6 +145,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
+📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
@@ -2056,6 +2058,11 @@
 			grants -- and the grant set written here is the union of
 			every such workspace's own file.
 
+			A declared grant is `<scope>:<selector>:<verb>:<member>
+			[:<glob>]`: `allow-write` becomes an `Edit(...)` grant,
+			`allow-read` a `Read(...)` grant and never a write,
+			`allow-tool` a member's standing `<tool>[:<target>]`.
+
 			Upserts the fixed grants (`mcp__myx_common`,
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
 			`Edit(<path>/**)` per acting team member's skillset
@@ -2151,6 +2158,13 @@
 			as such. Real content already at a target is deleted
 			and replaced by the link.
 
+			A `--scope user-home` slot already linking to another
+			workspace's copy: a workspace holding the member in its
+			own `source/` relinks one that reaches an installed copy
+			(`<workspace>/.local/myx/...`); one that reaches another
+			source copy is kept, with one warning naming both copies.
+			An installed copy never takes the slot from a source one.
+
 			The link folders are generated output for the vendor
 			clients, never a source. What was linked is recorded as
 			our own data: `--scope workspace` in
@@ -2161,9 +2175,9 @@
 			relative path, member directory. Every run then rewrites
 			the workspace's member index, `.local/agents/members.index`
 			and its `members/` view: this workspace's own members
-			first, then the members other workspaces publish (a source
-			link preferred), each name once. `MDAT_SKILLSET_ROOT`
-			defaults to that view.
+			only, each name once; a link to a member of another
+			workspace is removed. `MDAT_SKILLSET_ROOT` defaults to
+			that view.
 
 		--install-vscode-integrations [--workspace <path>]
 			Installs/updates baseline VS Code + Claude Code MCP
@@ -2778,14 +2792,20 @@
 			asked. This is how a member with no Slack account of its
 			own, the coordinator included, answers. The verdict must
 			belong to the kind: yes, no or correct for a readback, the
-			answering word of one option for a decision, and deny,
-			allow-once or allow-session for a permission. [text]
-			carries a readback correction.
+			answering word of one option for a decision, deny,
+			allow-once, allow-session or allow-task for a permission,
+			and allow-set, deny or edit for a permission set. [text]
+			carries a readback correction or an edit's change.
 
 			The record closes carrying the verdict and who gave it. An
 			allow is written as a grant for the refused call named in
 			the refusal record, never for anything the ask's own words
-			said, and signed by <team-member>. The waiting question
+			said, and signed by <team-member>. An allow from an
+			approver who does not hold what it allows is not applied:
+			the result is `ESCALATION: <id> rerouted` and
+			`ADDRESS-TO:`, the escalation re-addressed to a holder
+			among the session's or task's participants, else forwarded
+			to the human-owner, and it stays open. The waiting question
 			ends on it and its session retries the exact call. A second
 			answer to the same escalation is not applied. The answer is
 			also said in the question's own thread. A spawned session
@@ -2807,6 +2827,38 @@
 			original request, and the waiting question ends on it.
 			Only the member the escalation is addressed to can forward
 			it, and only while it is open.
+
+		--member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
+			Passes a permission <team-member> holds on to <member>:
+			one it gives part of its own job to, or one who asks it.
+			Whether to pass is the member's own judgement. Tooling
+			refuses a pass wider than what <team-member> holds, one
+			that outlives its own grant (a task grant passes on only
+			for that task, or once), and one to a member that is no
+			participant of the session or task and was not spawned by
+			it for it. <target> is a path, a <path>/** pattern or a
+			URL prefix written <prefix>*. Prints `GRANT: <kind>
+			pass-<id>`; the grant is <member>'s own, signed by
+			<team-member>. The session is the caller's own unless
+			--session-id names it. A spawned session passes only as
+			its own member.
+
+		--magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
+			Asks for a task's or session's permission set at spawn or
+			brief time. Prints `PARTICIPANTS:`, then `HELD: <entry> by
+			<member> <layer>` for each entry a participant already
+			holds -- those pass on when the holder delegates, never
+			granted to the others -- and `EXTRA: <entry>` for the rest.
+			With extras, ONE permission-set escalation is posted to the
+			human-owner as the team bot, and `PERMISSION-SET: asked
+			<id>` and `WAIT-ID: ask:<id>` are printed; with none,
+			`PERMISSION-SET: held`. His allow-set grants every extra to
+			every participant for the scope, writes a task set as the
+			item's `allows:` too, and records the set on the item's
+			`## Decisions`; the grants end when the task closes or the
+			session ends. deny and edit grant nothing. --scope defaults
+			to task; the session is the caller's own unless named.
+			Only magic-coordinator, or the console, may call it.
 
 		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 			Reads the records AskUserQuestion leaves, of any kind. With

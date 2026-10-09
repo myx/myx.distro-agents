@@ -51,11 +51,100 @@ AgentsToolsEscalationRecorded(){ ## record file, request id
 	[ -z "$recordedValue" ] || printf 'GRANT: %s\n' "$recordedValue"
 }
 
+## The permission an allow on this record would approve, as "<tool>\t<natural target>"
+## lines: the refused call of a permission, every extra of a permission set.
+AgentsToolsEscalationAsked(){ ## record file
+	local askedKind askedSession askedRefusal askedRecord askedLine askedTool="" askedTarget=""
+	type AgentsToolsPermissionRecordDecode > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
+	askedKind="$( AgentsToolsEscalationField "$1" kind )"
+	case "$askedKind" in
+		permission)
+			askedSession="$( AgentsToolsEscalationField "$1" session-id )"
+			askedRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
+			case "$askedSession:$askedRefusal" in */*|*:|:*) return 0 ;; esac
+			askedRecord="$MMDAPP/.local/agents/sessions/$askedSession/$askedRefusal.md"
+			[ -f "$askedRecord" ] || return 0
+			while IFS= read -r askedLine ; do
+				case "$askedLine" in
+					'tool: '*) askedTool="${askedLine#tool: }" ;;
+					'target: '*) askedTarget="${askedLine#target: }" ;;
+					'# '*) break ;;
+				esac
+			done < "$askedRecord"
+			[ -n "$askedTool" ] || return 0
+			printf '%s\t%s\n' "$askedTool" "$( AgentsToolsPermissionRecordDecode "$askedTarget" )"
+		;;
+		permission-set)
+			[ -f "${1%.md}.set" ] || return 0
+			while IFS= read -r askedLine ; do
+				case "$askedLine" in
+					'entry: '*:*) askedLine="${askedLine#entry: }" ; printf '%s\t%s\n' "${askedLine%%:*}" "${askedLine#*:}" ;;
+					'entry: '*) printf '%s\t\n' "${askedLine#entry: }" ;;
+				esac
+			done < "${1%.md}.set"
+		;;
+	esac
+	return 0
+}
+
+## No approving what you do not hold: an allow from an approver who does not hold every
+## permission it approves is not applied, and the request goes UP the chain instead -- to
+## a holder among the session's or task's participants, else to the human-owner through
+## the forward. Prints the result lines; never a failure of the answer.
+AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is not held
+	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrTool rrTarget rrHolder="" rrTo rrOut
+	rrTool="${rrWhat%%$'\t'*}" ; rrTarget="${rrWhat#*$'\t'}"
+	rrTo="$( AgentsToolsEscalationField "$rrFile" address-to )"
+	rrHolder="$( DistroAgentsTools --intern-op-permission-holders "$rrTool" "$rrTarget" \
+		--session-id "$( AgentsToolsEscalationField "$rrFile" session-id )" --task "$( AgentsToolsEscalationField "$rrFile" item )" \
+		--exclude "$( AgentsToolsEscalationField "$rrFile" owner )" --exclude "$rrBy" --exclude "$rrTo" 2>/dev/null \
+		| LC_ALL=C sed -n 's/^HOLDER: \([^ ]*\) .*$/\1/p' | LC_ALL=C awk '$0 != "human-owner" { print ; exit ; }' )" || rrHolder=""
+	if [ -z "$rrHolder" ] ; then
+		rrHolder="human-owner"
+		## The existing forward, once, by whoever the request is addressed to now.
+		if [ "$rrTo" != "human-owner" ] && [ -z "$( AgentsToolsEscalationField "$rrFile" forward-ts )" ] ; then
+			rrOut="$( DistroAgentsTools --magic-escalation-forward "$rrTo" "$rrId" 2>&1 )" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: $rrId is re-addressed to the human-owner, but the forward could not be posted: $( LC_ALL=C grep -m1 '⛔' <<< "$rrOut" )" >&2
+		fi
+	fi
+	AgentsToolsEscalationUpsert "$rrFile" address-to "$rrHolder" rerouted-from "$rrBy" answerer-session "" \
+		reroute-reason "$rrBy does not hold $rrTool ${rrTarget:-(any target)}" || {
+		echo "$MDSC_CMD: ⛔ ERROR: $rrBy does not hold $rrTool ${rrTarget:-(any target)}, and $rrId could not be re-addressed; it stays open" >&2
+		return 1
+	}
+	## Said in the question's thread, so the new addressee and the people there see it.
+	[ -z "$( AgentsToolsEscalationField "$rrFile" channel )" ] || printf '%s\n' "Re-addressed to $rrHolder: $rrBy does not hold $rrTool ${rrTarget:-(any target)}, so its answer is not applied." \
+		| DistroAgentsTools --intern-op-comms-slack-send-message "$rrTo" \
+			"$( AgentsToolsEscalationField "$rrFile" channel ):$( AgentsToolsEscalationField "$rrFile" thread-ts )" --identity-bot --from-stdin > /dev/null 2>&1 || :
+	echo "⚠️ WARNING: $MDSC_CMD: $rrBy does not hold $rrTool ${rrTarget:-(any target)}, so its answer is not applied; $rrId is re-addressed to $rrHolder" >&2
+	printf 'ESCALATION: %s rerouted\n' "$rrId"
+	printf 'ADDRESS-TO: %s\n' "$rrHolder"
+	printf 'REROUTE-REASON: %s does not hold %s %s\n' "$rrBy" "$rrTool" "${rrTarget:-(any target)}"
+	return 0
+}
+
 ## Applies one verdict to one open record: closes it carrying the verdict and who gave
 ## it, and writes the grant an allow carries. Prints the result lines. One mkdir is the
 ## lock, so of two answers landing together only the first is applied.
 AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session
 	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyKind applySession applyRefusal applyGrant=""
+	## An allow is applied only from an approver who holds what it approves; the
+	## human-owner holds everything. Anyone else's goes up the chain, still open.
+	case "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" in
+		permission:allow-*|permission-set:allow-set)
+			local applyAsked applySession=""
+			applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
+			while IFS= read -r applyAsked ; do
+				[ -n "$applyAsked" ] || continue
+				case "$( DistroAgentsTools --intern-op-permission-holds "$applyBy" "${applyAsked%%$'\t'*}" "${applyAsked#*$'\t'}" \
+					${applySession:+--session-id "$applySession"} 2>/dev/null | head -1 )" in
+					'HOLDS '*) continue ;;
+				esac
+				AgentsToolsEscalationReroute "$applyFile" "$applyId" "$applyBy" "$applyAsked" || return 1
+				return 0
+			done <<< "$( AgentsToolsEscalationAsked "$applyFile" )"
+		;;
+	esac
 	if ! mkdir "${applyFile%.md}.answered" 2>/dev/null ; then
 		if [ "$( AgentsToolsEscalationField "$applyFile" status )" != "reply-received" ] ; then
 			echo "⚠️ WARNING: $MDSC_CMD: $applyId is being answered by another answer right now, so this one is not applied" >&2
@@ -77,15 +166,23 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	}
 	if [ "$applyKind" = "permission" ] ; then
 		case "$applyVerdict" in
-			allow-once|allow-session)
+			allow-once|allow-session|allow-task)
 				applySession="$( AgentsToolsEscalationField "$applyFile" session-id )"
 				applyRefusal="$( AgentsToolsEscalationField "$applyFile" refusal-id )"
+				## A task grant is for the ask's own item, and lives while it is open.
 				applyGrant="$( DistroAgentsTools --intern-op-permission-grant-open "$applyBy" --session-id "$applySession" \
-					--refusal-id "$applyRefusal" --kind "${applyVerdict#allow-}" 2>&1 )" || applyGrant=""
+					--refusal-id "$applyRefusal" --kind "${applyVerdict#allow-}" \
+					$( [ "$applyVerdict" != "allow-task" ] || printf -- '--task %s' "$( AgentsToolsEscalationField "$applyFile" item )" ) 2>&1 )" || applyGrant=""
 				applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
 				[ -n "$applyGrant" ] || applyGrant="GRANT: none -- the verdict was $applyVerdict but no grant could be written"
 			;;
 		esac
+	fi
+	## An approved permission set becomes the participants' grants and the item's record.
+	if [ "$applyKind" = "permission-set" ] && [ "$applyVerdict" = "allow-set" ] ; then
+		applyGrant="$( DistroAgentsTools --intern-op-permission-set-apply "$applyId" "$applyBy" 2>&1 )" || applyGrant=""
+		applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
+		[ -n "$applyGrant" ] || applyGrant="GRANT: none -- the verdict was allow-set but the set could not be applied"
 	fi
 	## Kept on the record, so a later read reports the same result the answer did.
 	set --
@@ -180,7 +277,7 @@ case "$1" in
 		readFile="$( AgentsToolsEscalationRecord "$readId" )" || { set +e ; return 1 ; }
 		readKind="$( AgentsToolsEscalationField "$readFile" kind )"
 		case "$readKind" in
-			readback|decision|permission) ;;
+			readback|decision|permission|permission-set) ;;
 			*)
 				echo "$MDSC_CMD: ⛔ ERROR: $readId is not an escalation (kind ${readKind:-question}), so it carries no verdict" >&2
 				set +e ; return 1
@@ -210,6 +307,7 @@ case "$1" in
 		fi
 		case "${readVerdict%%$'\t'*}" in
 			'correct -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#correct -- }" ; readVerdict="correct"$'\t'"${readVerdict#*$'\t'}" ;;
+			'edit -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#edit -- }" ; readVerdict="edit"$'\t'"${readVerdict#*$'\t'}" ;;
 		esac
 		AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" || { set +e ; return 1 ; }
 		return 0
@@ -267,7 +365,8 @@ case "$1" in
 		## One form on the record whichever way the answer came: a Slack reply is read lowercased.
 		answerVerdict="$( printf '%s' "$answerVerdict" | LC_ALL=C tr 'A-Z' 'a-z' )"
 		case "$answerKind:$answerVerdict" in
-			readback:yes|readback:no|readback:correct|permission:deny|permission:allow-once|permission:allow-session) answerFound=1 ;;
+			readback:yes|readback:no|readback:correct|permission:deny|permission:allow-once|permission:allow-session|permission:allow-task) answerFound=1 ;;
+			permission-set:allow-set|permission-set:deny|permission-set:edit) answerFound=1 ;;
 			decision:*)
 				while IFS= read -r answerOptionLine ; do
 					answerOptionLine="${answerOptionLine#- }"

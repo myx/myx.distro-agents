@@ -145,13 +145,17 @@ case "$1" in
 		## here because a worker's command line is built from it before the callee sees it.
 		## A name that fails is held until the team's own document is out, where it has
 		## always been reported, and no client is swept.
-		local clientMembers="" clientMember clientNameRefused=""
-		for clientMember in "$MDAT_SKILLSET_ROOT"/client-* ; do
-			if [ -d "$clientMember" ] ; then
-				AgentsToolsAssertBareName "${clientMember##*/}" "<team-member>" magic-sweep-input-scan || { clientNameRefused="true" ; clientMembers="" ; break ; }
-				clientMembers="$clientMembers ${clientMember##*/}"
+		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include):
+		## each client's own operation then runs in the workspace that holds it.
+		local clientMembers="" clientMember clientMemberDir clientNameRefused=""
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r clientMember clientMemberDir ; do
+			case "$clientMember" in client-*) ;; *) continue ;; esac
+			if [ -d "$clientMemberDir" ] ; then
+				AgentsToolsAssertBareName "$clientMember" "<team-member>" magic-sweep-input-scan || { clientNameRefused="true" ; clientMembers="" ; break ; }
+				clientMembers="$clientMembers $clientMember"
 			fi
-		done
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 
 		## Every client-* member is swept in this same pass, under its own credentials.
 		## The sweep runs inside a subshell, so each member's document needs a real path

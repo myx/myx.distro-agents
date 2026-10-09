@@ -254,8 +254,10 @@ AgentsToolsMemberListHas(){ ## list, member
 ## <session>[:<member>]: that session itself, the member it names, or the member of its
 ## spawn record; a member name: that member. rc 0 the reviewer, rc 1 not.
 AgentsToolsItemIsReviewer(){ ## item path, member
-	local irBy irSession="" irMember="" irFile irFound="" irExec
+	local irBy irSession="" irMember="" irFile irFound="" irExec irName irDir
 	irBy="$( AgentsToolsDecisionsField "$1" review-by )"
+	## A member or routine of any workspace (AgentsTools.TeamRegistry.include), not this one's own index alone.
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 	case "$irBy" in
 		''|magic-coordinator)
 			[ "$2" = magic-coordinator ] && return 0
@@ -266,11 +268,14 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 			return 1
 		;;
 		*.routine)
-			for irFile in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/*.routine.md ; do
-				case "${irFile##*/}" in
-					"$irBy.md"|*".$irBy.md") [ -z "$irFound" ] || return 1 ; irFound="$irFile" ;;
-				esac
-			done
+			while IFS=$'\t' read -r irName irDir ; do
+				[ -n "$irDir" ] || continue
+				for irFile in "$irDir"/*.routine.md ; do
+					case "${irFile##*/}" in
+						"$irBy.md"|*".$irBy.md") [ -z "$irFound" ] || return 1 ; irFound="$irFile" ;;
+					esac
+				done
+			done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 			[ -n "$irFound" ] && [ -f "$irFound" ] || return 1
 			irExec="$( AgentsToolsDecisionsField "$irFound" executors )"
 			case ",$( printf '%s' "$irExec" | LC_ALL=C tr -d ' \t' )," in
@@ -282,7 +287,7 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 		*:*) irSession="${irBy%%:*}" ; irMember="${irBy#*:}" ;;
 		magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) irMember="$irBy" ;;
 		*)
-			if [ -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$irBy/SKILL.md" ] ; then
+			if irDir="$( AgentsToolsTeamMemberDirectory "$irBy" )" && [ -f "$irDir/SKILL.md" ] ; then
 				irMember="$irBy"
 			else
 				irSession="$irBy"

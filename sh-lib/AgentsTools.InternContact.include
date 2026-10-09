@@ -196,20 +196,19 @@ case "$1" in
 		## The team's own configured addresses, compared regardless of case:
 		## the human-owner's own EMAIL_USER and his Slack account -- magic-team's
 		## SLACK_CHANNEL_HUMAN_OWNER, the user id every human-owner send already
-		## resolves -- and the own EMAIL_USER of every member the member index
-		## lists. No member scope holds a Slack account id of its own (that is
-		## resolved from its token), so a member is matched by its address only.
-		## Each read is --agents-config-option's, so a member is read in the
-		## workspace that holds it.
+		## resolves -- and the own EMAIL_USER of every member of every workspace,
+		## from the member directory (AgentsTools.TeamRegistry.include). No member
+		## scope holds a Slack account id of its own (that is resolved from its
+		## token), so a member is matched by its address only. Each read is
+		## --agents-config-option's, so a member is read in the workspace that holds it.
 		local assertOwn assertOwnName assertOwnRest
 		assertOwn="$( DistroAgentsTools --agents-config-option human-owner --select EMAIL_USER 2>/dev/null )"
 		assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )"
-		if [ -f "$MMDAPP/.local/agents/members.index" ] ; then
-			while IFS=$'\t' read -r assertOwnName assertOwnRest ; do
-				AgentsToolsAssertBareName "$assertOwnName" "<member-index-name>" intern-op-contact-assert-known 2>/dev/null || continue
-				assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option "$assertOwnName" --select EMAIL_USER 2>/dev/null )"
-			done < "$MMDAPP/.local/agents/members.index"
-		fi
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r assertOwnName assertOwnRest ; do
+			AgentsToolsAssertBareName "$assertOwnName" "<member-index-name>" intern-op-contact-assert-known 2>/dev/null || continue
+			assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option "$assertOwnName" --select EMAIL_USER 2>/dev/null )"
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 		if printf '%s\n' "$assertOwn" | LC_ALL=C awk -v want="$assertTarget" '
 			function trim(s) { sub(/^[ \t\r]+/, "", s) ; sub(/[ \t\r]+$/, "", s) ; return tolower(s) }
 			{ own = trim($0) ; if ( own != "" && own == trim(want) ) { found = 1 ; exit } }

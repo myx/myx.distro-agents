@@ -1,0 +1,550 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.PermissionHolds.include -- what a member HOLDS, computed by tooling only.
+##
+## A permission is <tool>:<target>. The tool is Read, Edit, Write or Execute with a path
+## or a <path>/** pattern; any other tool name with an optional target (WebFetch with a
+## URL prefix written <prefix>*, WebSearch, Agent); cred with a secret's name; spend with
+## a budget or target. A member holds one through the first of these layers that has it:
+##
+##   human-owner  holds everything. His accounts: the name itself, and the team's
+##                configured SLACK_CHANNEL_HUMAN_OWNER account.
+##   floor        (a) every member, defined HERE only: the team tools below, Read/Grep/Glob
+##                within its read roots, and every file tool within its own sandbox
+##                output, its own scratch and temp, and the team scratch.
+##   standing     (b) the member's own rows in the permissions registry, and every row
+##                declared for `*`: an Edit(//<p>/**)
+##                row is every file tool under <p>; a Read(//<p>/**) row (allow-read) is the
+##                read tools only under <p>; a `tool` scope row is <tool>[:<target>].
+##   routine      the `allows:` of the routine the session runs, for that session only
+##                (AgentsToolsPermissionRoutineHolds).
+##   set, planned, passed, granted -- (c), (d), (e): grants of a session or a task in the
+##                session store (AgentsToolsPermissionGrantScan), never `once` ones.
+##
+## cred and spend are held by the human-owner only, unless a session or task grant, or the
+## allows of a routine the human-owner maintains, names them: no floor or standing layer
+## ever does.
+##
+## Sourced, never run. Functions only.
+##
+
+## THE TEAM FLOOR'S TOOLS: the one place they are named.
+agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
+## The file tools a path permission speaks for, and the ones of them that only read.
+agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
+agentsPermissionReadTools=" Read Grep Glob "
+## The board states an item is still open in; a task grant lives only while its item does.
+agentsPermissionOpenStates="running review blocked pending backlog parked"
+
+## True for the human-owner, by name or by his configured Slack account.
+AgentsToolsPermissionIsHumanOwner(){ ## who
+	local ownerAccount
+	case "$1" in
+		human-owner) return 0 ;;
+		''|magic-*|keeper-*|partner-*|client-*) return 1 ;;
+	esac
+	ownerAccount="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )" || ownerAccount=""
+	[ -n "$ownerAccount" ] && [ "$ownerAccount" = "$1" ] && return 0
+	return 1
+}
+
+## A grants field back to its natural value (AgentsToolsPermissionEscape's inverse, for
+## the characters a pattern can carry).
+AgentsToolsPermissionUnescape(){ ## grants-field value
+	local unValue="$1"
+	unValue="${unValue//%3A/:}"
+	unValue="${unValue//%2C/,}"
+	unValue="${unValue//%25/%}"
+	printf '%s' "$unValue"
+}
+
+## A refusal record's target back to its natural value, as AgentsHarnessRefusedTargetDecode reads it.
+AgentsToolsPermissionRecordDecode(){ ## record-form value
+	local decValue="$1"
+	decValue="${decValue//%0A/$'\n'}"
+	decValue="${decValue//%0D/$'\r'}"
+	decValue="${decValue//%20/ }"
+	decValue="${decValue//%09/$'\t'}"
+	decValue="${decValue//%25/%}"
+	printf '%s' "$decValue"
+}
+
+## Whether a held target covers a wanted one: the same text; empty, * or ** for any;
+## <path>/** for that path and everything under it; a URL prefix written <prefix>* for
+## every URL starting with it. Nothing else is a pattern, so a command ending in * is
+## only ever itself. A wanted pattern is covered when it lies inside the held one, and a
+## wanted target with a .. segment is never covered by a pattern.
+AgentsToolsPermissionCovers(){ ## held target, wanted target
+	local coverHave="$1" coverWant="$2" coverPrefix
+	case "$coverHave" in
+		''|'*'|'**') return 0 ;;
+	esac
+	[ "$coverHave" != "$coverWant" ] || return 0
+	case "$coverWant" in
+		*/../*|*/..|../*|..) return 1 ;;
+	esac
+	case "$coverHave" in
+		*/'**')
+			coverPrefix="${coverHave%/\*\*}"
+			[ "$coverWant" != "$coverPrefix" ] || return 0
+			case "$coverWant" in
+				"$coverPrefix"/*) return 0 ;;
+			esac
+		;;
+		*://*'*')
+			coverPrefix="${coverHave%\*}"
+			case "$coverWant" in
+				"$coverPrefix"*) return 0 ;;
+			esac
+		;;
+	esac
+	return 1
+}
+
+## The floor's file roots for one member, one absolute path per line.
+##   write -- the team scratch, its own two temp scopes, and with a session, the output/
+##            of that session's own sandbox, where its spawn record is the member's.
+##   read  -- those, the same sandbox's input/, the workspace source, the readable
+##            member directories and the reference read roots.
+AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id (optional)
+	local floorWs="$1" floorMember="$2" floorPurpose="$3" floorSession="${4:-}" floorRecord floorDir
+	[ -n "$floorWs" ] && [ -n "$floorMember" ] || return 0
+	type AgentsToolsClientAccessReferenceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
+	AgentsToolsClientAccessReferenceRoots write "$floorWs" "$floorMember" 2>/dev/null || :
+	case "$floorSession" in
+		''|*/*|.|..) ;;
+		*)
+			for floorRecord in "$floorWs/.local/agents/spawned"/*/"$floorSession.md" ; do
+				[ -f "$floorRecord" ] || continue
+				[ "$( AgentsToolsPermissionField "$floorRecord" owner )" = "$floorMember" ] || continue
+				floorDir="${floorRecord%/*}"
+				printf '%s\n' "$floorDir/output"
+				[ "$floorPurpose" != "read" ] || printf '%s\n' "$floorDir/input"
+			done
+		;;
+	esac
+	[ "$floorPurpose" = "read" ] || return 0
+	printf '%s\n' "$floorWs/source"
+	AgentsToolsClientAccessRootsMembers readable 2>/dev/null || :
+	AgentsToolsClientAccessReferenceRoots read "$floorWs" 2>/dev/null || :
+	return 0
+}
+
+## The member's own rows of the permissions registry, and every row declared for `*`,
+## which names every member, as "<grant text>\t<scope>".
+AgentsToolsPermissionStandingRows(){ ## member
+	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry 2>/dev/null | LC_ALL=C awk -F: -v wantMember="$1" '
+		NF >= 4 && ( $1 == wantMember || $1 == "*" ) { print substr( $0, length($1) + length($2) + length($3) + 4 ) "\t" $3 ; }
+	' || :
+}
+
+## True while an item is on the board in an open state.
+AgentsToolsPermissionItemOpen(){ ## item name
+	local openName="${1##*/}" openState
+	openName="${openName%.md}"
+	[ -n "$openName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	for openState in $agentsPermissionOpenStates ; do
+		[ ! -f "$MDAT_DATA_ROOT/board/$openState/$openName.md" ] || return 0
+	done
+	return 1
+}
+
+## One front-matter field of a record, or empty.
+AgentsToolsPermissionField(){ ## file, field
+	local fieldLine fieldFront=""
+	[ -f "$1" ] || return 0
+	while IFS= read -r fieldLine ; do
+		case "$fieldFront:$fieldLine" in
+			':---') fieldFront=1 ;;
+			'1:---') return 0 ;;
+			"1:$2: "*) printf '%s' "${fieldLine#"$2: "}" ; return 0 ;;
+			'1:# '*) return 0 ;;
+		esac
+	done < "$1"
+	return 0
+}
+
+## The store a grant for a session's participants is written to: the coworking session it
+## joined, from its spawn record, else the session's own. Every participant reads it
+## (AgentsToolsPermissionRelatedStores), and a member it spawned reads it as its parent's.
+AgentsToolsPermissionShareStore(){ ## session id
+	local shareRecord shareSession=""
+	case "$1" in ''|*/*|.|..) return 0 ;; esac
+	for shareRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$shareRecord" ] || continue
+		shareSession="$( AgentsToolsPermissionField "$shareRecord" session-id )"
+		break
+	done
+	case "$shareSession" in ''|*/*|.|..) shareSession="$1" ;; esac
+	printf '%s' "$shareSession"
+}
+
+## The session stores a session's grants are read from, one id per line, each once: its
+## own, the coworking session's it joined, and the parent session's that spawned it (where
+## a member passing part of its job on keeps what it passed). Every grant in them is still
+## the reading member's own only.
+AgentsToolsPermissionRelatedStores(){ ## session id
+	local relRecord relCow="" relParent=""
+	case "$1" in ''|*/*|.|..) return 0 ;; esac
+	for relRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$relRecord" ] || continue
+		relCow="$( AgentsToolsPermissionField "$relRecord" session-id )"
+		relParent="$( AgentsToolsPermissionField "$relRecord" parent-session-id )"
+		break
+	done
+	printf '%s\n' "$1" "$relCow" "$relParent" | LC_ALL=C awk 'NF && $0 !~ /\// && $0 != "." && $0 != ".." && !seenStore[$0]++ { print ; }'
+}
+
+## Whether an Allow once opened at <time>, the grants line's own UTC stamp (YYYYMMDDTHHMMZ,
+## or YYYYMMDDTHHMMSSZ), is still live: one never used lapses MDAT_PERMISSION_ONCE_TTL
+## seconds after it was opened (whole seconds, default 300), for reads and writes alike,
+## and is then absent. A stamp that cannot be read is a lapsed one.
+AgentsToolsPermissionOnceLive(){ ## grant time
+	local liveTtl="${MDAT_PERMISSION_ONCE_TTL:-300}" liveStamp="$1" liveIso liveAt liveNow
+	case "$liveTtl" in ''|*[!0123456789]*) liveTtl=300 ;; esac
+	[ "$liveTtl" -gt 0 ] || liveTtl=300
+	case "${#liveStamp}" in
+		14) liveIso="${liveStamp:0:4}-${liveStamp:4:2}-${liveStamp:6:2}T${liveStamp:9:2}:${liveStamp:11:2}:00Z" ;;
+		16) liveIso="${liveStamp:0:4}-${liveStamp:4:2}-${liveStamp:6:2}T${liveStamp:9:2}:${liveStamp:11:2}:${liveStamp:13:2}Z" ;;
+		*) return 1 ;;
+	esac
+	[ "${liveStamp:8:1}" = T ] && [ "${liveStamp:$(( ${#liveStamp} - 1 ))}" = Z ] || return 1
+	case "${liveStamp:0:8}${liveStamp:9:$(( ${#liveStamp} - 10 ))}" in *[!0123456789]*) return 1 ;; esac
+	liveAt="$( printf '%s\n' "$liveIso" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2>/dev/null )" || return 1
+	liveNow="$( date -u +%s )" || return 1
+	case "$liveAt$liveNow" in ''|*[!0123456789]*) return 1 ;; esac
+	[ $(( liveNow - liveAt )) -le "$liveTtl" ]
+}
+
+## The first live grant of one session store for this member, tool and target, printed
+## as "<kind> <ref>". use: a `once` grant still unconsumed and inside its TTL counts too;
+## hold: it never does.
+## A grant answering a refusal matches its exact target; a passed or set grant matches by
+## AgentsToolsPermissionCovers. Every grant is the member's own (its record's owner),
+## signed by someone else, and a task grant lives while its item is open.
+AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, use|hold, store a once is used up in (default: the session dir)
+	local scanDir="$1" scanMember="$2" scanTool="$3" scanWant="$4" scanMode="$5" scanConsumed="${6:-$1}"
+	local scanEntry scanKind scanRest scanEntryTool scanEntryTarget scanBy scanTime scanRef scanWantEsc scanTask
+	[ -f "$scanDir/grants" ] || return 1
+	scanWantEsc="$( AgentsToolsPermissionEscape "$scanWant" )"
+	while IFS= read -r scanEntry ; do
+		scanKind="${scanEntry%%:*}" ; scanRest="${scanEntry#*:}"
+		scanEntryTool="${scanRest%%:*}" ; scanRest="${scanRest#*:}"
+		scanEntryTarget="${scanRest%%:*}" ; scanRest="${scanRest#*:}"
+		scanBy="${scanRest%%:*}" ; scanRest="${scanRest#*:}"
+		scanTime="${scanRest%%:*}"
+		scanRef="${scanRest#*:}"
+		[ "$scanEntryTool" = "$scanTool" ] || continue
+		[ -n "$scanBy" ] && [ "$scanBy" != "$scanMember" ] || continue
+		case "$scanRef" in
+			''|*/*|.|..) continue ;;
+		esac
+		[ -f "$scanDir/$scanRef.md" ] || continue
+		[ "$( AgentsToolsPermissionField "$scanDir/$scanRef.md" owner )" = "$scanMember" ] || continue
+		case "$scanRef" in
+			refusal-*) [ "$scanEntryTarget" = "$scanWantEsc" ] || continue ;;
+			*) AgentsToolsPermissionCovers "$( AgentsToolsPermissionUnescape "$scanEntryTarget" )" "$scanWant" || continue ;;
+		esac
+		case "$scanKind" in
+			session) ;;
+			once)
+				[ "$scanMode" = "use" ] || continue
+				[ ! -d "$scanConsumed/consumed/$scanRef" ] || continue
+				AgentsToolsPermissionOnceLive "$scanTime" || continue
+			;;
+			task)
+				scanTask="$( AgentsToolsPermissionField "$scanDir/$scanRef.md" task )"
+				[ -n "$scanTask" ] || { [ ! -f "$scanDir/$scanRef.task" ] || IFS= read -r scanTask < "$scanDir/$scanRef.task" || : ; }
+				AgentsToolsPermissionItemOpen "$scanTask" || continue
+			;;
+			*) continue ;;
+		esac
+		printf '%s %s\n' "$scanKind" "$scanRef"
+		return 0
+	done < "$scanDir/grants"
+	return 1
+}
+
+## The layer a scanned grant came from, by its reference.
+AgentsToolsPermissionGrantLayer(){ ## ref
+	case "$1" in
+		set-*) printf 'set' ;;
+		pass-*) printf 'passed' ;;
+		*) printf 'granted' ;;
+	esac
+}
+
+## The routine a session runs: the `routine:` its spawn record was written with, else the
+## one of the coworking session it joined. A routine file's basename, or empty.
+AgentsToolsPermissionSessionRoutine(){ ## session id
+	local srSession="$1" srRecord srCow="" srRoutine=""
+	case "$srSession" in ''|*/*|.|..) return 0 ;; esac
+	for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srSession.md" ; do
+		[ -f "$srRecord" ] || continue
+		srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
+		srCow="$( AgentsToolsPermissionField "$srRecord" session-id )"
+		break
+	done
+	if [ -z "$srRoutine" ] && [ -n "$srCow" ] && [ "$srCow" != "$srSession" ] ; then
+		case "$srCow" in
+			*/*|.|..) ;;
+			*)
+				for srRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$srCow.md" ; do
+					[ -f "$srRecord" ] || continue
+					srRoutine="$( AgentsToolsPermissionField "$srRecord" routine )"
+					break
+				done
+			;;
+		esac
+	fi
+	case "$srRoutine" in
+		*.routine.md) ;;
+		*) srRoutine="" ;;
+	esac
+	case "$srRoutine" in */*) srRoutine="" ;; esac
+	printf '%s' "$srRoutine"
+}
+
+## The routine layer: while a session runs a routine, that routine's frontmatter `allows:`
+## grants its participants, comma-separated <member|executors|participants>:<tool>[:<target>]
+## entries, a target escaped as a tracking document's is and a relative path taken from the
+## workspace. Only a participant of the session is granted; `executors` are the routine's
+## own executors among them (magic-team or * there: every participant). A routine changes
+## only with all its maintainers agreeing, so its allows count as approved by them: with
+## human-owner among them every entry stands; without, a cred or spend entry is ignored and
+## any other is honoured only when one maintainer holds it, else ignored, said on stderr.
+## Prints "routine <routine-name>" and returns 0, or returns 1.
+AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
+	local rhMember="$1" rhTool="$2" rhWant="$3" rhSession="$4" rhRoutine rhFile="" rhMember2 rhDir rhLine
+	local rhExecutors="" rhMaintainers="" rhAllows="" rhEntry rhWho rhRest rhEntryTool rhEntryTarget rhOne rhApproved rhParticipants=""
+	[ -n "$rhMember" ] && [ -n "$rhTool" ] && [ -n "$rhSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	rhRoutine="$( AgentsToolsPermissionSessionRoutine "$rhSession" )"
+	[ -n "$rhRoutine" ] || return 1
+	## The routine file by its exact name, in every member's folder.
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	while IFS=$'\t' read -r rhMember2 rhDir ; do
+		[ -n "$rhDir" ] && [ -f "$rhDir/$rhRoutine" ] || continue
+		rhFile="$rhDir/$rhRoutine"
+		break
+	done <<< "$( AgentsToolsTeamMemberDirectoryText 2>/dev/null )"
+	[ -n "$rhFile" ] || return 1
+	while IFS= read -r rhLine ; do
+		case "$rhLine" in
+			'executors: '*) rhExecutors="${rhLine#executors: }" ;;
+			'maintainers: '*) rhMaintainers="${rhLine#maintainers: }" ;;
+			'allows: '*) rhAllows="${rhLine#allows: }" ;;
+		esac
+	done <<< "$( LC_ALL=C awk -v headers="executors"$'\034'"maintainers"$'\034'"allows" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$rhFile" 2>/dev/null )"
+	[ -n "$rhAllows" ] || return 1
+	rhExecutors=" $( printf '%s' "$rhExecutors" | LC_ALL=C tr ',\t' '  ' ) "
+	rhMaintainers=" $( printf '%s' "$rhMaintainers" | LC_ALL=C tr ',\t' '  ' ) "
+	while [ -n "$rhAllows" ] ; do
+		rhEntry="${rhAllows%%,*}"
+		if [ "$rhEntry" != "$rhAllows" ] ; then rhAllows="${rhAllows#*,}" ; else rhAllows="" ; fi
+		rhEntry="${rhEntry#"${rhEntry%%[![:space:]]*}"}" ; rhEntry="${rhEntry%"${rhEntry##*[![:space:]]}"}"
+		case "$rhEntry" in *:*) ;; *) continue ;; esac
+		rhWho="${rhEntry%%:*}" ; rhRest="${rhEntry#*:}"
+		rhEntryTool="${rhRest%%:*}" ; rhEntryTarget=""
+		case "$rhRest" in *:*) rhEntryTarget="$( AgentsToolsPermissionUnescape "${rhRest#*:}" )" ;; esac
+		[ "$rhEntryTool" = "$rhTool" ] || continue
+		## A relative path is the workspace's.
+		case "$agentsPermissionFileTools" in
+			*" $rhEntryTool "*)
+				case "$rhEntryTarget" in
+					''|'*'|'**'|/*) ;;
+					*) rhEntryTarget="${MMDAPP%/}/$rhEntryTarget" ;;
+				esac
+			;;
+		esac
+		AgentsToolsPermissionCovers "$rhEntryTarget" "$rhWant" || continue
+		## Who: the member named, the routine's executors, or every participant -- in this session.
+		case "$rhWho" in
+			participants) ;;
+			executors)
+				case "$rhExecutors" in
+					*" $rhMember "*|*" magic-team "*|*" * "*) ;;
+					*) continue ;;
+				esac
+			;;
+			*) [ "$rhWho" = "$rhMember" ] || continue ;;
+		esac
+		[ -n "$rhParticipants" ] || rhParticipants="$( AgentsToolsPermissionParticipants "$rhSession" "" )"
+		printf '%s\n' "$rhParticipants" | LC_ALL=C grep -q -x -F -- "$rhMember" || continue
+		## Approved by its maintainers.
+		case "$rhMaintainers" in
+			*" human-owner "*) ;;
+			*)
+				case "$rhEntryTool" in
+					cred|spend)
+						echo "⚠️ WARNING: routine ${rhRoutine%.md}: allows entry $rhEntry is ignored: a $rhEntryTool entry needs human-owner among its maintainers" >&2
+						continue
+					;;
+				esac
+				rhApproved=""
+				for rhOne in $rhMaintainers ; do
+					AgentsToolsPermissionHolds "$rhOne" "$rhEntryTool" "$rhEntryTarget" > /dev/null || continue
+					rhApproved="$rhOne"
+					break
+				done
+				if [ -z "$rhApproved" ] ; then
+					echo "⚠️ WARNING: routine ${rhRoutine%.md}: allows entry $rhEntry is ignored: none of its maintainers holds it" >&2
+					continue
+				fi
+			;;
+		esac
+		printf 'routine %s' "${rhRoutine%.md}"
+		return 0
+	done
+	return 1
+}
+
+## Whether <member> holds <tool> <target>, and through which layer: prints the layer and
+## returns 0, or returns 1. With a session, its grants count too: the session's own store
+## and the store of the coworking session it joined.
+AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optional)
+	local holdMember="$1" holdTool="$2" holdTarget="$3" holdSession="${4:-}"
+	local holdRoot holdText holdScope holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound
+	[ -n "$holdMember" ] && [ -n "$holdTool" ] || return 1
+	if AgentsToolsPermissionIsHumanOwner "$holdMember" ; then
+		printf 'human-owner'
+		return 0
+	fi
+	case "$holdTool" in
+		cred|spend) ;;
+		*)
+			## (a) the floor's tools
+			case "$agentsPermissionFloorTools" in
+				*" $holdTool "*) printf 'floor' ; return 0 ;;
+			esac
+			## (b) standing rows
+			while IFS=$'\t' read -r holdText holdScope ; do
+				[ -n "$holdText" ] || continue
+				if [ "$holdScope" = "tool" ] ; then
+					holdRowTool="${holdText%%:*}" ; holdRowTarget=""
+					case "$holdText" in
+						*:*) holdRowTarget="${holdText#*:}" ;;
+					esac
+					[ "$holdRowTool" = "$holdTool" ] || continue
+					AgentsToolsPermissionCovers "$holdRowTarget" "$holdTarget" || continue
+					printf 'standing'
+					return 0
+				fi
+				## An Edit row speaks for every file tool, a Read row (allow-read) for the read tools only.
+				case "$holdText" in
+					'Edit(/'*')') holdRowTools="$agentsPermissionFileTools" ;;
+					'Read(/'*')') holdRowTools="$agentsPermissionReadTools" ;;
+					*) continue ;;
+				esac
+				case "$holdRowTools" in
+					*" $holdTool "*) ;;
+					*) continue ;;
+				esac
+				holdRowTarget="${holdText#*(}" ; holdRowTarget="${holdRowTarget%)}"
+				case "$holdRowTarget" in
+					//*) holdRowTarget="${holdRowTarget#/}" ;;
+				esac
+				AgentsToolsPermissionCovers "$holdRowTarget" "$holdTarget" || continue
+				printf 'standing'
+				return 0
+			done <<< "$( AgentsToolsPermissionStandingRows "$holdMember" )"
+			## (a) the floor's files
+			case "$agentsPermissionFileTools" in
+				*" $holdTool "*)
+					holdPurpose=write
+					case "$agentsPermissionReadTools" in
+						*" $holdTool "*) holdPurpose=read ;;
+					esac
+					while IFS= read -r holdRoot ; do
+						case "$holdRoot" in
+							/*) ;;
+							*) continue ;;
+						esac
+						AgentsToolsPermissionCovers "${holdRoot%/}/**" "$holdTarget" || continue
+						printf 'floor'
+						return 0
+					done <<< "$( AgentsToolsPermissionFloorRoots "${MMDAPP:-}" "$holdMember" "$holdPurpose" "$holdSession" )"
+				;;
+			esac
+		;;
+	esac
+	## The routine this session runs, for its run only.
+	! AgentsToolsPermissionRoutineHolds "$holdMember" "$holdTool" "$holdTarget" "$holdSession" || return 0
+	## (c), (d), (e): the session's grants, never a once.
+	[ -n "$holdSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	case "$holdSession" in */*|.|..) return 1 ;; esac
+	while IFS= read -r holdDir ; do
+		[ -n "$holdDir" ] || continue
+		holdFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$holdDir" "$holdMember" "$holdTool" "$holdTarget" hold )" || continue
+		AgentsToolsPermissionGrantLayer "${holdFound#* }"
+		printf ' %s' "$holdFound"
+		return 0
+	done <<< "$( AgentsToolsPermissionRelatedStores "$holdSession" )"
+	return 1
+}
+
+## The participants of a session and of a task, one member per line, each once: every
+## spawn record of the session (its own, the coworking session's, the ones it spawned,
+## the one that spawned it), the task item's owner and `participants:`, and the owner
+## of every dispatch item tracking it.
+AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (may be empty)
+	local partSession="$1" partTask="${2:-}" partCow="" partParent="" partRecord partPath partItem
+	{
+		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
+			case "$partSession" in */*|.|..) partSession="" ;; esac
+		fi
+		if [ -n "$partSession" ] && [ -n "${MMDAPP:-}" ] ; then
+			for partRecord in "$MMDAPP/.local/agents/spawned"/*/"$partSession.md" ; do
+				[ -f "$partRecord" ] || continue
+				partCow="$( AgentsToolsPermissionField "$partRecord" session-id )"
+				partParent="$( AgentsToolsPermissionField "$partRecord" parent-session-id )"
+				break
+			done
+			LC_ALL=C awk -v ownSession="$partSession" -v cowSession="${partCow:-$partSession}" -v parentSession="$partParent" '
+				FNR == 1 { front = 0 ; recSession = "" ; recSpawn = "" ; recParent = "" ; recOwner = "" ; }
+				$0 == "---" {
+					front++ ;
+					if ( front == 2 && recOwner != "" ) {
+						if ( recSession == cowSession || recSession == ownSession || recSpawn == ownSession || recParent == ownSession || ( parentSession != "" && recSpawn == parentSession ) ) { print recOwner ; }
+					}
+					next ;
+				}
+				front == 1 && index( $0, "session-id: " ) == 1 { recSession = substr( $0, 13 ) ; }
+				front == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
+				front == 1 && index( $0, "parent-session-id: " ) == 1 { recParent = substr( $0, 20 ) ; }
+				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
+			' "$MMDAPP/.local/agents/spawned"/*/*.md 2>/dev/null || :
+		fi
+		if [ -n "$partTask" ] && [ -n "${MDAT_DATA_ROOT:-}" ] ; then
+			partItem="${partTask##*/}" ; partItem="${partItem%.md}"
+			for partPath in "$MDAT_DATA_ROOT"/board/*/"$partItem.md" ; do
+				[ -f "$partPath" ] || continue
+				AgentsToolsPermissionField "$partPath" owner ; printf '\n'
+				AgentsToolsPermissionField "$partPath" participants | LC_ALL=C tr ', ' '\n\n' ; printf '\n'
+				break
+			done
+			for partPath in "$MDAT_DATA_ROOT"/board/*/dispatch-*.md ; do
+				[ -f "$partPath" ] || continue
+				case "$( AgentsToolsPermissionField "$partPath" tracks )" in
+					"$partItem"|"$partItem.md") AgentsToolsPermissionField "$partPath" owner ; printf '\n' ;;
+				esac
+			done
+		fi
+	} | LC_ALL=C awk 'NF && !seenMember[$1]++ { print $1 ; }'
+}
+
+## Who holds <tool> <target> among the participants, as "<member> <layer>" lines, the
+## human-owner always last: the chain a request it does not hold is routed up.
+AgentsToolsPermissionHolders(){ ## tool, natural target, session id, task item, excluded members (space-separated)
+	local hdTool="$1" hdTarget="$2" hdSession="$3" hdTask="$4" hdExclude=" ${5:-} " hdMember hdLayer
+	while IFS= read -r hdMember ; do
+		[ -n "$hdMember" ] && [ "$hdMember" != "human-owner" ] || continue
+		case "$hdExclude" in *" $hdMember "*) continue ;; esac
+		hdLayer="$( AgentsToolsPermissionHolds "$hdMember" "$hdTool" "$hdTarget" "$hdSession" )" || continue
+		printf '%s %s\n' "$hdMember" "${hdLayer%% *}"
+	done <<< "$( AgentsToolsPermissionParticipants "$hdSession" "$hdTask" )"
+	printf 'human-owner human-owner\n'
+}

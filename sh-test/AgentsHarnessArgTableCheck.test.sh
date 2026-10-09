@@ -83,10 +83,12 @@ rigCorpus+=( '{"a":1} trailing' )
 rigCorpus+=( '{"a" 1}' )
 rigCorpus+=( '[1,2]' )
 rigCorpus+=( '{"unterminated":"abc}' )
+## The optional description every tool declares, beside a tool's own arguments.
+rigCorpus+=( '{"pattern":"needle","path":"/x","-n":true,"description":"Find the needle; \"why\" it matters\n"}' )
 
 ## Paths asked of every document: each it holds, plus ones it does not.
-rigProbePaths=( c bt "k\\"$'\n'"ey" pattern path -n -A -C -o content x bs q nl pct u lone slash ctl options options.0.label options.0.description options.__count options.1.label meta meta.k meta.deep.z.__count meta.deep.z.2.__count n t f z e arr arr.__count a a.b b.c '' '-' -x-y 9lives command cwd trail raw cr padded missing k$'\t'ey new$'\n'line )
-rigVarPaths=( c bt pattern path content x bs q nl pct u lone slash ctl options meta n t f z e arr a b command cwd trail raw cr padded missing 9lives )
+rigProbePaths=( c bt "k\\"$'\n'"ey" pattern path -n -A -C -o content x bs q nl pct u lone slash ctl options options.0.label options.0.description options.__count options.1.label meta meta.k meta.deep.z.__count meta.deep.z.2.__count n t f z e arr arr.__count a a.b b.c '' '-' -x-y 9lives command cwd trail raw cr padded missing k$'\t'ey new$'\n'line description )
+rigVarPaths=( c bt pattern path content x bs q nl pct u lone slash ctl options meta n t f z e arr a b command cwd trail raw cr padded missing 9lives description )
 rigDashPaths=( n A C o )
 
 rigDocIndex=0
@@ -126,6 +128,14 @@ AgentsHarnessArgParse '{"pattern":"three"}'
 harnessArgPaths+=( sentinel ) harnessArgEncs+=( kept )
 AgentsHarnessArgParse '{"pattern":"three"}'
 rigAssert "the same string is not parsed twice" "$( AgentsHarnessArgFind sentinel && printf '%s' "$harnessArgFound" )" kept
+
+## The optional description every tool declares is one more key: held like any other, and
+## every argument the tool acts on reads exactly as it does without it.
+AgentsHarnessArgParse '{"pattern":"needle","path":"/x","-n":true,"head_limit":5}'
+rigNoIntent="${harnessArgV_pattern-}|${harnessArgV_path-}|${harnessArgD_n-}|${harnessArgV_head_limit-}|${harnessArgV_description-unset}"
+AgentsHarnessArgParse '{"description":"Find the needle","pattern":"needle","path":"/x","-n":true,"head_limit":5}'
+rigAssert "a description leaves every other argument as it was" "${harnessArgV_pattern-}|${harnessArgV_path-}|${harnessArgD_n-}|${harnessArgV_head_limit-}" "${rigNoIntent%|*}"
+rigAssert "and is held as harnessArgV_description, absent without one" "${harnessArgV_description-unset}:${rigNoIntent##*|}" "Find the needle:unset"
 
 ## The per-line mode, as the MCP client's AgentsHarnessMcpReply reads a server's stdout:
 ## the last whole line whose `id` is the awaited one, exactly as the one-awk-per-line loop

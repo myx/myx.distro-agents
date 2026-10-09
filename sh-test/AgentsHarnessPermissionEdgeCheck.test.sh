@@ -39,6 +39,9 @@ rigAssert(){ ## what is asserted, got, want
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/IN" "$rigWs/OUT" "$rigWs/ELSEWHERE"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## The granting coordinator holds OUT/ by a standing row: no approving what you don't hold.
+mkdir -p "$rigWs/.local/agents"
+printf 'magic-coordinator:ws:workspace:Edit(/%s/OUT/**)\n' "$rigWs" > "$rigWs/.local/agents/permissions.registry"
 RIG_CURL_LOG="$rigTmp/curl.log"
 export RIG_CURL_LOG
 : > "$RIG_CURL_LOG"
@@ -81,6 +84,12 @@ rm -f "$rigTarget"
 ln -s "$rigWs/ELSEWHERE/new" "$rigTarget"
 rigWrite "$rigTarget" > /dev/null
 rigAssert "nothing is created where the dangling link points" "$( [ -e "$rigWs/ELSEWHERE/new" ] && printf created || printf absent )" absent
+
+echo "-- the coordinator grants only what it holds --"
+rigTarget="$rigWs/ELSEWHERE/held-not"
+rigWrite "$rigTarget" > /dev/null
+rigAssert "a grant outside what it holds is refused"   "$( rigGrant "$( rigRefusalId )" session )" ""
+rigAssert "and the retry is still refused"             "$( rigWrite "$rigTarget" | LC_ALL=C sed -n 's/^\(ERROR: path not in the allowed write-root set\).*/\1/p' )" "ERROR: path not in the allowed write-root set"
 
 rigAssert "no request left this box"                   "$( LC_ALL=C awk '/^url:/ { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 0
 

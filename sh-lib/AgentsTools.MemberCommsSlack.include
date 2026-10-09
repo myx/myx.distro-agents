@@ -38,6 +38,8 @@ AgentsToolsCommsSlackFileInfoEmitField(){
 }
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+## A target, a mention or an addressee names a member of any workspace (AgentsToolsTeamMemberDirectory).
+type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 
 ## One field, counted from 1, of a tab-separated presentation line. Empty
 ## fields count, which a plain `read` would collapse.
@@ -1678,7 +1680,7 @@ case "$1" in
 		case "$targetMember" in
 			event-track|event-alert|magic-team|human-owner|''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) ;;
 			*)
-				if [ -d "$MDAT_SKILLSET_ROOT/$targetMember" ] ; then
+				if AgentsToolsTeamMemberDirectory "$targetMember" > /dev/null ; then
 					targetMemberId="$( AgentsToolsCommsSlackMentionUserId "$targetMember" )"
 					if [ -z "$targetMemberId" ] ; then
 						## A member holding a token whose account could not be read is a fault, never a member without a DM.
@@ -1992,7 +1994,7 @@ blocks|verbatim|caller|stdin file"
 				}
 			}
 		' ) ; do
-			[ -d "$MDAT_SKILLSET_ROOT/$mentionName" ] || continue
+			AgentsToolsTeamMemberDirectory "$mentionName" > /dev/null || continue
 			## A client has its only Slack account in another workspace, so its id renders wrongly here: it is mapped only as the sender itself in an external send, where it is the account posting.
 			case "$mentionName" in
 				client-*) { [ "$presentExternal" = "true" ] && [ "$mentionName" = "$memberName" ] ; } || continue ;;
@@ -2151,7 +2153,7 @@ blocks|verbatim|caller|stdin file"
 					## The name reaches the payload as a JSON string, so it is
 					## held to the same bare-name shape as the sender's own.
 					AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message || { set +e ; return 1 ; }
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$addrWho" ] ; then
+					if ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null ; then
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho" >&2
 						set +e ; return 1
 					fi

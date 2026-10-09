@@ -80,6 +80,21 @@ rigLine="$( printf '%s' '{"command":"ls"}' | STL_TS=T0 STL_TOOL=execute STL_OUTC
 rigAssert "a result's first line and the comment are redacted too" "$rigLine" 'T0 TOOL execute cmd=ls -> error "ERROR: token [redacted] refused" | "set RIG_API_KEY=[redacted]"'
 rigLine="$( printf 'to\tC1:2.3\nwho\tRIG_SECRET=rig-secret-value\n' | STL_TS=T0 STL_KIND=NOTE LC_ALL=C awk -v stlStandalone=event -f "$rigFormat" )"
 rigAssert "and an event line's values" "$rigLine" 'T0 NOTE to=C1:2.3 who="RIG_SECRET=[redacted]"'
+## Every tool on the floor, and the server's own execute, takes the optional description: on
+## its line it is the comment, ahead of the model's text before the call. Names from the mirror.
+rigFloorNames="$( bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -o '{"name":"[A-Za-z]*"' | sed 's/.*"name":"//; s/"$//' ) execute"
+rigIntentTotal=0 ; rigIntentLed=0
+for rigName in $rigFloorNames ; do
+	rigIntentTotal=$(( rigIntentTotal + 1 ))
+	for rigServed in "$rigName" "mcp__myx_distro__$rigName" ; do
+		rigLine="$( printf '%s' '{"description":"Intent for '"$rigName"'"}' | STL_TS=T0 STL_TOOL="$rigServed" STL_OUTCOME=ok STL_COMMENT='model text' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
+		case "$rigLine" in *' | "Intent for '"$rigName"'"') rigIntentLed=$(( rigIntentLed + 1 )) ;; esac
+	done
+done
+rigAssert "every tool's description is its line's comment, ahead of the model's text, bare or served ($rigIntentTotal tools)" "$rigIntentLed" "$(( rigIntentTotal * 2 ))"
+rigAssert "the floor was read, so the count above is not vacuous" "$( [ "$rigIntentTotal" -gt 20 ] && echo yes )" yes
+rigLine="$( printf '%s' '{"pattern":"x","description":"export GH_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123 first"}' | STL_TS=T0 STL_TOOL=Grep STL_OUTCOME=ok LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
+rigAssert "a description is redacted like any comment" "$rigLine" 'T0 TOOL Grep pattern=x -> ok | "export GH_TOKEN=[redacted] first"'
 
 echo "-- a transcript's creation, pointers and roll-over --"
 rigSid="aaaa1111-0000-4000-8000-000000000001"
@@ -120,6 +135,7 @@ rigAssert "an error keeps its first line on the line" "$( rigHas "$rigT" 'TOOL B
 rigAssert "and the error in full below it" "$( rigHas "$rigT" '> the detail' )" 1
 rigAssert "a refusal is marked refused" "$( rigHas "$rigT" 'TOOL Edit path=/x -> refused "ERROR: refused by a PreToolUse hook"' )" 1
 rigAssert "a message out keeps its full text" "$( LC_ALL=C grep -A2 'MSG-OUT to=C1:2.3' "$rigT" | tail -2 | tr '\n' '|' )" '> hello|> world|'
+rigAssert "the send's own line keeps its message's first line, so a failed send still says what it was" "$( rigHas "$rigT" 'TOOL SendMessage to=C1:2.3 message=hello -> ok' )" 1
 rigAssert "a handback keeps its report" "$( rigHas "$rigT" '> outcome: done' )" 1
 rigAssert "a Wait result keeps its text" "$( LC_ALL=C grep -A2 ' WAIT-RESULT$' "$rigT" | tail -1 )" '> from human: go on'
 rigAssert "DISMISSED is its own event" "$( rigHas "$rigT" ' DISMISSED' )" 1
@@ -205,6 +221,20 @@ rigAssert "a native spawn's own stream writes its tool lines: the served call ad
 rigAssert "while the daemon log still gets it, with its session" "$( LC_ALL=C grep -c '^aaaa1111 [^ ]* TOOL Read ' "$rigTmp/err2" )" 1
 rm -f "$rigWs/.local/agents/sessions/$rigSid/transcript.stream"
 
+echo "-- the call's own description is its comment: the loop, execute, a served tool, the daemon log --"
+agentsTranscriptRoundText="RIG model text before"
+AgentsTranscriptToolStart Grep ; AgentsTranscriptToolDone Grep '{"pattern":"rigneedle","description":"Find the rig needle"}' 'a' loop
+agentsTranscriptRoundText=""
+rigAssert "a loop call's description wins over the model's text" "$( LC_ALL=C grep ' TOOL Grep pattern=rigneedle ' "$rigT" | LC_ALL=C grep -c ' | "Find the rig needle"$' )" 1
+rigServe "$rigTmp/wire3" "$rigTmp/err3" \
+	'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"echo rig-intent","description":"Say the rig intent"}}}' \
+	'{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"Glob","arguments":{"pattern":"rig-intent-*.txt","path":"'"$rigWs"'","description":"Look for the rig intent files"}}}'
+LC_ALL=C grep -q '"id":3,' "$rigTmp/wire3" && LC_ALL=C grep -q '"id":2,' "$rigTmp/wire3" || { sed 's/^/    /' "$rigTmp/err3" >&2 ; rigRefuse "the rig server did not answer every description call" ; }
+rigAssert "execute with a description runs as without: its output comes back" "$( LC_ALL=C grep '"id":2,' "$rigTmp/wire3" | LC_ALL=C grep -c -F '"text":"rig-intent"}],"isError":false' )" 1
+rigAssert "execute's line carries its description" "$( LC_ALL=C grep ' TOOL execute cmd=' "$rigT" | LC_ALL=C grep -c 'cmd="echo rig-intent" -> ok .* | "Say the rig intent"$' )" 1
+rigAssert "a served tool's line carries its description" "$( LC_ALL=C grep -F ' TOOL Glob pattern="rig-intent-*.txt" ' "$rigT" | LC_ALL=C grep -c ' | "Look for the rig intent files"$' )" 1
+rigAssert "the daemon log lines carry them too" "$( LC_ALL=C grep -c -e '^aaaa1111 .* | "Say the rig intent"$' -e '^aaaa1111 .* | "Look for the rig intent files"$' "$rigTmp/err3" )" 2
+
 echo "-- the harness model loop: rounds, tokens, text, tools, restart, final --"
 cp "$rigTest/check-fixtures/harness-restart-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
 chmod +x "$rigTmp/bin/curl"
@@ -251,6 +281,8 @@ rigStreamT="$rigStore/audit/2026-10/session-stream.log"
 	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_1","type":"tool_result","content":[{"type":"text","text":"a\nb"}]}]}}'
 	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_2","type":"tool_result","content":"PreToolUse:Bash hook error: blocked","is_error":true}]}}'
 	printf '%s\n' '{"type":"assistant","message":{"id":"msg_2","type":"message","role":"assistant","content":[{"type":"text","text":"Done."}],"usage":{"input_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":1200,"output_tokens":7}}}'
+	printf '%s\n' '{"type":"assistant","message":{"id":"msg_3","type":"message","role":"assistant","content":[{"type":"tool_use","id":"tu_3","name":"Read","input":{"file_path":"/q"}}],"usage":{"input_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}'
+	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_3","type":"tool_result","content":"q"}]}}'
 	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"result":"All done.","session_id":"cli-1","total_cost_usd":0.0123,"usage":{"input_tokens":13,"cache_creation_input_tokens":100,"cache_read_input_tokens":2200,"output_tokens":47}}'
 } > "$rigTmp/stream.jsonl"
 rigStreamAwk(){
@@ -261,6 +293,8 @@ rigAssert "the progress formatter still prints the result" "$rigOut" "All done."
 rigAssert "the model" "$( rigHas "$rigStreamT" 'MODEL model=claude-opus-5-5 service=claude-native' )" 1
 rigAssert "a native tool line with its arguments, size and the text before it" "$( rigHas "$rigStreamT" 'TOOL mcp__myx_distro__Grep pattern=x path=/p -> ok 3B/2L <1s | "Let me look."' )" 1
 rigAssert "a hook refusal is refused, kept in full" "$( rigHas "$rigStreamT" 'TOOL Bash cmd=ls -> refused "PreToolUse:Bash hook error: blocked"' )$( rigHas "$rigStreamT" '> PreToolUse:Bash hook error: blocked' )" 11
+rigAssert "a call's own description is its comment" "$( LC_ALL=C grep ' TOOL Bash cmd=ls ' "$rigStreamT" | LC_ALL=C grep -c ' | "List"$' )" 1
+rigAssert "a later turn's call with no text before it carries no earlier turn's text" "$( LC_ALL=C grep ' TOOL Read path=/q ' "$rigStreamT" | LC_ALL=C grep -c ' | "' )" 0
 rigAssert "each round's tokens" "$( rigHas "$rigStreamT" 'ROUND n=1 in=10 cache-read=1000 cache-write=100 out=40' )$( rigHas "$rigStreamT" 'ROUND n=2 in=3 cache-read=1200 cache-write=0 out=7' )" 11
 rigAssert "thinking is never kept" "$( LC_ALL=C grep -c SECRET-THOUGHT "$rigStreamT" )" 0
 rigAssert "the result with its usage" "$( rigHas "$rigStreamT" 'RESULT outcome=ok turns=2 in=13 cache-read=2200 cache-write=100 out=47' )" 1
@@ -269,6 +303,49 @@ rigAssert "the served path is told this session's stream writes its tool lines" 
 rigAssert "with no session the progress output is byte-identical to the formatter alone" \
 	"$( MDAT_SPAWN_SESSION_ID= rigStreamAwk 2>&1 | cksum )" "$( LC_ALL=C awk -f "$rigHere/AgentsProgressLineSafe.awk" -f "$rigHere/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream.jsonl" 2>&1 | cksum )"
 rigAssert "a native round keeps its visible text after its tokens" "$( LC_ALL=C grep -A1 'ROUND n=1 ' "$rigStreamT" | tail -1 )" '> Let me look.'
+rigAssert "the console reads like the post: a served tool's argument shown, a call's own description first" \
+	"$( MDAT_SPAWN_SESSION_ID= rigStreamAwk 2>&1 >/dev/null | LC_ALL=C grep -c -x -F -e '  -> tool: mcp__myx_distro__Grep(x)' -e '  -> tool: List — Bash(ls)' )" 2
+
+echo "-- a call's own description leads, ahead of the model's text: a native spawn's served call, the harness model loop --"
+rigIntentSid="eeee5555-0000-4000-8000-000000000005"
+AgentsTranscriptStart "$rigIntentSid" "$rigStore" "audit/2026-10/session-intent.log" magic-tester
+rigIntentT="$rigStore/audit/2026-10/session-intent.log"
+{
+	printf '%s\n' '{"type":"system","subtype":"init","cwd":"/x","session_id":"cli-5","tools":["Read"],"model":"claude-opus-5-5"}'
+	printf '%s\n' '{"type":"assistant","message":{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"Model text first."}],"usage":{"input_tokens":1,"output_tokens":1}}}'
+	printf '%s\n' '{"type":"assistant","message":{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"tool_use","id":"tu_5","name":"mcp__myx_distro__Glob","input":{"pattern":"*.md","description":"Find the notes"}}],"usage":{"input_tokens":1,"output_tokens":2}}}'
+	printf '%s\n' '{"type":"user","message":{"role":"user","content":[{"tool_use_id":"tu_5","type":"tool_result","content":"a.md"}]}}'
+	printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"result":"ok","session_id":"cli-5","total_cost_usd":0,"usage":{"input_tokens":1,"output_tokens":2}}'
+} > "$rigTmp/stream-intent.jsonl"
+( MDAT_SPAWN_SESSION_ID="$rigIntentSid" LC_ALL=C awk -f "$rigHere/AgentsProgressLineSafe.awk" -f "$rigFormat" -f "$rigHere/AgentsClaudeStreamJsonTranscript.awk" -f "$rigHere/AgentsClaudeStreamJsonFormat.awk" < "$rigTmp/stream-intent.jsonl" > /dev/null 2>&1 ) || :
+rigAssert "a native spawn's served call: its description, not the text before it" "$( rigHas "$rigIntentT" 'TOOL mcp__myx_distro__Glob pattern="*.md" -> ok' )$( LC_ALL=C grep ' TOOL mcp__myx_distro__Glob ' "$rigIntentT" | LC_ALL=C grep -c ' | "Find the notes"$' )" 11
+rigLoopSid2="ffff6666-0000-4000-8000-000000000006"
+rigLoop2="$rigTmp/loop2"
+mkdir -p "$rigLoop2"
+printf '0' > "$rigLoop2/round"
+printf 'RIG-READ\n' > "$rigLoop2/read.txt"
+printf 'data: {"choices":[{"index":0,"delta":{"content":"Model text before the calls."}}]}\n' > "$rigLoop2/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"Read","arguments":"{\\"path\\":\\"%s\\"}"}}]}}]}\n' "$rigLoop2/read.txt" >> "$rigLoop2/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"c2","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"read.txt\\",\\"path\\":\\"%s\\",\\"description\\":\\"Look for the rig file\\"}"}}]}}]}\n' "$rigLoop2" >> "$rigLoop2/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":7,"total_tokens":17}}\ndata: [DONE]\n' >> "$rigLoop2/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{"content":"RIG-FINAL-ANSWER"},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":3,"total_tokens":23}}\ndata: [DONE]\n' > "$rigLoop2/res.2"
+AgentsTranscriptStart "$rigLoopSid2" "$rigStore" "audit/2026-10/session-loop-intent.log" magic-tester
+rigLoopT2="$rigStore/audit/2026-10/session-loop-intent.log"
+(
+	unset MDAT_SPAWN_SESSION_ID
+	PATH="$rigTmp/bin:$PATH" RIG_SCENARIO="$rigLoop2" MDAT_HARNESS_CONTEXT_TOKENS=0 \
+	HARNESS_PROVIDER_NAME="transcript rig" HARNESS_SELF_NAME=AgentsSessionTranscriptCheck.test.sh \
+	HARNESS_ENDPOINT="https://transcript-check.invalid/v1/chat/completions" HARNESS_HOST=transcript-check.invalid \
+	HARNESS_WIRE=OpenAiChat HARNESS_CREDENTIAL_NAMES="none" HARNESS_MODEL_LIGHT=rig-light HARNESS_MODEL_MAIN=rig-main \
+	HARNESS_TOKEN_LIGHT=rig-not-a-credential HARNESS_TOKEN_MAIN=rig-not-a-credential \
+	"$rigHarness" --session-id "$rigLoopSid2" --access-root "$rigLoop2" RIG-TASK > "$rigLoop2/out" 2> "$rigLoop2/err"
+) || :
+[ "$( cat "$rigLoop2/round" )" = 2 ] || { sed 's/^/    /' "$rigLoop2/err" >&2 ; rigRefuse "the harness did not run its two description rounds" ; }
+rigAssert "the loop: a call without one carries the model's text" "$( LC_ALL=C grep -F " TOOL Read path=$rigLoop2/read.txt -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Model text before the calls."$' )" 1
+rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL=C grep -F " TOOL Glob pattern=read.txt path=$rigLoop2 -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Look for the rig file"$' )" 1
+rigAssert "the loop: the call with one ran as without, its result back to the model" \
+	"$( LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' "$rigLoop2/req.2" )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
+rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 26
 
 echo "-- a native spawn: model text redacted, a provider or CLI error kept before the first tool --"
 rigErrSid="dddd4444-0000-4000-8000-000000000004"

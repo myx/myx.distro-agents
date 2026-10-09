@@ -9,6 +9,8 @@
 ## resolution for a spawn brief".
 ##
 
+type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+
 ## --routine-default's own resolution, for the coworking session kind: the one routine
 ## file, among every *.routine.md under the skillset root's member folders, whose own
 ## frontmatter carries the key default-for-session-kind with the value "coworking" (the
@@ -19,16 +21,20 @@
 ## more than one match is refused, naming the key, the value, and how many routine files
 ## carry it.
 AgentsToolsSpawnRoutineDefaultName(){
-	local routineDefaultKind="coworking" routineRoot routineFile routineDefaultValue
+	local routineDefaultKind="coworking" routineRoot routineFile routineDefaultValue routineMember routineDir
 	local routineDefaultMatches=()
 	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
-	for routineFile in "$routineRoot"/*/*.routine.md ; do
-		[ -f "$routineFile" ] || continue
-		routineDefaultValue="$( LC_ALL=C awk -v headers="default-for-session-kind" \
-			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$routineFile" )"
-		routineDefaultValue="${routineDefaultValue#default-for-session-kind: }"
-		[ "$routineDefaultValue" = "$routineDefaultKind" ] && routineDefaultMatches+=( "$routineFile" )
-	done
+	## Every member's folder, a member of another workspace included (AgentsToolsTeamMemberDirectoryText).
+	while IFS=$'\t' read -r routineMember routineDir ; do
+		[ -n "$routineDir" ] || continue
+		for routineFile in "$routineDir"/*.routine.md ; do
+			[ -f "$routineFile" ] || continue
+			routineDefaultValue="$( LC_ALL=C awk -v headers="default-for-session-kind" \
+				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$routineFile" )"
+			routineDefaultValue="${routineDefaultValue#default-for-session-kind: }"
+			[ "$routineDefaultValue" = "$routineDefaultKind" ] && routineDefaultMatches+=( "$routineFile" )
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	if [ "${#routineDefaultMatches[@]}" -eq 1 ] ; then
 		printf '%s\n' "${routineDefaultMatches[0]##*/}"
 		return 0
@@ -42,14 +48,18 @@ AgentsToolsSpawnRoutineDefaultName(){
 ## absolute path on success. Zero or more than one match is refused, with the candidates
 ## named for a reader to narrow the selector by.
 AgentsToolsSpawnRoutineResolve(){ ## selector
-	local routineSelector="$1" routineRoot routineFile routineMatches=()
+	local routineSelector="$1" routineRoot routineFile routineMatches=() routineMember routineDir
 	routineRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
-	for routineFile in "$routineRoot"/*/*.routine.md ; do
-		[ -f "$routineFile" ] || continue
-		case "${routineFile##*/}" in
-			*"$routineSelector"*) routineMatches+=( "$routineFile" ) ;;
-		esac
-	done
+	## Every member's folder, a member of another workspace included (AgentsToolsTeamMemberDirectoryText).
+	while IFS=$'\t' read -r routineMember routineDir ; do
+		[ -n "$routineDir" ] || continue
+		for routineFile in "$routineDir"/*.routine.md ; do
+			[ -f "$routineFile" ] || continue
+			case "${routineFile##*/}" in
+				*"$routineSelector"*) routineMatches+=( "$routineFile" ) ;;
+			esac
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 	case "${#routineMatches[@]}" in
 		0)
 			echo "⛔ ERROR: --routine $routineSelector: matches no routine file under $routineRoot" >&2

@@ -196,6 +196,29 @@ AgentsToolsPermissionHookDecision(){ ## allow|deny, message (deny only)
 		"$( printf '%s' "$2" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
 }
 
+## What a member holds, by layer: the one computation every approve path, pass-on and
+## set split asks (AgentsTools.PermissionHolds.include).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
+
+## A permission entry `<tool>:<target>` split into permEntryTool and permEntryTarget; the
+## tool a bare name, the target natural. rc 1, saying why, for an entry of no tool.
+AgentsToolsPermissionEntrySplit(){ ## entry, context
+	permEntryTool="${1%%:*}" ; permEntryTarget=""
+	case "$1" in
+		*:*) permEntryTarget="${1#*:}" ;;
+	esac
+	AgentsToolsAssertBareName "$permEntryTool" "entry tool" "$2" || return 1
+	return 0
+}
+
+## A new reference id with a prefix (pass-, set-), or rc 1.
+AgentsToolsPermissionNewRef(){ ## prefix
+	local refUuid
+	refUuid="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )" || refUuid=""
+	[ -n "$refUuid" ] || return 1
+	printf '%s%s' "$1" "$refUuid"
+}
+
 case "$1" in
 
 	--intern-op-permission-hook)
@@ -229,7 +252,7 @@ case "$1" in
 		hookGrant="$( DistroAgentsTools --intern-op-permission-grant-read "$hookMember" --session-id "$hookSession" --tool "$hookTool" --target "$hookTarget" 2>/dev/null )" || hookGrant=""
 		hookGrant="$( printf '%s\n' "$hookGrant" | LC_ALL=C sed -n 's/^GRANT: //p' | head -1 )"
 		case "$hookGrant" in
-			'session '*|'planned '*)
+			'session '*|'task '*|'planned '*|'standing '*)
 				AgentsToolsPermissionHookDecision allow
 				return 0
 			;;
@@ -321,12 +344,13 @@ case "$1" in
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local grantBy="$1"
 		shift || true
-		local grantSession="" grantRefusal="" grantKind=""
+		local grantSession="" grantRefusal="" grantKind="" grantTask=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id) grantSession="${2:-}" ; shift 2 ;;
 				--refusal-id) grantRefusal="${2:-}" ; shift 2 ;;
 				--kind) grantKind="${2:-}" ; shift 2 ;;
+				--task) grantTask="${2:-}" ; shift 2 ;;
 				*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 					set +e ; return 1
@@ -334,7 +358,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$grantBy" ] || [ -z "$grantSession" ] || [ -z "$grantRefusal" ] || [ -z "$grantKind" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session" >&2
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <granting-member> --session-id <id> --refusal-id <id> --kind once|session|task [--task <item>]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$grantBy" "<granting-member>" permission-grant-open || { set +e ; return 1 ; }
@@ -342,8 +366,16 @@ case "$1" in
 		AgentsToolsAssertBareName "$grantRefusal" "--refusal-id" permission-grant-open || { set +e ; return 1 ; }
 		case "$grantKind" in
 			once|session) ;;
+			task)
+				## A task grant lives while its item is open, so it names one that is.
+				grantTask="${grantTask##*/}" ; grantTask="${grantTask%.md}"
+				if [ -z "$grantTask" ] || ! AgentsToolsAssertBareName "$grantTask" "--task" permission-grant-open || ! AgentsToolsPermissionItemOpen "$grantTask" ; then
+					echo "$MDSC_CMD: ⛔ ERROR: a task grant needs --task <item> naming an open board item, got: ${grantTask:-none}" >&2
+					set +e ; return 1
+				fi
+			;;
 			*)
-				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session: $grantKind" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task: $grantKind" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -371,10 +403,30 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $grantBy asked for this call and cannot grant it to itself, so nothing is granted" >&2
 			set +e ; return 1
 		fi
+		## No approving what you do not hold: the approver holds this tool and target, or is
+		## the human-owner. Refused with rc 3 and the holders up the chain, for the caller to
+		## re-address the request to.
+		local grantNatural grantHeld grantHolders
+		grantNatural="$( AgentsToolsPermissionRecordDecode "$grantTarget" )"
+		if ! grantHeld="$( AgentsToolsPermissionHolds "$grantBy" "$grantTool" "$grantNatural" "$grantSession" )" ; then
+			grantHolders="$( AgentsToolsPermissionHolders "$grantTool" "$grantNatural" "$grantSession" "$grantTask" "$grantOwner $grantBy" | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " " : "" ), $1 ; }' )" || grantHolders="human-owner"
+			printf 'NOT-HOLDS: %s %s %s\n' "$grantBy" "$grantTool" "$grantNatural"
+			printf 'HOLDERS: %s\n' "$grantHolders"
+			echo "$MDSC_CMD: ⛔ ERROR: $grantBy does not hold $grantTool $grantNatural, so it cannot grant it; nothing is granted -- the request goes up to: $grantHolders" >&2
+			set +e ; return 3
+		fi
 		## The record's target is in record form and the grants line is colon-delimited, so it
 		## becomes a grants field here.
 		grantTarget="$( AgentsToolsPermissionRecordToGrantField "$grantTarget" )"
-		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "$( date -u +%Y%m%dT%H%MZ )" "$grantRefusal" >> "$grantDir/grants" || {
+		## A task grant's item beside its refusal record, which stays as it was written.
+		if [ "$grantKind" = "task" ] ; then
+			printf '%s\n' "$grantTask" > "$grantDir/$grantRefusal.task" || {
+				echo "$MDSC_CMD: ⛔ ERROR: can't record the task of the grant for $grantRefusal, so nothing is granted" >&2
+				set +e ; return 1
+			}
+		fi
+		## Stamped to the second: an Allow once lapses unused a TTL after it (AgentsToolsPermissionOnceLive).
+		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$grantRefusal" >> "$grantDir/grants" || {
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
 			set +e ; return 1
 		}
@@ -407,58 +459,53 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$readSession" "--session-id" permission-grant-read || { set +e ; return 1 ; }
 		local readDir="$MMDAPP/.local/agents/sessions/$readSession"
-		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readRefusal readOwner readOwnerLine
+		local readWant readEntry readKind readRest readEntryTool readEntryTarget readBy readFound readCow
 		readWant="$( AgentsToolsPermissionEscape "$readTarget" )"
-		## No grants file is no escalated grant; planned allows are still looked at below.
-		[ ! -f "$readDir/grants" ] || while IFS= read -r readEntry ; do
-			readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
-			readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
-			readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
-			readBy="${readRest%%:*}" ; readRest="${readRest#*:}"
-			readRefusal="${readRest#*:}"
-			[ "$readEntryTool" = "$readTool" ] || continue
-			[ "$readEntryTarget" = "$readWant" ] || continue
-			## A grant nobody is named for, or one the asking member made, counts for nothing.
-			[ -n "$readBy" ] && [ "$readBy" != "$readMember" ] || continue
-			## A grant is for the member whose refusal it answers, never another one in the session.
-			[ -f "$readDir/$readRefusal.md" ] || continue
-			readOwner=""
-			while IFS= read -r readOwnerLine ; do
-				case "$readOwnerLine" in
-					'owner: '*) readOwner="${readOwnerLine#owner: }" ; break ;;
-					'# '*) break ;;
-				esac
-			done < "$readDir/$readRefusal.md"
-			[ "$readOwner" = "$readMember" ] || continue
-			case "$readKind" in
-				session) ;;
-				once) [ ! -d "$readDir/consumed/$readRefusal" ] || continue ;;
-				*) continue ;;
+		## What the member holds by the floor or standing -- a tool row such as WebFetch for
+		## a member that holds it -- admits with no grant at all: every spawn has its (a) and (b).
+		## So does the routine the session runs, for this session: `standing routine <name>`.
+		if readFound="$( AgentsToolsPermissionHolds "$readMember" "$readTool" "$readTarget" "$readSession" )" ; then
+			case "$readFound" in
+				floor|standing|'routine '*)
+					printf 'GRANT: standing %s\n' "$readFound"
+					return 0
+				;;
 			esac
-			printf 'GRANT: %s %s\n' "$readKind" "$readRefusal"
+		fi
+		## Granted, passed and set grants (AgentsToolsPermissionGrantScan): this session's own
+		## store, then the store of the coworking session it joined. Each is the member's own,
+		## signed by someone else; a once is used up in this session's own store.
+		while IFS= read -r readCow ; do
+			[ -n "$readCow" ] || continue
+			readFound="$( AgentsToolsPermissionGrantScan "$MMDAPP/.local/agents/sessions/$readCow" "$readMember" "$readTool" "$readTarget" use "$readDir" )" || continue
+			printf 'GRANT: %s\n' "$readFound"
 			return 0
-		done < "$readDir/grants"
-		## Planned allows: the session's dispatch item and the one item it tracks. The
-		## same match and the same self-grant rule apply; a planned allow is session-wide.
+		done <<< "$( AgentsToolsPermissionRelatedStores "$readSession" )"
+		## Planned allows -- the approved permission set a dispatch carries: the session's
+		## dispatch item and the one item it tracks. The same self-grant rule applies; a
+		## session entry is session-wide, a task entry lives while the item carrying it is open.
 		[ -n "${MDAT_DATA_ROOT:-}" ] && [ -d "$MDAT_DATA_ROOT/board" ] || { set +e ; return 1 ; }
-		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemOwner readItemAllows readItemTracks
+		local readItem readDispatch="" readTracks="" readPlanned="" readLine readState readItemSession readItemSpawn readItemOwner readItemAllows readItemTracks
 		for readItem in "$MDAT_DATA_ROOT"/board/*/dispatch-*.md ; do
 			[ -f "$readItem" ] || continue
-			readItemSession="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
+			readItemSession="" ; readItemSpawn="" ; readItemOwner="" ; readItemAllows="" ; readItemTracks="" ; readState=""
 			while IFS= read -r readLine ; do
 				case "$readState:$readLine" in
 					':---') readState=front ;;
 					front:---) break ;;
 					'front:session-id: '*) readItemSession="${readLine#session-id: }" ;;
+					'front:spawn-id: '*) readItemSpawn="${readLine#spawn-id: }" ;;
 					'front:owner: '*) readItemOwner="${readLine#owner: }" ;;
 					'front:allows: '*) readItemAllows="${readLine#allows: }" ;;
 					'front:tracks: '*) readItemTracks="${readLine#tracks: }" ;;
 					:*) break ;;
 				esac
 			done < "$readItem"
-			[ "$readItemSession" = "$readSession" ] || continue
+			## A spawn that joined a coworking session is found by its own spawn id.
+			[ "$readItemSession" = "$readSession" ] || [ "$readItemSpawn" = "$readSession" ] || continue
 			[ "$readItemOwner" = "$readMember" ] || continue
-			readDispatch="$readItem" ; readPlanned="$readItemAllows" ; readTracks="$readItemTracks"
+			readDispatch="$readItem" ; readTracks="$readItemTracks"
+			[ -z "$readItemAllows" ] || readPlanned="${readItem##*/}"$'\t'"$readItemAllows"
 			break
 		done
 		[ -n "$readDispatch" ] || { set +e ; return 1 ; }
@@ -471,7 +518,7 @@ case "$1" in
 					case "$readState:$readLine" in
 						':---') readState=front ;;
 						front:---) break ;;
-						'front:allows: '*) readPlanned="${readPlanned:+$readPlanned,}${readLine#allows: }" ;;
+						'front:allows: '*) readPlanned="${readPlanned:+$readPlanned$'\n'}${readItem##*/}"$'\t'"${readLine#allows: }" ;;
 						:*) break ;;
 					esac
 				done < "$readItem"
@@ -480,37 +527,47 @@ case "$1" in
 		fi
 		## Comma-separated entries; a target is escaped, so it never holds a comma. An entry
 		## that can never admit anything is said once per session in its event-track thread,
-		## so a planned allow that was written wrong does not fail silently.
-		local readIgnored readShape
-		while [ -n "$readPlanned" ] ; do
-			readEntry="${readPlanned%%,*}"
-			[ "$readEntry" != "$readPlanned" ] && readPlanned="${readPlanned#*,}" || readPlanned=""
-			readEntry="${readEntry# }"
-			[ -n "$readEntry" ] || continue
-			readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
-			readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
-			readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
-			readBy="${readRest%%:*}"
-			readShape="${readEntry//[!:]/}"
-			readIgnored=""
-			if [ "${#readShape}" -lt 4 ] || [ -z "$readEntryTool" ] || [ -z "$readEntryTarget" ] ; then
-				readIgnored="it is not <kind>:<tool>:<target>:<granted-by>:<time>"
-			elif [ "$readKind" != "session" ] ; then
-				readIgnored="its kind is $readKind, and a planned allow is session-wide"
-			elif [ -z "$readBy" ] ; then
-				readIgnored="it names nobody who granted it"
-			elif [ "$readBy" = "$readMember" ] ; then
-				readIgnored="it is signed by the session's own member"
-			fi
-			if [ -n "$readIgnored" ] ; then
-				AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "$readIgnored"
-				continue
-			fi
-			[ "$readEntryTool" = "$readTool" ] || continue
-			[ "$readEntryTarget" = "$readWant" ] || continue
-			printf 'GRANT: planned %s\n' "${readDispatch##*/}"
-			return 0
-		done
+		## so a planned allow that was written wrong does not fail silently. One signed by a
+		## member who does not hold it is ignored the same way: no approving what you don't hold.
+		local readIgnored readShape readCarrier readList readNatural
+		while IFS=$'\t' read -r readCarrier readList ; do
+			[ -n "$readCarrier" ] || continue
+			while [ -n "$readList" ] ; do
+				readEntry="${readList%%,*}"
+				if [ "$readEntry" != "$readList" ] ; then readList="${readList#*,}" ; else readList="" ; fi
+				readEntry="${readEntry# }"
+				[ -n "$readEntry" ] || continue
+				readKind="${readEntry%%:*}" ; readRest="${readEntry#*:}"
+				readEntryTool="${readRest%%:*}" ; readRest="${readRest#*:}"
+				readEntryTarget="${readRest%%:*}" ; readRest="${readRest#*:}"
+				readBy="${readRest%%:*}"
+				readShape="${readEntry//[!:]/}"
+				readIgnored=""
+				if [ "${#readShape}" -lt 4 ] || [ -z "$readEntryTool" ] || [ -z "$readEntryTarget" ] ; then
+					readIgnored="it is not <kind>:<tool>:<target>:<granted-by>:<time>"
+				elif [ "$readKind" != "session" ] && [ "$readKind" != "task" ] ; then
+					readIgnored="its kind is $readKind, and a planned allow is session-wide or task-wide"
+				elif [ -z "$readBy" ] ; then
+					readIgnored="it names nobody who granted it"
+				elif [ "$readBy" = "$readMember" ] ; then
+					readIgnored="it is signed by the session's own member"
+				fi
+				if [ -n "$readIgnored" ] ; then
+					AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "$readIgnored"
+					continue
+				fi
+				[ "$readEntryTool" = "$readTool" ] || continue
+				readNatural="$( AgentsToolsPermissionUnescape "$readEntryTarget" )"
+				[ "$readEntryTarget" = "$readWant" ] || AgentsToolsPermissionCovers "$readNatural" "$readTarget" || continue
+				[ "$readKind" != "task" ] || AgentsToolsPermissionItemOpen "$readCarrier" || continue
+				if ! AgentsToolsPermissionHolds "$readBy" "$readEntryTool" "$readNatural" > /dev/null ; then
+					AgentsToolsPermissionPlannedIgnored "$readMember" "$readSession" "${readDispatch##*/}" "$readEntry" "it is signed by $readBy, who does not hold it"
+					continue
+				fi
+				printf 'GRANT: planned %s\n' "${readDispatch##*/}"
+				return 0
+			done
+		done <<< "$readPlanned"
 		set +e ; return 1
 	;;
 
@@ -539,6 +596,399 @@ case "$1" in
 		mkdir -p "$MMDAPP/.local/agents/sessions/$consumeSession/consumed" 2>/dev/null || { set +e ; return 1 ; }
 		mkdir "$MMDAPP/.local/agents/sessions/$consumeSession/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
 		printf 'CONSUMED: %s\n' "$consumeRefusal"
+		return 0
+	;;
+
+	## Whether a member holds one permission, and through which layer. Always rc 0 once
+	## the arguments are good: the answer is the line, HOLDS <layer> or NOT-HOLDS.
+	--intern-op-permission-holds)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-holds"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local holdsMember="${1:-}" holdsTool="${2:-}" holdsTarget="${3:-}" holdsSession="" holdsLayer
+		shift 3 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) holdsSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$holdsMember" ] || [ -z "$holdsTool" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <member> <tool> <target> [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$holdsMember" "<member>" permission-holds || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$holdsTool" "<tool>" permission-holds || { set +e ; return 1 ; }
+		[ -z "$holdsSession" ] || AgentsToolsAssertBareName "$holdsSession" "--session-id" permission-holds || { set +e ; return 1 ; }
+		if holdsLayer="$( AgentsToolsPermissionHolds "$holdsMember" "$holdsTool" "$holdsTarget" "$holdsSession" )" ; then
+			printf 'HOLDS %s\n' "$holdsLayer"
+		else
+			printf 'NOT-HOLDS\n'
+		fi
+		return 0
+	;;
+
+	## Who holds one permission among a session's and a task's participants, one
+	## `HOLDER: <member> <layer>` line each, `HOLDER: human-owner human-owner` always last.
+	--intern-op-permission-holders)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-holders"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local holdersTool="${1:-}" holdersTarget="${2:-}" holdersSession="" holdersTask="" holdersExclude="" holdersLine
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) holdersSession="${2:-}" ; shift 2 ;;
+				--task) holdersTask="${2:-}" ; shift 2 ;;
+				--exclude) holdersExclude="$holdersExclude ${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$holdersTool" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]..." >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$holdersTool" "<tool>" permission-holders || { set +e ; return 1 ; }
+		while IFS= read -r holdersLine ; do
+			[ -z "$holdersLine" ] || printf 'HOLDER: %s\n' "$holdersLine"
+		done <<< "$( AgentsToolsPermissionHolders "$holdersTool" "$holdersTarget" "$holdersSession" "$holdersTask" "$holdersExclude" )"
+		return 0
+	;;
+
+	## Passing a held permission on. The member's own judgement whether to; tooling
+	## enforces only the limits: no more than the passer holds, no longer than its own
+	## grant lives, and only to a participant of the session or task, or a member it
+	## spawned for it. Written as a grant of the receiver's own, signed by the passer.
+	--member-permission-pass|--intern-op-permission-pass)
+		local passOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $passOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local passBy="${1:-}" passTo="" passTool="" passTarget="" passKind="" passTask="" passSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--to) passTo="${2:-}" ; shift 2 ;;
+				--tool) passTool="${2:-}" ; shift 2 ;;
+				--target) passTarget="${2:-}" ; shift 2 ;;
+				--kind) passKind="${2:-}" ; shift 2 ;;
+				--task) passTask="${2:-}" ; shift 2 ;;
+				--session-id) passSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$passBy" ] || [ -z "$passTo" ] || [ -z "$passTool" ] || [ -z "$passKind" ] || [ -z "$passSession" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <passing-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$passBy" "<passing-member>" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passTo" "--to" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passTool" "--tool" permission-pass || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$passSession" "--session-id" permission-pass || { set +e ; return 1 ; }
+		[ "$passOp" != "--member-permission-pass" ] || AgentsToolsActingMemberCheck "$passBy" "${passOp#--}" || { set +e ; return 1 ; }
+		if [ "$passTo" = "$passBy" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy cannot pass a permission to itself, so nothing is passed" >&2
+			set +e ; return 1
+		fi
+		passTask="${passTask##*/}" ; passTask="${passTask%.md}"
+		case "$passKind" in
+			once|session) ;;
+			task)
+				if [ -z "$passTask" ] || ! AgentsToolsAssertBareName "$passTask" "--task" permission-pass || ! AgentsToolsPermissionItemOpen "$passTask" ; then
+					echo "$MDSC_CMD: ⛔ ERROR: a task pass needs --task <item> naming an open board item, got: ${passTask:-none}" >&2
+					set +e ; return 1
+				fi
+			;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: --kind must be once|session|task: $passKind" >&2
+				set +e ; return 1
+			;;
+		esac
+		## Limit one: no more than the passer holds.
+		local passHeld passLayer passFromKind passFromRef passFromTask="" passStore
+		if ! passHeld="$( AgentsToolsPermissionHolds "$passBy" "$passTool" "$passTarget" "$passSession" )" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passBy does not hold $passTool ${passTarget:-(any target)} in session $passSession, so it cannot pass it on -- ask for it instead" >&2
+			set +e ; return 1
+		fi
+		## Limit two: no longer than the passer's own grant lives. Standing and floor
+		## permissions outlive any session; a session grant outlives its tasks; a task
+		## grant passes on only for the same task, or once.
+		passLayer="${passHeld%% *}"
+		case "$passLayer" in
+			routine)
+				## A routine's allow ends with the session, which a task may outlive.
+				if [ "$passKind" = "task" ] ; then
+					echo "$MDSC_CMD: ⛔ ERROR: $passBy holds $passTool only for this session's ${passHeld#routine }, so it passes it only once or for the session, not as task" >&2
+					set +e ; return 1
+				fi
+			;;
+			granted|set|passed)
+				passFromKind="${passHeld#* }" ; passFromRef="${passFromKind#* }" ; passFromKind="${passFromKind%% *}"
+				if [ "$passFromKind" = "task" ] ; then
+					while IFS= read -r passStore ; do
+						[ -n "$passStore" ] && [ -f "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.md" ] || continue
+						passFromTask="$( AgentsToolsPermissionField "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.md" task )"
+						[ -n "$passFromTask" ] || [ ! -f "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.task" ] || IFS= read -r passFromTask < "$MMDAPP/.local/agents/sessions/$passStore/$passFromRef.task" || :
+						break
+					done <<< "$( AgentsToolsPermissionRelatedStores "$passSession" )"
+					if [ "$passKind" = "session" ] || { [ "$passKind" = "task" ] && [ "$passTask" != "$passFromTask" ] ; } ; then
+						echo "$MDSC_CMD: ⛔ ERROR: $passBy holds $passTool only for task ${passFromTask:-unknown}, so it passes it only once or for that task, not as $passKind${passTask:+ for $passTask}" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
+		## Limit three: the receiver takes part in the session or task, or was spawned by the passer for it.
+		if ! AgentsToolsPermissionParticipants "$passSession" "$passTask" | LC_ALL=C grep -q -x -F -- "$passTo" ; then
+			echo "$MDSC_CMD: ⛔ ERROR: $passTo takes no part in session $passSession${passTask:+ or task $passTask}, so $passBy cannot pass it a permission there" >&2
+			set +e ; return 1
+		fi
+		## Kept where the receiver reads it: the coworking session's store, or the passer's own.
+		local passRef passDir
+		passDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$passSession" )"
+		passRef="$( AgentsToolsPermissionNewRef pass- )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		mkdir -p "$passDir" 2>/dev/null || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $passSession, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		{
+			printf '%s\n' "---"
+			printf 'status: %s\n' "passed"
+			printf 'owner: %s\n' "$passTo"
+			printf 'passed-by: %s\n' "$passBy"
+			printf 'held-as: %s\n' "$passHeld"
+			printf 'session-id: %s\n' "$passSession"
+			printf 'tool: %s\n' "$passTool"
+			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$passTarget" )"
+			printf 'kind: %s\n' "$passKind"
+			[ -z "$passTask" ] || printf 'task: %s\n' "$passTask"
+			printf 'passed-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			printf '%s\n' "---"
+			printf '\n# Passed\n\n%s passed %s %s to %s.\n' "$passBy" "$passTool" "${passTarget:-(any target)}" "$passTo"
+		} > "$passDir/$passRef.md" || {
+			rm -f "$passDir/$passRef.md"
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the pass record, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		printf '%s:%s:%s:%s:%s:%s\n' "$passKind" "$passTool" "$( AgentsToolsPermissionEscape "$passTarget" )" "$passBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$passRef" >> "$passDir/grants" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $passRef, so nothing is passed" >&2
+			set +e ; return 1
+		}
+		printf 'GRANT: %s %s\n' "$passKind" "$passRef"
+		return 0
+	;;
+
+	## A task's or session's permission set, asked for at spawn or brief time. Entries any
+	## participant already holds are held, and pass on per --member-permission-pass when the
+	## holder delegates. The rest are the extras, asked of the human-owner as ONE
+	## permission-set escalation: allow-set, deny or edit.
+	--magic-permission-set-request)
+		shift
+		MDSC_CMD="$MDSC_CMD --magic-permission-set-request"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		local setBy="${1:-}" setItem="${2:-}" setScope="task" setSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" setEntries="" setExtra="" setHeld="" setNamed=""
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--entry) setEntries="${setEntries}${2:-}"$'\n' ; shift 2 ;;
+				--scope) setScope="${2:-}" ; shift 2 ;;
+				--session-id) setSession="${2:-}" ; shift 2 ;;
+				--participant) setNamed="${setNamed}${2:-}"$'\n' ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$setBy" ] || [ -z "$setItem" ] || [ -z "$setEntries" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$setBy" "<magic-coordinator>" permission-set-request || { set +e ; return 1 ; }
+		AgentsToolsMagicCallerCheck "--magic-permission-set-request" || { set +e ; return 1 ; }
+		setItem="${setItem##*/}" ; setItem="${setItem%.md}"
+		AgentsToolsAssertBareName "$setItem" "<item>" permission-set-request || { set +e ; return 1 ; }
+		AgentsToolsDecisionsItemPath "$setItem" > /dev/null || {
+			echo "$MDSC_CMD: ⛔ ERROR: no board item $setItem, so there is nothing to record the set on" >&2
+			set +e ; return 1
+		}
+		case "$setScope" in
+			task|session) ;;
+			*) echo "$MDSC_CMD: ⛔ ERROR: --scope must be task|session: $setScope" >&2 ; set +e ; return 1 ;;
+		esac
+		if [ -n "$setSession" ] ; then
+			AgentsToolsAssertBareName "$setSession" "--session-id" permission-set-request || { set +e ; return 1 ; }
+		elif [ "$setScope" = "session" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: a session-scoped set needs the session, and this caller names none" >&2
+			set +e ; return 1
+		fi
+		## The participants, held entries and extras, each said.
+		local setParticipants setLine setHolder permEntryTool permEntryTarget
+		setParticipants="$( { AgentsToolsPermissionParticipants "$setSession" "$setItem" ; printf '%s' "$setNamed" ; } | LC_ALL=C awk 'NF && $1 != "human-owner" && !seenMember[$1]++ { print $1 ; }' )"
+		printf 'PARTICIPANTS: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
+		while IFS= read -r setLine ; do
+			[ -n "$setLine" ] || continue
+			AgentsToolsPermissionEntrySplit "$setLine" permission-set-request || { set +e ; return 1 ; }
+			case "$permEntryTarget" in
+				*/../*|*/..) echo "$MDSC_CMD: ⛔ ERROR: an entry target has a .. segment: $setLine" >&2 ; set +e ; return 1 ;;
+			esac
+			setHolder="$( AgentsToolsPermissionHolders "$permEntryTool" "$permEntryTarget" "$setSession" "$setItem" "" | LC_ALL=C awk '$1 != "human-owner" { print ; exit ; }' )" || setHolder=""
+			if [ -n "$setHolder" ] && printf '%s\n' "$setParticipants" | LC_ALL=C grep -q -x -F -- "${setHolder%% *}" ; then
+				printf 'HELD: %s by %s\n' "$setLine" "$setHolder"
+				setHeld="${setHeld}${setLine} (${setHolder%% *})"$'\n'
+			else
+				printf 'EXTRA: %s\n' "$setLine"
+				setExtra="${setExtra}${setLine}"$'\n'
+			fi
+		done <<< "$setEntries"
+		if [ -z "$setExtra" ] ; then
+			printf 'PERMISSION-SET: held -- every entry is held by a participant, and passes on when its holder delegates\n'
+			return 0
+		fi
+		## ONE ask for the extras, to the human-owner, as the team bot.
+		local setBody setOut setChannel setTs setAddressees setAsking setId
+		setBody="$( {
+			printf '# 🔐 Permission set\n\n'
+			printf 'May the participants of %s have these for this %s?\n\n' "$setItem" "$setScope"
+			printf '**➕ Asked for**\n'
+			printf '%s' "$setExtra" | LC_ALL=C awk 'NF { print "- " $0 ; }'
+			if [ -n "$setHeld" ] ; then
+				printf '\n**✅ Already held, passed on by the holder**\n'
+				printf '%s' "$setHeld" | LC_ALL=C awk 'NF { print "- " $0 ; }'
+			fi
+			printf '\n**👥 Participants**\n'
+			printf '%s\n' "$setParticipants" | LC_ALL=C awk 'NF { print "- " $0 ; }'
+			printf '\nReply with the first word: allow-set, deny, or edit followed by the change.\n'
+		} )"
+		setOut="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$setBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask could not be posted, so nothing was asked or recorded: $( LC_ALL=C grep -m1 '⛔' <<< "$setOut" )" >&2
+			set +e ; return 1
+		}
+		setChannel="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' <<< "$setOut" | head -1 )"
+		setTs="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' <<< "$setOut" | head -1 )"
+		setAddressees="$( LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' <<< "$setOut" | head -1 )"
+		setAsking="$( printf '%s\n' "$setOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || setAsking=""
+		if [ -z "$setChannel" ] || [ -z "$setTs" ] || [ -z "$setAddressees" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted but its thread or addressee could not be named, so its answer could not be recognised" >&2
+			set +e ; return 1
+		fi
+		setId="$( printf '%s\n' "$setBody" | DistroAgentsTools --intern-op-pending-reply-open "$setBy" --to "$setChannel" \
+			${setSession:+--session-id "$setSession"} --kind permission-set --address-to human-owner --channel "$setChannel" \
+			--question-ts "$setTs" --thread-ts "$setTs" --addressees "$setAddressees" ${setAsking:+--asking-accounts " $setAsking"} \
+			--item "$setItem" --ask-identity bot --context "$MDSC_CMD" 2>/dev/null )" || setId=""
+		if [ -z "$setId" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask was posted at $setChannel:$setTs but not recorded, so its answer cannot be applied" >&2
+			set +e ; return 1
+		fi
+		## What an allow-set applies, beside the record.
+		{
+			printf 'scope: %s\n' "$setScope"
+			printf 'item: %s\n' "$setItem"
+			printf 'session-id: %s\n' "$setSession"
+			printf 'participants: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
+			printf '%s' "$setExtra" | LC_ALL=C awk 'NF { print "entry: " $0 ; }'
+		} > "$MMDAPP/.local/agents/pending/$setId.set" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask $setId is recorded but its entries are not, so an allow-set would grant nothing" >&2
+			set +e ; return 1
+		}
+		printf 'PERMISSION-SET: asked %s\n' "$setId"
+		printf 'WAIT-ID: ask:%s\n' "$setId"
+		return 0
+	;;
+
+	## An approved permission set, applied: a grant of the set's scope for every
+	## participant and every extra entry, signed by the approver; for a task, also the
+	## item's `allows:`, so a later dispatch tracking it carries the set; and the set on
+	## the item's Decisions. Called by the escalation verdict path only.
+	--intern-op-permission-set-apply)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-permission-set-apply"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries=""
+		if [ -z "$applySetId" ] || [ -z "$applySetBy" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-id> <approver>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$applySetId" "<pending-id>" permission-set-apply || { set +e ; return 1 ; }
+		AgentsToolsAssertBareName "$applySetBy" "<approver>" permission-set-apply || { set +e ; return 1 ; }
+		applySetFile="$MMDAPP/.local/agents/pending/$applySetId.set"
+		[ -f "$applySetFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no permission set is recorded for $applySetId" >&2 ; set +e ; return 1 ; }
+		while IFS= read -r applySetLine ; do
+			case "$applySetLine" in
+				'scope: '*) applySetScope="${applySetLine#scope: }" ;;
+				'item: '*) applySetItem="${applySetLine#item: }" ;;
+				'session-id: '*) applySetSession="${applySetLine#session-id: }" ;;
+				'participants: '*) applySetParts="${applySetLine#participants: }" ;;
+				'entry: '*) applySetEntries="${applySetEntries}${applySetLine#entry: }"$'\n' ;;
+			esac
+		done < "$applySetFile"
+		[ -n "$applySetEntries" ] || { echo "$MDSC_CMD: ⛔ ERROR: the permission set $applySetId names no entry" >&2 ; set +e ; return 1 ; }
+		local applySetTime applySetPart applySetRef applySetDir applySetCount=0 applySetAllows="" applySetText="" permEntryTool permEntryTarget
+		applySetTime="$( date -u +%Y%m%dT%H%MZ )"
+		## Grants for the participants, in the session's store.
+		if [ -n "$applySetSession" ] && AgentsToolsAssertBareName "$applySetSession" "session-id" permission-set-apply 2>/dev/null ; then
+			applySetDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$applySetSession" )"
+			mkdir -p "$applySetDir" 2>/dev/null || { echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $applySetSession" >&2 ; set +e ; return 1 ; }
+			for applySetPart in $applySetParts ; do
+				AgentsToolsAssertBareName "$applySetPart" "participant" permission-set-apply 2>/dev/null || continue
+				applySetRef="$( AgentsToolsPermissionNewRef set- )" || { echo "$MDSC_CMD: ⛔ ERROR: no id could be generated" >&2 ; set +e ; return 1 ; }
+				{
+					printf '%s\n' "---"
+					printf 'status: %s\n' "set"
+					printf 'owner: %s\n' "$applySetPart"
+					printf 'approved-by: %s\n' "$applySetBy"
+					printf 'session-id: %s\n' "$applySetSession"
+					printf 'kind: %s\n' "$applySetScope"
+					[ "$applySetScope" != "task" ] || printf 'task: %s\n' "$applySetItem"
+					printf 'escalation: %s\n' "$applySetId"
+					printf '%s\n' "---"
+					printf '\n# Permission set\n\n'
+					printf '%s' "$applySetEntries" | LC_ALL=C awk 'NF { print "- " $0 ; }'
+				} > "$applySetDir/$applySetRef.md" || { echo "$MDSC_CMD: ⛔ ERROR: can't write the set record for $applySetPart" >&2 ; set +e ; return 1 ; }
+				while IFS= read -r applySetLine ; do
+					[ -n "$applySetLine" ] || continue
+					AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
+					printf '%s:%s:%s:%s:%s:%s\n' "$applySetScope" "$permEntryTool" "$( AgentsToolsPermissionEscape "$permEntryTarget" )" "$applySetBy" "$applySetTime" "$applySetRef" >> "$applySetDir/grants" \
+						|| { echo "$MDSC_CMD: ⛔ ERROR: can't write the set grants for $applySetPart" >&2 ; set +e ; return 1 ; }
+					applySetCount=$(( applySetCount + 1 ))
+				done <<< "$applySetEntries"
+			done
+		fi
+		## The entries, as the item's planned allows (a task set) and on its Decisions.
+		while IFS= read -r applySetLine ; do
+			[ -n "$applySetLine" ] || continue
+			AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
+			applySetAllows="${applySetAllows:+$applySetAllows,}task:$permEntryTool:$( AgentsToolsPermissionEscape "$permEntryTarget" ):$applySetBy:$applySetTime"
+			applySetText="${applySetText:+$applySetText, }$applySetLine"
+		done <<< "$applySetEntries"
+		local applySetPath applySetState applySetOld
+		if [ "$applySetScope" = "task" ] && applySetPath="$( AgentsToolsDecisionsItemPath "$applySetItem" )" ; then
+			applySetState="${applySetPath%/*}" ; applySetState="${applySetState##*/}"
+			applySetOld="$( AgentsToolsDecisionsField "$applySetPath" allows )" || applySetOld=""
+			printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$applySetState" "${applySetPath##*/}" --from-state:"$applySetState" \
+				--edit-script-from-stdin:awk "--header:upsert:allows:${applySetOld:+$applySetOld,}$applySetAllows" \
+				--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not written as $applySetItem's allows, so a later dispatch tracking it does not carry it" >&2
+		fi
+		DistroAgentsTools --intern-op-decisions-append "$applySetBy" "$applySetItem" --kind verdict \
+			--text "permission set approved for the $applySetScope ($applySetParts): $applySetText" --source "$applySetId" \
+			--context "$MDSC_CMD" > /dev/null 2>&1 \
+			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not recorded on $applySetItem's Decisions" >&2
+		printf 'GRANT: set %s entries for %s\n' "$applySetCount" "${applySetParts:-nobody}"
 		return 0
 	;;
 

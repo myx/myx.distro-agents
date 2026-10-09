@@ -95,8 +95,8 @@ set -e
 
 ## The skillset root, resolved once here for the same reason MDAT_DATA_ROOT
 ## is: this workspace's own member index (AgentsTools.TeamRegistry.include), whose
-## members/ view holds this workspace's members first and then every member other
-## workspaces publish. Never a vendor link folder ($HOME/.claude/skills and the rest are
+## members/ view holds this workspace's own members only; a member of another workspace
+## is found through the shared registry. Never a vendor link folder ($HOME/.claude/skills and the rest are
 ## generated from this data, and nothing of ours reads them back). An index not built
 ## yet is built by --make-workspace-integrations; nothing falls back.
 if [ -z "${MDAT_SKILLSET_ROOT:-}" ] ; then

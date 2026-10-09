@@ -277,10 +277,12 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   workspace root, link kind, path, member dir, TAB-separated), `known-workspaces.registry`, and
   `permissions.registry` (pointers to workspaces that publish grants; needed machine-wide because
   `~/.claude/settings.json` is machine-wide). Defined in `AgentsTools.TeamRegistry.include`.
-- **The member index** `$MMDAPP/.local/agents/members.index` and its `members/` view is what every member
-  reader reads. Built by `--install-skillset-symlinks` and `--make-agents-indices`: this workspace's own
-  members first, then others from the machine-wide registry (the row holding the member's source
-  preferred). Own-first stops the last installed workspace from winning for every workspace.
+- **The member index** `$MMDAPP/.local/agents/members.index` and its `members/` view hold this
+  workspace's own members only. Built by `--install-skillset-symlinks` and `--make-agents-indices`; a
+  rewrite drops any link to another workspace's member. A member of another workspace is never
+  materialised here: a reader that names one (routing, a spawn, the client sweeps) finds it through
+  the machine-wide registry (`AgentsToolsTeamMemberDirectory`, the row holding its source preferred),
+  and its operations run in its own workspace (`AgentsToolsMemberWorkspaceResolve`).
   `MDAT_SKILLSET_ROOT` defaults to `members/`; consumers read the variable and never spell the path.
   No fallback to a vendor link folder.
 - **Sites that stay `$HOME` on purpose**: the `--scope user-home` fan targets, `~/.claude/settings.json`,
@@ -1286,20 +1288,51 @@ op's own option arm.
   claude spawn is written from its stream (`AgentsClaudeStreamJsonTranscript.awk`, marks
   `transcript.stream`). Commits at milestones only. `sessions/<sid>/tokens` becomes the item's `tokens:`
   header; rollups are summed when shown, never written up the chain.
-- **The event-track thread is the session's debug feed** (`AgentsTools.EventTrackFeed.include`): batched
-  every `EVENT_TRACK_BATCH_SECONDS` (30), immediate for `MDAT_EVENT_TRACK_IMMEDIATE_KINDS` and errors,
-  cut at 3000 bytes.
+- **The event-track thread is the session's debug feed** (`AgentsTools.EventTrackFeed.include`): one open
+  post, sent 5 s after its first line or right after an error, refusal or session event joins it, the feed
+  polled every 4 s (under 10 s from a line to its send; fixed in code, no knobs), cut at 4000 characters
+  (Slack's `text` limit); blocks by subject, one templated line per operation, never a raw line. Its root,
+  the spawn's `start` post, is posted once, after the CLI and the rest it names are resolved; no post is
+  ever edited, and a later fact (a different CLI launched, the end) is a reply in its thread.
 
 ## 21. Permission refusals and grants
 
 - **A refusal is a recorded fact.** A harness Write/Edit refused by the write-root check or the unattended
-  team-store rule writes `.local/agents/sessions/<id>/refusal-<uuid>.md` first
+  team-store rule, and a Read/Grep/Glob refused by the read-root check (`AgentsHarnessReadGate`: read
+  roots, else `AgentsHarnessGranted`, the same grant-read the write gate and the native hook ask),
+  writes `.local/agents/sessions/<id>/refusal-<uuid>.md` first
   (`--intern-op-permission-refusal-log`), then posts to event-track. The result adds `REFUSAL-ID:`
   (`none` without a session or record).
 - **Grants are keyed by session, member, tool and target** (resolved path, or exact command bytes), taken
   from the record, never the ask's text. Allow-once is spent by one `mkdir consumed/<id>` when the gate
-  admits the call. Planned allows come from the session's dispatch item and its `tracks:` item, `session`
-  entries only, never signed by the session's own member.
+  admits the call, and an unused one lapses `MDAT_PERMISSION_ONCE_TTL` seconds (default 300) after its
+  grants-line stamp, reads and writes alike (`AgentsToolsPermissionOnceLive`). Planned allows come from the session's dispatch item (matched by `session-id:` or
+  `spawn-id:`) and its `tracks:` item, `session` or `task` entries, never signed by the session's own
+  member nor by one who does not hold the entry.
+- **What a member holds is one computation** (`AgentsTools.PermissionHolds.include`,
+  `--intern-op-permission-holds <member> <tool> <target>`, `HOLDS <layer>` or `NOT-HOLDS`): human-owner
+  (his name or `SLACK_CHANNEL_HUMAN_OWNER`), `floor` (the team tools and files, defined there only),
+  `standing` (its own and every `*` `permissions.registry` row: `Edit(//<p>/**)`, from `allow-write`, is every file
+  tool under `<p>`; `Read(//<p>/**)`, from `allow-read`, is Read/Grep/Glob only; scope
+  `tool` rows `<tool>[:<target>]`, from the `allow-tool` declare verb, never projected into Claude
+  settings), then `set`/`passed`/`granted` session or task grants. `cred` and `spend` skip floor and
+  standing. Grant-read admits floor and standing as `GRANT: standing`.
+- **No approving what you don't hold.** `grant-open` returns rc 3 with `NOT-HOLDS:` and `HOLDERS:`;
+  the escalation verdict path checks first and re-addresses the ask to a holder participant
+  (`--intern-op-permission-holders`), else forwards it to the human-owner; it stays open.
+- **Kind `task`** lives while its item is in an open board state (`<refusal>.task` sidecar or the
+  record's `task:`). Passed (`pass-<uuid>.md`) and set (`set-<uuid>.md`) grants are records like a
+  refusal's, `owner:` the receiver, kept in the coworking session's store; a session reads its own, its
+  coworking session's and its parent's store, its own grants only. A passed or set target may be a
+  `<path>/**` or a `<url-prefix>*` pattern; a refusal's grant is exact.
+- **Harness read and write roots are per member**: a named member's declared grants are its own rows
+  and every row declared for `*` (every member), so it reads the read floor plus those `Edit` and
+  `Read` rows, and never the harness index's
+  union. A served call with no `MDAT_SPAWN_AGENT` (the human-owner's own session under the default
+  identity) and the native clients' settings keep every member's rows.
+- **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
+  layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
+  roots and the Claude settings as `Read(...)`, and never a write set or `Edit`.
 - **Escalation kinds** readback, decision and permission always wait. `AgentsTools.MemberEscalation.include`
   applies a verdict once, under a `mkdir` lock.
 - **Attended only for an interactive Claude Code client**: `CLAUDE_CODE_ENTRYPOINT` `cli` or

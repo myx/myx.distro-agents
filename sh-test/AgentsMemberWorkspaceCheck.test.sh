@@ -584,6 +584,14 @@ rigAssert "the switch unsets the distro index variables, MDSC_ID by prefix"  "$(
 rigAssert "the switch never touches the tooling origin"                   "$( LC_ALL=C awk -v n="$rigSwitchFn" 'index( $0, n "(){" ) == 1 { on = 1 } on { print } on && /^}/ { exit }' "$rigResolveInclude" | LC_ALL=C grep -c 'MDLT_ORIGIN' || : )" 0
 rigAssert "control: the same pattern finds an origin line in a sample"      "$( printf 'unset MDLT_ORIGIN\n' | LC_ALL=C grep -c 'MDLT_ORIGIN' || : )" 1
 
+echo "-- 12. the member set root after a switch: a workspace's own index view holds its own members only --"
+rigSwitchRoot(){ ## skillset root carried -- the root after a switch from ws-here to ws-there
+	env -i PATH="$PATH" MMDAPP="$rigWork/ws-here" MDAT_SKILLSET_ROOT="$1" bash -c '. "$1" ; '"$rigSwitchFn"' "$2" ; printf "%s" "${MDAT_SKILLSET_ROOT:-}"' rig-switch "$rigResolveInclude" "$rigWork/ws-there"
+}
+rigAssert "a root that was the old workspace's own index view becomes the new workspace's own" "$( rigSwitchRoot "$rigWork/ws-here/.local/agents/members" )" "$rigWork/ws-there/.local/agents/members"
+rigAssert "accepted sibling: a root set anywhere else is kept across the switch" "$( rigSwitchRoot "$rigSkills" )" "$rigSkills"
+rigAssert "the spawn proxy gives every session it starts the root of the workspace it starts in, never the spawning one's view" "$( [ "$( LC_ALL=C grep -c 'env MMDAPP="\$spawnWorkspace" MDAT_SKILLSET_ROOT="\$spawnSkillsetRoot"' "$rigSpawnInclude" || : )" -gt 0 ] && printf given || printf none ) $( LC_ALL=C grep 'env MMDAPP="\$spawnWorkspace"' "$rigSpawnInclude" | LC_ALL=C grep -vc 'MDAT_SKILLSET_ROOT=' || : )" "given 0"
+
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MEMBER WORKSPACE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

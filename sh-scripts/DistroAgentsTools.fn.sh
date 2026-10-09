@@ -179,6 +179,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## Passing a held permission on, and a task's permission set: the permission store's own stubs.
+		--member-permission-*|--magic-permission-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+			return $?
+		;;
+
 		--member-pending-reply-*|--magic-pending-reply-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberPendingReply.include"
 			return $?

@@ -33,8 +33,8 @@
 
 ## Member skill directories, resolved to their real (symlink-followed) locations
 ## under the resolved skillset root -- the member index's members/ view
-## (AgentsTools.TeamRegistry.include), which already holds this workspace's own members
-## and every member other workspaces publish. Never a vendor link folder. Skips
+## (AgentsTools.TeamRegistry.include), which holds this workspace's own members only:
+## a member of another workspace is granted by its own workspace. Never a vendor link folder. Skips
 ## `trash`. Sorted-unique.
 ## Purpose picks the set, and the two differ by exactly one rule:
 ##   acting   -- excludes a `status: reference-only` member. Nobody may write the
@@ -122,24 +122,41 @@ AgentsToolsClientAccessReferenceRoots(){
 	return 0
 }
 
-## Declared allow-write grants, each widened to the narrowest directory that
+## Declared allow-write grants (Edit rows), each widened to the narrowest directory that
 ## contains everything its glob can match. A client's whole permission surface
 ## on the copilot side is `--add-dir <root>`: a glob cannot be expressed there,
 ## so the containing root is what honours a declared grant at all, and the
 ## widening is the known and accepted cost of honouring it.
 ## Read from every workspace's own permissions registry, this workspace's first and
 ## then each one the shared pointers name (AgentsToolsTeamGrantRows) -- so a grant
-## declared in one workspace reaches a client started in another, and one member's
-## grant is every member's.
+## declared in one workspace reaches a client started in another.
+## With a member named, only that member's own rows and every row declared for `*`, which
+## names every member: what our harness writes with is that member's layers, never the union. With none (a client acting as no member, and
+## the native clients' settings, which carry no member), every member's rows.
+## Edit(...) rows only: a declared allow-read is a Read(...) row and never a write root.
+##   $1 = member name (optional)
 AgentsToolsClientAccessGrantRoots(){
+	AgentsToolsClientAccessGrantRootsOf Edit "${1:-}"
+}
+
+## Declared allow-read grants, Read(...) rows, widened the same way -- read roots only,
+## joining the read union (AgentsToolsClientAccessRoots) and never a write set.
+##   $1 = member name (optional)
+AgentsToolsClientAccessReadGrantRoots(){
+	AgentsToolsClientAccessGrantRootsOf Read "${1:-}"
+}
+
+## The one reader and widener of both: the rows whose grant is <verb>(/...).
+##   $1 = Edit | Read, $2 = member name (optional)
+AgentsToolsClientAccessGrantRootsOf(){
 	type AgentsToolsTeamGrantRows >/dev/null 2>&1 || . "${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}/AgentsTools.TeamRegistry.include" || return 1
 	## Field 4 is taken whole by offset, never by splitting, so a grant carrying
 	## its own colons survives -- the same rule the permissions projection uses.
-	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry | LC_ALL=C awk -F: '
-		NF >= 4 {
+	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry | LC_ALL=C awk -F: -v grantVerb="$1" -v wantMember="${2:-}" '
+		NF >= 4 && ( wantMember == "" || $1 == wantMember || $1 == "*" ) {
 			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
-			if ( grantText !~ /^Edit\(\// ) next
-			grantPath = substr( grantText, 6, length( grantText ) - 6 )
+			if ( index( grantText, grantVerb "(/" ) != 1 ) next
+			grantPath = substr( grantText, length( grantVerb ) + 2, length( grantText ) - length( grantVerb ) - 2 )
 			sub( /^\/\//, "/", grantPath )
 			rootPath = ""
 			segmentCount = split( grantPath, pathSegment, "/" )
@@ -158,11 +175,12 @@ AgentsToolsClientAccessGrantRoots(){
 ## AgentsTools.Install.include's workspace-scope grant loop, which already
 ## has the selector and root in hand) and available to any future reader, so
 ## a grant is never widened two different ways by two different pieces of
-## code. Prints nothing for a non-Edit(/...) grant.
+## code. A declared allow-read's Read(/...) is widened alike -- the two verbs are
+## the same length, so one offset serves both. Prints nothing for any other grant.
 ##   $1 = grant text, e.g. "Edit(/foo/bar/**)"
 AgentsToolsClientAccessWidenGrantRoot(){
 	case "$1" in
-		'Edit(/'*) : ;;
+		'Edit(/'*|'Read(/'*) : ;;
 		*) return 0 ;;
 	esac
 	LC_ALL=C awk -v grantText="$1" 'BEGIN {
@@ -203,20 +221,26 @@ AgentsToolsClientAccessRootTag(){
 
 ## The complete flat root set one client is granted, one absolute path per line:
 ## readable member dirs, the workspace source tree, both reference sets and the
-## declared grants. `--add-dir` carries no verb, so read and write arrive here
+## declared grants, allow-write and allow-read. `--add-dir` carries no verb, so read and write arrive here
 ## as one union -- the vendor CLIs' own limit, not this model's; a client that
 ## can be told a verb asks the two producers above for the half it means.
 ## The board is absent by design; the CALLER rejects an empty set.
 ## A producer that fails fails the whole set, rc 1 with its own message on stderr:
 ## a short set at rc 0 is indistinguishable from a complete one.
-##   $1 = workspace root, $2 = member name, for its own scratchpads
+## With a grant member named, the declared grants are that member's own rows and every `*` row: the
+## set is then what that one member may read -- every root above it is the read floor
+## AgentsToolsPermissionFloorRoots computes, plus its own Edit and Read rows -- and a
+## read outside it is the harness's recorded refusal. Unnamed, every member's, as before.
+##   $1 = workspace root, $2 = member name, for its own scratchpads,
+##   $3 = grant member (optional)
 AgentsToolsClientAccessRoots(){
-	local workspace="$1" memberName="$2" accessRoots
+	local workspace="$1" memberName="$2" grantMember="${3:-}" accessRoots
 	accessRoots="$( AgentsToolsClientAccessRootsMembers readable )" || return 1
 	[ -z "$workspace" ] || accessRoots="$accessRoots"$'\n'"$workspace/source"
 	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessReferenceRoots read "$workspace" )" || return 1
 	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessReferenceRoots write "$workspace" "$memberName" )" || return 1
-	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessGrantRoots )" || return 1
+	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessGrantRoots "$grantMember" )" || return 1
+	accessRoots="$accessRoots"$'\n'"$( AgentsToolsClientAccessReadGrantRoots "$grantMember" )" || return 1
 	## Sorted-unique: the declared grants re-derive roots the functions above
 	## already yield, and a repeated root is a duplicate `--add-dir`.
 	printf '%s\n' "$accessRoots" | LC_ALL=C sort -u | LC_ALL=C awk 'NF'

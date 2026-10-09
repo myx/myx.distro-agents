@@ -180,6 +180,29 @@ for checkPair in 'SubagentHandback=["outcome"]' 'ReportFindings=["to","subject",
 	fi
 done
 
-printf 'HARNESS_TOOLS_JSON: OK (%d declarations parse, text and parser agree)\n' "$checkIndex"
+## Every declaration takes the optional `description`, the call's stated intent: the same text
+## everywhere, a string, never required, and named in the tool's own description so the model
+## knows to give it. The transcript and the tracking feed lead with it.
+checkIntentParam='{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}'
+checkIntentAt=0
+while [ "$checkIntentAt" -lt "$checkIndex" ] ; do
+	checkIntentName="$( printf '%s' "$checkDoc" | LC_ALL=C awk -v path="tools.$checkIntentAt.function.name" -v mode=raw -f "$checkSliceAwk" 2>/dev/null )" || checkIntentName=""
+	checkIntentGot="$( printf '%s' "$checkDoc" | LC_ALL=C awk -v path="tools.$checkIntentAt.function.parameters.properties.description" -v mode=raw -f "$checkSliceAwk" 2>/dev/null )" || checkIntentGot=""
+	checkIntentRequired="$( printf '%s' "$checkDoc" | LC_ALL=C awk -v path="tools.$checkIntentAt.function.parameters.required" -v mode=raw -f "$checkSliceAwk" 2>/dev/null )" || checkIntentRequired=""
+	checkIntentToolText="$( printf '%s' "$checkDoc" | LC_ALL=C awk -v path="tools.$checkIntentAt.function.description" -v mode=raw -f "$checkSliceAwk" 2>/dev/null )" || checkIntentToolText=""
+	case "$checkIntentRequired" in *'"description"'*) checkIntentRequired=required ;; *) checkIntentRequired=optional ;; esac
+	case "$checkIntentToolText" in *'give a short description of why'*) checkIntentToolText=told ;; *) checkIntentToolText=untold ;; esac
+	if [ "$checkIntentGot" != "$checkIntentParam" ] || [ "$checkIntentRequired" != optional ] || [ "$checkIntentToolText" != told ] ; then
+		echo "HARNESS_TOOLS_JSON: FAIL"
+		echo "  warn: declaration $checkIntentAt ($checkIntentName) does not take the optional description as every tool must:"
+		echo "        parameter ${checkIntentGot:-<absent>}, $checkIntentRequired, tool description $checkIntentToolText"
+		echo "  fix:  give its properties \"description\":$checkIntentParam,"
+		echo "        keep it out of required, and end the tool description with: Pass description to give a short description of why."
+		exit 1
+	fi
+	checkIntentAt=$(( checkIntentAt + 1 ))
+done
+
+printf 'HARNESS_TOOLS_JSON: OK (%d declarations parse, text and parser agree, every one takes the optional description)\n' "$checkIndex"
 printf '  tools:%s\n' "$checkNames"
 exit 0

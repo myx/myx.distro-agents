@@ -502,18 +502,28 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	harnessRootsFromIndex=""
 	harnessWriteFromIndex=""
 	harnessWriteGiven="${#harnessWriteAccessRoots[@]}"
+	## The index holds every member's declared grants as one union, so a named member's
+	## read and write sets are never taken from it: they are that member's own, computed below.
+	harnessWriteIndexable="$harnessWriteGiven"
+	## A served call with no MDAT_SPAWN_AGENT is the human-owner's own session under the
+	## default identity: it keeps every member's declared grants, as before.
+	harnessGrantMember="$harnessAgent"
+	[ -z "$harnessToolOnly" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] || harnessGrantMember=""
+	[ -z "$harnessGrantMember" ] || harnessWriteIndexable=1
 	. "$harnessHere/AgentsHarnessRootsIndex.include"
-	if AgentsHarnessRootsIndexUse "${MMDAPP:-}" "$harnessAgent" "$harnessWriteGiven" ; then
+	if [ -z "$harnessGrantMember" ] && AgentsHarnessRootsIndexUse "${MMDAPP:-}" "$harnessAgent" "$harnessWriteIndexable" ; then
 		harnessRootsFromIndex=1
-		[ "$harnessWriteGiven" != 0 ] || harnessWriteFromIndex=1
+		[ "$harnessWriteIndexable" != 0 ] || harnessWriteFromIndex=1
 	fi
 	## Captured on its own line so a failed producer refuses the run: read through the
 	## herestring directly, its status is lost and a short set passes as the whole one.
 	## stderr is captured with it, so the reason travels with the refusal; the loop
 	## below keeps absolute paths only. Under --intern-tool stdout is all a caller sees.
+	## A named member reads its floor and its own Edit and Read rows only; a read outside
+	## them is asked of the grants and, refused, recorded (AgentsHarnessReadGate).
 	if [ -n "$harnessRootsFromIndex" ] ; then
 		:
-	elif ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" 2>&1 )" ; then
+	elif ! harnessOwnRoots="$( AgentsToolsClientAccessRoots "${MMDAPP:-}" "$harnessAgent" "$harnessGrantMember" 2>&1 )" ; then
 		[ -z "$harnessToolOnly" ] || printf 'ERROR: the access-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the access-root set could not be computed, refusing rather than running on a partial set: $harnessOwnRoots" >&2
 		exit 1
@@ -526,10 +536,11 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	fi
 	## Writes narrow the way the console narrows them: the write reference roots plus the
 	## declared Edit grants, never the whole read set, so the skills root stays read-only.
+	## A named member's declared grants are its own rows only, never every member's.
 	if [ "${#harnessWriteAccessRoots[@]}" -eq 0 ] || [ -n "$harnessWriteFromIndex" ] ; then
 		if [ -n "$harnessWriteFromIndex" ] ; then
 			:
-		elif ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots ; } 2>&1 )" ; then
+		elif ! harnessOwnRoots="$( { AgentsToolsClientAccessReferenceRoots write "${MMDAPP:-}" "$harnessAgent" && AgentsToolsClientAccessGrantRoots "$harnessGrantMember" ; } 2>&1 )" ; then
 			[ -z "$harnessToolOnly" ] || printf 'ERROR: the write-root set could not be computed, so nothing was done: %s\n' "$harnessOwnRoots"
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the write-root set could not be computed, refusing rather than writing wherever reads reach: $harnessOwnRoots" >&2
 			exit 1
@@ -897,7 +908,7 @@ AgentsHarnessGranted(){ ## tool, resolved target
 		> "$harnessScratch/grant.out" 2> /dev/null || return 1
 	grantLine="$( LC_ALL=C sed -n 's/^GRANT: //p' "$harnessScratch/grant.out" | head -1 )"
 	case "$grantLine" in
-		'session '*|'planned '*) return 0 ;;
+		'session '*|'task '*|'planned '*|'standing '*) return 0 ;;
 		'once '*)
 			"$grantTools" --intern-op-permission-grant-consume --session-id "$grantSession" --refusal-id "${grantLine#once }" \
 				> /dev/null 2>&1 || return 1
@@ -928,6 +939,19 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 	printf 'REFUSAL-ID: %s\n' "$refusalId"
 	printf 'This is a refusal, not a verdict. If this task needs the call, ask for it with AskUserQuestion kind=permission, refusal_id=%s, a reason and a task_ref, addressed to the coordinator in this session. Carry on with work that does not need it. A granted call is retried exactly as it was made.\n' "$refusalId"
 	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
+}
+
+## The gate of every tool that reads by path, Read (a PDF and a notebook included), Glob and
+## Grep, in the write gate's own shape: inside the read roots, or granted this member by
+## the one decision function the write gate and the native hook ask (AgentsHarnessGranted:
+## floor, its own standing Read and Edit rows, routine, session, task, planned, an unexpired
+## once). Anything else is a recorded refusal, printed here, and rc 1. Publishes
+## $harnessResolvedPath, as the check does.
+AgentsHarnessReadGate(){ ## tool, path
+	AgentsHarnessPathAllowed "$2" && return 0
+	AgentsHarnessGranted "$1" "$harnessResolvedPath" && return 0
+	AgentsHarnessRefusal "$1" "${harnessResolvedPath:-$2}" "ERROR: path not in the allowed access-root set: $2$( AgentsHarnessDeniedHint "$2" )"
+	return 1
 }
 
 ## Digits only, by explicit enumeration: a bracket range is collation-dependent.
@@ -963,9 +987,7 @@ AgentsHarnessToolRead(){
 	if [ -z "$toolPath" ] ; then
 		printf 'ERROR: file_path is required and was empty. Nothing was read.\n' ; return 0
 	fi
-	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
-	fi
+	AgentsHarnessReadGate Read "$toolPath" || return 0
 	toolPath="$harnessResolvedPath"
 	if [ -d "$toolPath" ] ; then
 		printf 'ERROR: is a directory, not a file: %s\n' "$toolPath" ; return 0
@@ -1196,9 +1218,7 @@ AgentsHarnessToolEdit(){
 ## as missing rather than collapsing into "the pattern matched nothing".
 AgentsHarnessToolGlob(){
 	local toolPattern="$1" toolPath="${2:-$PWD}" toolLong="$3" toolBytes globStat globLine globSlice
-	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
-	fi
+	AgentsHarnessReadGate Glob "$toolPath" || return 0
 	toolPath="$harnessResolvedPath"
 	if [ ! -d "$toolPath" ] ; then
 		printf 'ERROR: no such directory: %s\n' "$toolPath" ; return 0
@@ -1304,9 +1324,7 @@ AgentsHarnessToolGrep(){ ## pattern, path, context, before, after, ignore_case, 
 		*/*) ;;
 		*) toolGlob="${toolGlob#\*\*/}" ;;
 	esac
-	if ! AgentsHarnessPathAllowed "$toolPath" ; then
-		printf 'ERROR: path not in the allowed access-root set: %s%s\n' "$toolPath" "$( AgentsHarnessDeniedHint "$toolPath" )" ; return 0
-	fi
+	AgentsHarnessReadGate Grep "$toolPath" || return 0
 	toolPath="$harnessResolvedPath"
 	if [ ! -e "$toolPath" ] ; then
 		printf 'ERROR: no such path: %s\n' "$toolPath" ; return 0
@@ -3670,8 +3688,10 @@ AgentsHarnessSkillSection(){ ## file, sections
 ## under the root, whatever that root later resolves to.
 AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, section
 	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7" toolSection="${8:-}"
-	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate
+	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate skillOther
 	local skillVendor=()
+	## A member of another workspace is found through the shared registry, never through this workspace's own index.
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$harnessHere/AgentsTools.TeamRegistry.include"
 	## skill is the native call shape: the name resolved and the skill rendered as the
 	## client does both. A path of its own, apart from name, file and list.
 	if [ -n "$toolSkill" ] ; then
@@ -3693,17 +3713,18 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 			fi
 		done
 		if [ -z "$skillPrefix" ] ; then
-			## Team members from the member index; then a skill the user or a vendor put in
-			## $HOME/.claude/skills as a real folder. A link there is one our installer
-			## generated, and is never read back.
+			## Team members from the member index, then a member of another workspace by its
+			## name; then a skill the user or a vendor put in $HOME/.claude/skills as a real
+			## folder. A link there is one our installer generated, and is never read back.
 			skillOwnRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}"
+			skillOther="$( AgentsToolsTeamMemberDirectory "$skillLeaf" 2> /dev/null )" || skillOther=""
 			skillVendor=()
 			for skillCandidate in "$HOME/.claude/skills/$skillLeaf" "$HOME"/.claude/skills/*/ ; do
 				skillCandidate="${skillCandidate%/}"
 				[ ! -L "$skillCandidate" ] && [ -f "$skillCandidate/SKILL.md" ] || continue
 				skillVendor+=( "$skillCandidate/SKILL.md" )
 			done
-			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$skillOwnRoot/$skillLeaf/SKILL.md" "$skillOwnRoot"/*/SKILL.md ${skillVendor[@]+"${skillVendor[@]}"} )"
+			skillDir="$( AgentsHarnessSkillLocate "$skillLeaf" "$skillOwnRoot/$skillLeaf/SKILL.md" "$skillOwnRoot"/*/SKILL.md ${skillOther:+"$skillOther/SKILL.md"} ${skillVendor[@]+"${skillVendor[@]}"} )"
 			skillPath="$skillDir/SKILL.md"
 			skillSought="a skill folder or a SKILL.md frontmatter name $skillLeaf under $skillOwnRoot and the real folders of $HOME/.claude/skills"
 		elif [ "$skillPrefix" = anthropic-skills ] ; then
@@ -3774,10 +3795,12 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 	if ! AgentsHarnessSkillSegmentOk "$toolName" ; then
 		printf 'ERROR: Skill: name is not a bare skill folder name -- letters, digits, underscore, dot and hyphen only, and never . or .. : %s\n' "${toolName:-<none>}" ; return 0
 	fi
-	## The member index holds every member this workspace reaches, its own and the ones
-	## other workspaces publish. A real folder in $HOME/.claude/skills is a skill the user
-	## or a vendor put there; a link there is our own generated output, never read back.
+	## The member index holds this workspace's own members; a member of another workspace
+	## is found through the shared registry. A real folder in $HOME/.claude/skills is a
+	## skill the user or a vendor put there; a link there is our own generated output,
+	## never read back.
 	skillDir="${MDAT_SKILLSET_ROOT:-${MMDAPP:-}/.local/agents/members}/$toolName"
+	[ -d "$skillDir" ] || ! skillOther="$( AgentsToolsTeamMemberDirectory "$toolName" 2> /dev/null )" || skillDir="$skillOther"
 	[ -d "$skillDir" ] || [ -L "$HOME/.claude/skills/$toolName" ] || skillDir="$HOME/.claude/skills/$toolName"
 	if [ ! -d "$skillDir" ] ; then
 		printf 'ERROR: Skill: no such skill folder: %s\n' "$toolName" ; return 0

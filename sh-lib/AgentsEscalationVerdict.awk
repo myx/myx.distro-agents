@@ -13,7 +13,7 @@
 # The author is the account that wrote the classified answer; for a reaction, the first
 # of its users that is one of the accepted authors.
 #
-# ENVIRON["MDAT_VERDICT_KIND"]    readback | decision | permission
+# ENVIRON["MDAT_VERDICT_KIND"]    readback | decision | permission | permission-set
 # ENVIRON["MDAT_VERDICT_OPTIONS"] decision only: the options, one per line; each line's
 #                                 first word is the word that answers it.
 # ENVIRON["MDAT_VERDICT_AUTHORS"] the accounts whose answer counts, space-separated.
@@ -42,7 +42,8 @@ BEGIN {
 		if ( optionWord != "" ) { optionSet[optionWord] = 1 ; }
 	}
 	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["correct"] = 1 ; }
-	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; }
+	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; optionSet["allow-task"] = 1 ; }
+	else if ( kind == "permission-set" ) { optionSet["deny"] = 1 ; optionSet["allow-set"] = 1 ; optionSet["edit"] = 1 ; }
 	authorTotal = split( ENVIRON["MDAT_VERDICT_AUTHORS"], authorList, " " ) ;
 	for ( authorIndex = 1 ; authorIndex <= authorTotal ; authorIndex++ ) { authorSet[authorList[authorIndex]] = 1 ; }
 	verdict = "" ;
@@ -68,7 +69,7 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 	if ( reactionAuthor == "" ) { next ; }
 	if ( kind == "readback" && reactionName == "white_check_mark" ) { verdict = "yes" ; }
 	else if ( kind == "readback" && reactionName == "x" ) { verdict = "no" ; }
-	else if ( kind == "permission" && reactionName == "x" ) { verdict = "deny" ; }
+	else if ( ( kind == "permission" || kind == "permission-set" ) && reactionName == "x" ) { verdict = "deny" ; }
 	if ( verdict != "" ) { author = reactionAuthor ; }
 	next ;
 }
@@ -91,7 +92,11 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 		if ( replyWord == "yes" || replyWord == "no" ) { verdict = replyWord ; }
 		else if ( replyWord == "correct" || replyWord == "correct:" ) { verdict = "correct" ( replyRest != "" ? " -- " replyRest : "" ) ; }
 	} else if ( kind == "permission" ) {
-		if ( replyWord == "deny" || replyWord == "allow-once" || replyWord == "allow-session" ) { verdict = replyWord ; }
+		if ( replyWord == "deny" || replyWord == "allow-once" || replyWord == "allow-session" || replyWord == "allow-task" ) { verdict = replyWord ; }
+	} else if ( kind == "permission-set" ) {
+		## edit carries the change, as a readback correct does.
+		if ( replyWord == "deny" || replyWord == "allow-set" ) { verdict = replyWord ; }
+		else if ( replyWord == "edit" || replyWord == "edit:" ) { verdict = "edit" ( replyRest != "" ? " -- " replyRest : "" ) ; }
 	} else if ( kind == "decision" ) {
 		if ( replyWord in optionSet ) { verdict = replyWord ; }
 	}

@@ -11,6 +11,8 @@
 ##   pending-replies     <- the questions AskUserQuestion posted, and the board items
 ##                          that some of them became
 
+type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+
 AgentsToolsRegistryFile(){ ## registry name
 	printf '%s\n' "$MMDAPP/.local/agents/$1.registry"
 }
@@ -215,14 +217,17 @@ AgentsToolsRegistryMemberNamesMissing(){ ## row text
 ##
 AgentsToolsRegistryTeamMembersNamesRows(){
 	local namesMember namesWorkspace namesKind namesPath namesFile namesText namesStatus namesFields namesMissing namesKey
-	local personaFields="" personaMissing="" personaRead="false"
+	local personaFields="" personaMissing="" personaRead="false" personaDir
 	while read -r namesMember namesWorkspace namesKind namesPath ; do
 		[ -n "$namesMember" ] || continue
 		case "$namesMember" in
 			client-*)
 				if [ "$personaRead" != "true" ] ; then
 					personaRead="true"
-					personaFields="$( AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
+					## The persona member may be another workspace's: read from its own folder,
+					## found through the shared registry (AgentsToolsTeamMemberDirectory).
+					personaDir="$( AgentsToolsTeamMemberDirectory "$registryPersonaMember" )" || personaDir=""
+					personaFields="$( [ -z "$personaDir" ] || MDAT_SKILLSET_ROOT="${personaDir%/*}" ; AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
 					personaMissing="$( AgentsToolsRegistryMemberNamesMissing "$personaFields" )"
 					for namesKey in $personaMissing ; do
 						echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2

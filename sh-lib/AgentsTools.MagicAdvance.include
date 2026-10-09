@@ -102,7 +102,8 @@ AgentsToolsAdvanceLockHeadCheck(){
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 	local staleHours="$1" spawnRoot="$MMDAPP/.local/agents/spawned"
 	local measureText startedRows rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState
-	local reviewBy reviewId sessionKind housekeepingLog=""
+	local reviewBy reviewId reviewDir sessionKind housekeepingLog=""
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 	## The one place the outcome word of a closed-by-tooling spawn is spelled; the status values are `spawn-` and `dispatch-` plus it.
 	local endedOutcome="ended-without-close"
 	local recordPath recordCandidate recordStatus recordExit rowSide linkField linkStem itemName itemState itemPath itemSpawn itemOutput targetState closeOutcome
@@ -195,7 +196,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			''|human-owner|*.routine) continue ;;
 			*:*) reviewId="${reviewBy%%:*}" ;;
 			magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) continue ;;
-			*) [ ! -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$reviewBy/SKILL.md" ] || continue ; reviewId="$reviewBy" ;;
+			## A member of any workspace stays too (AgentsTools.TeamRegistry.include), not this one's own index alone.
+			*) if reviewDir="$( AgentsToolsTeamMemberDirectory "$reviewBy" )" && [ -f "$reviewDir/SKILL.md" ] ; then continue ; fi ; reviewId="$reviewBy" ;;
 		esac
 		sessionKind="$( printf '%s\n' "$measureText" | LC_ALL=C awk -v wantSession="$reviewId" '
 			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $13 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }

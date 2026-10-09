@@ -85,6 +85,31 @@ function stlFirstLine(textValue,   lineEnd) {
 	return textValue
 }
 
+# The first line holding anything but blanks; "" for none.
+function stlFirstText(textValue,   lineCount, lineList, lineIndex) {
+	lineCount = split(textValue, lineList, "\n")
+	for (lineIndex = 1; lineIndex <= lineCount; lineIndex++) if (lineList[lineIndex] ~ /[^ \t\r]/) return lineList[lineIndex]
+	return ""
+}
+
+# A command as a reader wants it, for the event-track post and the console: the shared
+# boilerplate that opens most workspace commands left out -- each leading DistroSystemContext,
+# DistroAgentsContext or Require step ended by ; or &&, then the Distro dispatcher's own word
+# before a tool name. The command as given when nothing else would be left. The transcript
+# keeps the command whole.
+function stlCompactCmd(cmdText,   restText) {
+	restText = cmdText
+	while (1) {
+		sub(/^[ \t]+/, "", restText)
+		if (!match(restText, /^(DistroSystemContext|DistroAgentsContext|Require)([ \t][^;&|]*)?[ \t]*(;|&&)/)) break
+		restText = substr(restText, RLENGTH + 1)
+	}
+	sub(/^[ \t]+/, "", restText)
+	if (restText ~ /^Distro[ \t]+[A-Z]/) sub(/^Distro[ \t]+/, "", restText)
+	if (restText == "") return cmdText
+	return restText
+}
+
 # Every match of findPattern, the head keepPattern matches at its start left in place and
 # the rest replaced by [redacted] when it is at least minBytes long.
 function stlRedactEach(textValue, findPattern, keepPattern, minBytes,   outText, foundText, keepText, secretText) {
@@ -181,7 +206,10 @@ function stlToolArgs(toolName, jsonText,   baseName, outText) {
 		outText = stlKv("pattern", stlJsonStr(jsonText, "pattern"), 200) stlKv("path", stlJsonStr(jsonText, "path"), 300)
 	} else if (baseName == "Bash" || baseName == "execute" || baseName == "Monitor") {
 		outText = stlKv("cmd", stlOneLine(stlFirstLine(stlJsonStr(jsonText, "command")), 200), 220) stlKv("cwd", stlJsonStr(jsonText, "cwd"), 300) stlKv("workspace", stlJsonStr(jsonText, "workspace"), 300) stlKv("background", stlJsonScalar(jsonText, "background")) stlKv("timeout", stlJsonScalar(jsonText, "timeout")) stlKv("job", stlJsonScalar(jsonText, "job")) stlKv("handle", stlJsonStr(jsonText, "handle")) stlKv("action", stlJsonStr(jsonText, "action"))
-	} else if (baseName == "SendMessage" || baseName == "SubagentHandback") {
+	} else if (baseName == "SendMessage") {
+		## The message's first line, so a send that failed, and so wrote no MSG-OUT, still says what it was.
+		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("as_bot", stlJsonScalar(jsonText, "as_bot")) stlKv("message", stlOneLine(stlFirstText(stlJsonStr(jsonText, "message")), 120), 140)
+	} else if (baseName == "SubagentHandback") {
 		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("as_bot", stlJsonScalar(jsonText, "as_bot"))
 	} else if (baseName == "ReportFindings") {
 		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("subject", stlJsonStr(jsonText, "subject"), 120)
@@ -216,11 +244,28 @@ function stlToolArgs(toolName, jsonText,   baseName, outText) {
 	return outText
 }
 
-# The call's own comment, where its arguments carry one.
-function stlArgComment(jsonText,   commentText) {
-	commentText = stlJsonStr(jsonText, "description")
+# The call's own comment, where its arguments carry one: a task tool's subject, a
+# description (any tool's: every harness and served tool declares one as the call's
+# intent, and native Bash and Agent have their own), an action_summary or a comment; a
+# TodoWrite's item in progress, its activeForm else its content.
+function stlArgComment(jsonText, toolName,   commentText, baseName, objectText, objectStart, closeAt) {
+	commentText = ""
+	baseName = stlBaseTool(toolName)
+	if (baseName ~ /^Task(Create|Update)$/) commentText = stlJsonStr(jsonText, "subject")
+	if (commentText == "") commentText = stlJsonStr(jsonText, "description")
 	if (commentText == "") commentText = stlJsonStr(jsonText, "action_summary")
 	if (commentText == "") commentText = stlJsonStr(jsonText, "comment")
+	if (commentText == "" && baseName == "TodoWrite" && match(jsonText, /"status"[ \t\r\n]*:[ \t\r\n]*"in_progress"/)) {
+		## The object holding that status: from the last { before it to the first } after it.
+		objectText = substr(jsonText, 1, RSTART)
+		objectStart = 0
+		while (match(substr(objectText, objectStart + 1), /[{]/)) objectStart += RSTART
+		objectText = substr(jsonText, objectStart)
+		closeAt = index(objectText, "}")
+		if (closeAt > 0) objectText = substr(objectText, 1, closeAt)
+		commentText = stlJsonStr(objectText, "activeForm")
+		if (commentText == "") commentText = stlJsonStr(objectText, "content")
+	}
 	return commentText
 }
 
@@ -232,10 +277,10 @@ function stlDurMs(durMs) {
 	return sprintf("%dm%02ds", int(durMs / 60000), int((durMs % 60000) / 1000))
 }
 
-# The comment is the call's own (a Bash description, an action_summary) where it
+# The comment is the call's own (its description, an action_summary) where it
 # carries one, else the one passed: the model's visible text just before the call.
 function stlToolLine(tsText, toolName, jsonText, outcomeText, firstText, sizeBytes, sizeLines, durText, commentText,   lineText, argComment) {
-	argComment = stlArgComment(jsonText)
+	argComment = stlArgComment(jsonText, toolName)
 	if (argComment != "") commentText = argComment
 	lineText = tsText " TOOL " stlOneLine(toolName, 120) stlToolArgs(toolName, jsonText) " -> " outcomeText
 	if (outcomeText != "ok" && firstText != "") lineText = lineText " " stlQuote(firstText, 240)

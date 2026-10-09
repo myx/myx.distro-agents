@@ -189,6 +189,8 @@ function stjAssistant(lineText,   headText, contentAt, messageId, messageError, 
 		stjMsgId = messageId
 		stjRound++
 		stjMsgText = ""
+		## A call's comment is the text just before it in its own turn, never an earlier turn's.
+		stjLastText = ""
 		stjMsgIn = 0 ; stjMsgCr = 0 ; stjMsgCw = 0 ; stjMsgOut = 0
 	}
 	## The latest usage snapshot of this message stands: output grows as it streams.

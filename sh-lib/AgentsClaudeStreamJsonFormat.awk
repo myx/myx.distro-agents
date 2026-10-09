@@ -115,6 +115,36 @@ BEGIN {
 	argKeyForTool["ToolSearch"] = "query"
 	argKeyForTool["SendMessage"] = "to"
 	argKeyForTool["Task"] = "description"
+	## Served over MCP (mcp__<server>__<name>, looked up by <name>): the shell tool, and the
+	## served Skill, which names its skill `name`.
+	argKeyForTool["execute"] = "command"
+	argAltKeyForTool["Skill"] = "name"
+}
+
+# The tool a name means, without an MCP server prefix: mcp__myx_distro__Read is Read, so a
+# served call shows its argument as the vendor's own does.
+function baseToolName(toolName,   restName, cutAt) {
+	if (substr(toolName, 1, 5) != "mcp__") return toolName
+	restName = substr(toolName, 6)
+	cutAt = index(restName, "__")
+	return (cutAt == 0) ? toolName : substr(restName, cutAt + 2)
+}
+
+# A command without the boilerplate that opens most workspace commands, by the event-track
+# post's own rule (stlCompactCmd, AgentsSessionTranscriptFormat.awk, which this standalone
+# formatter cannot load): each leading DistroSystemContext, DistroAgentsContext or Require
+# step ended by ; or &&, then the Distro word before a tool name. As given when nothing is left.
+function compactCommand(cmdText,   restText) {
+	restText = cmdText
+	while (1) {
+		sub(/^[ \t]+/, "", restText)
+		if (!match(restText, /^(DistroSystemContext|DistroAgentsContext|Require)([ \t][^;&|]*)?[ \t]*(;|&&)/)) break
+		restText = substr(restText, RLENGTH + 1)
+	}
+	sub(/^[ \t]+/, "", restText)
+	if (restText ~ /^Distro[ \t]+[A-Z]/) sub(/^Distro[ \t]+/, "", restText)
+	if (restText == "") return cmdText
+	return restText
 }
 
 # A path's identity is at its end, so cutting from the right removes exactly the
@@ -183,7 +213,7 @@ function jsonStringLength(sourceLine, fieldKey,   needlePattern, foundAt) {
 	return jsonStringEnd(substr(sourceLine, foundAt + length(needlePattern)));
 }
 
-function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName, argKey, argVal, rangeText, readOffset, readLimit) {
+function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName, baseName, inputAt, inputText, argKey, argVal, rangeText, readOffset, readLimit, descText) {
 	cursorPos = 1
 	while (match(substr(sourceLine, cursorPos), /"type":"tool_use"/)) {
 		cursorPos = cursorPos + RSTART + RLENGTH - 1
@@ -195,24 +225,35 @@ function reportToolCalls(sourceLine,   cursorPos, blockEnd, blockText, toolName,
 		blockText = substr(sourceLine, cursorPos, blockEnd - cursorPos + 1)
 		toolName = extractJsonField(blockText, "name", 1)
 		if (toolName == "") continue
-		argKey = argKeyForTool[toolName]
-		argVal = (argKey == "") ? "" : extractJsonField(blockText, argKey, 1)
+		## The arguments only, so an argument called name is never the tool's own name.
+		inputAt = index(blockText, "\"input\":")
+		inputText = (inputAt > 0) ? substr(blockText, inputAt) : blockText
+		baseName = baseToolName(toolName)
+		argKey = argKeyForTool[baseName]
+		argVal = (argKey == "") ? "" : extractJsonField(inputText, argKey, 1)
+		if (argVal == "" && (baseName in argAltKeyForTool)) argVal = extractJsonField(inputText, argAltKeyForTool[baseName], 1)
+		if (argKey == "command" && argVal != "") argVal = compactCommand(argVal)
 		## The range a read asked for, beside that one argument rather than inside the
 		## table above: it qualifies the path instead of competing to be it, and each
 		## half appears only where the call carried it.
 		rangeText = ""
-		if (toolName == "Read") {
-			readOffset = extractJsonNumber(blockText, "offset")
-			readLimit = extractJsonNumber(blockText, "limit")
+		if (baseName == "Read") {
+			readOffset = extractJsonNumber(inputText, "offset")
+			readLimit = extractJsonNumber(inputText, "limit")
 			if (readOffset != "") rangeText = rangeText " offset " readOffset
 			if (readLimit != "") rangeText = rangeText " limit " readLimit;
 		}
+		## The call's own description first, as the event-track post shows it: the intent,
+		## then the tool. Not again where it already is the one argument shown.
+		descText = (argKey == "description") ? "" : extractJsonField(inputText, "description", 1)
+		if (descText == "" && argKey != "description") descText = extractJsonField(inputText, "action_summary", 1)
+		descText = (descText == "") ? "" : progressLineSafe(descText, 110) " — "
 		## A name is model output too, and an MCP server names its own tools.
 		toolName = progressLineSafe(toolName, 0)
 		if (argVal == "") {
-			printProgress("-> tool: " toolName rangeText)
+			printProgress("-> tool: " descText toolName rangeText)
 		} else {
-			printProgress("-> tool: " toolName "(" elideForDisplay(argVal, 110) ")" rangeText)
+			printProgress("-> tool: " descText toolName "(" elideForDisplay(argVal, 110) ")" rangeText)
 		}
 	}
 }

@@ -286,8 +286,13 @@ done
 ## (Agents --start-console always puts it first). A spawn (--non-interactive) takes the block as before.
 if { [ "$DAGC_CLI_AUTO" = "true" ] || [ "$DAGC_CLI_GIVEN" != "true" ] ; } && ! { [ "$DAGC_CLI_GIVEN" = "true" ] && [ "$1" != "--non-interactive" ] ; } ; then
 	DAGC_CLI_GIVEN="false"
-	## Tested, not bare: set -e would kill the console on an unreadable scope instead of falling through to the scan below.
-	DAGC_CLI_SERVICE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || DAGC_CLI_SERVICE=""
+	## Read by the one function the spawn proxy resolves a spawn's CLI with before its
+	## event-track start post (AgentsReviewCliResolved, AgentsTools.ReviewFlow.include), so
+	## the CLI that post names and the one started here are one reading; `none` is unset.
+	## In a subshell, so nothing it defines stays here. Tested, not bare: set -e would kill
+	## the console on an unreadable scope instead of falling through to the scan below.
+	DAGC_CLI_SERVICE="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" && AgentsReviewCliResolved "" )" || DAGC_CLI_SERVICE=""
+	[ "$DAGC_CLI_SERVICE" != "none" ] || DAGC_CLI_SERVICE=""
 	if [ -n "$DAGC_CLI_SERVICE" ] ; then
 		# Its name, its non-interactive capability and its presence in PATH are each checked below, at their own use site.
 		DAGC_CLI="$DAGC_CLI_SERVICE"
@@ -487,12 +492,13 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi
-	## Reads stay the full union, which is what every console generated before this
-	## already passed. Writes narrow to what may actually be written: the work
-	## directories, plus the roots a declared Edit grant names.
+	## Reads are what this member may read: the read floor plus its own declared Edit
+	## and Read grants, never every member's; the core records a read outside them as a
+	## refusal, as it does a write. Writes narrow to what may actually be written: the work
+	## directories, plus the roots this member's declared Edit grants name.
 	## Captured with its status and stderr, so a failed producer refuses the spawn with
 	## its reason: read through the herestring directly, a short set passes as whole.
-	if ! DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" 2>&1 )" ; then
+	if ! DAGC_ACCESS_ROOTS="$( AgentsToolsClientAccessRoots "$MMDAPP" "$MDAT_SPAWN_AGENT" "$MDAT_SPAWN_AGENT" 2>&1 )" ; then
 		echo "⛔ ERROR: DistroAgentsConsole: the access-root set could not be computed, refusing rather than starting $DAGC_CLI on a partial set: $DAGC_ACCESS_ROOTS" >&2
 		exit 1
 	fi
@@ -501,7 +507,7 @@ if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
 	done <<< "$DAGC_ACCESS_ROOTS"
 	while IFS= read -r DAGC_ACCESS_LINE ; do
 		case "$DAGC_ACCESS_LINE" in /*) DagcAccessAppend "$DAGC_ACCESS_WRITE_FLAG" "$DAGC_ACCESS_LINE" ;; esac
-	done <<< "$( { AgentsToolsClientAccessReferenceRoots write "$MMDAPP" "$MDAT_SPAWN_AGENT" ; AgentsToolsClientAccessGrantRoots ; } | LC_ALL=C sort -u )"
+	done <<< "$( { AgentsToolsClientAccessReferenceRoots write "$MMDAPP" "$MDAT_SPAWN_AGENT" ; AgentsToolsClientAccessGrantRoots "$MDAT_SPAWN_AGENT" ; } | LC_ALL=C sort -u )"
 	## This spawn's own sandbox, per-spawn and named by its tracking id: input/ is
 	## readable and output/ is writable. ADDED to the two sets above rather than
 	## replacing them, which is the whole reason the write set is rendered on its own

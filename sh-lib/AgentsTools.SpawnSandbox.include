@@ -40,7 +40,7 @@ AgentsToolsSpawnSandboxNearestMagic(){ ## path
 ## credentials line in pointers.md names the identity the tooling acts as, not a value.
 AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty)
 	local fillInput="$1/input" fillBrief="$2" fillItem="$3" fillMember="$4" fillConversations="${5:-}"
-	local fillText fillPath fillMagic fillName fillCount=0 fillSkillsRoot fillMemberDir
+	local fillText fillPath fillMagic fillName fillCount=0 fillMembers fillMemberName fillMemberDir
 	[ -d "$fillInput" ] || return 0
 	## A joined sandbox may hold a run's read-only input/ still: opened and emptied first.
 	AgentsToolsSpawnSandboxCleanInput "$1"
@@ -68,17 +68,19 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 	## Routines and skillset files: every one is a pointer, routines included. A copy is a
 	## snapshot of whatever tree the root resolved to at spawn time, and the brief has the
 	## spawn read its routine through the skillset reader anyway, which serves the live file.
-	fillSkillsRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
+	## Every member's folder, a member of another workspace included (AgentsTools.TeamRegistry.include).
+	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	fillMembers="$( AgentsToolsTeamMemberDirectoryText )"
 	{
 		printf '%s\n' "# Pointers for this spawn" ""
 		printf '%s\n' "Credentials: none are copied here. The team tooling acts as \`$fillMember\` for this spawn and resolves that member's credentials itself."
 		printf '%s\n' ""
 		printf '%s\n' "$fillText" | LC_ALL=C grep -oE '[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+\.md' | LC_ALL=C sort -u | while IFS= read -r fillName ; do
-			for fillMemberDir in "$fillSkillsRoot"/*/ ; do
-				[ -f "$fillMemberDir$fillName" ] || continue
-				printf '%s\n' "- \`$fillName\`: read with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
+			while IFS=$'\t' read -r fillMemberName fillMemberDir ; do
+				[ -n "$fillMemberDir" ] && [ -f "$fillMemberDir/$fillName" ] || continue
+				printf '%s\n' "- \`$fillName\`: read with Skill, name \`$fillMemberName\`, file \`$fillName\`"
 				break
-			done
+			done <<< "$fillMembers"
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
 	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"

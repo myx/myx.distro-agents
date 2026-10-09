@@ -53,7 +53,15 @@ kind: permission
 refusal_id: <the REFUSAL-ID: the refusal printed>
 reason: <why this task needs the refused thing>
 task_ref: <the board item or dispatch the task is tracked in>
-verdicts: deny | allow-once | allow-session
+verdicts: deny | allow-once | allow-session | allow-task
+```
+
+```
+kind: permission-set                <- asked by tooling (--magic-permission-set-request), never by AskUserQuestion
+item: <the task's board item>
+scope: task | session
+entries: <tool:target, one per extra no participant holds>
+verdicts: allow-set | deny | edit   <- edit also returns the change
 ```
 
 # Contract
@@ -65,7 +73,9 @@ verdicts: deny | allow-once | allow-session
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
 - rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.
-- rule: `allow-once` covers one run of the operation the ask named. `allow-session` covers the same tool and target until the session ends. Neither outlives the session.
+- rule: `allow-once` covers one run of the operation the ask named. `allow-session` covers the same tool and target until the session ends. `allow-task` covers them while the ask's task item is open, and no longer than the session. None outlives the session.
+- rule: An allow is applied only from an approver who holds what it allows, or the human-owner. Anyone else's allow is not applied: tooling re-addresses the ask to a holder among the session's or task's participants, else forwards it to the human-owner, and it stays open.
+- rule: A `permission-set` ask carries the extras of a task's or session's permission set as ONE ask to the human-owner. `allow-set` grants them to every participant for that scope and records the set on the item's `## Decisions`; a `task` set also becomes the item's `allows`.
 - rule: `deny` is a verdict. That part of the task is reported as denied and still open.
 - rule: No answer is not a verdict. The ask stays open.
 - rule: The member asks with the wait on and reads the verdict from `AskUserQuestion` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.

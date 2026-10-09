@@ -40,6 +40,7 @@ printf 'alpha\nbeta\n' > "$rigW/e-one.txt"
 printf 'x\nx\nx\n' > "$rigW/e-all.txt"
 printf 'x\nx\n' > "$rigW/e-dup.txt"
 printf 'x\nx\n' > "$rigW/e-ctl-all.txt"
+printf 'alpha\nbeta\n' > "$rigW/e-desc.txt"
 printf 'alpha\nbeta\ngamma\n' > "$rigS/a.txt"
 printf 'Needle one\nneedle two\nother\nneedle three\n' > "$rigG/a.js"
 printf 'needle in txt\n' > "$rigG/b.txt"
@@ -187,6 +188,23 @@ rigCall(){ ## request id, tool name, arguments JSON -- one tools/call line
 	rigCall 82 Glob '{"pattern":"'"$rigW"'/.claude/projects/*/memory/*.md"}'
 	rigCall 83 Grep '{"pattern":"alpha","path":"'"$rigM"'","output_mode":"content"}'
 	rigCall 84 Read '{"file_path":"'"$rigW/.claude/projects/rig/beside.md"'"}'
+	## The optional description every tool declares: each call repeats one above, or its pair
+	## here, with a description added, and must answer exactly as that one does.
+	rigCall 85 Read '{"file_path":"'"$rigS/a.txt"'","offset":2,"limit":1,"description":"Read the second line"}'
+	rigCall 86 Glob '{"pattern":"**/*.ts","path":"'"$rigG"'","description":"Find the ts files"}'
+	rigCall 87 Grep '{"pattern":"needle","path":"'"$rigG"'","output_mode":"content","description":"Find every needle"}'
+	rigCall 88 WebSearch '{"query":"rigquery","allowed_domains":["allowed.example"],"description":"Search the allowed domain"}'
+	rigCall 89 WebFetch '{"url":"https://fetch.example/page","description":"Fetch the rig page"}'
+	rigCall 90 TaskStop '{"task_id":"rig-no-such-handle","description":"Stop a helper that is not there"}'
+	rigCall 91 Write '{"file_path":"'"$rigW/w-desc.txt"'","content":"native line\nsecond\n","description":"Write the rig file"}'
+	rigCall 92 Edit '{"file_path":"'"$rigW/e-desc.txt"'","old_string":"alpha","new_string":"ALPHA","description":"Raise the first word"}'
+	rigCall 93 execute '{"command":"printf RIGBASHOUT"}'
+	rigCall 94 TaskOutput '{"handle":"rig-no-such-handle"}'
+	rigCall 95 TaskOutput '{"handle":"rig-no-such-handle","description":"Read a helper that is not there"}'
+	rigCall 96 ToolSearch '{"query":"select:Read"}'
+	rigCall 97 ToolSearch '{"query":"select:Read","description":"Load the Read schema"}'
+	rigCall 98 ListAgents '{}'
+	rigCall 99 ListAgents '{"description":"List the helpers"}'
 } | ( cd "$rigG" && MMDAPP="$rigTmp" MDLT_ORIGIN="$MDLT_ORIGIN" HOME="$rigTmp/home" MDAT_SKILLSET_ROOT="$rigTmp/home/.claude/skills" \
 	MDAT_DATA_ROOT="$rigTmp/data" PATH="$rigTmp/bin:$PATH" bash "$rigTool" --intern-mcp-server --run ) > "$rigTmp/wire" 2> "$rigTmp/err" || :
 
@@ -198,7 +216,7 @@ chmod 600 "$rigTmp/.local/.agents/magic-team.agent.env"
 
 ## A request the server never answered was never exercised, so the run stops there.
 rigId=2
-while [ "$rigId" -le 84 ] ; do
+while [ "$rigId" -le 99 ] ; do
 	LC_ALL=C grep -q "^{\"jsonrpc\":\"2.0\",\"id\":$rigId," "$rigTmp/wire" || {
 		echo "-- the server left request $rigId unanswered, so its stderr follows --" >&2
 		sed 's/^/    /' "$rigTmp/err" >&2
@@ -398,6 +416,24 @@ echo "-- Bash (rerouted to execute) --"
 rigNative Bash "command runs, description is accepted, stdout comes back" "$( rigResult 75 )" 'RIGBASHOUT'
 rigText="$( rigResult 76 )"
 rigNative Bash "a failing command returns its output and its exit code" "$( rigHas "$rigText" RIGBASHFAIL ) $( rigHas "$rigText" '[exit code: 3]' )" 'yes yes'
+
+echo "-- the optional description: a call with one answers exactly as one without --"
+rigAssert "Read" "$( rigResult 85 )" "$( rigResult 10 )"
+rigAssert "Glob" "$( rigResult 86 )" "$( rigResult 12 )"
+rigAssert "Grep" "$( rigResult 87 )" "$( rigResult 14 )"
+rigAssert "WebSearch" "$( rigResult 88 )" "$( rigResult 41 )"
+rigAssert "WebFetch" "$( rigResult 89 )" "$( rigResult 43 )"
+rigAssert "TaskStop" "$( rigResult 90 )" "$( rigResult 46 )"
+rigText="$( rigResult 91 )"
+rigAssert "Write: the same answer and the same bytes written" "${rigText//w-desc.txt/w-native.txt} $( rigBytes "$rigW/w-desc.txt" )" "$( rigResult 8 ) $( rigBytes "$rigW/w-native.txt" )"
+rigText="$( rigResult 92 )"
+rigAssert "Edit: the same answer and the same change" "${rigText//e-desc.txt/e-one.txt} $( rigBytes "$rigW/e-desc.txt" )" "$( rigResult 3 ) $( rigBytes "$rigW/e-one.txt" )"
+rigAssert "execute" "$( rigResult 75 )" "$( rigResult 93 )"
+rigAssert "TaskOutput" "$( rigResult 95 )" "$( rigResult 94 )"
+rigAssert "ToolSearch" "$( rigResult 97 )" "$( rigResult 96 )"
+rigAssert "ListAgents" "$( rigResult 99 )" "$( rigResult 98 )"
+rigAssert "the served ToolSearch catalogue declares it too" \
+	"$( rigHas "$( rigResult 96 )" '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' )" yes
 
 echo "-- TaskStop --"
 rigAssert "control: handle reaches the lookup" "$( rigHas "$( rigResult 45 )" 'matches handle rig-no-such-handle' )" yes

@@ -251,7 +251,7 @@ The fast gate at task creation: may this task exist, and may the asking member a
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
   - Members ask participants for facts, and this member, by `AskUserQuestion`, for consent, decisions and permissions (`magic-team.armed.md`'s "Escalation and chain of command").
-  - It settles a simple question itself and answers with `--magic-escalation-answer`, permission verdicts included.
+  - It settles a simple question itself and answers with `--magic-escalation-answer`, permission verdicts only for permissions it holds; tooling routes the rest up.
   - A question whose answer binds the team is registered as a board item blocking the work it gates, and forwarded to him at once with `--magic-escalation-forward`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
   - A member with no coordinator present asks him itself with `AskUserQuestion`.

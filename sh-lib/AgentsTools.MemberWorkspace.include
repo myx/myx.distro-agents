@@ -6,10 +6,23 @@
 ## Functions only; sourced at the entry of DistroAgentsTools, before its context is resolved.
 ##
 
+## The member set root for work in another workspace: that workspace's own member index
+## view where the root here is this workspace's own view, which holds this workspace's
+## members only (AgentsTools.TeamRegistry.include); a root set anywhere else is kept as it is.
+AgentsToolsWorkspaceSkillsetRoot(){ ## workspace path
+	if [ "${MDAT_SKILLSET_ROOT:-}" = "${MMDAPP%/}/.local/agents/members" ] ; then
+		printf '%s\n' "${1%/}/.local/agents/members"
+	else
+		printf '%s\n' "${MDAT_SKILLSET_ROOT:-}"
+	fi
+}
+
 ## Moves this process to another workspace root. The tooling origin stays, and everything
 ## derived from the previous root is dropped so it is derived again from the new one.
 AgentsToolsWorkspaceSwitch(){ ## workspace path
 	local switchStale
+	## the member set root, worked out against the previous root before MMDAPP moves
+	MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$1" )"
 	export MMDAPP="$1"
 	## all derived from the previous root, and an index path is matched before MDSC_CACHED
 	unset MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY

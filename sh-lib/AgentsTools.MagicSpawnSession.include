@@ -66,6 +66,8 @@ case "$1" in
 		## routine file even if the tree changes mid-call -- a selector re-resolved
 		## per spawn could otherwise split one session across two routine files.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+		## A member of any workspace is spawnable from here: the member directory, not this workspace's own index alone.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 		if [ "$routineDefault" = "true" ] ; then
 			routineSelector="$( AgentsToolsSpawnRoutineDefaultName )" || { set +e ; return 1 ; }
 		fi
@@ -96,7 +98,7 @@ case "$1" in
 					for execCandidate in "${execList[@]}" ; do
 						execCandidate="${execCandidate#"${execCandidate%%[![:space:]]*}"}"
 						execCandidate="${execCandidate%"${execCandidate##*[![:space:]]}"}"
-						if [ -z "$execCandidate" ] || [ ! -d "$MDAT_SKILLSET_ROOT/$execCandidate" ] ; then
+						if [ -z "$execCandidate" ] || ! AgentsToolsTeamMemberDirectory "$execCandidate" > /dev/null ; then
 							execOk="false"
 							break
 						fi
@@ -134,7 +136,7 @@ case "$1" in
 		local spawnFirst="true"
 		for spawnMember in "${spawnMembers[@]}" ; do
 			AgentsToolsAssertBareName "$spawnMember" "<team-member>" magic-spawn-session || { set +e ; return 1 ; }
-			if [ ! -d "$MDAT_SKILLSET_ROOT/$spawnMember" ] ; then
+			if ! AgentsToolsTeamMemberDirectory "$spawnMember" > /dev/null ; then
 				echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: no such team member: $spawnMember" >&2
 				set +e ; return 1
 			fi

@@ -118,7 +118,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 # Contract
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional).
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional), `allows:` (optional).
+- `allows:` (optional)
+  - Permissions the routine gives its participants while a session runs it, ending with that session: comma-separated `<member|executors|participants>:<tool>[:<target>]`, a path target relative to the workspace or absolute, %-escaped as a tracking document's `allows`.
+  - Approved by its `maintainers:`. `cred:` and `spend:` entries stand only with `human-owner` among them; without him, any other entry stands only when a maintainer holds it.
 - `session:` (optional)
   - `coworking` marks a coworking-like routine, per `magic-team.coworking.routine`'s session-type taxonomy: the routines it lists, and any routine that runs several members on one shared task.
   - `--magic-spawn-session` reads it to add `magic-coordinator` to a session that lacks one.

@@ -27,10 +27,12 @@
 ##                          only pointers: one workspace root per line that publishes one
 ##   permissions-tags.registry   $MMDAPP/.local/agents/ -- this workspace's grant-root
 ##                          provenance tags, `member:workspace:tag:root`
-##   members.index + members/   $MMDAPP/.local/agents/ -- THE MEMBER INDEX: every member
-##                          this workspace can reach, its own first, then the members other
-##                          workspaces publish; members/<name> links to each one's
-##                          directory, and is what MDAT_SKILLSET_ROOT names.
+##   members.index + members/   $MMDAPP/.local/agents/ -- THE MEMBER INDEX: this
+##                          workspace's own members only; members/<name> links to each one's
+##                          directory, and is what MDAT_SKILLSET_ROOT names. A member of
+##                          another workspace has no row, link or folder here: a reader that
+##                          names one finds it through the shared members.registry
+##                          (AgentsToolsTeamMemberDirectory below).
 ##
 ## Dot-sourced; functions only.
 ##
@@ -102,38 +104,65 @@ AgentsToolsTeamGrantPointerUpsert(){ ## workspace
 }
 
 ## THE MEMBER INDEX, on stdout: `member<TAB>directory<TAB>workspace root<TAB>link kind`.
-## This workspace's own rows first, from its own members.registry, then, for every name
-## not already listed, another workspace's row from the shared registry -- the one whose
-## kind is source-symlink (the workspace holding that member's source), else the first.
-## Rules files are not members and are never listed. Each name once.
+## This workspace's own members only, from its own members.registry: a member of another
+## workspace never has a row here. Rules files are not members and are never listed.
+## Each name once.
 AgentsToolsTeamMemberIndexText(){ ## workspace
-	local indexWs="${1%/}" indexOwn indexShared
+	local indexWs="${1%/}" indexOwn
 	[ -n "$indexWs" ] && [ -d "$indexWs" ] || return 1
 	indexWs="$( cd "$indexWs" && pwd )" || return 1
 	indexOwn="$indexWs/.local/agents/members.registry"
-	indexShared="$( AgentsToolsTeamSharedMembers )"
-	[ -f "$indexOwn" ] || indexOwn=/dev/null
-	[ -f "$indexShared" ] || indexShared=/dev/null
+	[ -f "$indexOwn" ] || return 0
 	LC_ALL=C awk -F'\t' -v here="$indexWs" '
-		NF < 5 || $3 == "rules-symlink" || $1 == "" || $1 == "trash" { next ; }
-		FILENAME == ARGV[1] {
-			if ($2 != here || ($1 in own)) next ;
-			own[$1] = 1 ; order[++count] = $1 ; line[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ;
-			next ;
-		}
-		$2 == here || ($1 in own) { next ; }
-		!($1 in other) { other[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ; otherOrder[++otherCount] = $1 ; otherKind[$1] = $3 ; next ; }
-		otherKind[$1] != "source-symlink" && $3 == "source-symlink" { other[$1] = $1 "\t" $5 "\t" $2 "\t" $3 ; otherKind[$1] = $3 ; }
-		END {
-			for (i = 1 ; i <= count ; i++) print line[order[i]] ;
-			for (i = 1 ; i <= otherCount ; i++) print other[otherOrder[i]] ;
-		}
-	' "$indexOwn" "$indexShared"
+		NF < 5 || $3 == "rules-symlink" || $1 == "" || $1 == "trash" || $2 != here || ($1 in own) { next ; }
+		{ own[$1] = 1 ; print $1 "\t" $5 "\t" $2 "\t" $3 ; }
+	' "$indexOwn"
+}
+
+## Every member this machine knows, on stdout: `member<TAB>directory`. This workspace's own
+## first, from the member set root MDAT_SKILLSET_ROOT names, then, for every name not already
+## listed, another workspace's row from the shared registry -- the one whose kind is
+## source-symlink (the workspace holding that member's source), else the first. Read at the
+## point of use by a reader that names members of other workspaces (routing, a spawn, the
+## client sweeps); never written into a workspace. Each name once.
+AgentsToolsTeamMemberDirectoryText(){
+	local directoryRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:+${MMDAPP%/}/.local/agents/members}}" directoryShared directoryEntry
+	directoryShared="$( AgentsToolsTeamSharedMembers )"
+	[ -f "$directoryShared" ] || directoryShared=/dev/null
+	LC_ALL=C awk -F'\t' '
+		FILENAME == ARGV[1] { if ( $1 != "" && !( $1 in seen ) ) { seen[$1] = 1 ; print $1 "\t" $2 ; } next ; }
+		NF < 5 || $3 == "rules-symlink" || $1 == "" || $1 == "trash" || ( $1 in seen ) { next ; }
+		!( $1 in other ) { other[$1] = $5 ; otherKind[$1] = $3 ; otherOrder[++otherCount] = $1 ; next ; }
+		otherKind[$1] != "source-symlink" && $3 == "source-symlink" { other[$1] = $5 ; otherKind[$1] = $3 ; }
+		END { for ( i = 1 ; i <= otherCount ; i++ ) print otherOrder[i] "\t" other[otherOrder[i]] ; }
+	' <(
+		[ -z "$directoryRoot" ] || for directoryEntry in "$directoryRoot"/*/ ; do
+			directoryEntry="${directoryEntry%/}"
+			[ -d "$directoryEntry" ] && [ "${directoryEntry##*/}" != trash ] || continue
+			printf '%s\t%s\n' "${directoryEntry##*/}" "$directoryEntry"
+		done
+	) "$directoryShared"
+}
+
+## One member's directory, from AgentsToolsTeamMemberDirectoryText: this workspace's own
+## where it is one, else the one another workspace publishes. rc 1, nothing printed, when
+## no workspace publishes it or its directory is not on this machine.
+AgentsToolsTeamMemberDirectory(){ ## member
+	local directoryRoot="${MDAT_SKILLSET_ROOT:-${MMDAPP:+${MMDAPP%/}/.local/agents/members}}" directoryFound
+	[ -n "$1" ] || return 1
+	if [ -n "$directoryRoot" ] && [ -d "$directoryRoot/$1" ] ; then
+		printf '%s\n' "$directoryRoot/$1"
+		return 0
+	fi
+	directoryFound="$( AgentsToolsTeamMemberDirectoryText | LC_ALL=C awk -F'\t' -v who="$1" '$1 == who { print $2 ; exit ; }' )"
+	[ -n "$directoryFound" ] && [ -d "$directoryFound" ] || return 1
+	printf '%s\n' "$directoryFound"
 }
 
 ## Writes the member index and its members/ view for one workspace. The view is updated
 ## link by link, never removed as a whole, so a reader never finds it missing; a stale
-## link goes, real content there is refused rather than removed. Non-zero on a failure.
+## link goes -- a link to a member of another workspace among them -- and real content
+## there is refused rather than removed. Non-zero on a failure.
 AgentsToolsTeamMemberIndexWrite(){ ## workspace
 	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n'
 	writeWs="$( cd "$writeWs" && pwd )" || return 1

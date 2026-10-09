@@ -47,6 +47,9 @@ rigStart(){ ## scenario directory name, event-track configured (yes|no)
 	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/IN" "$rigScenarioDir/ws/OUT"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	[ "$2" != "yes" ] || printf 'SLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n' >> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
+	## No approving what you don't hold: the answering coordinator holds the rig workspace by a standing row.
+	mkdir -p "$rigScenarioDir/ws/.local/agents"
+	printf 'magic-coordinator:ws:workspace:Edit(/%s/**)\n' "$rigScenarioDir/ws" > "$rigScenarioDir/ws/.local/agents/permissions.registry"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"

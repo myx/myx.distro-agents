@@ -300,6 +300,28 @@ rigAssert "the last round still declares its tool"          "$( rigHolds "$rigSc
 rigAssert "with the same tools bytes as the first"          "$( [ "$( rigToolsOf "$rigScenarioDir/req.1" )" = "$( rigToolsOf "$rigScenarioDir/req.4" )" ] && printf same || printf differ )" same
 rigVerdict "an unchanged registration and no failure -- the catalogue is kept, no server re-spawned"
 
+## The optional description every built-in declares, the call's stated intent: on the wire for
+## each of them, never pushed into a server's own schema, and a built-in called with one answers
+## exactly as the same call without it. Both calls are in one round, so they read one tree.
+rigStart description-declared-and-ignored
+printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"rig-glob-bare","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"round\\",\\"path\\":\\"%s\\"}"}}]}}]}\n' "$rigScenarioDir" > "$rigScenarioDir/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"rig-glob-intent","type":"function","function":{"name":"Glob","arguments":"{\\"pattern\\":\\"round\\",\\"path\\":\\"%s\\",\\"description\\":\\"RIG-INTENT-MARKER\\"}"}}]}}]}\n' "$rigScenarioDir" >> "$rigScenarioDir/res.1"
+printf 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":20}}\ndata: [DONE]\n' >> "$rigScenarioDir/res.1"
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER 20
+rigRun 0 --mcp-server rigmcp
+rigIntentParam='"description":{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}'
+rigToolResult(){ ## request file, tool call id -- that call's result content as sent
+	LC_ALL=C grep -o "\"tool_call_id\":\"$2\",\"content\":\"[^\"]*\"" "$1" 2>/dev/null | sed 's/.*"content":"//; s/"$//'
+}
+rigAssert "the run ends normally"                           "$rigRunStatus" 0
+rigAssert "two rounds were requested"                       "$rigRoundCount" 2
+rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 26
+rigAssert "the server's own tool is declared as it sent it, no description added" \
+	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
+rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"
+rigAssert "and that answer is the file, not a refusal"      "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare | sed 's|.*/||' )" round
+rigVerdict "the optional description -- declared on every built-in, not on a server's tool, and ignored by the call"
+
 ## The negative control, and the reason a green run above cannot be a vacuous one: the
 ## same canned rounds with no server named and no registration to default to, where
 ## every probe answers the other way. A mcp.servers.json naming the server is left in

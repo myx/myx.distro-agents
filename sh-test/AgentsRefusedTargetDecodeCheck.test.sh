@@ -58,6 +58,9 @@ rigStart(){ ## scenario directory name
 	rigScenarioDir="$rigTmp/$1"
 	mkdir -p "$rigScenarioDir/ws/.local/.agents"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
+	## No approving what you don't hold: the granter holds the two tools by standing rows.
+	mkdir -p "$rigScenarioDir/ws/.local/agents"
+	printf 'rig-granter:ws:tool:WebFetch\nrig-granter:ws:tool:Bash\n' > "$rigScenarioDir/ws/.local/agents/permissions.registry"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"

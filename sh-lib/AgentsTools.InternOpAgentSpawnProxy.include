@@ -13,10 +13,11 @@ AgentsToolsSpawnProxySawSentinel(){
 
 ## The agent CLI this spawn actually ran on, read out of that same marker file.
 ## Deliberately read from what the launcher recorded rather than recomputed
-## here: the console owns the --cli/SPAWN_CLI_SERVICE/auto-scan resolution, so
-## anything computed on this side could disagree with what actually ran, and an
-## announcement that can disagree with the run is worse than none. Empty when
-## no exec happened, which is the same condition SawSentinel calls a failure.
+## here: the start post names the CLI resolved before the launch, by the same
+## function the console reads it with, and this is the check on it -- a launch
+## that differs is said as a reply (AgentsToolsSpawnProxyEventTrackLaunchedPost),
+## and the end post names this. Empty when no exec happened, which is the same
+## condition SawSentinel calls a failure.
 AgentsToolsSpawnProxyExecutedCli(){
 	local markerCli=""
 	if [ -n "$1" ] && [ -s "$1" ] ; then
@@ -57,10 +58,10 @@ AgentsToolsSpawnProxyAnnounceCli(){
 
 ## One threaded reply closing the event-track thread this spawn opened: the `end`
 ## tracking post (sh-lib/templates/event-track.post.format.md). Silent when
-## none was opened. Replays only lines already present in the spawn output file,
-## matched by the prefixes their producers print -- nothing here is derived or
-## guessed, so a field a CLI never prints is never posted. Never on stdout, and
-## never fails the spawn: one stderr warning at most per Slack call.
+## none was opened. Its fields only: the spawn output file is a session log, and
+## no log line goes to Slack (the output file argument is kept for the callers,
+## unused). Never on stdout, and never fails the spawn: one stderr warning at
+## most per Slack call.
 AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds
 	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8"
 	local closeArmed="unknown" closeSetup="" closeTokens=""
@@ -75,13 +76,12 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
 	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
 	closeTokens="${closeTokens#tokens: }"
-	{ [ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInternOpAgentSpawnProxyClip.awk" < "$closeLog" ; } \
-	  | DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+	DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field outcome="$closeOutcome" --field exit-code="$closeExit" \
 		--field launched="$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )" \
 		--field cli="$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )" --field armed="$closeArmed" --field setup="$closeSetup" \
 		--field timed-out-after="$( [ "$closeTimedOut" = "0" ] || printf '%s' "$closeTimeout" )" --field tokens="$closeTokens" \
-		--field ended-at="$( date +"%Y-%m-%d %H:%M %z" )" --from-stdin 2>&1 > /dev/null \
+		--field ended-at="$( date +"%Y-%m-%d %H:%M %z" )" < /dev/null 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	DistroAgentsTools --intern-op-comms-slack-react "$closeMember" "$closeThread" checkered_flag --identity-bot 2>&1 > /dev/null \
@@ -118,7 +118,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	## cannot really happen is never silently reported as one.
 	if [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
 		local warnRetryPid warnWatchPid
-		( exec env MMDAPP="$warnWorkspace" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
+		( exec env MMDAPP="$warnWorkspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$warnWorkspace" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
@@ -151,7 +151,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## workspace, session id, session thread, con
 	if [ -n "$runFrom" ] ; then
 		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
 		rm -f "$runMark"
-		env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
 			"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
 		runPid=$!
@@ -176,7 +176,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## workspace, session id, session thread, con
 		echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the resume of $runFrom exited $runRc before its first event -- starting a new process instead" >&2
 		( AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the resume of $runFrom exited $runRc before its first event)" RESTART "$MDAT_SPAWN_SESSION_ID" )
 	fi
-	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+	env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull"
 }
 
@@ -243,28 +243,58 @@ AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 	done
 }
 
-## One Slack edit, replacing the session start post's own cli value once the
-## real CLI is known. Polls the launch marker on its own -- deliberately not
-## folded into AgentsToolsSpawnProxyEventTrackBatch, which only runs when
-## outputFile is set, so a --wait spawn with no output file is covered too.
-## The post is rendered again from the same template and the same fields, the
-## cli field given last so it wins, and replaces the first in place: nothing is
-## read back from Slack. Fires once, then returns; the caller kills it early
-## once the child ends, same as every other background reader here.
-AgentsToolsSpawnProxyEventTrackCliUpdate(){ ## thread, member, marker file, the start post's own op arguments...
-	local cliThread="$1" cliMember="$2" cliMarker="$3"
-	local cliPollSeconds=3 cliReal
-	shift 3
-	[ -n "$cliThread" ] || return 0
-	while ! AgentsToolsSpawnProxySawSentinel "$cliMarker" ; do
-		sleep "$cliPollSeconds"
+## Whether a resolved CLI runs in this package's harness or is a vendor CLI, by the
+## console's own rule (AgentsConsoleShellScript.template.sh, DagcLegFileFor): a leg is a
+## file sh-lib/Agents<Name>Harness.sh that declares HARNESS_PROVIDER_NAME, its name the
+## <Name> in lower case, and a -native name is never one. Prints harness, native or none.
+AgentsToolsSpawnProxyCliKind(){ ## resolved cli
+	local kindFile kindName
+	case "$1" in
+		''|none) printf 'none' ; return 0 ;;
+		copilot-native|claude-native|grok-native) printf 'native' ; return 0 ;;
+	esac
+	for kindFile in "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/"Agents*Harness.sh ; do
+		[ -f "$kindFile" ] && grep -q '^HARNESS_PROVIDER_NAME=' "$kindFile" || continue
+		kindName="${kindFile##*/}"
+		kindName="${kindName#Agents}"
+		kindName="$( printf '%s' "${kindName%Harness.sh}" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' )"
+		[ "$kindName" != "$1" ] || { printf 'harness' ; return 0 ; }
 	done
-	cliReal="$( AgentsToolsSpawnProxyExecutedCli "$cliMarker" )"
-	[ -n "$cliReal" ] || return 0
-	DistroAgentsTools --intern-op-event-track-post "$cliMember" "$cliThread" "$@" --field cli="$cliReal" --update 2>&1 > /dev/null \
-	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track cli-requested update not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
+	printf 'native'
+	return 0
+}
+
+## A fact the start post could not know, said once as a reply in its thread: the CLI that
+## really launched, where it is not the one resolved before the start post. No post is
+## ever edited. Silent with no thread, before a launch, and when the two agree. The flag
+## beside the launch marker claims the reply, so the poller below and the close never both
+## post it. Never fails the spawn: one stderr warning at most.
+AgentsToolsSpawnProxyEventTrackLaunchedPost(){ ## thread, member, marker file, the CLI the start post names
+	local launchedThread="$1" launchedMember="$2" launchedMarker="$3" launchedResolved="$4" launchedCli
+	[ -n "$launchedThread" ] && AgentsToolsSpawnProxySawSentinel "$launchedMarker" || return 0
+	[ ! -e "$launchedMarker.noticed" ] || return 0
+	: > "$launchedMarker.noticed" 2>/dev/null || return 0
+	launchedCli="$( AgentsToolsSpawnProxyExecutedCli "$launchedMarker" )"
+	[ -n "$launchedCli" ] && [ "$launchedCli" != "$launchedResolved" ] || return 0
+	DistroAgentsTools --intern-op-event-track-post "$launchedMember" "$launchedThread" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="launched on $launchedCli, not on $launchedResolved as resolved for the start post" < /dev/null 2>&1 > /dev/null \
+	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track launched-cli reply not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
+}
+
+## Waits for the launch, then posts what it showed (AgentsToolsSpawnProxyEventTrackLaunchedPost),
+## while the child still runs. On its own, not gated by outputFile, so a --wait spawn with no
+## output file is covered too. The caller kills it once the child ends and then posts once
+## itself, for a launch this had no time to see; once posting, it ignores that kill.
+AgentsToolsSpawnProxyEventTrackLaunched(){ ## thread, member, marker file, the CLI the start post names
+	[ -n "$1" ] || return 0
+	while ! AgentsToolsSpawnProxySawSentinel "$3" ; do
+		sleep 1 < /dev/null > /dev/null 2>&1 &
+		wait $! 2>/dev/null || :
+	done
+	trap '' TERM INT HUP
+	AgentsToolsSpawnProxyEventTrackLaunchedPost "$@"
 }
 
 case "$1" in
@@ -289,6 +319,10 @@ case "$1" in
 			spawnWorkspace="$( AgentsToolsMemberWorkspaceResolve "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
 			[ -n "$spawnWorkspace" ] || spawnWorkspace="$MMDAPP"
 		fi
+		## The session reads the member set root of the workspace it starts in, never this one's own view.
+		type AgentsToolsWorkspaceSkillsetRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+		local spawnSkillsetRoot
+		spawnSkillsetRoot="$( AgentsToolsWorkspaceSkillsetRoot "$spawnWorkspace" )"
 		local contextFromFile="false" waitMode="false" spawnContext=""
 		## Which agent CLI this one spawn runs on. Empty means the workspace setting
 		## decides, which is what every caller got before this option existed.
@@ -609,6 +643,7 @@ case "$1" in
 		## caller's own hand-carried text. Refusing here (a bad selector, a routine
 		## file that fails its own contract) refuses the whole spawn, the same as any
 		## other malformed input this far in.
+		local routineRecorded=""
 		if [ -n "$routineSelector" ] || [ "$routineDefault" = "true" ] ; then
 			local routineBriefArgs=( --intern-op-spawn-prepare-brief "$callerName" )
 			if [ "$routineDefault" = "true" ] ; then
@@ -620,6 +655,15 @@ case "$1" in
 			local routineBriefBlock
 			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
 			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
+			## The routine file the brief resolved, by name, for the session record: its
+			## `allows:` hold for this session (AgentsTools.PermissionHolds.include).
+			routineRecorded="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+				routineRecordSelector="$routineSelector"
+				[ "$routineDefault" != "true" ] || routineRecordSelector="$( AgentsToolsSpawnRoutineDefaultName )" || exit 1
+				AgentsToolsSpawnRoutineResolve "$routineRecordSelector"
+			)" 2>/dev/null || routineRecorded=""
+			routineRecorded="${routineRecorded##*/}"
 		fi
 		## A board-tracked spawn reads its item's Decisions before anything else: they bind it.
 		if [ "$sourceMode" = "board" ] ; then
@@ -914,15 +958,6 @@ case "$1" in
 		MDAT_SPAWN_SANDBOX_ROOT_REAL="$( cd "$sandboxRoot" 2>/dev/null && pwd -P )" || MDAT_SPAWN_SANDBOX_ROOT_REAL=""
 		export MDAT_SPAWN_SANDBOX_ROOT_REAL
 
-		## The event-track thread (agent-log-thread): one tooling-maintained Slack
-		## thread per spawn, opened here and closed by
-		## AgentsToolsSpawnProxyEventTrackClose. Only when SLACK_CHANNEL_EVENT_TRACK
-		## is set and a bot token resolves -- otherwise skipped silently, and the
-		## spawn is unaffected either way. Nothing reaches this op's stdout: callers
-		## parse it. Holds `<channel>:<ts>`, or is empty. Computed before the
-		## sandbox tracking file below so that file can carry it from the start,
-		## and pulled out of the subshell so the same fields are available afterward
-		## to the CLI-update poller that later edits this same post in place.
 		## workspaceName is a basename, never a path -- the same convention the
 		## team-members registry's own workspace column already uses. Computed once,
 		## here, because both the event-track post below and the sandbox tracking
@@ -930,37 +965,10 @@ case "$1" in
 		local workspaceName
 		workspaceName="$( basename "$MMDAPP" 2>/dev/null )" || workspaceName=""
 		[ -n "$workspaceName" ] || workspaceName="unknown"
-		## The human-owner's own correction: this post's output-file line used to be
-		## a full machine path. It names the workspace and the file, never the path.
-		local outputFileDisplay="none"
-		[ -z "$outputFile" ] || outputFileDisplay="$workspaceName/${outputFile##*/}"
-		## The `start` tracking post's own op arguments (sh-lib/templates/event-track.post.format.md),
-		## kept so the CLI-update poller renders the same post again with the real CLI.
-		local eventTrackFields=( --kind start --session-id "$MDAT_SPAWN_SESSION_ID" \
-			--field spawn-id="$MDAT_SPAWN_SESSION_ID" --field session-id="$sessionId" --field parent-session-id="${parentSessionId:-none}" \
-			--field tracking-name="$sandboxName" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
-			--field receipt="$receiptId" --field context="$opContext" --field wait="$waitMode" \
-			--field dispatch="$dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
-			--field cli="${spawnCliService:-configured}" --field output-file="$outputFileDisplay" \
-			--field started-at="$( date +"%Y-%m-%d %H:%M %z" )" )
-		local eventTrackThread=""
-		eventTrackThread="$(
-			[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || exit 0
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
-			AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
-			DistroAgentsTools --intern-op-event-track-post "$callerName" event-track "${eventTrackFields[@]}" 2>&1 > /dev/null \
-			| LC_ALL=C awk -F= '
-				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
-				$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
-				index( $0, "⛔" ) == 1 && sendError == "" { sendError = $0 ; }
-				END {
-					if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; }
-					else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track thread not opened " sendError > "/dev/stderr" ; }
-				}'
-		)" || eventTrackThread=""
 
 		## The coworking session this spawn belongs to: session-id and session-thread,
-		## distinct from this spawn's own spawn-id and agent-log-thread above.
+		## distinct from this spawn's own spawn-id and agent-log-thread below. Settled
+		## before the event-track start post, which names it.
 		## --session-thread:event-track is an explicit, still-supported override (the
 		## main loop's own solitary heartbeat pass uses it): pin the session thread to
 		## this spawn's own agent-log thread and skip opening anything in magic-team.
@@ -971,18 +979,19 @@ case "$1" in
 		## the session id.
 		## sessionId itself is already settled, above, before the dispatch item was
 		## created -- only its thread is decided here.
-		local sessionThread
+		local sessionThread=""
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
-			sessionThread="$eventTrackThread"
+			## The agent-log thread itself, set once the start post below has opened it.
+			:
 		elif [ -n "$inheritedSessionId" ] ; then
 			sessionThread="$inheritedSessionThread"
 		else
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
 			## else the session id -- no id block, no host, no timestamps. That detail
-			## already lives in the agent-log-thread's own Spawn started post above.
+			## lives in the agent-log-thread's own session start post below.
 			## Built with printf's own %s substitution, never string concatenation:
 			## sessionNameOrComment is free text a caller chose, and a stray '%' or
 			## backslash in it must reach Slack as itself, never read as a
@@ -1016,6 +1025,74 @@ case "$1" in
 			fi
 		fi
 
+		## The CLI this spawn starts, resolved before the start post that names it, by the
+		## one function the session record and a later resume compare (AgentsReviewCliResolved,
+		## which the console's own --cli-configured arm calls too): the service the caller
+		## named, else SPAWN_CLI_SERVICE, read in the workspace the console runs in. With it,
+		## whether it runs in this package's harness or natively, and the harness tier that
+		## workspace asks for (SPAWN_HARNESS_TIER, which the console passes as --tier).
+		local spawnCliResolved="none" spawnCliSetting="none+-" spawnCliKind="none" spawnCliTier=""
+		type AgentsReviewCliResolved > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		! type AgentsReviewCliResolved > /dev/null 2>&1 || spawnCliResolved="$(
+			[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
+			AgentsReviewCliResolved "$spawnCliService"
+		)" || spawnCliResolved="none"
+		## Its setting, which a later resume compares (AgentsReviewResumeEligible).
+		! type AgentsReviewCliSetting > /dev/null 2>&1 || spawnCliSetting="$( AgentsReviewCliSetting "$spawnCliResolved" )"
+		spawnCliKind="$( AgentsToolsSpawnProxyCliKind "$spawnCliResolved" )"
+		if [ "$spawnCliKind" = "harness" ] ; then
+			spawnCliTier="$(
+				[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
+				DistroAgentsTools --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null
+			)" || spawnCliTier=""
+			## Unset passes no --tier, and the harness keeps its own default.
+			spawnCliTier="${spawnCliTier:-default}"
+		fi
+
+		## The event-track thread (agent-log-thread): one tooling-maintained Slack
+		## thread per spawn. Its root, the `start` post (sh-lib/templates/event-track.post.format.md),
+		## is posted once, here, when everything it names is settled, and is never edited:
+		## what is learned later is a reply in its thread (AgentsToolsSpawnProxyEventTrackLaunched,
+		## the feed, AgentsToolsSpawnProxyEventTrackClose). Only when SLACK_CHANNEL_EVENT_TRACK
+		## is set and a bot token resolves -- otherwise skipped silently, and the
+		## spawn is unaffected either way. Nothing reaches this op's stdout: callers
+		## parse it. Holds `<channel>:<ts>`, or is empty. Computed before the
+		## sandbox tracking file below so that file can carry it from the start.
+		local eventTrackSessionThread="${sessionThread:-none}"
+		[ -n "$joinSessionId" ] || [ "$sessionThreadMode" != "event-track" ] || eventTrackSessionThread="this thread"
+		## Each id by its first 8 characters, and no field that only repeats another: the
+		## parent and the tracking name where they are the session's own read as no value (-).
+		local eventTrackParent="-" eventTrackTracking="$sandboxName"
+		[ -z "$parentSessionId" ] || eventTrackParent="${parentSessionId:0:8}"
+		[ "$parentSessionId" != "$sessionId" ] || eventTrackParent="-"
+		[ "$sandboxName" != "$sessionId" ] || eventTrackTracking="-"
+		local eventTrackFields=( --kind start --session-id "$MDAT_SPAWN_SESSION_ID" \
+			--field cli="$spawnCliResolved" --field runs="$spawnCliKind" --field tier="$spawnCliTier" --field wait="$waitMode" \
+			--field routine="${routineSelector:-$( [ "$routineDefault" != "true" ] || printf 'default' )}" \
+			--field dispatch="$dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
+			--field resume="${resumeFrom:+native session $resumeFrom}${resumeContextFile:+kept harness context}" \
+			--field spawn-id="${MDAT_SPAWN_SESSION_ID:0:8}" --field session-id="${sessionId:0:8}" --field parent-session-id="$eventTrackParent" \
+			--field session-thread="$eventTrackSessionThread" \
+			--field tracking-name="$eventTrackTracking" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
+			--field started-at="$( date +"%Y-%m-%d %H:%M %z" )" )
+		local eventTrackThread=""
+		eventTrackThread="$(
+			[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || exit 0
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+			AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
+			DistroAgentsTools --intern-op-event-track-post "$callerName" event-track "${eventTrackFields[@]}" 2>&1 > /dev/null \
+			| LC_ALL=C awk -F= '
+				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
+				$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
+				index( $0, "⛔" ) == 1 && sendError == "" { sendError = $0 ; }
+				END {
+					if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; }
+					else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track thread not opened " sendError > "/dev/stderr" ; }
+				}'
+		)" || eventTrackThread=""
+		## --session-thread:event-track, joining nothing: the session thread is this one.
+		[ -n "$joinSessionId" ] || [ "$sessionThreadMode" != "event-track" ] || sessionThread="$eventTrackThread"
+
 		## The session tracking file, in the ROOT and never in input/ or output/: the root
 		## is granted to nothing, so this is the one record of the spawn the spawned
 		## session cannot reach and therefore cannot forge -- the same reasoning the launch
@@ -1033,10 +1110,6 @@ case "$1" in
 		local parentThread=""
 		type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
 		parentThread="$( AgentsToolsSpawnParentThread "$parentSessionId" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
-		## The CLI this spawn resolves to and its setting, which a later resume compares (AgentsReviewResumeEligible).
-		local spawnCliResolved="none" spawnCliSetting="none+-"
-		! type AgentsReviewCliResolved > /dev/null 2>&1 || spawnCliResolved="$( AgentsReviewCliResolved "$spawnCliService" )"
-		! type AgentsReviewCliSetting > /dev/null 2>&1 || spawnCliSetting="$( AgentsReviewCliSetting "$spawnCliResolved" )"
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -1067,6 +1140,8 @@ case "$1" in
 			printf 'cli: %s\n' "$spawnCliResolved"
 			printf 'cli-setting: %s\n' "$spawnCliSetting"
 			printf 'owner: %s\n' "$callerName"
+			## The routine this session runs, whose allows hold for it.
+			[ -z "$routineRecorded" ] || printf 'routine: %s\n' "$routineRecorded"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf 'execution-receipt: %s\n' "$receiptId"
@@ -1191,7 +1266,7 @@ case "$1" in
 			## the caller can stop it the moment the child ends. Empty means
 			## neither was started -- the outputFile-less branches below already
 			## write straight to &2, so there is nothing to tail.
-			local tailPid="" batchPid="" cliUpdatePid=""
+			local tailPid="" batchPid="" launchedPid=""
 			set +e
 			## 0, the default, is no bound: the wait lasts as long as the spawn does. A hung
 			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
@@ -1207,17 +1282,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## Nothing to read until the child is actually running: started right
@@ -1233,10 +1308,9 @@ case "$1" in
 				AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 				batchPid=$!
 			fi
-			## On its own, not gated by outputFile: a --wait spawn with no output
-			## file still needs its "Spawn started" post's CLI name filled in.
-			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "${eventTrackFields[@]}" 4>&- &
-			cliUpdatePid=$!
+			## On its own, not gated by outputFile: what the launch showed, as a reply in the thread.
+			AgentsToolsSpawnProxyEventTrackLaunched "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" 4>&- &
+			launchedPid=$!
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
 			## reach the real spawned console process immediately -- without this,
 			## only the timeout watcher below ever signals $spawnPid, so a live
@@ -1249,7 +1323,7 @@ case "$1" in
 			## not right after $spawnPid is reaped -- so it stays live for the gap
 			## that would otherwise leave them behind.
 			## A detached spawn (made from inside a session) is meant to outlive its caller's pass, so a TERM sent to the pass never reaches it.
-			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; [ -z "$tailPid" ] || kill -TERM "$tailPid" 2>/dev/null ; [ -z "$batchPid" ] || kill -TERM "$batchPid" 2>/dev/null ; [ -z "$cliUpdatePid" ] || kill -TERM "$cliUpdatePid" 2>/dev/null' INT TERM
+			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; [ -z "$tailPid" ] || kill -TERM "$tailPid" 2>/dev/null ; [ -z "$batchPid" ] || kill -TERM "$batchPid" 2>/dev/null ; [ -z "$launchedPid" ] || kill -TERM "$launchedPid" 2>/dev/null' INT TERM
 			## The transcript's start milestone, now that an interrupt reaches the close.
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
@@ -1288,8 +1362,10 @@ case "$1" in
 			## signal landing in this exact gap still reaches them.
 			[ -z "$tailPid" ] || { kill "$tailPid" 2>/dev/null || : ; wait "$tailPid" 2>/dev/null || : ; }
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null || : ; wait "$batchPid" 2>/dev/null || : ; }
-			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null || : ; wait "$cliUpdatePid" 2>/dev/null || : ; }
+			[ -z "$launchedPid" ] || { kill "$launchedPid" 2>/dev/null || : ; wait "$launchedPid" 2>/dev/null || : ; }
 			trap - INT TERM
+			## A launch the poller had no time to see, said now, before the end post.
+			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved"
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
@@ -1337,7 +1413,7 @@ case "$1" in
 			[ "$exitCode" != "6" ] || echo "SETUP_STATUS=cli-not-authenticated"
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			[ -z "$outputFile" ] || echo "OUTPUT_FILE=$outputFile"
-			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
+			rm -f "$MDAT_SPAWN_LAUNCH_MARKER" "$MDAT_SPAWN_LAUNCH_MARKER.noticed"
 			## The session log stays in the session's state, never committed: the transcript,
 			## committed at its END above, is the record in the team data. Every way this
 			## spawn ends -- success, failure, timeout, interrupt -- reaches this line.
@@ -1363,8 +1439,8 @@ case "$1" in
 			AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 			batchPid=$!
 			## On its own, same as the wait-mode branch: not gated by outputFile.
-			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "${eventTrackFields[@]}" 4>&- &
-			cliUpdatePid=$!
+			AgentsToolsSpawnProxyEventTrackLaunched "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" 4>&- &
+			launchedPid=$!
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
@@ -1376,7 +1452,9 @@ case "$1" in
 			fi
 			bgExitCode=$?
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
-			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }
+			[ -z "$launchedPid" ] || { kill "$launchedPid" 2>/dev/null ; wait "$launchedPid" 2>/dev/null ; }
+			## A launch the poller had no time to see, said now, before the end post.
+			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved"
 			set -e
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			## Measured once, so the event-track close, the sandbox record and the board item
@@ -1397,7 +1475,7 @@ case "$1" in
 					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )"
 			fi
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :
-			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
+			rm -f "$MDAT_SPAWN_LAUNCH_MARKER" "$MDAT_SPAWN_LAUNCH_MARKER.noticed"
 			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
 			## Last, and silent. This subshell's own output IS the session log, which stays in
 			## the session's state and is never committed: the transcript, committed at its END

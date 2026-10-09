@@ -151,7 +151,7 @@ case "$1" in
 			disown 2>/dev/null || true
 			echo "$holderPid" > "$channelDir/holder.pid"
 
-			nohup env MMDAPP="$workspace" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
+			nohup env MMDAPP="$workspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$workspace" )" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
 			local consolePid=$!
 			disown 2>/dev/null || true
 			echo "$consolePid" > "$channelDir/console.pid"

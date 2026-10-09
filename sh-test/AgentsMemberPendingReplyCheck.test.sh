@@ -166,6 +166,20 @@ rigAssert "signed as the coordinator"                 "$( rigField 11111111-0000
 RIG_AGENT=magic-coordinator rigOp settle4m --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000004 --reason "a readback"
 rigAssert "a readback is refused on the magic form too" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigStatus 11111111-0000-0000-0000-000000000004 )" "non-zero:reply-pending"
 
+echo "-- a permission set: its own verdicts, the human-owner's to give --"
+rigRecord 11111111-0000-0000-0000-000000000009 magic-coordinator reply-pending permission-set "Rig permission set nine"
+LC_ALL=C awk 'NR == 2 { print "address-to: human-owner" ; print "session-id: rig-set-session" ; } { print ; }' "$rigStore/11111111-0000-0000-0000-000000000009.md" > "$rigTmp/r9" && mv "$rigTmp/r9" "$rigStore/11111111-0000-0000-0000-000000000009.md"
+printf 'scope: task\nitem: task-rig-none\nsession-id: rig-set-session\nparticipants: magic-tester\nentry: WebSearch\n' > "$rigStore/11111111-0000-0000-0000-000000000009.set"
+rigOp read9 --member-pending-reply-read magic-tester 11111111-0000-0000-0000-000000000009
+rigAssert "it reads as a permission-set"              "$( rigHolds "$rigTmp/read9" 'kind: permission-set' )" yes
+RIG_AGENT=magic-tester rigOp ans9a --member-escalation-answer magic-tester 11111111-0000-0000-0000-000000000009 allow-set
+rigAssert "a member it is not addressed to cannot answer it" "$( rigHolds "$rigTmp/ans9a.err" 'cannot answer it' ):$( rigStatus 11111111-0000-0000-0000-000000000009 )" "yes:reply-pending"
+rigOp ans9b --member-escalation-answer human-owner 11111111-0000-0000-0000-000000000009 allow-once
+rigAssert "a permission verdict is not a set's"       "$( rigHolds "$rigTmp/ans9b.err" 'is not a verdict of this permission-set' )" yes
+rigOp ans9c --member-escalation-answer human-owner 11111111-0000-0000-0000-000000000009 edit "drop WebSearch"
+rigAssert "edit is the human-owner's, with its change" "$( rigStatus 11111111-0000-0000-0000-000000000009 ):$( rigField 11111111-0000-0000-0000-000000000009 verdict ):$( rigField 11111111-0000-0000-0000-000000000009 verdict-text )" "reply-received:edit:drop WebSearch"
+rigAssert "and grants nothing"                        "$( rigHolds "$rigTmp/ans9c" 'GRANT:' )" no
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MEMBER PENDING REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

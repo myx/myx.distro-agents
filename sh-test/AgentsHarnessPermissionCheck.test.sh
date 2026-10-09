@@ -100,6 +100,11 @@ rigStart(){ ## scenario directory name, event-track configured (yes|no)
 	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/ws/IN" "$rigScenarioDir/ws/OUT"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	[ "$2" != "yes" ] || printf 'SLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n' >> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
+	## No approving what you don't hold: the answering URIGOWNER is the human-owner's
+	## account, and the granting coordinator holds the rig workspace and Bash by standing rows.
+	printf 'SLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' >> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
+	mkdir -p "$rigScenarioDir/ws/.local/agents"
+	printf 'magic-coordinator:ws:workspace:Edit(/%s/**)\nmagic-coordinator:ws:tool:Bash\n' "$rigScenarioDir/ws" > "$rigScenarioDir/ws/.local/agents/permissions.registry"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"
@@ -550,6 +555,29 @@ rigAssert "with who gave it"                               "$( rigLineOf 'ANSWER
 rigVerdict "answer on behalf -- the coordinator's own form, never the member form"
 
 ## ---------------------------------------------------------------------------
+## 18c. No approving what you don't hold: the coordinator's allow for a target outside
+##      everything it holds is not applied; the ask goes up to the human-owner through
+##      the forward, and the call waits on.
+## ---------------------------------------------------------------------------
+rigStart answer-not-held no
+mkdir -p "$rigScenarioDir/outside"
+rigTarget="$rigScenarioDir/outside/n.txt"
+rigWriteCall rig-session "$rigTarget" > /dev/null
+rigIdN="$( rigRefusalId )"
+rigAskMember rig-session "$rigIdN" magic-coordinator
+rigPending="$( rigPendingId )"
+RIG_OP_AGENT=magic-coordinator
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-session
+RIG_OP_AGENT=""
+rigAssert "the allow is not applied, it is rerouted"      "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending rerouted" )" yes
+rigAssert "up to the human-owner"                          "$( rigHolds "$rigScenarioDir/op.out" 'ADDRESS-TO: human-owner' )" yes
+rigAssert "through the forward"                            "$( [ -n "$( LC_ALL=C awk -F': ' '$1 == "forward-ts" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" ] && printf yes || printf no )" yes
+rigAssert "no grant was written"                           "$( [ -e "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ] && printf yes || printf no )" no
+rigAssert "the call is still waiting"                      "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
+rigAskFinish 0 > /dev/null
+rigVerdict "an allow from an approver who does not hold it goes up the chain"
+
+## ---------------------------------------------------------------------------
 ## 19. Forward: the coordinator forwards to the human-owner, and the human-owner's
 ##     reply in the forward's thread is the verdict for the original request.
 ## ---------------------------------------------------------------------------
@@ -733,9 +761,53 @@ rigAssert "the record carries the host"                    "$( rigRecordField "$
 rigAssert "the record carries the workspace by name"       "$( rigRecordField "$rigIdG" workspace )" ws
 rigAssert "the record carries no path of this check"       "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/$rigIdG.md" "${rigTmp##*/}" )" no
 rigAssert "one post was made"                              "$( rigCalls chat.postMessage )" 1
-rigAssert "the post has host and workspace after the id"   "$( rigHolds "$rigScenarioDir/post.1" "refusal-id: $rigIdG\\nwhere: $( hostname -s ) / ws" )" yes
+rigAssert "the post has host and workspace after the id"   "$( rigHolds "$rigScenarioDir/post.1" "refusal-id: \`$rigIdG\`\\nwhere: $( hostname -s ) / ws" )" yes
 rigAssert "the post carries no path of this check"         "$( rigHolds "$rigScenarioDir/post.1" "${rigTmp##*/}" )" no
 rigVerdict "the contact gate -- own configured addresses known, a refusal says where by name"
+
+## ---------------------------------------------------------------------------
+## 24. Reads are gated as writes are: a read outside the read roots is refused and
+##     recorded with an id, a Grep and a Glob over that root the same way; an
+##     allow-once admits its exact retry once, and one left unused lapses after its TTL.
+## ---------------------------------------------------------------------------
+rigStart read-gate no
+mkdir -p "$rigScenarioDir/outside"
+printf 'rig-read-seed\n' > "$rigScenarioDir/outside/r.txt"
+printf 'rig-read-seed\n' > "$rigScenarioDir/outside/t.txt"
+printf 'rig-read-seed\n' > "$rigScenarioDir/ws/in.txt"
+rigReadCall(){ ## session id, path
+	rigTool "$1" Read "{\"file_path\":\"$2\"}"
+	printf '%s:%s' "$( rigHolds "$rigScenarioDir/out" 'rig-read-seed' )" "$( rigHolds "$rigScenarioDir/out" 'REFUSAL-ID: refusal-' )"
+}
+rigAssert "a read inside the read roots is allowed, unrecorded" "$( rigReadCall rig-session "$rigScenarioDir/ws/in.txt" )" "yes:no"
+rigAssert "a read outside them is refused and recorded"   "$( rigReadCall rig-session "$rigScenarioDir/outside/r.txt" )" "no:yes"
+rigIdRead="$( rigRefusalId )"
+rigAssert "the original ERROR line opens the result"      "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: path not in the allowed access-root set: $rigScenarioDir/outside/r.txt"
+rigAssert "the record carries the tool and resolved target" "$( rigRecordField "$rigIdRead" status ):$( rigRecordField "$rigIdRead" tool ):$( rigRecordField "$rigIdRead" target )" "refused:Read:$rigScenarioDir/outside/r.txt"
+rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "kind=permission, refusal_id=$rigIdRead" )" yes
+rigTool rig-session Grep "{\"pattern\":\"rig-read-seed\",\"path\":\"$rigScenarioDir/outside\"}"
+rigIdGrep="$( rigRefusalId )"
+rigAssert "a Grep over that root is refused and recorded" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigRecordField "$rigIdGrep" tool ):$( rigRecordField "$rigIdGrep" target )" "ERROR: path not in the allowed access-root set: $rigScenarioDir/outside:Grep:$rigScenarioDir/outside"
+rigAssert "and matched nothing there"                      "$( rigHolds "$rigScenarioDir/out" 'r.txt' )" no
+rigTool rig-session Glob "{\"pattern\":\"*\",\"path\":\"$rigScenarioDir/outside\"}"
+rigIdGlob="$( rigRefusalId )"
+rigAssert "a Glob over that root is refused and recorded" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigRecordField "$rigIdGlob" tool ):$( rigRecordField "$rigIdGlob" target )" "ERROR: path not in the allowed access-root set: $rigScenarioDir/outside:Glob:$rigScenarioDir/outside"
+rigAssert "and listed nothing there"                       "$( rigHolds "$rigScenarioDir/out" 'r.txt' )" no
+rigAssert "three ids, one per refused call"                "$( rigRecordCount ):$( [ "$rigIdRead" != "$rigIdGrep" ] && [ "$rigIdGrep" != "$rigIdGlob" ] && printf distinct || printf same )" "3:distinct"
+rigAssert "an allow-once is opened for the refused read"   "$( rigGrant human-owner rig-session "$rigIdRead" once )" "GRANT: once $rigIdRead"
+rigAssert "another session cannot use it"                  "$( rigReadCall rig-other "$rigScenarioDir/outside/r.txt" )" "no:yes"
+rigAssert "the exact retry is admitted"                    "$( rigReadCall rig-session "$rigScenarioDir/outside/r.txt" )" "yes:no"
+rigAssert "and the allow-once is spent: the next is a new refusal" "$( rigReadCall rig-session "$rigScenarioDir/outside/r.txt" ):$( rigIdNext="$( rigRefusalId )" ; [ -n "$rigIdNext" ] && [ "$rigIdNext" != "$rigIdRead" ] && printf new || printf same )" "no:yes:new"
+rigReadCall rig-session "$rigScenarioDir/outside/t.txt" > /dev/null
+rigIdTtl="$( rigRefusalId )"
+rigAssert "an allow-once is opened for another read"       "$( rigGrant human-owner rig-session "$rigIdTtl" once )" "GRANT: once $rigIdTtl"
+sleep 3
+export MDAT_PERMISSION_ONCE_TTL=2
+rigAssert "left unused past its TTL, it is absent"         "$( rigReadCall rig-session "$rigScenarioDir/outside/t.txt" )" "no:yes"
+export MDAT_PERMISSION_ONCE_TTL=300
+rigAssert "control: unspent, it still admits inside a longer TTL" "$( rigReadCall rig-session "$rigScenarioDir/outside/t.txt" )" "yes:no"
+unset MDAT_PERMISSION_ONCE_TTL
+rigVerdict "the read gate -- refused and recorded like a write, allow-once used once, an unused one lapses"
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method"    "$rigUnknown" 0

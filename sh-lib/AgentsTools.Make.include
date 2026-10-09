@@ -10,8 +10,8 @@ case "$1" in
 		fi
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		AgentsToolsRegistryAgentsIndicesBuild || { set +e ; return 1 ; }
-		## The member index, from this workspace's own member registry first and the
-		## machine-wide directory second (AgentsTools.TeamRegistry.include).
+		## The member index, from this workspace's own member registry: its own members
+		## only (AgentsTools.TeamRegistry.include).
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 		AgentsToolsTeamMemberIndexWrite "$MMDAPP" || {
 			echo "$MDSC_CMD: ⛔ ERROR: --make-agents-indices: could not write the member index in $MMDAPP/.local/agents" >&2

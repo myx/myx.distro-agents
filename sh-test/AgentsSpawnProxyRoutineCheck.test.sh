@@ -123,6 +123,7 @@ rigAssert "names the shared.md sections" \
 	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "one blank line separates the block from the task text" "$( rigBlankGapThenContent "$rigTmp/brief" )" ok
 rigAssert "the task text itself follows"                 "$( grep -c -x -F 'RIG-TASK-TEXT' "$rigTmp/brief" )" 1
+rigAssert "the session record names the resolved routine" "$( cat "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C grep -c -x -F 'routine: magic-team.coworking.routine.md' )" 1
 
 echo "-- --routine-default, --from-file source: the block still comes first --"
 rigOut="$( rigSpawn "RIG-UNUSED-STDIN" --routine-default --from-file "$rigTmp/task-file.txt" )"
@@ -143,6 +144,7 @@ rigOut="$( rigSpawn "RIG-TASK-TEXT" )"
 rigAssert "the launch succeeded"                         "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
 rigAssert "no brief block is prepended"                  "$( grep -c '^SPAWN-PREPARE-BRIEF:' "$rigTmp/brief" )" 0
 rigAssert "the task text itself opens the context, unchanged" "$( head -1 "$rigTmp/brief" )" "RIG-TASK-TEXT"
+rigAssert "and its session record names no routine"      "$(( $( ls "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C grep -c . ) - $( cat "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C grep -c '^routine: ' ) ))" 1
 
 echo "-- both --routine and --routine-default: refused before anything launches --"
 : > "$rigTmp/brief"

@@ -882,17 +882,19 @@ case "$1" in
 		## --magic-sweep-input-scan uses; the roster note is a cache and does not
 		## decide which inboxes are in scope. Moved here from the advance scan, which
 		## no longer reads inquiries.
+		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include).
 		local groomingInboxAlso=() groomingClientDir groomingClientName
-		for groomingClientDir in "$MDAT_SKILLSET_ROOT"/client-* ; do
+		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		while IFS=$'\t' read -r groomingClientName groomingClientDir ; do
+			case "$groomingClientName" in client-*) ;; *) continue ;; esac
 			if [ -d "$groomingClientDir" ] ; then
-				groomingClientName="${groomingClientDir##*/}"
 				AgentsToolsAssertBareName "$groomingClientName" "<team-member>" magic-grooming-input-scan || { set +e ; return 1 ; }
 				## The acting member's own inbox is already the scan's first section.
 				if [ "$groomingClientName" != "$callingMember" ] ; then
 					groomingInboxAlso+=( --do-inbox-also-member "$groomingClientName" )
 				fi
 			fi
-		done
+		done <<< "$( AgentsToolsTeamMemberDirectoryText )"
 		printf '\n%s\n\n' "## board digest"
 		DistroAgentsTools --intern-op-session-context-scan "$callingMember" \
 			--state backlog --state pending --state running --state review --state blocked --state parked \

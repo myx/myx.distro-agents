@@ -217,6 +217,38 @@ for rigAskField in kind refusal_id reason task_ref understood source will_do pen
 		"$( printf '%s' "$rigAskSchema" | LC_ALL=C grep -q -F "\"$rigAskField\":{" && printf 'yes' || printf 'no' )" "yes"
 done
 
+## Every served tool takes the optional `description`, the call's stated intent, in the same
+## text, never required, and named in the tool's own description. The Monitor twin is the one
+## exception, and a reported one: its `description` already means the watch's own label, which
+## a start requires, so it is kept as it is rather than overloaded.
+rigIntentParam='{"type":"string","description":"Optional. One short sentence: why this call is made, what you expect from it. Recorded as your stated intent in the transcript and the tracking feed; it does not change what the tool does."}'
+: > "$rigTmp/intent"
+rigIndex=0
+while : ; do
+	rigName="$( rigSliceRead "result.tools.$rigIndex.name" raw )"
+	[ -n "$rigName" ] || break
+	rigName="${rigName#\"}" ; rigName="${rigName%\"}"
+	rigIntentGot="$( rigSliceRead "result.tools.$rigIndex.inputSchema.properties.description" raw )"
+	rigIntentRequired="$( rigSliceRead "result.tools.$rigIndex.inputSchema.required" raw )"
+	rigIntentToolText="$( rigSliceRead "result.tools.$rigIndex.description" raw )"
+	case "$rigIntentRequired" in *'"description"'*) rigIntentRequired=required ;; *) rigIntentRequired=optional ;; esac
+	if [ "Monitor" = "$rigName" ] ; then
+		case "$rigIntentGot" in *'"description":"Required to start. A short label for this watch'*) rigIntentGot=label ;; esac
+		printf '%s %s %s\n' "$rigName" "$rigIntentGot" "$rigIntentRequired" >> "$rigTmp/intent"
+	else
+		[ "$rigIntentGot" != "$rigIntentParam" ] || rigIntentGot=intent
+		case "$rigIntentToolText" in *'Pass description to give a short description of why.'*) rigIntentToolText=told ;; *) rigIntentToolText=untold ;; esac
+		printf '%s %s %s %s\n' "$rigName" "${rigIntentGot:-absent}" "$rigIntentRequired" "$rigIntentToolText" >> "$rigTmp/intent"
+	fi
+	rigIndex=$(( rigIndex + 1 ))
+done
+rigAssert "every served tool was read for its description" "$( rigCount intent )" "$rigServedCount"
+rigAssert "every served tool but the Monitor twin takes the optional intent description, and says so" \
+	"$( LC_ALL=C grep -v '^Monitor ' "$rigTmp/intent" | LC_ALL=C grep -c -v ' intent optional told$' )" "0"
+rigAssert "execute is one of them" "$( LC_ALL=C grep -c -x 'execute intent optional told' "$rigTmp/intent" )" "1"
+rigAssert "the Monitor twin keeps its own description, the watch label, not overloaded" \
+	"$( LC_ALL=C grep '^Monitor ' "$rigTmp/intent" )" "Monitor label optional"
+
 ## A host whose list this server never recorded is told to list again on its first call,
 ## and a host that listed the same floor is not. The call is a refused Bash: it renders
 ## the floor and answers without running anything.

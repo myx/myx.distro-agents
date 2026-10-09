@@ -230,6 +230,41 @@ AgentsToolsInstallReportIcon(){
 	esac
 }
 
+## A user-home slot that already links to another workspace's copy of a member: which copy
+## holds it (human-owner, 2026-10-09). Prints `claim` when this workspace holds the member in
+## its own source/ and the link reaches another workspace's installed copy (under
+## <workspace>/.local/myx/): the source workspace relinks the slot to its own copy. Prints
+## `keep` when the link reaches another workspace's source copy: the link stays and this
+## workspace registers its own copy -- an installed copy never takes the slot from a source
+## one, and a second source copy is one WARNING naming both, nothing more. Prints nothing
+## for any other slot, which the rules after it decide as before.
+AgentsToolsInstallSlotClaim(){ ## scope, workspace, slot, this workspace's own copy, member
+	local claimScope="$1" claimWorkspace="$2" claimSlot="$3" claimOwn="$4" claimMember="$5" claimLinked
+	[ "$claimScope" = "user-home" ] && [ -L "$claimSlot" ] || return 0
+	[ ! "$claimSlot" -ef "$claimOwn" ] || return 0
+	claimLinked="$( readlink "$claimSlot" )"
+	case "$claimLinked" in
+		"$claimWorkspace"/*) return 0 ;;
+		/*/.local/myx/*)
+			case "$claimOwn" in
+				"$claimWorkspace/source/"*)
+					echo "# $MDSC_CMD --install-skillset-symlinks: $claimSlot links to another workspace's installed copy $claimLinked, and this workspace holds $claimMember in its source -- relinking to $claimOwn" >&2
+					printf '%s\n' claim
+				;;
+			esac
+		;;
+		/*/source/*)
+			case "$claimOwn" in
+				"$claimWorkspace/source/"*)
+					echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: $claimMember has two source copies: $claimSlot keeps $claimLinked, and this workspace's own $claimOwn is registered beside it" >&2
+				;;
+			esac
+			printf '%s\n' keep
+		;;
+	esac
+	return 0
+}
+
 case "$1" in
 
 	--install-skillset-symlinks)
@@ -402,8 +437,23 @@ case "$1" in
 				fi
 			elif [ -L "$memberTarget" ] ; then
 				memberActual="$( readlink "$memberTarget" )"
-				ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n' ; ownedNames="$ownedNames $memberName"
-				continue
+				case "$( AgentsToolsInstallSlotClaim "$scope" "$workspace" "$memberTarget" "$memberBundled" "$memberName" )" in
+					claim)
+						if ! rm -f "$memberTarget" ; then
+							echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove the link to claim: $memberTarget" >&2
+							errorMembers="${errorMembers}${memberName} " ; hadError="true"
+							continue
+						fi
+					;;
+					keep)
+						ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
+						continue
+					;;
+					*)
+						ownedMembers="${ownedMembers}${memberName} ${memberActual}"$'\n' ; ownedNames="$ownedNames $memberName"
+						continue
+					;;
+				esac
 			fi
 			if [ "$memberTarget" -ef "$memberBundled" ] ; then
 				ownedMembers="${ownedMembers}${memberName} ${memberBundled}"$'\n' ; ownedNames="$ownedNames $memberName"
@@ -446,6 +496,12 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create the registry directory: ${registryFile%/*}" >&2
 			set +e ; return 1
 		}
+		## A workspace whose members enter the machine-wide registry is a known workspace too:
+		## the list the member resolver walks to reach a member of another workspace.
+		if [ "$scope" = "user-home" ] && [ -d "$workspace/.local" ] ; then
+			DistroAgentsTools --owner-workspace-upsert "$workspace" 2>/dev/null || \
+				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: could not add $workspace to the known workspaces" >&2
+		fi
 		## Every vendor folder this scope fans into: a member no workspace registers any
 		## more is unlinked from all of them at once, since the one registry serves them all.
 		local scopeRoots
@@ -546,8 +602,15 @@ case "$1" in
 					continue
 				fi
 			elif [ -L "$dcSlot" ] ; then
-				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
-				continue
+				if [ "$( AgentsToolsInstallSlotClaim "$scope" "$workspace" "$dcSlot" "$dcLinkTarget" "$dcMember" )" != claim ] ; then
+					ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
+					continue
+				fi
+				if ! rm -f "$dcSlot" ; then
+					echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: failed to remove the link to claim: $dcSlot" >&2
+					errorMembers="${errorMembers}${dcMember} " ; hadError="true"
+					continue
+				fi
 			fi
 			if [ "$dcSlot" -ef "$dcLinkTarget" ] ; then
 				ownedMembers="${ownedMembers}${dcMember} ${dcLinkTarget}"$'\n' ; ownedNames="$ownedNames $dcMember"
@@ -1014,7 +1077,7 @@ case "$1" in
 			}
 		fi
 
-		## Declared allow-write grants, discovered exactly as --install-skillset-symlinks
+		## Declared allow-write and allow-read grants, discovered exactly as --install-skillset-symlinks
 		## discovers team-members: the same two tools in-process, and the same trust
 		## rule -- an unreadable or empty scan is never read as "every grant
 		## disappeared", so revocation stays suppressed.
@@ -1064,15 +1127,21 @@ case "$1" in
 		## prefix is already cut off above. Every cut is on the FIRST colon, so a glob
 		## carrying colons survives whole. Arity differs by scope: `namespace` ends at
 		## the member and carries no glob, so absence is detected, never assumed.
-		local grantRows="" gLine gSel gRest gVerb gMember gGlob gRoot gOne
+		local grantRows="" gLine gSel gRest gVerb gPerm gMember gGlob gRoot gOne
 		parseDeclaredGrant(){
 			gVerb="${gRest%%:*}" ; gRest="${gRest#*:}"
 			gMember="${gRest%%:*}"
 			case "$gRest" in *:*) gGlob="${gRest#*:}" ;; *) gGlob="" ;; esac
-			## Only allow-write is implemented. A later verb writes a different array
-			## and is refused here rather than silently treated as an allow.
-			[ "$gVerb" = "allow-write" ] && return 0
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: unsupported permissions verb in $gLine: $gVerb (only allow-write is implemented)" >&2
+			## allow-write and allow-read: one path grant, parsed and resolved alike, the
+			## verb naming only the permission each row carries -- Edit(...) or Read(...),
+			## so a read grant never reaches a write set. allow-tool: a member's standing
+			## tool permission, its glob field being <tool>[:<target>]
+			## (AgentsTools.PermissionHolds.include). A later verb is refused here rather
+			## than silently treated as an allow.
+			[ "$gVerb" = "allow-write" ] && gPerm="Edit" && return 0
+			[ "$gVerb" = "allow-read" ] && gPerm="Read" && return 0
+			[ "$gVerb" = "allow-tool" ] && [ -n "$gGlob" ] && return 0
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: unsupported permissions verb in $gLine: $gVerb (allow-write, allow-read, and allow-tool with a <tool>[:<target>], are implemented)" >&2
 			grantsTrusted="false"
 			return 1
 		}
@@ -1086,17 +1155,22 @@ case "$1" in
 			gRest="${gLine#* }"
 			gSel="${gRest%%:*}" ; gRest="${gRest#*:}"
 			parseDeclaredGrant || continue
+			## A tool row names no path: one row, whatever the selector.
+			if [ "$gVerb" = "allow-tool" ] ; then
+				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
+				continue
+			fi
 			## `.` is "this one, of the same kind": the declaring project's namespace,
 			## which is the leading segment of its id.
 			[ "$gSel" != "." ] || gSel="${gLine%%/*}"
 			if [ "$gSel" = "*" ] ; then
 				while IFS= read -r gOne ; do
 					[ -n "$gOne" ] || continue
-					grantRows="${grantRows}${gMember}:${workspaceName}:namespace:Edit(/${workspace}/source/${gOne}/**)"$'\n'
+					grantRows="${grantRows}${gMember}:${workspaceName}:namespace:${gPerm}(/${workspace}/source/${gOne}/**)"$'\n'
 				done <<< "$( printf '%s\n' "$selectedProjects" | LC_ALL=C awk -F/ 'NF { if (!seenNamespace[$1]++) print $1; }' )"
 				continue
 			fi
-			grantRows="${grantRows}${gMember}:${workspaceName}:namespace:Edit(/${workspace}/source/${gSel}/**)"$'\n'
+			grantRows="${grantRows}${gMember}:${workspaceName}:namespace:${gPerm}(/${workspace}/source/${gSel}/**)"$'\n'
 		done <<< "$declaredNamespace"
 
 		## workspace: `<workspace-name>`, `.` for this one, `*` for every centrally
@@ -1118,6 +1192,10 @@ case "$1" in
 			gRest="${gLine#* }"
 			gSel="${gRest%%:*}" ; gRest="${gRest#*:}"
 			parseDeclaredGrant || continue
+			if [ "$gVerb" = "allow-tool" ] ; then
+				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
+				continue
+			fi
 			while IFS= read -r gRoot ; do
 				[ -n "$gRoot" ] || continue
 				case "$gSel" in
@@ -1125,7 +1203,7 @@ case "$1" in
 					'*') ;;
 					*) [ "$( basename "$gRoot" )" = "$gSel" ] || continue ;;
 				esac
-				grantRows="${grantRows}${gMember}:${workspaceName}:workspace:Edit(/${gRoot}/${gGlob})"$'\n'
+				grantRows="${grantRows}${gMember}:${workspaceName}:workspace:${gPerm}(/${gRoot}/${gGlob})"$'\n'
 				if [ "$gRoot" = "$workspace" ] ; then
 					gTag="own"
 				elif [ "$gSel" != "*" ] ; then
@@ -1133,7 +1211,7 @@ case "$1" in
 				else
 					gTag="wildcard"
 				fi
-				gTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "Edit(/${gRoot}/${gGlob})" )"
+				gTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "${gPerm}(/${gRoot}/${gGlob})" )"
 				[ -n "$gTagRoot" ] || continue
 				grantTagRows="${grantTagRows}${gMember}:${workspaceName}:${gTag}:${gTagRoot}"$'\n'
 			done <<< "$( DistroAgentsTools --owner-workspace-list 2>/dev/null || printf '%s\n' "$workspace" )"
@@ -1145,7 +1223,11 @@ case "$1" in
 			[ -n "$gLine" ] || continue
 			gRest="${gLine#* }"
 			parseDeclaredGrant || continue
-			grantRows="${grantRows}${gMember}:${workspaceName}:project:Edit(/${workspace}/source/${gLine%% *}/${gGlob})"$'\n'
+			if [ "$gVerb" = "allow-tool" ] ; then
+				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
+				continue
+			fi
+			grantRows="${grantRows}${gMember}:${workspaceName}:project:${gPerm}(/${workspace}/source/${gLine%% *}/${gGlob})"$'\n'
 		done <<< "$declaredProject"
 
 		## Member grants become registry rows too, so the record governs every grant
@@ -1198,7 +1280,7 @@ case "$1" in
 			## What the machine-wide set claimed BEFORE this run. An entry here but not in
 			## the post-rewrite projection is one this workspace has just given up, and is
 			## the only thing that may be removed -- nothing is identified by shape.
-			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '{
+			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" {
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 			}' > "$grantsFile.prev" || {
@@ -1235,7 +1317,7 @@ case "$1" in
 			## row per workspace, and its grant survives until the last goes. Field 4 is
 			## taken whole by offset, never by splitting, so a grant carrying its own colons
 			## is reproduced exactly.
-			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '{
+			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" {
 				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
 				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
 			}' > "$grantsFile"

@@ -64,7 +64,7 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## workspace, session id, session threa
 	runFrom="$( head -1 "$runContext" 2>/dev/null | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || runFrom=""
 	runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-context"
 	rm -f "$runMark"
-	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+	env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		MDAT_HARNESS_RESUME_CONTEXT="$runContext" MDAT_HARNESS_RESUME_MARKER="$runMark" \
 		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
 	runPid=$!
@@ -84,6 +84,6 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## workspace, session id, session threa
 	fi
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the harness resume from $runContext exited $runRc before its first request -- starting a new process instead" >&2
 	AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the harness resume from the kept context exited $runRc before its first request)" RESTART "$MDAT_SPAWN_SESSION_ID"
-	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+	env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull"
 }
