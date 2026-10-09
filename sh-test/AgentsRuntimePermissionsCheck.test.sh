@@ -14,7 +14,13 @@
 ##   6. the list: floor, standing, session, task and once rows with origin and expiry; revoked,
 ##      ended, used and closed ones left out; the member list checks its caller;
 ##   7. the members' read-only ops: the places by name, a path by name (.. refused), the
-##      namespaces and projects by name.
+##      namespaces and projects by name;
+##   8. revoking a task set takes its entries off the item's allows, on its Decisions, so a
+##      later dispatch tracking the item does not get it;
+##   9. a session pass: a keeper passes a held write, by place name and by path, to the tester
+##      in its coworking session, and the tester's next check admits it; not held, a
+##      non-participant, a read-only place and another member's name are refused; revoke
+##      takes it, and it ends with the session.
 ## Offline: HOME, the workspace, every registry and the team data are this rig's own; a fake
 ## curl is first on PATH.
 set -u
@@ -249,6 +255,62 @@ rigAssert "a namespace with no project: nothing"               "$rigRc:$( LC_ALL
 rigRun --member-namespace-list ../rig
 rigAssert "a namespace that is no bare name is refused"        "$rigRc" 1
 RIG_AGENT="" RIG_SESSION=""
+
+echo "-- 8. revoking a task set takes it off its item --"
+rigAllowsLines(){ ## item path -- its frontmatter allows: lines
+	LC_ALL=C awk 'NR == 1 && $0 == "---" { inFm = 1 ; next ; } inFm && $0 == "---" { exit ; } inFm && /^allows: / { n++ ; } END { print n + 0 ; }' "$1"
+}
+rigSetItem="$rigData/board/running/task-set.md"
+printf -- '---\nstatus: task\nowner: keeper-d\n---\n\n# Task\n' > "$rigSetItem"
+rigSpawn sb-s s-set keeper-d
+mkdir -p "$rigMain/.local/agents/pending"
+printf 'scope: task\nitem: task-set\nsession-id: s-set\nparticipants: keeper-d\nentry: Write:%s\n' "$rigTmp/rw-dir/sub/s.txt" > "$rigMain/.local/agents/pending/set-ask-rig.set"
+rigRun --intern-op-permission-set-apply set-ask-rig human-owner
+rigSetRef="$( LC_ALL=C sed -n 's/^task:Write:[^:]*:human-owner:[^:]*:\(set-[0-9a-f-]*\)$/\1/p' "$rigMain/.local/agents/sessions/s-set/grants" 2>/dev/null | head -1 )"
+rigAssert "control: the set is granted and is the item's allows" "$rigRc:$( [ -n "$rigSetRef" ] && printf ref || printf none ):$( rigN "$rigSetItem" "allows: task:Write:$rigTmp/rw-dir/sub/s.txt:human-owner:" )" "0:ref:1"
+printf -- '---\nstatus: dispatch-started\nowner: keeper-d\nsession-id: s-later\ntracks: task-set\n---\n\n# Dispatch\n' > "$rigData/board/running/dispatch-20261009T1200Z-later.md"
+rigAssert "control: a later dispatch tracking the item gets it" "$( rigGrantRead keeper-d s-later Write "$rigTmp/rw-dir/sub/s.txt" )" planned
+RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --magic-permission-revoke "$rigSetRef"
+rigAssert "revoked, and taken off the item"                    "$rigRc:$( LC_ALL=C tr '\n' '|' < "$rigTmp/out" )" "0:REVOKED: $rigSetRef|ALLOWS-REMOVED: task-set|"
+rigAssert "the item carries no allows any more"                "$( rigAllowsLines "$rigSetItem" )" 0
+rigAssert "the revoke is on the item's Decisions"              "$( rigN "$rigSetItem" "magic-coordinator verdict: task grant $rigSetRef revoked: Write:$rigTmp/rw-dir/sub/s.txt" )" 1
+rigAssert "a later dispatch tracking the item does not get it" "$( rigGrantRead keeper-d s-later Write "$rigTmp/rw-dir/sub/s.txt" )" none
+rigAssert "nor does the set's own session"                     "$( rigGrantRead keeper-d s-set Write "$rigTmp/rw-dir/sub/s.txt" )" none
+
+echo "-- 9. a session pass: a keeper passes what it holds to a participant, for the session only --"
+## Coworking session s-cw: keeper-d started it (its standing write holds rw-dir/*.md), magic-tester joined it.
+rigSpawn sb-cw s-cw keeper-d
+mkdir -p "$rigMain/.local/agents/spawned/sb-cwt/output"
+printf -- '---\nsession-id: s-cw\nspawn-id: s-cw-t\nowner: magic-tester\nstatus: spawn-started\n---\n\n# Spawn session\n' > "$rigMain/.local/agents/spawned/sb-cwt/s-cw-t.md"
+for rigName in rw-dir/p.md rw-dir/q.md ; do printf 'rig-seed %s\n' "$rigName" > "$rigTmp/$rigName" ; done
+rigAssert "control: the tester does not write there unpassed"  "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" )" refused
+RIG_AGENT=keeper-d RIG_SESSION=s-cw
+rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:p.md" --entry "Write:$rigTmp/rw-dir/q.md"
+rigPassP="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | sed -n 1p )"
+rigPassQ="$( LC_ALL=C sed -n 's/^GRANT: session \(pass-[0-9a-f-]*\)$/\1/p' "$rigTmp/out" | sed -n 2p )"
+rigAssert "passed by place name and by path, each its own"     "$rigRc:$( LC_ALL=C grep -c '^GRANT: session pass-' "$rigTmp/out" ):$( [ -n "$rigPassP" ] && [ "$rigPassP" != "$rigPassQ" ] && printf refs || printf none )" "0:2:refs"
+rigAssert "each said with its name:relative"                   "$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/p.md is rw-dir:p.md" ):$( rigN "$rigTmp/out" "PLACE: Write:$rigTmp/rw-dir/q.md is rw-dir:q.md" )" "1:1"
+rigAssert "a session grant signed by the passer, in its store" "$( LC_ALL=C grep -c -E "^session:Write:[^:]*:keeper-d:[0-9TZ]*:$rigPassP\$" "$rigMain/.local/agents/sessions/s-cw/grants" ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'owner: magic-tester' ):$( rigN "$rigMain/.local/agents/sessions/s-cw/$rigPassP.md" 'passed-by: keeper-d' )" "1:1:1"
+rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:sub/**"
+rigAssert "what it does not hold is refused"                   "$rigRc:$( rigN "$rigTmp/err" 'keeper-d does not hold Write' ):$( LC_ALL=C grep -c '^GRANT:' "$rigTmp/out" )" "1:1:0"
+rigRun --member-permission-session-pass keeper-d --to magic-coordinator --entry "Write:@rw-dir:p.md"
+rigAssert "a member outside the session is refused"            "$rigRc:$( rigN "$rigTmp/err" 'magic-coordinator takes no part in session s-cw' )" "1:1"
+rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@ro-dir:x.txt"
+rigAssert "a write in a read-only place is refused, its route named" "$rigRc:$( rigN "$rigTmp/err" "ro-dir is a read-only place, so no write is granted there: Write:@ro-dir:x.txt -- write to the session sandbox output/ instead, or a folder under it: $rigMain/.local/agents/spawned/sb-cw/output/" )" "1:1"
+RIG_AGENT=magic-tester RIG_SESSION=s-cw-t
+rigRun --member-permission-session-pass keeper-d --to magic-tester --entry "Write:@rw-dir:p.md"
+rigAssert "a member cannot pass as another"                    "$rigRc:$( rigN "$rigTmp/err" 'acts as magic-tester, so it cannot act as keeper-d' )" "1:1"
+RIG_AGENT="" RIG_SESSION=""
+rigAssert "the refused passes wrote nothing"                   "$( LC_ALL=C grep -c . "$rigMain/.local/agents/sessions/s-cw/grants" )" 2
+rigAssert "the tester's next check admits both"                "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" ):$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" )" "wrote:wrote"
+RIG_AGENT=magic-tester RIG_SESSION=s-cw-t rigRun --member-permission-list magic-tester --session-id s-cw-t
+cp "$rigTmp/out" "$rigTmp/list"
+rigAssert "listed with the passer as origin, until the session ends" "$( rigRow session Write "$rigTmp/rw-dir/p.md" )" "rw-dir:p.md|$rigPassP by keeper-d|until session s-cw ends"
+RIG_AGENT=magic-coordinator RIG_SESSION=s-coord rigRun --magic-permission-revoke "$rigPassP"
+rigAssert "revoke takes it"                                    "$rigRc:$( cat "$rigTmp/out" )" "0:REVOKED: $rigPassP"
+rigAssert "the next check refuses it, the other still writes"  "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/p.md" ):$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" )" "refused:wrote"
+LC_ALL=C sed 's/^status: spawn-started$/status: spawn-succeeded/' "$rigMain/.local/agents/spawned/sb-cw/s-cw.md" > "$rigTmp/rec" && cat "$rigTmp/rec" > "$rigMain/.local/agents/spawned/sb-cw/s-cw.md"
+rigAssert "it ends with the session"                           "$( rigWrite magic-tester s-cw-t "$rigTmp/rw-dir/q.md" ):$( rigGrantRead magic-tester s-cw-t Write "$rigTmp/rw-dir/q.md" )" "refused:none"
 
 if [ "$rigFail" -ne 0 ] ; then
 	echo "⛔ RUNTIME PERMISSIONS CHECK FAILED: $rigFail of $(( rigPass + rigFail )) assertion(s)" >&2 ; exit 1

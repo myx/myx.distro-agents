@@ -578,6 +578,80 @@ rigAskFinish 0 > /dev/null
 rigVerdict "an allow from an approver who does not hold it goes up the chain"
 
 ## ---------------------------------------------------------------------------
+## 18d. An ask addressed to a routine: recorded for the routine's executors and posted
+##      nowhere, listed by the routine's input scan, answered by an executor only; the
+##      asking call's own wait ends on the answer, and so does a later Wait. A rig HOME,
+##      so no other workspace of this machine is scanned.
+## ---------------------------------------------------------------------------
+rigStart ask-routine no
+rigRealHome="$HOME"
+export HOME="$rigScenarioDir/home"
+mkdir -p "$HOME"
+rigPendingIdOf(){ ## refusal id -- the pending record asking for it
+	local pendingFile
+	for pendingFile in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+		[ -f "$pendingFile" ] && LC_ALL=C grep -q -x -F "refusal-id: $1" "$pendingFile" || continue
+		pendingFile="${pendingFile##*/}"
+		printf '%s' "${pendingFile%.md}"
+		return 0
+	done
+}
+rigAskRoutine(){ ## session id, refusal id, question
+	set -m
+	rigTool "$1" AskUserQuestion "{\"to\":\"permission-escalation.routine\",\"question\":\"$3\",\"kind\":\"permission\",\"refusal_id\":\"$2\",\"reason\":\"the task report goes there\",\"task_ref\":\"dispatch-rig\"}" &
+	rigAskPid=$!
+	set +m
+	local waitLeft=20
+	while [ -z "$( rigPendingIdOf "$2" )" ] && [ "$waitLeft" -gt 0 ] ; do sleep 1 ; waitLeft=$(( waitLeft - 1 )) ; done
+}
+rigScanAsk(){ ## pending id -- its block's member, tool and target lines, joined
+	LC_ALL=C awk -v id="$1" '$0 == "## permission ask " id { on = 1 ; next ; } /^## / { on = 0 ; } on && /^(member|tool|target): / { printf "%s|", $0 ; }' "$rigScenarioDir/op.out"
+}
+rigTargetE="$rigScenarioDir/ws/OUT/e.txt"
+rigWriteCall rig-session "$rigTargetE" > /dev/null
+rigIdE="$( rigRefusalId )"
+rigAskRoutine rig-session "$rigIdE" "May this task write the refused report?"
+rigPendingE="$( rigPendingIdOf "$rigIdE" )"
+[ -n "$rigPendingE" ] || rigRefuse "no pending record was written for the ask addressed to the routine, so nothing below would be measured"
+rigRecordE="$rigScenarioDir/ws/.local/agents/pending/$rigPendingE.md"
+rigAssert "the ask is recorded, addressed to the routine"  "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigRecordE" )" permission-escalation.routine
+rigAssert "with no thread and no addressee account"        "$( LC_ALL=C grep -c -E '^(channel|question-ts|thread-ts|addressees): ' "$rigRecordE" )" 0
+rigAssert "and nothing was sent anywhere: no DM to a person" "$( LC_ALL=C awk 'END { print NR ; }' "$RIG_CURL_LOG" )" 0
+sleep 2
+rigAssert "the asking call waits"                          "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
+RIG_OP_AGENT=magic-coordinator
+rigOp --magic-permission-escalation-input-scan magic-coordinator
+rigAssert "the input scan lists it"                        "$( rigHolds "$rigScenarioDir/op.out" "## permission ask $rigPendingE" )" yes
+rigAssert "with the asking member, the tool and the target" "$( rigScanAsk "$rigPendingE" )" "member: $rigMember|tool: Write|target: $rigTargetE|"
+rigAssert "with its reason and its task"                   "$( rigHolds "$rigScenarioDir/op.out" 'reason: the task report goes there' ):$( rigHolds "$rigScenarioDir/op.out" 'task-ref: dispatch-rig' )" "yes:yes"
+rigAssert "with who holds it, the executor first"          "$( LC_ALL=C sed -n 's/^holders: //p' "$rigScenarioDir/op.out" | head -1 | LC_ALL=C awk '/^magic-coordinator [a-z]/ && / human-owner human-owner$/ { print "executor-first" ; next ; } { print ; }' )" executor-first
+RIG_OP_AGENT=magic-developer ; RIG_OP_SESSION=rig-developer-session
+rigOp --member-escalation-answer magic-developer "$rigPendingE" allow-once
+rigAssert "a non-executor cannot answer it"                "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' ):$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigRecordE" )" "yes:reply-pending"
+RIG_OP_AGENT=magic-coordinator ; RIG_OP_SESSION=rig-coordinator-session
+rigOp --member-escalation-answer magic-coordinator "$rigPendingE" allow-once
+rigAssert "the coordinator, as its executor, answers it"   "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPendingE answered" ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdE" )" "yes:yes"
+rigAssert "the asking call's own wait ended on the answer" "$( rigAskFinish 75 )" yes
+rigAssert "with the verdict and who gave it"               "$( rigLineOf 'VERDICT: ' ):$( rigLineOf 'ANSWERED-BY: ' )" "VERDICT: allow-once:ANSWERED-BY: magic-coordinator"
+rigAssert "the exact retry passes"                         "$( rigWriteCall rig-session "$rigTargetE" )" "$( rigOkLine "$rigTargetE" )"
+rigTargetW="$rigScenarioDir/ws/OUT/w2.txt"
+rigWriteCall rig-session "$rigTargetW" > /dev/null
+rigIdW="$( rigRefusalId )"
+rigAskRoutine rig-session "$rigIdW" "May this task also write the second refused report?"
+rigPendingW="$( rigPendingIdOf "$rigIdW" )"
+rigAskFinish 0 > /dev/null
+rigAssert "an asking call cut short leaves its ask open"   "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPendingW.md" 2>/dev/null )" reply-pending
+rigOp --member-escalation-answer magic-coordinator "$rigPendingW" allow-session
+rigTool rig-session Wait "{\"sources\":\"ask:$rigPendingW\",\"timeout\":\"30\"}"
+rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
+rigOp --magic-permission-escalation-input-scan magic-coordinator
+rigAssert "answered, neither is listed any more"           "$( LC_ALL=C grep -c '^## permission ask ' "$rigScenarioDir/op.out" ):$( rigHolds "$rigScenarioDir/op.out" '(none)' )" "0:yes"
+rigAssert "and no Slack call was made at all"              "$( LC_ALL=C awk 'END { print NR ; }' "$RIG_CURL_LOG" )" 0
+RIG_OP_AGENT=""
+export HOME="$rigRealHome"
+rigVerdict "an ask to a routine -- recorded with no DM, scanned, answered by its executor only, returned by the wait"
+
+## ---------------------------------------------------------------------------
 ## 19. Forward: the coordinator forwards to the human-owner, and the human-owner's
 ##     reply in the forward's thread is the verdict for the original request.
 ## ---------------------------------------------------------------------------

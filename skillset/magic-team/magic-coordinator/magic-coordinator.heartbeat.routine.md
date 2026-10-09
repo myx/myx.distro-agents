@@ -38,7 +38,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Does:
   - Run as one pass, spawned by the host loop through `--intern-root-harness --routine heartbeat --non-interactive`. No member starts, stops or relays into it.
   - Dispatch `magic-team.grooming.routine` and `magic-coordinator.daily.routine` as their own sessions when due.
-  - Run `magic-coordinator.external-inbox-handle-loop.routine` and `magic-coordinator.advance.routine` inline.
+  - Run `magic-coordinator.external-inbox-handle-loop.routine`, `magic-coordinator.permission-escalation.routine` and `magic-coordinator.advance.routine` inline.
   - Keep the `heartbeat-state-note` current.
 - Doesn't:
   - Repeat itself. Repetition is the host loop's.
@@ -61,14 +61,15 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **acquire-lock**: Run the `single-instance-lock` procedure's acquire. Contention means another pass is live: go to **report-status-to-spawner**, nothing else runs. An unexpected lock state is reported in the pass status.
 3. **read-state-and-branch**: Run `--magic-heartbeat-input-scan`. Its `branch:`, `today-stage:` and `grooming-today:` lines decide this pass, by the `day-rhythm-state` procedure. The steps below work from it.
 4. **handle-external-owner-items**: Run `magic-coordinator.external-inbox-handle-loop.routine` inline.
-5. **dispatch-due-routine**: Per the branch, steps:
+5. **handle-permission-asks**: Run `magic-coordinator.permission-escalation.routine` inline. Its input scan reading `(none)` ends it at once.
+6. **dispatch-due-routine**: Per the branch, steps:
    - first-today: dispatch `magic-team.grooming.routine` through `spawn-one-dispatch` (`--magic-spawn-session --routine magic-team.grooming`), and set `today-stage: grooming-dispatched`.
    - later-today, `today-stage: grooming-dispatched`, and `grooming-today: finished`: dispatch `magic-coordinator.daily.routine` the same way, and set `today-stage: daily-dispatched`.
    - weekend, or nothing due: dispatch nothing.
-6. **send-test-report**: Run `--magic-heartbeat-test-report-send`, every branch. `NOT_DUE` is not a failure.
-7. **register-owner-decisions**: An open decision this pass found that only the human-owner can make becomes an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists. Advance asks and re-asks it.
-8. **update-heartbeat-state**: Rewrite the `heartbeat-state-note` (`--magic-heartbeat-state-upsert`) with this pass's `today-stage` and one short "Last iteration" paragraph replacing the previous one. Anything worth keeping beyond this pass goes to the session thread or a `reflection-*`, never into this note.
-9. **run-advance**: Run one `magic-coordinator.advance.routine` pass inline, every pass, last. This pass is not finished, and the lock is not released, until advance has finished.
+7. **send-test-report**: Run `--magic-heartbeat-test-report-send`, every branch. `NOT_DUE` is not a failure.
+8. **register-owner-decisions**: An open decision this pass found that only the human-owner can make becomes an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists. Advance asks and re-asks it.
+9. **update-heartbeat-state**: Rewrite the `heartbeat-state-note` (`--magic-heartbeat-state-upsert`) with this pass's `today-stage` and one short "Last iteration" paragraph replacing the previous one. Anything worth keeping beyond this pass goes to the session thread or a `reflection-*`, never into this note.
+10. **run-advance**: Run one `magic-coordinator.advance.routine` pass inline, every pass, last. This pass is not finished, and the lock is not released, until advance has finished.
 
 # Closure steps
 
@@ -146,6 +147,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-coordinator.advance.routine` — run inline at **run-advance** (the "Board advance" step the benchmarks name); it runs the comms sweep and inbox processing.
 - `magic-coordinator.external-inbox-handle-loop.routine` — run inline at **handle-external-owner-items**.
+- `magic-coordinator.permission-escalation.routine` — run inline at **handle-permission-asks**.
 - `magic-team.grooming.routine`, `magic-coordinator.daily.routine` — dispatched at **dispatch-due-routine**.
 - The host loop and its call contract — this package's own `MAGIC.md`.
 

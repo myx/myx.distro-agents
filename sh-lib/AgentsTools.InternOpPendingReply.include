@@ -49,7 +49,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
-		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## A typed question's own facts, kept so an answer can be classified and applied later.
@@ -68,6 +68,8 @@ case "$1" in
 				## The board item the ask belongs to: named directly, or found in AskUserQuestion's task_ref.
 				--item) pendingItem="${2:-}" ; shift 2 ;;
 				--task-ref) pendingTaskRef="${2:-}" ; shift 2 ;;
+				## Why the task needs it, for a reader of the record that sees no thread (an ask to a routine).
+				--reason) pendingReason="${2:-}" ; shift 2 ;;
 				## The identity the question was posted under, so a reminder posts under the same one.
 				--ask-identity)
 					case "${2:-}" in
@@ -149,6 +151,8 @@ case "$1" in
 			[ -z "$pendingKey" ] || printf 'question-key: %s\n' "${pendingKey//$'\n'/ }"
 			[ -z "$pendingIdentity" ] || printf 'ask-identity: %s\n' "$pendingIdentity"
 			[ -z "$pendingItem" ] || printf 'item: %s\n' "$pendingItem"
+			[ -z "$pendingTaskRef" ] || printf 'task-ref: %s\n' "${pendingTaskRef//$'\n'/ }"
+			[ -z "$pendingReason" ] || printf 'reason: %s\n' "${pendingReason//$'\n'/ }"
 			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'

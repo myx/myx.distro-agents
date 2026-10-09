@@ -148,10 +148,12 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-permission-session-pass <team-member> --to <member> --entry <tool:target>... [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-escalation-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
@@ -2276,9 +2278,11 @@
 			<scope>:<selector>:<verb>:<member>[:<glob>]`, and what every
 			registered tooling workspace without agents declares (`.`
 			there is that workspace): `namespace:<ns|.|*>` in every
-			tooling workspace, `workspace:<name|.|*>`,
-			`directory:<name>` through the registered places, capped to
-			read on a read-only one, and `project:<selector>`;
+			tooling workspace, `workspace:<name|.|*>` (or a pattern,
+			`*-testbed`, matching workspace place names, none matching
+			no error), `directory:<name>` through the registered
+			places, capped to read on a read-only one, and
+			`project:<selector>`;
 			`allow-write` an `Edit(...)` row, `allow-read` a `Read(...)`
 			row, `allow-tool` a `<tool>[:<target>]` row. A name no
 			place carries is an `unresolved` row, with a warning. Every
@@ -2821,9 +2825,11 @@
 
 		--member-escalation-answer <team-member> <request-id> <verdict> [text]
 			Answers one open escalation as <team-member>, which must be
-			the member it was addressed to and not the member who
-			asked. This is how a member with no Slack account of its
-			own, the coordinator included, answers. The verdict must
+			the member it was addressed to, or an executor of the
+			routine it was addressed to (`<name>.routine`), and not the
+			member who asked. This is how a member with no Slack
+			account of its own, the coordinator included, answers, and
+			how an ask to a routine is answered. The verdict must
 			belong to the kind: yes, no or correct for a readback, the
 			answering word of one option for a decision, deny,
 			allow-once, allow-session or allow-task for a permission,
@@ -2859,7 +2865,8 @@
 			declared reaction in that thread is the verdict for the
 			original request, and the waiting question ends on it.
 			Only the member the escalation is addressed to can forward
-			it, and only while it is open.
+			it, or an executor of the routine it is addressed to, and
+			only while it is open.
 
 		--member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
 			Passes a permission <team-member> holds on to <member>:
@@ -2875,6 +2882,25 @@
 			<team-member>. The session is the caller's own unless
 			--session-id names it. A spawned session passes only as
 			its own member.
+
+		--member-permission-session-pass <team-member> --to <member> --entry <tool:target>... [--session-id <id>]
+			Passes permissions <team-member> holds on to <member>, a
+			participant of the same session, for that session only:
+			how a keeper invited into a session widens the access of
+			the others there. Each entry is <tool>:<target>, the target
+			a path, a <path>/** pattern, a URL prefix written <prefix>*,
+			or a registered place, `<tool>:@<name>[:<glob>]`, as
+			--magic-permission-set-request takes it. A path in a place
+			is said as `PLACE: <entry> is <name>:<relative>`. Tooling
+			refuses, before anything is passed: a write in a read-only
+			place, naming the route to take instead; an entry
+			<team-member> does not hold in the session, or holds only
+			for a task; and either member taking no part in the
+			session. Prints `GRANT: session pass-<id>` for each entry;
+			each is <member>'s own, signed by <team-member>, ends with
+			the session, and is revoked by its reference. The session
+			is the caller's own unless --session-id names it. A
+			spawned session passes only as its own member.
 
 		--magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
 			Asks for a task's or session's permission set at spawn or
@@ -2919,8 +2945,27 @@
 			(refusal-, pass- or set-<id>): a marker is written beside
 			its record, every reader leaves it out from the next check
 			on, and `REVOKED: <ref>` is printed (`already` when it
-			was). An unknown reference is refused. A task set written
-			as an item's `allows:` stays there. Only
+			was). An unknown reference is refused. A task grant's
+			entries also leave its item's `allows:`, so no later
+			dispatch tracking the item carries them (`ALLOWS-REMOVED:
+			<item>` when they were there), and the revoke is recorded
+			on the item's `## Decisions`. Only magic-coordinator, or
+			the console, may call it.
+
+		--magic-permission-escalation-input-scan <team-member>
+			The input scan of
+			magic-coordinator.permission-escalation.routine: the
+			oldest 20 open permission asks addressed to
+			`permission-escalation.routine`, in every workspace this
+			machine knows. Opens with `shown: <n> of <total>, oldest
+			first`, or `(none)`. Each ask is a `## permission ask
+			<id>` block of `<field>: <value>` lines: workspace,
+			asked-at, member (who asked), session, refusal, tool,
+			target, place (the target as <name>:<relative>, or -),
+			reason, task-ref, item, holders (<member> <layer>,
+			<team-member> first when it holds it, the human-owner
+			last) and set-requests (the open permission-set asks of
+			the same item or session). It changes nothing. Only
 			magic-coordinator, or the console, may call it.
 
 		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]

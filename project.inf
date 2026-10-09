@@ -8,6 +8,11 @@ Declares: \
 	magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
 	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
 	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
+	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \
+	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/test/** \
+	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/tests/** \
+	magic-team:permissions:workspace:*:allow-read:magic-tester:.local/myx/** \
+	magic-team:permissions:workspace:*-testbed:allow-write:magic-tester:** \
 
 Requires: \
 	myx/myx.distro-source \

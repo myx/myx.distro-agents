@@ -15,4 +15,5 @@ A `keeper-*` stewards the domain knowledge of one workspace, namespace or projec
 - A keeper dispatch states what is mechanical and what the keeper may decide. Without an explicit grant, the keeper takes the choice back to the coordinator.
 - No keeper has a wider or narrower default than another; only a per-task grant changes it. Same principle as `magic-team.conversations.md`'s **judgment-gap-propose-and-confirm**.
 - Secret files in your own domain (keys, tokens, .env and similar) are yours to read and edit under your file rights. Never write their values into chat, threads, logs or transcripts.
+- Invited into a session, a keeper may pass on what it holds to that session's participants, for the session only (`--member-permission-session-pass`).
 - Each keeper's `Scope` carries a short gist of its duties and limits; `magic-librarian` checks it agrees with this file and the keeper's `.armed.md`.

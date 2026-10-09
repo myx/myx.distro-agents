@@ -101,9 +101,11 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 		| LC_ALL=C sed -n 's/^HOLDER: \([^ ]*\) .*$/\1/p' | LC_ALL=C awk '$0 != "human-owner" { print ; exit ; }' )" || rrHolder=""
 	if [ -z "$rrHolder" ] ; then
 		rrHolder="human-owner"
-		## The existing forward, once, by whoever the request is addressed to now.
+		## The existing forward, once, by whoever the request is addressed to now: for a routine, the executor answering.
 		if [ "$rrTo" != "human-owner" ] && [ -z "$( AgentsToolsEscalationField "$rrFile" forward-ts )" ] ; then
-			rrOut="$( DistroAgentsTools --magic-escalation-forward "$rrTo" "$rrId" 2>&1 )" \
+			local rrForwardBy="$rrTo"
+			case "$rrTo" in *.routine) rrForwardBy="$rrBy" ;; esac
+			rrOut="$( DistroAgentsTools --magic-escalation-forward "$rrForwardBy" "$rrId" 2>&1 )" \
 				|| echo "⚠️ WARNING: $MDSC_CMD: $rrId is re-addressed to the human-owner, but the forward could not be posted: $( LC_ALL=C grep -m1 '⛔' <<< "$rrOut" )" >&2
 		fi
 	fi
@@ -335,9 +337,16 @@ case "$1" in
 		answerKind="$( AgentsToolsEscalationField "$answerFile" kind )"
 		answerOwner="$( AgentsToolsEscalationField "$answerFile" owner )"
 		answerTo="$( AgentsToolsEscalationField "$answerFile" address-to )"
-		## Only the member the question was addressed to answers it, or the coordinator on its
-		## behalf, and never the one who asked.
-		if { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerTo" ] ; } || [ "$answerMember" = "$answerOwner" ] ; then
+		## Only the member the question was addressed to answers it, an executor of the routine it
+		## was addressed to, or the coordinator on its behalf, and never the one who asked.
+		local answerAddressee="$answerTo"
+		case "$answerTo" in
+			*.routine)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+				! AgentsToolsRoutineIsExecutor "$answerTo" "$answerMember" || answerAddressee="$answerMember"
+			;;
+		esac
+		if { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerAddressee" ] ; } || [ "$answerMember" = "$answerOwner" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it" >&2
 			set +e ; return 1
 		fi
@@ -401,7 +410,16 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$forwardBy" "<coordinator>" escalation-forward || { set +e ; return 1 ; }
 		forwardFile="$( AgentsToolsEscalationRecord "$forwardId" )" || { set +e ; return 1 ; }
-		if [ "$forwardBy" != "$( AgentsToolsEscalationField "$forwardFile" address-to )" ] ; then
+		## The addressee forwards, or an executor of the routine it is addressed to.
+		local forwardTo
+		forwardTo="$( AgentsToolsEscalationField "$forwardFile" address-to )"
+		case "$forwardTo" in
+			*.routine)
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+				! AgentsToolsRoutineIsExecutor "$forwardTo" "$forwardBy" || forwardTo="$forwardBy"
+			;;
+		esac
+		if [ "$forwardBy" != "$forwardTo" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $forwardId is not addressed to $forwardBy, so $forwardBy cannot forward it" >&2
 			set +e ; return 1
 		fi

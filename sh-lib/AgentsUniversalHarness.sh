@@ -2850,7 +2850,7 @@ AgentsHarnessToolArtifact(){
 ## Neither helper can fail this tool. A question that was genuinely asked must be
 ## reported as asked even where recording it did not work, so a failure here degrades
 ## to no record and a warning, never to a wrong outcome line.
-AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity), then the task_ref the item is found by
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity), then the task_ref the item is found by, then the reason
 	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession openIdentity="member"
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
@@ -2864,7 +2864,7 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typ
 		${openSession:+--session-id "$openSession"} \
 		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
 		${8:+--addressees "$8"} ${9:+--asking-accounts "$9"} ${10:+--refusal-id "${10}"} ${11:+--options "${11}"} \
-		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} ${15:+--task-ref "${15}"} --ask-identity "$openIdentity" \
+		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} ${15:+--task-ref "${15}"} ${16:+--reason "${16}"} --ask-identity "$openIdentity" \
 		--context AskUserQuestion 2>"$harnessScratch/pending-open.err" )" || openId=""
 	if [ -z "$openId" ] ; then
 		printf 'WARNING: AskUserQuestion: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' >&2
@@ -2936,7 +2936,7 @@ AgentsHarnessToolAskUserQuestion(){
 	local askRounds=0
 	local askAsk="" askOpen="" askOpenTs="" askSelfIds=" " askSendOut askRecordOnly=""
 	local askSession="" askRecord="" askRecordLine askRefusedTool="" askRefusedTarget="" askRefusedOwner=""
-	local askTag="" askKey="" askWhere="" askReuseChannel="" askReuseThread="" askDupId="" askDupOwner="" askDupSession="" askLock=""
+	local askTag="" askKey="" askWhere="" askReuseChannel="" askReuseThread="" askDupId="" askDupOwner="" askDupSession="" askLock="" askRoutine=""
 	## A re-wait: the question is already posted and recorded, so everything it is judged
 	## against comes from its open record, and nothing is posted again.
 	if [ -n "$toolPendingId" ] ; then
@@ -2990,6 +2990,21 @@ AgentsHarnessToolAskUserQuestion(){
 		toolTo="$( AgentsHarnessParentThread )" || { printf 'ERROR: AskUserQuestion: %s\n' "${toolTo#ERROR: }" ; return 0 ; }
 		toolTo="${toolTo%% *}"
 	fi
+	## A routine (`<name>.routine`) is asked by no post at all: the ask is recorded for that
+	## routine's executors, who answer it through the team operation (AgentsTools.MemberEscalation.include).
+	case "$toolTo" in
+		*:*) ;;
+		*.routine)
+			type AgentsToolsRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+			if ! type AgentsToolsRoutineFile > /dev/null 2>&1 || ! AgentsToolsRoutineFile "$toolTo" > /dev/null ; then
+				printf 'ERROR: AskUserQuestion: to names %s, and no one routine of this team carries that name, so there is nobody to ask. Nothing was recorded.\n' "$toolTo" ; return 0
+			fi
+			if [ -n "$toolAddressTo" ] && [ "$toolAddressTo" != "$toolTo" ] ; then
+				printf 'ERROR: AskUserQuestion: a question to a routine is addressed to that routine, and address_to names %s instead. Nothing was recorded.\n' "$toolAddressTo" ; return 0
+			fi
+			askRoutine="$toolTo"
+		;;
+	esac
 	## The thread numbers its questions itself, so a number the asker put in front of the
 	## text ("Q1: ...", "q2) ...", "Q3 - ...") would show beside it as a second one.
 	local askLabel='^[Qq][0-9]+[[:space:]]*[-:.)][[:space:]]*'
@@ -3039,6 +3054,10 @@ AgentsHarnessToolAskUserQuestion(){
 			printf 'ERROR: AskUserQuestion: kind must be question, readback, decision or permission, got: %s. Nothing was sent.\n' "$toolKind" ; return 0
 		;;
 	esac
+	## A routine's executors answer through the team operation, which takes a typed verdict only.
+	if [ -n "$askRoutine" ] && [ "$toolKind" = "question" ] ; then
+		printf 'ERROR: AskUserQuestion: a question to a routine must be of kind readback, decision or permission, since its executors answer it with a verdict of that kind. Nothing was recorded.\n' ; return 0
+	fi
 	if [ -z "$toolAddressTo" ] ; then
 		case "$toolTo" in
 			*:*) ;;
@@ -3167,7 +3186,7 @@ AgentsHarnessToolAskUserQuestion(){
 	askAsk="$toolTo"
 	[ -z "$askReuseThread" ] || askAsk="$askReuseChannel:$askReuseThread"
 	[ -n "$askReuseThread" ] || case "$toolTo" in
-		*:*)
+		*:*|*.routine)
 		;;
 		*)
 			askOpen="$( AgentsHarnessToolSendMessage "$toolTo" "❓ $toolQuestion"$'\n\n'"The full question and how to answer it are in this thread." "$toolAsBot" "$toolAddressTo" "" true )"
@@ -3189,7 +3208,11 @@ AgentsHarnessToolAskUserQuestion(){
 	esac
 	## A question joining a thread already running is also shown in the conversation, or it
 	## sits buried under earlier replies where the person never sees it.
-	askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" "${askReuseThread:+true}" true )"
+	if [ -n "$askRoutine" ] ; then
+		askSent="(addressed to $askRoutine: nothing was posted; its executors answer it through the team operation)"
+	else
+		askSent="$( AgentsHarnessToolSendMessage "$askAsk" "$askBody" "$toolAsBot" "$toolAddressTo" "${askReuseThread:+true}" true )"
+	fi
 	case "$askSent" in
 		ERROR:*)
 			[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
@@ -3209,8 +3232,13 @@ AgentsHarnessToolAskUserQuestion(){
 	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	## The account this question was posted under never answers it, whatever address_to said.
 	askSelfIds=" $( for askSendOut in "$askOpen" "$askSent" ; do printf '%s\n' "$askSendOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
-	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" "$toolTaskRef" )"
+	[ -z "$askRoutine" ] || askSelfIds=""
+	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" "$toolTaskRef" "$toolReason" )"
 	[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
+	## An ask to a routine exists only as its record.
+	if [ -n "$askRoutine" ] && [ -z "$askPendingId" ] ; then
+		printf 'ERROR: AskUserQuestion: the question to %s could not be recorded, and nothing was posted, so THE QUESTION DOES NOT EXIST and nobody was asked. Ask it again.\n' "$askRoutine" ; return 0
+	fi
 	fi ## end of the posting path
 	## An escalation is answered before the work goes on, so a typed kind always waits.
 	local askWaitNote=""
@@ -3229,7 +3257,10 @@ AgentsHarnessToolAskUserQuestion(){
 		;;
 	esac
 	if [ -z "$toolSource" ] ; then
-		if [ -z "$askChannel" ] || [ -z "$askThreadTs" ] || [ -z "$askTs" ] ; then
+		## An ask to a routine, a re-wait on one included (even re-addressed since), has no thread:
+		## its record is what is watched.
+		case "$toolTo" in *:*) ;; *.routine) askRoutine="$toolTo" ;; esac
+		if [ -z "$askRoutine" ] && { [ -z "$askChannel" ] || [ -z "$askThreadTs" ] || [ -z "$askTs" ] ; } ; then
 			printf 'ASK-RESULT: POSTED\nThe question is posted to %s%s and NO WAIT WAS PERFORMED. The send could not name the thread it landed in, so there is no one thread to watch. Widening to the whole conversation is refused here: anything found there would not be known to answer this. Nothing is known about whether it was answered. What the send reported follows:\n%s\n' "$toolTo" "${askPendingId:+ and recorded as pending reply $askPendingId}" "$askSent"
 			return 0
 		fi

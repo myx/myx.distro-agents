@@ -215,23 +215,42 @@ AgentsToolsGrantsPlaceFind(){ ## name, workspace|any
 	return 1
 }
 
+## Every place of the merged list (agentsGrantsPlaces) of kind workspace whose name -- the
+## name before any @workspace -- matches a shell pattern: its path on stdout, each once.
+## None matching is no error: rc 0, nothing printed.
+AgentsToolsGrantsPlaceMatch(){ ## pattern
+	local matchName matchKind matchCeiling matchPath matchRest matchSeen=$'\n'
+	while IFS=$'\t' read -r matchName matchKind matchCeiling matchPath matchRest ; do
+		case "$matchPath" in /*) ;; *) continue ;; esac
+		[ "$matchKind" = workspace ] || continue
+		case "${matchName%@*}" in $1) ;; *) continue ;; esac
+		matchPath="${matchPath%/}"
+		case "$matchSeen" in *$'\n'"$matchPath"$'\n'*) continue ;; esac
+		matchSeen="$matchSeen$matchPath"$'\n'
+		printf '%s\n' "$matchPath"
+	done <<< "$agentsGrantsPlaces"
+	return 0
+}
+
 ## One declaring workspace's grants, read off its project.inf as it stands, on stdout:
 ##   row <TAB> member:workspace:kind:grant      for the permissions registry
 ##   tag <TAB> member:workspace:tag:root        for the provenance tags
 ## The selectors, `<scope>:<selector>:<verb>:<member>[:<glob>]`:
 ##   namespace:<ns|.|*>     that namespace's source in every tooling workspace, `.` the
 ##                          declaring project's, `*` every namespace the declaring one selects
-##   workspace:<name|.|*>   a workspace place, `.` the declaring workspace, `*` every one
+##   workspace:<name|.|*>   a workspace place, `.` the declaring workspace, `*` every one;
+##                          a pattern (`*-testbed`) every workspace place whose name matches
 ##   directory:<name>       a registered place of any kind, capped at its ceiling
 ##   project:<selector>     the estate's project resolver, in the declaring workspace
-## A name no place carries becomes an `unresolved` row, with a warning. Reads the places from
+## A name no place carries becomes an `unresolved` row, with a warning; a pattern no place
+## matches gives no row and no warning. Reads the places from
 ## agentsGrantsPlaces and the tooling workspaces from agentsGrantsRoots.
 ## rc 0 trusted; 2 not trusted, said on stderr, and no row may be dropped on its strength;
 ## 3 no project selected there, said as a note, the same.
 AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messages
 	local declWs="${1%/}" declOp="$2" declName declSelected="" declSelectStatus=0 declStatus=0 declTrusted=0
 	local declNamespace="" declWorkspace="" declDirectory="" declProject="" declScope declLines declLine declSel declRest
-	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot
+	local declVerb declPerm declMember declGlob declRoot declOne declTag declTagRoot declPattern
 	declName="${declWs##*/}"
 	## No source folder: no project there to declare a grant, which is a state, not a fault.
 	if [ ! -d "$declWs/source" ] ; then
@@ -320,13 +339,19 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 				;;
 				workspace)
 					## `.` the declaring workspace, `*` every tooling workspace, a name a
-					## workspace place. Tagged for the copilot access fragment: own (the
-					## declaring workspace), explicit (named), wildcard (only swept by `*`).
+					## workspace place, a pattern every workspace place whose name matches.
+					## Tagged for the copilot access fragment: own (the declaring workspace),
+					## explicit (named), wildcard (only swept by `*` or a pattern).
+					declPattern=0
+					case "$declSel" in
+						.|'*') ;;
+						*'*'*|*'?'*|*'['*) declPattern=1 ;;
+					esac
 					while IFS= read -r declRoot ; do
 						[ -n "$declRoot" ] || continue
 						printf 'row\t%s:%s:workspace:%s(/%s/%s)\n' "$declMember" "$declName" "$declPerm" "$declRoot" "$declGlob"
 						if [ "$declRoot" = "$declWs" ] ; then declTag=own
-						elif [ "$declSel" != "*" ] ; then declTag=explicit
+						elif [ "$declSel" != "*" ] && [ "$declPattern" = 0 ] ; then declTag=explicit
 						else declTag=wildcard
 						fi
 						declTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "$declPerm(/$declRoot/$declGlob)" )"
@@ -335,12 +360,14 @@ AgentsToolsGrantsDeclaredText(){ ## declaring workspace root, op name for messag
 						case "$declSel" in
 							(.) printf '%s\n' "$declWs" ;;
 							('*') printf '%s\n' "$agentsGrantsRoots" ;;
-							(*) AgentsToolsGrantsPlaceFind "$declSel" workspace && printf '%s\n' "$agentsGrantsPlacePath" ;;
+							(*) if [ "$declPattern" = 1 ] ; then AgentsToolsGrantsPlaceMatch "$declSel"
+								else AgentsToolsGrantsPlaceFind "$declSel" workspace && printf '%s\n' "$agentsGrantsPlacePath"
+								fi ;;
 						esac
 					)"
 					case "$declSel" in
 						.|'*') ;;
-						*) AgentsToolsGrantsPlaceFind "$declSel" workspace || declUnresolved workspace "no workspace place is named $declSel" ;;
+						*) [ "$declPattern" = 1 ] || AgentsToolsGrantsPlaceFind "$declSel" workspace || declUnresolved workspace "no workspace place is named $declSel" ;;
 					esac
 				;;
 				directory)

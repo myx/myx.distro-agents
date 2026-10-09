@@ -354,6 +354,42 @@ AgentsReviewItemsForRoutine(){ ## routine short name, e.g. grooming or advance
 	return 0
 }
 
+## Open asks addressed to a routine (`address-to: <name>.routine`, or its full
+## `<member>.<name>.routine`) in one workspace's pending-reply store, oldest first by
+## `asked-at`: one `<epoch>\t<pending id>\t<kind>\t<address-to>\t<asked-at>` line each,
+## nothing when none. An `asked-at` of another shape sorts first, as epoch 0.
+AgentsPendingAsksForRoutine(){ ## routine short name, e.g. permission-escalation; workspace (default: this one)
+	local paRoot="${2:-${MMDAPP:-}}" paFile paLine paStatus paTo paKind paAt paRows=""
+	paRoot="${paRoot%/}"
+	[ -n "$paRoot" ] && [ -d "$paRoot/.local/agents/pending" ] || return 0
+	for paFile in "$paRoot/.local/agents/pending"/*.md ; do
+		[ -f "$paFile" ] || continue
+		paStatus="" ; paTo="" ; paKind="" ; paAt=""
+		while IFS= read -r paLine ; do
+			case "$paLine" in
+				'status: '*) paStatus="${paLine#status: }" ;;
+				'address-to: '*) paTo="${paLine#address-to: }" ;;
+				'kind: '*) paKind="${paLine#kind: }" ;;
+				'asked-at: '*) paAt="${paLine#asked-at: }" ;;
+				'# '*) break ;;
+			esac
+		done < "$paFile"
+		[ "$paStatus" = "reply-pending" ] || continue
+		case "$paTo" in
+			"$1.routine"|*".$1.routine") ;;
+			*) continue ;;
+		esac
+		paFile="${paFile##*/}"
+		paRows="$paRows${paFile%.md}"$'\t'"${paKind:-question}"$'\t'"$paTo"$'\t'"$paAt"$'\n'
+	done
+	[ -n "$paRows" ] || return 0
+	## The epoch by the one ISO reader (AgentsIsoToEpoch.awk); `asked-at` is `YYYY-MM-DD HH:MM +HHMM`.
+	LC_ALL=C paste <( printf '%s' "$paRows" | LC_ALL=C awk -F'\t' '
+		$4 ~ /^[0-9][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9] [-+][0-9][0-9][0-9][0-9]$/ { print substr( $4, 1, 10 ) "T" substr( $4, 12, 5 ) ":00" substr( $4, 18 ) ; next ; }
+		{ print "1970-01-01T00:00:00Z" ; }
+	' | LC_ALL=C awk -f "$agentsReviewLib/AgentsIsoToEpoch.awk" ) <( printf '%s' "$paRows" ) | LC_ALL=C sort -t "$( printf '\t' )" -k1,1n -k2,2
+}
+
 ## Where a spawn's handback goes when it names session-parent: the parent session's own
 ## thread, else magic-coordinator's -- the newest live magic-coordinator spawn with a
 ## thread -- so a handback, and the DISMISSED it leads to, always have a thread.

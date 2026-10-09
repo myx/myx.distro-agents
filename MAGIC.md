@@ -472,8 +472,10 @@ User steps are in [docs/installation.md](docs/installation.md).
   builder `1201-agents-indices.sh` (parallel with `1201-increment.sh`).
 - **It also builds the grants** (`AgentsTools.Grants.include`): `permissions.registry` and its tags from
   the declares of this workspace and of every registered tooling workspace without agents (`.` there is
-  that workspace; `namespace` applies in every tooling workspace; `directory:<name>` resolves through the
-  places and is capped to read on a read-only one; an unknown name is an `unresolved` row, warned), plus
+  that workspace; `namespace` applies in every tooling workspace; `workspace:<pattern>` such as `*-testbed`
+  is every workspace place whose name matches, tagged `wildcard`, none matching no error and no row;
+  `directory:<name>` resolves through the places and is capped to read on a read-only one; an unknown
+  name is an `unresolved` row, warned), plus
   each acting member's own directory and magic-librarian's read of `source/**`; then `grants.index`,
   every workspace's registry fully unrolled per member, with the floor (`.local/temp/**` write in every
   tooling workspace; where agents are installed, read `source/**/{MAGIC.md,README.md}` and
@@ -1391,13 +1393,31 @@ op's own option arm.
   and a coworking store ends with the spawn whose id it carries.
 - **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
   `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
-  `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task set's item `allows:` is not touched.
+  `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
+  lines without the trailing ref, the form set-apply writes) also leave its item's `allows:` through
+  the board edit primitive, and a `verdict` line goes on the item's Decisions; best effort.
+- **An ask addressed to a routine** (`to: <name>.routine`, typed kinds only) posts nothing: the
+  harness records it with `address-to` the routine and waits on the record, as for a member with no
+  Slack account. `AgentsToolsRoutineFile` (TeamRegistry) is the one routine lookup;
+  `AgentsToolsRoutineIsExecutor` (ItemDecisions) admits its executors to the answer and the forward,
+  and a reroute forwards as the executor answering. `AgentsPendingAsksForRoutine` (ReviewFlow) lists
+  one workspace's open asks per routine, oldest first; `--intern-op-permission-escalation-input-scan`
+  (stub `--magic-permission-escalation-input-scan`) reads every known workspace's, reading each ask
+  against its own (`MMDAPP` set in a subshell). The record also keeps `task-ref:` and `reason:`.
 - **Place names at request time.** `--magic-permission-set-request` takes `<tool>:@<name>[:<glob>]`,
   resolved by `--intern-directory-resolve` and `pwd -P` to the path it is asked for; an absolute path
   stays allowed. A write in a read-only place is refused there and in `grant-open`, before the holds
   check (the human-owner holds everything, and the harness would refuse the grant anyway), naming the
   route. The `name:relative` hint (`--intern-directory-of`) is printed as `PLACE:` and recorded as
   `<ref>.places` (natural target, TAB, hint) beside the grant's record, the way `.task` is.
+- **Session pass** (`--member-permission-session-pass`, implemented as `--intern-op-permission-session-pass`):
+  `--entry <tool>:<target>` entries resolved as a set request's (`AgentsToolsPermissionEntryPlace`: `@name`,
+  ceiling, `PLACE:`, `<ref>.places`), all checked before anything is written: `AgentsToolsPermissionHolds`
+  in that session, never a task-held one; passer and receiver both in `AgentsToolsPermissionParticipants`
+  of the session (no task). Each entry is its own `pass-<uuid>` `session` grant, signed by the passer, in
+  `AgentsToolsPermissionShareStore`'s store, then `AgentsToolsGrantsStoreTouch`; it ends with that
+  store's session and is revoked by its ref. `--member-permission-pass` (once/session/task, a plain
+  target, no store touch) stands beside it unchanged.
 - **`--magic-permission-list` / `--member-permission-list`** (`--intern-op-permission-list`) are
   `AgentsGrantsSessionIndex.awk` in `mode=list`: the same filters as the index, plus a once grant's
   use and TTL and a task's item, read in the awk.

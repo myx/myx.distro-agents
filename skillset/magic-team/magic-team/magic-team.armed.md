@@ -343,6 +343,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 - `--member-vault-item-read`
 - `--member-append-session-transcript`
 - `--member-permission-list <team-member>`
+- `--member-permission-session-pass <team-member> --to <member> --entry <tool:target>...`
 - `--member-directory-list` / `--member-directory-path <name>[/<relative>]`
 - `--member-namespace-list [<namespace>]`
 - `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`

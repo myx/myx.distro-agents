@@ -3,12 +3,14 @@
 ## workspaces under one mktemp tree:
 ##   1. --make-agents-indices writes the permissions registry from the declares: every selector
 ##      kind unrolled -- namespace in every tooling workspace, workspace `.` (the declaring one,
-##      a workspace without agents included), `*` and a name, directory through the places,
+##      a workspace without agents included), `*`, a name and a name pattern (testbeds only;
+##      one matching nothing gives no row and no warning), directory through the places,
 ##      project -- a write grant on a read-only place capped to read with one warning, an
 ##      unknown name kept as an unresolved row with one warning, and magic-librarian's read of
 ##      source/**;
 ##   2. grants.index: fully unrolled per member, the ceilings deepest first, the floor (temp in
-##      every tooling workspace, the source docs where agents are installed), unresolved rows;
+##      every tooling workspace, the source docs where agents are installed), unresolved rows,
+##      magic-tester's grants as myx.distro-agents/project.inf declares them;
 ##   3. the harness gate, read and write, decided by the session permission index: librarian
 ##      reads source/** and another member does not, the docs floor, namespace and directory
 ##      grants, a single * that stays in its segment, the ceiling refused first with its route;
@@ -80,9 +82,22 @@ rigRun(){ ## workspace name, op and arguments... -- the tool there, rig HOME, cl
 		' rig "$@" > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 }
 
-## ws-main has agents installed; ws-side is a registered tooling workspace without agents.
+## magic-tester's grants as myx.distro-agents declares them, carried into the rig as they stand.
+rigTesterLines=()
+while IFS= read -r rigLine ; do
+	[ -z "$rigLine" ] || rigTesterLines+=( "$rigLine" )
+done <<< "$( LC_ALL=C sed -n 's/^[[:space:]]*\(magic-team:permissions:[^ ]*:magic-tester:[^ ]*\) \\$/\1/p' "$rigPackage/project.inf" 2>/dev/null )"
+[ "${#rigTesterLines[@]}" -gt 0 ] || rigRefuse "no magic-tester grant is declared in $rigPackage/project.inf"
+
+## ws-main has agents installed; ws-side is a registered tooling workspace without agents; the
+## two testbeds and ws-testbed-old are registered workspaces with no source, for the patterns.
 rigMain="$rigTmp/ws-main" rigSide="$rigTmp/ws-side"
+rigTestbedA="$rigTmp/ws-a-testbed" rigTestbedB="$rigTmp/ws-b-testbed" rigDecoy="$rigTmp/ws-testbed-old"
+mkdir -p "$rigTestbedA/.local" "$rigTestbedB/.local" "$rigDecoy/.local"
 rigWsMake ws-main \
+	"${rigTesterLines[@]}" \
+	"magic-team:permissions:workspace:*-testbed:allow-write:keeper-two:tb/**" \
+	"magic-team:permissions:workspace:nomatch-*:allow-read:keeper-two:nm/**" \
 	"magic-team:directory:ro-dir:ceiling-read:$rigTmp/ro-dir:*" \
 	"magic-team:directory:rw-dir:ceiling-write:$rigTmp/rw-dir:*" \
 	"magic-team:permissions:namespace:.:allow-read:keeper-w" \
@@ -98,6 +113,10 @@ rigWsMake ws-side "magic-team:permissions:workspace:.:allow-write:keeper-two:min
 mkdir -p "$rigMain/.local/agents" "$rigMain/.local/temp" "$rigMain/shared"
 : > "$rigMain/.local/agents/members.registry"
 rigRun ws-main --owner-workspace-upsert "$rigSide"
+for rigOne in "$rigTestbedA" "$rigTestbedB" "$rigDecoy" ; do
+	rigRun ws-main --owner-workspace-upsert "$rigOne"
+	[ "$rigRc" = 0 ] || rigRefuse "the workspace $rigOne could not be registered: $( head -3 "$rigTmp/err" )"
+done
 rigRun ws-main --intern-directory-register
 [ "$rigRc" = 0 ] || rigRefuse "the places of ws-main could not be registered: $( head -3 "$rigTmp/err" )"
 rigRun ws-main --make-agents-indices
@@ -123,6 +142,12 @@ rigAssert "project: through the project resolver"               "$( rigRow "keep
 rigAssert "a workspace without agents: its own declares, . its own root" "$( rigRow "keeper-two:ws-side:workspace:Edit(/$rigSide/mine/**)" )" 1
 rigAssert "magic-librarian's standing read of source/**"        "$( rigRow "magic-librarian:ws-main:builtin:Read(/$rigMain/source/**)" )" 1
 rigAssert "and nobody else's"                                   "$( LC_ALL=C grep -F ":Read(/$rigMain/source/**)" "$rigReg" | LC_ALL=C grep -c -v '^magic-librarian:' )" 0
+rigTags="$rigMain/.local/agents/permissions-tags.registry"
+rigAssert "workspace <pattern>: every workspace place it matches" "$( rigRow "keeper-two:ws-main:workspace:Edit(/$rigTestbedA/tb/**)" ):$( rigRow "keeper-two:ws-main:workspace:Edit(/$rigTestbedB/tb/**)" )" "1:1"
+rigAssert "and no other workspace"                              "$( rigRow "keeper-two:ws-main:workspace:" ):$( rigRow "$rigDecoy/tb/" )" "2:0"
+rigAssert "tagged wildcard, as a * row is"                      "$( rigN "$rigTags" "keeper-two:ws-main:wildcard:$rigTestbedA/tb" ):$( rigN "$rigTags" "keeper-two:ws-main:wildcard:$rigTestbedB/tb" ):$( rigN "$rigTags" "keeper-two:ws-main:explicit:" )" "1:1:0"
+rigAssert "a pattern matching nothing: no row, no warning"      "$( rigRow 'nm/**' ):$( rigRow "keeper-two:ws-main:unresolved:" ):$( rigN "$rigTmp/build.err" 'nomatch-' )" "0:0:0"
+rigAssert "exact, . and * keep their tags"                      "$( rigN "$rigTags" "keeper-w:ws-main:explicit:$rigSide/docs2" ):$( rigN "$rigTags" "keeper-w:ws-main:own:$rigMain/shared" ):$( rigN "$rigTags" "*:ws-main:wildcard:$rigSide/any" ):$( rigN "$rigTags" "*:ws-main:own:$rigMain/any" )" "1:1:1:1"
 
 echo "-- 2. grants.index: fully unrolled, ceilings, floor --"
 rigIdx(){ ## member, verb, glob -- how many index rows
@@ -139,6 +164,13 @@ rigAssert "the docs floor where agents are installed"           "$( rigIdx magic
 rigAssert "and not where they are not"                          "$( rigIdx magic-tester read "$rigSide/source/**/MAGIC.md" )" 0
 rigAssert "no member's floor reads all of source/**"            "$( LC_ALL=C awk -F'\t' -v g="$rigMain/source/**" '$3 == g && $5 == "floor"' "$rigIndex" | LC_ALL=C grep -c . )" 0
 rigAssert "the librarian's read is standing"                    "$( LC_ALL=C awk -F'\t' -v g="$rigMain/source/**" '$1 == "magic-librarian" && $2 == "read" && $3 == g { print $5 }' "$rigIndex" )" standing
+rigTesterRows=""
+for rigOne in "$rigMain" "$rigSide" "$rigTestbedA" "$rigTestbedB" "$rigDecoy" ; do
+	rigTesterRows="$rigTesterRows$( rigIdx magic-tester read "$rigOne/source/**/sh-test/**" )$( rigIdx magic-tester read "$rigOne/source/**/test/**" )$( rigIdx magic-tester read "$rigOne/source/**/tests/**" )$( rigIdx magic-tester read "$rigOne/.local/myx/**" ) "
+done
+rigAssert "magic-tester reads sh-test, test, tests and .local/myx in every workspace" "$rigTesterRows" "1111 1111 1111 1111 1111 "
+rigAssert "and no other member does"                            "$( LC_ALL=C awk -F'\t' '$1 != "magic-tester" && $2 == "read" && ( $3 ~ /\/source\/\*\*\/(sh-test|test|tests)\/\*\*$/ || $3 ~ /\/\.local\/myx\/\*\*$/ )' "$rigIndex" | LC_ALL=C grep -c . )" 0
+rigAssert "magic-tester writes ** in the testbeds only"         "$( rigIdx magic-tester write "$rigTestbedA/**" ):$( rigIdx magic-tester write "$rigTestbedB/**" ):$( rigIdx magic-tester write "$rigDecoy/**" ):$( rigIdx magic-tester write "$rigMain/**" ):$( rigIdx magic-tester write "$rigSide/**" )" "1:1:0:0:0"
 
 echo "-- 3. the harness gate, read and write --"
 ## One served call, as the MCP server makes it; output in call.out.

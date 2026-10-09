@@ -172,6 +172,27 @@ AgentsToolsTeamMemberDirectory(){ ## member
 	printf '%s\n' "$directoryFound"
 }
 
+## The one routine file a routine name names, `<name>.routine` or its full
+## `<member>.<name>.routine`, among the routines of every member AgentsToolsTeamMemberDirectoryText
+## lists. Prints its path; rc 1 for none, or for a name several files carry.
+AgentsToolsRoutineFile(){ ## routine name
+	local routineMember routineDir routineFile routineFound=""
+	case "$1" in
+		*.routine) ;;
+		*) return 1 ;;
+	esac
+	while IFS=$'\t' read -r routineMember routineDir ; do
+		[ -n "$routineDir" ] || continue
+		for routineFile in "$routineDir"/*.routine.md ; do
+			case "${routineFile##*/}" in
+				"$1.md"|*".$1.md") [ -z "$routineFound" ] || return 1 ; routineFound="$routineFile" ;;
+			esac
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	[ -n "$routineFound" ] && [ -f "$routineFound" ] || return 1
+	printf '%s\n' "$routineFound"
+}
+
 ## Writes the member index and its members/ view for one workspace. The view is updated
 ## link by link, never removed as a whole, so a reader never finds it missing; a stale
 ## link goes -- a link to a member of another workspace among them -- and real content

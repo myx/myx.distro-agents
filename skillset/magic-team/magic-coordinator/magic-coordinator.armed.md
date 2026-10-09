@@ -305,6 +305,7 @@ The root instance chooses its mode at `magic-coordinator.root-harness.routine`'s
 - `magic-coordinator.heartbeat.routine` — one `main-loop` pass.
 - `magic-coordinator.ingest-task.routine` — turn a loose idea into a filed task.
 - `magic-coordinator.one-on-one.routine` — a focused session with one member.
+- `magic-coordinator.permission-escalation.routine` — settle the permission asks addressed to `permission-escalation.routine`.
 - `magic-coordinator.retro.routine` — the team retrospective.
 - `magic-coordinator.root-harness.routine` — the root harness session and `--intern-root-harness` passes.
 
@@ -337,6 +338,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--magic-escalation-forward <coordinator> <request-id>`
 - `--magic-permission-list --member <member>`
 - `--magic-permission-revoke <ref>`
+- `--magic-permission-escalation-input-scan <team-member>`
 - `--owner-workspace-list`
 
 # Maintainer Notes

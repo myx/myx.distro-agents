@@ -248,13 +248,28 @@ AgentsToolsMemberListHas(){ ## list, member
 	return 1
 }
 
+## Whether <member> is an executor of the routine a routine name names (AgentsToolsRoutineFile,
+## AgentsTools.TeamRegistry.include): one its `executors:` lists, or any member where they list
+## magic-team or `*`. rc 0 an executor; rc 1 not, or no such routine.
+AgentsToolsRoutineIsExecutor(){ ## routine name, member
+	local reFile reExec
+	type AgentsToolsRoutineFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	reFile="$( AgentsToolsRoutineFile "$1" )" || return 1
+	reExec="$( AgentsToolsDecisionsField "$reFile" executors )"
+	case ",$( printf '%s' "$reExec" | LC_ALL=C tr -d ' \t' )," in
+		*,magic-team,*|*,\*,*) return 0 ;;
+	esac
+	AgentsToolsMemberListHas "$reExec" "$2" && return 0
+	return 1
+}
+
 ## Whether <member>, calling from this process, is the reviewer an item's `review-by` names:
 ## empty or magic-coordinator: magic-coordinator; human-owner: the human, from no spawned
 ## session; <name>.routine: an executor of that routine (magic-team or `*`: any member);
 ## <session>[:<member>]: that session itself, the member it names, or the member of its
 ## spawn record; a member name: that member. rc 0 the reviewer, rc 1 not.
 AgentsToolsItemIsReviewer(){ ## item path, member
-	local irBy irSession="" irMember="" irFile irFound="" irExec irName irDir
+	local irBy irSession="" irMember="" irDir
 	irBy="$( AgentsToolsDecisionsField "$1" review-by )"
 	## A member or routine of any workspace (AgentsTools.TeamRegistry.include), not this one's own index alone.
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
@@ -268,20 +283,7 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 			return 1
 		;;
 		*.routine)
-			while IFS=$'\t' read -r irName irDir ; do
-				[ -n "$irDir" ] || continue
-				for irFile in "$irDir"/*.routine.md ; do
-					case "${irFile##*/}" in
-						"$irBy.md"|*".$irBy.md") [ -z "$irFound" ] || return 1 ; irFound="$irFile" ;;
-					esac
-				done
-			done <<< "$( AgentsToolsTeamMemberDirectoryText )"
-			[ -n "$irFound" ] && [ -f "$irFound" ] || return 1
-			irExec="$( AgentsToolsDecisionsField "$irFound" executors )"
-			case ",$( printf '%s' "$irExec" | LC_ALL=C tr -d ' \t' )," in
-				*,magic-team,*|*,\*,*) return 0 ;;
-			esac
-			AgentsToolsMemberListHas "$irExec" "$2" && return 0
+			AgentsToolsRoutineIsExecutor "$irBy" "$2" && return 0
 			return 1
 		;;
 		*:*) irSession="${irBy%%:*}" ; irMember="${irBy#*:}" ;;
