@@ -68,6 +68,11 @@ that the code and docs do not readily tell you.
 - **`--intern-` is a namespace, and the next segment is the kind.** `--intern-op-*` is operations,
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
+- **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
+  even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
+  for any member, the tooling checking access on its arguments; `--magic-*` for the coordinator only;
+  `--owner-*` for the human. About 25 older `--intern-op-*` ops used by tooling break it, and are
+  renamed later in one approved sweep.
 - **`--intern-*` is left out of the help.** Out of `Help.DistroAgentsTools.include` syntax lines and out
   of the help.md reference and examples. A public entry that must contrast itself with an internal op
   says so in behavioural terms, without naming the internal op.
@@ -267,16 +272,36 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   A stale index only costs time.
 - **`harness.roots.index`** is written by `--make-harness-indices` with `MDLT_ORIGIN` empty, so one index
   serves every origin. Its fingerprint covers workspace, `HOME`, `MDAT_SKILLSET_ROOT`, the names under
-  both member-link directories, and the `cksum` of the include, the index code, the config file holding
-  `CLIENT_ACCESS_ROOTS_EXTRA` and the grants registry. Origin-derived roots and a member's own scratch
+  both member-link directories, and the `cksum` of the include, the index code, the grants registries,
+  the two place registries and `grants.index`. Origin-derived roots and a member's own scratch
   roots are merged at run time. It cannot see a link retargeted outside those directories, or one
   retargeted in the same second the index was written.
 - **Where team data lives: two places.** A workspace's own data (`members.registry`,
-  `permissions.registry`, `permissions-tags.registry`, indices) is in `$MMDAPP/.local/agents`.
+  `permissions.registry`, `permissions-tags.registry`, `grants.index`, indices) is in `$MMDAPP/.local/agents`.
   `$HOME/.agents/magic-team/` holds only what exists and where to look: `members.registry` (member,
-  workspace root, link kind, path, member dir, TAB-separated), `known-workspaces.registry`, and
+  workspace root, link kind, path, member dir, TAB-separated), `directories.registry` (pointers: place
+  name, workspace root), `member-homes.registry` (member, home workspace root), and
   `permissions.registry` (pointers to workspaces that publish grants; needed machine-wide because
   `~/.claude/settings.json` is machine-wide). Defined in `AgentsTools.TeamRegistry.include`.
+- **Places** (`AgentsTools.Places.include`). A place is a `workspace` (always read-write) or a
+  `directory` (`read-only` or `read-write`); registering one grants nothing. A workspace's own
+  `.local/agents/directories.registry` holds its places for this host (name, kind, ceiling, path,
+  declared-by), its own row first, from its `magic-team:directory:` and `magic-team:workspace:`
+  declares (host glob last, as for `team-member`), and the owner rows of `--owner-workspace-upsert`.
+  `--intern-directory-register` rewrites it on every update, and its pointers, each under its lock; an
+  unread project selection keeps the declared rows. The merged list (`--owner-workspace-list`) reads
+  every workspace's file through the pointers. The same name and path is one place; the same name with
+  another path: the local row wins, else one warning and `name@workspace`. `--intern-directory-resolve`
+  and `--intern-directory-of` (`name:relative`) resolve through it. The workspace roots the member
+  resolver and the `*` grant expansion walk are its `workspace` rows plus every pointer root.
+  `known-workspaces.registry`, the earlier list, is never written: it is read as owner rows until the
+  first registration or owner op imports it, then its `.imported` marker ends its reading.
+- **Member homes** (`AgentsTools.MemberHomes.include`). `--intern-member-home-register` registers the
+  members a registered workspace without agents declares, by the member scan, as `source-declared` rows
+  under that workspace's root (a `.` in their grants unrolls to it; nothing is installed there; their
+  operations run where they are asked). It then picks each multi-workspace member's home: a copy a
+  workspace with agents registered, then the most `magic-team:` lines naming it, then a source link,
+  then the first row; one warning when the copies differ. The machine `members.registry` keeps every row.
 - **The member index** `$MMDAPP/.local/agents/members.index` and its `members/` view hold this
   workspace's own members only. Built by `--install-skillset-symlinks` and `--make-agents-indices`; a
   rewrite drops any link to another workspace's member. A member of another workspace is never
@@ -288,7 +313,9 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
 - **Sites that stay `$HOME` on purpose**: the `--scope user-home` fan targets, `~/.claude/settings.json`,
   `~/.claude.json`, and `~/.agents/magic-team/`.
 - **`--install-claude-permissions` writes the machine-global `~/.claude/settings.json`** from the member
-  index of the workspace it runs for, plus every workspace's grants.
+  index of the workspace it runs for, plus every workspace's grants. It reads the permissions
+  registries and writes none; what it projected is kept in `claude-permissions.projected`, for the next
+  run's drop of what no registry claims any more.
 - **The workspace set is a publication list, not team membership.** A member absent from the current
   workspace is not an error.
 - **The access-root set is defined once, in `AgentsTools.ClientAccessRoots.include`.**
@@ -306,8 +333,8 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
 - **A grant's cost is two numbers.** What the glob matches for claude, and what it widens to for copilot,
   whose `--add-dir` takes no glob and grants the containing directory. `namespace:` declares carry no
   glob and grant the whole tree; use `project:` or `workspace:` for a narrow grant.
-- **Workspace paths are machine data.** `--owner-workspace-*` keeps them in
-  `$HOME/.agents/magic-team/known-workspaces.registry`. A skill folder is a symlink into a repository's
+- **Workspace paths are machine data.** `--owner-workspace-*` keeps them in the places registries
+  above, never in a skill folder. A skill folder is a symlink into a repository's
   working tree, so data must never be written there. `.gitignore` keeps
   `skillset/magic-team/human-owner/human-owner.workspaces.md` out of the package.
 
@@ -329,7 +356,7 @@ User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are 
   `AgentsClaudeProjectTrustUpsert.awk`, reader `AgentsClaudeSettingsVerify.awk`; the replacement keeps
   the file's mode. An absent, symlinked or unparsable state file stops the run.
 - **`--apply` sequence**: trust; the engine call (subject and settings); workspace integrations for a
-  domain declaring `SPAWN_CLI_SERVICE` (they read the `CLIENT_ACCESS_ROOTS_EXTRA` just stored), only if
+  domain declaring `SPAWN_CLI_SERVICE`, only if
   the diagnosis fails first; then the diagnosis, whose status becomes the op's. Each step runs in its own
   subshell and is tested, so a step that aborts (bash 3.2 suspends `set -e` in tested subshells) does not
   skip the handler that names it.
@@ -378,9 +405,10 @@ User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are 
 
 User steps are in [docs/installation.md](docs/installation.md).
 
-- **`--make-workspace-integrations`** runs `--make-agents-indices`, `--make-console-command`,
-  `--install-workspace-integrations`, then `--install-workspace-restrictions` only when
-  `.claude/hooks/deny-native-tool-reroute.sh` exists, then `--make-harness-indices` last.
+- **`--make-workspace-integrations`** runs `--intern-directory-register`, `--make-agents-indices` (its
+  grants are unrolled over the places just registered), `--make-console-command`, `--install-workspace-integrations`, `--intern-member-home-register`, then
+  `--install-workspace-restrictions` only when `.claude/hooks/deny-native-tool-reroute.sh` exists, then
+  `--make-harness-indices` last. Workspace registration is this step's, never a member install's.
 - **`--install-workspace-integrations`** calls `--install-vscode-integrations`,
   `--install-skillset-symlinks`, `--install-claude-workspace-trust`, `--install-claude-permissions` and
   `--install-copilot-access-fragment`. With `--install-workspace-restrictions` it is one of the two root
@@ -440,6 +468,18 @@ User steps are in [docs/installation.md](docs/installation.md).
   Invalid values store `-`; a stored space is `_`. Every `client-*` row takes the persona member's values
   (`registryPersonaMember`). Missing fields warn on stderr, never fail. It also runs as the source-prepare
   builder `1201-agents-indices.sh` (parallel with `1201-increment.sh`).
+- **It also builds the grants** (`AgentsTools.Grants.include`): `permissions.registry` and its tags from
+  the declares of this workspace and of every registered tooling workspace without agents (`.` there is
+  that workspace; `namespace` applies in every tooling workspace; `directory:<name>` resolves through the
+  places and is capped to read on a read-only one; an unknown name is an `unresolved` row, warned), plus
+  each acting member's own directory and magic-librarian's read of `source/**`; then `grants.index`,
+  every workspace's registry fully unrolled per member, with the floor (`.local/temp/**` write in every
+  tooling workspace; where agents are installed, read `source/**/{MAGIC.md,README.md}` and
+  `source/**/docs/**.md`, write `source/**/MAGIC.md`; the readable member directories and reference
+  roots) and the places' ceilings, deepest first. Never edited at runtime; a reader finding it stale
+  (older than any registry it is made from) or missing rebuilds it the sibling way: the generator in a
+  tested subshell into `<file>.$$.tmp`, then `mv -f`, the old file kept on a failure, in memory where
+  `.local/agents` is not writable. `source/**` is in no floor: other members read it by namespace grants.
 
 ## 9. Hooks and workspace restrictions
 
@@ -1311,11 +1351,12 @@ op's own option arm.
   member nor by one who does not hold the entry.
 - **What a member holds is one computation** (`AgentsTools.PermissionHolds.include`,
   `--intern-op-permission-holds <member> <tool> <target>`, `HOLDS <layer>` or `NOT-HOLDS`): human-owner
-  (his name or `SLACK_CHANNEL_HUMAN_OWNER`), `floor` (the team tools and files, defined there only),
-  `standing` (its own and every `*` `permissions.registry` row: `Edit(//<p>/**)`, from `allow-write`, is every file
-  tool under `<p>`; `Read(//<p>/**)`, from `allow-read`, is Read/Grep/Glob only; scope
-  `tool` rows `<tool>[:<target>]`, from the `allow-tool` declare verb, never projected into Claude
-  settings), then `set`/`passed`/`granted` session or task grants. `cred` and `spend` skip floor and
+  (his name or `SLACK_CHANNEL_HUMAN_OWNER`), `floor` (the team tools, the member's floor rows of
+  `grants.index`, and its session's own sandbox), `standing` (its own rows of `grants.index`, every `*`
+  row unrolled there: a `write` row, from `allow-write`, is every file tool on its glob; a `read` row,
+  from `allow-read`, is Read/Grep/Glob only; `tool` rows `<tool>[:<target>]`, from the `allow-tool`
+  declare verb, never projected into Claude settings), then `set`/`passed`/`granted` session or task
+  grants. No write tool is held in a read-only place, through any layer. `cred` and `spend` skip floor and
   standing. Grant-read admits floor and standing as `GRANT: standing`.
 - **No approving what you don't hold.** `grant-open` returns rc 3 with `NOT-HOLDS:` and `HOLDERS:`;
   the escalation verdict path checks first and re-addresses the ask to a holder participant
@@ -1330,6 +1371,16 @@ op's own option arm.
   `Read` rows, and never the harness index's
   union. A served call with no `MDAT_SPAWN_AGENT` (the human-owner's own session under the default
   identity) and the native clients' settings keep every member's rows.
+- **A named member's file tools are decided by its session permission index** when the harness is given
+  no root flags: `sessions/<id>/permissions.<member>.index`, the member's rows of `grants.index` joined
+  with the session's own grants (session, task, once; its own, coworking and parent stores). Every check
+  is builtins only: two `-nt` tests (it must be strictly newer than `grants.index` and every joined
+  store's `grants`), then a loop of `[[ ]]` over rows whose globs were translated into bash patterns at
+  the rebuild (one awk). The ceiling first: a write in a read-only place is refused, not recorded, naming
+  the session sandbox `output/` or "find another suitable location". A once row's expiry and use, and a
+  task row's open item, are checked only on the row that matches. Opening, using up (and, later,
+  revoking) a grant touches the store's `grants`. Children's folders and the member's own directory are
+  admitted at run time; the routine and planned layers are asked only on the way to a refusal.
 - **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
   layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
   roots and the Claude settings as `Read(...)`, and never a write set or `Edit`.

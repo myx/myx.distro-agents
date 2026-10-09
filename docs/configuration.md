@@ -4,12 +4,12 @@
 
 ## Workspaces, members and credentials
 
-Tell the tooling which workspaces it may act on:
+Tell the tooling which places it knows: every update registers its own workspace and the
+places its projects declare; register one no project declares by hand:
 
 	DistroAgentsTools.fn.sh --owner-workspace-list
-	DistroAgentsTools.fn.sh --owner-workspace-current
-	DistroAgentsTools.fn.sh --owner-workspace-upsert /path/to/workspace
-	DistroAgentsTools.fn.sh --owner-workspace-forget /path/to/workspace
+	DistroAgentsTools.fn.sh --owner-workspace-upsert /path/to/workspace [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
+	DistroAgentsTools.fn.sh --owner-workspace-forget <name>
 
 Read and set a member's own configuration and credentials. Always pipe a secret
 through `--upsert-from-stdin`, so it never appears in the process table:
