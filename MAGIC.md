@@ -292,7 +292,9 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   unread project selection keeps the declared rows. The merged list (`--owner-workspace-list`) reads
   every workspace's file through the pointers. The same name and path is one place; the same name with
   another path: the local row wins, else one warning and `name@workspace`. `--intern-directory-resolve`
-  and `--intern-directory-of` (`name:relative`) resolve through it. The workspace roots the member
+  and `--intern-directory-of` (`name:relative`) resolve through it; members read it by name only
+  (`--member-directory-list`, `--member-directory-path`), and the projects by `--member-namespace-list`,
+  all three routed with the place ops and never switched to a member workspace. The workspace roots the member
   resolver and the `*` grant expansion walk are its `workspace` rows plus every pointer root.
   `known-workspaces.registry`, the earlier list, is never written: it is read as owner rows until the
   first registration or owner op imports it, then its `.imported` marker ends its reading.
@@ -1378,9 +1380,27 @@ op's own option arm.
   store's `grants`), then a loop of `[[ ]]` over rows whose globs were translated into bash patterns at
   the rebuild (one awk). The ceiling first: a write in a read-only place is refused, not recorded, naming
   the session sandbox `output/` or "find another suitable location". A once row's expiry and use, and a
-  task row's open item, are checked only on the row that matches. Opening, using up (and, later,
-  revoking) a grant touches the store's `grants`. Children's folders and the member's own directory are
+  task row's open item, are checked only on the row that matches. Opening, using up and revoking a
+  grant touches the store's `grants`. Children's folders and the member's own directory are
   admitted at run time; the routine and planned layers are asked only on the way to a refusal.
+- **A session grant ends with the session whose store holds it**: its spawn record
+  (`spawned/*/<store id>.md`) closed with a `spawn-*` status other than `spawn-started`
+  (`AgentsToolsGrantsSessionEnded`, builtins only). Checked on read (`AgentsToolsPermissionGrantScan`,
+  and the matching session row of the session index, since a joined store's end touches nothing);
+  the rebuild drops them. A session with no spawn record (the human-owner's own) never ends this way,
+  and a coworking store ends with the spawn whose id it carries.
+- **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
+  `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
+  `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task set's item `allows:` is not touched.
+- **Place names at request time.** `--magic-permission-set-request` takes `<tool>:@<name>[:<glob>]`,
+  resolved by `--intern-directory-resolve` and `pwd -P` to the path it is asked for; an absolute path
+  stays allowed. A write in a read-only place is refused there and in `grant-open`, before the holds
+  check (the human-owner holds everything, and the harness would refuse the grant anyway), naming the
+  route. The `name:relative` hint (`--intern-directory-of`) is printed as `PLACE:` and recorded as
+  `<ref>.places` (natural target, TAB, hint) beside the grant's record, the way `.task` is.
+- **`--magic-permission-list` / `--member-permission-list`** (`--intern-op-permission-list`) are
+  `AgentsGrantsSessionIndex.awk` in `mode=list`: the same filters as the index, plus a once grant's
+  use and TTL and a task's item, read in the awk.
 - **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
   layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
   roots and the Claude settings as `Read(...)`, and never a write set or `Edit`.

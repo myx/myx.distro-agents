@@ -119,22 +119,24 @@ rigInstallOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOM
 [ -f "$rigInstallHome/.claude/settings.json" ] || rigRefuse "--install-claude-permissions never reached its settings step, so the registry lock below was not exercised"
 rigExpect "install-claude-permissions without ~/.claude/skills is not reported busy" \
 	"$( case "$rigInstallOut" in (*"registry busy"*) printf busy ;; (*) printf not-busy ;; esac )" "not-busy"
-rigExpect "and its permissions registry is created" \
-	"$( [ -f "$rigWs/.local/agents/permissions.registry" ] && printf present || printf absent )" "present"
+rigExpect "and it writes no permissions registry: --make-agents-indices does" \
+	"$( [ -f "$rigWs/.local/agents/permissions.registry" ] && printf present || printf absent )" "absent"
 
-## A workspace whose scan selects no project is a state, not a failure: the run says so as a warning, exits 0, and
-## keeps the settings the registry already holds.
+## A workspace with no source folder declares no grant, which is a state, not a failure: the
+## grants step of --make-agents-indices says so as a note, exits 0, and keeps the registry as it stood.
 rigUntrustedRc=0
 rigUntrustedOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT -u MDAT_SKILLSET_ROOT HOME="$rigInstallHome" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-	bash "$rigTool" --install-claude-permissions 2>&1 )" || rigUntrustedRc=$?
-rigExpect "control: this rig's scan really was not trusted, so the warning is printed" \
-	"$rigUntrustedOut" "declared allow-write was not determined"
-rigExpect "an untrusted scan ends with exit 0" \
+	bash "$rigTool" --make-agents-indices 2>&1 )" || rigUntrustedRc=$?
+rigExpect "control: this rig really has no source folder, so the note is printed" \
+	"$rigUntrustedOut" "has no source folder, so none declares a grant"
+rigExpect "a workspace with no source ends with exit 0" \
 	"rc=$rigUntrustedRc" "rc=0"
-rigExpect "and its warning opens with the warning mark, not an error mark" \
-	"$( printf '%s\n' "$rigUntrustedOut" | grep 'declared allow-write was not determined' | head -1 | cut -c1-4 )" "🙋"
-rigExpect "and it is not reported as an error" \
-	"$( printf '%s\n' "$rigUntrustedOut" | grep -c 'ERROR.*install-claude-permissions.*untrusted' )" "0"
+rigExpect "and its note opens with the note mark, not a warning or an error mark" \
+	"$( printf '%s\n' "$rigUntrustedOut" | grep 'has no source folder' | head -1 | cut -c1-1 )" "#"
+rigExpect "and the grants step reports no error" \
+	"$( printf '%s\n' "$rigUntrustedOut" | grep -c 'ERROR.*make-agents-indices' )" "0"
+rigExpect "and the registry is kept as it stood, none" \
+	"$( [ -f "$rigWs/.local/agents/permissions.registry" ] && printf present || printf absent )" "absent"
 rigExpect "and the settings file is still there" \
 	"$( [ -f "$rigInstallHome/.claude/settings.json" ] && printf present || printf absent )" "present"
 

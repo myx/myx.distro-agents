@@ -149,11 +149,11 @@ rigAssert "another HOME"                           "$( rigUnit eval 'HOME="$rigT
 sleep 1 ; touch "$rigSkills"
 rigAssert "a skillset root touched after it"       "$( rigUnit rigIndexed "" )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
-printf 'myx.distro harness.roots.index 3\nprint\tx\n' > "$rigTmp/cut"
+printf 'myx.distro harness.roots.index 4\nprint\tx\n' > "$rigTmp/cut"
 rigAssert "an index cut short"                     "$( rigUnit eval 'cp "$rigTmp/cut" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 sleep 1 ; rigUnit rigWriteIndex ; sleep 1 ; touch "$rigWs/.local/agents/harness.roots.index"
-sed '1s/ 3$/ 2/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
-rigAssert "an index of format version 2"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
+sed '1s/ 4$/ 3/' "$rigWs/.local/agents/harness.roots.index" > "$rigTmp/v1" ; touch -r "$rigWs/.local/agents/harness.roots.index" "$rigTmp/v1"
+rigAssert "an index of format version 3"          "$( rigUnit eval 'cp -p "$rigTmp/v1" "$rigWs/.local/agents/harness.roots.index" ; rigIndexed ""' )" index-not-used
 
 echo "-- the hooks index answers as the policy does, and settings.json is never read --"
 mkdir -p "$rigWs/.claude"

@@ -1,0 +1,444 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.Places.include -- registered places: workspaces and directories.
+##
+## A place is a `workspace` (a tooling workspace, always read-write) or a `directory` (any
+## other folder, read-only or read-write). Registering a place grants nothing. Two files:
+##   $MMDAPP/.local/agents/directories.registry   this workspace's places, resolved for this
+##       host, TAB-separated: name, kind, ceiling (read-only|read-write), path, declared-by
+##       (the declaring project; `workspace` for its own row; `owner` for --owner-workspace-upsert)
+##   $HOME/.agents/magic-team/directories.registry   pointers only: name, and the root of the
+##       workspace whose own file holds it
+## Each workspace rewrites only its own rows, each file under its own mkdir lock, as the
+## member registry is written. Directives, in a project.inf Declares, one line per host:
+##   magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>
+##   magic-team:workspace:<name>:<path>:<host-glob>
+## A path is absolute, `~/...`, or relative to the declaring workspace.
+## The merged list is this workspace's rows, then each other workspace's. The same name and
+## path is one place. The same name with another path: this workspace's row wins; otherwise
+## one warning, and each is written <name>@<declaring workspace's basename>.
+## The machine-wide known-workspaces.registry of earlier releases is read as owner rows until
+## a workspace imports it, once; it is never written, for a process still running an earlier
+## release, and its .imported marker ends its reading.
+##
+## Dot-sourced; functions only.
+##
+
+AgentsToolsPlacesLocalFile(){ ## workspace
+	printf '%s\n' "${1%/}/.local/agents/directories.registry"
+}
+AgentsToolsPlacesSharedFile(){
+	printf '%s\n' "${HOME:-}/.agents/magic-team/directories.registry"
+}
+AgentsToolsPlacesLegacyFile(){
+	printf '%s\n' "${HOME:-}/.agents/magic-team/known-workspaces.registry"
+}
+
+## The mkdir lock beside a registry file: ten tries a second apart. rc 1 when not taken.
+AgentsToolsPlacesLockTake(){ ## registry file
+	local takeTry=0
+	mkdir -p "${1%/*}" || return 1
+	until mkdir "$1.lock" 2>/dev/null ; do
+		takeTry=$(( takeTry + 1 ))
+		[ "$takeTry" -lt 10 ] || return 1
+		sleep 1
+	done
+}
+AgentsToolsPlacesLockGive(){ ## registry file
+	rmdir "$1.lock" 2>/dev/null || :
+}
+
+## A place name: letters, digits and . _ + - only, so it never holds `@`, `:` or `/`.
+AgentsToolsPlacesNameValid(){ ## name
+	case "$1" in
+		''|.|..|*[!A-Za-z0-9._+-]*) return 1 ;;
+	esac
+	return 0
+}
+
+## A path made absolute: absolute as it is, `~` and `~/...` under HOME, anything else
+## relative to the workspace. Trailing slashes are dropped.
+AgentsToolsPlacesPathResolve(){ ## workspace, path
+	local resolveWs="${1%/}" resolvePath="$2"
+	case "$resolvePath" in
+		/*) ;;
+		'~') resolvePath="${HOME%/}" ;;
+		'~/'*) resolvePath="${HOME%/}/${resolvePath#'~/'}" ;;
+		.) resolvePath="$resolveWs" ;;
+		./*) resolvePath="$resolveWs/${resolvePath#./}" ;;
+		*) resolvePath="$resolveWs/$resolvePath" ;;
+	esac
+	while [ "$resolvePath" != "/" ] && [ "${resolvePath%/}" != "$resolvePath" ] ; do
+		resolvePath="${resolvePath%/}"
+	done
+	printf '%s\n' "$resolvePath"
+}
+
+## This workspace's places from its directives, as registry rows on stdout. Stdin: the
+## declares as `ListDistroDeclares --filter-and-cut magic-team` prints them, `<project> <rest>`.
+## The host glob is the last field and works as the team-member one does, so a path keeps
+## its own colons. A line for another host is skipped; a malformed line, and a second path
+## for one name on this host, are skipped with a warning; an absent path is kept, with one.
+AgentsToolsPlacesDirectiveRows(){ ## workspace
+	local rowsWs="${1%/}" rowsLine rowsProject rowsRest rowsKind rowsName rowsCeiling rowsPath rowsGlob rowsWas
+	local rowsShort rowsFull rowsSeen=$'\n'
+	rowsShort="$( hostname -s 2>/dev/null )" || rowsShort=""
+	rowsFull="$( hostname 2>/dev/null )" || rowsFull=""
+	while IFS= read -r rowsLine ; do
+		[ -n "$rowsLine" ] || continue
+		rowsProject="${rowsLine%% *}" ; rowsRest="${rowsLine#* }"
+		rowsKind="${rowsRest%%:*}"
+		case "$rowsKind" in directory|workspace) ;; *) continue ;; esac
+		rowsCeiling=read-write
+		case "$rowsRest" in *:*) rowsRest="${rowsRest#*:}" ;; *) rowsRest="" ;; esac
+		rowsName="${rowsRest%%:*}"
+		case "$rowsRest" in *:*) rowsRest="${rowsRest#*:}" ;; *) rowsRest="" ;; esac
+		if [ "$rowsKind" = directory ] ; then
+			case "${rowsRest%%:*}" in
+				ceiling-read) rowsCeiling=read-only ;;
+				ceiling-write) ;;
+				*) rowsRest="" ;;
+			esac
+			case "$rowsRest" in *:*) rowsRest="${rowsRest#*:}" ;; *) rowsRest="" ;; esac
+		fi
+		rowsGlob="" rowsPath=""
+		case "$rowsRest" in *?:?*) rowsGlob="${rowsRest##*:}" ; rowsPath="${rowsRest%:*}" ;; esac
+		if [ -z "$rowsGlob" ] || [ -z "$rowsPath" ] || ! AgentsToolsPlacesNameValid "$rowsName" ; then
+			echo "🙋 WARNING: $rowsProject: malformed place directive, skipped: magic-team:${rowsLine#* } (expected magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob> or magic-team:workspace:<name>:<path>:<host-glob>)" >&2
+			continue
+		fi
+		case "$rowsShort" in
+			$rowsGlob) ;;
+			*) case "$rowsFull" in $rowsGlob) ;; *) continue ;; esac ;;
+		esac
+		rowsPath="$( AgentsToolsPlacesPathResolve "$rowsWs" "$rowsPath" )"
+		case "$rowsSeen" in
+			*$'\n'"$rowsName"$'\t'*)
+				rowsWas="${rowsSeen#*$'\n'"$rowsName"$'\t'}" ; rowsWas="${rowsWas%%$'\n'*}"
+				[ "$rowsWas" = "$rowsPath" ] || echo "🙋 WARNING: $rowsProject: place $rowsName is declared again for this host with another path: kept $rowsWas, skipped $rowsPath" >&2
+				continue
+			;;
+		esac
+		rowsSeen="$rowsSeen$rowsName"$'\t'"$rowsPath"$'\n'
+		[ -e "$rowsPath" ] || echo "🙋 WARNING: place $rowsName ($rowsKind, declared by $rowsProject) is absent on this host, kept: $rowsPath" >&2
+		printf '%s\t%s\t%s\t%s\t%s\n' "$rowsName" "$rowsKind" "$rowsCeiling" "$rowsPath" "$rowsProject"
+	done
+}
+
+## Rewrites one workspace's own file under its lock, then its pointers in the machine-wide
+## one. Written in this order, each name once: the workspace's own row, the directive rows,
+## the owner rows. Mode `directives`: the rows on stdin replace every directive row. Mode
+## `owner:<name>`: the rows on stdin are owner rows, and replace the owner row of that name
+## (none for an empty name). A later row naming a taken name with another path is dropped,
+## with a warning.
+AgentsToolsPlacesLocalUpdate(){ ## workspace, directives|owner:<name> -- rows on stdin
+	local updateWs="${1%/}" updateMode="$2" updateFile updateNew updateRc=0
+	[ -n "$updateWs" ] && [ -d "$updateWs" ] || return 1
+	updateFile="$( AgentsToolsPlacesLocalFile "$updateWs" )"
+	updateNew="$( LC_ALL=C awk -F'\t' 'NF >= 5' )"
+	if ! AgentsToolsPlacesLockTake "$updateFile" ; then
+		echo "⛔ ERROR: places: $updateFile is busy, lock not acquired after 10 attempts: $updateFile.lock" >&2
+		return 1
+	fi
+	{
+		printf '%s\tworkspace\tread-write\t%s\tworkspace\n' "${updateWs##*/}" "$updateWs"
+		if [ "$updateMode" = directives ] ; then
+			[ -z "$updateNew" ] || printf '%s\n' "$updateNew"
+		else
+			[ ! -f "$updateFile" ] || LC_ALL=C awk -F'\t' 'NF >= 5 && $5 != "workspace" && $5 != "owner"' "$updateFile"
+			[ -z "$updateNew" ] || printf '%s\n' "$updateNew"
+		fi
+		[ ! -f "$updateFile" ] || LC_ALL=C awk -F'\t' -v mode="$updateMode" '
+			NF >= 5 && $5 == "owner" && !( mode != "directives" && $1 == substr( mode, 7 ) )
+		' "$updateFile"
+	} | LC_ALL=C awk -F'\t' '
+		NF < 5 { next ; }
+		( $1 in seen ) {
+			if ( seen[$1] != $4 ) printf( "🙋 WARNING: place %s is already %s here, so the row naming it for %s (%s) is dropped\n", $1, seen[$1], $4, $5 ) > "/dev/stderr"
+			next
+		}
+		{ seen[$1] = $4 ; print ; }
+	' > "$updateFile.tmp.$$" && mv -f "$updateFile.tmp.$$" "$updateFile" || updateRc=1
+	rm -f "$updateFile.tmp.$$" 2>/dev/null
+	AgentsToolsPlacesLockGive "$updateFile"
+	if [ "$updateRc" != 0 ] ; then
+		echo "⛔ ERROR: places: could not rewrite $updateFile" >&2
+		return 1
+	fi
+	AgentsToolsPlacesSharedUpdate "$updateWs"
+}
+
+## This workspace's pointers in the machine-wide file, under its lock: its old rows go, one
+## row per name its own file holds comes in. Every other line is kept as it is.
+AgentsToolsPlacesSharedUpdate(){ ## workspace
+	local sharedWs="${1%/}" sharedFile sharedRc=0
+	sharedFile="$( AgentsToolsPlacesSharedFile )"
+	if ! AgentsToolsPlacesLockTake "$sharedFile" ; then
+		echo "⛔ ERROR: places: $sharedFile is busy, lock not acquired after 10 attempts: $sharedFile.lock" >&2
+		return 1
+	fi
+	{
+		[ ! -f "$sharedFile" ] || LC_ALL=C awk -F'\t' -v ws="$sharedWs" '!( NF >= 2 && $2 == ws )' "$sharedFile"
+		LC_ALL=C awk -F'\t' -v ws="$sharedWs" 'NF >= 5 && !( $1 in seen ) { seen[$1] = 1 ; print $1 "\t" ws ; }' "$( AgentsToolsPlacesLocalFile "$sharedWs" )"
+	} > "$sharedFile.tmp.$$" && mv -f "$sharedFile.tmp.$$" "$sharedFile" || sharedRc=1
+	rm -f "$sharedFile.tmp.$$" 2>/dev/null
+	AgentsToolsPlacesLockGive "$sharedFile"
+	[ "$sharedRc" = 0 ] || echo "⛔ ERROR: places: could not rewrite $sharedFile" >&2
+	return "$sharedRc"
+}
+
+## The rows the merged list is made from, on stdout: name, kind, ceiling, path, declaring
+## root, declared-by, and `local` for this workspace's own. This workspace's first, then
+## each other root the pointers name, in pointer order, then the earlier list while it is
+## not imported (flag `nolegacy` leaves it out). A root whose own file cannot be read gives
+## its pointer names: its own row (the name equal to its basename) as a workspace at that
+## root, any other with kind, ceiling and path `-`.
+AgentsToolsPlacesSourceRows(){ ## workspace, flags
+	local sourceWs="${1%/}" sourceFlags=" ${2:-} " sourceShared sourceLegacy sourceRoot sourceFile
+	sourceShared="$( AgentsToolsPlacesSharedFile )"
+	sourceLegacy="$( AgentsToolsPlacesLegacyFile )"
+	if [ -n "$sourceWs" ] && [ -r "$( AgentsToolsPlacesLocalFile "$sourceWs" )" ] ; then
+		LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$sourceWs" 'NF >= 5 { print $1, $2, $3, $4, root, $5, "local" ; }' "$( AgentsToolsPlacesLocalFile "$sourceWs" )"
+	fi
+	if [ -r "$sourceShared" ] ; then
+		while IFS= read -r sourceRoot ; do
+			[ -n "$sourceRoot" ] || continue
+			sourceFile="$( AgentsToolsPlacesLocalFile "$sourceRoot" )"
+			if [ -r "$sourceFile" ] ; then
+				LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$sourceRoot" 'NF >= 5 { print $1, $2, $3, $4, root, $5, "other" ; }' "$sourceFile"
+			else
+				LC_ALL=C awk -F'\t' -v OFS='\t' -v root="$sourceRoot" '
+					NF >= 2 && $2 == root {
+						own = root ; sub( /.*\//, "", own )
+						if ( $1 == own ) print $1, "workspace", "read-write", root, root, "workspace", "other"
+						else print $1, "-", "-", "-", root, "-", "other"
+					}
+				' "$sourceShared"
+			fi
+		done <<< "$( LC_ALL=C awk -F'\t' -v ws="$sourceWs" 'NF >= 2 && $2 ~ /^\// && $2 != ws && !( $2 in seen ) { seen[$2] = 1 ; print $2 ; }' "$sourceShared" )"
+	fi
+	case "$sourceFlags" in *" nolegacy "*) return 0 ;; esac
+	if [ -r "$sourceLegacy" ] && [ ! -e "$sourceLegacy.imported" ] ; then
+		LC_ALL=C awk -v OFS='\t' -v file="$sourceLegacy" '
+			/^\// { p = $0 ; sub( /\/+$/, "", p ) ; if ( p == "" ) next ; n = p ; sub( /.*\//, "", n ) ; print n, "workspace", "read-write", p, "-", "owner", "legacy" ; }
+		' "$sourceLegacy"
+	fi
+}
+
+## The merged list, on stdout: name (or name@workspace), kind, ceiling, path, declaring root,
+## declared-by. The same name and path is listed once. The same name with another path: this
+## workspace's row keeps the bare name and each other is name@workspace; with no row here,
+## each is name@workspace, after one warning (flag `quiet`: none). A name whose only row has
+## no known path is listed once, only when no other row names it.
+AgentsToolsPlacesMergedText(){ ## workspace, flags
+	local mergedQuiet=0
+	case " ${2:-} " in *" quiet "*) mergedQuiet=1 ;; esac
+	AgentsToolsPlacesSourceRows "$1" "${2:-}" | LC_ALL=C awk -F'\t' -v OFS='\t' -v quiet="$mergedQuiet" '
+		function wsName( root ) { if ( root == "-" ) return "legacy" ; sub( /.*\//, "", root ) ; return root ; }
+		NF >= 7 { n++ ; N[n] = $1 ; K[n] = $2 ; C[n] = $3 ; P[n] = $4 ; R[n] = $5 ; B[n] = $6 ; T[n] = $7 ; }
+		END {
+			for ( i = 1 ; i <= n ; i++ ) {
+				if ( T[i] == "local" && !( N[i] in localPath ) ) localPath[N[i]] = P[i]
+				if ( P[i] == "-" ) continue
+				if ( !( ( N[i] SUBSEP P[i] ) in pathSeen ) ) {
+					pathSeen[N[i] SUBSEP P[i]] = 1 ; paths[N[i]]++
+					alt[N[i]] = alt[N[i]] ( alt[N[i]] == "" ? "" : ", " ) N[i] "@" wsName( R[i] )
+				}
+			}
+			for ( i = 1 ; i <= n ; i++ ) {
+				name = N[i]
+				if ( P[i] == "-" ) {
+					if ( paths[name] > 0 || ( name in unknownShown ) ) continue
+					unknownShown[name] = 1
+					print name, K[i], C[i], P[i], R[i], B[i]
+					continue
+				}
+				if ( ( name SUBSEP P[i] ) in done ) continue
+				done[name SUBSEP P[i]] = 1
+				label = name
+				if ( name in localPath ) {
+					if ( P[i] != localPath[name] ) label = name "@" wsName( R[i] )
+				} else if ( paths[name] > 1 ) {
+					label = name "@" wsName( R[i] )
+					if ( !quiet && !( name in warned ) ) {
+						warned[name] = 1
+						printf( "🙋 WARNING: place %s names %d different paths in other workspaces, written %s\n", name, paths[name], alt[name] ) > "/dev/stderr"
+					}
+				}
+				print label, K[i], C[i], P[i], R[i], B[i]
+			}
+		}
+	'
+}
+
+## Every workspace root this machine knows, one per line, each once: the given one first,
+## then the merged list's workspace rows, then every root the pointers name.
+AgentsToolsPlacesWorkspaceRoots(){ ## [workspace]
+	local rootsFirst="${1%/}" rootsShared
+	rootsShared="$( AgentsToolsPlacesSharedFile )"
+	{
+		[ -z "$rootsFirst" ] || printf '%s\n' "$rootsFirst"
+		AgentsToolsPlacesMergedText "${rootsFirst:-${MMDAPP:-}}" quiet | LC_ALL=C awk -F'\t' '$2 == "workspace" && $4 ~ /^\// { print $4 ; }'
+		[ ! -r "$rootsShared" ] || LC_ALL=C awk -F'\t' 'NF >= 2 && $2 ~ /^\// { print $2 ; }' "$rootsShared"
+	} | LC_ALL=C awk '{ sub( /\/+$/, "" ) ; } $0 != "" && !( $0 in seen ) { seen[$0] = 1 ; print ; }'
+}
+
+## A place's path on stdout, by name, or name@workspace as the merged list writes it (a bare
+## row is matched by name@<its workspace> too). rc 1, with a warning, for an unknown name, a
+## name naming places in several other workspaces, or a place whose declaring workspace
+## cannot be read; a path absent on this host is printed, with a warning.
+AgentsToolsPlacesResolve(){ ## workspace, name
+	local resolveText resolvePath resolveAlt
+	resolveText="$( AgentsToolsPlacesMergedText "$1" quiet )"
+	resolvePath="$( printf '%s\n' "$resolveText" | LC_ALL=C awk -F'\t' -v want="$2" '
+		{ root = $5 ; sub( /.*\//, "", root ) ; }
+		NF >= 6 && ( $1 == want || $1 "@" root == want ) { print $4 ; exit ; }
+	' )"
+	if [ -z "$resolvePath" ] ; then
+		resolveAlt="$( printf '%s\n' "$resolveText" | LC_ALL=C awk -F'\t' -v want="$2" 'index( $1, want "@" ) == 1 { printf( "%s%s", sep, $1 ) ; sep = ", " ; }' )"
+		if [ -n "$resolveAlt" ] ; then
+			echo "🙋 WARNING: place $2 names places in several workspaces, name one of: $resolveAlt" >&2
+		else
+			echo "🙋 WARNING: unknown place: $2" >&2
+		fi
+		return 1
+	fi
+	if [ "$resolvePath" = "-" ] ; then
+		echo "🙋 WARNING: place $2 is registered by a workspace whose registry cannot be read on this host" >&2
+		return 1
+	fi
+	[ -e "$resolvePath" ] || echo "🙋 WARNING: place $2 is absent on this host: $resolvePath" >&2
+	printf '%s\n' "$resolvePath"
+}
+
+## The registered place holding a path, on stdout as `name:relative` (`name:.` for the place
+## itself): the deepest one, this workspace's first among equals. A relative path is taken
+## from the current directory. rc 1, nothing printed, when no place holds it.
+AgentsToolsPlacesOf(){ ## workspace, path
+	local ofPath="$2" ofFound
+	[ -n "$ofPath" ] || return 1
+	case "$ofPath" in /*) ;; *) ofPath="${PWD%/}/$ofPath" ;; esac
+	while [ "$ofPath" != "/" ] && [ "${ofPath%/}" != "$ofPath" ] ; do ofPath="${ofPath%/}" ; done
+	ofFound="$( AgentsToolsPlacesMergedText "$1" quiet | LC_ALL=C awk -F'\t' -v want="$ofPath" '
+		$4 ~ /^\// {
+			if ( want == $4 ) rel = "."
+			else if ( $4 == "/" ) rel = substr( want, 2 )
+			else if ( index( want, $4 "/" ) == 1 ) rel = substr( want, length( $4 ) + 2 )
+			else next
+			if ( length( $4 ) > best ) { best = length( $4 ) ; found = $1 ":" rel ; }
+		}
+		END { if ( found != "" ) print found ; }
+	' )"
+	[ -n "$ofFound" ] || return 1
+	printf '%s\n' "$ofFound"
+}
+
+## --owner-workspace-upsert's work: one owner row in this workspace's own file, for a place no
+## project declares. A name a directive or the own row holds is refused, unless for the same
+## path; the same owner row again changes nothing.
+AgentsToolsPlacesOwnerUpsert(){ ## workspace, name, kind, ceiling, path
+	local upsertWs="${1%/}" upsertName="$2" upsertKind="$3" upsertCeiling="$4" upsertPath="$5" upsertHeld upsertHeldPath upsertHeldBy
+	AgentsToolsPlacesLegacyImport "$upsertWs" || return 1
+	if [ "$upsertName" = "${upsertWs##*/}" ] ; then
+		upsertHeld="workspace"$'\t'"read-write"$'\t'"$upsertWs"$'\t'"workspace"
+	else
+		upsertHeld="$( LC_ALL=C awk -F'\t' -v n="$upsertName" 'NF >= 5 && $1 == n { print $2 "\t" $3 "\t" $4 "\t" $5 ; exit ; }' "$( AgentsToolsPlacesLocalFile "$upsertWs" )" 2> /dev/null )"
+	fi
+	if [ -n "$upsertHeld" ] ; then
+		upsertHeldBy="${upsertHeld##*$'\t'}" ; upsertHeldPath="${upsertHeld%$'\t'*}" ; upsertHeldPath="${upsertHeldPath##*$'\t'}"
+		if [ "$upsertHeldBy" = owner ] ; then
+			if [ "$upsertHeld" = "$upsertKind"$'\t'"$upsertCeiling"$'\t'"$upsertPath"$'\t'owner ] ; then
+				echo "# $MDSC_CMD --owner-workspace-upsert: already tracked: $upsertName ($upsertKind, $upsertCeiling): $upsertPath" >&2
+				return 0
+			fi
+		elif [ "$upsertHeldPath" = "$upsertPath" ] ; then
+			## the own row, before this workspace's first registration: written now
+			[ -f "$( AgentsToolsPlacesLocalFile "$upsertWs" )" ] || AgentsToolsPlacesLocalUpdate "$upsertWs" "owner:" < /dev/null || return 1
+			echo "# $MDSC_CMD --owner-workspace-upsert: already registered as $upsertName, declared by $upsertHeldBy: $upsertPath" >&2
+			return 0
+		else
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: the name $upsertName is declared by $upsertHeldBy for $upsertHeldPath -- give this path another --name" >&2
+			return 1
+		fi
+	fi
+	printf '%s\t%s\t%s\t%s\towner\n' "$upsertName" "$upsertKind" "$upsertCeiling" "$upsertPath" | AgentsToolsPlacesLocalUpdate "$upsertWs" "owner:$upsertName" || return 1
+	echo "# $MDSC_CMD --owner-workspace-upsert: registered $upsertName ($upsertKind, $upsertCeiling): $upsertPath" >&2
+}
+
+## --owner-workspace-forget's work: the owner row of that name goes from this workspace's own
+## file. A name a directive or the own row holds is refused; a name this workspace does not
+## hold is a no-op, naming the workspace that does.
+AgentsToolsPlacesOwnerForget(){ ## workspace, name
+	local forgetWs="${1%/}" forgetName="$2" forgetBy forgetElse
+	AgentsToolsPlacesLegacyImport "$forgetWs" || return 1
+	forgetBy="$( LC_ALL=C awk -F'\t' -v n="$forgetName" 'NF >= 5 && $1 == n { print $5 ; exit ; }' "$( AgentsToolsPlacesLocalFile "$forgetWs" )" 2> /dev/null )"
+	case "$forgetBy" in
+		owner)
+			AgentsToolsPlacesLocalUpdate "$forgetWs" "owner:$forgetName" < /dev/null || return 1
+			echo "# $MDSC_CMD --owner-workspace-forget: removed: $forgetName" >&2
+		;;
+		'')
+			forgetElse="$( AgentsToolsPlacesMergedText "$forgetWs" quiet | LC_ALL=C awk -F'\t' -v n="$forgetName" '$1 == n || index( $1, n "@" ) == 1 { printf( "%s%s", sep, $5 ) ; sep = ", " ; }' )"
+			if [ -n "$forgetElse" ] ; then
+				echo "# $MDSC_CMD --owner-workspace-forget: not registered by this workspace, nothing to do: $forgetName is registered by $forgetElse -- forget it there" >&2
+			else
+				echo "# $MDSC_CMD --owner-workspace-forget: not registered, nothing to do: $forgetName" >&2
+			fi
+		;;
+		workspace)
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: $forgetName is this workspace's own row, which every update registers" >&2
+			return 1
+		;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: $forgetName is declared by $forgetBy -- remove its directive there" >&2
+			return 1
+		;;
+	esac
+}
+
+## --owner-workspace-list's text: the merged list, TAB-separated: name, kind, ceiling, path,
+## and present, absent, or unknown when the declaring workspace's file cannot be read.
+AgentsToolsPlacesListText(){ ## workspace
+	local listName listKind listCeiling listPath listRest listState
+	AgentsToolsPlacesMergedText "$1" | while IFS=$'\t' read -r listName listKind listCeiling listPath listRest ; do
+		[ -n "$listName" ] || continue
+		if [ "$listPath" = "-" ] ; then
+			listState=unknown
+		elif [ -e "$listPath" ] ; then
+			listState=present
+		else
+			listState=absent
+		fi
+		printf '%s\t%s\t%s\t%s\t%s\n' "$listName" "$listKind" "$listCeiling" "$listPath" "$listState"
+	done
+}
+
+## The earlier machine-wide list of tracked workspaces, imported once into this workspace's
+## own file: each path no place of the merged list has yet, as an owner workspace row named
+## by its basename (a name already taken here is skipped, with a warning). The list itself
+## is left as it is; the .imported marker beside it ends both the import and its reading.
+AgentsToolsPlacesLegacyImport(){ ## workspace
+	local importWs="${1%/}" importLegacy importRows importLocal
+	importLegacy="$( AgentsToolsPlacesLegacyFile )"
+	[ -f "$importLegacy" ] && [ ! -e "$importLegacy.imported" ] || return 0
+	importLocal="$( AgentsToolsPlacesLocalFile "$importWs" )"
+	importRows="$( LC_ALL=C awk -F'\t' '
+		FILENAME == ARGV[1] { if ( NF >= 4 ) known[$4] = 1 ; next ; }
+		FILENAME == ARGV[2] { if ( NF >= 5 ) taken[$1] = $4 ; next ; }
+		/^\// {
+			p = $0 ; sub( /\/+$/, "", p )
+			if ( p == "" || ( p in known ) || ( p in seen ) ) next
+			seen[p] = 1 ; n = p ; sub( /.*\//, "", n )
+			if ( n in taken ) { printf( "🙋 WARNING: places: %s from the earlier workspace list is not imported, the name %s is already %s here\n", p, n, taken[n] ) > "/dev/stderr" ; next ; }
+			taken[n] = p
+			print n "\tworkspace\tread-write\t" p "\towner"
+		}
+	' <( AgentsToolsPlacesMergedText "$importWs" "quiet nolegacy" ) <( [ ! -r "$importLocal" ] || cat "$importLocal" ) "$importLegacy" )"
+	if [ -n "$importRows" ] ; then
+		printf '%s\n' "$importRows" | AgentsToolsPlacesLocalUpdate "$importWs" "owner:" || return 1
+	fi
+	printf '# imported into %s on %s\n' "$importWs" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$importLegacy.imported" || return 1
+	echo "# places: the earlier workspace list $importLegacy is imported: $( printf '%s' "$importRows" | LC_ALL=C grep -c . ) row(s), and is not read any more" >&2
+}

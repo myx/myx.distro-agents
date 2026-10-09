@@ -20,7 +20,7 @@ DistroAgentsTools(){
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 	## An operation naming a team member runs in a workspace where that member is present; the spawn operations resolve their own, since their records stay here.
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|*:|*:-*) ;;
 		--*:*)
 			local memberWorkspace
 			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }
@@ -202,6 +202,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The members' read-only views of the places and the namespaces, beside the place ops.
+		--member-directory-*|--member-namespace-list)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternDirectory.include"
+			return $?
+		;;
+
 		--member-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?
@@ -340,6 +346,18 @@ DistroAgentsTools(){
 
 		--intern-main-loop)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMainLoop.include"
+			return $?
+		;;
+
+		## Registered places: their registration and the tooling's resolvers.
+		--intern-directory-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternDirectory.include"
+			return $?
+		;;
+
+		## Member homes, and the members of workspaces without agents: beside the member scan it runs.
+		--intern-member-home-register)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Install.include"
 			return $?
 		;;
 

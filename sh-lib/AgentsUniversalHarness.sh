@@ -490,6 +490,15 @@ if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 	DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 fi
 export -f DistroAgentsTools
+## The grants index and the session permission index (AgentsTools.Grants.include): functions only.
+. "$harnessHere/AgentsTools.Grants.include"
+harnessGateIndexed=""
+## What a named member's file gate admits beside its permission index: what is known only
+## at run time -- its children's input and output -- and its own member directory.
+harnessRuntimeRoots=""
+harnessRuntimeWriteRoots=""
+harnessSandboxInReal=""
+harnessSandboxOutReal=""
 if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	harnessRootsInclude="$harnessHere/AgentsTools.ClientAccessRoots.include"
 	if [ ! -f "$harnessRootsInclude" ] ; then
@@ -510,6 +519,9 @@ if [ "${#harnessAccessRoots[@]}" -eq 0 ] ; then
 	harnessGrantMember="$harnessAgent"
 	[ -z "$harnessToolOnly" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] || harnessGrantMember=""
 	[ -z "$harnessGrantMember" ] || harnessWriteIndexable=1
+	## A named member with no root flags given: its file tools are decided by its session
+	## permission index (AgentsHarnessFileGate), never by the roots computed below.
+	[ -z "$harnessGrantMember" ] || harnessGateIndexed=1
 	. "$harnessHere/AgentsHarnessRootsIndex.include"
 	if [ -z "$harnessGrantMember" ] && AgentsHarnessRootsIndexUse "${MMDAPP:-}" "$harnessAgent" "$harnessWriteIndexable" ; then
 		harnessRootsFromIndex=1
@@ -598,6 +610,7 @@ if [ "${#harnessWriteAccessRoots[@]}" -gt 0 ] ; then
 	[ -z "$harnessAgentRealDir" ] || harnessWriteRoots="${harnessWriteRoots}$harnessAgentRealDir"$'\n'
 fi
 [ -n "$harnessWriteRoots" ] || harnessWriteRoots="$harnessRoots"
+[ -z "$harnessAgentRealDir" ] || harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessAgentRealDir"$'\n'
 
 ## The spawn's own sandbox is added here, after the write set is final.
 ## The spawn op hands over the sandbox already resolved, as MDAT_SPAWN_SANDBOX_ROOT_REAL.
@@ -609,12 +622,14 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 		&& [ "$MDAT_SPAWN_SANDBOX_ROOT" -ef "$MDAT_SPAWN_SANDBOX_ROOT_REAL" ] \
 		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" ] \
 		&& [ -d "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] && [ ! -L "$MDAT_SPAWN_SANDBOX_ROOT_REAL/output" ] ; then
-		harnessRoots="${harnessRoots}$MDAT_SPAWN_SANDBOX_ROOT_REAL/input"$'\n'"$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"$'\n'
-		harnessWriteRoots="${harnessWriteRoots}$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"$'\n'
+		harnessSandboxInReal="$MDAT_SPAWN_SANDBOX_ROOT_REAL/input" harnessSandboxOutReal="$MDAT_SPAWN_SANDBOX_ROOT_REAL/output"
 	else
-		harnessRoots="${harnessRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )"$'\n'"$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
-		harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"$'\n'
+		harnessSandboxInReal="$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/input" )" harnessSandboxOutReal="$( AgentsHarnessResolveDir "$MDAT_SPAWN_SANDBOX_ROOT/output" )"
 	fi
+	harnessRoots="${harnessRoots}$harnessSandboxInReal"$'\n'"$harnessSandboxOutReal"$'\n'
+	harnessWriteRoots="${harnessWriteRoots}$harnessSandboxOutReal"$'\n'
+	harnessRuntimeRoots="${harnessRuntimeRoots}$harnessSandboxInReal"$'\n'"$harnessSandboxOutReal"$'\n'
+	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessSandboxOutReal"$'\n'
 fi
 
 ## A parent session reads its children's output and writes their input, by parent-session-id.
@@ -651,6 +666,7 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 	## on its own.
 	harnessSpawnedDir="$MMDAPP/.local/agents/spawned"
 	harnessSpawnedReal=""
+	harnessRootsBeforeChildren="$harnessRoots" harnessWriteRootsBeforeChildren="$harnessWriteRoots"
 	while IFS= read -r harnessChildRecord ; do
 		[ -n "$harnessChildRecord" ] || continue
 		harnessChildRoot="${harnessChildRecord%/*}"
@@ -665,6 +681,9 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 			harnessWriteRoots="${harnessWriteRoots}$( AgentsHarnessResolveDir "$harnessChildRoot/input" )"$'\n'
 		fi
 	done <<< "$harnessChildRecords"
+	## The same roots, for a named member's file gate: the two sets grew by exactly these.
+	harnessRuntimeRoots="${harnessRuntimeRoots}${harnessRoots#"$harnessRootsBeforeChildren"}"
+	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}${harnessWriteRoots#"$harnessWriteRootsBeforeChildren"}"
 fi
 
 ## Claude Code saves a tool result too large to return under its own session folder, outside
@@ -941,15 +960,68 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 	LC_ALL=C grep '⚠️' "$harnessScratch/refusal.err" 2>/dev/null || :
 }
 
+## The gate of every file tool, reading or writing. A named member with no root flags given
+## (harnessGateIndexed): the ceiling first -- a write in a read-only place is refused and the
+## route named, never recorded, since no grant opens it -- then its session permission index
+## (AgentsTools.Grants.include), by builtins only, rebuilt with one awk only when the grants
+## index or the session's grants are newer; then what only this run knows, its children's
+## folders and its sandbox, and its own member directory. Anyone else: the roots computed or
+## given at start. Last, and only on the way to a refusal, the layers no index holds -- a
+## routine's allows, a dispatch's planned allows -- through AgentsHarnessGranted, which forks.
+## rc 0 admitted, $harnessResolvedPath published; 1 refused, said here; 2 not admitted, for
+## the caller to record as a refusal.
+harnessGateOrigin="${MDLT_ORIGIN:+$MDLT_ORIGIN/myx/myx.distro-agents/skillset}"
+AgentsHarnessFileGate(){ ## tool, path, read|write
+	local gateRoots gateRootsOk=1 gateRc=0 gateSession gateOwn
+	if [ -z "$harnessGateIndexed" ] ; then
+		gateRoots="$harnessRoots" ; [ "$3" = read ] || gateRoots="$harnessWriteRoots"
+		AgentsHarnessPathAllowed "$2" "$gateRoots" && return 0
+	else
+		gateRoots="$harnessRuntimeRoots" ; [ "$3" = read ] || gateRoots="$harnessRuntimeWriteRoots"
+		## Never empty: the check reads an empty set as the whole read set.
+		AgentsHarnessPathAllowed "$2" "${gateRoots:-$'\n'}" && gateRootsOk=0
+		if [ -n "$harnessResolvedPath" ] && [ -n "${MMDAPP:-}" ] ; then
+			gateSession="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+			gateOwn="$MMDAPP/.local/agents/sessions/$gateSession"
+			if AgentsToolsGrantsSessionEnsure "$MMDAPP" "$harnessGrantMember" "$gateSession" "$harnessSandboxInReal" "$harnessSandboxOutReal" "$harnessGateOrigin" ; then
+				AgentsToolsGrantsSessionCheck "$1" "$harnessResolvedPath" "$gateOwn" || gateRc=$?
+				case "$gateRc" in
+					0)
+						## An Allow once is used up here, by the one lock its store keeps.
+						[ -n "$agentsGrantsCheckOnce" ] || return 0
+						"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
+							--session-id "$gateSession" --refusal-id "$agentsGrantsCheckOnce" > /dev/null 2>&1 && return 0
+					;;
+					3)
+						if [ -n "$harnessSandboxOutReal" ] ; then
+							printf 'ERROR: %s is a read-only place, so nothing is written there: %s -- write to your session sandbox output/ instead, or a folder under it: %s/\n' "$agentsGrantsCheckPlace" "$2" "$harnessSandboxOutReal"
+						else
+							printf 'ERROR: %s is a read-only place, so nothing is written there: %s -- find another suitable location\n' "$agentsGrantsCheckPlace" "$2"
+						fi
+						return 1
+					;;
+				esac
+			fi
+		fi
+		[ "$gateRootsOk" != 0 ] || return 0
+	fi
+	AgentsHarnessGranted "$1" "$harnessResolvedPath" && return 0
+	return 2
+}
+
 ## The gate of every tool that reads by path, Read (a PDF and a notebook included), Glob and
-## Grep, in the write gate's own shape: inside the read roots, or granted this member by
+## Grep, in the write gate's own shape (AgentsHarnessFileGate), and then granted this member by
 ## the one decision function the write gate and the native hook ask (AgentsHarnessGranted:
-## floor, its own standing Read and Edit rows, routine, session, task, planned, an unexpired
-## once). Anything else is a recorded refusal, printed here, and rc 1. Publishes
+## floor, its own standing rows, routine, session, task, planned, an unexpired once).
+## Anything else is a recorded refusal, printed here, and rc 1. Publishes
 ## $harnessResolvedPath, as the check does.
 AgentsHarnessReadGate(){ ## tool, path
-	AgentsHarnessPathAllowed "$2" && return 0
-	AgentsHarnessGranted "$1" "$harnessResolvedPath" && return 0
+	local readGateRc=0
+	AgentsHarnessFileGate "$1" "$2" read || readGateRc=$?
+	case "$readGateRc" in
+		0) return 0 ;;
+		1) return 1 ;;
+	esac
 	AgentsHarnessRefusal "$1" "${harnessResolvedPath:-$2}" "ERROR: path not in the allowed access-root set: $2$( AgentsHarnessDeniedHint "$2" )"
 	return 1
 }
@@ -1095,13 +1167,15 @@ AgentsHarnessLockTake(){ ## resolved target
 
 ## Whole-file overwrite or create, never a partial patch; Edit is the partial path.
 AgentsHarnessToolWrite(){
-	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock=""
+	local toolPath="${3:-$1}" toolContent="$2" toolTemp toolLock="" toolGateRc=0
 	if [ -z "$toolPath" ] ; then
 		AgentsHarnessRefusal Write "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$4" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
-	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Write "$harnessResolvedPath" ; then
-		AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
-	fi
+	AgentsHarnessFileGate Write "$toolPath" write || toolGateRc=$?
+	case "$toolGateRc" in
+		1) return 0 ;;
+		2) AgentsHarnessRefusal Write "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+	esac
 	toolPath="$harnessResolvedPath"
 	if AgentsHarnessWriteExcluded "$toolPath" ; then
 		AgentsHarnessRefusal Write "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0
@@ -1133,13 +1207,15 @@ AgentsHarnessToolWrite(){
 ## long for Read's cap. Uniqueness is required, not preferred: a silent
 ## first-of-several substitution is unrecoverable, and identical lines are the norm here.
 AgentsHarnessToolEdit(){
-	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock=""
+	local toolPath="${5:-$1}" toolOld="$2" toolNew="$3" toolAll="$4" toolCount toolTemp toolLock="" toolGateRc=0
 	if [ -z "$toolPath" ] ; then
 		AgentsHarnessRefusal Edit "" "ERROR: no path was given -- pass file_path, or path. Keys received: $( printf '{"a":%s}' "$6" | LC_ALL=C awk -v path=a -v mode=keys -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null | LC_ALL=C awk 'BEGIN { keyList = "" ; } { keyList = keyList ( NR > 1 ? ", " : "" ) $0 ; } END { print ( keyList == "" ? "none" : keyList ) ; }' ). Nothing was written." ; return 0
 	fi
-	if ! AgentsHarnessPathAllowed "$toolPath" "$harnessWriteRoots" && ! AgentsHarnessGranted Edit "$harnessResolvedPath" ; then
-		AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0
-	fi
+	AgentsHarnessFileGate Edit "$toolPath" write || toolGateRc=$?
+	case "$toolGateRc" in
+		1) return 0 ;;
+		2) AgentsHarnessRefusal Edit "${harnessResolvedPath:-$toolPath}" "ERROR: path not in the allowed write-root set -- it may still be readable: $toolPath" ; return 0 ;;
+	esac
 	toolPath="$harnessResolvedPath"
 	if AgentsHarnessWriteExcluded "$toolPath" ; then
 		AgentsHarnessRefusal Edit "$toolPath" "ERROR: path is in a team store that an unattended session never writes with Write or Edit -- use the team tooling operation for it: $toolPath" ; return 0

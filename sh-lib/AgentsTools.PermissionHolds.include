@@ -11,13 +11,15 @@
 ##
 ##   human-owner  holds everything. His accounts: the name itself, and the team's
 ##                configured SLACK_CHANNEL_HUMAN_OWNER account.
-##   floor        (a) every member, defined HERE only: the team tools below, Read/Grep/Glob
-##                within its read roots, and every file tool within its own sandbox
-##                output, its own scratch and temp, and the team scratch.
-##   standing     (b) the member's own rows in the permissions registry, and every row
-##                declared for `*`: an Edit(//<p>/**)
-##                row is every file tool under <p>; a Read(//<p>/**) row (allow-read) is the
-##                read tools only under <p>; a `tool` scope row is <tool>[:<target>].
+##   floor        (a) every member: the team tools below, and the floor rows the grants index
+##                holds for it (AgentsTools.Grants.include: .local/temp/**, the source docs,
+##                the readable member directories, the reference roots), with its session's
+##                own sandbox and this origin's skillset added here.
+##   standing     (b) the member's own rows in the grants index, every row declared for `*`
+##                unrolled there: a write row (allow-write, Edit(...) in the registry) is every
+##                file tool on its glob; a read row (allow-read) the read tools only; a tool
+##                row is <tool>[:<target>].
+##   ceiling      no file tool writes in a read-only place, through any layer.
 ##   routine      the `allows:` of the routine the session runs, for that session only
 ##                (AgentsToolsPermissionRoutineHolds).
 ##   set, planned, passed, granted -- (c), (d), (e): grants of a session or a task in the
@@ -103,16 +105,13 @@ AgentsToolsPermissionCovers(){ ## held target, wanted target
 	return 1
 }
 
-## The floor's file roots for one member, one absolute path per line.
-##   write -- the team scratch, its own two temp scopes, and with a session, the output/
-##            of that session's own sandbox, where its spawn record is the member's.
-##   read  -- those, the same sandbox's input/, the workspace source, the readable
-##            member directories and the reference read roots.
+## The floor's file roots for one member that the grants index cannot hold, one absolute path
+## per line: with a session, the output/ of that session's own sandbox, where its spawn record
+## is the member's, and for reading its input/ too and this origin's own skillset. The rest of
+## the floor is in the grants index (AgentsTools.Grants.include), as the member's floor rows.
 AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id (optional)
 	local floorWs="$1" floorMember="$2" floorPurpose="$3" floorSession="${4:-}" floorRecord floorDir
 	[ -n "$floorWs" ] && [ -n "$floorMember" ] || return 0
-	type AgentsToolsClientAccessReferenceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-	AgentsToolsClientAccessReferenceRoots write "$floorWs" "$floorMember" 2>/dev/null || :
 	case "$floorSession" in
 		''|*/*|.|..) ;;
 		*)
@@ -126,19 +125,15 @@ AgentsToolsPermissionFloorRoots(){ ## workspace, member, read|write, session id 
 		;;
 	esac
 	[ "$floorPurpose" = "read" ] || return 0
-	printf '%s\n' "$floorWs/source"
-	AgentsToolsClientAccessRootsMembers readable 2>/dev/null || :
-	AgentsToolsClientAccessReferenceRoots read "$floorWs" 2>/dev/null || :
+	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
 	return 0
 }
 
-## The member's own rows of the permissions registry, and every row declared for `*`,
-## which names every member, as "<grant text>\t<scope>".
+## The member's own rows of the grants index -- its standing rows, every row declared for
+## `*` among them, and its floor rows -- as "<verb>\t<glob or tool text>\t<pattern>\t<layer>".
 AgentsToolsPermissionStandingRows(){ ## member
-	type AgentsToolsTeamGrantRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
-	AgentsToolsTeamGrantRows "${MMDAPP:-}" permissions.registry 2>/dev/null | LC_ALL=C awk -F: -v wantMember="$1" '
-		NF >= 4 && ( $1 == wantMember || $1 == "*" ) { print substr( $0, length($1) + length($2) + length($3) + 4 ) "\t" $3 ; }
-	' || :
+	type AgentsToolsGrantsMemberRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+	AgentsToolsGrantsMemberRows "${MMDAPP:-}" "$1" 2>/dev/null || :
 }
 
 ## True while an item is on the board in an open state.
@@ -224,7 +219,8 @@ AgentsToolsPermissionOnceLive(){ ## grant time
 ## hold: it never does.
 ## A grant answering a refusal matches its exact target; a passed or set grant matches by
 ## AgentsToolsPermissionCovers. Every grant is the member's own (its record's owner),
-## signed by someone else, and a task grant lives while its item is open.
+## signed by someone else; a task grant lives while its item is open, a session grant while
+## its store's session runs, and none once revoked.
 AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, use|hold, store a once is used up in (default: the session dir)
 	local scanDir="$1" scanMember="$2" scanTool="$3" scanWant="$4" scanMode="$5" scanConsumed="${6:-$1}"
 	local scanEntry scanKind scanRest scanEntryTool scanEntryTarget scanBy scanTime scanRef scanWantEsc scanTask
@@ -244,12 +240,18 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 		esac
 		[ -f "$scanDir/$scanRef.md" ] || continue
 		[ "$( AgentsToolsPermissionField "$scanDir/$scanRef.md" owner )" = "$scanMember" ] || continue
+		## Revoked: a marker beside its record (--magic-permission-revoke).
+		[ ! -e "$scanDir/revoked/$scanRef" ] || continue
 		case "$scanRef" in
 			refusal-*) [ "$scanEntryTarget" = "$scanWantEsc" ] || continue ;;
 			*) AgentsToolsPermissionCovers "$( AgentsToolsPermissionUnescape "$scanEntryTarget" )" "$scanWant" || continue ;;
 		esac
 		case "$scanKind" in
-			session) ;;
+			session)
+				## A session grant ends with the session whose store holds it.
+				type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+				! AgentsToolsGrantsSessionEnded "$scanDir" || continue
+			;;
 			once)
 				[ "$scanMode" = "use" ] || continue
 				[ ! -d "$scanConsumed/consumed/$scanRef" ] || continue
@@ -407,12 +409,21 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 ## and the store of the coworking session it joined.
 AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optional)
 	local holdMember="$1" holdTool="$2" holdTarget="$3" holdSession="${4:-}"
-	local holdRoot holdText holdScope holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound
+	local holdRoot holdVerb holdGlob holdPattern holdLayer holdRowTool holdRowTools holdRowTarget holdPurpose holdDir holdFound
 	[ -n "$holdMember" ] && [ -n "$holdTool" ] || return 1
 	if AgentsToolsPermissionIsHumanOwner "$holdMember" ; then
 		printf 'human-owner'
 		return 0
 	fi
+	## A read-only place is written by nobody else, through any layer: its ceiling caps them all.
+	case " Edit Write Execute " in
+		*" $holdTool "*)
+			type AgentsToolsGrantsCeilingPlace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+			case "$holdTarget" in
+				/*) ! AgentsToolsGrantsCeilingPlace "${MMDAPP:-}" "$holdTarget" > /dev/null || return 1 ;;
+			esac
+		;;
+	esac
 	case "$holdTool" in
 		cred|spend) ;;
 		*)
@@ -420,38 +431,35 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 			case "$agentsPermissionFloorTools" in
 				*" $holdTool "*) printf 'floor' ; return 0 ;;
 			esac
-			## (b) standing rows
-			while IFS=$'\t' read -r holdText holdScope ; do
-				[ -n "$holdText" ] || continue
-				if [ "$holdScope" = "tool" ] ; then
-					holdRowTool="${holdText%%:*}" ; holdRowTarget=""
-					case "$holdText" in
-						*:*) holdRowTarget="${holdText#*:}" ;;
-					esac
-					[ "$holdRowTool" = "$holdTool" ] || continue
-					AgentsToolsPermissionCovers "$holdRowTarget" "$holdTarget" || continue
-					printf 'standing'
-					return 0
-				fi
-				## An Edit row speaks for every file tool, a Read row (allow-read) for the read tools only.
-				case "$holdText" in
-					'Edit(/'*')') holdRowTools="$agentsPermissionFileTools" ;;
-					'Read(/'*')') holdRowTools="$agentsPermissionReadTools" ;;
+			## (b) standing rows, then (a) the floor's files, as the grants index unrolled them
+			## for this member: a write row speaks for every file tool, a read row (allow-read)
+			## for the read tools only, a tool row for <tool>[:<target>].
+			while IFS=$'\t' read -r holdVerb holdGlob holdPattern holdLayer ; do
+				[ -n "$holdGlob" ] || continue
+				case "$holdVerb" in
+					tool)
+						holdRowTool="${holdGlob%%:*}" ; holdRowTarget=""
+						case "$holdGlob" in
+							*:*) holdRowTarget="${holdGlob#*:}" ;;
+						esac
+						[ "$holdRowTool" = "$holdTool" ] || continue
+						AgentsToolsPermissionCovers "$holdRowTarget" "$holdTarget" || continue
+						printf 'standing'
+						return 0
+					;;
+					write) holdRowTools="$agentsPermissionFileTools" ;;
+					read) holdRowTools="$agentsPermissionReadTools" ;;
 					*) continue ;;
 				esac
 				case "$holdRowTools" in
 					*" $holdTool "*) ;;
 					*) continue ;;
 				esac
-				holdRowTarget="${holdText#*(}" ; holdRowTarget="${holdRowTarget%)}"
-				case "$holdRowTarget" in
-					//*) holdRowTarget="${holdRowTarget#/}" ;;
-				esac
-				AgentsToolsPermissionCovers "$holdRowTarget" "$holdTarget" || continue
-				printf 'standing'
+				AgentsToolsGrantsCovers "$holdGlob" "$holdPattern" "$holdTarget" || continue
+				printf '%s' "$holdLayer"
 				return 0
 			done <<< "$( AgentsToolsPermissionStandingRows "$holdMember" )"
-			## (a) the floor's files
+			## (a) the floor's files the index cannot hold: the session's own sandbox
 			case "$agentsPermissionFileTools" in
 				*" $holdTool "*)
 					holdPurpose=write

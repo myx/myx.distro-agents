@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MemberHomes.include -- which copy of a member is its home.
+##
+## The machine-wide members.registry keeps a row for every copy of a member. A member found
+## in more than one workspace has one home, chosen automatically and never by hand:
+##   1. a copy registered by a workspace with agents installed (any link kind but
+##      source-declared);
+##   2. then the most complete declaration: the most magic-team: lines naming the member (or
+##      `*`) in that workspace's projects, grants included;
+##   3. then any one: a source link first, else the first row.
+## The choice is written to $HOME/.agents/magic-team/member-homes.registry (member, workspace
+## root), read by AgentsToolsMemberWorkspaceResolve and AgentsToolsTeamMemberDirectoryText.
+## One short warning for each member whose copies differ: the locations and the copy chosen.
+##
+## A registered workspace without agents may still declare members: the main workspace's
+## install scans it and registers what it finds as rows of kind `source-declared` under that
+## workspace's own root -- the declaring workspace, which a `.` in their grants unrolls to.
+## Nothing is installed there. A session for such a member runs from the main workspace.
+##
+## Dot-sourced; functions only. Needs AgentsTools.TeamRegistry.include, and, to read another
+## workspace's declares, AgentsToolsWorkspaceSwitch (AgentsTools.MemberWorkspace.include).
+##
+
+AgentsToolsMemberHomesFile(){
+	printf '%s\n' "${HOME:-}/.agents/magic-team/member-homes.registry"
+}
+
+## A workspace where the agents subsystem is installed: its own member registry exists.
+AgentsToolsMemberHomesHasAgents(){ ## workspace
+	[ -f "${1%/}/.local/agents/members.registry" ]
+}
+
+## The magic-team declares of one workspace, `<project> <rest>`, read in a subshell moved to
+## that workspace, so this process keeps its own context. rc 1 when they cannot be read.
+AgentsToolsMemberHomesDeclares(){ ## workspace
+	(
+		[ "${1%/}" = "${MMDAPP%/}" ] || AgentsToolsWorkspaceSwitch "${1%/}"
+		DistroAgentsContext --distro-from-source > /dev/null 2>&1 || exit 1
+		Require ListDistroProjects > /dev/null 2>&1 || :
+		Require ListDistroDeclares > /dev/null 2>&1 || :
+		declaresSelected="$( Distro ListDistroProjects --select-all 2> /dev/null )" || exit 1
+		[ -n "$declaresSelected" ] || exit 0
+		MDSC_SELECT_PROJECTS="$declaresSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team' 2> /dev/null
+	)
+}
+
+## How completely those declares (on stdin) name each member, `member<TAB>count`: a
+## team-member line by its folder's name, a permissions line by its member field; `*`
+## counted under `*`.
+AgentsToolsMemberHomesWeights(){
+	LC_ALL=C awk '
+		{
+			rest = $0 ; sub( /^[^ ]* /, "", rest ) ; n = split( rest, f, ":" )
+			if ( f[1] == "team-member" && n >= 3 ) {
+				p = f[2] ; for ( i = 3 ; i < n ; i++ ) p = p ":" f[i]
+				sub( /\/+$/, "", p ) ; sub( /.*\//, "", p )
+				if ( p != "" ) count[p]++
+			} else if ( f[1] == "permissions" && n >= 5 && f[5] != "" ) {
+				count[f[5]]++
+			}
+		}
+		END { for ( m in count ) print m "\t" count[m] ; }
+	'
+}
+
+## Rewrites one workspace's source-declared rows in the machine-wide member registry, under
+## that registry's lock: its old ones go, the rows on stdin come in. Every other row stays.
+AgentsToolsMemberHomesDeclaredWrite(){ ## workspace -- rows on stdin
+	local writeWs="${1%/}" writeFile writeNew writeTry=0 writeRc=0
+	writeFile="$( AgentsToolsTeamSharedMembers )"
+	writeNew="$( LC_ALL=C awk -F'\t' 'NF >= 5' )"
+	[ -f "$writeFile" ] || [ -n "$writeNew" ] || return 0
+	mkdir -p "${writeFile%/*}" || return 1
+	until mkdir "$writeFile.lock" 2> /dev/null ; do
+		writeTry=$(( writeTry + 1 ))
+		if [ "$writeTry" -ge 10 ] ; then
+			echo "⛔ ERROR: member homes: $writeFile is busy, lock not acquired after 10 attempts: $writeFile.lock" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	{
+		[ ! -f "$writeFile" ] || LC_ALL=C awk -F'\t' -v ws="$writeWs" '!( $2 == ws && $3 == "source-declared" )' "$writeFile"
+		[ -z "$writeNew" ] || printf '%s\n' "$writeNew"
+	} > "$writeFile.tmp.$$" || writeRc=1
+	if [ "$writeRc" = 0 ] && ! cmp -s "$writeFile.tmp.$$" "$writeFile" ; then
+		mv -f "$writeFile.tmp.$$" "$writeFile" || writeRc=1
+	fi
+	rm -f "$writeFile.tmp.$$" 2> /dev/null
+	rmdir "$writeFile.lock" 2> /dev/null || :
+	[ "$writeRc" = 0 ] || echo "⛔ ERROR: member homes: could not rewrite $writeFile" >&2
+	return "$writeRc"
+}
+
+## The member rows one workspace without agents declares, as source-declared registry rows,
+## from a member scan's `<member> <folder>` lines on stdin: the first folder of each member.
+AgentsToolsMemberHomesDeclaredRows(){ ## workspace
+	LC_ALL=C awk -v ws="${1%/}" '
+		NF < 2 { next ; }
+		{ member = $1 ; dir = $0 ; sub( /^[^ ]+ /, "", dir ) ; }
+		( member in seen ) { printf( "🙋 WARNING: member homes: %s declares %s from more than one project, and a workspace without agents is not merged: %s registered, %s not\n", ws, member, seen[member], dir ) > "/dev/stderr" ; next ; }
+		{
+			seen[member] = dir ; rel = dir
+			if ( index( rel, ws "/source/" ) == 1 ) rel = substr( rel, length( ws ) + 9 )
+			print member "\t" ws "\tsource-declared\t" rel "\t" dir
+		}
+	'
+}
+
+## Chooses the home of every member found in more than one workspace and rewrites the homes
+## file under its lock. A workspace's declares are read only where the first rule leaves a
+## tie, and once. One warning per member whose copies differ.
+AgentsToolsMemberHomesWrite(){
+	local homesRegistry homesFile homesRows homesMembers homesMember homesCands homesTied homesRoot homesDone=$'\n'
+	local homesWeights="" homesChoice homesOut="" homesCopies homesKind homesDir homesReal homesTry=0 homesRc=0
+	homesRegistry="$( AgentsToolsTeamSharedMembers )"
+	homesFile="$( AgentsToolsMemberHomesFile )"
+	[ -f "$homesRegistry" ] || return 0
+	homesRows="$( LC_ALL=C awk -F'\t' 'NF >= 5 && $1 != "" && $1 != "trash" && $3 != "rules-symlink" && !( ( $1 SUBSEP $2 ) in seen ) { seen[$1 SUBSEP $2] = 1 ; print $1 "\t" $2 "\t" $3 "\t" $5 ; }' "$homesRegistry" )"
+	homesMembers="$( printf '%s\n' "$homesRows" | LC_ALL=C awk -F'\t' 'NF >= 4 { n[$1]++ ; } END { for ( m in n ) if ( n[m] > 1 ) print m ; }' | LC_ALL=C sort )"
+	while IFS= read -r homesMember ; do
+		[ -n "$homesMember" ] || continue
+		homesCands="$( printf '%s\n' "$homesRows" | LC_ALL=C awk -F'\t' -v m="$homesMember" '$1 == m { print $2 "\t" $3 "\t" $4 ; }' )"
+		## the workspaces left tied after rule 1, whose declares rule 2 reads
+		homesTied="$( printf '%s\n' "$homesCands" | LC_ALL=C awk -F'\t' '
+			NF >= 3 { n++ ; ws[n] = $1 ; kind[n] = $2 ; if ( $2 != "source-declared" ) inst++ ; }
+			END { for ( i = 1 ; i <= n ; i++ ) if ( !inst || kind[i] != "source-declared" ) { t++ ; out = out ws[i] "\n" ; } if ( t > 1 ) printf( "%s", out ) ; }
+		' )"
+		while IFS= read -r homesRoot ; do
+			[ -n "$homesRoot" ] || continue
+			case "$homesDone" in *$'\n'"$homesRoot"$'\n'*) continue ;; esac
+			homesDone="$homesDone$homesRoot"$'\n'
+			[ -d "$homesRoot" ] || continue
+			homesWeights="$homesWeights$( AgentsToolsMemberHomesDeclares "$homesRoot" | AgentsToolsMemberHomesWeights | LC_ALL=C awk -v ws="$homesRoot" '{ print ws "\t" $0 ; }' )"$'\n'
+		done <<< "$homesTied"
+		homesChoice="$( LC_ALL=C awk -F'\t' -v m="$homesMember" '
+			FILENAME == ARGV[1] { if ( NF >= 3 && ( $2 == m || $2 == "*" ) ) w[$1] += $3 ; next ; }
+			NF >= 3 { n++ ; ws[n] = $1 ; kind[n] = $2 ; dir[n] = $3 ; if ( $2 != "source-declared" ) inst++ ; }
+			END {
+				best = -1
+				for ( i = 1 ; i <= n ; i++ ) if ( !( inst && kind[i] == "source-declared" ) && w[ws[i]] + 0 > best ) best = w[ws[i]] + 0
+				for ( i = 1 ; i <= n ; i++ ) {
+					if ( inst && kind[i] == "source-declared" ) continue
+					if ( w[ws[i]] + 0 != best ) continue
+					if ( !pick || ( kind[i] == "source-symlink" && kind[pick] != "source-symlink" ) ) pick = i
+				}
+				if ( pick ) print ws[pick] "\t" dir[pick]
+			}
+		' <( printf '%s' "$homesWeights" ) - <<< "$homesCands" )"
+		[ -n "$homesChoice" ] || continue
+		homesOut="$homesOut$homesMember"$'\t'"${homesChoice%%$'\t'*}"$'\n'
+		## copies differ when their folders do, compared physically
+		homesCopies=$'\n'
+		while IFS=$'\t' read -r homesRoot homesKind homesDir ; do
+			[ -n "$homesDir" ] || continue
+			homesReal="$( cd -P "$homesDir" 2> /dev/null && pwd -P )" || homesReal="$homesDir"
+			case "$homesCopies" in *$'\n'"$homesReal"$'\n'*) ;; *) homesCopies="$homesCopies$homesReal"$'\n' ;; esac
+		done <<< "$homesCands"
+		if [ "$( printf '%s' "$homesCopies" | LC_ALL=C grep -c . )" -gt 1 ] ; then
+			echo "🙋 WARNING: member $homesMember has copies in $( printf '%s\n' "$homesCands" | LC_ALL=C awk -F'\t' 'NF >= 3 { printf( "%s%s", sep, $1 ) ; sep = ", " ; }' ) -- its home is the copy in ${homesChoice%%$'\t'*}: ${homesChoice#*$'\t'}" >&2
+		fi
+	done <<< "$homesMembers"
+	mkdir -p "${homesFile%/*}" || return 1
+	until mkdir "$homesFile.lock" 2> /dev/null ; do
+		homesTry=$(( homesTry + 1 ))
+		if [ "$homesTry" -ge 10 ] ; then
+			echo "⛔ ERROR: member homes: $homesFile is busy, lock not acquired after 10 attempts: $homesFile.lock" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	printf '%s' "$homesOut" > "$homesFile.tmp.$$" || homesRc=1
+	if [ "$homesRc" = 0 ] && ! cmp -s "$homesFile.tmp.$$" "$homesFile" ; then
+		mv -f "$homesFile.tmp.$$" "$homesFile" || homesRc=1
+	fi
+	rm -f "$homesFile.tmp.$$" 2> /dev/null
+	rmdir "$homesFile.lock" 2> /dev/null || :
+	[ "$homesRc" = 0 ] || echo "⛔ ERROR: member homes: could not rewrite $homesFile" >&2
+	return "$homesRc"
+}

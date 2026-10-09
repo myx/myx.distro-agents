@@ -56,8 +56,9 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 	printf 'magic-architect:ws:tool:WebFetch:https://docs.rig.example/*\n'
 	printf 'magic-architect:ws:tool:WebSearch\n'
 } > "$rigWs/.local/agents/permissions.registry"
+## Running sessions: a session grant ends when its session closes (AgentsToolsGrantsSessionEnded).
 rigSpawnRecord(){ ## spawn id, owner, parent session id
-	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%sowner: %s\nstatus: spawn-succeeded\n---\n\n# Spawn session\n' \
+	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%sowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
 		"$1" "${3:+parent-session-id: $3$'\n'}" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
@@ -110,8 +111,9 @@ echo "-- (a) the floor and (b) per-member defaults, files and tools --"
 rigAssert "a team tool is the floor"                       "$( rigHolds magic-tester SendMessage '' )" "HOLDS floor"
 rigAssert "the team scratch is the floor"                  "$( rigHolds magic-tester Write "$rigWs/.local/temp/team/x" )" "HOLDS floor"
 rigAssert "its own temp is the floor"                      "$( rigHolds magic-tester Edit "$rigWs/.local/temp/member/magic-tester/x" )" "HOLDS floor"
-rigAssert "another member's temp is not"                   "$( rigHolds magic-tester Edit "$rigWs/.local/temp/member/magic-developer/x" )" "NOT-HOLDS"
-rigAssert "Read within the read roots is the floor"        "$( rigHolds magic-tester Read "$rigWs/source/a.txt" )" "HOLDS floor"
+rigAssert "so is all of .local/temp, another member's temp included" "$( rigHolds magic-tester Edit "$rigWs/.local/temp/member/magic-developer/x" )" "HOLDS floor"
+rigAssert "the workspace source is in no member's floor"   "$( rigHolds magic-tester Read "$rigWs/source/a.txt" )" "NOT-HOLDS"
+rigAssert "a member folder is read by the floor"           "$( rigHolds magic-tester Read "$( cd "$MDAT_SKILLSET_ROOT/magic-developer" && pwd -P )/magic-developer.basic.md" )" "HOLDS floor"
 rigAssert "a keeper's own domain is standing rwe"          "$( rigHolds keeper-myx Edit "$rigWs/KEEP/a/b.txt" ):$( rigHolds keeper-myx Execute "$rigWs/KEEP/run.sh" ):$( rigHolds keeper-myx Read "$rigWs/KEEP/.env" )" "HOLDS standing:HOLDS standing:HOLDS standing"
 rigAssert "nobody else's domain is held by it"             "$( rigHolds keeper-myx Write "$rigWs/DEV/x" )" "NOT-HOLDS"
 rigAssert "a .. out of a domain is never covered"          "$( rigHolds keeper-myx Write "$rigWs/KEEP/../ELSE/x" )" "NOT-HOLDS"
@@ -244,9 +246,9 @@ printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\
 	> "$rigSkills/magic-tester/magic-tester.rig-review.routine.md"
 printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\nallows: participants:cred:rig-secret, participants:Write:DEV/n/**, participants:Write:ELSE/**\n---\n# rig routine without the human-owner\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-nohuman.routine.md"
-printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-succeeded\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.md"
-printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-session-id: rig-rcow\nowner: magic-developer\nstatus: spawn-succeeded\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"
-printf -- '---\nsession-id: rig-ncow\nspawn-id: rig-ncow\nowner: magic-tester\nroutine: magic-tester.rig-nohuman.routine.md\nstatus: spawn-succeeded\n---\n' > "$rigWs/.local/agents/spawned/rig-ncow/rig-ncow.md"
+printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.md"
+printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-session-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"
+printf -- '---\nsession-id: rig-ncow\nspawn-id: rig-ncow\nowner: magic-tester\nroutine: magic-tester.rig-nohuman.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-ncow/rig-ncow.md"
 export MDAT_SKILLSET_ROOT="$rigSkills"
 rigAssert "a member's routine allow holds in that routine's session" "$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" rig-rcow )" "HOLDS routine magic-tester.rig-review.routine"
 rigAssert "and not in another session"                     "$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" rig-tester ):$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" )" "NOT-HOLDS:NOT-HOLDS"
@@ -319,7 +321,7 @@ mkdir -p "$rigWs/source" "$rigWs/.local/temp/member/magic-tester"
 printf 'rig-ronly-seed\n' > "$rigWs/source/f.txt"
 printf 'rig-ronly-seed\n' > "$rigWs/.local/temp/member/magic-tester/f.txt"
 printf 'rig-ronly-seed\n' > "$rigWs/DEV/r.txt"
-rigAssert "a read inside the floor is allowed: the workspace source" "$( rigHarnessRead magic-tester "$rigWs/source/f.txt" )" read
+rigAssert "the workspace source is in no member's read floor" "$( rigHarnessRead magic-tester "$rigWs/source/f.txt" )" refused
 rigAssert "and its own temp scope"                         "$( rigHarnessRead magic-tester "$rigWs/.local/temp/member/magic-tester/f.txt" )" read
 rigAssert "another member's allow-read row reaches nothing for it" "$( rigHarnessRead magic-developer "$rigWs/RONLY/r.txt" )" refused
 rigAssert "an Edit row implies read for its own member"    "$( rigHarnessRead magic-developer "$rigWs/DEV/r.txt" )" read

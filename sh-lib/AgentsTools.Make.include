@@ -18,6 +18,16 @@ case "$1" in
 			set +e ; return 1
 		}
 		echo "# $MDSC_CMD --make-agents-indices: wrote $MMDAPP/.local/agents/members.index" >&2
+		## The grants (AgentsTools.Grants.include): the permissions registry from what the
+		## projects declare, then the grants index unrolled from every workspace's registry.
+		## In a subshell, so the source input spec the declares are read under stays there.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+		( AgentsToolsGrantsRegistryWrite "$MMDAPP" "$MDSC_CMD --make-agents-indices" ) || { set +e ; return 1 ; }
+		AgentsToolsGrantsIndexWrite "$MMDAPP" || {
+			echo "$MDSC_CMD: ⛔ ERROR: --make-agents-indices: could not write $MMDAPP/.local/agents/grants.index" >&2
+			set +e ; return 1
+		}
+		echo "# $MDSC_CMD --make-agents-indices: wrote $MMDAPP/.local/agents/grants.index" >&2
 		return 0
 	;;
 
@@ -28,10 +38,17 @@ case "$1" in
 			mkdir -p "$MMDAPP/.agents"
 		fi
 
-		## First, so the steps below start from the registries of this workspace's members.
+		## This workspace's places, its own row included, on every update: the grants and the
+		## member scan below read them (AgentsTools.Places.include).
+		DistroAgentsTools --intern-directory-register || { set +e ; return 1 ; }
+		## Then, so the steps below start from the registries of this workspace's members, and
+		## its grants are unrolled over the places just registered.
 		DistroAgentsTools --make-agents-indices || { set +e ; return 1 ; }
 		DistroAgentsTools --make-console-command "$@" || { set +e ; return 1 ; }
 		DistroAgentsTools --install-workspace-integrations "$@" || { set +e ; return 1 ; }
+		## After the member registry is written: the members of registered workspaces without
+		## agents, and every member's home (AgentsTools.MemberHomes.include).
+		DistroAgentsTools --intern-member-home-register || { set +e ; return 1 ; }
 		## The restrictions are a manual opt-in (--install-workspace-restrictions). Where the
 		## user installed them, their reroute hook is in place, and they are kept current
 		## here; where not, they are never installed by this op.

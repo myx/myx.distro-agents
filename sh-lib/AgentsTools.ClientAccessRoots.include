@@ -71,8 +71,7 @@ AgentsToolsClientAccessRootsMembers(){
 
 ## Reference roots by purpose, required and never defaulted -- a purpose
 ## guessed wrong is a silently wrong grant, same rule as the member split above.
-##   read  -- skillset under $MDLT_ORIGIN, the global symlinked skills dir, and
-##            the machine's own CLIENT_ACCESS_ROOTS_EXTRA; non-absolute dropped.
+##   read  -- skillset under $MDLT_ORIGIN, and the global symlinked skills dir.
 ##   write -- the team scratchpad, plus the named member's own two scopes;
 ##            unnamed yields the team's alone, since everyone's own is nobody's.
 ##   $1 = read | write, $2 = workspace root, $3 = member name (write only)
@@ -92,33 +91,10 @@ AgentsToolsClientAccessReferenceRoots(){
 		printf '%s\n' "$workspace/.local/temp/member/$memberName" "$workspace/.local/temp/task/$memberName"
 		return 0
 	fi
-	## Collected first and printed at the end, in the same order as before: this is
-	## the one mechanism deciding what a spawned agent may read, so a config that
-	## cannot be read has to yield NOTHING rather than a short list the caller
-	## cannot tell from a complete one.
-	local readRoots=""
-	[ -z "${MDLT_ORIGIN:-}" ] || readRoots="$MDLT_ORIGIN/myx/myx.distro-agents/skillset"$'\n'
-	readRoots="$readRoots$HOME/.claude/skills"
-	if [ -s "$workspace/.local/.agents/magic-team.agent.env" ] ; then
-		## The config store is reached through this NAME, and a harness that calls
-		## the tool by path has no such name -- so `|| :` here reported the defaults
-		## as the whole answer, at rc 0, whenever it was absent. Refused instead.
-		if ! type DistroAgentsTools >/dev/null 2>&1 ; then
-			echo "⛔ ERROR: AgentsToolsClientAccessReferenceRoots: DistroAgentsTools is not callable by name in this shell, so CLIENT_ACCESS_ROOTS_EXTRA in $workspace/.local/.agents/magic-team.agent.env cannot be read. Refusing: the defaults alone would be indistinguishable from the full set. Define DistroAgentsTools() before sourcing this include, as AgentsConsoleShellScript.template.sh does." >&2
-			return 1
-		fi
-		local configuredRoots configuredRc=0
-		configuredRoots="$( MMDAPP="$workspace" ; DistroAgentsTools --agents-config-option magic-team --select CLIENT_ACCESS_ROOTS_EXTRA )" || configuredRc=$?
-		if [ "$configuredRc" -ne 0 ] ; then
-			echo "⛔ ERROR: AgentsToolsClientAccessReferenceRoots: reading CLIENT_ACCESS_ROOTS_EXTRA from $workspace/.local/.agents/magic-team.agent.env failed (--agents-config-option returned $configuredRc). Refusing rather than reporting the default roots as the whole set." >&2
-			return 1
-		fi
-		if [ -n "$configuredRoots" ] ; then
-			configuredRoots="$( printf '%s\n' "$configuredRoots" | LC_ALL=C awk -F: '{ for ( rootIndex = 1 ; rootIndex <= NF ; rootIndex++ ) if ( $rootIndex ~ /^\// ) print $rootIndex ; }' )"
-			[ -z "$configuredRoots" ] || readRoots="$readRoots"$'\n'"$configuredRoots"
-		fi
-	fi
-	printf '%s\n' "$readRoots"
+	## Places outside these are registered places with grants on them
+	## (AgentsTools.Places.include, AgentsTools.Grants.include), never a configured list.
+	[ -z "${MDLT_ORIGIN:-}" ] || printf '%s\n' "$MDLT_ORIGIN/myx/myx.distro-agents/skillset"
+	printf '%s\n' "$HOME/.claude/skills"
 	return 0
 }
 
@@ -228,9 +204,10 @@ AgentsToolsClientAccessRootTag(){
 ## A producer that fails fails the whole set, rc 1 with its own message on stderr:
 ## a short set at rc 0 is indistinguishable from a complete one.
 ## With a grant member named, the declared grants are that member's own rows and every `*` row: the
-## set is then what that one member may read -- every root above it is the read floor
-## AgentsToolsPermissionFloorRoots computes, plus its own Edit and Read rows -- and a
-## read outside it is the harness's recorded refusal. Unnamed, every member's, as before.
+## set is then the roots that one member may read, widened -- its read floor's roots plus its
+## own Edit and Read rows -- for a client that takes roots; the harness decides a named
+## member's file tools by its session permission index instead (AgentsTools.Grants.include).
+## Unnamed, every member's, as before.
 ##   $1 = workspace root, $2 = member name, for its own scratchpads,
 ##   $3 = grant member (optional)
 AgentsToolsClientAccessRoots(){

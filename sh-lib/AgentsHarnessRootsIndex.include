@@ -20,17 +20,17 @@
 ## WHEN IT IS USED: only while its fingerprint is what this run would produce -- the
 ## workspace, HOME and MDAT_SKILLSET_ROOT and the names under it (the member index's view,
 ## not newer than the index), and one cksum line each for the producer, this
-## file, AgentsTools.TeamRegistry.include, the config file CLIENT_ACCESS_ROOTS_EXTRA is
-## read from, the member index, the shared grant pointers and every grant file they name
-## -- our own data only, never a vendor link folder. A harness whose origin
+## file, AgentsTools.TeamRegistry.include, the member index, the shared grant pointers and
+## every grant file they name, the two place registries (this workspace's and the shared
+## pointers) and the grants index -- our own data only, never a vendor link folder. A harness whose origin
 ## carries other code than the writer's has another checksum, so it computes. A stored
 ## resolution is used only while its root is still a directory; any other root is
 ## resolved at run time. Anything else is computed the slow way, with the same result.
 ## An index of another format version (an older or newer writer's) is never used.
 ##
-## Format, version 3, free text encoded for `printf '%b'` (backslash doubled, newline as
+## Format, version 4, free text encoded for `printf '%b'` (backslash doubled, newline as
 ## \n, TAB as \t):
-##   myx.distro harness.roots.index 3
+##   myx.distro harness.roots.index 4
 ##   print <TAB> <fingerprint>
 ##   read <TAB> <root> <TAB> <resolved, or empty where it did not resolve>
 ##   wref <TAB> <root> <TAB> <resolved...>       the write reference roots
@@ -39,7 +39,7 @@
 
 agentsRootsIndexHere="${harnessHere:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib}"
 type AgentsToolsTeamGrantWorkspaces >/dev/null 2>&1 || . "$agentsRootsIndexHere/AgentsTools.TeamRegistry.include"
-agentsRootsIndexHeader="myx.distro harness.roots.index 3"
+agentsRootsIndexHeader="myx.distro harness.roots.index 4"
 
 agentsRootsEnc=""
 agentsRootsDec=""
@@ -59,7 +59,7 @@ AgentsHarnessRootsDec(){ ## encoded -- never `printf -v` an empty result: bash 3
 agentsRootsPrint=""
 AgentsHarnessRootsFingerprint(){ ## workspace
 	local printWorkspace="$1" printEntry printFiles=() printSums printCrc printSize printRest printCount=0
-	agentsRootsPrint="v3"$'\n'"MMDAPP=$printWorkspace"$'\n'"HOME=${HOME:-}"$'\n'"MDAT_SKILLSET_ROOT=${MDAT_SKILLSET_ROOT:-}"$'\n'
+	agentsRootsPrint="v4"$'\n'"MMDAPP=$printWorkspace"$'\n'"HOME=${HOME:-}"$'\n'"MDAT_SKILLSET_ROOT=${MDAT_SKILLSET_ROOT:-}"$'\n'
 	## The names in the member set root -- the member index's own members/ view.
 	if [ -n "${MDAT_SKILLSET_ROOT:-}" ] && [ -d "$MDAT_SKILLSET_ROOT" ] ; then
 		for printEntry in "$MDAT_SKILLSET_ROOT"/*/ ; do agentsRootsPrint="${agentsRootsPrint}skillset:$printEntry"$'\n' ; done
@@ -77,9 +77,11 @@ AgentsHarnessRootsFingerprint(){ ## workspace
 		"producer:$agentsRootsIndexHere/AgentsTools.ClientAccessRoots.include" \
 		"index:$agentsRootsIndexHere/AgentsHarnessRootsIndex.include" \
 		"team:$agentsRootsIndexHere/AgentsTools.TeamRegistry.include" \
-		"config:$printWorkspace/.local/.agents/magic-team.agent.env" \
 		"members:$printWorkspace/.local/agents/members.index" \
 		"pointers:$( AgentsToolsTeamSharedGrants )" \
+		"places:$printWorkspace/.local/agents/directories.registry" \
+		"places-shared:${HOME:-}/.agents/magic-team/directories.registry" \
+		"grants-index:$printWorkspace/.local/agents/grants.index" \
 		${printGrants[@]+"${printGrants[@]}"} \
 	; do
 		if [ -f "${printEntry#*:}" ] ; then

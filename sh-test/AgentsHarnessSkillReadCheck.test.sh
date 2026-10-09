@@ -78,7 +78,7 @@ rigCall(){ ## tool, argument object
 		"$rigHarness" --intern-tool "$1" 2>/dev/null )" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from $1 $2, so the tool was never exercised"
 	case "$rigOut" in
-		*'could not be computed'*CLIENT_ACCESS_ROOTS_EXTRA*) printf 'refused-with-reason' ;;
+		*'could not be computed'*)                           printf 'refused-with-reason' ;;
 		*'not in the allowed access-root set'*)              printf 'refused-not-granted' ;;
 		*rig-keeper-armed*)                                  printf 'read-armed' ;;
 		*rig-keeper-boot*)                                   printf 'read-boot' ;;
@@ -230,7 +230,7 @@ rigConsole(){
 	)" || :
 	[ -n "$rigOut" ] || rigRefuse "no output from the console, so its root resolution was never exercised"
 	case "$rigOut" in
-		*'could not be computed'*CLIENT_ACCESS_ROOTS_EXTRA*) printf 'refused-with-reason' ;;
+		*'could not be computed'*)                           printf 'refused-with-reason' ;;
 		*'# console: scaleway access roots:'*)               printf 'roots-resolved' ;;
 		*)                                                   printf 'other' ;;
 	esac
@@ -242,15 +242,16 @@ mkdir -p "$rigTmp/ws/.local"
 printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigTmp/ws/.local/MDLT.settings.env"
 rigAssert "the console resolves the set when it can be computed" "$( rigConsole )" "roots-resolved"
 
-echo "-- a set that cannot be computed is refused, with its reason --"
-## The config store is present and the name that reads it fails: the producer refuses.
+echo "-- the retired CLIENT_ACCESS_ROOTS_EXTRA is read by nothing --"
+## A config store still holding it, and a tooling name that fails: the set is computed
+## all the same, since nothing reads the setting any more.
 mkdir -p "$rigTmp/ws/.local/.agents"
 printf 'CLIENT_ACCESS_ROOTS_EXTRA=/rig\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
 DistroAgentsTools(){ return 7 ; }
 export -f DistroAgentsTools
-rigAssert "Read names why the set is missing, on stdout" \
-	"$( rigCall Read "{\"path\":\"$rigTmp/home/.claude/skills/rig-keeper/rig-keeper.armed.md\"}" )" "refused-with-reason"
-rigAssert "the console refuses the spawn and names why" "$( rigConsole )" "refused-with-reason"
+rigAssert "Read is served, the stored value never read" \
+	"$( rigCall Read "{\"path\":\"$rigTmp/home/.claude/skills/rig-keeper/rig-keeper.armed.md\"}" )" "read-armed"
+rigAssert "the console resolves the set all the same" "$( rigConsole )" "roots-resolved"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ SKILL READ CHECK FAILED: $rigFails assertion(s)" >&2

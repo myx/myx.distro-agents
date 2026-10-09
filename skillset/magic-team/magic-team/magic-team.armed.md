@@ -342,6 +342,9 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 - `--member-audit-item-read`
 - `--member-vault-item-read`
 - `--member-append-session-transcript`
+- `--member-permission-list <team-member>`
+- `--member-directory-list` / `--member-directory-path <name>[/<relative>]`
+- `--member-namespace-list [<namespace>]`
 - `--owner-workspace-list` / `--owner-workspace-upsert` / `--owner-workspace-forget`
 - `--owner-cleanup-purge`
 

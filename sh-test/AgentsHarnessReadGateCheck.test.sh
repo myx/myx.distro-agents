@@ -54,28 +54,32 @@ export RIG_CURL_LOG
 rigHome="$rigTmp/home"
 rigSkills="$rigTmp/skills"
 mkdir -p "$rigHome"
-for rigName in magic-tester magic-developer magic-coordinator ; do
+for rigName in magic-tester magic-developer magic-coordinator magic-librarian ; do
 	mkdir -p "$rigSkills/$rigName"
 	printf '# %s\n' "$rigName" > "$rigSkills/$rigName/$rigName.basic.md"
 done
 
-## The rig workspace. source/ is a default root every member reads. OUT/ is granted to
-## the coordinator only, which is what lets it approve a read there. DEVR/ is the
-## developer's own allow-read row. ALL/ and ALLW/ are an allow-read and an allow-write row
-## declared for `*`.
+## The rig workspace, agents installed. source/ is no member's floor: magic-librarian reads it
+## by its standing row, as --make-agents-indices writes it, and every member its MAGIC.md,
+## README.md and docs/**.md. OUT/ is granted to the coordinator only, which is what lets it
+## approve a read there. DEVR/ is the developer's own allow-read row. ALL/ and ALLW/ are an
+## allow-read and an allow-write row declared for `*`.
 rigWs="$rigTmp/ws"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigData/board/processed"
+mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigData/board/running" "$rigData/board/processed" "$rigWs/source/p/docs"
 for rigDir in source OUT DEVR ALL ALLW ; do
 	mkdir -p "$rigWs/$rigDir"
 	printf 'rig-seed %s\n' "$rigDir" > "$rigWs/$rigDir/seed.txt"
 done
+for rigDir in p/MAGIC.md p/README.md p/docs/a.md ; do printf 'rig-seed %s\n' "$rigDir" > "$rigWs/source/$rigDir" ; done
+: > "$rigWs/.local/agents/members.registry"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 {
 	printf 'magic-coordinator:ws:workspace:Edit(/%s/OUT/**)\n' "$rigWs"
 	printf 'magic-developer:ws:workspace:Read(/%s/DEVR/**)\n' "$rigWs"
 	printf '*:ws:workspace:Read(/%s/ALL/**)\n' "$rigWs"
 	printf '*:ws:workspace:Edit(/%s/ALLW/**)\n' "$rigWs"
+	printf 'magic-librarian:ws:builtin:Read(/%s/source/**)\n' "$rigWs"
 } > "$rigWs/.local/agents/permissions.registry"
 printf -- '---\nstatus: task\nowner: magic-tester\n---\n\n# Task\n' > "$rigData/board/running/task-rig.md"
 
@@ -155,13 +159,16 @@ rigLineOf(){ ## prefix
 	LC_ALL=C awk -v wantPrefix="$1" 'index( $0, wantPrefix ) == 1 { print ; found = 1 ; exit ; } END { if ( ! found ) { print "no-" wantPrefix "line" ; } }' "$rigTmp/out"
 }
 
-echo "-- the default roots: an allowed read passes and records nothing --"
-rigAssert "Read under the workspace source passes"         "$( rigRead magic-tester rig-session "$rigWs/source/seed.txt" )" read
-rigAssert "Grep there passes"                              "$( rigGrep magic-tester rig-session "$rigWs/source" )" read
-rigAssert "Glob there passes"                              "$( rigGlob magic-tester rig-session "$rigWs/source" )" read
+echo "-- the floor and the standing rows: an allowed read passes and records nothing --"
+rigAssert "magic-librarian reads the workspace source"     "$( rigRead magic-librarian rig-lib "$rigWs/source/seed.txt" )" read
+rigAssert "its Grep there passes"                          "$( rigGrep magic-librarian rig-lib "$rigWs/source" )" read
+rigAssert "its Glob there passes"                          "$( rigGlob magic-librarian rig-lib "$rigWs/source" )" read
+rigAssert "every member reads MAGIC.md, README.md and docs/**.md under source" "$( rigRead magic-tester rig-session "$rigWs/source/p/MAGIC.md" ):$( rigRead magic-tester rig-session "$rigWs/source/p/README.md" ):$( rigRead magic-tester rig-session "$rigWs/source/p/docs/a.md" )" "read:read:read"
 printf 'rig-seed member\n' > "$rigSkills/magic-developer/seed.txt"
 rigAssert "a member folder is readable"                    "$( rigRead magic-tester rig-session "$rigSkills/magic-developer/seed.txt" )" read
 rigAssert "no refusal is recorded"                         "$( rigRecordCount )" 0
+rigAssert "another member does not read the rest of source" "$( rigRead magic-tester rig-src "$rigWs/source/seed.txt" ):$( rigGrep magic-tester rig-src "$rigWs/source" ):$( rigGlob magic-tester rig-src "$rigWs/source" )" "refused:refused:refused"
+rm -rf "$rigWs/.local/agents/sessions/rig-src"
 
 echo "-- a read outside the set is refused, recorded, and escalatable --"
 rigTarget="$rigWs/OUT/seed.txt"

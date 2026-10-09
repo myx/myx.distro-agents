@@ -486,9 +486,7 @@ DagcAccessAppend(){
 }
 : "${MDAT_SPAWN_AGENT:=magic-coordinator}"
 if [ -n "$DAGC_ACCESS_WRITE_FLAG" ] ; then
-	## The include reaches the config store through this name. This console otherwise
-	## calls the tool by path, so without this the machine's own extra read roots are
-	## dropped in silence and a narrower grant looks exactly like a full one.
+	## The tooling by name, as every other caller of the access-root include has it.
 	if ! type DistroAgentsTools >/dev/null 2>&1 ; then
 		DistroAgentsTools(){ "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ; }
 	fi

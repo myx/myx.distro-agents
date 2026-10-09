@@ -20,9 +20,6 @@ AgentsToolsOwnerSetupOptionSpec(){
 		SPAWN_CLI_SERVICE)
 			printf '%s\n' 'magic-team|<cli-name>|plain|the agent CLI this workspace starts -- copilot, claude, claude-native, grok, grok-native or scaleway. A spawned agent runs non-interactively, where the console accepts only copilot, claude, claude-native, grok and scaleway.'
 		;;
-		CLIENT_ACCESS_ROOTS_EXTRA)
-			printf '%s\n' 'magic-team|<abs-path>[:<abs-path>...]|plain|extra directories a spawned agent may read and write, beyond the member and source roots the installer already grants. Absolute paths, colon-separated.'
-		;;
 		WEB_ALLOW_PREFIXES)
 			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|extra URL prefixes WebFetch may fetch, beyond the built-in http and https prefixes of wikipedia.org and freebsd.org. Space-separated, such as https://docs.example.org/api/. A prefix covers its scheme, its host and the subdomains of that host, and every path that starts with its own.'
 		;;

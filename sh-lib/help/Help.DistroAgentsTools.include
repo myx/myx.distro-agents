@@ -182,6 +182,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-directory-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-directory-path <name>[/<relative>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-namespace-list [<namespace>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-contact-digest-send <team-member> (--resolved|--needs-ruling) <text...>" >&2
@@ -244,6 +247,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coor
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>" >&2
@@ -265,10 +271,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>..." >&2
 		return 0
 	;;

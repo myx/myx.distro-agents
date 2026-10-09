@@ -62,7 +62,7 @@ case "$1" in
 		fi
 		[ -n "${MMDAPP:-}" ] || { echo "⛔ ERROR: $MDSC_CMD $historyOp: MMDAPP is not set" >&2 ; set +e ; return 1 ; }
 
-		## The readable roots: the workspace and the access roots the machine configures, each resolved once, so a containment check compares real paths.
+		## The readable roots: the workspace and the reference read roots, each resolved once, so a containment check compares real paths.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 		local historyRoots="" historyRoot historyRead
 		historyRead="$( AgentsToolsClientAccessReferenceRoots read "$MMDAPP" )" || { set +e ; return 1 ; }
@@ -98,7 +98,7 @@ case "$1" in
 				case "$historyDir/" in "$historyRoot"/*) historyTop="in" ; break ;; esac
 			done <<< "$historyRoots"
 			if [ -z "$historyTop" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD $historyOp: path is outside the readable roots: $historyArg (add its root to CLIENT_ACCESS_ROOTS_EXTRA)" >&2
+				echo "⛔ ERROR: $MDSC_CMD $historyOp: path is outside the readable roots: $historyArg (this workspace and the reference roots)" >&2
 				historyFailed="true" ; continue
 			fi
 			historyTop="$( git -C "$historyBase" rev-parse --show-toplevel 2>&1 )" || {

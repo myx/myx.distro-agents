@@ -35,10 +35,10 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
-rigWs="$rigTmp/ws" ; rigRoot1="$rigTmp/root1" ; rigRoot2="$rigTmp/root2" ; rigOutside="$rigTmp/outside" ; rigHome="$rigTmp/home"
+## The readable roots beside the workspace are the reference read roots the access-root function names, $HOME/.claude/skills
+## among them; the two rig roots sit there.
+rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigRoot1="$rigHome/.claude/skills/root1" ; rigRoot2="$rigHome/.claude/skills/root2" ; rigOutside="$rigTmp/outside"
 mkdir -p "$rigWs/.local/.agents" "$rigRoot1" "$rigRoot2" "$rigOutside" "$rigHome/.claude/skills"
-## The access roots come through the same config key the access-root function reads: CLIENT_ACCESS_ROOTS_EXTRA, colon separated.
-printf 'CLIENT_ACCESS_ROOTS_EXTRA=%s:%s\n' "$rigRoot1" "$rigRoot2" > "$rigWs/.local/.agents/magic-team.agent.env"
 
 rigGit(){ ## repository, author date, subject, then the git commit arguments... -- one commit with both dates fixed
 	local gitRepo="$1" gitDate="$2" gitSubject="$3" ; shift 3
@@ -126,11 +126,11 @@ rigAssert "inside the configured root: exit 0, one block, its one commit" "$( ri
 echo "-- 3. a path outside the roots --"
 rigRun "$rigTmp/r3" "$rigOutside/o.txt"
 rigAssert "outside every root: exit 1"                           "$( rigRc "$rigTmp/r3" )" 1
-rigAssert "it is refused with an error naming CLIENT_ACCESS_ROOTS_EXTRA" "$( rigOpErrors "$rigTmp/r3" ) $( rigStderrHas "$rigTmp/r3" 'CLIENT_ACCESS_ROOTS_EXTRA' )" "1 1"
+rigAssert "it is refused with an error naming the readable roots" "$( rigOpErrors "$rigTmp/r3" ) $( rigStderrHas "$rigTmp/r3" 'outside the readable roots' )" "1 1"
 rigAssert "it is skipped: no block and no commit line on stdout" "$( rigBlocks "$rigTmp/r3" ) $( rigCommits "$rigTmp/r3" )" "0 0"
-rigAssert "sibling: the same repository's history is read once its root is named" \
-	"$( printf 'CLIENT_ACCESS_ROOTS_EXTRA=%s:%s:%s\n' "$rigRoot1" "$rigRoot2" "$rigOutside" > "$rigWs/.local/.agents/magic-team.agent.env" ; rigRun "$rigTmp/r3b" "$rigOutside/o.txt" ; printf '%s %s %s' "$( rigRc "$rigTmp/r3b" )" "$( rigBlocks "$rigTmp/r3b" )" "$( rigSubjects "$rigTmp/r3b" )" )" "0 1 outside commit|"
-printf 'CLIENT_ACCESS_ROOTS_EXTRA=%s:%s\n' "$rigRoot1" "$rigRoot2" > "$rigWs/.local/.agents/magic-team.agent.env"
+rigAssert "sibling: the retired CLIENT_ACCESS_ROOTS_EXTRA naming its root opens nothing" \
+	"$( printf 'CLIENT_ACCESS_ROOTS_EXTRA=%s\n' "$rigOutside" > "$rigWs/.local/.agents/magic-team.agent.env" ; rigRun "$rigTmp/r3b" "$rigOutside/o.txt" ; printf '%s %s' "$( rigRc "$rigTmp/r3b" )" "$( rigBlocks "$rigTmp/r3b" )" )" "1 0"
+rm -f "$rigWs/.local/.agents/magic-team.agent.env"
 
 echo "-- 4. the history of a deleted file --"
 rigRun "$rigTmp/r4" gone.txt
@@ -198,7 +198,7 @@ rigRun "$rigTmp/r9a" link-out
 rigAssert "a symlink pointing outside the roots: exit 1, an error, skipped" "$( rigRc "$rigTmp/r9a" ) $( rigOpErrors "$rigTmp/r9a" ) $( rigBlocks "$rigTmp/r9a" ) $( rigCommits "$rigTmp/r9a" )" "1 1 0 0"
 rigRun "$rigTmp/r9c" link-out/o.txt
 rigAssert "and so is a path through it, never read from the repository it leads to" "$( rigBlocks "$rigTmp/r9c" ) $( rigCommits "$rigTmp/r9c" ) $( rigSubjects "$rigTmp/r9c" )" "0 0 "
-rigAssert "sibling: that repository named by its real path is outside the roots too, refused with the hint, so the refusal is the symlink's own" "$( rigRc "$rigTmp/r3" ) $( rigStderrHas "$rigTmp/r3" 'CLIENT_ACCESS_ROOTS_EXTRA' )" "1 1"
+rigAssert "sibling: that repository named by its real path is outside the roots too, refused with the hint, so the refusal is the symlink's own" "$( rigRc "$rigTmp/r3" ) $( rigStderrHas "$rigTmp/r3" 'outside the readable roots' )" "1 1"
 rigRun "$rigTmp/r9b" "$rigRoot1/r.txt"
 rigAssert "sibling: a real path inside a configured root is accepted"        "$( rigRc "$rigTmp/r9b" ) $( rigBlocks "$rigTmp/r9b" ) $( rigSubjects "$rigTmp/r9b" )" "0 1 root commit|"
 rigRun "$rigTmp/r9d" link-root
@@ -208,7 +208,7 @@ echo "-- 10. two paths, two repositories --"
 rigRun "$rigTmp/r10a" a.txt "$rigRoot1/r.txt"
 rigAssert "two repositories give two blocks, each headed by its path, exit 0" "$( rigRc "$rigTmp/r10a" ) $( rigBlocks "$rigTmp/r10a" ) $( LC_ALL=C grep -c -x -e "## $rigWs/a.txt" -e "## $rigRoot1/r.txt" "$rigTmp/r10a.out" || : ) $( rigCommits "$rigTmp/r10a" )" "0 2 2 4"
 rigRun "$rigTmp/r10b" a.txt "$rigOutside/o.txt"
-rigAssert "one skipped path gives exit 1 while the other still prints"       "$( rigRc "$rigTmp/r10b" ) $( rigBlocks "$rigTmp/r10b" ) $( rigCommits "$rigTmp/r10b" ) $( rigStderrHas "$rigTmp/r10b" 'CLIENT_ACCESS_ROOTS_EXTRA' )" "1 1 3 1"
+rigAssert "one skipped path gives exit 1 while the other still prints"       "$( rigRc "$rigTmp/r10b" ) $( rigBlocks "$rigTmp/r10b" ) $( rigCommits "$rigTmp/r10b" ) $( rigStderrHas "$rigTmp/r10b" 'outside the readable roots' )" "1 1 3 1"
 rigRun "$rigTmp/r10c" "$rigOutside/o.txt" a.txt
 rigAssert "and the order of the paths does not matter"                       "$( rigRc "$rigTmp/r10c" ) $( rigBlocks "$rigTmp/r10c" ) $( rigCommits "$rigTmp/r10c" )" "1 1 3"
 

@@ -16,7 +16,7 @@
 ##   4. the member-workspace resolver, the access-root producer, the grant union through
 ##      the shared pointers, the provenance tags and the tracked-workspace list all read
 ##      the new files;
-##   5. --install-claude-permissions turns a declared allow-read into Read(...) rows, its
+##   5. --make-agents-indices turns a declared allow-read into Read(...) rows, its
 ##      selector resolved exactly as allow-write's, tagged alike, projected into the
 ##      settings as Read only and into the read roots only; a malformed verb of either is
 ##      refused alike and leaves the registry as it stood.
@@ -141,9 +141,11 @@ rigAssert "a rebuilt index still ignores the vendor folders" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "magic-coordinator" { print $2 }' "$rigIndex" )" "$rigBundle/magic-coordinator"
 
 echo "-- the resolver, the grants, the tags and the workspace list read the new files --"
+rigAssert "the user-home install registers no workspace: registration is the update's own step" "$( ls "$rigHome/.agents/magic-team" 2>/dev/null | LC_ALL=C grep -c -e directories -e known-workspaces )" 0
 rigRun --owner-workspace-upsert "$rigOther" >/dev/null 2>&1
-rigAssert "an install into the machine registry tracks its own workspace" "$( LC_ALL=C grep -c -x -F "$( cd "$rigWs" && pwd )" "$rigHome/.agents/magic-team/known-workspaces.registry" 2>/dev/null )" 1
-rigAssert "the tracked workspace list is the machine-wide one" "$( LC_ALL=C grep -c -x -F "$rigOther" "$rigHome/.agents/magic-team/known-workspaces.registry" 2>/dev/null )" 1
+rigAssert "the upsert writes this workspace's own registry: its own row, then the owner row" \
+	"$( LC_ALL=C awk -F'\t' '{ printf "%s:%s:%s ", $1, $2, $5 }' "$rigWs/.local/agents/directories.registry" 2>/dev/null )" "ws-here:workspace:workspace ws-other:workspace:owner "
+rigAssert "and the machine-wide pointers name both, under this workspace's root" "$( LC_ALL=C awk -F'\t' -v r="$rigWs" '$2 == r' "$rigHome/.agents/magic-team/directories.registry" 2>/dev/null | LC_ALL=C grep -c . )" 2
 rigAssert "and no list is written beside the vendor links" "$( [ -e "$rigHome/.claude/skills/.human-owner.workspaces.md" ] && printf yes || printf no )" no
 rigAssert "the resolver switches to the workspace publishing the member's source" \
 	"$( env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigWs" bash -c '. "'"$rigHere"'/AgentsTools.MemberWorkspace.include" ; AgentsToolsMemberWorkspaceResolve keeper-rig --rig' 2>&1 )" "$rigOther"
@@ -264,10 +266,17 @@ rigCount(){ ## fixed text, file -- how many times it occurs
 rigGrantRun --owner-workspace-upsert "$rigG1"
 rigGrantRun --owner-workspace-upsert "$rigG2"
 rigGrantDeclares "magic-team:permissions:workspace:.:allow-read:keeper-o:ronly/**"
+## The registry is --make-agents-indices's; --install-claude-permissions projects it.
+rigGrantRun --make-agents-indices
+rigAssert "control: the registry was written on a trusted scan, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'make-agents-indices: wrote .*permissions.registry' "$rigTmp/grants.out" )" "0 1"
 rigGrantRun --install-claude-permissions
-rigAssert "control: the install ran on a trusted scan, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'claude permissions installed' "$rigTmp/grants.out" )" "0 1"
+rigAssert "control: the install ran, rc 0" "$rigGrantRc $( LC_ALL=C grep -c 'claude permissions installed' "$rigTmp/grants.out" )" "0 1"
+## A namespace grant applies in every tooling workspace: `.` and `*` both name the one
+## namespace here, so one row each in gws-one and gws-two, the same row never twice.
 rigAssert "control: allow-write rows for every scope, its selectors resolved" \
 	"$( LC_ALL=C awk -F: '$1 == "keeper-w" { print $3 }' "$rigGReg" | LC_ALL=C sort | uniq -c | LC_ALL=C awk '{ printf "%s:%s ", $2, $1 }' )" "namespace:2 project:1 workspace:4 "
+rigAssert "a namespace grant applies in every tooling workspace" \
+	"$( LC_ALL=C grep -c -F -e "keeper-w:gws-one:namespace:Edit(/$rigG1/source/rig/**)" -e "keeper-w:gws-one:namespace:Edit(/$rigG2/source/rig/**)" "$rigGReg" )" 2
 rigAssert "allow-read rows are the allow-write rows, scope by scope and root by root, the verb aside" \
 	"$( rigGrantRows "$rigGReg" keeper-r )" "$( rigGrantRows "$rigGReg" keeper-w )"
 rigAssert "every allow-read row is Read, none Edit or Write" \
@@ -298,10 +307,10 @@ rigGrantRefusal(){ ## malformed verb -- rc, its refusal count, the untrusted war
 		"$( LC_ALL=C grep 'unsupported permissions verb' "$rigTmp/grants.out" | LC_ALL=C sed "s/$1/VERB/g" )"
 }
 rigGrantDeclares "magic-team:permissions:workspace:.:allow-read:keeper-o:ronly/**" "magic-team:permissions:workspace:.:allow-reads:keeper-x:bad/**"
-rigGrantRun --install-claude-permissions
+rigGrantRun --make-agents-indices
 rigGrantBadRead="$( rigGrantRefusal allow-reads )"
 rigGrantDeclares "magic-team:permissions:workspace:.:allow-read:keeper-o:ronly/**" "magic-team:permissions:workspace:.:allow-writes:keeper-x:bad/**"
-rigGrantRun --install-claude-permissions
+rigGrantRun --make-agents-indices
 rigGrantBadWrite="$( rigGrantRefusal allow-writes )"
 rigAssert "a malformed allow-read is refused: rc 0, one refusal, the scan untrusted, the registry kept" "${rigGrantBadRead%%|*}" "0 1 1 kept"
 rigAssert "control: so is a malformed allow-write" "${rigGrantBadWrite%%|*}" "0 1 1 kept"

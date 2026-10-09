@@ -104,10 +104,12 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-audit-item-read <team-member> <document-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-vault-item-read <team-member> <item-name> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-board-item-read <team-member> <item-name> [--board-state <state>]... [--start-line <N> --end-line <N>]
-📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path>
-📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <path>
+📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
+📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-forget <name>
 📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-list
-📘 syntax: DistroAgentsTools.fn.sh --owner-workspace-current
+📘 syntax: DistroAgentsTools.fn.sh --member-directory-list
+📘 syntax: DistroAgentsTools.fn.sh --member-directory-path <name>[/<relative>]
+📘 syntax: DistroAgentsTools.fn.sh --member-namespace-list [<namespace>]
 📘 syntax: DistroAgentsTools.fn.sh --install-claude-permissions
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-skillset-symlinks [--scope workspace|user-home] [--workspace <path>]
@@ -147,6 +149,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
@@ -1902,38 +1907,59 @@
 			canonical order. `--start-line`/`--end-line` must be a
 			complete pair.
 
-		--owner-workspace-upsert <path>
-			Adds one filesystem path to the human-owner's tracked workspace
-			list at $HOME/.agents/magic-team/known-workspaces.registry -- a
-			bare, one-absolute-path-per-line file, the ONLY authoritative
-			source for the workspace paths the magic-* team tracks.
-			<path> must be absolute (starts with `/`); a trailing slash
-			is stripped before comparing/storing, so `/foo/bar` and
-			`/foo/bar/` collapse to the same entry. Idempotent -- an
-			already-tracked path is a harmless no-op. Existence of <path>
-			on disk is not checked (a tracked workspace may live on a
-			currently-unmounted volume). The directory and file are
-			created on first use.
+		--owner-workspace-upsert <path> [--name <name>] [--kind workspace|directory] [--ceiling read-only|read-write]
+			Registers a place no project declares, in this workspace's
+			own registry (.local/agents/directories.registry), with a
+			pointer in $HOME/.agents/magic-team/directories.registry.
+			<path> must be absolute; a trailing slash is dropped.
+			--name defaults to the path's basename; --kind defaults to
+			workspace, which is always read-write; --ceiling defaults to
+			read-write. Registering a place grants nothing. The same row
+			again is a no-op; a name a project of this workspace
+			declares for another path is refused. Existence of <path> is
+			not checked (it may live on an unmounted volume).
+			Places a project declares need no call: a project.inf
+			Declares line `magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>`
+			or `magic-team:workspace:<name>:<path>:<host-glob>` registers
+			one on every update, its path absolute, `~/...`, or relative
+			to the workspace.
 
-		--owner-workspace-forget <path>
-			Removes one filesystem path from the same tracked workspace
-			list. Same trailing-slash normalization as
-			--owner-workspace-upsert. Forgetting an untracked path, or
-			when the file doesn't exist yet, is a harmless no-op.
+		--owner-workspace-forget <name>
+			Removes the place of that name that --owner-workspace-upsert
+			registered in this workspace. A name a project declares, or
+			this workspace's own, is refused; an unknown name is a
+			harmless no-op.
 
 		--owner-workspace-list
-			Prints every tracked workspace path, one per line, in file
-			order -- reads only lines that look like an absolute path, so
-			stray non-data content in the file is read as commentary, not
-			a tracked path. Takes no arguments. Prints nothing (no error)
-			if the file doesn't exist yet or has no tracked paths.
+			Prints every registered place of every workspace, one per
+			line, TAB-separated: name, kind (workspace or directory),
+			ceiling (read-only or read-write), path, and present, absent
+			(not on this host) or unknown (its workspace cannot be read).
+			The same name with another path: this workspace's keeps the
+			name, each other is written <name>@<workspace>; with none
+			here, one warning, and each is written <name>@<workspace>.
+			Takes no arguments; prints nothing when no place is
+			registered yet.
 
-		--owner-workspace-current
-			Registers this tool's own workspace root ($MMDAPP) into the
-			tracked workspace list, exactly as --owner-workspace-upsert
-			does, then prints that path to stdout. Takes no arguments --
-			a convenience for "track my current workspace and tell me its
-			path" in one call.
+		--member-directory-list
+			Prints every registered place, one per line, TAB-separated:
+			name (or <name>@<workspace>, as --owner-workspace-list
+			writes it), kind (workspace or directory) and ceiling
+			(read-only or read-write). Never a path: ask for one by name
+			with --member-directory-path. Takes no arguments.
+
+		--member-directory-path <name>[/<relative>]
+			Prints the path of the place <name>, or of <relative> under
+			it. A <relative> with a .. segment, or starting with /, is
+			refused, and so is a name no place carries. A place absent
+			on this host is printed with a warning. A path grants
+			nothing: reading or writing there still needs a grant.
+
+		--member-namespace-list [<namespace>]
+			Prints this workspace's distro projects by name, one per
+			line, TAB-separated: namespace, project. With <namespace>,
+			that namespace's only. Names only, to name the namespaces a
+			dispatch or a task needs.
 
 		--owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]
 			Reports, and where supported carries out, setup of one
@@ -1950,7 +1976,7 @@
 			not listed below; a domain with none declared is
 			refused, not answered empty.
 
-			A value to store -- a config option, --access-root, or
+			A value to store -- a config option, or
 			--values-from-stdin (KEY=VALUE lines) -- is accepted
 			only with --apply, refused otherwise. --workspace-root
 			(which workspace this call is about) is accepted by
@@ -1977,9 +2003,6 @@
 			Configuration options, `claude`:
 			  --workspace-root <path>  workspace to set up.
 			      Default $MMDAPP; a non-root path is an error.
-			  --access-root <path>     extra read/write dir for a
-			      spawned agent, beyond the defaults. Repeatable,
-			      optional.
 
 			Configuration options, `slack`:
 			  SLACK_CHANNEL_MAGIC_TEAM   team channel id. Required.
@@ -2045,23 +2068,16 @@
 			grants into `$HOME/.claude/settings.json`
 			(`permissions.allow`/`permissions.deny`) -- additive,
 			existing entries this op didn't add are kept.
-			`--workspace <path>` (default `$MMDAPP`) selects which
-			workspace's rows are reconciled. A revoked grant can
+			`--workspace <path>` (default `$MMDAPP`) selects the
+			workspace whose registries are read. A revoked grant can
 			still apply while another workspace still records it.
 
-			Each workspace's declared grants and their provenance tags
-			are its own data, in `<workspace>/.local/agents/
-			permissions.registry` and `permissions-tags.registry`,
-			rewritten whole on every trusted run. The machine-wide
-			`$HOME/.agents/magic-team/permissions.registry` holds only
-			pointers -- the root of each workspace that publishes
-			grants -- and the grant set written here is the union of
-			every such workspace's own file.
-
-			A declared grant is `<scope>:<selector>:<verb>:<member>
-			[:<glob>]`: `allow-write` becomes an `Edit(...)` grant,
-			`allow-read` a `Read(...)` grant and never a write,
-			`allow-tool` a member's standing `<tool>[:<target>]`.
+			Projects the permissions registries
+			`--make-agents-indices` writes, every workspace's own,
+			and writes none. What a run projected is kept in
+			`<workspace>/.local/agents/claude-permissions.projected`,
+			so the next run drops an entry no registry claims any
+			more, and nothing else; a first run drops nothing.
 
 			Upserts the fixed grants (`mcp__myx_common`,
 			`mcp__myx_distro`, `Agent`, `Task`, `SendMessage`, one
@@ -2074,10 +2090,7 @@
 			prior board grant and every prior `Write` grant a
 			member held.
 
-			A scan failure or empty workspace suppresses revocation
-			rather than reading as "every grant disappeared" --
-			existing grants stay, the reason is reported. Any other
-			failure fails loud, file untouched. A no-op run is
+			A failure fails loud, file untouched. A no-op run is
 			reported as such.
 
 		--install-workspace-restrictions [--workspace <path>]
@@ -2089,9 +2102,8 @@
 			Default target is the current shell directory;
 			`--workspace <path>` overrides it.
 
-			Also grants `Read` on any path listed in the
-			workspace's own `CLIENT_ACCESS_ROOTS_EXTRA` config
-			key, for access outside the workspace.
+			Also grants `Read` on the reference read roots (this
+			origin's skillset, `$HOME/.claude/skills`).
 
 			Refuses (exit 1, nothing written) when `<workspace>`
 			isn't a genuine workspace root (no `<workspace>/.local`),
@@ -2256,10 +2268,31 @@
 			is missing, `not decided yet` or not valid is stored `-`
 			and warned about, unless the member is reference-only.
 			Every client-* row carries the persona member's values
-			instead (its own files and scope are not read). Takes no arguments, prints
-			nothing on stdout, notes each file on stderr, and fails
-			only when a file cannot be written. Run by the install
-			and by the source-prepare build.
+			instead (its own files and scope are not read).
+
+			Then the grants. `permissions.registry` (`member:workspace:
+			kind:grant`), and its `permissions-tags.registry`, from what
+			this workspace's projects declare, `magic-team:permissions:
+			<scope>:<selector>:<verb>:<member>[:<glob>]`, and what every
+			registered tooling workspace without agents declares (`.`
+			there is that workspace): `namespace:<ns|.|*>` in every
+			tooling workspace, `workspace:<name|.|*>`,
+			`directory:<name>` through the registered places, capped to
+			read on a read-only one, and `project:<selector>`;
+			`allow-write` an `Edit(...)` row, `allow-read` a `Read(...)`
+			row, `allow-tool` a `<tool>[:<target>]` row. A name no
+			place carries is an `unresolved` row, with a warning. Every
+			acting member's own directory, and magic-librarian's read
+			of `source/**`. A scan that cannot be trusted keeps the
+			registry as it stood. Then `grants.index`: every member's
+			rows of every workspace's registry, fully unrolled (`*` one
+			row per member), the workspace floor, and the places'
+			ceilings -- what every permission check reads. A reader
+			finding it stale or missing rebuilds it.
+
+			Takes no arguments, prints nothing on stdout, notes each
+			file on stderr, and fails only when a file cannot be
+			written. Run by the install and by the source-prepare build.
 
 		--make-console-command [--quiet]
 			Re-creates `DistroAgentsConsole.sh`, the command to quickly
@@ -2858,7 +2891,37 @@
 			`## Decisions`; the grants end when the task closes or the
 			session ends. deny and edit grant nothing. --scope defaults
 			to task; the session is the caller's own unless named.
+			A target may name a registered place:
+			`<tool>:@<name>[:<glob>]`, the glob a path, ** or <path>/**
+			under it (default **), never with a .. segment; it is asked
+			for as that path. A path in a place is said as `PLACE:
+			<entry> is <name>:<relative>`, a hint recorded with the
+			grant. A write in a read-only place is refused before
+			anything is asked, naming the route to take instead.
 			Only magic-coordinator, or the console, may call it.
+
+		--magic-permission-list --member <member> [--session-id <id>]
+		--member-permission-list <team-member> [--session-id <id>]
+			Prints one member's effective grants, one per line,
+			TAB-separated: kind (floor, standing, session, task or
+			once), read, write or the tool, the target, its place as
+			<name>:<relative> (or -), where it comes from (the declaring
+			workspace and selector, or `<ref> by <member>`), and when it
+			ends. Revoked, used, lapsed and ended grants are left out.
+			Every session store of the workspace is read, or with
+			--session-id only that session's own, coworking and parent
+			stores. --member-permission-list lists the caller's own
+			grants only; --magic-permission-list any member's, by
+			magic-coordinator or the console.
+
+		--magic-permission-revoke <ref> [--session-id <id>]
+			Revokes one session, task or once grant by its reference
+			(refusal-, pass- or set-<id>): a marker is written beside
+			its record, every reader leaves it out from the next check
+			on, and `REVOKED: <ref>` is printed (`already` when it
+			was). An unknown reference is refused. A task set written
+			as an item's `allows:` stays there. Only
+			magic-coordinator, or the console, may call it.
 
 		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 			Reads the records AskUserQuestion leaves, of any kind. With
@@ -3845,10 +3908,10 @@
 		# Read from specific board state(s) only, with optional line range
 		`DistroAgentsTools.fn.sh --member-board-item-read magic-coordinator task-example.md --board-state pending --board-state running --start-line 1 --end-line 40`
 
-		# Track a workspace path for the human-owner
+		# Register a workspace no project declares
 		`DistroAgentsTools.fn.sh --owner-workspace-upsert /Volumes/ws-2017/myx-work`
 
-		# List every currently-tracked workspace path
+		# List every registered place, with its kind, ceiling and path
 		`DistroAgentsTools.fn.sh --owner-workspace-list`
 
 		# Send an email with a multi-line body from stdin instead of fragile trailing argv

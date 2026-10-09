@@ -104,8 +104,8 @@ rigAssert "and changes nothing"                        "$( [ -e "$rigGitStore/bo
 echo "-- 4421: one path only --"
 rigOp "$rigTmp/w1" "$rigData" --owner-workspace-upsert "$rigTmp/a" "$rigTmp/b"
 rigAssert "upsert with two paths is refused"           "$( cat "$rigTmp/w1.rc" ):$( rigHolds "$rigTmp/w1" 'takes exactly one <path>, and more followed it' )" "1:yes"
-rigOp "$rigTmp/w2" "$rigData" --owner-workspace-forget "$rigTmp/a" "$rigTmp/b"
-rigAssert "forget with two paths is refused"           "$( cat "$rigTmp/w2.rc" ):$( rigHolds "$rigTmp/w2" 'takes exactly one <path>, and more followed it' )" "1:yes"
+rigOp "$rigTmp/w2" "$rigData" --owner-workspace-forget rig-a rig-b
+rigAssert "forget with two names is refused"           "$( cat "$rigTmp/w2.rc" ):$( rigHolds "$rigTmp/w2" 'takes exactly one <name>, and more followed it' )" "1:yes"
 rigAssert "and nothing was written under HOME"         "$( find "$rigTmp/home" -type f | LC_ALL=C grep -c . || : )" 0
 
 echo "-- 267: a member bundled and declared from the same folder --"

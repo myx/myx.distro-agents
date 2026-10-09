@@ -38,23 +38,6 @@
 			is an error rather than a fallback. Every sub-operation takes
 			it. It names a target; it stores no value.
 
-		--access-root <path>
-			One extra directory a spawned agent may read and write, beyond
-			the member and source roots the installer already grants.
-			Repeatable. Each path must be given absolute and must already
-			exist. Optional -- nothing is blocked by leaving it out.
-
-			Stored colon-joined as CLIENT_ACCESS_ROOTS_EXTRA in this
-			workspace's magic-team config scope -- the same setting
-			`--owner-setup-claude`/`--owner-setup-copilot` write, and the
-			one the harness itself reads out of the generated
-			`.claude/copilot-add-dir.fragment` at spawn time. Takes effect
-			only together with --apply.
-
-		--client-access-roots-extra <abs-path>[:<abs-path>...]
-			The same setting written as one colon-joined value instead of
-			one --access-root per directory. Optional.
-
 		--spawn-cli-service <cli-name>
 			Which agent CLI this workspace starts. You are never asked for
 			it: an --apply on this domain writes `scaleway` into it, and
@@ -125,8 +108,8 @@
 
 		The harness enforces its own access-root allow-list -- there is no
 		real binary for `--add-dir` to reach into, so
-		AgentsScalewayHarness.sh reads the same access fragment this
-		domain's own CLIENT_ACCESS_ROOTS_EXTRA feeds, and refuses any file
+		AgentsScalewayHarness.sh reads the same access-root set the other
+		spawn domains are granted, and refuses any file
 		read, write, list, grep or command whose path or working directory
 		falls outside it.
 
@@ -145,9 +128,6 @@
 		  SCALEWAY_DEEPSEEK='<key>' \
 		  | DistroAgentsTools.fn.sh --owner-setup-scaleway --values-from-stdin --apply
 		```
-
-		# Grant a spawned agent one more directory
-		`DistroAgentsTools.fn.sh --owner-setup-scaleway --access-root /Volumes/data/shared --apply`
 
 		# Point the CLI selection at scaleway, over an existing selection
 		`DistroAgentsTools.fn.sh --owner-setup-scaleway --set-as-default --apply`

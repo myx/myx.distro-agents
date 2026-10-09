@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternDirectory.include -- the place operations (AgentsTools.Places.include):
+## registering this workspace's places and the two resolvers, the tooling's; the members'
+## read-only views of the places and of the namespaces and projects, by name.
+##
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+
+case "$1" in
+	## This workspace's places, from its directives, its own row included, into its own
+	## registry and its pointers. Run on every update by --make-workspace-integrations.
+	--intern-directory-register)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-directory-register: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		local registerWs registerSelected="" registerDeclares="" registerStatus=0 registerTrusted="true" registerRows
+		registerWs="$( cd "${MMDAPP%/}" 2> /dev/null && pwd )" || {
+			echo "⛔ ERROR: $MDSC_CMD --intern-directory-register: workspace not found: $MMDAPP" >&2
+			set +e ; return 1
+		}
+		## Read off project.inf as it stands, as the member scan does: an empty or unread
+		## selection never drops a declared place, it keeps the rows as they stood.
+		if ! DistroAgentsContext --distro-from-source ; then
+			registerTrusted="false"
+		else
+			Require ListDistroProjects || :
+			Require ListDistroDeclares || :
+			registerSelected="$( Distro ListDistroProjects --select-all )" || registerStatus=$?
+			if [ "$registerStatus" != "0" ] || [ -z "$registerSelected" ] ; then
+				registerTrusted="false"
+			else
+				registerDeclares="$( MDSC_SELECT_PROJECTS="$registerSelected" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team' )" || registerTrusted="false"
+			fi
+		fi
+		AgentsToolsPlacesLegacyImport "$registerWs" || { set +e ; return 1 ; }
+		if [ "$registerTrusted" = "true" ] ; then
+			registerRows="$( printf '%s\n' "$registerDeclares" | AgentsToolsPlacesDirectiveRows "$registerWs" )"
+			printf '%s\n' "$registerRows" | AgentsToolsPlacesLocalUpdate "$registerWs" directives || { set +e ; return 1 ; }
+		else
+			echo "🙋 WARNING: $MDSC_CMD --intern-directory-register: the place directives of $registerWs were not read this run, its declared places are kept as they stood" >&2
+			AgentsToolsPlacesLocalUpdate "$registerWs" "owner:" < /dev/null || { set +e ; return 1 ; }
+		fi
+		echo "🧭 places registered: $( LC_ALL=C grep -c . "$( AgentsToolsPlacesLocalFile "$registerWs" )" ) in .local/agents/directories.registry" >&2
+		return 0
+	;;
+
+	## A place's path, by name or name@workspace.
+	--intern-directory-resolve)
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-directory-resolve: syntax is <name>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPlacesResolve "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The place holding a path, as name:relative.
+	--intern-directory-of)
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-directory-of: syntax is <path>" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPlacesOf "${MMDAPP%/}" "$1" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The registered places, for any member: name, kind and ceiling, never a path.
+	--member-directory-list)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-directory-list: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPlacesMergedText "${MMDAPP%/}" quiet | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 3 && $1 != "" { print $1, $2, $3 ; }'
+		return 0
+	;;
+
+	## One place's path by its name, or a path under it: <name>/<relative>. A relative part
+	## with a .. segment, or an absolute one, is refused, and so is a name no place carries.
+	--member-directory-path)
+		shift
+		if [ $# -ne 1 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-directory-path: syntax is <name>[/<relative>]" >&2
+			set +e ; return 1
+		fi
+		local pathName="${1%%/*}" pathRel="" pathBase
+		case "$1" in */*) pathRel="${1#*/}" ;; esac
+		case "/$pathRel/" in
+			*/../*)
+				echo "⛔ ERROR: $MDSC_CMD --member-directory-path: a .. segment is refused: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+		case "$pathRel" in
+			/*)
+				echo "⛔ ERROR: $MDSC_CMD --member-directory-path: the path under a place is relative to it: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+		if ! AgentsToolsPlacesNameValid "${pathName%%@*}" || { [ "$pathName" != "${pathName%%@*}" ] && ! AgentsToolsPlacesNameValid "${pathName#*@}" ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-directory-path: not a place name: $pathName" >&2
+			set +e ; return 1
+		fi
+		pathBase="$( AgentsToolsPlacesResolve "${MMDAPP%/}" "$pathName" )" || { set +e ; return 1 ; }
+		while [ -n "$pathRel" ] && [ "${pathRel%/}" != "$pathRel" ] ; do pathRel="${pathRel%/}" ; done
+		printf '%s\n' "${pathBase%/}${pathRel:+/$pathRel}"
+		return 0
+	;;
+
+	## This workspace's distro projects by name, for any member: namespace and project, one
+	## TAB-separated row each, over ListDistroProjects; one namespace only when named.
+	--member-namespace-list)
+		shift
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: syntax is [<namespace>]" >&2
+			set +e ; return 1
+		fi
+		local nsWant="${1:-}" nsSelected="" nsStatus=0
+		[ -z "$nsWant" ] || AgentsToolsAssertBareName "$nsWant" "<namespace>" member-namespace-list || { set +e ; return 1 ; }
+		if ! DistroAgentsContext --distro-from-source ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: cannot establish an input spec for workspace $MMDAPP" >&2
+			set +e ; return 1
+		fi
+		Require ListDistroProjects || :
+		nsSelected="$( Distro ListDistroProjects --select-all )" || nsStatus=$?
+		if [ "$nsStatus" != 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-namespace-list: ListDistroProjects --select-all exited $nsStatus" >&2
+			set +e ; return 1
+		fi
+		printf '%s\n' "$nsSelected" | LC_ALL=C awk -F/ -v OFS='\t' -v want="$nsWant" 'NF && $1 != "" && ( want == "" || $1 == want ) { print $1, $0 ; }'
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

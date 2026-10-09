@@ -539,7 +539,7 @@ printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 's
 rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the two registries and the member index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the build makes exactly the two registries, the member index and the grants index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
 rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )" "$rigSeedSum"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
@@ -584,7 +584,7 @@ rigAssert "and both registries are as they were"                           "$( c
 rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
 rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
-rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 8"
+rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 9"
 cp "$rigLinkedFile" "$rigTmp/linked.keep"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild
@@ -770,8 +770,8 @@ rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { 
 rigAssert "control: the make-workspace-integrations arm was cut out of the Make include" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- '--install-workspace-integrations' || : )" 1
 rigAssert "the arm calls the build once"                                   "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$rigOpName" || : )" 1
 rigAssert "the call is a whole line, with the failure return and no \"\$@\""  "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigOpName || { set +e ; return 1 ; }" || : )" 1
-rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' )"
-rigAssert "it is the first DistroAgentsTools call of the arm"              "$rigFirstCall" "$rigOpName"
+rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / && $2 != "--intern-directory-register" { print $2 ; exit }' )"
+rigAssert "it is the first DistroAgentsTools call of the arm after the places registration, which its grants read" "$rigFirstCall $( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' )" "$rigOpName --intern-directory-register"
 rigAssert "and it comes before --make-console-command and --install-workspace-integrations" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
 rigAssert "control: a sample with the call after the console command is not ordered" "$( printf '\t\tDistroAgentsTools --make-console-command\n\t\tDistroAgentsTools %s\n\t\tDistroAgentsTools --install-workspace-integrations\n' "$rigOpName" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" "not ordered"
 rigRunBuilder(){ ## agents scripts directory on the path or none -- the builder run as the source-prepare build runs it, the rig workspace as the workspace; rc in rigRc

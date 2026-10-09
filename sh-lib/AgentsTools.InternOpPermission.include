@@ -199,6 +199,9 @@ AgentsToolsPermissionHookDecision(){ ## allow|deny, message (deny only)
 ## What a member holds, by layer: the one computation every approve path, pass-on and
 ## set split asks (AgentsTools.PermissionHolds.include).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
+## The grants index and the session permission indices built from it (AgentsTools.Grants.include):
+## a grant opened, used up or revoked here touches its store, so they are rebuilt.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
 
 ## A permission entry `<tool>:<target>` split into permEntryTool and permEntryTarget; the
 ## tool a bare name, the target natural. rc 1, saying why, for an entry of no tool.
@@ -217,6 +220,83 @@ AgentsToolsPermissionNewRef(){ ## prefix
 	refUuid="$( uuidgen 2>/dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )" || refUuid=""
 	[ -n "$refUuid" ] || return 1
 	printf '%s%s' "$1" "$refUuid"
+}
+
+## The registered place a natural target lies in, as name:relative (--intern-directory-of), a
+## <path>/** pattern keeping its /**. Nothing for a target that is no absolute path, or lies in
+## no place. A hint only: a grant is matched by its path.
+AgentsToolsPermissionPlaceHint(){ ## natural target
+	local hintBase="$1" hintTail="" hintOf
+	case "$hintBase" in /*) ;; *) return 0 ;; esac
+	case "$hintBase" in *$'\n'*|*$'\t'*) return 0 ;; esac
+	case "$hintBase" in */'**') hintBase="${hintBase%/\*\*}" ; hintTail="/**" ;; esac
+	hintOf="$( DistroAgentsTools --intern-directory-of "$hintBase" 2> /dev/null )" || return 0
+	[ -n "$hintOf" ] || return 0
+	case "$hintOf:$hintTail" in *':.:/**') hintOf="${hintOf%.}" ; hintTail="**" ;; esac
+	printf '%s%s' "$hintOf" "$hintTail"
+}
+
+## A write tool asked for in a read-only place is refused before anything is asked or granted,
+## naming the route to take instead: the session sandbox output/ when the session has one,
+## else another suitable location. rc 1 refused, said on stderr; 0 otherwise.
+AgentsToolsPermissionCeilingRefuse(){ ## tool, natural target, session id, entry as asked
+	local ceilBase="$2" ceilPlace ceilRecord ceilRoute="find another suitable location"
+	case " Edit Write Execute " in *" $1 "*) ;; *) return 0 ;; esac
+	case "$ceilBase" in /*) ;; *) return 0 ;; esac
+	case "$ceilBase" in */'**') ceilBase="${ceilBase%/\*\*}" ;; esac
+	ceilBase="$( AgentsToolsPermissionResolvePath "$ceilBase" )"
+	ceilPlace="$( AgentsToolsGrantsCeilingPlace "${MMDAPP%/}" "$ceilBase" )" || return 0
+	case "$3" in
+		''|*/*|.|..) ;;
+		*)
+			for ceilRecord in "${MMDAPP%/}/.local/agents/spawned"/*/"$3.md" ; do
+				[ -f "$ceilRecord" ] || continue
+				ceilRoute="write to the session sandbox output/ instead, or a folder under it: ${ceilRecord%/*}/output/"
+				break
+			done
+		;;
+	esac
+	echo "$MDSC_CMD: ⛔ ERROR: $ceilPlace is a read-only place, so no write is granted there: $4 -- $ceilRoute" >&2
+	return 1
+}
+
+## One permission entry made ready to ask for: split into permEntryTool and permEntryTarget, an
+## @<name>[:<glob>] target resolved through --intern-directory-resolve to a path under that
+## place (the glob a path, ** or <path>/**, relative, never with a .. segment), and
+## permEntryPlace its place as name:relative, a hint, or empty. A write in a read-only place is
+## refused. rc 1, said on stderr.
+AgentsToolsPermissionEntryPlace(){ ## entry, session id
+	local placeName placeGlob placePath
+	permEntryPlace=""
+	AgentsToolsPermissionEntrySplit "$1" permission-set-request || return 1
+	case "$permEntryTarget" in
+		@*)
+			placeName="${permEntryTarget#@}" ; placeGlob=""
+			case "$placeName" in *:*) placeGlob="${placeName#*:}" ; placeName="${placeName%%:*}" ;; esac
+			case "/$placeGlob/" in
+				*/../*) echo "$MDSC_CMD: ⛔ ERROR: an entry glob has a .. segment: $1" >&2 ; return 1 ;;
+			esac
+			case "$placeGlob" in
+				/*) echo "$MDSC_CMD: ⛔ ERROR: an entry glob is relative to its place, never absolute: $1" >&2 ; return 1 ;;
+			esac
+			case "${placeGlob%/\*\*}" in
+				'**'|'') ;;
+				*'*'*|*'?'*|*'['*) echo "$MDSC_CMD: ⛔ ERROR: an entry glob is a path, ** or <path>/** under its place, no other pattern: $1" >&2 ; return 1 ;;
+			esac
+			placePath="$( DistroAgentsTools --intern-directory-resolve "$placeName" )" || {
+				echo "$MDSC_CMD: ⛔ ERROR: the entry names no place this workspace can resolve, so nothing is asked: $1" >&2
+				return 1
+			}
+			placePath="$( AgentsToolsPermissionResolvePath "$placePath" )"
+			case "$placeGlob" in
+				''|'**') permEntryTarget="${placePath%/}/**" ; permEntryPlace="$placeName:**" ;;
+				*) permEntryTarget="${placePath%/}/$placeGlob" ; permEntryPlace="$placeName:$placeGlob" ;;
+			esac
+		;;
+		*) permEntryPlace="$( AgentsToolsPermissionPlaceHint "$permEntryTarget" )" ;;
+	esac
+	AgentsToolsPermissionCeilingRefuse "$permEntryTool" "$permEntryTarget" "$2" "$1" || return 1
+	return 0
 }
 
 case "$1" in
@@ -406,8 +486,10 @@ case "$1" in
 		## No approving what you do not hold: the approver holds this tool and target, or is
 		## the human-owner. Refused with rc 3 and the holders up the chain, for the caller to
 		## re-address the request to.
-		local grantNatural grantHeld grantHolders
+		local grantNatural grantHeld grantHolders grantPlace
 		grantNatural="$( AgentsToolsPermissionRecordDecode "$grantTarget" )"
+		## No write is granted in a read-only place, by anyone: refused first, with the route.
+		AgentsToolsPermissionCeilingRefuse "$grantTool" "$grantNatural" "$grantSession" "$grantTool:$grantNatural" || { set +e ; return 1 ; }
 		if ! grantHeld="$( AgentsToolsPermissionHolds "$grantBy" "$grantTool" "$grantNatural" "$grantSession" )" ; then
 			grantHolders="$( AgentsToolsPermissionHolders "$grantTool" "$grantNatural" "$grantSession" "$grantTask" "$grantOwner $grantBy" | LC_ALL=C awk '{ printf "%s%s", ( NR > 1 ? " " : "" ), $1 ; }' )" || grantHolders="human-owner"
 			printf 'NOT-HOLDS: %s %s %s\n' "$grantBy" "$grantTool" "$grantNatural"
@@ -424,6 +506,13 @@ case "$1" in
 				echo "$MDSC_CMD: ⛔ ERROR: can't record the task of the grant for $grantRefusal, so nothing is granted" >&2
 				set +e ; return 1
 			}
+		fi
+		## The place its path lies in, as name:relative, recorded beside it as a hint.
+		grantPlace="$( AgentsToolsPermissionPlaceHint "$grantNatural" )"
+		if [ -n "$grantPlace" ] ; then
+			printf '%s\t%s\n' "$grantNatural" "$grantPlace" > "$grantDir/$grantRefusal.places" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the place of the grant for $grantRefusal was not recorded: $grantPlace" >&2
+			printf 'PLACE: %s\n' "$grantPlace"
 		fi
 		## Stamped to the second: an Allow once lapses unused a TTL after it (AgentsToolsPermissionOnceLive).
 		printf '%s:%s:%s:%s:%s:%s\n' "$grantKind" "$grantTool" "$grantTarget" "$grantBy" "$( date -u +%Y%m%dT%H%M%SZ )" "$grantRefusal" >> "$grantDir/grants" || {
@@ -595,6 +684,7 @@ case "$1" in
 		## One mkdir is the whole lock: the first caller to create the marker uses the grant.
 		mkdir -p "$MMDAPP/.local/agents/sessions/$consumeSession/consumed" 2>/dev/null || { set +e ; return 1 ; }
 		mkdir "$MMDAPP/.local/agents/sessions/$consumeSession/consumed/$consumeRefusal" 2>/dev/null || { set +e ; return 1 ; }
+		AgentsToolsGrantsStoreTouch "$MMDAPP/.local/agents/sessions/$consumeSession"
 		printf 'CONSUMED: %s\n' "$consumeRefusal"
 		return 0
 	;;
@@ -835,8 +925,22 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: a session-scoped set needs the session, and this caller names none" >&2
 			set +e ; return 1
 		fi
+		## Each entry's place first, before anything is said or asked: an @<name>:<glob> target
+		## resolved, a path in a place shown as name:relative, a write in a read-only place refused.
+		local setResolved="" setPlaces="" setOne permEntryTool permEntryTarget permEntryPlace
+		while IFS= read -r setOne ; do
+			[ -n "$setOne" ] || continue
+			AgentsToolsPermissionEntryPlace "$setOne" "$setSession" || { set +e ; return 1 ; }
+			case "$setOne" in
+				*:@*) setResolved="${setResolved}${permEntryTool}:${permEntryTarget}"$'\n' ;;
+				*) setResolved="${setResolved}${setOne}"$'\n' ;;
+			esac
+			[ -z "$permEntryPlace" ] || setPlaces="${setPlaces}${permEntryTarget}"$'\t'"${permEntryPlace}"$'\n'
+			[ -z "$permEntryPlace" ] || printf 'PLACE: %s:%s is %s\n' "$permEntryTool" "$permEntryTarget" "$permEntryPlace"
+		done <<< "$setEntries"
+		setEntries="$setResolved"
 		## The participants, held entries and extras, each said.
-		local setParticipants setLine setHolder permEntryTool permEntryTarget
+		local setParticipants setLine setHolder
 		setParticipants="$( { AgentsToolsPermissionParticipants "$setSession" "$setItem" ; printf '%s' "$setNamed" ; } | LC_ALL=C awk 'NF && $1 != "human-owner" && !seenMember[$1]++ { print $1 ; }' )"
 		printf 'PARTICIPANTS: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
 		while IFS= read -r setLine ; do
@@ -869,6 +973,10 @@ case "$1" in
 				printf '\n**✅ Already held, passed on by the holder**\n'
 				printf '%s' "$setHeld" | LC_ALL=C awk 'NF { print "- " $0 ; }'
 			fi
+			if [ -n "$setPlaces" ] ; then
+				printf '\n**📍 Places**\n'
+				printf '%s' "$setPlaces" | LC_ALL=C awk -F'\t' 'NF >= 2 { print "- " $1 " is " $2 ; }'
+			fi
 			printf '\n**👥 Participants**\n'
 			printf '%s\n' "$setParticipants" | LC_ALL=C awk 'NF { print "- " $0 ; }'
 			printf '\nReply with the first word: allow-set, deny, or edit followed by the change.\n'
@@ -900,6 +1008,7 @@ case "$1" in
 			printf 'session-id: %s\n' "$setSession"
 			printf 'participants: %s\n' "$( printf '%s\n' "$setParticipants" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ *$//' )"
 			printf '%s' "$setExtra" | LC_ALL=C awk 'NF { print "entry: " $0 ; }'
+			printf '%s' "$setPlaces" | LC_ALL=C awk 'NF { print "place: " $0 ; }'
 		} > "$MMDAPP/.local/agents/pending/$setId.set" || {
 			echo "$MDSC_CMD: ⛔ ERROR: the permission-set ask $setId is recorded but its entries are not, so an allow-set would grant nothing" >&2
 			set +e ; return 1
@@ -918,7 +1027,7 @@ case "$1" in
 		MDSC_CMD="$MDSC_CMD --intern-op-permission-set-apply"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
-		local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries=""
+		local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries="" applySetPlaces=""
 		if [ -z "$applySetId" ] || [ -z "$applySetBy" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-id> <approver>" >&2
 			set +e ; return 1
@@ -934,6 +1043,7 @@ case "$1" in
 				'session-id: '*) applySetSession="${applySetLine#session-id: }" ;;
 				'participants: '*) applySetParts="${applySetLine#participants: }" ;;
 				'entry: '*) applySetEntries="${applySetEntries}${applySetLine#entry: }"$'\n' ;;
+				'place: '*) applySetPlaces="${applySetPlaces}${applySetLine#place: }"$'\n' ;;
 			esac
 		done < "$applySetFile"
 		[ -n "$applySetEntries" ] || { echo "$MDSC_CMD: ⛔ ERROR: the permission set $applySetId names no entry" >&2 ; set +e ; return 1 ; }
@@ -959,6 +1069,9 @@ case "$1" in
 					printf '\n# Permission set\n\n'
 					printf '%s' "$applySetEntries" | LC_ALL=C awk 'NF { print "- " $0 ; }'
 				} > "$applySetDir/$applySetRef.md" || { echo "$MDSC_CMD: ⛔ ERROR: can't write the set record for $applySetPart" >&2 ; set +e ; return 1 ; }
+				## The places its entries were asked by, as name:relative, beside it.
+				[ -z "$applySetPlaces" ] || printf '%s' "$applySetPlaces" > "$applySetDir/$applySetRef.places" \
+					|| echo "⚠️ WARNING: $MDSC_CMD: the places of the set grants for $applySetPart were not recorded" >&2
 				while IFS= read -r applySetLine ; do
 					[ -n "$applySetLine" ] || continue
 					AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
@@ -989,6 +1102,110 @@ case "$1" in
 			--context "$MDSC_CMD" > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not recorded on $applySetItem's Decisions" >&2
 		printf 'GRANT: set %s entries for %s\n' "$applySetCount" "${applySetParts:-nobody}"
+		return 0
+	;;
+
+	## Revokes one grant of a session store by its reference (refusal-, pass- or set-<id>): a
+	## marker beside its record, and the store touched, so every session index joining it is
+	## rebuilt without it and every reader leaves it out. The coordinator stub and the
+	## implementation are one arm, as pass is.
+	--magic-permission-revoke|--intern-op-permission-revoke)
+		local revokeOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $revokeOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local revokeRef="${1:-}" revokeSession="" revokeStore="" revokeOne revokeLine revokeFound="" revokeBy
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id) revokeSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$revokeRef" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <ref> [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$revokeRef" "<ref>" permission-revoke || { set +e ; return 1 ; }
+		[ -z "$revokeSession" ] || AgentsToolsAssertBareName "$revokeSession" "--session-id" permission-revoke || { set +e ; return 1 ; }
+		## The store whose grants name it: one the named session reads, else any holding its record.
+		local revokeStores=""
+		[ -z "$revokeSession" ] || revokeStores=$'\n'"$( AgentsToolsPermissionRelatedStores "$revokeSession" )"$'\n'
+		for revokeOne in "$MMDAPP/.local/agents/sessions"/*/"$revokeRef.md" ; do
+			[ -f "$revokeOne" ] && [ -f "${revokeOne%/*}/grants" ] || continue
+			revokeLine="${revokeOne%/*}" ; revokeLine="${revokeLine##*/}"
+			case "${revokeSession:+$revokeStores}" in ''|*$'\n'"$revokeLine"$'\n'*) ;; *) continue ;; esac
+			while IFS= read -r revokeLine ; do
+				case "$revokeLine" in *":$revokeRef") revokeFound=1 ; break ;; esac
+			done < "${revokeOne%/*}/grants"
+			[ -z "$revokeFound" ] || { revokeStore="${revokeOne%/*}" ; break ; }
+		done
+		if [ -z "$revokeStore" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: no grant $revokeRef is recorded${revokeSession:+ in session $revokeSession}, so nothing is revoked" >&2
+			set +e ; return 1
+		fi
+		if [ -e "$revokeStore/revoked/$revokeRef" ] ; then
+			printf 'REVOKED: %s already\n' "$revokeRef"
+			return 0
+		fi
+		revokeBy="$( AgentsToolsActingMember )"
+		mkdir -p "$revokeStore/revoked" 2>/dev/null \
+			&& printf 'revoked-by: %s\nrevoked-at: %s\n' "${revokeBy:-human-owner}" "$( date +"%Y-%m-%d %H:%M %z" )" > "$revokeStore/revoked/$revokeRef" || {
+			echo "$MDSC_CMD: ⛔ ERROR: can't write the revoke marker in $revokeStore, so $revokeRef stands" >&2
+			set +e ; return 1
+		}
+		AgentsToolsGrantsStoreTouch "$revokeStore"
+		printf 'REVOKED: %s\n' "$revokeRef"
+		return 0
+	;;
+
+	## One member's effective grants, one TAB-separated row each: kind (floor, standing,
+	## session, task, once), read, write or the tool, target, its place as name:relative or -,
+	## origin, expiry (AgentsToolsGrantsMemberList). Revoked, used, lapsed and ended ones are
+	## left out. The coordinator stub names any member; a member's own lists its own only.
+	--magic-permission-list|--member-permission-list|--intern-op-permission-list)
+		local listOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $listOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local listMember="" listSession=""
+		if [ "$listOp" != "--magic-permission-list" ] ; then
+			listMember="${1:-}"
+			shift || true
+		fi
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--member)
+					if [ "$listOp" != "--magic-permission-list" ] ; then
+						echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+						set +e ; return 1
+					fi
+					listMember="${2:-}" ; shift 2
+				;;
+				--session-id) listSession="${2:-}" ; shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$listMember" ] ; then
+			case "$listOp" in
+				--magic-permission-list) echo "$MDSC_CMD: ⛔ ERROR: syntax is --member <member> [--session-id <id>]" >&2 ;;
+				*) echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [--session-id <id>]" >&2 ;;
+			esac
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$listMember" "<member>" permission-list || { set +e ; return 1 ; }
+		[ -z "$listSession" ] || AgentsToolsAssertBareName "$listSession" "--session-id" permission-list || { set +e ; return 1 ; }
+		[ "$listOp" != "--member-permission-list" ] || AgentsToolsActingMemberCheck "$listMember" "${listOp#--}" || { set +e ; return 1 ; }
+		AgentsToolsGrantsMemberList "${MMDAPP%/}" "$listMember" "$listSession" || {
+			echo "$MDSC_CMD: ⛔ ERROR: the grants of $listMember could not be listed: no grants index could be read or built" >&2
+			set +e ; return 1
+		}
 		return 0
 	;;
 

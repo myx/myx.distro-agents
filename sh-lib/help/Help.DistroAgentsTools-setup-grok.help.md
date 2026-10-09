@@ -29,21 +29,6 @@
 			is an error rather than a fallback. Every sub-operation takes
 			it. It names a target; it stores no value.
 
-		--access-root <path>
-			One extra directory a spawned agent may read and write, beyond
-			the member and source roots the installer already grants.
-			Repeatable. Each path must be given absolute and must already
-			exist. Optional -- nothing is blocked by leaving it out.
-
-			Stored colon-joined as CLIENT_ACCESS_ROOTS_EXTRA in this
-			workspace's magic-team config scope -- the same setting the
-			other spawn domains write. Takes effect only together with
-			--apply.
-
-		--client-access-roots-extra <abs-path>[:<abs-path>...]
-			The same setting written as one colon-joined value instead of
-			one --access-root per directory. Optional.
-
 		--spawn-cli-service <cli-name>
 			Which agent CLI this workspace starts. You are never asked for
 			it: an --apply on this domain writes `grok` into it, and

@@ -40,19 +40,20 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	fi
 }
 
-## The workspace a member operation runs in, from the machine-wide member directory and
-## the list of tracked workspaces, both in $HOME/.agents/magic-team
-## (AgentsTools.TeamRegistry.include). Order: the current workspace when the member is
-## there, else the tracked workspace where the member is a source link, else the first
-## tracked workspace that has it. Prints the path to switch to, and nothing when no switch
-## is needed: the member is in the current workspace, is not in the directory (its
-## operation refuses as it always has), or the current workspace is not in it. Refuses,
-## naming the cause, when the member is in no tracked workspace or the chosen workspace
-## is not on this machine.
+## The workspace a member operation runs in, from the machine-wide member directory, the
+## member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
+## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, AgentsTools.Places.include).
+## Order: the current workspace when the member is there, else the member's home, else the
+## known workspace where the member is a source link, else the first known workspace that
+## has it. A member registered only from a workspace without agents (source-declared) runs
+## where it was asked. Prints the path to switch to, and nothing when no switch is needed:
+## the member is in the current workspace, is not in the directory (its operation refuses
+## as it always has), or the current workspace is not in it. Refuses, naming the cause, when
+## the member is in no known workspace or the chosen workspace is not on this machine.
 AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	local resolveMember="$1" resolveOp="$2"
-	local resolveIndex="${HOME:-}/.agents/magic-team/members.registry" resolveList="${HOME:-}/.agents/magic-team/known-workspaces.registry"
-	local resolveHere resolveRows resolveWanted resolveRoot resolveKind resolveLine resolvePath=""
+	local resolveIndex="${HOME:-}/.agents/magic-team/members.registry" resolveTracked resolveHome=""
+	local resolveHere resolveRows resolveWanted resolveRoot resolveKind resolvePath=""
 	case "$resolveMember" in
 		''|magic-team|human-owner) return 0 ;;
 	esac
@@ -61,34 +62,39 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 	resolveRows="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" -v here="$resolveHere" '
 		NF < 5 { next ; }
 		$2 == here { tracked = 1 ; }
-		$1 == who { found = 1 ; if ( $2 == here ) { present = 1 ; } rows = rows $2 "\t" $3 "\n" ; }
+		$1 == who {
+			found = 1
+			if ( $3 == "source-declared" ) { next ; }
+			if ( $2 == here ) { present = 1 ; }
+			switchable = 1 ; rows = rows $2 "\t" $3 "\n"
+		}
 		END {
 			if ( ! found ) { print "unknown" ; exit ; }
 			if ( ! tracked ) { print "untracked" ; exit ; }
-			if ( present ) { print "present" ; exit ; }
+			if ( present || ! switchable ) { print "present" ; exit ; }
 			print "switch" ;
 			printf "%s", rows ;
 		}
 	' "$resolveIndex" )"
 	[ "${resolveRows%%$'\n'*}" = "switch" ] || return 0
 	resolveRows="${resolveRows#*$'\n'}"
-	if [ -f "$resolveList" ] ; then
-		for resolveWanted in source-symlink any ; do
-			while IFS=$'\t' read -r resolveRoot resolveKind ; do
-				[ -n "$resolveRoot" ] || continue
-				[ "$resolveWanted" = "any" ] || [ "$resolveKind" = "source-symlink" ] || continue
-				## Only a tracked workspace is switched to.
-				while IFS= read -r resolveLine ; do
-					resolveLine="${resolveLine%/}"
-					[ "$resolveLine" = "$resolveRoot" ] || continue
-					resolvePath="$resolveLine"
-					break
-				done < "$resolveList"
-				[ -z "$resolvePath" ] || break
-			done <<< "$resolveRows"
-			[ -z "$resolvePath" ] || break
-		done
-	fi
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "${BASH_SOURCE[0]%/*}/AgentsTools.Places.include"
+	resolveTracked="$( AgentsToolsPlacesWorkspaceRoots )"
+	resolveHome="$( LC_ALL=C awk -F'\t' -v who="$resolveMember" '$1 == who { print $2 ; exit ; }' "${HOME:-}/.agents/magic-team/member-homes.registry" 2> /dev/null )" || resolveHome=""
+	for resolveWanted in home source-symlink any ; do
+		while IFS=$'\t' read -r resolveRoot resolveKind ; do
+			[ -n "$resolveRoot" ] || continue
+			case "$resolveWanted" in
+				home) [ -n "$resolveHome" ] && [ "$resolveRoot" = "$resolveHome" ] || continue ;;
+				source-symlink) [ "$resolveKind" = "source-symlink" ] || continue ;;
+			esac
+			## Only a known workspace is switched to.
+			case $'\n'"$resolveTracked"$'\n' in
+				*$'\n'"$resolveRoot"$'\n'*) resolvePath="$resolveRoot" ; break ;;
+			esac
+		done <<< "$resolveRows"
+		[ -z "$resolvePath" ] || break
+	done
 	if [ -z "$resolvePath" ] ; then
 		echo "⛔ ERROR: $MDSC_CMD $resolveOp: member '$resolveMember' is in the team members index but is present in no tracked workspace -- nothing was done" >&2
 		return 1

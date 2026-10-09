@@ -272,18 +272,56 @@ AgentsToolsOwnerSetupBlock1Verdict(){
 
 case "$1" in
 
+	## A place no project declares, as an owner row of this workspace's own registry
+	## (AgentsTools.Places.include): a workspace by default, always read-write.
 	--owner-workspace-upsert)
 		shift
-		local wsPath="$1"
+		local wsPath="$1" wsName="" wsKind="workspace" wsCeiling="read-write"
 		shift || true
 		if [ -z "$wsPath" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: <path> required" >&2
 			set +e ; return 1
 		fi
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: takes exactly one <path>, and more followed it: $*" >&2
-			set +e ; return 1
-		fi
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--name)
+					if [ -z "${2:-}" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --name requires a value" >&2
+						set +e ; return 1
+					fi
+					wsName="$2" ; shift 2
+				;;
+				--kind)
+					case "${2:-}" in
+						workspace|directory) wsKind="$2" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --kind must be workspace or directory" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--ceiling)
+					case "${2:-}" in
+						read-only|ceiling-read) wsCeiling="read-only" ;;
+						read-write|ceiling-write) wsCeiling="read-write" ;;
+						*)
+							echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: --ceiling must be read-only or read-write" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
+				--*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: takes exactly one <path>, and more followed it: $*" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
 		case "$wsPath" in
 			/*)
 			;;
@@ -293,58 +331,38 @@ case "$1" in
 			;;
 		esac
 		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		## Local machine data, in the team's machine-wide directory $HOME/.agents/magic-team
-		## (AgentsTools.TeamRegistry.include) rather than inside the packaged skill folder,
-		## which is a public git working tree. See MAGIC.md. Created on first use.
-		local ownerDir="$HOME/.agents/magic-team"
-		mkdir -p "$ownerDir" || {
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: can't create the team directory: $ownerDir" >&2
+		[ -n "$wsName" ] || wsName="${wsPath##*/}"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+		if ! AgentsToolsPlacesNameValid "$wsName" ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a place name is letters, digits and . _ + - only: $wsName" >&2
 			set +e ; return 1
-		}
-		local ownerFile="$ownerDir/known-workspaces.registry"
-		touch "$ownerFile"
-		if grep -Fxq -- "$wsPath" "$ownerFile" ; then
-			echo "# $MDSC_CMD --owner-workspace-upsert: already tracked: $wsPath" >&2
-			return 0
 		fi
-		if [ -s "$ownerFile" ] && [ -n "$( tail -c1 -- "$ownerFile" )" ] ; then
-			printf '\n' >> "$ownerFile"
+		if [ "$wsKind" = "workspace" ] && [ "$wsCeiling" != "read-write" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: a workspace is always read-write" >&2
+			set +e ; return 1
 		fi
-		printf '%s\n' "$wsPath" >> "$ownerFile"
-		echo "# $MDSC_CMD --owner-workspace-upsert: added: $wsPath" >&2
+		if [ ! -d "${MMDAPP%/}/.local" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: not a set-up workspace, no .local: $MMDAPP" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsPlacesOwnerUpsert "${MMDAPP%/}" "$wsName" "$wsKind" "$wsCeiling" "$wsPath" || { set +e ; return 1 ; }
 		return 0
 	;;
 
 	--owner-workspace-forget)
 		shift
-		local wsPath="$1"
+		local wsName="$1"
 		shift || true
-		if [ -z "$wsPath" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: <path> required" >&2
+		if [ -z "$wsName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: <name> required" >&2
 			set +e ; return 1
 		fi
 		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: takes exactly one <path>, and more followed it: $*" >&2
+			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: takes exactly one <name>, and more followed it: $*" >&2
 			set +e ; return 1
 		fi
-		[ "$wsPath" = "/" ] || wsPath="${wsPath%/}"
-		local ownerFile="$HOME/.agents/magic-team/known-workspaces.registry"
-		if [ ! -f "$ownerFile" ] ; then
-			echo "# $MDSC_CMD --owner-workspace-forget: $ownerFile does not exist -- nothing to forget" >&2
-			return 0
-		fi
-		if ! grep -Fxq -- "$wsPath" "$ownerFile" ; then
-			echo "# $MDSC_CMD --owner-workspace-forget: not tracked, nothing to do: $wsPath" >&2
-			return 0
-		fi
-		(
-			forgetTempFile="$ownerFile.$$"
-			trap 'rm -f -- "$forgetTempFile"' EXIT
-			: > "$forgetTempFile"
-			grep -Fxv -- "$wsPath" "$ownerFile" >>"$forgetTempFile" 2>/dev/null || :
-			mv "$forgetTempFile" "$ownerFile"
-		)
-		echo "# $MDSC_CMD --owner-workspace-forget: removed: $wsPath" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+		AgentsToolsPlacesOwnerForget "${MMDAPP%/}" "$wsName" || { set +e ; return 1 ; }
 		return 0
 	;;
 
@@ -354,23 +372,8 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-list: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		local ownerFile="$HOME/.agents/magic-team/known-workspaces.registry"
-		if [ ! -f "$ownerFile" ] ; then
-			echo "# $MDSC_CMD --owner-workspace-list: $ownerFile does not exist -- no workspaces tracked yet" >&2
-			return 0
-		fi
-		grep '^/' "$ownerFile" || :
-		return 0
-	;;
-
-	--owner-workspace-current)
-		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-workspace-current: takes no arguments" >&2
-			set +e ; return 1
-		fi
-		DistroAgentsTools --owner-workspace-upsert "$MMDAPP" || return 1
-		echo "$MMDAPP"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+		AgentsToolsPlacesListText "${MMDAPP%/}"
 		return 0
 	;;
 
@@ -531,55 +534,19 @@ case "$1" in
 		local setupDomain="${1#--owner-setup-}"
 		shift
 		local setupAllWorkspaces="" setupSetAsDefault="" setupOperation=""
-		local setupWorkspaceRoot="" setupAccessRoots="" setupAccessRootReal=""
+		local setupWorkspaceRoot=""
 		local setupValuesFromStdin="" setupOptionArgs=() setupBlock1Printed=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--values-from-stdin) setupValuesFromStdin="yes" ; shift ;;
-				--workspace-root|--access-root)
+				## A directory an agent may reach is a registered place with a grant on it
+				## (--owner-workspace-upsert, magic-team:permissions:directory), never a setting.
+				--workspace-root)
 					if [ -z "${2:-}" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: $1: a path is required" >&2
 						set +e ; return 1
 					fi
-					case "$1" in
-						--workspace-root) setupWorkspaceRoot="${2%/}" ;;
-						## Stored resolved and absolute, never as given. This value becomes
-						## an --add-dir token on the agent's own launch line, and the console
-						## changes to $MMDAPP before exec, so a relative path grants a
-						## directory nobody named: '.' would grant the whole workspace and
-						## '..' its parent, from a typo. Resolving through cd/pwd -P settles
-						## absoluteness, existence, '.'/'..' and a whitespace-only value in
-						## one test. Colon-joined because a config value holds one line, so a
-						## path carrying ':' cannot be expressed and is refused, not split.
-						--access-root)
-							case "$2" in
-								*:*)
-									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: a path containing ':' cannot be stored in this setting: $2" >&2
-									set +e ; return 1
-								;;
-							esac
-							## Tested as given, before resolving: `cd .` succeeds and
-							## pwd -P then returns an absolute path, so resolving first
-							## would accept '.' and grant whatever directory the caller
-							## happened to be in.
-							case "$2" in
-								/*) ;;
-								*)
-									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: must be given as an absolute path, starting with '/': $2" >&2
-									set +e ; return 1
-								;;
-							esac
-							setupAccessRootReal="$( cd "$2" 2>/dev/null && pwd -P || : )"
-							case "$setupAccessRootReal" in
-								/*) ;;
-								*)
-									echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root: must name an existing directory by absolute path; this does not resolve to one: $2" >&2
-									set +e ; return 1
-								;;
-							esac
-							setupAccessRoots="${setupAccessRoots}${setupAccessRoots:+:}$setupAccessRootReal"
-						;;
-					esac
+					setupWorkspaceRoot="${2%/}"
 					shift 2
 				;;
 				--check|--apply|--print-apply-command|--wizard)
@@ -633,10 +600,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --workspace-root names one workspace and --all-workspaces reports every registered one, so they do not combine" >&2
 			set +e ; return 1
 		fi
-		if [ -n "$setupAccessRoots" ] && [ "$setupOperation" != "--apply" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --access-root supplies a value to store and so takes effect only with --apply" >&2
-			set +e ; return 1
-		fi
 		if [ -n "$setupValuesFromStdin" ] && [ "$setupOperation" != "--apply" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --owner-setup-$setupDomain: --values-from-stdin supplies a set of values to store and so takes effect only with --apply" >&2
 			set +e ; return 1
@@ -667,22 +630,18 @@ case "$1" in
 		local setupDeclareArgs=()
 		case "$setupDomain" in
 			claude|claude-native|copilot|copilot-native|grok|scaleway)
-				## Both of these belong to the WORKSPACE rather than to this domain:
-				## which CLI the workspace starts, and what every spawned agent may
-				## reach. Declared shared, so an --apply here still takes them and
-				## the rendered command stays the syntax of THIS domain alone --
-				## a --owner-setup-scaleway that advertised the CLI selection was
-				## reading as though scaleway configured copilot and grok.
+				## This belongs to the WORKSPACE rather than to this domain: which
+				## CLI the workspace starts. Declared shared, so an --apply here still
+				## takes it and the rendered command stays the syntax of THIS domain
+				## alone -- a --owner-setup-scaleway that advertised the CLI selection
+				## was reading as though scaleway configured copilot and grok.
 				## SPAWN_CLI_SERVICE is not declared required either: the service
 				## selection below is what sets it, so requiring it too would refuse
 				## the very call that supplies it. It does block a spawn, and the arm
 				## below carries that: unset, it is a needs-apply blocker rather than
-				## a value the reader is asked for. CLIENT_ACCESS_ROOTS_EXTRA blocks
-				## nothing -- it widens grants the installer already makes -- so it
-				## is optional in full and a bare call never names it.
+				## a value the reader is asked for.
 				setupDeclareArgs=(
 					--allow-shared SPAWN_CLI_SERVICE
-					--allow-shared CLIENT_ACCESS_ROOTS_EXTRA
 					--service-key SPAWN_CLI_SERVICE --service-value "$setupDomain"
 					--install-probe "command -v $setupDomain"
 				)
@@ -783,7 +742,6 @@ case "$1" in
 					--workspace "${setupWorkspaceRoot:-${MMDAPP%/}}" \
 					"${setupDeclareArgs[@]}" \
 					${setupOptionArgs[@]+"${setupOptionArgs[@]}"} \
-					${setupAccessRoots:+--value} ${setupAccessRoots:+"CLIENT_ACCESS_ROOTS_EXTRA=$setupAccessRoots"} \
 					${setupValuesFromStdin:+--values-from-stdin} \
 					${setupSetAsDefault:+--set-as-default} || setupApplyRc=$?
 				if [ "$setupApplyRc" != "0" ] ; then
@@ -796,9 +754,8 @@ case "$1" in
 				## instead of handing the reader steps to run himself. Ordered by
 				## real dependency: trust above comes first, because claude
 				## discards the permissions.allow entries written below while the
-				## workspace is untrusted; the engine call above stores
-				## CLIENT_ACCESS_ROOTS_EXTRA, which both the copilot access
-				## fragment and the claude permissions are built from; and the
+				## workspace is untrusted; the engine call above stores the
+				## settings the integrations below are built from; and the
 				## console those write is what the verification then reads.
 				(
 					MMDAPP="${setupWorkspaceRoot:-${MMDAPP%/}}"
@@ -1874,7 +1831,7 @@ case "$1" in
 								echo "        in the set, not granted:       $setupRootLine"
 							done <<< "$setupMissingRoots"
 							echo "  why:  the fragment is written once, when the workspace integrations are"
-							echo "        installed; changing CLIENT_ACCESS_ROOTS_EXTRA, or adding or retiring"
+							echo "        installed; changing a declared grant, or adding or retiring"
 							echo "        a member, moves the set underneath it and rewrites nothing"
 							echo "  path: $setupFragment"
 							echo "  fix:  $setupToolPath --make-workspace-integrations"

@@ -37,7 +37,7 @@ AgentsToolsInstallScanMembers(){
 		## index on every touch. Bootstrap is the one every *.fn.sh tail carries,
 		## since this op also runs with no distro context at all.
 		## The index tier is established here rather than inherited, exactly as
-		## --install-claude-permissions does for its grants, and for the same reasons: reached
+		## --make-agents-indices does for its grants, and for the same reasons: reached
 		## with no tier selected (an MCP execute call, a shell function) the scan reads no
 		## index at all, and an inherited prepared or output cache that lags source drops real
 		## team-member declarations. Source, the tier the agents console selects.
@@ -496,12 +496,6 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --install-skillset-symlinks: cannot create the registry directory: ${registryFile%/*}" >&2
 			set +e ; return 1
 		}
-		## A workspace whose members enter the machine-wide registry is a known workspace too:
-		## the list the member resolver walks to reach a member of another workspace.
-		if [ "$scope" = "user-home" ] && [ -d "$workspace/.local" ] ; then
-			DistroAgentsTools --owner-workspace-upsert "$workspace" 2>/dev/null || \
-				echo "🙋 WARNING: $MDSC_CMD --install-skillset-symlinks: could not add $workspace to the known workspaces" >&2
-		fi
 		## Every vendor folder this scope fans into: a member no workspace registers any
 		## more is unlinked from all of them at once, since the one registry serves them all.
 		local scopeRoots
@@ -1039,6 +1033,50 @@ case "$1" in
 		return 0
 	;;
 
+	## Each registered workspace without agents: its declared members, found by the member scan
+	## above and registered under its own root, nothing installed there; a workspace with agents
+	## loses any such row, its own install registering it. Then every member's home
+	## (AgentsTools.MemberHomes.include). Run by --make-workspace-integrations.
+	--intern-member-home-register)
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-member-home-register: takes no arguments" >&2
+			set +e ; return 1
+		fi
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHomes.include"
+		local homesHere homesRoot homesStatus=0 homesScanErr homesRows
+		local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+		homesHere="$( cd "${MMDAPP%/}" 2> /dev/null && pwd )" || { set +e ; return 1 ; }
+		homesScanErr="$homesHere/.local/temp/mdat-member-home-scan.$$"
+		mkdir -p "$homesHere/.local/temp" || { set +e ; return 1 ; }
+		while IFS= read -r homesRoot ; do
+			[ -n "$homesRoot" ] && [ "$homesRoot" != "$homesHere" ] || continue
+			## not mounted: its rows stay as they stood
+			[ -d "$homesRoot" ] || continue
+			if AgentsToolsMemberHomesHasAgents "$homesRoot" ; then
+				AgentsToolsMemberHomesDeclaredWrite "$homesRoot" < /dev/null || homesStatus=1
+				continue
+			fi
+			## no source/: no project there to declare a member
+			[ -d "$homesRoot/source" ] || continue
+			AgentsToolsInstallScanMembers "$homesRoot" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team" 2> "$homesScanErr"
+			if [ "$scanDiscoveryTrusted" != "true" ] || [ "$scanDiscoveryError" = "true" ] ; then
+				echo "🙋 WARNING: $MDSC_CMD --intern-member-home-register: the members $homesRoot declares could not all be read, its rows are kept as they stood" >&2
+				LC_ALL=C grep -F '⛔' "$homesScanErr" >&2 || :
+				continue
+			fi
+			homesRows="$( printf '%s' "$scanMemberSources" | AgentsToolsMemberHomesDeclaredRows "$homesRoot" )"
+			printf '%s\n' "$homesRows" | AgentsToolsMemberHomesDeclaredWrite "$homesRoot" || homesStatus=1
+			echo "# $MDSC_CMD --intern-member-home-register: $homesRoot has no agents installed: $( printf '%s' "$homesRows" | LC_ALL=C grep -c . ) declared member(s) registered, nothing installed there" >&2
+		done <<< "$( AgentsToolsPlacesWorkspaceRoots "$homesHere" )"
+		rm -f "$homesScanErr"
+		AgentsToolsMemberHomesWrite || homesStatus=1
+		[ "$homesStatus" = "0" ] || { set +e ; return 1 ; }
+		return 0
+	;;
+
 	--install-claude-permissions)
 		shift
 
@@ -1059,8 +1097,8 @@ case "$1" in
 			esac
 		done
 
-		## The workspace this run acts FOR. Every registry row it writes is keyed
-		## on this name, so it must be the caller's workspace, never $MMDAPP.
+		## The workspace this run acts FOR: the grant set is read from its registries, and
+		## what it projected is recorded beside them, so it must be the caller's workspace.
 		local workspace="${workspaceArg:-$MMDAPP}"
 		if [ ! -d "$workspace" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: workspace not found: $workspace" >&2
@@ -1077,251 +1115,37 @@ case "$1" in
 			}
 		fi
 
-		## Declared allow-write and allow-read grants, discovered exactly as --install-skillset-symlinks
-		## discovers team-members: the same two tools in-process, and the same trust
-		## rule -- an unreadable or empty scan is never read as "every grant
-		## disappeared", so revocation stays suppressed.
-		local grantsTrusted="true"
-		local selectedProjects declaredNamespace declaredWorkspace declaredProject selectStatus declaredStatus
-		## The index tier is established here rather than inherited: reached as a shell
-		## function nothing has run DistroAgentsTools.fn.sh's own tail guard, and an unset
-		## MDSC_INMODE selects no projects at all. Source, never --distro-path-auto: the
-		## grants are read off project.inf as it stands, and a prepared or output cache
-		## that lags source drops real declarations this run would then revoke.
-		DistroAgentsContext --distro-from-source || {
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot establish an input spec for workspace $workspace" >&2
-			set +e ; return 1
-		}
-		## Require loads by origin path -- Distro() alone resolves through PATH, which only a console session carries.
-		Require ListDistroProjects || :
-		Require ListDistroDeclares || :
-
-		selectStatus=0
-		selectedProjects="$( Distro ListDistroProjects --select-all )" || selectStatus=$?
-
-		## --select-from-env refuses an empty selection, so an empty one is never
-		## handed to it: the arm below reports that case for itself.
-		declaredStatus=0
-		## One cut per scope kind: each scope's selector has its own vocabulary,
-		## and only `project` uses the estate's four-form resolver. That resolver
-		## is --unroll-filter-and-cut (SystemContext.include), the same mechanism
-		## mdci-common-hook already goes through -- never a matcher written here.
-		if [ -n "$selectedProjects" ] ; then
-			declaredNamespace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:namespace' )" || declaredStatus=$?
-			declaredWorkspace="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --filter-and-cut 'magic-team:permissions:workspace' )" || declaredStatus=$?
-			declaredProject="$( MDSC_SELECT_PROJECTS="$selectedProjects" Distro ListDistroDeclares --select-from-env --unroll-filter-and-cut 'magic-team:permissions:project:' cat )" || declaredStatus=$?
-		fi
-
-		if [ "$selectStatus" != "0" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroProjects --select-all exited $selectStatus for workspace $workspace" >&2
-			grantsTrusted="false"
-		elif [ -z "$selectedProjects" ] ; then
-			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: workspace $workspace selects no distro projects, so none declares an allow-write grant -- nothing is removed" >&2
-			grantsTrusted="false"
-		elif [ "$declaredStatus" != "0" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: COULD-NOT-CHECK declared allow-write: ListDistroDeclares --filter-and-cut exited $declaredStatus for workspace $workspace" >&2
-			grantsTrusted="false"
-		fi
-
-		## Layout is `<scope>:<selector>:<verb>:<member>[:<glob>]`, and the scope's own
-		## prefix is already cut off above. Every cut is on the FIRST colon, so a glob
-		## carrying colons survives whole. Arity differs by scope: `namespace` ends at
-		## the member and carries no glob, so absence is detected, never assumed.
-		local grantRows="" gLine gSel gRest gVerb gPerm gMember gGlob gRoot gOne
-		parseDeclaredGrant(){
-			gVerb="${gRest%%:*}" ; gRest="${gRest#*:}"
-			gMember="${gRest%%:*}"
-			case "$gRest" in *:*) gGlob="${gRest#*:}" ;; *) gGlob="" ;; esac
-			## allow-write and allow-read: one path grant, parsed and resolved alike, the
-			## verb naming only the permission each row carries -- Edit(...) or Read(...),
-			## so a read grant never reaches a write set. allow-tool: a member's standing
-			## tool permission, its glob field being <tool>[:<target>]
-			## (AgentsTools.PermissionHolds.include). A later verb is refused here rather
-			## than silently treated as an allow.
-			[ "$gVerb" = "allow-write" ] && gPerm="Edit" && return 0
-			[ "$gVerb" = "allow-read" ] && gPerm="Read" && return 0
-			[ "$gVerb" = "allow-tool" ] && [ -n "$gGlob" ] && return 0
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: unsupported permissions verb in $gLine: $gVerb (allow-write, allow-read, and allow-tool with a <tool>[:<target>], are implemented)" >&2
-			grantsTrusted="false"
-			return 1
-		}
-
-		## namespace: `<namespace-name>`, `.` for the declaring project's own, `*` for
-		## every namespace in this workspace. Its own vocabulary and no `**` -- a
-		## namespace is a leading path segment of a project id, so the set of them is
-		## read off the current selection rather than from the project resolver.
-		while IFS= read -r gLine ; do
-			[ -n "$gLine" ] || continue
-			gRest="${gLine#* }"
-			gSel="${gRest%%:*}" ; gRest="${gRest#*:}"
-			parseDeclaredGrant || continue
-			## A tool row names no path: one row, whatever the selector.
-			if [ "$gVerb" = "allow-tool" ] ; then
-				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
-				continue
-			fi
-			## `.` is "this one, of the same kind": the declaring project's namespace,
-			## which is the leading segment of its id.
-			[ "$gSel" != "." ] || gSel="${gLine%%/*}"
-			if [ "$gSel" = "*" ] ; then
-				while IFS= read -r gOne ; do
-					[ -n "$gOne" ] || continue
-					grantRows="${grantRows}${gMember}:${workspaceName}:namespace:${gPerm}(/${workspace}/source/${gOne}/**)"$'\n'
-				done <<< "$( printf '%s\n' "$selectedProjects" | LC_ALL=C awk -F/ 'NF { if (!seenNamespace[$1]++) print $1; }' )"
-				continue
-			fi
-			grantRows="${grantRows}${gMember}:${workspaceName}:namespace:${gPerm}(/${workspace}/source/${gSel}/**)"$'\n'
-		done <<< "$declaredNamespace"
-
-		## workspace: `<workspace-name>`, `.` for this one, `*` for every centrally
-		## installed workspace. Its own vocabulary -- deliberately not the project
-		## resolver, which shares the glyphs and means something else by them.
-		##
-		## Sourced here (not at its old spot below) so AgentsToolsClientAccessWidenGrantRoot
-		## is available inside this loop, which tags each grant row for the copilot
-		## access fragment as it is created -- own (resolves to the workspace being
-		## installed), explicit (a specific workspace name was declared and matched),
-		## or wildcard (matched only because `*` swept the whole registry, not
-		## because anything named it). Only a wildcard root may point at a
-		## workspace that was never a real tooling install -- see
-		## AgentsTools.ClientAccessRoots.include's own header on both functions.
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-		local grantTagRows="" gTag gTagRoot
-		while IFS= read -r gLine ; do
-			[ -n "$gLine" ] || continue
-			gRest="${gLine#* }"
-			gSel="${gRest%%:*}" ; gRest="${gRest#*:}"
-			parseDeclaredGrant || continue
-			if [ "$gVerb" = "allow-tool" ] ; then
-				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
-				continue
-			fi
-			while IFS= read -r gRoot ; do
-				[ -n "$gRoot" ] || continue
-				case "$gSel" in
-					.) [ "$gRoot" = "$workspace" ] || continue ;;
-					'*') ;;
-					*) [ "$( basename "$gRoot" )" = "$gSel" ] || continue ;;
-				esac
-				grantRows="${grantRows}${gMember}:${workspaceName}:workspace:${gPerm}(/${gRoot}/${gGlob})"$'\n'
-				if [ "$gRoot" = "$workspace" ] ; then
-					gTag="own"
-				elif [ "$gSel" != "*" ] ; then
-					gTag="explicit"
-				else
-					gTag="wildcard"
-				fi
-				gTagRoot="$( AgentsToolsClientAccessWidenGrantRoot "${gPerm}(/${gRoot}/${gGlob})" )"
-				[ -n "$gTagRoot" ] || continue
-				grantTagRows="${grantTagRows}${gMember}:${workspaceName}:${gTag}:${gTagRoot}"$'\n'
-			done <<< "$( DistroAgentsTools --owner-workspace-list 2>/dev/null || printf '%s\n' "$workspace" )"
-		done <<< "$declaredWorkspace"
-
-		## project: already resolved by --unroll-filter-and-cut, so field 1 is the
-		## project the selector matched and one row per match arrives here.
-		while IFS= read -r gLine ; do
-			[ -n "$gLine" ] || continue
-			gRest="${gLine#* }"
-			parseDeclaredGrant || continue
-			if [ "$gVerb" = "allow-tool" ] ; then
-				grantRows="${grantRows}${gMember}:${workspaceName}:tool:${gGlob}"$'\n'
-				continue
-			fi
-			grantRows="${grantRows}${gMember}:${workspaceName}:project:${gPerm}(/${workspace}/source/${gLine%% *}/${gGlob})"$'\n'
-		done <<< "$declaredProject"
-
-		## Member grants become registry rows too, so the record governs every grant
-		## this op writes rather than only the declared ones. A run records every
-		## member it can see, attributed to ITSELF: one member holds a row per
-		## workspace, the projection de-duplicates them into one grant, and that
-		## grant goes only when the LAST workspace stops recording it.
-		## Acting members only: nobody is granted write on the identity record.
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
-		while IFS= read -r gOne ; do
-			[ -n "$gOne" ] || continue
-			grantRows="${grantRows}$( basename "$gOne" ):${workspaceName}:member:Edit(/${gOne}/**)"$'\n'
-		done <<< "$( AgentsToolsClientAccessRootsMembers acting )"
-
-		## The rows are this workspace's own data and live in its own .local/agents
-		## (AgentsTools.TeamRegistry.include): one row per (member, workspace), workspace
-		## in field 2, grant last so a colon inside a path can never displace it. The
-		## machine-wide set is every workspace's own file, found through the pointers in
-		## $HOME/.agents/magic-team/permissions.registry, which name the workspaces
-		## that publish one and hold nothing else.
+		## The grants are the permissions registries --make-agents-indices writes, every
+		## workspace's own (AgentsTools.Grants.include); this op only projects them, never
+		## writes them. What its last run projected is kept beside them, so an entry it put in
+		## the settings is dropped once no registry claims it any more, and nothing else is:
+		## nothing is identified by shape. A first run has no such record, and drops nothing.
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientAccessRoots.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ClientToolPolicy.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
-		local permissionsRegistry tagsRegistry
-		permissionsRegistry="$( AgentsToolsTeamLocalFile "$workspace" permissions.registry )"
-		tagsRegistry="$( AgentsToolsTeamLocalFile "$workspace" permissions-tags.registry )"
-		mkdir -p "${permissionsRegistry%/*}" || {
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create ${permissionsRegistry%/*}" >&2
+		local grantsFile="$MMDAPP/.local/temp/mdat-claude-permissions-grants.$$"
+		local projectedFile="$workspace/.local/agents/claude-permissions.projected"
+		mkdir -p "$MMDAPP/.local/temp" || {
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: cannot create $MMDAPP/.local/temp" >&2
 			set +e ; return 1
 		}
-		local regLock="$permissionsRegistry.lock" regWait=0 regLocked="false"
-		while [ "$regWait" -lt 10 ] ; do
-			if mkdir "$regLock" 2>/dev/null ; then regLocked="true" ; break ; fi
-			regWait=$(( regWait + 1 ))
-			sleep 1
-		done
-		if [ "$regLocked" != "true" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry busy, lock not acquired after $regWait attempts: $regLock -- no grant was reconciled for workspace $workspaceName" >&2
+		## The WHOLE machine-wide set, every workspace's rows unioned and de-duplicated: a member
+		## registered by several workspaces holds a row per workspace, and its grant survives
+		## until the last goes. Field 4 is taken whole by offset, never by splitting, so a grant
+		## carrying its own colons is reproduced exactly. Tool rows and unresolved rows name no path.
+		if ! AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" && $3 != "unresolved" {
+			grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
+			if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
+		}' > "$grantsFile" ; then
+			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: the permissions registries could not be read for workspace $workspaceName" >&2
+			rm -f "$grantsFile"
 			set +e ; return 1
 		fi
-
-		local grantsFile="$MMDAPP/.local/temp/mdat-claude-permissions-grants.$$"
-		(
-			## The trap is this subshell's own, so it can never disarm the caller's. The path is
-			## baked in: leaving this subshell early drops the function's locals first (bash 3.2, run through eval).
-			trap "rmdir $( printf '%q' "$regLock" ) 2>/dev/null || true" EXIT
-			mkdir -p "$MMDAPP/.local/temp" || exit 1
-			[ -f "$permissionsRegistry" ] || : > "$permissionsRegistry" || exit 1
-
-			## What the machine-wide set claimed BEFORE this run. An entry here but not in
-			## the post-rewrite projection is one this workspace has just given up, and is
-			## the only thing that may be removed -- nothing is identified by shape.
-			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" {
-				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
-				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
-			}' > "$grantsFile.prev" || {
-				echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry snapshot failed for workspace $workspaceName -- registry left untouched" >&2
-				exit 1
-			}
-
-			## This workspace's own file is rewritten whole; every other workspace's is
-			## theirs and is never touched. Suppressed entirely when the scan is not
-			## trusted, so a failed or empty read can never mean "all grants gone". The
-			## tags file is rewritten in the same critical section, so the two are never
-			## observed with only one of them rewritten.
-			if [ "$grantsTrusted" = "true" ] ; then
-				regTmp="$permissionsRegistry.tmp.$$"
-				if ! { printf '%s' "$grantRows" > "$regTmp" && mv -f "$regTmp" "$permissionsRegistry" ; } ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions registry rewrite failed for workspace $workspaceName" >&2
-					rm -f "$regTmp" 2>/dev/null || true
-					exit 1
-				fi
-				tagsTmp="$tagsRegistry.tmp.$$"
-				if ! { { printf '%s\n' "# generated by $MDSC_CMD --install-claude-permissions -- do not hand-edit, this file is fully rewritten on every run" ; printf '%s' "$grantTagRows" ; } > "$tagsTmp" && mv -f "$tagsTmp" "$tagsRegistry" ; } ; then
-					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: permissions tags registry rewrite failed for workspace $workspaceName" >&2
-					rm -f "$tagsTmp" 2>/dev/null || true
-					exit 1
-				fi
-				AgentsToolsTeamGrantPointerUpsert "$workspace" || {
-					echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not record $workspace in $( AgentsToolsTeamSharedGrants )" >&2
-					exit 1
-				}
-			fi
-
-			## Grants are a projection of the WHOLE machine-wide set, every workspace's rows
-			## unioned and de-duplicated: a member registered by several workspaces holds a
-			## row per workspace, and its grant survives until the last goes. Field 4 is
-			## taken whole by offset, never by splitting, so a grant carrying its own colons
-			## is reproduced exactly.
-			AgentsToolsTeamGrantRows "$workspace" permissions.registry | LC_ALL=C awk -F: '$3 != "tool" {
-				grantText = substr( $0, length($1) + length($2) + length($3) + 4 )
-				if ( grantText != "" && !seenGrant[grantText]++ ) print grantText
-			}' > "$grantsFile"
-		) || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
+		if [ -f "$projectedFile" ] ; then
+			cp "$projectedFile" "$grantsFile.prev" || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
+		else
+			cp "$grantsFile" "$grantsFile.prev" || { rm -f "$grantsFile" "$grantsFile.prev" ; set +e ; return 1 ; }
+		fi
 
 		local settingsTmp="$settingsFile.tmp.$$"
 
@@ -1356,27 +1180,23 @@ case "$1" in
 			set +e ; return 1
 		}
 
-		## Read only by the merge above, so they go as soon as it has run.
-		rm -f "$grantsFile" "$grantsFile.prev"
-
 		local settingsState="installed"
 		if cmp -s "$settingsTmp" "$settingsFile" ; then
 			rm -f "$settingsTmp"
 			settingsState="already current"
 		elif ! mv -f "$settingsTmp" "$settingsFile" ; then
 			echo "⛔ ERROR: $MDSC_CMD --install-claude-permissions: could not install $settingsFile" >&2
-			rm -f "$settingsTmp"
+			rm -f "$settingsTmp" "$grantsFile" "$grantsFile.prev"
 			set +e ; return 1
 		fi
 
-		## A run whose scan was not trusted reconciled no grant for this workspace, so
-		## the settings above are the registry as it already stood. Said as a warning and
-		## exited 0: a workspace with no projects yet is a state, the system is set up, and
-		## nothing declared is removed.
-		if [ "$grantsTrusted" != "true" ] ; then
-			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: declared allow-write was not determined for workspace $workspace, no grant was reconciled for it: $settingsFile $settingsState from the registry as it already stood ($memberCount member grant(s))" >&2
-			return 0
-		fi
+		## What this run projected, for the next run's drop of what no registry claims any more.
+		mkdir -p "${projectedFile%/*}" && cp "$grantsFile" "$projectedFile.tmp.$$" && mv -f "$projectedFile.tmp.$$" "$projectedFile" || {
+			rm -f "$projectedFile.tmp.$$"
+			echo "🙋 WARNING: $MDSC_CMD --install-claude-permissions: could not record what was projected in $projectedFile, so the next run drops nothing it projected" >&2
+		}
+		## Read only by the merge above and the record, so they go as soon as both are done.
+		rm -f "$grantsFile" "$grantsFile.prev"
 
 		echo "✅ claude permissions $settingsState: $settingsFile ($memberCount member grant(s))" >&2
 		return 0

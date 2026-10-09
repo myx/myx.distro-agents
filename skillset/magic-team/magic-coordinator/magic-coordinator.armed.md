@@ -335,6 +335,8 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--magic-team-roster-upsert <team-member>`
 - `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
 - `--magic-escalation-forward <coordinator> <request-id>`
+- `--magic-permission-list --member <member>`
+- `--magic-permission-revoke <ref>`
 - `--owner-workspace-list`
 
 # Maintainer Notes
