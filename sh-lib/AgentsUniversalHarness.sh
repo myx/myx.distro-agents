@@ -8,10 +8,13 @@ set -e
 ## AgentsHarnessSelfCheck.test.awk and AgentsHarnessContainmentCheck.test.sh locate code here
 ## by exact spellings, so renaming anything is a coordinated change to both.
 ## DESIGN DECISION 1 -- a mid-stream disconnect discards partial state and retries
-## the whole round; there is no resume primitive here. DESIGN DECISION 2 -- such a
+## the whole round; a partial stream is never spliced. DESIGN DECISION 2 -- such a
 ## retry never consumes a round against the cap. DESIGN DECISION 3 -- a full context
-## is met by summarise-and-restart, never by eviction. MAGIC.md carries the
-## reasoning.
+## is met by summarise-and-restart, never by eviction. DESIGN DECISION 4 -- a spawned
+## session keeps the exact message array it sends in its sandbox (context.jsonl,
+## AgentsHarnessContext.include), and MDAT_HARNESS_RESUME_CONTEXT resumes a session
+## from it: the stored array byte for byte, then the corrections as a new user turn.
+## MAGIC.md carries the reasoning.
 
 harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
@@ -142,6 +145,7 @@ harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 ## the model are all skipped. First argument only -- a prompt is trailing argv.
 harnessToolOnly=""
 harnessToolOnlyName=""
+harnessServedWaitBound=""
 ## Read and Skill return whole lines up to this many bytes; a served result stays under the MCP client's own limit.
 ## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
 . "$harnessHere/AgentsHarnessReadCap.include"
@@ -158,6 +162,12 @@ if [ "${1:-}" = --intern-tool ] ; then
 	harnessHeadFile="${MDAT_MCP_RESULT_HEAD_FILE:-}" ; unset MDAT_MCP_RESULT_HEAD_FILE
 	harnessImageFile="${MDAT_MCP_RESULT_IMAGE_FILE:-}" ; unset MDAT_MCP_RESULT_IMAGE_FILE
 	harnessReadCap="$agentsReadCapMcp"
+	## The return bound of a Wait with no timeout of its own on this served path: the MCP
+	## request handler passes the one it chose (higher while it sends progress), else the
+	## safe default under a native client cutoff of about 1800s with no progress. Unset here
+	## so no child inherits it.
+	harnessServedWaitBound="${MDAT_MCP_WAIT_SERVED_BOUND:-${MDAT_MCP_WAIT_BOUND:-1700}}" ; unset MDAT_MCP_WAIT_SERVED_BOUND
+	case "$harnessServedWaitBound" in ''|*[!0123456789]*) harnessServedWaitBound=1700 ;; esac
 	shift 2
 	## The wire IS needed, and reaching an endpoint is not why: AgentsHarnessMcpClient.sh
 	## builds its declarations through the wire's own AgentsWireToolDeclaration, so the
@@ -728,12 +738,11 @@ while [ -n "$harnessRunTimeoutRest" ] ; do
 		;;
 	esac
 done
-## Ceiling on one Wait call, its own knob beside Bash's, as MCP enumeration has its
-## own. 600 is ten minutes: twice the operation's own five-minute default, so a model
-## asking for a longer single wait still gets one, while no single call can hold this
-## run open indefinitely. A long vigil is many bounded waits, not one unbounded one --
-## which is what lets the agent re-decide between them.
-harnessWaitTimeout="${MDAT_HARNESS_WAIT_TIMEOUT:-600}"
+## Optional ceiling on one Wait call, its own knob beside Bash's. Unset is no ceiling:
+## a Wait with no timeout of its own waits until something arrives, because every quiet
+## return costs a whole model round that re-reads the context only to call Wait again.
+## A served call (--intern-tool, the MCP path) is bounded by harnessServedWaitBound instead.
+harnessWaitTimeout="${MDAT_HARNESS_WAIT_TIMEOUT:-}"
 harnessWaitTimeoutRest="$harnessWaitTimeout"
 while [ -n "$harnessWaitTimeoutRest" ] ; do
 	harnessWaitTimeoutChar="${harnessWaitTimeoutRest%"${harnessWaitTimeoutRest#?}"}"
@@ -1696,10 +1705,13 @@ AgentsHarnessParentThread(){
 	local parentRecord parentId="" parentThread=""
 	for parentRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
 		[ ! -f "$parentRecord" ] || parentId="$( LC_ALL=C awk '/^parent-session-id: /{ sub( /^parent-session-id: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+		## The thread the spawn settled for its parent, magic-coordinator's when the parent had none.
+		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^parent-thread: / { sub( /^parent-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
 	done
 	if [ -z "$parentId" ] || [ "$parentId" = "none" ] ; then
 		printf 'ERROR: this session has no recorded parent session, so %s names nowhere. Nothing was sent. Pass to explicitly.\n' "$harnessParentName" ; return 1
 	fi
+	[ -z "$parentThread" ] || { printf '%s %s\n' "$parentThread" "$parentId" ; return 0 ; }
 	for parentRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentId.md" ; do
 		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^session-thread: /{ sub( /^session-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
 	done
@@ -1745,6 +1757,9 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	[ "$toolBroadcast" != "true" ] || set -- "$@" --reply-broadcast
 	## Output to a file rather than a capture: the operation forks curl, and a capture
 	## returns on pipe EOF rather than on the command it ran.
+	## send.delivered is written only by a delivery that succeeded, Slack or inbox: what a
+	## caller (SubagentHandback) reads to act once on a delivered message, never on a failed one.
+	rm -f "$harnessScratch/send.delivered"
 	printf '%s' "$toolMessage" | "$@" --from-stdin >"$harnessScratch/send.out" 2>&1 || sendRc=$?
 	## A team member with no Slack DM of its own is reached by its inbox, a hand-off it reads later.
 	## A question cannot use it, because nothing can wait on a file.
@@ -1756,6 +1771,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | cut -d' ' -f1 ).md"
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
 			| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
+			printf 'inbox %s %s\n' "$toolTarget" "$toolInbox" > "$harnessScratch/send.delivered"
 			printf 'Sent to the inbox of %s as %s, because that team member has no Slack DM channel of its own. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
 		else
 			printf 'ERROR: %s has no Slack DM channel, and its inbox refused the hand-off, so nothing was sent. What the operation reported follows:\n' "$toolTarget"
@@ -1773,6 +1789,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	## that thread when it has none stored, so a reply landing between this post and that Wait
 	## is not skipped. Best effort: a post not recorded only loses that fallback.
 	[ "$sendRc" != "0" ] || AgentsHarnessOwnPostRecord "$harnessScratch/send.out"
+	[ "$sendRc" != "0" ] || ! LC_ALL=C grep -q '^SENT_MESSAGE_TS=' "$harnessScratch/send.out" || printf 'slack\n' > "$harnessScratch/send.delivered"
 	## One extra last line naming the Wait that follows, only for a caller that asked (the
 	## SendMessage and SubagentHandback tools) -- never for AskUserQuestion, which waits itself,
 	## or the announcement stubs, which expect no reply. Built from the send's own reported fields.
@@ -1852,17 +1869,41 @@ AgentsHarnessToolWait(){
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other wait path exists here. Nothing was waited on.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
-	## Per-call override of the harness-wide ceiling, validated the way Bash validates
-	## its own, and cut down to that ceiling rather than refused: a bound that is too
-	## long is a bound, and refusing it would turn a waitable question into an error.
+	## The RETURN bound. A caller's own timeout is honoured, validated the way Bash validates
+	## its own. With none, this harness waits until something arrives (empty is no bound),
+	## and a served call returns by harnessServedWaitBound, safely under the client cutoff.
+	## Either is cut down to a ceiling rather than refused: a bound that is too long is a
+	## bound, and refusing it would turn a waitable question into an error.
 	if [ -n "$toolTimeout" ] ; then
 		if ! AgentsHarnessWholeNumber "$toolTimeout" ; then
 			printf 'ERROR: timeout must be a whole number of seconds, got: %s\n' "$toolTimeout" ; return 0
 		fi
 	else
-		toolTimeout="$harnessWaitTimeout"
+		toolTimeout="$harnessServedWaitBound"
 	fi
-	[ "$toolTimeout" -le "$harnessWaitTimeout" ] || toolTimeout="$harnessWaitTimeout"
+	[ -z "$harnessServedWaitBound" ] || [ "$toolTimeout" -le "$harnessServedWaitBound" ] || toolTimeout="$harnessServedWaitBound"
+	if [ -n "$harnessWaitTimeout" ] ; then
+		[ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$harnessWaitTimeout" ] || toolTimeout="$harnessWaitTimeout"
+	fi
+	## A session whose handback waits in review waits for its verdict at most REVIEW_WAIT_LIMIT
+	## seconds (AgentsTools.ReviewFlow.include): bounded to what is left, and at the limit the
+	## tooling ends it, recorded. The item stays in review. Only the tool's own stateful wait.
+	## Nothing is loaded for a session with no spawn record, which has no item to review.
+	if [ "$waitStateful" = "true" ] && [ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] && [ -n "$( AgentsHarnessSessionKey )" ] \
+		&& [ -n "$( ls "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$( AgentsHarnessSessionKey ).md" 2> /dev/null )" ] ; then
+		local waitReviewLeft=""
+		type AgentsReviewWaitLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		waitReviewLeft="$( AgentsReviewWaitLeft "$( AgentsHarnessSessionKey )" 2> /dev/null )" || waitReviewLeft=""
+		case "$waitReviewLeft" in
+			'') ;;
+			expired)
+				AgentsReviewWaitExpire "${harnessAgent:-unknown}" "$( AgentsHarnessSessionKey )" 2> /dev/null
+				printf 'NEXT: you are dismissed -- end your run\n'
+				return 0
+			;;
+			*) [ -n "$toolTimeout" ] && [ "$toolTimeout" -le "$waitReviewLeft" ] || toolTimeout="$waitReviewLeft" ;;
+		esac
+	fi
 	if [ -n "$toolPoll" ] && ! AgentsHarnessWholeNumber "$toolPoll" ; then
 		printf 'ERROR: poll_interval must be a whole number of seconds, got: %s\n' "$toolPoll" ; return 0
 	fi
@@ -1913,7 +1954,7 @@ AgentsHarnessToolWait(){
 		[ -z "$toolDone" ] || set -- "$@" --wait-react-done "$toolDone"
 		[ -z "$toolWaitIds" ] || set -- "$@" --wait-react-wait "$toolWaitIds"
 	fi
-	set -- "$@" --wait-timeout "$toolTimeout"
+	[ -z "$toolTimeout" ] || set -- "$@" --wait-timeout "$toolTimeout"
 	[ -z "$toolPoll" ] || set -- "$@" --wait-poll-interval "$toolPoll"
 	[ -z "$toolSince" ] || set -- "$@" --wait-since-utime "$toolSince"
 	[ -z "$toolAddressee" ] || set -- "$@" --wait-addressee "$toolAddressee"
@@ -1926,6 +1967,8 @@ AgentsHarnessToolWait(){
 		cat "$harnessScratch/wait.err"
 		return 0
 	fi
+	## What a wait that worked said on its stderr goes to this run's own log, never left in scratch.
+	[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
 	## A dismissal is a Wait outcome of its own: a message whose body is DISMISSED,
 	## addressed to this member (AgentsHarnessWaitDismissed.awk). The spawner sends it when
 	## it is satisfied; the waiting session ends with its handback on it. Everything the
@@ -1938,6 +1981,14 @@ AgentsHarnessToolWait(){
 		[ "$waitStateful" != "true" ] || printf 'NEXT: you are dismissed -- give your handback if you have not, then end your run\n'
 		return 0
 	fi
+	## A TIMEOUT on the tool's own stateful wait is ONE line: every quiet result stays in the
+	## model's context, and that it is normal is said once, in the tool description. Only a
+	## source never read adds its WAIT-NEVER-READ line, since its silence means nothing.
+	if [ "$waitStateful" = "true" ] && [ "$( head -1 "$harnessScratch/wait.out" )" = "WAIT-RESULT: TIMEOUT" ] ; then
+		printf 'WAIT-RESULT: TIMEOUT (%ss) NEXT: Wait mode=continue\n' "$( LC_ALL=C sed -n 's/^# waited: \([0-9]*\)s of .*/\1/p' "$harnessScratch/wait.out" | head -1 )"
+		LC_ALL=C grep '^WAIT-NEVER-READ: ' "$harnessScratch/wait.out" || :
+		return 0
+	fi
 	cat "$harnessScratch/wait.out"
 	## One extra last line naming the next call, on the tool's own stateful wait only: an internal
 	## stateless caller (AskUserQuestion) embeds this output and has no stored wait to continue.
@@ -1945,9 +1996,25 @@ AgentsHarnessToolWait(){
 	## An asked question's wait item that arrived is taken into its record here, as the asking call would.
 	[ "$( head -1 "$harnessScratch/wait.out" )" != "WAIT-RESULT: RECEIVED" ] || AgentsHarnessWaitAskResolve "$harnessScratch/wait.out"
 	case "$( head -1 "$harnessScratch/wait.out" )" in
-		"WAIT-RESULT: TIMEOUT") printf 'NEXT: nothing new yet -- to keep waiting on the same sources, call Wait mode=continue\n' ;;
 		"WAIT-RESULT: RECEIVED") printf 'NEXT: if this is not what you are waiting for, call Wait mode=continue -- it resumes after what is shown here\n' ;;
 	esac
+}
+
+## One line appended to the current session's transcript, by --member-append-session-transcript
+## with no --transcript-name: the session decides the file. No session, nothing appended.
+AgentsHarnessToolSessionTranscriptAppend(){ ## note
+	local appendOut="" appendRc=0
+	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
+		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was appended.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
+	fi
+	appendOut="$( MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+		--member-append-session-transcript "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
+	if [ "$appendRc" != "0" ] ; then
+		appendOut="$( printf '%s\n' "$appendOut" | LC_ALL=C grep -F 'ERROR:' | tail -1 )"
+		[ -n "$appendOut" ] || appendOut="ERROR: the append failed (rc=$appendRc). Nothing was appended."
+		printf 'ERROR: %s\n' "${appendOut#*ERROR: }" ; return 0
+	fi
+	printf '%s\n' "$appendOut" | LC_ALL=C grep '^OK: ' | tail -1
 }
 
 ## Helpers behind Agent, TaskStop and TaskOutput. Deliberately NOT named
@@ -2030,7 +2097,7 @@ AgentsHarnessDispatchField(){ ## item path, field name
 
 ## The output path the spawn proxy writes into a dispatch item when it CLOSES one.
 ## Empty while the session is still running, which is exactly when a caller wants it --
-## hence the receipt derivation below rather than this alone.
+## hence the session log by spawn id, and the receipt derivation for an older log, beside it.
 AgentsHarnessDispatchOutputFile(){ ## item path
 	LC_ALL=C awk '
 		index($0, "output-file:") == 1 {
@@ -2125,7 +2192,7 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 		"SPAWN-PREPARE-BRIEF: "*) ;;
 		*)
 			local toolBrief=""
-			if toolBrief="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
+			if toolBrief="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default ${toolCliService:+--cli-service "$toolCliService"} --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
 				toolPrompt="$toolBrief"$'\n\n'"$toolPrompt"
 			else
 				toolBriefNote="NOTE: the spawn brief block (tool-routing, read-and-obey) could not be built for $toolAgentName, so the prompt went in without it: $( head -1 "$harnessScratch/spawn-brief.err" 2>/dev/null )"
@@ -2205,17 +2272,19 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 	[ -n "$toolLimit" ] || toolLimit="$harnessReadCap"
 	[ "$toolLimit" -le "$harnessReadCap" ] || toolLimit="$harnessReadCap"
 	if [ -n "$toolOutputFile" ] ; then
-		## Confined to the team data store: this parameter would otherwise be a read of
+		## Confined to the team data store and to the session logs the spawn proxy writes
+		## (sessions/<spawn-id>/session.log): this parameter would otherwise be a read of
 		## any path at all, around the access roots that bound Read, Glob and Grep.
 		case "$toolOutputFile" in
 			"$MDAT_DATA_ROOT"/*) ;;
+			"${MMDAPP:-/nonexistent}"/.local/agents/sessions/*/session.log) ;;
 			*)
-				printf 'ERROR: output_file is accepted only inside the team data store at %s, and this one is outside it: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "$toolOutputFile" ; return 0
+				printf 'ERROR: output_file is accepted only inside the team data store at %s, or as a session log at %s/.local/agents/sessions/<session id>/session.log, and this one is neither: %s. Give the dispatch item name or the session id as handle instead.\n' "$MDAT_DATA_ROOT" "${MMDAPP:-<no MMDAPP>}" "$toolOutputFile" ; return 0
 			;;
 		esac
 		case "$toolOutputFile" in
 			*..*)
-				printf 'ERROR: output_file may not step upward out of the team data store: %s\n' "$toolOutputFile" ; return 0
+				printf 'ERROR: output_file may not step upward out of the team data store or the session logs: %s\n' "$toolOutputFile" ; return 0
 			;;
 		esac
 		logPath="$toolOutputFile" ; logHow="the output_file given"
@@ -2239,6 +2308,11 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 		fi
 		logPath="$( AgentsHarnessDispatchOutputFile "$itemPath" )"
 		[ -z "$logPath" ] || logHow="the output-file the dispatch item records, which it writes only once the session closes"
+		## While it runs: its session log, named by the spawn id the item records.
+		if [ -z "$logPath" ] && [ -n "$sessionId" ] && [ -n "${MMDAPP:-}" ] && AgentsHarnessBareName "$sessionId" \
+			&& [ -f "$MMDAPP/.local/agents/sessions/$sessionId/session.log" ] ; then
+			logPath="$MMDAPP/.local/agents/sessions/$sessionId/session.log" ; logHow="the session log of spawn $sessionId"
+		fi
 		if [ -z "$logPath" ] ; then
 			receiptId="$( AgentsHarnessDispatchReceipt "$itemName" )"
 			if [ -z "$receiptId" ] ; then
@@ -2254,7 +2328,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 			done
 		fi
 		if [ -z "$logPath" ] ; then
-			printf 'ERROR: dispatch item %s was found, but no output log for receipt %s exists under %s/audit. Status recorded on the item: %s. The log is absent rather than unread -- a spawn whose dispatch document was suppressed writes its log to a scratch path this tool does not reach.\n' "$itemName" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
+			printf 'ERROR: dispatch item %s was found, but no session log for spawn %s exists under %s/.local/agents/sessions, and no output log for receipt %s under %s/audit. Status recorded on the item: %s. The log is absent rather than unread.\n' "$itemName" "${sessionId:-<none>}" "${MMDAPP:-<no MMDAPP>}" "$receiptId" "$MDAT_DATA_ROOT" "${itemStatus:-<none>}" ; return 0
 		fi
 	fi
 	if [ ! -f "$logPath" ] ; then
@@ -2328,6 +2402,10 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	if [ -z "$stopPids" ] ; then
 		printf 'STOP-RESULT: NO-PROCESS\nDispatch item %s, session %s, status %s.\nNo running process carries that session id, so nothing was signalled. Where the status above is a closed one this session had already finished; otherwise the record says running and no process matches it, which is UNKNOWN rather than stopped -- the session may have died without its record being closed, or its CLI may not carry the session id on its command line.\n' "$itemName" "$sessionId" "${itemStatus:-<none>}" ; return 0
 	fi
+	## The ordered ending recorded before the signal, in the item's Decisions and the session
+	## transcript (AgentsTools.ReviewFlow.include); the stop itself stays this tool's.
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
+		--reason taskstop --no-dismiss > /dev/null 2>&1 || :
 	for stopPid in $stopPids ; do
 		kill -TERM "$stopPid" 2>/dev/null || :
 	done
@@ -2591,7 +2669,15 @@ AgentsHarnessToolSubagentHandback(){
 		AgentsHarnessFormalField 'Unfinished, and what was not checked:' "$toolUnfinished"
 		AgentsHarnessFormalField 'Answers collected, and questions still open:' "$toolCollected"
 	} )"
+	rm -f "$harnessScratch/send.out" "$harnessScratch/send.delivered"
 	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback
+	## A delivered handback, posted to Slack or left in the caller's inbox, moves the session's
+	## own item running -> review once, recorded in its Decisions and transcript
+	## (AgentsTools.ReviewFlow.include). A failed one moves nothing. Silent, and never fails the call.
+	[ -n "$toolCollectSession" ] && [ -f "$harnessScratch/send.delivered" ] || return 0
+	rm -f "$harnessScratch/send.delivered"
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-handback "$harnessAgent" --session-id "$toolCollectSession" \
+		--message "$( printf '%s' "$toolOutcome" | LC_ALL=C tr '\n' ' ' | cut -c1-200 )" > /dev/null 2>&1 || :
 }
 
 AgentsHarnessToolReportFindings(){
@@ -2670,7 +2756,7 @@ AgentsHarnessToolArtifact(){
 ## Neither helper can fail this tool. A question that was genuinely asked must be
 ## reported as asked even where recording it did not work, so a failure here degrades
 ## to no record and a warning, never to a wrong outcome line.
-AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity)
+AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typed-question metadata: kind, address_to, channel, question ts, thread ts, addressees, asking accounts, refusal id, options, then the thread tag and the question key, then as bot (true: posted under the bot identity), then the task_ref the item is found by
 	local openTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" openId="" openSession openIdentity="member"
 	[ -x "$openTools" ] || return 0
 	[ -n "$harnessAgent" ] || return 0
@@ -2684,7 +2770,7 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typ
 		${openSession:+--session-id "$openSession"} \
 		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
 		${8:+--addressees "$8"} ${9:+--asking-accounts "$9"} ${10:+--refusal-id "${10}"} ${11:+--options "${11}"} \
-		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} --ask-identity "$openIdentity" \
+		${12:+--question-tag "${12}"} ${13:+--question-key "${13}"} ${15:+--task-ref "${15}"} --ask-identity "$openIdentity" \
 		--context AskUserQuestion 2>"$harnessScratch/pending-open.err" )" || openId=""
 	if [ -z "$openId" ] ; then
 		printf 'WARNING: AskUserQuestion: the question was posted but NOT recorded as a pending reply, so nothing will resume or re-ask it later. What the operation reported follows:\n' >&2
@@ -2694,16 +2780,47 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typ
 	printf '%s\n' "$openId"
 }
 
-AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict, optional ts of the reply taken as the answer
+AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict, optional ts of the reply taken as the answer, optional answerer
 	local closeTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	[ -n "$1" ] || return 0
 	[ -x "$closeTools" ] || return 0
 	## Only while still open: a record another closer (a collect, a settle) closed first is left as it is.
 	local closeRc=0
-	"$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} --context AskUserQuestion >/dev/null 2>&1 || closeRc=$?
+	"$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} ${5:+--answered-by "$5"} --context AskUserQuestion >/dev/null 2>&1 || closeRc=$?
 	case "$closeRc" in
 		0|3) ;;
 		*) printf 'WARNING: AskUserQuestion: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$1" "$2" >&2 ;;
+	esac
+	return 0
+}
+
+## Before a question is posted: the answer it already has, from this session's closed asks or
+## its item's `## Decisions`, read by the pending-reply store's own op. Prints the whole
+## ASK-RESULT block and rc 0 when one is found, so the caller posts nothing; rc 1 otherwise.
+AgentsHarnessAskEarlier(){ ## kind, question, question key, address_to, refusal id, task ref
+	local earlyTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" earlyFound earlyId earlyAnswer
+	[ -x "$earlyTools" ] && [ -n "$harnessAgent" ] || return 1
+	earlyFound="$( printf '%s' "$2" | "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "$( AgentsHarnessSessionKey )" \
+		--kind "$1" ${3:+--question-key "$3"} ${4:+--address-to "$4"} ${5:+--refusal-id "$5"} ${6:+--task-ref "$6"} 2>/dev/null \
+		| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || earlyFound=""
+	[ -n "$earlyFound" ] || return 1
+	printf 'ASK-RESULT: RECEIVED\n'
+	case "$earlyFound" in
+		'EARLIER-RECORD '*)
+			earlyId="${earlyFound#EARLIER-RECORD }" ; earlyId="${earlyId%% | *}"
+			if [ "$1" != "question" ] ; then
+				AgentsHarnessEscalationRead "$earlyId" | LC_ALL=C grep -E '^(VERDICT|VERDICT-TEXT|ANSWERED-BY|GRANT): ' || :
+			fi
+			printf 'NOT ASKED AGAIN: this session already asked the same question as pending reply %s, and it is answered, so nothing was posted. The earlier answer, as `EARLIER-RECORD <id> | <answer> | <answered-by> | <answered-at>`:\n%s\n' "$earlyId" "$earlyFound"
+		;;
+		*)
+			if [ "$1" != "question" ] ; then
+				earlyAnswer="${earlyFound##* -> }" ; earlyAnswer="${earlyAnswer% (*}"
+				printf 'VERDICT: %s\n' "${earlyAnswer%% *}"
+				case "$earlyAnswer" in *' -- '*) printf 'VERDICT-TEXT: %s\n' "${earlyAnswer#* -- }" ;; esac
+			fi
+			printf 'NOT ASKED AGAIN: the Decisions of the task item already answer this question, so nothing was posted. Decisions are binding. The line, as `EARLIER-DECISION <item> | <line>`:\n%s\n' "$earlyFound"
+		;;
 	esac
 	return 0
 }
@@ -2712,7 +2829,7 @@ AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict,
 ## Prints its result lines; nothing at all when there is no record to read.
 AgentsHarnessEscalationRead(){ ## pending reply id
 	[ -n "$1" ] && [ -n "$harnessAgent" ] || return 0
-	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-escalation-read "$harnessAgent" "$1" \
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-read "$harnessAgent" "$1" \
 		> "$harnessScratch/escalation-read.out" 2> /dev/null || :
 	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|GRANT): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
 }
@@ -2842,6 +2959,8 @@ AgentsHarnessToolAskUserQuestion(){
 	askKey="${askKey// /-}"
 	type AgentsToolsAskThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include" 2> /dev/null || :
 	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include" 2> /dev/null || :
+	## A question this session already had answered, or its item's Decisions answer, is not asked again.
+	AgentsHarnessAskEarlier "$toolKind" "$toolQuestion" "$askKey" "$toolAddressTo" "$toolRefusalId" "$toolTaskRef" && return 0
 	if [ -n "$toolAddressTo" ] && type AgentsToolsAskThreadFind > /dev/null 2>&1 ; then
 		## Finding, posting and recording are one step per addressee, so two askers at once
 		## never count the same thread and post under the same tag. Given back on every way
@@ -2996,7 +3115,7 @@ AgentsHarnessToolAskUserQuestion(){
 	askAddressees="$( printf '%s\n' "$askSent" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
 	## The account this question was posted under never answers it, whatever address_to said.
 	askSelfIds=" $( for askSendOut in "$askOpen" "$askSent" ; do printf '%s\n' "$askSendOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null ; done | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )"
-	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" )"
+	askPendingId="$( AgentsHarnessPendingReplyOpen "$toolTo" "$askBody" "$toolKind" "$toolAddressTo" "$askChannel" "$askTs" "$askThreadTs" "$askAddressees" "$askSelfIds" "$toolRefusalId" "$toolOptions" "$askTag" "$askKey" "$toolAsBot" "$toolTaskRef" )"
 	[ -z "$askLock" ] || AgentsToolsLocalLockGive "$askLock"
 	fi ## end of the posting path
 	## An escalation is answered before the work goes on, so a typed kind always waits.
@@ -3125,7 +3244,7 @@ AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
 			*) return 0 ;;
 		esac
 	fi
-	"$itemTools" --member-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
+	"$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
 }
 
 ## The lines that end an ask left open: its wait item, and the Wait that collects its answer.
@@ -3182,9 +3301,17 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 	fi
 	case "$askOutcome:$toolKind:$askVerdict" in
 		RECEIVED:question:)
-			## The reply taken as the answer, so the close can mark it :eyes:.
-			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "" \
-				"$( printf '%s\n' "$askWaitOut" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )"
+			## The reply taken as the answer, so the close can mark it :eyes:, and its text and
+			## author, so the record and the item's Decisions keep what the answer said.
+			local askAnswerHead="" askAnswerText=""
+			askAnswerHead="$( printf '%s\n' "$askWaitOut" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )" || askAnswerHead=""
+			case "$askAnswerHead" in
+				'reaction on the question: '*) askAnswerText="$askAnswerHead" ;;
+				?*) askAnswerText="$( printf '%s\n' "$askWaitOut" | LC_ALL=C grep -v '^# ' | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyAnswerText.awk" 2>/dev/null )" || askAnswerText="" ;;
+			esac
+			AgentsHarnessPendingReplyClose "$askPendingId" reply-received "$askAnswerText" \
+				"$( printf '%s\n' "$askWaitOut" | LC_ALL=C sed -n -E 's/^([0-9]+\.[0-9]+) \| .*/\1/p' | head -1 )" \
+				"$( printf '%s\n' "$askAnswerHead" | LC_ALL=C sed -n -E 's/^[0-9]+\.[0-9]+ \| ([^|]*[^| ]) *\|.*/\1/p' )"
 		;;
 	esac
 	printf 'ASK-RESULT: %s\n' "$askOutcome"
@@ -3527,6 +3654,12 @@ AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in sear
 	printf '%s\n' "${@:2}" | LC_ALL=C awk -v wantName="$1" -f "$harnessHere/AgentsHarnessSkillLocate.awk"
 }
 
+## Only the named sections of a Markdown file, |-separated heading texts, each down to the
+## next heading of the same or a higher level; an unknown one is ERROR listing the headings.
+AgentsHarnessSkillSection(){ ## file, sections
+	skillSections="$2" LC_ALL=C awk -f "$harnessHere/AgentsHarnessSkillSection.awk" "$1"
+}
+
 ## Reaches the skillset directly and DELIBERATELY NOT through AgentsHarnessPathAllowed.
 ## A member folder under the skillset root is a SYMLINK into whatever source tree owns
 ## it, so resolving a candidate with `cd ... && pwd -P` and prefix-matching it against
@@ -3535,8 +3668,8 @@ AgentsHarnessSkillLocate(){ ## skill name, then candidate SKILL.md paths in sear
 ## before any resolution: a relative name carrying no `..` segment, no leading slash and
 ## nothing outside the gated character set cannot name anything the join does not place
 ## under the root, whatever that root later resolves to.
-AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
-	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7"
+AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, section
+	local toolName="$1" toolFile="$2" toolList="$3" toolOffset="$4" toolLimit="$5" toolSkill="$6" toolArgs="$7" toolSection="${8:-}"
 	local skillDir skillPath skillRest skillSeg skillBytes skillPrefix skillLeaf skillSought pluginRoot skillPluginData skillOwnRoot skillCandidate
 	local skillVendor=()
 	## skill is the native call shape: the name resolved and the skill rendered as the
@@ -3615,6 +3748,11 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 		## stay as written.
 		skillArgs="$toolArgs" skillLabel="$toolSkill" skillBaseDir="$skillDir" skillPluginRoot="$pluginRoot" skillPluginData="$skillPluginData" \
 		LC_ALL=C awk -f "$harnessHere/AgentsHarnessSkillArgumentsFill.awk" "$skillPath" > "$harnessScratch/skill.out"
+		if [ -n "$toolSection" ] ; then
+			AgentsHarnessSkillSection "$harnessScratch/skill.out" "$toolSection" > "$harnessScratch/skill.section" || :
+			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"
+			case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
+		fi
 		skillBytes="$( wc -c < "$harnessScratch/skill.out" | tr -d ' ' )"
 		if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] || [ "$skillBytes" -gt "$harnessReadCap" ] ; then
 			AgentsHarnessReadRange "$harnessScratch/skill.out" "$toolOffset" "$toolLimit"
@@ -3685,6 +3823,13 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args
 	## size test below compares an empty value and emits shell noise, not an answer.
 	if [ ! -r "$skillPath" ] ; then
 		printf 'ERROR: Skill: not readable (permission denied): %s\n' "$toolName/$toolFile" ; return 0
+	fi
+	## section narrows the file to the named headings first; offset, limit and the cap then
+	## apply to that text, as they do to a whole file.
+	if [ -n "$toolSection" ] ; then
+		AgentsHarnessSkillSection "$skillPath" "$toolSection" > "$harnessScratch/skill.out" || :
+		case "$( head -c 6 "$harnessScratch/skill.out" )" in ERROR:) cat "$harnessScratch/skill.out" ; return 0 ;; esac
+		skillPath="$harnessScratch/skill.out"
 	fi
 	if [ -n "$toolOffset" ] || [ -n "$toolLimit" ] ; then
 		AgentsHarnessReadRange "$skillPath" "$toolOffset" "$toolLimit"
@@ -4008,6 +4153,10 @@ AgentsHarnessAnnounceTool(){
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_command}" )$harnessOff"
 			[ -z "$announcePath" ] || announceDetail="$announceDetail"$'\n'"     $harnessDim handle$harnessOff $harnessValue$announcePath$harnessOff"
 		;;
+		SessionTranscriptAppend)
+			announceIcon="🗒️"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_note}" )$harnessOff"
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## A call carrying a command is announced like Bash/Grep/Glob above: the command
 		## on the announce line, an optional comment on its own labelled line below, no
@@ -4102,11 +4251,12 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "${harnessArgV_server}" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
-		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" )" ;;
+		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" "${harnessArgV_section}" )" ;;
 		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;
+		SessionTranscriptAppend) harnessResult="$( AgentsHarnessToolSessionTranscriptAppend "${harnessArgV_note}" )" ;;
 		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "${harnessArgV_command}" "${harnessArgV_cwd}" "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
@@ -4236,6 +4386,8 @@ fi
 [ -z "$harnessNeedsMcp" ] || . "$harnessMcpFile"
 ## The local lock primitive Write and Edit take; absent, every write is refused as unlockable.
 [ ! -f "$harnessHere/AgentsTools.LocalLock.include" ] || . "$harnessHere/AgentsTools.LocalLock.include"
+## The session transcript and token hooks; every one returns 0, and is called with || : besides.
+[ ! -f "$harnessHere/AgentsTools.SessionTranscript.include" ] || . "$harnessHere/AgentsTools.SessionTranscript.include"
 
 ## --intern-tool ends here: the tools, the hooks and, for a tool that reaches an MCP
 ## server, the MCP client are all in scope by now, and everything below this point is the
@@ -4246,11 +4398,15 @@ fi
 if [ -n "$harnessToolOnly" ] ; then
 	harnessToolOnlyArgs="$( cat )"
 	[ -n "$harnessToolOnlyArgs" ] || harnessToolOnlyArgs="{}"
+	AgentsTranscriptToolStart "$harnessToolOnlyName" || :
 	AgentsHarnessAnnounceTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
 	## Every hook gets its say here exactly as it does in the loop: a surface that skips
 	## them is a way around them.
 	harnessResult="$( AgentsHarnessHooksRefusal "$harnessToolOnlyName" "$harnessToolOnlyArgs" )"
+	harnessTranscriptOutcome="" ; [ -z "$harnessResult" ] || harnessTranscriptOutcome="refused"
 	[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessToolOnlyName" "$harnessToolOnlyArgs"
+	## The call's tool line, to the daemon log and to the session's transcript.
+	AgentsTranscriptToolDone "$harnessToolOnlyName" "$harnessToolOnlyArgs" "$harnessResult" mcp "$harnessTranscriptOutcome" || :
 	## Served path tools also hand the server a request line and a one-line result summary, as a separate content part; stdout stays the plain result.
 	case "$harnessHeadFile:$harnessToolOnlyName" in
 		:*) ;;
@@ -4276,6 +4432,8 @@ fi
 ## The model path's own functions -- the bearer refresh and the per-round tool-call
 ## reader -- live in an include no served call loads.
 . "$harnessHere/AgentsHarnessModelRound.include"
+## The kept model context and its resume, on the model path only.
+. "$harnessHere/AgentsHarnessContext.include"
 
 ## A spawned session run by this loop is one whose arming can be observed: said beside its record.
 [ -z "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || : > "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.harness" 2>/dev/null || :
@@ -4313,7 +4471,15 @@ harnessSystemBase="$harnessSystemText"
 [ -z "$harnessMcpUnavailableNote" ] || printf -v harnessSystemText '%s\n\n%s' "$harnessSystemBase" "$harnessMcpUnavailableNote"
 harnessMcpNoteTold="$harnessMcpUnavailableNote"
 
-AgentsWireInitMessages
+## A resume continues a kept context, or ends here, before any request: rc 7 tells the
+## spawn proxy to start a new process instead (AgentsToolsSpawnProxyHarnessResumeRun).
+if [ -n "${MDAT_HARNESS_RESUME_CONTEXT:-}" ] ; then
+	AgentsHarnessContextResume || exit 7
+else
+	AgentsWireInitMessages
+fi
+AgentsHarnessContextInit
+AgentsHarnessContextBegin "$harnessContextResumed"
 
 ## No round ceiling by default: a round is one model turn, which tracks neither
 ## cost nor progress, and a task is not finished by being cut off at one.
@@ -4360,6 +4526,8 @@ harnessToolChoice=""
 ## Recorded and displayed, never enforced: this leg carries no budget.
 harnessUsagePrompt="" harnessUsageCompletion="" harnessUsageTotal=""
 harnessClosingRound=0
+## The session transcript's MODEL line, where the spawn proxy opened one.
+AgentsTranscriptHarnessStart || :
 
 while : ; do
 	harnessRound=$(( harnessRound + 1 ))
@@ -4424,6 +4592,8 @@ while : ; do
 
 	## To a file, never argv: a long conversation outgrows the OS argument limit, and
 	## stdin is already the header channel.
+	## The kept context first gains whatever user turns this round adds.
+	AgentsHarnessContextSync user ""
 	AgentsWireRequestBody > "$harnessScratch/request.json"
 
 	## Every attempt starts from a clean accumulator, and a retry here never touches
@@ -4495,6 +4665,8 @@ while : ; do
 	elif [ "$harnessRound" = 1 ] && [ "$harnessContextTokens" != 0 ] ; then
 		printf '%s\n' "${harnessWarn}⚠️  no token usage in this stream${harnessOff} ${harnessDim}-- MDAT_HARNESS_CONTEXT_TOKENS is $harnessContextTokens, but nothing here measures the context, so no summarise-and-restart can fire${harnessOff}" >&2
 	fi
+	## The round's tokens and visible text to the session transcript, usage or none.
+	AgentsTranscriptHarnessRound "$harnessRound" "$harnessScratch" || :
 
 	if [ "$harnessStreamOk" != "1" ] && [ ! -s "$harnessScratch/stream.rawother" ] ; then
 		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: round $harnessRound: gave up after $harnessStreamMaxAttempts stream attempts, none reached a clean [DONE] (see DESIGN DECISION 1: a partial stream is always discarded, never spliced) -- last curl rc=$harnessCurlRc" >&2
@@ -4527,6 +4699,8 @@ while : ; do
 	if [ "$harnessClosingRound" = "1" ] ; then
 		harnessFinal="$( AgentsWireFinalContent )"
 		[ -z "$harnessFinal" ] || AgentsHarnessEmitAnswer "$harnessFinal"
+		AgentsHarnessContextReply
+		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		exit 3
 	fi
 
@@ -4539,6 +4713,8 @@ while : ; do
 			echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: round $harnessRound: the summarise step produced no text (finish_reason=$( AgentsWireFinishReason )) -- refusing to restart onto an empty summary and continue on a truncated view of this run" >&2
 			exit 1
 		fi
+		## The summary turn closes the leg's kept context, rendered at the restart milestone.
+		AgentsHarnessContextReply
 		## The task is re-rendered from $harnessPrompt, the same variable the first leg
 		## was built from and one nothing past argument parsing writes, so every restart
 		## carries the task itself rather than a summary of a summary of it.
@@ -4552,6 +4728,9 @@ while : ; do
 		harnessToolChoice=""
 		harnessSummariseRound=0
 		harnessRestartCount=$(( harnessRestartCount + 1 ))
+		AgentsTranscriptHarnessRestart "$harnessRestartCount" "${#harnessSummary}" || :
+		## The new leg's array replaces the old one in the kept context.
+		AgentsHarnessContextBegin 0
 		## The signal describes a conversation that has just been replaced.
 		harnessRoundTotal=0
 		printf '%s\n' "${harnessValue}♻️  restarted${harnessOff} ${harnessDim}-- original task verbatim plus the summary above; restart $harnessRestartCount${harnessMaxRestarts:+ of $harnessMaxRestarts}${harnessOff}" >&2
@@ -4568,6 +4747,8 @@ while : ; do
 			exit 1
 		fi
 		AgentsHarnessEmitAnswer "$harnessFinal"
+		AgentsHarnessContextReply
+		AgentsTranscriptHarnessFinal "$harnessFinal" || :
 		harnessExitClean=1 ; exit 0
 	fi
 
@@ -4585,6 +4766,7 @@ while : ; do
 		harnessIndex=$(( harnessIndex + 1 ))
 	done
 	harnessMessages+=( "$( AgentsWireAssistantToolCallsRecord "$harnessToolCallsJson" )" )
+	AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
 
 	## Then one result per call, keyed by that exact tool_call_id.
 	harnessIndex=0
@@ -4593,6 +4775,7 @@ while : ; do
 		harnessFuncName="${harnessCallNames[$harnessIndex]}"
 		harnessFuncArgsRaw="${harnessCallArgs[$harnessIndex]}"
 
+		AgentsTranscriptToolStart "$harnessFuncName" || :
 		AgentsHarnessAnnounceTool "$harnessFuncName" "$harnessFuncArgsRaw"
 
 		## Every configured hook gets its say before the call runs, and a refusal becomes
@@ -4601,12 +4784,20 @@ while : ; do
 		[ -n "$harnessResult" ] || harnessResult="$( AgentsHarnessArmGate "$harnessFuncName" )"
 		if [ -n "$harnessResult" ] && [ -z "$harnessArmRedirectLogged" ] && [ "${harnessResult#ERROR: read your duty file first}" != "$harnessResult" ] ; then
 			harnessArmRedirectLogged=1
-			printf '%s\n' "Unarmed call redirected" '```' "member: $harnessAgent" "session-id: $MDAT_SPAWN_SESSION_ID" "tool: $harnessFuncName" "redirect: read $harnessAgent.armed.md with Skill first" '```' \
-				| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" event-track --identity-bot --from-stdin > /dev/null 2>&1 || :
+			"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-event-track-post "$harnessAgent" event-track --kind refusal \
+				--session-id "$MDAT_SPAWN_SESSION_ID" --field what="Unarmed call redirected" --field tool="$harnessFuncName" \
+				--field reason="read $harnessAgent.armed.md with Skill first" > /dev/null 2>&1 || :
 		fi
 
+		## A result already here is a hook's or the arm gate's: the call was refused, not run.
+		harnessTranscriptOutcome="" ; [ -z "$harnessResult" ] || harnessTranscriptOutcome="refused"
 		[ -n "$harnessResult" ] || AgentsHarnessRunTool "$harnessFuncName" "$harnessFuncArgsRaw"
 		AgentsHarnessArmNote "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult"
+		## The result joins the array, and the kept context, before the milestone its
+		## transcript hook may commit, so that commit carries this call.
+		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessResult" )" )
+		AgentsHarnessContextSync tool "$( [ -z "$harnessContextFile" ] || AgentsHarnessContextToolMeta "$harnessFuncName" "$harnessCallId" "$harnessResult" "$harnessTranscriptOutcome" )"
+		AgentsTranscriptToolDone "$harnessFuncName" "$harnessFuncArgsRaw" "$harnessResult" loop "$harnessTranscriptOutcome" || :
 
 		## The announce line states an intent and reads the same whether the call ran or
 		## was refused, so a refusal is marked explicitly for a transcript reader.
@@ -4616,7 +4807,6 @@ while : ; do
 			;;
 		esac
 
-		harnessMessages+=( "$( AgentsWireToolResultRecord "$harnessCallId" "$harnessResult" )" )
 		harnessIndex=$(( harnessIndex + 1 ))
 	done
 done

@@ -23,6 +23,9 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-contact-digest-send: syntax is <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
 			set +e ; return 1
 		fi
+		## Open to any member (a wrong prefix, MAGIC.md "Who may call an operation"), and sent
+		## under the sender's own credentials: a spawned session names only itself.
+		AgentsToolsActingMemberCheck "$digestMember" magic-contact-digest-send || { set +e ; return 1 ; }
 		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$commsClient" "$@" \
 			--context --magic-contact-digest-send
 		return $?

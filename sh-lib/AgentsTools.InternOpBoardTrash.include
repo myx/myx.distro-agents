@@ -245,6 +245,27 @@ case "$1" in
 			echo "$MDSC_CMD: board-trash: ⛔ ERROR: item not found: $sourcePath" >&2
 			set +e ; return 1
 		fi
+		## A trash ends the item's child, ordered and recorded before the item goes
+		## (AgentsTools.ReviewFlow.include). Never fails the trash; said on stderr.
+		## A git store deletes the item, so there the ending goes to the session
+		## transcript only: a Decisions line would be a commit of its own, before the
+		## keep/delete commits, and must not cost the item when it fails. A store
+		## without git keeps the trashed copy, so it gets the full record.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+		if [ -n "$repoRoot" ] ; then
+			AgentsReviewLoad
+			local endOut="" endSpawn=""
+			endOut="$( AgentsToolsBoardAcceptDismissChild "$callingMember" "$sourcePath" )" || :
+			endOut="${endOut#ACCEPT-DISMISS: }"
+			echo "END-DISMISS (trashed): $endOut" >&2
+			endSpawn="$( AgentsToolsDecisionsField "$sourcePath" spawn-id )" || endSpawn=""
+			case "$endSpawn" in
+				''|-) ;;
+				*) AgentsTranscriptEvent "$endSpawn" ENDING "" 0 item "${itemName%.md}" kind dismissed by "$callingMember" text "trashed: $endOut" 2>/dev/null || : ;;
+			esac
+		else
+			AgentsReviewEndChild "$callingMember" "$sourcePath" trashed >&2 || :
+		fi
 		## Same never-committed case as the inbox arm above: committed first, then deleted.
 		if [ -n "$repoRoot" ] && [ -z "$( git -C "$repoRoot" ls-files -- "$sourcePath" 2>/dev/null )" ] ; then
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"

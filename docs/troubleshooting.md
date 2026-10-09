@@ -4,7 +4,7 @@
 
 ## A read-only call through the console is slow and costs credits
 
-`DistroAgentsConsole.sh` starts an agent CLI. A line piped into it arrives as a prompt, so a model reads it and decides whether to run it. A plain read of the roster cost a full model round trip, where the same call run directly returned at once.
+`DistroAgentsConsole.sh` starts an agent CLI. A line piped into it arrives as a prompt, so a model reads it and decides whether to run it. Every call through it costs a full model round trip, even a plain read. See [Running the agents console](use.md#running-the-agents-console).
 
 For anything read-only, run the script directly:
 
@@ -40,6 +40,18 @@ A mistyped or missing sub-command can create an empty configuration before it re
 ## A member link points at a second copy
 
 `--install-skillset-symlinks` keeps an existing link as it is, whatever it points at. Re-running it never moves one. Correct the link yourself.
+
+## A claude-native spawn reports cli-not-authenticated
+
+The machine is signed out of `claude`, and no key is configured. Sign in with `claude auth login`, or store `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the magic-team scope.
+
+- A signed-in machine never uses a configured key. Claude Code prefers a key over a sign-in, and that would move spawns onto API billing.
+- A signed-out machine uses the first configured key, for `--non-interactive` runs only, and says which one.
+- An interactive console is only warned. Sign in there with `/login`.
+
+## The hooks or permission rules I expected are not there
+
+Workspace restrictions are optional, and nothing installs them for you. Run `--install-workspace-restrictions` once. See [Workspace restrictions](installation.md#workspace-restrictions-optional).
 
 ## An agent CLI is missing
 

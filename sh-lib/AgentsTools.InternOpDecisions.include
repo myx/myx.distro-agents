@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpDecisions.include -- the ops over a board item's `## Decisions`
+## section (AgentsTools.ItemDecisions.include): the tooling's own append, and the member
+## stub a member records a clarification, resolution or dismissal with. Sourced from the
+## dispatcher's `--intern-op-decisions-*|--member-decision-*` arm; relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+
+case "$1" in
+
+	## The tooling's own: any kind, any <who>, and blockers cleared on request.
+	--intern-op-decisions-append|--member-decision-record)
+		local decOp="$1"
+		shift
+		MDSC_CMD="$MDSC_CMD $decOp"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local decWho="${1:-}" decItem="${2:-}" decKind="" decText="" decSource="" decClear="" decMentions=""
+		shift 2 2>/dev/null || shift $#
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--kind|--text|--source|--clear-if-mentions|--context)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1 requires a value" >&2 ; set +e ; return 1 ; }
+					case "$1" in
+						--kind) decKind="$2" ;;
+						--text) decText="$2" ;;
+						--source) decSource="$2" ;;
+						--clear-if-mentions) decMentions="$decMentions $2" ;;
+					esac
+					shift 2
+				;;
+				--clears-blocker|--clear-blockers) decClear="all" ; shift ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$decWho" ] || [ -z "$decItem" ] || [ -z "$decKind" ] || [ -z "$decText" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <item-filename> --kind <kind> --text <one line> [--source <ts-or-id>] [--clears-blocker]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "${decItem##*/}" "<item-filename>" decisions || { set +e ; return 1 ; }
+		if [ "$decOp" = "--member-decision-record" ] ; then
+			AgentsToolsAssertBareName "$decWho" "<team-member>" decision-record || { set +e ; return 1 ; }
+			## An answer or a verdict is the tooling's to record, from the ask it closes.
+			case "$decKind" in
+				clarification|resolved|dismissed) ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: a member records clarification, resolved or dismissed; $decKind is recorded by the tooling when an ask closes" >&2
+					set +e ; return 1
+				;;
+			esac
+			[ -n "$decMentions" ] && { echo "$MDSC_CMD: ⛔ ERROR: invalid option: --clear-if-mentions" >&2 ; set +e ; return 1 ; }
+			## Who records, with or without --clears-blocker: the item's own parties only. An item
+			## not on the board is left to the append, which refuses it as before.
+			AgentsToolsActingMemberCheck "$decWho" member-decision-record || { set +e ; return 1 ; }
+			local decPath=""
+			if decPath="$( AgentsToolsDecisionsItemPath "$decItem" )" && ! AgentsToolsItemIsParty "$decPath" "$decWho" ; then
+				echo "$MDSC_CMD: ⛔ ERROR: $decWho is not the owner, executor or reviewer of ${decPath##*/}, nor the member of its spawned session, so it records nothing on it" >&2
+				set +e ; return 1
+			fi
+		fi
+		## A dispatch item's line goes on the task it `tracks:` too, one level only.
+		AgentsToolsDecisionsAppendTracked "$decWho" "$decItem" "$decKind" "$decText" "$decSource" "$decClear" "$decMentions" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

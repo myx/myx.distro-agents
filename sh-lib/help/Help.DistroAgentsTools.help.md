@@ -3,7 +3,6 @@
 📘 syntax: DistroAgentsTools.fn.sh --console-stop <channel>
 📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-config-option <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
@@ -23,6 +22,11 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen <team-member> <uid>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-mark-seen <team-member> <uid>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>
@@ -93,7 +97,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --member-upsert-member-inquiry <member> <item-filename> [--from-member <member>] [--from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
-📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]
+📘 syntax: DistroAgentsTools.fn.sh --member-append-session-transcript <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-read <member> <item-filename> [--start-line <N> --end-line <N>]
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-item-trash <member> <item-filename>
 📘 syntax: DistroAgentsTools.fn.sh --member-inbox-to-processed <team-member> <item-filename> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -139,15 +143,30 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
+📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
 📘 syntax: DistroAgentsTools.fn.sh --member-pending-reply-settle <team-member> <pending-id> --reason <text>
+📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
 📘 syntax: DistroAgentsTools.fn.sh --magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
+📘 syntax: DistroAgentsTools.fn.sh --member-decision-record <team-member> <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+📘 syntax: DistroAgentsTools.fn.sh --member-review-request <team-member> <item-filename> --reason <text>
+📘 syntax: DistroAgentsTools.fn.sh --member-review-accept <team-member> <item-filename> [--summary <text>]
+📘 syntax: DistroAgentsTools.fn.sh --member-review-return <team-member> <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsTools.fn.sh --member-review-reject <team-member> <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsTools.fn.sh --member-review-follow-up <team-member> <item-filename> <new-item-name> --from-stdin
+📘 syntax: DistroAgentsTools.fn.sh --magic-review-shutdown <magic-coordinator>
+📘 syntax: DistroAgentsTools.fn.sh --magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
+📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsTools.fn.sh --magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
+📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --routine-coworking-session-input-scan <team-member> <tracking-document>...
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-config-check
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-input-scan <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --magic-morning-review-state-advance <team-member> <ts>
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -155,6 +174,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-backlog <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
+📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]
 📘 syntax: DistroAgentsTools.fn.sh --magic-board-create-running <team-member> <item-filename> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]]
 📘 syntax: DistroAgentsTools.fn.sh --magic-advance-sleep-run
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>
@@ -292,19 +312,11 @@
 			newlines are stripped, and empty or multi-line input is an
 			error. Use it for every secret.
 
-		--member-config-option <member-name> <operation>
-			Friendly synonym for --agents-config-option <member-name>
-			<operation> — self-recurses into it directly, same <operation>
-			set. Exists so a caller thinking in terms of "this member's own
-			settings" doesn't need to know the underlying scope's name.
-
 		--members --backend <member-name> <operation>
-			Second synonym, one hop further. Self-recurses into
-			--member-config-option <member-name> <operation> [args...].
-			--upsert/--upsert-if/--select/--delete and similar friendlier
-			wrappers are not mirrored here — call --members --backend (or
-			--member-config-option, or --agents-config-option directly)
-			for those.
+			Synonym for --agents-config-option <member-name> <operation>
+			[args...], same <operation> set. There is no
+			--member-config-option: a scope holds credentials, so settings
+			are the tooling's and the console's, never a member op.
 
 		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
@@ -423,6 +435,7 @@
 			whose correspondence produced the digest — as a positional.
 			--member-contact-digest-send has no origin argument: the
 			acting member is the origin, and passing one is rejected.
+			Under either name, a spawned session sends only as itself.
 
 			The origin appears in the message's `to` field. <text> is the
 			rest of the digest, in order: who wanted what, then the
@@ -596,6 +609,19 @@
 			Exit code: 0 every identity enumerated, 3 some enumerated
 			some failed (partial, not known-complete), 4 none
 			enumerated (UNKNOWN, never empty), 1 usage.
+
+		--magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
+		--magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
+		--magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+		--magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
+		--magic-comms-email-mark-seen <team-member> <uid>
+			The coordinator acting as <team-member>, under that member's
+			own credentials: a client-* member's own sources, handled as
+			that member in the communication sweep. Each takes every
+			argument and option of the --member-comms-* operation of the
+			same name and does what it does. Only magic-coordinator, or
+			the console, may call them: a --member-comms-* call from a
+			spawned session acts only as that session's own member.
 
 		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
 			<team-member> is the acting identity -- a bare, existing
@@ -1744,8 +1770,9 @@
 
 		--member-inbox-note-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a note into `<member>`'s own
-			inbox. Checks nothing about who is writing -- whose inbox a
-			member may write into is a team rule, not enforced here.
+			inbox. Own inbox only: a spawned session naming another
+			member than itself is refused; a call from no spawned
+			session is taken at the name it gives.
 			`<member>` must exist as a real skill directory;
 			`<item-filename>` a bare filename. The inbox is created
 			lazily if missing. Content via stdin by default, or
@@ -1780,11 +1807,15 @@
 			lazily if missing. Content via stdin by default, or
 			`--from-file <path>`. A new item's required
 			`type`/`from`/`date`/`owner` headers are completed as in
-			`--member-inbox-note-upsert`.
+			`--member-inbox-note-upsert`. From a spawned session,
+			`--from-member` names only that session's own member, and an
+			item already in the inbox is overwritten only when its
+			`from:` is the caller; a new item is always written.
 
 		--member-inbox-reflection-upsert <member> <item-filename> [--from-member <member>] [--from-file <path>|--edit-patch-from-stdin]
 			Writes (creates or overwrites) a reflection-type item into a
-			member's own inbox. Same arguments, lazy inbox creation,
+			member's own inbox, own inbox only as for
+			`--member-inbox-note-upsert`. Same arguments, lazy inbox creation,
 			stdin/`--from-file` content and `--edit-patch-from-stdin`
 			patch behaviour as `--member-inbox-note-upsert` (which
 			rejects patch mode; this accepts it). The content follows a
@@ -1795,15 +1826,26 @@
 			enforced. The old name `--member-upsert-inbox-reflection`
 			still works as an alias.
 
-		--member-append-session-transcript <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]
-			Appends one canonical transcript-entry block: `<speaker-name>
+		--member-append-session-transcript <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]
+			With no `--transcript-name`: appends one NOTE line, by
+			`<speaker-name>` (default `<team-member>`) at `<timestamp>`
+			(default now, UTC), to the calling session's own tooling-written
+			transcript, never another session's; `--create` starts it when
+			the session has none. Refused when no session resolves. A
+			session's log (`session-*.log`) is never named with
+			`--transcript-name`. The SessionTranscriptAppend tool is the
+			same append from a model.
+			With `--transcript-name` (`--speaker` and `--timestamp` then
+			required): appends one canonical transcript-entry block: `<speaker-name>
 			(<timestamp>):` followed by quoted message lines, to the
 			team's shared audit tree (not a board state folder). The
 			month bucket it lands in comes from the date embedded in
 			`<transcript-file-name>` (`transcript-YYYY-MM-DD-*` or
 			`transcript-YYYYMMDDTHHmmZ-*`), falling back to the current
 			UTC year-month otherwise.
-			`<team-member>` must already be a real team member.
+			`<team-member>` must already be a real team member; a
+			spawned session naming another member than itself is
+			refused, either way.
 			Does not rewrite prior content. Missing target transcript is
 			an error unless `--create` is passed. Payload from exactly
 			one of `--message`, `--from-stdin`, or `--from-file <path>`
@@ -1823,7 +1865,8 @@
 			`--from-inbox:<member>` here -- one supplied in any position
 			is REFUSED, so a member-scoped call can never become a
 			cross-member one (use `--librarian-inbox-item-trash` for
-			another member's inbox). Resolution as
+			another member's inbox). A spawned session naming another
+			member than itself is refused. Resolution as
 			`--member-inbox-item-read`: root then legacy `processed/`,
 			first match wins, not found in either names both. No
 			type-prefix restriction. An item carrying `archive: true` is
@@ -2158,7 +2201,9 @@
 		--make-workspace-integrations [--quiet]
 			Runs all `--make-*` commands, then
 			--install-workspace-integrations, then
-			--install-workspace-restrictions, then
+			--install-workspace-restrictions (only where restrictions
+			were installed, that is where
+			.claude/hooks/deny-native-tool-reroute.sh exists), then
 			--make-harness-indices, against $MMDAPP. A step
 			that fails ends the run; later steps don't run. `--quiet`
 			suppresses the usage guidance normally printed.
@@ -2569,7 +2614,8 @@
 			--wait-list-sources prints the source kinds this
 			build carries and waits on nothing.
 
-			--wait-timeout: bound in whole seconds, default 300.
+			--wait-timeout: bound in whole seconds; none by default,
+			so the wait returns only when something arrives.
 			--wait-poll-interval: whole seconds between probes,
 			fixed when given (or MDAT_WAIT_POLL_SECONDS when set),
 			minimum 1. Unset, it backs off: 5s, growing 15s per 5
@@ -2742,7 +2788,16 @@
 			said, and signed by <team-member>. The waiting question
 			ends on it and its session retries the exact call. A second
 			answer to the same escalation is not applied. The answer is
-			also said in the question's own thread.
+			also said in the question's own thread. A spawned session
+			answers only as its own member.
+
+		--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
+			The coordinator answers one open escalation on behalf of the
+			member it was addressed to, whoever that is, as
+			--member-escalation-answer does for the addressee: the same
+			verdicts, session checks, grant and thread notice, signed by
+			magic-coordinator. Never a question magic-coordinator asked.
+			Only magic-coordinator, or the console, may call it.
 
 		--magic-escalation-forward <coordinator> <request-id>
 			Forwards one open escalation addressed to <coordinator> to
@@ -2781,7 +2836,16 @@
 			it. A readback, decision or permission is refused, because
 			it closes through its own escalation ops. A record already
 			closed prints `ALREADY-CLOSED <id> <status>` and is left
-			as it is.
+			as it is. A spawned session settles only as its own member.
+
+		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text>
+			The coordinator settles another member's open plain question
+			on its behalf, as --member-pending-reply-settle does for the
+			asker: verdict `settled: <text>`, answered-by
+			`magic-coordinator (settled)`, `SETTLED <id>`. A readback,
+			decision or permission is refused, and a closed record is
+			left as it is. Only magic-coordinator, or the console, may
+			call it.
 
 		--magic-pending-reply-amend <magic-coordinator> <pending-id> --verdict <text> --reason <text>
 			Corrects the verdict of a plain question already closed with
@@ -2796,6 +2860,107 @@
 			decision or permission is refused, because its verdict may
 			have written a grant, which is corrected through the grant
 			store.
+
+		--member-decision-record <team-member> <item-filename> --kind <clarification|resolved|dismissed> --text <one line> [--source <ts-or-id>] [--clears-blocker]
+			Appends one dated line to the board item's `## Decisions`
+			section, creating the section when it is missing, through the
+			board edit primitive:
+			`- <UTC> <team-member> <kind>: <text> (<source>)`. Prints
+			`DECISION-RECORDED <item> <state>`. Decisions are binding
+			context for the item: a spawn brief, conversation.md and a
+			named-item input scan show them first, newest first, at most
+			30. `--clears-blocker` also removes the item's `blocked-on`
+			and `condition`, each printed as `BLOCKER-CLEARED <field>`.
+			Only the item's own parties record on it: its owner, its
+			reviewer (`review-by`, as for --member-review-accept), the
+			member of its spawned session (`spawn-id`) or of a spawn
+			whose `spawns`/`spawned-by` names it. A spawned session
+			records as its own member only.
+			An answer or a verdict is recorded by the tooling itself,
+			when an AskUserQuestion closes, on the item its pending
+			record names in `item:` (task_ref, else the session's
+			`spawns:` dispatch item); an AskUserQuestion that Decisions
+			or an earlier closed ask of the same session already answer
+			is not posted again, and returns that answer.
+
+		--member-review-request <team-member> <item-filename> --reason <text>
+			Moves a board item from running to review, and only from
+			running, with `review-reason: review-requested`, and records
+			`review: review-requested: by <team-member>: <text>` in its
+			`## Decisions` and its session transcript. Prints
+			`REVIEW: <item> running->review (review-requested)`, or
+			`REVIEW: not moved: ...` with the reason. Only the item's
+			owner asks, or the session that spawned its child (that
+			session, or its member). The tooling moves
+			an item into review itself on a SubagentHandback (`handback`),
+			on a child that ended with no handback
+			(`ended-without-handback`) and on a --wait pass that ended
+			(`wait-pass-ended`). The child then waits for its verdict at
+			most REVIEW_WAIT_LIMIT seconds (team config, default 3600):
+			at the limit its Wait returns DISMISSED
+			(`review-wait-expired`, recorded), and the item stays in
+			review, where a return can restart that same session.
+
+		--member-review-accept <team-member> <item-filename> [--summary <text>]
+			The accept verdict on an item in review or running: moves it
+			to processed through --magic-board-to-processed, which sends
+			DISMISSED to its live child (the ACCEPT-DISMISS line), and
+			records `verdict: accepted[: <summary>]` in its `## Decisions`
+			and its session transcript. Prints
+			`VERDICT: <item> accepted -> processed`.
+			Every verdict, this one and return, reject and follow-up, is
+			given only by the reviewer the item's `review-by` names:
+			empty or `magic-coordinator`, magic-coordinator; `human-owner`,
+			the human, from no spawned session; `<name>.routine`, an
+			executor of that routine; a session id (`<id>` or
+			`<id>:<member>`), that session, the member it names or its
+			own member; a member name, that member. A spawned session
+			gives a verdict as its own member only.
+
+		--member-review-return <team-member> <item-filename> (--message <text>|--from-stdin)
+			The return verdict on an item in review: the same session
+			continues. Moves it to running with the corrections appended
+			as a `## Review: returned` section, and records
+			`verdict: returned: <text>`. A child still waiting gets the
+			corrections in its own session thread, addressed to it
+			(`RETURN: delivered ...`); a session that has ended is
+			started again on the same item, coworking session and
+			sandbox (--dispatch-doc:reuse), its brief the item with its
+			Decisions first (`RETURN: restarted ...`). Its next handback
+			moves it to review again.
+
+		--member-review-reject <team-member> <item-filename> (--message <text>|--from-stdin)
+			The reject verdict on an item in review or running: moves it
+			to pending with `status: review-rejected` and the corrections
+			appended as a `## Review: rejected` section, sends DISMISSED to
+			its live child (`REJECT-DISMISS: ...`), and records
+			`verdict: rejected: <text>`, so a fresh spawn reads them. The
+			fresh spawn itself is the normal spawn path.
+
+		--member-review-follow-up <team-member> <item-filename> <new-item-name> --from-stdin
+			Creates <new-item-name> in pending from the body on stdin,
+			with a `follows-up: <item>` header, and records
+			`verdict: follow-up: <new-item-name>` on the original. It
+			combines with any other verdict, as often as needed.
+
+		--magic-review-shutdown <magic-coordinator>
+			Shutdown: sends DISMISSED, addressed to its member, into the
+			session thread of every live spawn, and records `dismissed:
+			shutdown` on the item each one works. Prints one
+			`SHUTDOWN: spawn <id>: ...` line per spawn and a count. The
+			other ordered endings are recorded the same way, as
+			`dismissed: <reason>`: an archive (--magic-grooming-to-archived)
+			and a trash (--intern-op-board-trash) dismiss the item's live
+			child, and a TaskStop records `taskstop` before its signal.
+
+		--magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
+		--magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
+		--magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)
+		--magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin
+			magic-coordinator's verdicts as reviewer of last resort: each
+			does exactly what its `--member-review-*` form does, on any
+			item, whatever reviewer its `review-by` names. Runs only as
+			magic-coordinator.
 
 		--member-work-session-input-scan <team-member>
 			Read-only: one member's own current work-session input --
@@ -2894,6 +3059,12 @@
 			TRELLO_KEY, TRELLO_TOKEN, SLACK_BOT_TOKEN) that fix
 			command is the `--upsert-from-stdin` form, so a secret
 			never lands in argv.
+			SLACK_AUTH_IDENTITY: auth.test on magic-coordinator's own
+			SLACK_USER_TOKEN. OK prints her authenticated `user_id`,
+			the account every user-token send is confirmed against
+			(message.user). WARN when the token is unset (she posts
+			only under a bot identity) or auth.test returns no
+			user_id. Never affects the exit code.
 
 		--magic-advance-batch-outcome <team-member> --items:<item-filename>:<outcome>:<execution-receipt>[,<item-filename>:<outcome>:<execution-receipt>]...
 			Records a per-pass outcome (nudged/respawned/redispatched/
@@ -2912,6 +3083,30 @@
 			through intact) but must not contain a comma. One malformed
 			or failing entry is reported inline without aborting the
 			rest; any failure makes the whole call exit non-zero.
+
+		--magic-morning-review-input-scan <team-member>
+			Read-only, magic-coordinator's only:
+			magic-librarian.morning-review.routine's own input.
+			<team-member> is one of its executors (magic-coordinator,
+			magic-librarian). `## cutoff`: `since:` this caller's own
+			cut-off (default 7 days back when none is stored) and
+			`next:`, the value to pass to
+			--magic-morning-review-state-advance at close. `## state
+			shape`: one `counts:` line over every board state, then
+			one `<rule>: <n>` line per rule with at most 3 items, each
+			`<state>/<item-filename>` plus its state headers only,
+			never a body: blocked-no-blocker, parked-no-recheck-date,
+			running-session-ended (by the spawned-sessions registry),
+			review-no-review-by, processed-no-processed-at. `## skillset
+			files changed since cutoff`: names only, newest first, at
+			most 20. A cap reached says `(capped, <n> shown)`. Exit 0
+			every source read, 2 some (each gap is a `**NOTE:**
+			partial` line), 1 none.
+
+		--magic-morning-review-state-advance <team-member> <ts>
+			Moves this caller's own morning-review cut-off to <ts>,
+			the scan's `next:` value, and commits it. Equal is a
+			no-op; backwards or future is refused.
 
 		--magic-advance-input-scan <team-member>
 			Routine-advance's own board scan (the same scan
@@ -3024,6 +3219,13 @@
 			own fields instead). `recheck-date`/`condition` are caller-
 			supplied via `--header:*`.
 
+		--magic-append-session-transcript <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]
+			The coordinator's append to any session's tooling-written transcript,
+			named by its session id: one NOTE line, as the member form appends
+			to its own session. `--create` starts the transcript when the session
+			has none. Runs only as magic-coordinator. Members use
+			`--member-append-session-transcript`.
+
 		--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			As `--magic-advance-to-running` for arguments and body-input
 			shape, target board/processed/ -- the RUNNING->PROCESSED leg
@@ -3036,6 +3238,15 @@
 			defaults to `processed:<timestamp>` unless the caller
 			supplied one, in which case it stands untouched. Nothing
 			else is stamped on the moved item.
+			Accept releases the child: after a move into processed
+			from another state, the spawn the item's `spawn-id`
+			names (else the one live spawn linking it) is sent
+			`DISMISSED`, addressed to its member in its session
+			thread, as an explicit spawn-dismiss does. One line
+			`ACCEPT-DISMISS: sent ...` or `ACCEPT-DISMISS: not sent:
+			<why>` follows (no record, already ended, not running on
+			this host, no thread, the sender is the child member,
+			the send failed); the move's own result is never changed.
 			Approval cascade (every op moving through
 			`--intern-op-board-upsert-move-edit`): an `approval-*`
 			arriving in board/processed/ from another state, carrying
@@ -3244,7 +3455,7 @@
 			`TRACKING_ITEM`/`DISPATCH_ITEM` always; `STATUS`
 			always, with `PID` (async) or `EXIT_CODE`+`LAUNCHED`
 			(--wait); `OUTPUT_FILE` wherever a file is written
-			(under `$MDAT_DATA_ROOT/audit/<YYYY-MM>/`). On --wait:
+			(`.local/agents/sessions/<spawn-id>/session.log`). On --wait:
 			`SETUP_STATUS=cli-not-configured` (no external CLI
 			selected), `=cli-not-authenticated` (CLI present, not
 			signed in, no API key), `=console-stale` (deployed

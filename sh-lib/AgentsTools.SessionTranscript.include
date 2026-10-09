@@ -1,0 +1,619 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionTranscript.include -- the tooling-written session transcript
+## and the session token totals. Sourced, never run; functions only, and every one
+## returns 0 on its own failure, so a hook can never fail the call it observes.
+##
+## One transcript per spawned session, in the team data:
+##   audit/YYYY-MM/session-<startUTC>-<member>-<sid8>.log  (then -part2.log, ... at 8 MB)
+## found from the session id alone through $MMDAPP/.local/agents/sessions/<sid>/transcript,
+## and named by a `transcript:` header on the spawn tracking file and the dispatch item.
+## A line: `<ISO UTC> <KIND> key=val ... [-> outcome] [| "comment"]`, a body as `> ` lines.
+## The tool line comes from the one formatter, AgentsSessionTranscriptFormat.awk, which the
+## stream-json formatter of a native spawn and the MCP daemon log use too.
+##
+## Committed at milestones only -- start, a message out or handback, a Wait going idle,
+## DISMISSED, a restart, the end -- never per line. A failed commit only warns.
+##
+## Tokens: $MMDAPP/.local/agents/sessions/<sid>/tokens holds the session's running sum,
+## `<in> <cache-read> <cache-write> <out>`; at each milestone it becomes the
+## dispatch item's `tokens:` header. Totals over a task, epic or parent session are summed
+## when shown (AgentsSessionTokensRollup.awk), never written up the chain.
+##
+
+agentsTranscriptLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+agentsTranscriptT0=""
+agentsTranscriptRoundText=""
+## Set by the harness (AgentsHarnessContext.include) when its rounds are rendered from its kept context.
+agentsTranscriptFromLog=""
+
+## Milliseconds since the epoch: bash 3.2 has no EPOCHREALTIME, so perl where it is,
+## whole seconds otherwise.
+AgentsTranscriptNowMs(){
+	local nowMs=""
+	nowMs="$( perl -MTime::HiRes=time -e 'printf("%d", time() * 1000)' 2>/dev/null )" || nowMs=""
+	case "$nowMs" in ''|*[!0123456789]*) nowMs="$( date +%s )000" ;; esac
+	printf '%s' "$nowMs"
+}
+
+AgentsTranscriptStamp(){
+	date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+## The session a call belongs to, by the same rule as AgentsHarnessSessionKey.
+AgentsTranscriptSessionKey(){
+	printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+}
+
+AgentsTranscriptSessionDir(){ ## session id
+	case "$1" in
+		''|*/*|.|..|*' '*) return 1 ;;
+	esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s' "$MMDAPP/.local/agents/sessions/$1"
+}
+
+AgentsTranscriptBaseTool(){ ## tool name -- mcp__<server>__Read is Read
+	local baseRest
+	case "$1" in
+		mcp__*__*) baseRest="${1#mcp__}" ; printf '%s' "${baseRest#*__}" ;;
+		*) printf '%s' "$1" ;;
+	esac
+}
+
+AgentsTranscriptRollBytes(){
+	local rollBytes="${MDAT_TRANSCRIPT_ROLL_BYTES:-8388608}"
+	case "$rollBytes" in ''|*[!0123456789]*) rollBytes=8388608 ;; esac
+	printf '%s' "$rollBytes"
+}
+
+## The base file of a session's transcript, from its pointer; rc 1 when it has none.
+AgentsTranscriptBase(){ ## session id
+	local sessionDir basePath=""
+	sessionDir="$( AgentsTranscriptSessionDir "$1" )" || return 1
+	[ -s "$sessionDir/transcript" ] || return 1
+	IFS= read -r basePath < "$sessionDir/transcript" || :
+	[ -n "$basePath" ] && [ -f "$basePath" ] || return 1
+	printf '%s' "$basePath"
+}
+
+## Every part, base first, one per line.
+AgentsTranscriptParts(){ ## session id
+	local basePath partNumber=2
+	basePath="$( AgentsTranscriptBase "$1" )" || return 1
+	printf '%s\n' "$basePath"
+	while [ -f "${basePath%.log}-part$partNumber.log" ] ; do
+		printf '%s\n' "${basePath%.log}-part$partNumber.log"
+		partNumber=$(( partNumber + 1 ))
+	done
+}
+
+## The part to append to now. A part at or over the roll size starts the next one,
+## created exclusively, so of two writers rolling at once only one writes its header.
+AgentsTranscriptPath(){ ## session id
+	local basePath currentPath nextPath partNumber=1 currentBytes
+	basePath="$( AgentsTranscriptBase "$1" )" || return 1
+	currentPath="$basePath"
+	while : ; do
+		nextPath="${basePath%.log}-part$(( partNumber + 1 )).log"
+		[ -f "$nextPath" ] || break
+		currentPath="$nextPath"
+		partNumber=$(( partNumber + 1 ))
+	done
+	currentBytes="$( wc -c < "$currentPath" 2>/dev/null | tr -d ' ' )"
+	case "$currentBytes" in ''|*[!0123456789]*) currentBytes=0 ;; esac
+	if [ "$currentBytes" -ge "$( AgentsTranscriptRollBytes )" ] ; then
+		if ( set -C ; : > "$nextPath" ) 2>/dev/null ; then
+			printf '%s ROLL -> %s\n' "$( AgentsTranscriptStamp )" "${nextPath##*/}" >> "$currentPath" 2>/dev/null
+			printf '%s CONTINUED from %s\n' "$( AgentsTranscriptStamp )" "${currentPath##*/}" >> "$nextPath" 2>/dev/null
+		fi
+		currentPath="$nextPath"
+	fi
+	printf '%s' "$currentPath"
+}
+
+## One block. 4 KB or less is a single O_APPEND write and takes no lock; a bigger
+## block takes the local lock, so two big blocks never interleave.
+AgentsTranscriptAppend(){ ## file, text
+	local LC_ALL=C appendLock=""
+	if [ "${#2}" -le 4096 ] ; then
+		printf '%s\n' "$2" >> "$1" 2>/dev/null || :
+		return 0
+	fi
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.LocalLock.include" 2>/dev/null || :
+	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${1##*/}" 10 "transcript ${1##*/}" 2>/dev/null ; then
+		appendLock="$agentsLocalLockPath"
+	fi
+	printf '%s\n' "$2" >> "$1" 2>/dev/null || :
+	[ -z "$appendLock" ] || AgentsToolsLocalLockGive "$appendLock" 2>/dev/null || :
+	return 0
+}
+
+## `<ts> KIND key=val ...` through the formatter; an empty value drops its key.
+AgentsTranscriptEventLine(){ ## kind, then key value pairs
+	local eventKind="$1"
+	shift
+	{
+		while [ $# -ge 2 ] ; do
+			printf '%s\t%s\n' "$1" "$( printf '%s' "$2" | tr '\n\t\r' '   ' )"
+			shift 2
+		done
+	} | STL_TS="$( AgentsTranscriptStamp )" STL_KIND="$eventKind" LC_ALL=C awk -v stlStandalone=event -f "$agentsTranscriptLib/AgentsSessionTranscriptFormat.awk"
+}
+
+## A text as `> ` lines, cut at cap bytes (0: whole).
+AgentsTranscriptBody(){ ## text, cap
+	printf '%s' "$1" | STL_CAP="${2:-0}" LC_ALL=C awk -v stlStandalone=body -f "$agentsTranscriptLib/AgentsSessionTranscriptFormat.awk"
+}
+
+## One string field of a JSON object, unescaped.
+AgentsTranscriptJsonField(){ ## json, key
+	printf '%s' "$1" | STL_KEY="$2" LC_ALL=C awk -v stlStandalone=field -f "$agentsTranscriptLib/AgentsSessionTranscriptFormat.awk"
+}
+
+## One event, with an optional body, to the session's transcript; nothing when it has none.
+AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then key value pairs
+	local eventSession="$1" eventKind="$2" eventBody="$3" eventCap="$4" eventPath eventBlock
+	shift 4
+	eventPath="$( AgentsTranscriptPath "$eventSession" )" || return 0
+	eventBlock="$( AgentsTranscriptEventLine "$eventKind" "$@" )" || return 0
+	[ -n "$eventBlock" ] || return 0
+	[ -z "$eventBody" ] || eventBlock="$eventBlock"$'\n'"$( AgentsTranscriptBody "$eventBody" "$eventCap" )"
+	AgentsTranscriptAppend "$eventPath" "$eventBlock"
+	AgentsTranscriptFeed "$eventSession" "$eventBlock"
+	return 0
+}
+
+## The event-track feed: the same lines, to $MMDAPP/.local/agents/sessions/<sid>/feed, only
+## for a session whose event-track thread is open (sessions/<sid>/event-track, written by the
+## spawn proxy). AgentsTools.EventTrackFeed.include posts it. Never team data.
+AgentsTranscriptFeed(){ ## session id, block
+	local feedDir
+	feedDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	[ -s "$feedDir/event-track" ] || return 0
+	printf '%s\n' "$2" >> "$feedDir/feed" 2>/dev/null || :
+	return 0
+}
+
+## How a call came out: ok, error, or refused (a hook, the arm gate, an access root, a
+## REFUSAL-ID). A preset outcome wins. The first line defaults to the result's own.
+AgentsTranscriptOutcomeOf(){ ## result, preset outcome (optional), first line (optional)
+	local outcomeFirst="${3:-${1%%$'\n'*}}"
+	[ -z "${2:-}" ] || { printf '%s' "$2" ; return 0 ; }
+	case "$1" in
+		ERROR:*)
+			case "$1" in *REFUSAL-ID:*) printf 'refused' ; return 0 ;; esac
+			case "$outcomeFirst" in
+				*'read your duty file first'*|*REFUSAL-ID*|*'PreToolUse'*|*' hook '*|*'refused'*|*'denied'*|*'not allowed'*|*'access-root'*) printf 'refused' ;;
+				*) printf 'error' ;;
+			esac
+		;;
+		*) printf 'ok' ;;
+	esac
+}
+
+## The model rounds of a harness session whose context is kept, rendered from that log
+## (AgentsHarnessContextTranscript.awk) and merged by time with the lines the tooling
+## appended live since the last render. Called at every milestone, before its commit.
+## sessions/<sid>/context names the log; sessions/<sid>/context.cursor holds
+## `<leg> <last message rendered> <part> <byte offset after the last render>`. Of lines of
+## the same second the rendered one goes first: a live line the loop causes (a REVIEW from a
+## handback, the FINAL after the last round) follows the call or round that caused it -- but
+## START, MODEL and a review's RESTART (`kind=`), which open what the rounds follow, go first.
+## A part rolled since the last render merges
+## within the current part only. The tail is rewritten under the transcript's local lock;
+## a line appended meanwhile is carried over.
+AgentsTranscriptContextRender(){ ## session id
+	local LC_ALL=C
+	local renderDir renderLog="" renderPart renderLeg renderFrom renderSession renderCursor="" renderCurLeg="" renderCurN="" renderCurPart="" renderCurOffset=""
+	local renderLast renderOffset renderSize renderNew renderLock="" renderTmp renderPrevSize renderRendered renderAwkDir="$agentsTranscriptLib"
+	renderDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	[ -s "$renderDir/context" ] && [ -s "$renderDir/transcript" ] || return 0
+	IFS= read -r renderLog < "$renderDir/context" || :
+	[ -s "$renderLog" ] || return 0
+	renderSession="$( head -1 "$renderLog" | awk -v path=session -v optional=1 -f "$renderAwkDir/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderSession=""
+	[ "$renderSession" = "$1" ] || return 0
+	renderLeg="$( head -1 "$renderLog" | awk -v path=leg -v optional=1 -f "$renderAwkDir/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderLeg=""
+	renderFrom="$( head -1 "$renderLog" | awk -v path=from -v optional=1 -f "$renderAwkDir/AgentsHarnessJsonField.awk" 2>/dev/null )" || renderFrom=0
+	[ ! -s "$renderDir/context.cursor" ] || read -r renderCurLeg renderCurN renderCurPart renderCurOffset < "$renderDir/context.cursor" || :
+	[ "$renderCurLeg" = "$renderLeg" ] || renderCurN="${renderFrom:-0}"
+	case "$renderCurN" in ''|*[!0123456789]*) renderCurN=0 ;; esac
+	renderLast="$( awk 'index( $0, "{\"type\":\"message\"," ) == 1 { last++ } END { print last + 0 }' "$renderLog" 2>/dev/null )"
+	[ "${renderLast:-0}" -gt "$renderCurN" ] || return 0
+	renderPart="$( AgentsTranscriptPath "$1" )" || return 0
+	renderTmp="$renderDir/context.render.$$"
+	awk -v from="$(( renderCurN + 1 ))" -f "$renderAwkDir/AgentsHarnessJsonField.awk" -f "$renderAwkDir/AgentsSessionTranscriptFormat.awk" \
+		-f "$renderAwkDir/AgentsHarnessContextTranscript.awk" "$renderLog" > "$renderTmp.rendered" 2>/dev/null || { rm -f "$renderTmp".* ; return 0 ; }
+	type AgentsToolsLocalLockTake > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.LocalLock.include" 2>/dev/null || :
+	if type AgentsToolsLocalLockTake > /dev/null 2>&1 && AgentsToolsLocalLockTake "transcript.${renderPart##*/}" 10 "transcript ${renderPart##*/}" 2>/dev/null ; then
+		renderLock="$agentsLocalLockPath"
+	fi
+	renderOffset=0
+	[ "$renderCurPart" != "$renderPart" ] || renderOffset="${renderCurOffset:-0}"
+	case "$renderOffset" in ''|*[!0123456789]*) renderOffset=0 ;; esac
+	renderSize="$( wc -c < "$renderPart" | tr -d ' ' )"
+	[ "$renderOffset" -le "$renderSize" ] || renderOffset="$renderSize"
+	## The live tail and the rendered lines, merged block by block (a line and its `> ` body).
+	{
+		head -c "$renderOffset" "$renderPart"
+		tail -c +"$(( renderOffset + 1 ))" "$renderPart" | head -c "$(( renderSize - renderOffset ))" > "$renderTmp.live"
+		awk -v renderedFile="$renderTmp.rendered" '
+			function liveNext() { if ((getline liveLine) > 0) return 1 ; liveDone = 1 ; return 0 }
+			function rendNext() { if ((getline rendLine < renderedFile) > 0) return 1 ; rendDone = 1 ; return 0 }
+			function takeBlock(isLive,   blockText, nextLine) {
+				blockText = isLive ? liveLine : rendLine
+				while (isLive ? liveNext() : rendNext()) {
+					nextLine = isLive ? liveLine : rendLine
+					if (substr(nextLine, 1, 1) != ">") break
+					blockText = blockText "\n" nextLine
+				}
+				print blockText
+			}
+			BEGIN {
+				liveNext() ; rendNext()
+				while (!liveDone || !rendDone) {
+					if (rendDone) takeBlock(1)
+					else if (liveDone) takeBlock(0)
+					else if (substr(rendLine, 1, 20) < substr(liveLine, 1, 20)) takeBlock(0)
+					else if (substr(rendLine, 1, 20) == substr(liveLine, 1, 20) && liveLine !~ /^[^ ]+ (START|MODEL|CONTINUED|RESTART [^\n]* kind=)/) takeBlock(0)
+					else takeBlock(1)
+				}
+			}' < "$renderTmp.live"
+	} > "$renderTmp.new" 2>/dev/null || { rm -f "$renderTmp".* ; [ -z "$renderLock" ] || AgentsToolsLocalLockGive "$renderLock" 2>/dev/null ; return 0 ; }
+	## A line appended while this ran stays: its bytes past the size read are carried over.
+	ln -f "$renderPart" "$renderTmp.prev" 2>/dev/null || :
+	if mv -f "$renderTmp.new" "$renderPart" 2>/dev/null ; then
+		if [ -f "$renderTmp.prev" ] ; then
+			renderPrevSize="$( wc -c < "$renderTmp.prev" | tr -d ' ' )"
+			[ "${renderPrevSize:-0}" -le "$renderSize" ] || tail -c +"$(( renderSize + 1 ))" "$renderTmp.prev" >> "$renderPart" 2>/dev/null || :
+		fi
+		renderNew="$( wc -c < "$renderPart" | tr -d ' ' )"
+		printf '%s %s %s %s\n' "$renderLeg" "$renderLast" "$renderPart" "$renderNew" > "$renderDir/context.cursor" 2>/dev/null || :
+	fi
+	rm -f "$renderTmp".* 2>/dev/null
+	[ -z "$renderLock" ] || AgentsToolsLocalLockGive "$renderLock" 2>/dev/null || :
+	return 0
+}
+
+## A new transcript's path under the team data root.
+AgentsTranscriptNewRel(){ ## member, session id
+	local relStamp
+	relStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+	printf 'audit/%s-%s/session-%s-%s-%s.log' "${relStamp:0:4}" "${relStamp:4:2}" "$relStamp" "${1:-unknown}" "${2:0:8}"
+}
+
+## Opens a session's transcript: the file with its START line, and the pointers every
+## later writer resolves it by. The extra arguments are key value pairs for START.
+AgentsTranscriptStart(){ ## session id, data root, path relative to it, member, then key value pairs
+	local startSession="$1" startRoot="$2" startRel="$3" startMember="$4" startDir startPath startLine
+	shift 4
+	startDir="$( AgentsTranscriptSessionDir "$startSession" )" || return 0
+	[ -n "$startRoot" ] && [ -n "$startRel" ] || return 0
+	startPath="$startRoot/$startRel"
+	mkdir -p "${startPath%/*}" "$startDir" 2>/dev/null || return 0
+	startLine="$( AgentsTranscriptEventLine START session "$startSession" member "$startMember" "$@" )" || return 0
+	printf '%s\n' "$startLine" >> "$startPath" 2>/dev/null || return 0
+	printf '%s\n' "$startPath" > "$startDir/transcript" 2>/dev/null || :
+	printf '%s\n' "$startRoot" > "$startDir/data-root" 2>/dev/null || :
+	return 0
+}
+
+## The dispatch item a session's tokens header lives on, recorded at its start.
+AgentsTranscriptSetItem(){ ## session id, item file name
+	local itemDir
+	itemDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	[ -n "$2" ] || return 0
+	mkdir -p "$itemDir" 2>/dev/null && printf '%s\n' "${2##*/}" > "$itemDir/dispatch-item" 2>/dev/null || :
+	return 0
+}
+
+## A milestone: the tokens header brought up to date, then every transcript part
+## committed. Nothing changed is no commit; a failure warns and goes on.
+AgentsTranscriptMilestone(){ ## session id, reason
+	local milestoneSession="$1" milestoneReason="$2" milestoneDir milestoneRoot="" milestonePart milestoneParts=()
+	## The commit helper names its caller by this; a harness process has none of its own.
+	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}"
+	milestoneDir="$( AgentsTranscriptSessionDir "$milestoneSession" )" || return 0
+	[ -s "$milestoneDir/transcript" ] || return 0
+	[ ! -s "$milestoneDir/data-root" ] || IFS= read -r milestoneRoot < "$milestoneDir/data-root" || :
+	[ -n "$milestoneRoot" ] || milestoneRoot="${MDAT_DATA_ROOT:-}"
+	[ -n "$milestoneRoot" ] || return 0
+	## A harness session whose context is kept: its model rounds, from that log, first.
+	AgentsTranscriptContextRender "$milestoneSession" || :
+	printf '%s %s\n' "$( AgentsTranscriptStamp )" "$milestoneReason" >> "$milestoneDir/milestones" 2>/dev/null || :
+	MDAT_DATA_ROOT="$milestoneRoot" AgentsSessionTokensHeaderUpdate "$milestoneSession" || :
+	while IFS= read -r milestonePart ; do
+		[ -z "$milestonePart" ] || milestoneParts+=( "$milestonePart" )
+	done <<< "$( AgentsTranscriptParts "$milestoneSession" )"
+	[ "${#milestoneParts[@]}" -gt 0 ] || return 0
+	type AgentsToolsTeamDataCommitPaths > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.TeamDataCommit.include" 2>/dev/null || return 0
+	MDAT_DATA_ROOT="$milestoneRoot" AgentsToolsTeamDataCommitPaths "session transcript ${milestoneSession:0:8}: $milestoneReason" "${milestoneParts[@]}" >&2 || :
+	return 0
+}
+
+## Called before a tool runs: starts its clock, and a Wait about to block is a milestone.
+AgentsTranscriptToolStart(){ ## tool name
+	agentsTranscriptT0="$( AgentsTranscriptNowMs )"
+	case "$( AgentsTranscriptBaseTool "$1" )" in
+		Wait) AgentsTranscriptMilestone "$( AgentsTranscriptSessionKey )" "wait going idle" ;;
+	esac
+	return 0
+}
+
+## Called after a tool ran: its one tool line, then whatever message it carried.
+## source is loop (this harness's model loop) or mcp (a served call: the line also goes
+## to the daemon log, prefixed by the session's first 8 characters). A native spawn's own
+## stream formatter writes its tool lines (sessions/<sid>/transcript.stream), so a served
+## call of that session writes only the message lines.
+AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcome (optional), comment (optional), first line (optional)
+	local LC_ALL=C
+	local doneTool="$1" doneArgs="${2:-}" doneResult="$3" doneSource="${4:-loop}" doneOutcome="${5:-}" doneComment="${6:-}"
+	local doneSession doneDur="" doneFirst doneBytes doneLines doneLine doneBlock donePath doneBase doneDir doneCap=0 doneBody
+	doneSession="$( AgentsTranscriptSessionKey )"
+	[ -z "$agentsTranscriptT0" ] || doneDur=$(( $( AgentsTranscriptNowMs ) - agentsTranscriptT0 ))
+	agentsTranscriptT0=""
+	doneBase="$( AgentsTranscriptBaseTool "$doneTool" )"
+	doneFirst="${7:-${doneResult%%$'\n'*}}"
+	[ -n "$doneOutcome" ] || doneOutcome="$( AgentsTranscriptOutcomeOf "$doneResult" "" "$doneFirst" )"
+	## A harness loop whose context is kept (AgentsHarnessContext.include): its tool lines and
+	## message events are rendered from that log at the milestones, so only the milestone is here.
+	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
+		case "$doneBase:$doneOutcome" in
+			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
+			SubagentHandback:ok) AgentsTranscriptMilestone "$doneSession" "handback" ;;
+			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) AgentsTranscriptMilestone "$doneSession" "dismissed" ;; esac ;;
+		esac
+		return 0
+	fi
+	doneBytes="${#doneResult}"
+	## Counted by awk, not by a pattern substitution: bash 3.2 takes quadratic time on a big result.
+	doneLines="$( printf '%s' "$doneResult" | awk 'END { print NR + 0 }' )"
+	[ -n "$doneComment" ] || doneComment="${agentsTranscriptRoundText:0:400}"
+	doneLine="$( printf '%s' "$doneArgs" | STL_TS="$( AgentsTranscriptStamp )" STL_TOOL="$doneTool" STL_OUTCOME="$doneOutcome" \
+		STL_FIRST="${doneFirst:0:400}" STL_BYTES="$doneBytes" STL_LINES="$doneLines" STL_DUR_MS="$doneDur" STL_COMMENT="$doneComment" \
+		awk -v stlStandalone=tool -f "$agentsTranscriptLib/AgentsSessionTranscriptFormat.awk" 2>/dev/null )" || doneLine=""
+	[ -n "$doneLine" ] || return 0
+	if [ "$doneSource" = "mcp" ] ; then
+		printf '%s%s\n' "${doneSession:+${doneSession:0:8} }" "$doneLine" >&2
+	fi
+	donePath="$( AgentsTranscriptPath "$doneSession" )" || return 0
+	doneDir="$( AgentsTranscriptSessionDir "$doneSession" )" || return 0
+	if [ "$doneSource" != "mcp" ] || [ ! -e "$doneDir/transcript.stream" ] ; then
+		doneBlock="$doneLine"
+		## Errors and refusals in full; a failed command's own output is held to 16 KB.
+		[ "$doneBase" != "execute" ] || doneCap=16384
+		[ "$doneOutcome" = "ok" ] || [ -z "$doneResult" ] || doneBlock="$doneBlock"$'\n'"$( AgentsTranscriptBody "$doneResult" "$doneCap" )"
+		AgentsTranscriptAppend "$donePath" "$doneBlock"
+		AgentsTranscriptFeed "$doneSession" "$doneBlock"
+	fi
+	## Messages in and out, each body capped at 4 KB.
+	case "$doneBase" in
+		SendMessage)
+			[ "$doneOutcome" = "ok" ] || return 0
+			AgentsTranscriptEvent "$doneSession" MSG-OUT "$( AgentsTranscriptJsonField "$doneArgs" message )" 4096 to "$( AgentsTranscriptJsonField "$doneArgs" to )"
+			AgentsTranscriptMilestone "$doneSession" "message out"
+		;;
+		SubagentHandback)
+			[ "$doneOutcome" = "ok" ] || return 0
+			doneBody="$( printf 'task: %s\noutcome: %s\nfindings: %s\nunfinished: %s' \
+				"$( AgentsTranscriptJsonField "$doneArgs" task )" "$( AgentsTranscriptJsonField "$doneArgs" outcome )" \
+				"$( AgentsTranscriptJsonField "$doneArgs" findings )" "$( AgentsTranscriptJsonField "$doneArgs" unfinished )" )"
+			AgentsTranscriptEvent "$doneSession" HANDBACK "$doneBody" 4096 to "$( AgentsTranscriptJsonField "$doneArgs" to )"
+			AgentsTranscriptMilestone "$doneSession" "handback"
+		;;
+		ReportFindings|PushNotification|Artifact)
+			[ "$doneOutcome" = "ok" ] || return 0
+			AgentsTranscriptEvent "$doneSession" MSG-OUT "$doneArgs" 4096 tool "$doneBase" to "$( AgentsTranscriptJsonField "$doneArgs" to )"
+			AgentsTranscriptMilestone "$doneSession" "message out"
+		;;
+		Wait)
+			case "$doneFirst" in
+				'WAIT-RESULT: DISMISSED'*)
+					AgentsTranscriptEvent "$doneSession" DISMISSED "$doneResult" 4096
+					AgentsTranscriptMilestone "$doneSession" "dismissed"
+				;;
+				*) AgentsTranscriptEvent "$doneSession" WAIT-RESULT "$doneResult" 4096 ;;
+			esac
+		;;
+		AskUserQuestion)
+			AgentsTranscriptEvent "$doneSession" ASK "$( AgentsTranscriptJsonField "$doneArgs" question )" 4096 \
+				to "$( AgentsTranscriptJsonField "$doneArgs" to )" kind "$( AgentsTranscriptJsonField "$doneArgs" kind )"
+			AgentsTranscriptEvent "$doneSession" ANSWER "$doneResult" 4096
+			[ "$doneOutcome" != "ok" ] || AgentsTranscriptMilestone "$doneSession" "message out"
+		;;
+		Agent)
+			AgentsTranscriptEvent "$doneSession" SPAWN "$doneResult" 1024 agent "$( AgentsTranscriptJsonField "$doneArgs" agent )"
+		;;
+	esac
+	return 0
+}
+
+## The MCP request handler's own tools (execute, Monitor, a refused call): their tool line,
+## from the raw request. A harness tool's line comes from the served harness itself.
+AgentsTranscriptMcpCallDone(){ ## tool name, raw request line, output, is error (true|false), error text
+	local mcpDoneArgs mcpDoneOutcome=""
+	mcpDoneArgs="$( printf '%s\n' "$2" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$agentsTranscriptLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mcpDoneArgs=""
+	[ "$4" != "true" ] || mcpDoneOutcome=error
+	if [ -n "$5" ] ; then
+		AgentsTranscriptToolDone "$1" "$mcpDoneArgs" "ERROR: $5" mcp error
+	else
+		AgentsTranscriptToolDone "$1" "$mcpDoneArgs" "$3" mcp "$mcpDoneOutcome" "" "$( [ "$4" != "true" ] || printf '%s' "${3##*$'\n'}" )"
+	fi
+	return 0
+}
+
+## The harness model loop's own events, read from its globals and scratch files.
+AgentsTranscriptHarnessStart(){
+	local hsSession hsDir
+	hsSession="$( AgentsTranscriptSessionKey )"
+	hsDir="$( AgentsTranscriptSessionDir "$hsSession" )" || return 0
+	## Only the spawn proxy opens a transcript: a run it did not start writes none, so a
+	## harness run by hand, or by a check, never reaches the team data.
+	AgentsTranscriptBase "$hsSession" > /dev/null || return 0
+	printf '%s\n' "${harnessModel:-}" > "$hsDir/model" 2>/dev/null || :
+	AgentsTranscriptEvent "$hsSession" MODEL "" 0 model "${harnessModel:-}" service "${harnessProviderName:-}" host "${harnessHost:-}" tier "${harnessTier:-}" member "${harnessAgent:-}"
+	return 0
+}
+
+## After a round's stream: its tokens and the model's visible text, about 1 KB.
+AgentsTranscriptHarnessRound(){ ## round number, scratch dir
+	local roundSession roundIn=0 roundCr=0 roundCw=0 roundOut=0 roundText=""
+	roundSession="$( AgentsTranscriptSessionKey )"
+	[ ! -s "$2/stream.usage.detail" ] || read -r roundIn roundCr roundCw roundOut < "$2/stream.usage.detail" || :
+	[ ! -s "$2/stream.content" ] || roundText="$( cat "$2/stream.content" 2>/dev/null )"
+	agentsTranscriptRoundText="$( printf '%s' "$roundText" | tr '\n\t\r' '   ' )"
+	agentsTranscriptRoundText="${agentsTranscriptRoundText:0:400}"
+	AgentsSessionTokensAdd "$roundSession" "${roundIn:-0}" "${roundCr:-0}" "${roundCw:-0}" "${roundOut:-0}"
+	## Kept context: the ROUND line is rendered from the log (AgentsTranscriptContextRender).
+	[ -z "${agentsTranscriptFromLog:-}" ] || return 0
+	AgentsTranscriptEvent "$roundSession" ROUND "$roundText" 1024 n "$1" in "${roundIn:-0}" cache-read "${roundCr:-0}" cache-write "${roundCw:-0}" out "${roundOut:-0}"
+	return 0
+}
+
+AgentsTranscriptHarnessRestart(){ ## restart number, summary bytes
+	local restartSession
+	restartSession="$( AgentsTranscriptSessionKey )"
+	AgentsTranscriptEvent "$restartSession" RESTART "" 0 n "$1" summary "${2}B"
+	AgentsTranscriptMilestone "$restartSession" "restart $1"
+	return 0
+}
+
+AgentsTranscriptHarnessFinal(){ ## answer text
+	local finalSession
+	finalSession="$( AgentsTranscriptSessionKey )"
+	AgentsTranscriptEvent "$finalSession" FINAL "$1" 4096
+	AgentsTranscriptMilestone "$finalSession" "final answer"
+	return 0
+}
+
+## The spawn proxy's close: the END line with the session's tokens, and the last milestone.
+AgentsTranscriptSpawnEnd(){ ## session id, outcome, exit code
+	AgentsTranscriptEvent "$1" END "" 0 outcome "$2" exit "$3" tokens "$( AgentsSessionTokensHeaderValue "$1" )"
+	AgentsTranscriptMilestone "$1" "end"
+	return 0
+}
+
+## One NOTE line in the current session's transcript (--member-append-session-transcript with
+## no --transcript-name); rc 1 and an ERROR line when no session or no transcript resolves.
+## Prints where it went. The optional time the speaker gave goes on the line as at=.
+AgentsTranscriptNote(){ ## session id, author, text, time given (optional)
+	local noteSession="$1" noteAuthor="$2" noteText="$3" noteAt="${4:-}" notePath
+	if [ -z "$noteSession" ] ; then
+		printf 'ERROR: no session resolves for this call (no session id in this process), so there is no transcript to note in. Nothing was written.\n'
+		return 1
+	fi
+	if [ -z "$noteText" ] ; then
+		printf 'ERROR: the note is empty. Nothing was written.\n'
+		return 1
+	fi
+	notePath="$( AgentsTranscriptPath "$noteSession" )" || {
+		printf 'ERROR: session %s has no transcript (only a spawned session has one), so there is nowhere to note. Nothing was written.\n' "$noteSession"
+		return 1
+	}
+	AgentsTranscriptEvent "$noteSession" NOTE "$noteText" 4096 by "$noteAuthor" at "$noteAt"
+	printf 'OK: appended to %s\n' "${notePath##*/}"
+	return 0
+}
+
+## ---- tokens ----
+
+AgentsSessionTokensRead(){ ## session id -- prints "<in> <cr> <cw> <out>", or nothing
+	local readDir readLine=""
+	readDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	[ ! -s "$readDir/tokens" ] || IFS= read -r readLine < "$readDir/tokens" || :
+	printf '%s' "$readLine"
+}
+
+## Adds one round to the session's running sum.
+AgentsSessionTokensAdd(){ ## session id, in, cache-read, cache-write, out
+	local addDir addIn=0 addCr=0 addCw=0 addOut=0 addRest=""
+	addDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	mkdir -p "$addDir" 2>/dev/null || return 0
+	[ ! -s "$addDir/tokens" ] || read -r addIn addCr addCw addOut addRest < "$addDir/tokens" || :
+	printf '%s %s %s %s\n' "$(( ${addIn:-0} + ${2:-0} ))" "$(( ${addCr:-0} + ${3:-0} ))" "$(( ${addCw:-0} + ${4:-0} ))" "$(( ${addOut:-0} + ${5:-0} ))" \
+		> "$addDir/tokens.$$" 2>/dev/null && mv -f "$addDir/tokens.$$" "$addDir/tokens" 2>/dev/null || :
+	return 0
+}
+
+## The `tokens:` header value.
+AgentsSessionTokensHeaderValue(){ ## session id
+	local valueDir valueIn valueCr valueCw valueOut valueRest
+	valueDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
+	[ -s "$valueDir/tokens" ] || return 0
+	read -r valueIn valueCr valueCw valueOut valueRest < "$valueDir/tokens" || :
+	printf 'in=%s cache-read=%s cache-write=%s out=%s' "${valueIn:-0}" "${valueCr:-0}" "${valueCw:-0}" "${valueOut:-0}"
+}
+
+## The session's dispatch item, wherever it sits on the board now; rc 1 for none.
+AgentsSessionTokensItemPath(){ ## session id
+	local pathDir pathItem="" pathState
+	pathDir="$( AgentsTranscriptSessionDir "$1" )" || return 1
+	[ -s "$pathDir/dispatch-item" ] || return 1
+	IFS= read -r pathItem < "$pathDir/dispatch-item" || :
+	[ -n "$pathItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	for pathState in running review pending blocked backlog parked processed archived retained ; do
+		[ ! -f "$MDAT_DATA_ROOT/board/$pathState/$pathItem" ] || { printf '%s' "$MDAT_DATA_ROOT/board/$pathState/$pathItem" ; return 0 ; }
+	done
+	return 1
+}
+
+## Writes the dispatch item's `tokens:` header, only when its value changed.
+AgentsSessionTokensHeaderUpdate(){ ## session id
+	local updateValue updatePath updateState updateItem updateNow=""
+	updateValue="$( AgentsSessionTokensHeaderValue "$1" )"
+	[ -n "$updateValue" ] || return 0
+	updatePath="$( AgentsSessionTokensItemPath "$1" )" || return 0
+	updateNow="$( LC_ALL=C awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && index( $0, "tokens: " ) == 1 { print substr( $0, 9 ) ; exit }' "$updatePath" 2>/dev/null )"
+	[ "$updateNow" != "$updateValue" ] || return 0
+	updateItem="${updatePath##*/}"
+	updateState="${updatePath%/*}"
+	updateState="${updateState##*/}"
+	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-board-upsert-move-edit "$updateState" "$updateItem" \
+		--from-state:"$updateState" --context --session-tokens --header:upsert:tokens:"$updateValue" --log-verb:updated > /dev/null 2>&1 \
+		|| echo "# session transcript: ⚠️ WARNING: the tokens header of $updateItem was not updated" >&2
+	return 0
+}
+
+## Totals for items, summed when shown: one tab-separated row per item that has any
+## (AgentsSessionTokensRollup.awk). Board items and spawn records are read once.
+AgentsSessionTokensRollupRows(){ ## item name...
+	[ $# -gt 0 ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	{
+		find "$MDAT_DATA_ROOT/board" -mindepth 2 -maxdepth 2 -name '*.md' 2>/dev/null
+		[ -z "${MMDAPP:-}" ] || find "$MMDAPP/.local/agents/spawned" -mindepth 2 -maxdepth 2 -name '*.md' 2>/dev/null
+	} | LC_ALL=C awk -v want="$*" -f "$agentsTranscriptLib/AgentsSessionTokensRollup.awk" 2>/dev/null
+	return 0
+}
+
+## One row of AgentsSessionTokensRollupRows output, by item name; empty for none.
+AgentsSessionTokensRollupRowOf(){ ## rows, item name
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v item="${2%.md}" '$1 == item { print ; exit }'
+}
+
+## One display line from a rollup row: `tokens: in=... out=... (incl. N sub-sessions)`.
+AgentsSessionTokensRollupText(){ ## rollup row, label (default tokens)
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' -v label="${2:-tokens}" 'NF >= 6 {
+		printf "%s: in=%s cache-read=%s cache-write=%s out=%s", label, $2, $3, $4, $5
+		if ( $6 > 0 ) printf " (incl. %d sub-session%s)", $6, ( $6 == 1 ? "" : "s" )
+		printf "\n"
+	}'
+}
+
+## The line for one item -- the session's own dispatch item where none is named -- or,
+## for a session with no item, its own running sum.
+AgentsSessionTokensLine(){ ## item name, or empty; session id
+	local lineRow lineValue lineItem="$1" lineDir
+	if [ -z "$lineItem" ] && [ -n "${2:-}" ] && lineDir="$( AgentsTranscriptSessionDir "$2" )" && [ -s "$lineDir/dispatch-item" ] ; then
+		IFS= read -r lineItem < "$lineDir/dispatch-item" || :
+	fi
+	if [ -n "$lineItem" ] ; then
+		lineRow="$( AgentsSessionTokensRollupRows "$lineItem" | head -1 )"
+		[ -z "$lineRow" ] || { AgentsSessionTokensRollupText "$lineRow" ; return 0 ; }
+	fi
+	[ -n "${2:-}" ] || return 0
+	lineValue="$( AgentsSessionTokensHeaderValue "$2" )"
+	[ -z "$lineValue" ] || printf 'tokens: %s\n' "$lineValue"
+	return 0
+}

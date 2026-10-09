@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpReview.include -- the review ops over a dispatched board item
+## (AgentsTools.ReviewFlow.include): into review, the verdicts, and the endings the tooling
+## orders. `--intern-op-review-*` holds each implementation; `--member-review-*` and
+## `--magic-review-*` are stubs over the same arm. A member stub checks who acts: a verdict
+## is the item's `review-by` reviewer's, a request its owner's or its spawner's. The
+## `--magic-review-*` verdicts are magic-coordinator's, reviewer of last resort, on any
+## item. Sourced from the dispatcher's
+## `--intern-op-review-*|--member-review-*|--magic-review-*` arm; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD.
+##
+
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+
+case "$1" in
+
+	--intern-op-review-handback|--intern-op-review-request|--intern-op-review-accept|--intern-op-review-return|--intern-op-review-reject|--intern-op-review-follow-up|--intern-op-review-end|--intern-op-review-shutdown|\
+	--magic-review-accept|--magic-review-return|--magic-review-reject|--magic-review-follow-up|\
+	--member-review-request|--member-review-accept|--member-review-return|--member-review-reject|--member-review-follow-up|--magic-review-shutdown)
+		local reviewOp="$1" reviewVerb
+		reviewVerb="${reviewOp#--intern-op-review-}" ; reviewVerb="${reviewVerb#--member-review-}" ; reviewVerb="${reviewVerb#--magic-review-}"
+		shift
+		MDSC_CMD="$MDSC_CMD $reviewOp"
+		local reviewWho="${1:-}" reviewItem="" reviewNew="" reviewText="" reviewReason="" reviewSession="" reviewDismiss=yes reviewStdin=""
+		[ $# -eq 0 ] || shift
+		case "$reviewVerb" in
+			handback|shutdown) ;;
+			follow-up) reviewItem="${1:-}" ; reviewNew="${2:-}" ; shift 2 2> /dev/null || shift $# ;;
+			*) reviewItem="${1:-}" ; [ $# -eq 0 ] || shift ;;
+		esac
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--summary|--message|--reason|--session-id|--context)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1 requires a value" >&2 ; set +e ; return 1 ; }
+					case "$1" in
+						--summary|--message) reviewText="$2" ;;
+						--reason) reviewReason="$2" ;;
+						--session-id) reviewSession="$2" ;;
+					esac
+					shift 2
+				;;
+				--from-stdin) reviewStdin=1 ; shift ;;
+				--no-dismiss) reviewDismiss=no ; shift ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$reviewWho" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: <team-member> is required -- read --member-help for this operation's syntax" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$reviewWho" "<team-member>" review || { set +e ; return 1 ; }
+		case "$reviewVerb" in
+			handback|shutdown) ;;
+			*)
+				[ -n "$reviewItem" ] || { echo "$MDSC_CMD: ⛔ ERROR: <item-filename> is required" >&2 ; set +e ; return 1 ; }
+				AgentsToolsAssertBareName "$reviewItem" "<item-filename>" review || { set +e ; return 1 ; }
+			;;
+		esac
+		[ -z "$reviewNew" ] || AgentsToolsAssertBareName "$reviewNew" "<new-item-name>" review || { set +e ; return 1 ; }
+		[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "$MDSC_CMD: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2 ; set +e ; return 1 ; }
+		## Who acts. An item not on the board is left to the op, which refuses it as before.
+		local reviewPath=""
+		case "$reviewOp" in
+			--member-review-*|--magic-review-*)
+				AgentsToolsActingMemberCheck "$reviewWho" "${reviewOp#--}" || { set +e ; return 1 ; }
+			;;
+		esac
+		case "$reviewOp" in
+			--magic-review-*)
+				[ "$reviewWho" = magic-coordinator ] || { echo "$MDSC_CMD: ⛔ ERROR: runs only as magic-coordinator, and $reviewWho is not it" >&2 ; set +e ; return 1 ; }
+			;;
+			--member-review-request)
+				if reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsOwnerOrParent "$reviewPath" "$reviewWho" ; then
+					echo "$MDSC_CMD: ⛔ ERROR: $reviewWho is neither the owner of ${reviewItem%.md} nor the session that spawned it, so it cannot ask for its review" >&2
+					set +e ; return 1
+				fi
+			;;
+			--member-review-*)
+				if reviewPath="$( AgentsToolsDecisionsItemPath "$reviewItem" )" && ! AgentsToolsItemIsReviewer "$reviewPath" "$reviewWho" ; then
+					reviewPath="$( AgentsToolsDecisionsField "$reviewPath" review-by )"
+					echo "$MDSC_CMD: ⛔ ERROR: ${reviewItem%.md} is reviewed by ${reviewPath:-magic-coordinator}, and $reviewWho is not that reviewer here, so it gives no verdict on it (magic-coordinator, reviewer of last resort: --magic-review-$reviewVerb)" >&2
+					set +e ; return 1
+				fi
+			;;
+		esac
+		[ -z "$reviewStdin" ] || reviewText="$( cat )"
+		AgentsReviewOp "$reviewVerb" "$reviewWho" "$reviewItem" "$reviewNew" "$reviewText" "$reviewReason" "$reviewSession" "$reviewDismiss" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

@@ -1,6 +1,7 @@
 ---
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+session: coworking
 ---
 # magic-team.proposal.routine — the actual procedure
 

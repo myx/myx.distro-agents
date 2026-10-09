@@ -118,7 +118,10 @@ Used to check this file's own definitions against its own goals when it is updat
 
 # Contract
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional).
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional).
+- `session:` (optional)
+  - `coworking` marks a coworking-like routine, per `magic-team.coworking.routine`'s session-type taxonomy: the routines it lists, and any routine that runs several members on one shared task.
+  - `--magic-spawn-session` reads it to add `magic-coordinator` to a session that lacks one.
 - `default-for-session-kind:` (optional)
   - A single session-kind word naming this routine as the spawner's standing default for that kind, used
     only when nothing more specific was asked for.

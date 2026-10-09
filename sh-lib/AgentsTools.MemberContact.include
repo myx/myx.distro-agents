@@ -33,6 +33,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## Sent under the member's own credentials: a spawned session names only itself.
+		AgentsToolsActingMemberCheck "$digestMember" member-contact-digest-send || { set +e ; return 1 ; }
 		DistroAgentsTools --intern-op-contact-digest-send "$digestMember" "$digestMember" "$@" \
 			--context --member-contact-digest-send
 		return $?

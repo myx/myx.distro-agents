@@ -41,6 +41,13 @@ HARNESS_TOKEN_MAIN="${COPILOT_GITHUB_TOKEN:-}"
 HARNESS_TOKEN_EXCHANGE=""
 HARNESS_EXTRA_HEADERS=""
 
+## --- prompt_cache_key: off by default here ---------------------------------
+## UNOBSERVED: this endpoint has not yet accepted even a plain request, and it fronts
+## non-OpenAI models, which may refuse a body field they do not know. Off until a live
+## run shows it accepted; HARNESS_PROMPT_CACHE_KEY=on in the environment tries it.
+HARNESS_PROMPT_CACHE_KEY="${HARNESS_PROMPT_CACHE_KEY:-off}"
+
+export HARNESS_PROMPT_CACHE_KEY
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN

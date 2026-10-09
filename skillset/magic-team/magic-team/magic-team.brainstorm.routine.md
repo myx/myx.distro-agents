@@ -1,6 +1,7 @@
 ---
 executors: magic-team
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+session: coworking
 ---
 # magic-team.brainstorm.routine — the actual procedure
 

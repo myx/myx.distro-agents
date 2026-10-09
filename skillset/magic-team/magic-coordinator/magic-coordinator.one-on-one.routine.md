@@ -1,6 +1,7 @@
 ---
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+session: coworking
 ---
 # magic-coordinator.one-on-one.routine — the actual procedure
 

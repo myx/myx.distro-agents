@@ -70,7 +70,9 @@ rigConsume(){ ## OpenAiChat|AnthropicMessages, legacy|current, stream file, out 
 	## itself an answer both consumers must give.
 	[ -f "$4/rc" ] || printf 'stopped' > "$4/rc"
 	rigStderrNormal < "$4/err" > "$4/err.normal"
-	( cd "$4/scratch" && for rigEach in * ; do [ -e "$rigEach" ] || continue ; printf '%s %s\n' "$( cksum < "$rigEach" )" "$rigEach" ; done ) > "$4/listing"
+	## stream.usage.detail is the current consumers' own addition (the session token totals
+	## read it); the previous loops never wrote it, so it has no counterpart to compare.
+	( cd "$4/scratch" && for rigEach in * ; do [ -e "$rigEach" ] || continue ; [ "$2" = current ] && [ "$rigEach" = stream.usage.detail ] && continue ; printf '%s %s\n' "$( cksum < "$rigEach" )" "$rigEach" ; done ) > "$4/listing"
 }
 
 ## Where bash's own arithmetic stopped the previous loop, bash said so on stderr, naming

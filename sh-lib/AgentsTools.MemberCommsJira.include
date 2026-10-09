@@ -3,7 +3,16 @@
 
 case "$1" in
 
-		--member-comms-jira-board-list)
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-jira-* implementation below directly.
+		--member-comms-jira-board-list|--member-comms-jira-board-read|--member-comms-jira-board-issue-search|--member-comms-jira-sprint-list|--member-comms-jira-sprint-issue-search|--member-comms-jira-issue-read)
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-jira-board-list)
 			shift
 			local actingMember="${1:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -18,7 +27,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-board-read)
+		--intern-op-comms-jira-board-read)
 			shift
 			local actingMember="${1:-}" boardId="${2:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -35,7 +44,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-board-issue-search)
+		--intern-op-comms-jira-board-issue-search)
 			shift
 			local actingMember="${1:-}" boardId="${2:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-board-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -52,7 +61,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-sprint-list)
+		--intern-op-comms-jira-sprint-list)
 			shift
 			local actingMember="${1:-}" boardId="${2:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-list: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -69,7 +78,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-sprint-issue-search)
+		--intern-op-comms-jira-sprint-issue-search)
 			shift
 			local actingMember="${1:-}" sprintId="${2:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-sprint-issue-search: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -86,7 +95,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-issue-read)
+		--intern-op-comms-jira-issue-read)
 			shift
 			local actingMember="${1:-}" issueKey="${2:-}"
 			shift || { printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: <team-member> missing" >&2 ; set +e ; return 1 ; }
@@ -103,7 +112,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-jira-*)
+		--member-comms-jira-*|--intern-op-comms-jira-*)
 			printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --member-comms-jira-* operation: $1 -- the supported operations are --member-comms-jira-board-list, --member-comms-jira-board-read, --member-comms-jira-board-issue-search, --member-comms-jira-sprint-list, --member-comms-jira-sprint-issue-search and --member-comms-jira-issue-read" >&2
 			set +e ; return 1
 		;;

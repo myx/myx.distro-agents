@@ -3,7 +3,9 @@
 ## session's first event-track thread opened once under concurrent refusals, malformed
 ## planned allows reported once and never admitting, a backtick in a target kept out of
 ## the post's fence, an answer pinned to one session, and one answer applied when two
-## race. Offline: a Slack-shaped fake curl, first on PATH, answers every request.
+## race, the coordinator's answers given with --magic-escalation-answer from its own session,
+## and none from another member's. Offline: a Slack-shaped fake curl, first on PATH, answers
+## every request.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -76,10 +78,11 @@ rigTopLevelPosts(){
 	done
 	printf '%s' "$postCount"
 }
+## Acting as RIG_OP_AGENT: magic-coordinator, the member these answers come from, unless set.
 rigOp(){ ## caller session (may be empty), output file, operation and its arguments
 	local opSession="$1" opOut="$2" ; shift 2
-	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID ${opSession:+MDAT_SPAWN_SESSION_ID="$opSession"} \
-		MMDAPP="$rigScenarioDir/ws" RIG_SCENARIO="$rigScenarioDir" bash "$rigTools" "$@" ) > "$opOut" 2> "$opOut.err"
+	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT ${opSession:+MDAT_SPAWN_SESSION_ID="$opSession"} \
+		MDAT_SPAWN_AGENT="${RIG_OP_AGENT:-magic-coordinator}" MMDAPP="$rigScenarioDir/ws" RIG_SCENARIO="$rigScenarioDir" bash "$rigTools" "$@" ) > "$opOut" 2> "$opOut.err"
 }
 
 echo "-- two first refusals at once open one event-track thread --"
@@ -108,13 +111,14 @@ printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\nallow
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.1"
 rigAssert "the malformed entries admit nothing"        "$( [ -e "$rigBad" ] && printf written || printf refused )" refused
-rigAssert "each malformed entry is reported"           "$( rigPostsWith 'Planned allow ignored for' )" 4
-rigAssert "one says it is not the entry form"          "$( rigPostsWith 'is not <kind>:<tool>:<target>:<granted-by>:<time>' )" 1
+rigAssert "each malformed entry is reported"           "$( rigPostsWith 'what: Planned allow ignored' )" 4
+## A tracking post sends Slack's control characters escaped, so the entry form reads as entities in the body.
+rigAssert "one says it is not the entry form"          "$( rigPostsWith 'is not &lt;kind&gt;:&lt;tool&gt;:&lt;target&gt;:&lt;granted-by&gt;:&lt;time&gt;' )" 1
 rigAssert "one says its kind is once"                  "$( rigPostsWith 'its kind is once' )" 1
 rigAssert "one says it names nobody"                   "$( rigPostsWith 'it names nobody who granted it' )" 1
 rigAssert "one says it is self-signed"                 "$( rigPostsWith "signed by the session's own member" )" 1
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.2"
-rigAssert "the same session is not told twice"         "$( rigPostsWith 'Planned allow ignored for' )" 4
+rigAssert "the same session is not told twice"         "$( rigPostsWith 'what: Planned allow ignored' )" 4
 rigTool rig-plan Write "{\"path\":\"$rigOk\",\"content\":\"x\"}" "$rigScenarioDir/out.3"
 rigAssert "control: the well-formed entry admits its call" "$( LC_ALL=C sed -n '1s/^\(OK: wrote\).*/\1/p' "$rigScenarioDir/out.3" )" "OK: wrote"
 RIG_DATA_ROOT=""
@@ -171,10 +175,10 @@ rigAskStop(){
 rigAsk "$rigScenarioDir/ws/OUT/p"
 rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
 LC_ALL=C awk 'NR == 1 { print ; print "answerer-session: rig-pinned" ; next ; } { print ; }' "$rigPendingFile" > "$rigPendingFile.new" && mv "$rigPendingFile.new" "$rigPendingFile"
-rigOp rig-coordinator "$rigScenarioDir/op" --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "an answer from another session than the pinned one is refused" "$( LC_ALL=C grep -c 'may be answered only from session rig-pinned' "$rigScenarioDir/op.err" )" 1
 rigAssert "and the record stays open"                  "$( LC_ALL=C grep -c '^status: reply-pending$' "$rigPendingFile" )" 1
-rigOp rig-pinned "$rigScenarioDir/op" --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp rig-pinned "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "control: the pinned session's answer is applied" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" )" 1
 rigAskStop
 
@@ -182,7 +186,7 @@ rigAskStop
 rigAsk "$rigScenarioDir/ws/OUT/q"
 rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
 mkdir "${rigPendingFile%.md}.answered"
-rigOp rig-coordinator "$rigScenarioDir/op" --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "an answer while another holds the claim is not applied" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending being-answered$" "$rigScenarioDir/op" )" 1
 rigAssert "and no grant is written"                    "$( rigGrantCount "$( rigRefusalId "$rigScenarioDir/refused" )" )" 0
 rmdir "${rigPendingFile%.md}.answered"
@@ -191,13 +195,25 @@ rigAskStop
 ## Two answers at once: one applies, one grant.
 rigAsk "$rigScenarioDir/ws/OUT/r"
 rigRaceRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
-rigOp rig-coordinator "$rigScenarioDir/op.x" --member-escalation-answer magic-coordinator "$rigPending" allow-once &
+rigOp rig-coordinator "$rigScenarioDir/op.x" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
 rigAnswerX=$!
-rigOp rig-coordinator "$rigScenarioDir/op.y" --member-escalation-answer magic-coordinator "$rigPending" allow-once &
+rigOp rig-coordinator "$rigScenarioDir/op.y" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
 rigAnswerY=$!
 wait "$rigAnswerX" "$rigAnswerY" 2>/dev/null
 rigAssert "of two answers at once, exactly one is applied" "$( cat "$rigScenarioDir/op.x" "$rigScenarioDir/op.y" | LC_ALL=C grep -c "^ESCALATION: $rigPending answered" )" 1
 rigAssert "and exactly one grant is written"           "$( rigGrantCount "$rigRaceRefusal" )" 1
+rigAskStop
+
+## Who answers: the coordinator's own session, as itself or with its own form; never another member's.
+rigAsk "$rigScenarioDir/ws/OUT/s"
+rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
+RIG_OP_AGENT=magic-tester rigOp rig-coordinator "$rigScenarioDir/op" --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "another member's session cannot answer as the coordinator" "$( LC_ALL=C grep -c 'this session acts as magic-tester, so it cannot act as magic-coordinator' "$rigScenarioDir/op.err" )" 1
+RIG_OP_AGENT=magic-tester rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "nor through the coordinator's own form"      "$( LC_ALL=C grep -c "is magic-coordinator's only" "$rigScenarioDir/op.err" )" 1
+rigAssert "and the record stays open"                  "$( LC_ALL=C grep -c '^status: reply-pending$' "$rigPendingFile" )" 1
+rigOp rig-coordinator "$rigScenarioDir/op" --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "control: the coordinator's session answers as the addressee itself" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" )" 1
 rigAskStop
 
 echo "-- only a reply's first word is an answer: one anywhere else is never taken --"

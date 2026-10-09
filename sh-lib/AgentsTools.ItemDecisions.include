@@ -1,0 +1,484 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ItemDecisions.include -- a board item's `## Decisions` section: the dated
+## record of every answer, verdict, resolution and clarification that binds the item, so a
+## reopened or continued task loses none of them. Definitions only, sourced by the op file
+## AgentsTools.InternOpDecisions.include, the pending-reply store and the readers that show
+## the section first (the spawn brief, conversation.md, the session-context scan).
+##
+## One line per decision, appended oldest first, read newest first:
+##   - <UTC> <who> <kind>: <one line> (<source ts or id>)
+## The section is the item's OWN one: a `## Decisions` heading, outside the frontmatter and
+## any fenced block, immediately followed by the marker line `<!-- decisions-of: <item> -->`
+## naming this item. A copy quoted from another item names that item, so it is never taken.
+## An item from before the marker: its last unmarked `## Decisions` outside a fence that no
+## `## Brief` heading precedes (a dispatch brief's quotes all sit under its `## Brief`).
+## Shown elsewhere, a section is headed `### Decisions (from <item>)`, which never collides.
+## A dispatch item that `tracks:` a task records each line on that task too, one level only.
+##
+
+## The kinds a Decisions line carries.
+## handback and review are the review flow's own (AgentsTools.ReviewFlow.include).
+agentsDecisionsKinds=" answer verdict resolved dismissed clarification handback review "
+
+## The board path of an item, by name (with or without .md, a board/<state>/ prefix dropped).
+## Prints nothing and rc 1 when no board state holds it.
+AgentsToolsDecisionsItemPath(){ ## item name
+	local pathName="${1##*/}" pathState
+	pathName="${pathName%.md}"
+	[ -n "$pathName" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	case "$pathName" in .|..|-*) return 1 ;; esac
+	for pathState in running review blocked pending backlog parked processed archived retained ; do
+		[ -f "$MDAT_DATA_ROOT/board/$pathState/$pathName.md" ] || continue
+		printf '%s\n' "$MDAT_DATA_ROOT/board/$pathState/$pathName.md"
+		return 0
+	done
+	return 1
+}
+
+## The item an ask belongs to, as its name without .md: the first item name in <task ref>
+## that a board state holds, else the `spawns:` dispatch item of the session's own spawn
+## record, else nothing (rc 1).
+AgentsToolsDecisionsItemFromRef(){ ## task ref text, session id
+	local refText="$1" refSession="$2" refName refRecord refSpawns
+	while IFS= read -r refName ; do
+		[ -n "$refName" ] || continue
+		AgentsToolsDecisionsItemPath "$refName" > /dev/null && { printf '%s\n' "${refName%.md}" ; return 0 ; }
+	done < <( printf '%s\n' "$refText" | LC_ALL=C grep -oE '[a-z][a-z0-9]*-[0-9]{8}T[0-9]{4}([0-9]{2})?Z(-[A-Za-z0-9_.-]*[A-Za-z0-9_-])?' )
+	[ -n "$refSession" ] && [ -n "${MMDAPP:-}" ] || return 1
+	case "$refSession" in */*|.|..) return 1 ;; esac
+	for refRecord in "$MMDAPP/.local/agents/spawned/$refSession/$refSession.md" "$MMDAPP/.local/agents/spawned"/*/"$refSession.md" ; do
+		[ -f "$refRecord" ] || continue
+		refSpawns="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "spawns: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$refRecord" 2> /dev/null )"
+		refSpawns="${refSpawns%%,*}" ; refSpawns="${refSpawns%% *}"
+		[ -n "$refSpawns" ] && AgentsToolsDecisionsItemPath "$refSpawns" > /dev/null || continue
+		printf '%s\n' "${refSpawns%.md}"
+		return 0
+	done
+	return 1
+}
+
+## Text as one line: whitespace runs to one space, trimmed, cut at <max> characters (default 300).
+AgentsToolsDecisionsOneLine(){ ## text, max
+	printf '%s' "$1" | LC_ALL=C tr -s ' \t\r\n' '    ' | LC_ALL=C awk -v max="${2:-300}" '
+		{ text = text ( NR > 1 ? " " : "" ) $0 ; }
+		END { sub( /^ +/, "", text ) ; sub( / +$/, "", text ) ; if ( length( text ) > max ) { text = substr( text, 1, max - 3 ) "..." ; } print text ; }'
+}
+
+## The first line of a question, as both sides of a re-ask compare it: the first line that
+## is neither blank nor a heading, one line, cut at 160 characters.
+AgentsToolsDecisionsQuestionFirst(){ ## question text
+	AgentsToolsDecisionsOneLine "$( printf '%s\n' "$1" | LC_ALL=C awk '$0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print ; exit ; }' )" 160
+}
+
+## Text compared loosely: lower case, every run of other than letters and digits one space.
+AgentsToolsDecisionsNorm(){ ## text
+	printf '%s\n' "$1" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sed -e 's/[^a-z0-9][^a-z0-9]*/ /g' -e 's/^ //' -e 's/ $//' | LC_ALL=C tr -d '\n'
+}
+
+## The marker line that makes a `## Decisions` heading the item's own.
+AgentsToolsDecisionsMarker(){ ## item name (with or without .md)
+	local markerName="${1##*/}"
+	printf '<!-- decisions-of: %s -->\n' "${markerName%.md}"
+}
+
+## awk functions over line[1..n], shared by the reader and the board edit, so both take the
+## same section: decisionsOwn() is the own heading's line number (0 when none), and
+## decisionsEnd() the section's last non-blank line before the next heading.
+agentsDecisionsOwnAwk='
+	function decisionsOwn( n, marker,    i, inFm, inFence, sawBrief, marked, legacy ) {
+		inFm = 0 ; inFence = 0 ; sawBrief = 0 ; marked = 0 ; legacy = 0 ;
+		for ( i = 1 ; i <= n ; i++ ) {
+			if ( i == 1 && line[i] == "---" ) { inFm = 1 ; continue ; }
+			if ( inFm ) { if ( line[i] == "---" ) { inFm = 0 ; } continue ; }
+			if ( line[i] ~ /^[ \t]*(```|~~~)/ ) { inFence = ! inFence ; continue ; }
+			if ( inFence ) { continue ; }
+			if ( line[i] ~ /^## Brief[ \t]*$/ ) { sawBrief = 1 ; continue ; }
+			if ( line[i] !~ /^## Decisions[ \t]*$/ ) { continue ; }
+			if ( i < n && line[i + 1] == marker ) { marked = i ; }
+			else if ( ! sawBrief ) { legacy = i ; }
+		}
+		return ( marked ? marked : legacy ) ;
+	}
+	function decisionsEnd( n, start,    i, last ) {
+		last = start ;
+		for ( i = start + 1 ; i <= n ; i++ ) {
+			if ( line[i] ~ /^##? / ) { break ; }
+			if ( line[i] !~ /^[ \t]*$/ ) { last = i ; }
+		}
+		return last ;
+	}
+'
+
+## The section's lines, newest first, at most <cap> (default 30).
+AgentsToolsDecisionsLines(){ ## item path, cap
+	[ -f "$1" ] || return 0
+	LC_ALL=C awk -v cap="${2:-30}" -v marker="$( AgentsToolsDecisionsMarker "$1" )" "$agentsDecisionsOwnAwk"'
+		{ line[NR] = $0 ; }
+		END {
+			start = decisionsOwn( NR, marker ) ;
+			if ( ! start ) { exit ; }
+			last = decisionsEnd( NR, start ) ;
+			for ( i = start + 1 ; i <= last ; i++ ) { if ( line[i] ~ /^- / ) { found[++n] = line[i] ; } }
+			for ( i = n ; i >= 1 && shown < cap + 0 ; i-- ) { print found[i] ; shown++ ; }
+		}
+	' "$1" 2> /dev/null
+}
+
+## The section as a block to show ahead of other context (a brief, conversation.md, a scan),
+## headed `### Decisions (from <item>)` so it is never taken for the own section of the item
+## it is quoted into; nothing at all when the item has no decision yet.
+AgentsToolsDecisionsBlock(){ ## item path, cap
+	local blockLines blockAll blockName="${1##*/}"
+	blockLines="$( AgentsToolsDecisionsLines "$1" "${2:-30}" )"
+	[ -n "$blockLines" ] || return 0
+	blockAll="$( AgentsToolsDecisionsLines "$1" 100000 | LC_ALL=C awk 'END { print NR ; }' )"
+	printf '### Decisions (from %s)\n\nBinding, newest first%s.\n\n' "${blockName%.md}" \
+		"$( [ "$blockAll" -le "${2:-30}" ] || printf ', %s of %s shown -- the rest are in the item' "${2:-30}" "$blockAll" )"
+	printf '%s\n' "$blockLines"
+}
+
+## The items whose Decisions bind a spawn, one path per line, no repeats: its own item, the
+## item that one `tracks:`, and every `spawns:` item of the spawn records in its sandbox root,
+## which is where the asks of a session it replaces or joins were recorded.
+AgentsToolsDecisionsRelatedPaths(){ ## board item path (may be empty), sandbox root (may be empty)
+	local relSeen=" " relName relPath relRecord
+	{
+		[ -z "$1" ] || printf '%s\n' "$1"
+		[ -z "$1" ] || [ ! -f "$1" ] || AgentsToolsDecisionsField "$1" tracks
+		if [ -n "$2" ] ; then
+			for relRecord in "$2"/*.md ; do
+				[ -f "$relRecord" ] || continue
+				LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "spawns: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$relRecord" 2> /dev/null \
+					| LC_ALL=C tr ',' '\n' | LC_ALL=C sed 's/^ *//;s/ *$//'
+			done
+		fi
+	} | while IFS= read -r relName ; do
+		[ -n "$relName" ] || continue
+		case "$relName" in
+			/*) relPath="$relName" ;;
+			*) relPath="$( AgentsToolsDecisionsItemPath "$relName" )" || continue ;;
+		esac
+		[ -f "$relPath" ] || continue
+		case "$relSeen" in *" ${relPath##*/} "*) continue ;; esac
+		relSeen="$relSeen${relPath##*/} "
+		printf '%s\n' "$relPath"
+	done
+}
+
+## The newest Decisions line that already answers a question: an answer, verdict, resolution
+## or clarification whose text holds the question's first line, compared loosely. A first
+## line under 12 characters is never matched, since it would match too much.
+AgentsToolsDecisionsEarlier(){ ## item path, question text
+	local earlyQuestion earlyLine earlyBody
+	earlyQuestion="$( AgentsToolsDecisionsNorm "$( AgentsToolsDecisionsQuestionFirst "$2" )" )"
+	[ "${#earlyQuestion}" -ge 12 ] || return 1
+	while IFS= read -r earlyLine ; do
+		case "$earlyLine" in
+			*' answer: '*|*' verdict: '*|*' resolved: '*|*' clarification: '*) ;;
+			*) continue ;;
+		esac
+		earlyBody="$( AgentsToolsDecisionsNorm "$earlyLine" )"
+		case " $earlyBody " in
+			*" $earlyQuestion "*) printf '%s\n' "$earlyLine" ; return 0 ;;
+		esac
+	done < <( AgentsToolsDecisionsLines "$1" 100000 )
+	return 1
+}
+
+## The board path of the item a dispatch item `tracks:` (the task it works on): one level,
+## never the item itself. rc 1 when it tracks nothing on the board.
+AgentsToolsDecisionsTracked(){ ## item path
+	local trackedName trackedPath
+	[ -f "$1" ] || return 1
+	trackedName="$( AgentsToolsDecisionsField "$1" tracks )"
+	trackedName="${trackedName%% *}" ; trackedName="${trackedName%.md}"
+	[ -n "$trackedName" ] || return 1
+	trackedPath="$( AgentsToolsDecisionsItemPath "$trackedName" )" || return 1
+	[ "${trackedPath##*/}" != "${1##*/}" ] || return 1
+	printf '%s\n' "$trackedPath"
+}
+
+## AgentsToolsDecisionsEarlier over the item, then the item it tracks, so a later session on
+## the same task under a new dispatch finds the answer. Prints `<item name> | <line>`.
+AgentsToolsDecisionsEarlierTracked(){ ## item path, question text
+	local etPath etLine
+	for etPath in "$1" "$( AgentsToolsDecisionsTracked "$1" )" ; do
+		[ -n "$etPath" ] || continue
+		etLine="$( AgentsToolsDecisionsEarlier "$etPath" "$2" )" || continue
+		etPath="${etPath##*/}"
+		printf '%s | %s\n' "${etPath%.md}" "$etLine"
+		return 0
+	done
+	return 1
+}
+
+## One frontmatter field of an item, empty when absent.
+AgentsToolsDecisionsField(){ ## item path, field
+	LC_ALL=C awk -v key="$2" '
+		NR == 1 && $0 == "---" { inFm = 1 ; next ; }
+		inFm && $0 == "---" { exit ; }
+		inFm && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }
+	' "$1" 2> /dev/null
+}
+
+## The member of a session, the `owner:` of its spawn record here; nothing when it has none.
+AgentsToolsSessionMember(){ ## session id
+	local smRecord
+	case "$1" in ''|-|none|*/*|.|..) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	for smRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$smRecord" ] || continue
+		AgentsToolsDecisionsField "$smRecord" owner
+		return 0
+	done
+	return 0
+}
+
+## Whether a comma-separated member list names <member>. rc 0 when it does.
+AgentsToolsMemberListHas(){ ## list, member
+	local mlEntry
+	[ -n "$2" ] || return 1
+	while IFS= read -r mlEntry ; do
+		mlEntry="${mlEntry#"${mlEntry%%[![:space:]]*}"}" ; mlEntry="${mlEntry%"${mlEntry##*[![:space:]]}"}"
+		[ "$mlEntry" != "$2" ] || return 0
+	done <<< "$( printf '%s\n' "$1" | LC_ALL=C tr ',' '\n' )"
+	return 1
+}
+
+## Whether <member>, calling from this process, is the reviewer an item's `review-by` names:
+## empty or magic-coordinator: magic-coordinator; human-owner: the human, from no spawned
+## session; <name>.routine: an executor of that routine (magic-team or `*`: any member);
+## <session>[:<member>]: that session itself, the member it names, or the member of its
+## spawn record; a member name: that member. rc 0 the reviewer, rc 1 not.
+AgentsToolsItemIsReviewer(){ ## item path, member
+	local irBy irSession="" irMember="" irFile irFound="" irExec
+	irBy="$( AgentsToolsDecisionsField "$1" review-by )"
+	case "$irBy" in
+		''|magic-coordinator)
+			[ "$2" = magic-coordinator ] && return 0
+			return 1
+		;;
+		human-owner)
+			[ -z "$( AgentsToolsActingMember )" ] && return 0
+			return 1
+		;;
+		*.routine)
+			for irFile in "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"/*/*.routine.md ; do
+				case "${irFile##*/}" in
+					"$irBy.md"|*".$irBy.md") [ -z "$irFound" ] || return 1 ; irFound="$irFile" ;;
+				esac
+			done
+			[ -n "$irFound" ] && [ -f "$irFound" ] || return 1
+			irExec="$( AgentsToolsDecisionsField "$irFound" executors )"
+			case ",$( printf '%s' "$irExec" | LC_ALL=C tr -d ' \t' )," in
+				*,magic-team,*|*,\*,*) return 0 ;;
+			esac
+			AgentsToolsMemberListHas "$irExec" "$2" && return 0
+			return 1
+		;;
+		*:*) irSession="${irBy%%:*}" ; irMember="${irBy#*:}" ;;
+		magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) irMember="$irBy" ;;
+		*)
+			if [ -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$irBy/SKILL.md" ] ; then
+				irMember="$irBy"
+			else
+				irSession="$irBy"
+			fi
+		;;
+	esac
+	[ -z "$irMember" ] || [ "$2" != "$irMember" ] || return 0
+	[ -n "$irSession" ] || return 1
+	[ "$( AgentsToolsActingSession )" != "$irSession" ] || return 0
+	[ "$( AgentsToolsSessionMember "$irSession" )" != "$2" ] || return 0
+	return 1
+}
+
+## Whether <member>, calling from this process, may ask for an item's review: its owner, or
+## the session that spawned its child -- that session itself or its member -- by the
+## `parent-session-id:` of the spawn record its `spawn-id:` names. rc 0 may, rc 1 not.
+AgentsToolsItemIsOwnerOrParent(){ ## item path, member
+	local opSpawn opParent
+	AgentsToolsMemberListHas "$( AgentsToolsDecisionsField "$1" owner )" "$2" && return 0
+	opSpawn="$( AgentsToolsDecisionsField "$1" spawn-id )"
+	case "$opSpawn" in ''|-|*/*|.|..) return 1 ;; esac
+	for opParent in "$MMDAPP/.local/agents/spawned"/*/"$opSpawn.md" ; do
+		[ -f "$opParent" ] || continue
+		opParent="$( AgentsToolsDecisionsField "$opParent" parent-session-id )"
+		case "$opParent" in ''|-|none) return 1 ;; esac
+		[ "$( AgentsToolsActingSession )" != "$opParent" ] || return 0
+		[ "$( AgentsToolsSessionMember "$opParent" )" != "$2" ] || return 0
+		return 1
+	done
+	return 1
+}
+
+## Whether <member>, calling from this process, is a party to an item: its owner, its
+## reviewer (AgentsToolsItemIsReviewer), or the member of a spawn that works it -- the one
+## its `spawn-id:` names, or one whose `spawns:`/`spawned-by:` names it. rc 0 a party.
+AgentsToolsItemIsParty(){ ## item path, member
+	local ipSpawn ipName="${1##*/}"
+	ipName="${ipName%.md}"
+	AgentsToolsMemberListHas "$( AgentsToolsDecisionsField "$1" owner )" "$2" && return 0
+	AgentsToolsItemIsReviewer "$1" "$2" && return 0
+	ipSpawn="$( AgentsToolsDecisionsField "$1" spawn-id )"
+	case "$ipSpawn" in
+		''|-|*/*|.|..) ;;
+		*) [ "$( AgentsToolsSessionMember "$ipSpawn" )" != "$2" ] || return 0 ;;
+	esac
+	[ -n "${MMDAPP:-}" ] && [ -n "$2" ] || return 1
+	## Every spawn record in one pass: one of <member>'s whose spawns/spawned-by names the item.
+	LC_ALL=C awk -v who="$2" -v item="$ipName" '
+		FNR == 1 { fm = 0 ; owner = "" ; linked = 0 ; }
+		$0 == "---" { if ( ++fm == 2 && owner == who && linked ) { found = 1 ; exit ; } next ; }
+		fm == 1 && index( $0, "owner: " ) == 1 { owner = substr( $0, 8 ) ; }
+		fm == 1 && ( index( $0, "spawns: " ) == 1 || index( $0, "spawned-by: " ) == 1 ) {
+			links = $0 ; sub( /^[a-z-]+: /, "", links ) ; gsub( / /, "", links ) ;
+			n = split( links, part, "," ) ;
+			for ( i = 1 ; i <= n ; i++ ) { one = part[i] ; sub( /\.md$/, "", one ) ; if ( one == item ) { linked = 1 ; } }
+		}
+		END { exit ( found ? 0 : 1 ) ; }
+	' "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null && return 0
+	return 1
+}
+
+## A closed pending-reply record's outcome, as one line on its item's Decisions: an answer, a
+## typed verdict (with its text), a settle as resolved, an unknown reply as dismissed, an amend
+## as an answer. A received one also clears the item's blocked-on/condition where that text
+## names this ask (its id, question ts or thread ts). Best effort: a record with no item, or
+## a board edit that fails, is logged and never undoes the close.
+AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 or empty), answer ts
+	local decId="$1" decFile="$2" decStatus="$3" decAmend="$4" decAnswerTs="$5" decKey decValue
+	local decItem="" decKind="" decTag="" decVerdict="" decVerdictText="" decBy="" decTo="" decQts="" decTts="" decChannel="" decAmendBy="" decFirst=""
+	local decLineKind decWho decText decMentions=""
+	[ -f "$decFile" ] || return 0
+	while IFS=$'\t' read -r decKey decValue ; do
+		case "$decKey" in
+			item) decItem="$decValue" ;;
+			kind) decKind="$decValue" ;;
+			question-tag) decTag="$decValue" ;;
+			verdict) decVerdict="$decValue" ;;
+			verdict-text) decVerdictText="$decValue" ;;
+			answered-by) decBy="$decValue" ;;
+			address-to) decTo="$decValue" ;;
+			question-ts) decQts="$decValue" ;;
+			thread-ts) decTts="$decValue" ;;
+			channel) decChannel="$decValue" ;;
+			amended-by) decAmendBy="$decValue" ;;
+			first) decFirst="$decValue" ;;
+		esac
+	done < <( LC_ALL=C awk '
+		$0 == "---" { dashes++ ; next ; }
+		dashes == 1 { colon = index($0, ": ") ; if ( colon > 1 ) { printf "%s\t%s\n", substr($0, 1, colon - 1), substr($0, colon + 2) ; } next ; }
+		dashes >= 2 && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { printf "first\t%s\n", $0 ; exit ; }
+	' "$decFile" 2>/dev/null )
+	[ -n "$decItem" ] || return 0
+	decWho="${decBy:-${decTo:-unknown}}"
+	case "${decKind:-question}:$decStatus" in
+		*:reply-unknown) decLineKind="dismissed" ; decVerdict="no answer known" ;;
+		question:*)
+			decLineKind="answer"
+			case "$decVerdict" in settled:*) decLineKind="resolved" ;; esac
+		;;
+		*) decLineKind="verdict" ;;
+	esac
+	[ -z "$decVerdictText" ] || decVerdict="$decVerdict -- $decVerdictText"
+	if [ -n "$decAmend" ] ; then
+		decLineKind="answer" ; decWho="${decAmendBy:-$decWho}" ; decVerdict="amended: $decVerdict"
+	fi
+	decText="${decTag:+$decTag }$( AgentsToolsDecisionsQuestionFirst "$decFirst" ) -> ${decVerdict:-(answered; the answer text was not recorded)}"
+	[ "$decStatus" != "reply-received" ] || [ -n "$decAmend" ] || decMentions="$decId $decQts $decTts"
+	DistroAgentsTools --intern-op-decisions-append "$decWho" "$decItem" --kind "$decLineKind" --text "$decText" \
+		--source "$decId${decAnswerTs:+, ${decChannel:+$decChannel:}$decAnswerTs}" \
+		$( for decKey in $decMentions ; do printf -- '--clear-if-mentions %s ' "$decKey" ; done ) \
+		--context "${MDSC_CMD:-pending-reply-close}" > /dev/null 2>&1 \
+		|| echo "${MDSC_CMD:-pending-reply-close}: ⚠️ WARNING: $decId is closed, but its outcome was not recorded on item $decItem's Decisions" >&2
+	return 0
+}
+
+## The awk program the board edit runs to add one line: at the end of the item's own
+## `## Decisions` section, or as a new marked section at the end. The line and the marker
+## come from MDAT_DECISIONS_LINE and MDAT_DECISIONS_MARKER, so no text of them is ever part
+## of a program.
+agentsDecisionsAppendAwk="$agentsDecisionsOwnAwk"'
+	{ line[NR] = $0 ; }
+	END {
+		add = ENVIRON["MDAT_DECISIONS_LINE"] ; marker = ENVIRON["MDAT_DECISIONS_MARKER"] ;
+		start = ( marker == "" ? 0 : decisionsOwn( NR, marker ) ) ;
+		if ( start ) {
+			last = decisionsEnd( NR, start ) ;
+			for ( i = 1 ; i <= NR ; i++ ) {
+				print line[i] ;
+				if ( i == last ) { if ( last == start || line[last] == marker ) { print "" ; } print add ; }
+			}
+		} else {
+			n = NR ; while ( n > 0 && line[n] ~ /^[ \t]*$/ ) { n-- ; }
+			for ( i = 1 ; i <= n ; i++ ) { print line[i] ; }
+			print "" ; print "## Decisions" ; print marker ; print "" ; print add ;
+		}
+	}
+'
+
+## Appends one line to an item's Decisions, through the board edit primitive, under a lock
+## per item. Clears `blocked-on` and `condition` when <clear> is `all`, or each one whose
+## text names any of the space-separated <mentions>. rc 1 when the item is not on the board
+## or the edit failed; prints `DECISION-RECORDED <item> <state>` and any `BLOCKER-CLEARED <field>`.
+AgentsToolsDecisionsAppend(){ ## who, item, kind, text, source, clear (all|empty), mentions
+	local appWho="$1" appItem="$2" appKind="$3" appText="$4" appSource="$5" appClear="$6" appMentions="$7"
+	local appPath appState appName appLine appLock="" appField appValue appMention appRc=0 appHeaders=() appCleared=""
+	case "$agentsDecisionsKinds" in *" $appKind "*) ;; *) echo "$MDSC_CMD: ⛔ ERROR: kind must be one of:$agentsDecisionsKinds-- got: ${appKind:-<none>}" >&2 ; return 1 ;; esac
+	appPath="$( AgentsToolsDecisionsItemPath "$appItem" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item $appItem in any board state, so no decision was recorded" >&2 ; return 1 ; }
+	appName="${appPath##*/}" ; appState="${appPath%/*}" ; appState="${appState##*/}"
+	appWho="$( AgentsToolsDecisionsOneLine "$appWho" 80 )" ; appWho="${appWho%% *}"
+	appText="$( AgentsToolsDecisionsOneLine "$appText" 300 )"
+	[ -n "$appText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the decision text is empty, so nothing was recorded" >&2 ; return 1 ; }
+	appSource="$( AgentsToolsDecisionsOneLine "$appSource" 120 )"
+	appLine="- $( date -u +%Y-%m-%dT%H:%MZ ) ${appWho:-unknown} $appKind: $appText${appSource:+ ($appSource)}"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	AgentsToolsLocalLockTake "decisions-${appName%.md}" 30 "the Decisions of $appName" && appLock="$agentsLocalLockPath" \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the Decisions lock on $appName could not be taken; recording without it" >&2
+	## Read under the lock: the item may have moved state since it was found.
+	appPath="$( AgentsToolsDecisionsItemPath "$appItem" )" || { [ -z "$appLock" ] || AgentsToolsLocalLockGive "$appLock" ; return 1 ; }
+	appState="${appPath%/*}" ; appState="${appState##*/}"
+	for appField in blocked-on condition ; do
+		appValue="$( AgentsToolsDecisionsField "$appPath" "$appField" )"
+		[ -n "$appValue" ] || continue
+		if [ "$appClear" = "all" ] ; then
+			appHeaders+=( "--header:remove:$appField" ) ; appCleared="$appCleared $appField"
+			continue
+		fi
+		for appMention in $appMentions ; do
+			case "$appValue" in
+				*"$appMention"*) appHeaders+=( "--header:remove:$appField" ) ; appCleared="$appCleared $appField" ; break ;;
+			esac
+		done
+	done
+	printf '%s' "$agentsDecisionsAppendAwk" | MDAT_DECISIONS_LINE="$appLine" MDAT_DECISIONS_MARKER="$( AgentsToolsDecisionsMarker "$appName" )" DistroAgentsTools --intern-op-board-upsert-move-edit "$appState" "$appName" \
+		--from-state:"$appState" --edit-script-from-stdin:awk "${appHeaders[@]+"${appHeaders[@]}"}" \
+		--context "${MDSC_CMD:-decisions-append}" --log-verb:updated || appRc=$?
+	[ -z "$appLock" ] || AgentsToolsLocalLockGive "$appLock"
+	if [ "$appRc" != "0" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: the board edit of $appName failed, so the decision was not recorded" >&2
+		return 1
+	fi
+	printf 'DECISION-RECORDED %s %s\n' "${appName%.md}" "$appState"
+	for appField in $appCleared ; do printf 'BLOCKER-CLEARED %s\n' "$appField" ; done
+	return 0
+}
+
+## AgentsToolsDecisionsAppend, and then the same line on the item it `tracks:` (the task a
+## dispatch item works on), so a later dispatch on that task finds it. One level only: the
+## tracked item's own `tracks:` is never followed. The tracked line names the dispatch in its
+## source; only the blockers that name the ask (<mentions>) are cleared there, never `all`.
+## rc is the first append's: a tracked append that fails is a warning.
+AgentsToolsDecisionsAppendTracked(){ ## who, item, kind, text, source, clear (all|empty), mentions
+	local atPath atTracked atName
+	AgentsToolsDecisionsAppend "$@" || return 1
+	atPath="$( AgentsToolsDecisionsItemPath "$2" )" && atTracked="$( AgentsToolsDecisionsTracked "$atPath" )" || return 0
+	atName="${atPath##*/}" ; atName="${atName%.md}"
+	AgentsToolsDecisionsAppend "$1" "${atTracked##*/}" "$3" "$4" "${5:+$5, }via $atName" "" "$7" \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the decision is on $atName, but not on the item it tracks, ${atTracked##*/}" >&2
+	return 0
+}

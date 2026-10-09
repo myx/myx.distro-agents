@@ -10,8 +10,8 @@
 
 case "$1" in
 
-	--member-comms-slack-socket-start|--member-comms-slack-socket-status|--member-comms-slack-socket-stop)
-		local socketOp="${1#--member-comms-slack-socket-}"
+	--intern-op-comms-slack-socket-start|--intern-op-comms-slack-socket-status|--intern-op-comms-slack-socket-stop)
+		local socketOp="${1#--intern-op-comms-slack-socket-}"
 		shift
 
 		if [ "${1:-}" = "--print-required-scopes" ] ; then
@@ -42,7 +42,7 @@ case "$1" in
 		## scope must not open two connections onto one app and split its events.
 		local socketScope="magic-team" socketToken=""
 		if [ "$memberName" != "magic-team" ] ; then
-			socketToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
+			socketToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
 			[ -z "$socketToken" ] || socketScope="$memberName"
 		fi
 		if [ -z "$socketToken" ] ; then
@@ -57,13 +57,25 @@ case "$1" in
 		socketMatch="AgentsSlackSocketMode.py $socketScope"
 		socketPids="$( pgrep -f "$socketMatch" 2>/dev/null | tr '\n' ' ' )"
 
+		## The receiver keeps no log of its own: its rows are in the workspace Slack
+		## log, this UTC month's comms-slack-send.YYYY-MM.log, target 'socket' and
+		## the app scope as member (AgentsSlackSocketMode.py logRow).
+		AgentsToolsSlackSocketLog(){
+			printf '%s' "$MMDAPP/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log"
+		}
+		AgentsToolsSlackSocketRows(){ ## count: this scope's last receiver rows
+			LC_ALL=C awk -F'\t' -v scope="$socketScope" '$2 == scope && $3 == "socket"' "$( AgentsToolsSlackSocketLog )" 2>/dev/null | tail -n "$1"
+		}
+
 		case "$socketOp" in
 			status)
 				if [ -n "$socketPids" ] ; then
-					echo "socket[$memberName] app=$socketScope receiver=alive pids=${socketPids% } log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
+					echo "socket[$memberName] app=$socketScope receiver=alive pids=${socketPids% } log=$( AgentsToolsSlackSocketLog )"
+					AgentsToolsSlackSocketRows 1
 					return 0
 				fi
-				echo "socket[$memberName] app=$socketScope receiver=none log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
+				echo "socket[$memberName] app=$socketScope receiver=none log=$( AgentsToolsSlackSocketLog )"
+				AgentsToolsSlackSocketRows 1
 				return 0
 			;;
 			stop)
@@ -99,21 +111,22 @@ case "$1" in
 		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
 		SOCKET_MODE_APP_TOKEN="$socketToken" \
 			SOCKET_MODE_TOOL_PATH="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+			SOCKET_MODE_LOG_DIR="$MMDAPP/.local/agents" \
 			nohup python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackSocketMode.py" "$socketScope" \
-			>> "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>&1 &
+			> /dev/null 2>&1 &
 		disown 2>/dev/null || true
 		sleep 2
 		rmdir "$socketLockDir" 2>/dev/null || true
 
 		socketPids="$( pgrep -f "$socketMatch" 2>/dev/null | tr '\n' ' ' )"
 		if [ -z "$socketPids" ] ; then
-			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: receiver for $socketScope did not stay up -- its own last words: $( tail -n 3 "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>/dev/null )" >&2
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: receiver for $socketScope did not stay up -- its own last words: $( AgentsToolsSlackSocketRows 3 )" >&2
 			set +e ; return 4
 		fi
 		## A refused token does not stop the receiver -- it retries -- so a bare
 		## "started" could never report one. Its own first words do.
-		echo "socket[$memberName] app=$socketScope started pids=${socketPids% } log=$MMDAPP/.local/temp/slack-socket.$socketScope.log"
-		tail -n 2 "$MMDAPP/.local/temp/slack-socket.$socketScope.log" 2>/dev/null
+		echo "socket[$memberName] app=$socketScope started pids=${socketPids% } log=$( AgentsToolsSlackSocketLog )"
+		AgentsToolsSlackSocketRows 2
 		return 0
 	;;
 

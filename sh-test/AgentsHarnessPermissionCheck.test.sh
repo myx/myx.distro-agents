@@ -360,7 +360,9 @@ rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdLater="$( rigRefusalId )"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"opener"},{"ts":"1700000001.000102","user":"URIGBOT01","text":"question","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rm -f "$rigScenarioDir/posts"
-rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdLater\",\"reason\":\"r\",\"task_ref\":\"t\"}"
+## Worded apart from the denied ask above: the same session asking the same permission
+## question again gets that deny back unasked (Asked once, in MAGIC.md).
+rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task now write the refused file after all?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdLater\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "an answer naming no option returns UNCLASSIFIED" "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
 rigAssert "and nothing is posted for it"                   "$( cat "$rigScenarioDir/posts" )" 2
 rigAssert "and no grants file exists"                      "$( [ -e "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ] && printf yes || printf no )" no
@@ -439,9 +441,9 @@ rigAssert "the annotated reply is still the verdict"      "$( rigLineOf 'VERDICT
 rigVerdict "an annotated reply head is skipped to its first word"
 
 ## One team operation, run as a given member in the scenario workspace.
-rigOp(){ ## operation and its arguments; the caller's session is RIG_OP_SESSION, or none
-	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID ${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} \
-		MMDAPP="$rigScenarioDir/ws" RIG_SCENARIO="$rigScenarioDir" \
+rigOp(){ ## operation and its arguments; the caller's session is RIG_OP_SESSION, or none, acting as RIG_OP_AGENT, or none
+	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT ${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} \
+		${RIG_OP_AGENT:+MDAT_SPAWN_AGENT="$RIG_OP_AGENT"} MMDAPP="$rigScenarioDir/ws" RIG_SCENARIO="$rigScenarioDir" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@" ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err"
 }
 RIG_OP_SESSION="rig-coordinator-session"
@@ -483,13 +485,20 @@ rigAssert "before the answer, the call has not returned"   "$( kill -0 "$rigAskP
 rigAssert "and its record is open"                         "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
 rigOp --member-escalation-answer magic-developer "$rigPending" allow-once
 rigAssert "a member it is not addressed to cannot answer"  "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
-rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-forever
+## The coordinator answers from its own session, with the coordinator's form.
+RIG_OP_AGENT=magic-coordinator
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-forever
 rigAssert "a verdict outside the kind is refused"          "$( rigHolds "$rigScenarioDir/op.err" 'is not a verdict of this permission' )" yes
-RIG_OP_SESSION="" ; rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
+RIG_OP_SESSION="" ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
 rigAssert "an answer from a caller with no session id is refused" "$( rigHolds "$rigScenarioDir/op.err" 'carries no session id' )" yes
-RIG_OP_SESSION="rig-session" ; rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
+RIG_OP_SESSION="rig-session" ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_SESSION="rig-coordinator-session"
 rigAssert "an answer from the asking session itself is refused" "$( rigHolds "$rigScenarioDir/op.err" 'asked from this same session' )" yes
-rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once
+RIG_OP_AGENT=magic-tester ; rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_AGENT=magic-coordinator
+rigAssert "another member's session answering as the coordinator is refused" "$( rigHolds "$rigScenarioDir/op.err" 'this session acts as magic-tester, so it cannot act as magic-coordinator' )" yes
+RIG_OP_AGENT=magic-tester ; rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once ; RIG_OP_AGENT=magic-coordinator
+rigAssert "and so is its use of the coordinator's form"    "$( rigHolds "$rigScenarioDir/op.err" "is magic-coordinator's only" )" yes
+rigAssert "the record is still open"                       "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "the answering session is recorded"      "$( LC_ALL=C awk -F': ' '$1 == "answered-session" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" rig-coordinator-session
 rigAssert "the coordinator's answer is applied"            "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "and the grant is written from the record"       "$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdC" )" yes
@@ -498,8 +507,9 @@ rigAssert "it returned RECEIVED"                           "$( rigFirstLine "$ri
 rigAssert "with the verdict"                               "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "and who gave it"                                "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
 rigAssert "the same session's exact retry passes"          "$( rigWriteCall rig-session "$rigTarget" )" "$( rigOkLine "$rigTarget" )"
-rigOp --member-escalation-answer magic-coordinator "$rigPending" deny
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" deny
 rigAssert "an answered escalation takes no second answer"  "$( rigHolds "$rigScenarioDir/op.err" 'is not open' )" yes
+RIG_OP_AGENT=""
 rigOp --member-escalation-read magic-tester "$rigPending"
 rigAssert "read returns the recorded verdict"              "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: allow-once' )" yes
 rigVerdict "sync escalation -- waits for the coordinator's answer, resumes the same session, uses the grant"
@@ -517,6 +527,27 @@ rigAssert "the asker's own answer is refused"              "$( rigHolds "$rigSce
 rigAssert "the call is still waiting"                      "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
 rigAskFinish 0 > /dev/null
 rigVerdict "no self-answer through the operation"
+
+## ---------------------------------------------------------------------------
+## 18b. The coordinator answers a question addressed to another member, on its
+##      behalf, with --magic-escalation-answer; the member form stays the addressee's.
+## ---------------------------------------------------------------------------
+rigStart answer-on-behalf no
+rigTarget="$rigScenarioDir/ws/OUT/b.txt"
+rigWriteCall rig-session "$rigTarget" > /dev/null
+rigIdB="$( rigRefusalId )"
+rigAskMember rig-session "$rigIdB" magic-developer
+rigPending="$( rigPendingId )"
+RIG_OP_AGENT=magic-coordinator
+rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "the coordinator's member form is the addressee's only" "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "its own form answers on the addressee's behalf" "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
+rigAssert "signed by the coordinator, with the grant"      "$( rigHolds "$rigScenarioDir/op.out" 'ANSWERED-BY: magic-coordinator' ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdB" )" "yes:yes"
+RIG_OP_AGENT=""
+rigAssert "the waiting call ended on the answer"           "$( rigAskFinish 45 )" yes
+rigAssert "with who gave it"                               "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
+rigVerdict "answer on behalf -- the coordinator's own form, never the member form"
 
 ## ---------------------------------------------------------------------------
 ## 19. Forward: the coordinator forwards to the human-owner, and the human-owner's
@@ -671,6 +702,40 @@ done
 rigAssert "the symlinked parent was resolved"              "$rigEqLinked" "$rigScenarioDir/ws/REAL/via-link.txt"
 rigAssert "a missing parent is compared as given"          "$rigEqHarness" "$rigScenarioDir/ws/NOPE/missing.txt"
 rigVerdict "the harness gate and the hook resolve one call to one target"
+
+## ---------------------------------------------------------------------------
+## 23. The outbound contact gate knows the team's own configured addresses: the
+##     human-owner's EMAIL_USER in any case, and a member's own EMAIL_USER for a
+##     member the member index lists. An unknown address is still refused, and its
+##     record and event-track post say the host and the workspace by name, no path.
+## ---------------------------------------------------------------------------
+rigStart contact-gate yes
+printf 'EMAIL_USER=Owner@Rig.Example\n' > "$rigScenarioDir/ws/.local/.agents/human-owner.agent.env"
+printf 'EMAIL_USER=keeper@rig.example\n' > "$rigScenarioDir/ws/.local/.agents/keeper-myx.agent.env"
+mkdir -p "$rigScenarioDir/ws/.local/agents"
+printf 'keeper-myx\t%s\t%s\tsource-symlink\n' "$rigScenarioDir/ws/keeper-myx" "$rigScenarioDir/ws" > "$rigScenarioDir/ws/.local/agents/members.index"
+rigGateCall(){ ## recipient; prints the exit status
+	local gateRc=0
+	RIG_OP_SESSION=rig-session rigOp --intern-op-contact-assert-known magic-coordinator \
+		--tool member-comms-email-send --target "$1" --message "rig message" || gateRc=$?
+	printf '%s' "$gateRc"
+}
+rigAssert "the human-owner's own address passes"           "$( rigGateCall 'Owner@Rig.Example' )" 0
+rigAssert "in another case too"                            "$( rigGateCall 'owner@RIG.example' )" 0
+rigAssert "a member's own address passes"                  "$( rigGateCall 'Keeper@Rig.Example' )" 0
+rigAssert "none of them is recorded as a refusal"          "$( rigRecordCount )" 0
+rigAssert "an unknown address is refused"                  "$( rigGateCall 'stranger@rig.example' )" 1
+rigIdG="$( LC_ALL=C sed -n 's/.*REFUSAL-ID: \(refusal-[0-9a-f-]*\)\..*/\1/p' "$rigScenarioDir/op.err" | head -1 )"
+rigAssert "the ERROR names the own-address check"          "$( rigHolds "$rigScenarioDir/op.err" "not one of the team's own configured addresses (human-owner or member)" )" yes
+rigAssert "with a refusal id"                              "$( [ -n "$rigIdG" ] && printf yes || printf no )" yes
+rigAssert "the record names the reason the same way"       "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/$rigIdG.md" "not one of the team's own configured addresses (human-owner or member)" )" yes
+rigAssert "the record carries the host"                    "$( rigRecordField "$rigIdG" host )" "$( hostname -s )"
+rigAssert "the record carries the workspace by name"       "$( rigRecordField "$rigIdG" workspace )" ws
+rigAssert "the record carries no path of this check"       "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/$rigIdG.md" "${rigTmp##*/}" )" no
+rigAssert "one post was made"                              "$( rigCalls chat.postMessage )" 1
+rigAssert "the post has host and workspace after the id"   "$( rigHolds "$rigScenarioDir/post.1" "refusal-id: $rigIdG\\nwhere: $( hostname -s ) / ws" )" yes
+rigAssert "the post carries no path of this check"         "$( rigHolds "$rigScenarioDir/post.1" "${rigTmp##*/}" )" no
+rigVerdict "the contact gate -- own configured addresses known, a refusal says where by name"
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method"    "$rigUnknown" 0

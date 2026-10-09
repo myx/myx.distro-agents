@@ -14,8 +14,8 @@ Tell the tooling which workspaces it may act on:
 Read and set a member's own configuration and credentials. Always pipe a secret
 through `--upsert-from-stdin`, so it never appears in the process table:
 
-	DistroAgentsTools.fn.sh --member-config-option <member> --select-all
-	DistroAgentsTools.fn.sh --member-config-option <member> --upsert-from-stdin <key>
+	DistroAgentsTools.fn.sh --agents-config-option <member> --select-all
+	DistroAgentsTools.fn.sh --agents-config-option <member> --upsert-from-stdin <key>
 
 Check that the credential store stays locked down:
 
@@ -29,7 +29,7 @@ Check that the credential store stays locked down:
 - A setting is read when a call needs it. A changed value is in force on the next spawn. Nothing is regenerated and nothing needs a reinstall.
 - A read never creates a member's configuration. A write does.
 - A mistyped or missing sub-command can create an empty configuration before it reports the error. That empty entry then looks like a configured member.
-- Read with `DistroAgentsTools.fn.sh --member-config-option <member> --select-all`. Look for the key you need, not only for the member.
+- Read with `DistroAgentsTools.fn.sh --agents-config-option <member> --select-all`. Look for the key you need, not only for the member.
 - Check that the member exists before the first configuration call.
 
 ## Remove a setting

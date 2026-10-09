@@ -59,7 +59,8 @@ rigHeld(){ LC_ALL=C grep -q -x -- "$1" "$rigTmp/input-while-running" ; }
 rigAssert "the brief is there as dispatch.md"          "$( rigYes rigHeld dispatch.md )" yes
 rigAssert "the board item is there"                    "$( rigYes env LC_ALL=C grep -q -E '^dispatch-.*\.md$' "$rigTmp/input-while-running" )" yes
 rigAssert "the named package's MAGIC.md is copied"     "$( rigYes rigHeld 'MAGIC.rigrepo--rigpkg.md' )" yes
-rigAssert "the named routine is copied"                "$( rigYes rigHeld magic-team.rig.routine.md )" yes
+rigAssert "the named routine is a pointer, not a copy" "$( rigYes rigHeld magic-team.rig.routine.md )" no
+rigAssert "pointers.md names the routine's reader"     "$( rigYes env LC_ALL=C grep -q -F 'magic-team.rig.routine.md`: read with Skill' "$rigTmp/input-content" )" yes
 rigAssert "pointers.md is there"                       "$( rigYes rigHeld pointers.md )" yes
 rigAssert "a skillset file is a pointer, not a copy"   "$( rigYes rigHeld rig-member.armed.md )" no
 rigAssert "nothing secret is in input/"                "$( rigYes env LC_ALL=C grep -q -F "$rigSecret" "$rigTmp/input-content" )" no
@@ -84,6 +85,12 @@ rigMake stale old "$rigThisHost"
 rigMake fresh new "$rigThisHost"
 rigMake norecord none ""
 rigMake otherhost old rig-elsewhere
+## Harness scratch a killed run left behind: in a stale sandbox, in one whose input/ is already
+## empty, and in a fresh one, which keeps it.
+rigScratch(){ mkdir -p "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig" && printf 'rig\n' > "$rigSpawned/$1/tmp/AgentsUniversalHarness.rig/wait.err" ; }
+rigMake scratchonly old "$rigThisHost"
+rm -f "$rigSpawned/scratchonly/input/brief.md"
+rigScratch stale ; rigScratch scratchonly ; rigScratch fresh
 env -i PATH="/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_LIB="$rigSandboxLib" \
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -95,6 +102,11 @@ rigAssert "and said"                                   "$( rigYes env LC_ALL=C g
 rigAssert "a fresh one is skipped"                     "$( rigLeft fresh )" 1
 rigAssert "one with no record is skipped"              "$( rigLeft norecord )" 1
 rigAssert "another host's is skipped"                  "$( rigLeft otherhost )" 1
+rigScratchLeft(){ find "$rigSpawned/$1/tmp" -mindepth 1 2>/dev/null | LC_ALL=C grep -c . || : ; }
+rigAssert "a stale sandbox's leftover scratch in tmp/ is cleared, tmp/ kept" "$( rigScratchLeft stale ):$( rigYes test -d "$rigSpawned/stale/tmp" )" 0:yes
+rigAssert "so is one whose input/ was already empty"   "$( rigScratchLeft scratchonly )" 0
+rigAssert "and said"                                   "$( rigYes env LC_ALL=C grep -q 'cleared the scratch left in tmp/ of scratchonly' "$rigTmp/sweep.err" )" yes
+rigAssert "a fresh one keeps its scratch"              "$( rigScratchLeft fresh )" 2
 
 echo "-- a session-joining spawn uses the session's own sandbox, not a fresh uuid --"
 rigSessionId="rig-session-$$"

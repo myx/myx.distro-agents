@@ -13,7 +13,7 @@ set -u
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -29,7 +29,7 @@ trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team/templates" \
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" \
 	"$rigSkills/rig-member-a" "$rigSkills/rig-member-b" "$rigData/board"
 
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
@@ -49,7 +49,6 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 
-cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 ## Both .basic.md (the real-member check --address-to's own send validates against)
 ## and .armed.md (the one --intern-op-spawn-prepare-brief itself requires).
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/rig-member-a/rig-member-a.basic.md"
@@ -112,8 +111,10 @@ rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console
 rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
 rigAssert "member a's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-a.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief.rig-member-a" )" 1
 rigAssert "member b's own brief names its own duty file"  "$( grep -c -x -F 'read-and-obey: read rig-member-b.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief.rig-member-b" )" 1
-rigAssert "member a's own brief names the shared.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief.rig-member-a" )" 1
-rigAssert "member b's own brief names the shared.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief.rig-member-b" )" 1
+rigAssert "member a's own brief names the shared.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-a" )" 1
+rigAssert "member b's own brief names the shared.md sections" "$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief.rig-member-b" )" 1
+rigAssert "member a's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-a" )" 1
+rigAssert "member b's own brief ends its block with the handback line" "$( grep -c -x -F 'When done, hand back; then Wait until dismissed.' "$rigTmp/brief.rig-member-b" )" 1
 rigAssert "both spawns' own tracking records share one session id" \
 	"$( LC_ALL=C grep -h -c -x -F "session-id: $rigSessionId" "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C awk '{s+=$1 ;} END{print s+0 ;}' )" 2
 chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"

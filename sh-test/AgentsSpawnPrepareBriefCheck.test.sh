@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-## Behavioural check on --intern-op-spawn-prepare-brief (3288): the brief is the skillset
+## Behavioural check on --intern-op-spawn-prepare-brief (3288): the brief is the tooling
 ## template's Skeleton with its slots filled. Exactly one of --routine <selector> |
 ## --routine-default is required; the selector may be a full routine filename or part of
 ## one, matched over the skillset root's member folders, and must match exactly one file.
 ## A resolved routine's own executors/invitees fill the brief; a routine file that opens
 ## with no frontmatter block, or whose executors/maintainers are empty, is refused. Open
 ## warnings come from the five active board states only; a missing or unclosed template is
-## a stated refusal. Temp skillset and data roots, under one `env -i` guard.
+## a stated refusal. Temp skillset and data roots, under one `env -i` guard; the template
+## cases change the template in a temp origin copy, never the package's own.
 ## RIG_OLD_BRIEF, when set, names a file holding the pre-routine-slots output for the
 ## --routine-default/no-warnings case, which the new output must equal byte for byte.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -35,8 +36,7 @@ rigAssert(){ ## what is asserted, got, want
 
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigSkills/magic-team/templates" "$rigSkills/rig-member" "$rigData/board" "$rigTmp/ws/.local"
-cp "$rigTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
+mkdir -p "$rigSkills/magic-team" "$rigSkills/rig-member" "$rigData/board" "$rigTmp/ws/.local"
 printf '# rig armed\n' > "$rigSkills/rig-member/rig-member.armed.md"
 
 ## The default routine, carrying the key --routine-default now resolves through.
@@ -67,11 +67,12 @@ rigBrief(){ ## result file, then --routine/--routine-default/--context args for 
 echo "-- --routine-default, no warnings --"
 rigBrief "$rigTmp/b1" --routine-default
 printf '%s\n' "SPAWN-PREPARE-BRIEF: rig-member" "tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help rig-member when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task." \
+	"skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.shared.md}" \
 	"scratchpad: your own files go in the output/ folder this dispatch's own \"## Your sandbox\" section names" \
 	"read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them." \
-	"Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel." \
+	"Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}" \
 	"executors: magic-coordinator" "invitees: magic-team" \
-	"## open warning-* items" "(none open)" > "$rigTmp/b1.want"
+	"## open warning-* items" "(none open)" "When done, hand back; then Wait until dismissed." > "$rigTmp/b1.want"
 rigAssert "the brief is the filled Skeleton, byte for byte" "$( cmp -s "$rigTmp/b1" "$rigTmp/b1.want" && printf same || printf differs )" same
 rigAssert "no slot is left unfilled"                   "$( LC_ALL=C grep -c '{{' "$rigTmp/b1" )" 0
 rigAssert "the header names the member"                "$( LC_ALL=C grep -c -x -F 'SPAWN-PREPARE-BRIEF: rig-member' "$rigTmp/b1" )" 1
@@ -79,10 +80,18 @@ rigAssert "and so does the tool-routing line"          "$( LC_ALL=C grep '^tool-
 rigAssert "the read-and-obey line names the duty file and routine" \
 	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b1" )" 1
 rigAssert "names the shared.md sections" \
-	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/b1" )" 1
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b1" )" 1
 if [ -n "${RIG_OLD_BRIEF:-}" ] ; then
 	rigAssert "and equals the pre-routine-slots output"  "$( cmp -s "$rigTmp/b1" "$RIG_OLD_BRIEF" && printf same || printf differs )" same
 fi
+
+echo "-- a *-native client --"
+rigBrief "$rigTmp/b2n" --routine-default --cli-service claude-native
+rigAssert "it loads the myx.distro tools in one call"  "$( LC_ALL=C grep -c '^tools: first, in one call: ToolSearch select:mcp__myx_distro__Skill,' "$rigTmp/b2n" )" 1
+rigAssert "and names the MCP skillset reader"          "$( LC_ALL=C grep -c '^skillset-reader: mcp__myx_distro__Skill {name: <member>, file: <file>}' "$rigTmp/b2n" )" 1
+rigAssert "no harness tag is left"                     "$( LC_ALL=C grep -c -E '^\[(own|native)\] ' "$rigTmp/b2n" || : )" 0
+rigAssert "the universal harness brief has no ToolSearch line" "$( LC_ALL=C grep -c '^tools: ' "$rigTmp/b1" || : )" 0
+rigAssert "both briefs end with the handback line"      "$( tail -1 "$rigTmp/b1" ):$( tail -1 "$rigTmp/b2n" )" "When done, hand back; then Wait until dismissed.:When done, hand back; then Wait until dismissed."
 
 echo "-- open warnings --"
 for rigState in backlog pending running blocked parked processed ; do
@@ -100,7 +109,7 @@ rigAssert "the brief lands"                            "$( cat "$rigTmp/b5.rc" )
 rigAssert "the read-and-obey line names the matched routine" \
 	"$( LC_ALL=C grep -c -x -F 'read-and-obey: read rig-member.armed.md and rig-member.alphabeta.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/b5" )" 1
 rigAssert "names the shared.md sections" \
-	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/b5" )" 1
+	"$( LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/b5" )" 1
 rigAssert "its executors fill the slot"                "$( LC_ALL=C grep -c -x -F 'executors: rig-member' "$rigTmp/b5" )" 1
 rigAssert "an absent invitees field reads none"        "$( LC_ALL=C grep -c -x -F 'invitees: none' "$rigTmp/b5" )" 1
 
@@ -146,11 +155,21 @@ rigAssert "never falls through to the resolver's own ambiguous-match wording" \
 rm -f "$rigSkills/rig-member/rig-member.coworking.routine.md"
 
 echo "-- a template that cannot be used --"
-printf '# Skeleton\n\n```\nSPAWN-PREPARE-BRIEF: {{member}}\n' > "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
+## The template is the package's own: a temp origin (this package copied, the rest linked) holds the changed one.
+rigOrigin="$rigTmp/origin"
+mkdir -p "$rigOrigin/myx"
+for rigEntry in "$MDLT_ORIGIN"/* ; do [ "${rigEntry##*/}" = myx ] || ln -s "$rigEntry" "$rigOrigin/${rigEntry##*/}" ; done
+for rigEntry in "$MDLT_ORIGIN"/myx/* ; do [ "${rigEntry##*/}" = myx.distro-agents ] || ln -s "$rigEntry" "$rigOrigin/myx/${rigEntry##*/}" ; done
+mkdir "$rigOrigin/myx/myx.distro-agents"
+( cd "$MDLT_ORIGIN/myx/myx.distro-agents" && tar cf - --exclude=.git . ) | ( cd "$rigOrigin/myx/myx.distro-agents" && tar xf - )
+MDLT_ORIGIN="$rigOrigin"
+rigFn="$rigOrigin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+rigOriginTemplate="$rigOrigin/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
+printf '# Skeleton\n\n```\nSPAWN-PREPARE-BRIEF: {{member}}\n' > "$rigOriginTemplate"
 rigBrief "$rigTmp/b11" --routine-default
 rigAssert "an unclosed Skeleton is refused with rc 1"  "$( cat "$rigTmp/b11.rc" ):$( LC_ALL=C grep -c 'has no complete Skeleton block' "$rigTmp/b11.err" || : )" "1:1"
 rigAssert "and prints no partial brief"                "$( LC_ALL=C grep -c 'SPAWN-PREPARE-BRIEF' "$rigTmp/b11" || : )" 0
-rm -f "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
+rm -f "$rigOriginTemplate"
 rigBrief "$rigTmp/b12" --routine-default
 rigAssert "a missing template is refused with rc 1"    "$( cat "$rigTmp/b12.rc" ):$( LC_ALL=C grep -c 'the brief template is missing' "$rigTmp/b12.err" || : )" "1:1"
 

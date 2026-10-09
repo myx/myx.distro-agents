@@ -6,7 +6,7 @@
 ## Read-only. Emits the MECHANICAL parts of a spawn-prepare-brief that a
 ## dispatch brief currently hand-carries, so agent-carried config moves into
 ## tooling ("handle most by tooling, simpler life for the agent"):
-## The text is the skillset template magic-team/templates/spawn-brief.document.format.md;
+## The text is the tooling template sh-lib/templates/spawn-brief.document.format.md;
 ## this op fills its slots: the member, the resolved routine's own filename/executors/
 ## invitees, and the open warning-* set read from the board.
 ## The spawning agent still supplies the JUDGEMENT parts (which warnings are
@@ -30,9 +30,17 @@ case "$1" in
 		## Exactly one of --routine/--routine-default is required; --context is the
 		## only other option. Anything else is a malformed call and fails cleanly
 		## rather than being absorbed silently.
-		local routineSelector="" routineDefault="false"
+		local routineSelector="" routineDefault="false" briefCliService=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--cli-service)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --cli-service requires <service>" >&2
+						set +e ; return 1
+					fi
+					briefCliService="$2"
+					shift 2
+				;;
 				--routine)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --routine requires <selector>" >&2
@@ -78,8 +86,10 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## The brief's text is the skillset's own template; this op only fills its slots.
-		local briefTemplate="$MDAT_SKILLSET_ROOT/magic-team/templates/spawn-brief.document.format.md"
+		## The brief's text is the tooling's own template (AgentsToolsToolingTemplate); this op only fills its slots.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ToolingTemplate.include"
+		local briefTemplate
+		briefTemplate="$( AgentsToolsToolingTemplate spawn-brief.document.format.md )"
 		if [ ! -f "$briefTemplate" ] ; then
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template is missing: $briefTemplate" >&2
 			set +e ; return 1
@@ -115,10 +125,16 @@ case "$1" in
 		done
 		[ -n "$warnLines" ] || warnLines="(none open)"$'\n'
 
+		## The harness the spawn runs in: the service it names, else the workspace's configured
+		## one. A *-native client is native; everything else runs in the universal harness.
+		[ -n "$briefCliService" ] || briefCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || briefCliService=""
+		local briefHarness="own"
+		case "$briefCliService" in *-native) briefHarness="native" ;; esac
+
 		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
 		local briefText
 		## Values travel through the environment, not -v, which would decode backslashes in them.
-		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSpawnPrepareBriefFill.awk" "$briefTemplate" )" || {
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSpawnPrepareBriefFill.awk" "$briefTemplate" )" || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
 			set +e ; return 1
 		}

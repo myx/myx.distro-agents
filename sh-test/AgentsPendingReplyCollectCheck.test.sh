@@ -130,6 +130,21 @@ rigAssert "a note is in the asker's inbox"                "$( ls "$rigScenarioDi
 rigAssert "carrying the answer"                           "$( cat "$rigScenarioDir/data/inboxes/$rigMember/"note-*-answer-*.md 2>/dev/null | LC_ALL=C grep -c -F 'go ahead' )" 1
 rigAssert "and now the opener is marked"                  "$( rigReacted '1700000001.000101 white_check_mark' )" 1
 
+echo "-- the main loop's pass also reads a stale ask no spawn close ever marked, a typed one included --"
+rigStart stale
+rigRecord "$rigQ1" 1700000001.000102 Q1 rig-native-sess ""
+rigRecord "$rigQ2" "$( date +%s ).000103" Q2 rig-native-sess ""
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Q1 yes, keep it","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "the unmarked stale ask is answered"            "$( rigStatus "$rigQ1" )" reply-received
+rigAssert "a fresh unmarked ask is left to its session"   "$( rigStatus "$rigQ2" )$( rigHolds "$rigScenarioDir/out" "$rigQ2" )" reply-pendingno
+rigStart staleTyped
+rigRecord "$rigQ1" 1700000001.000102 Q1 rig-native-sess readback
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "a stale readback gets its verdict applied"     "$( rigStatus "$rigQ1" )/$( rigField "$rigQ1" verdict )" reply-received/yes
+rigAssert "and is reported answered"                      "$( rigHolds "$rigScenarioDir/out" "ANSWERED $rigQ1 Q1" )" yes
+
 echo "-- an unreadable thread stays open --"
 rigStart unreadable
 rigRecord "$rigQ1" 1700000001.000102 Q1 rig-sess-c ""
@@ -347,6 +362,70 @@ rigStart pushBogus
 rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
 rigCall PushNotification '{"to":"human-owner","severity":"bogus","headline":"h"}'
 rigAssert "control: a bad severity is refused, no post"   "$( rigPosts )$( rigFirstIs 'ERROR: PushNotification: severity must be' )" 0yes
+
+## A stale ask linked to a board item whose condition names it; its session's spawn record
+## says running (a live process carries its spawn id) or succeeded.
+rigLiveItem="task-20261008T1500Z-rig-live"
+rigLinked(){ ## id, question ts, tag, session
+	rigRecord "$1" "$2" "$3" "$4" ""
+	LC_ALL=C awk -v item="$rigLiveItem" '{ print } $0 == "host: rig" { print "item: " item }' "$rigScenarioDir/ws/.local/agents/pending/$1.md" > "$rigScenarioDir/linked.tmp" \
+		&& mv -f "$rigScenarioDir/linked.tmp" "$rigScenarioDir/ws/.local/agents/pending/$1.md"
+	mkdir -p "$rigScenarioDir/data/board/blocked" "$rigScenarioDir/data/board/running"
+	printf -- '---\ntype: task\nowner: %s\ncondition: has the human-owner answered pending reply %s?\n---\n\n# Rig live task\n' "$rigMember" "$1" > "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
+}
+rigSpawnSession(){ ## session, status, spawn id
+	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"
+	printf -- '---\nsession-id: %s\nparent-session-id: none\nhost: %s\nowner: %s\nstatus: %s\nspawn-id: %s\n---\n' "$1" "$( hostname -s )" "$rigMember" "$2" "$3" \
+		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$3.md"
+}
+rigDecisionLines(){
+	LC_ALL=C awk '/^## Decisions[ \t]*$/ { on = 1 ; next } on && /^##? / { on = 0 } on && /^- / { n++ } END { print n + 0 }' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md"
+}
+rigNotes(){
+	ls "$rigScenarioDir/data/inboxes/$rigMember/" 2>/dev/null | LC_ALL=C grep -c -E '^note-.*-answer-' || :
+}
+rigLiveSpawn="rig-live-spawn-$$-$RANDOM"
+bash -c 'sleep 300 ; :' "$rigLiveSpawn" &
+rigLivePid=$!
+trap 'kill "$rigLivePid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+
+echo "-- the stale pass, session still running: closed silently --"
+rigStart staleLive
+rigLinked "$rigQ1" 1700000001.000102 Q1 rig-live-sess
+rigSpawnSession rig-live-sess spawn-started "$rigLiveSpawn"
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it live","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "the live session's ask is answered"            "$( rigStatus "$rigQ1" )/$( rigField "$rigQ1" verdict )" "reply-received/yes, keep it live"
+rigAssert "its Decisions line is recorded"                "$( rigDecisionLines )" 1
+rigAssert "the condition naming it is cleared"            "$( LC_ALL=C grep -c '^condition: ' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md" )" 0
+rigAssert "no 'after your session ended' note"            "$( rigNotes )" 0
+rigAssert "and no closing reaction"                       "$( cat "$rigScenarioDir/reactions" 2>/dev/null | wc -l | tr -d ' ' )" 0
+rigCollect again --ended
+rigAssert "a second pass: nothing reported for it"        "$( rigHolds "$rigScenarioDir/again" "$rigQ1" )" no
+rigAssert "no second Decisions line, no note"             "$( rigDecisionLines )/$( rigNotes )" 1/0
+
+echo "-- the stale pass, session really ended: note and reactions --"
+rigStart staleEnded
+rigLinked "$rigQ1" 1700000001.000102 Q1 rig-gone-sess
+rigSpawnSession rig-gone-sess spawn-succeeded rig-gone-spawn-never-running
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "the ended session's ask is answered"           "$( rigStatus "$rigQ1" )" reply-received
+rigAssert "one note in the asker's inbox"                 "$( rigNotes )" 1
+rigAssert ":white_check_mark: on the question"            "$( rigReacted '1700000001.000102 white_check_mark' )" 1
+rigAssert "its Decisions line is recorded"                "$( rigDecisionLines )" 1
+rigCollect again --ended
+rigAssert "a second pass adds no line, note or reaction"  "$( rigDecisionLines )/$( rigNotes )/$( rigReacted '1700000001.000102 white_check_mark' )" 1/1/1
+
+echo "-- the stale pass is capped --"
+rigStart staleCap
+rigRecord "$rigQ1" 1700000001.000102 Q1 rig-cap-sess ""
+rigRecord "$rigQ2" 1700000001.000103 Q2 rig-cap-sess ""
+rigRecord 22222222-0000-0000-0000-000000000003 1700000001.000104 Q3 rig-cap-sess ""
+MDAT_PENDING_COLLECT_STALE_MAX=2 rigCollect out --ended
+rigAssert "at most MDAT_PENDING_COLLECT_STALE_MAX examined" "$( LC_ALL=C grep -c -E '^(ANSWERED|UNMATCHED|OPEN|UNREADABLE) ' "$rigScenarioDir/out" )" 2
+rigAssert "oldest first: the newest is left"              "$( rigHolds "$rigScenarioDir/out" 22222222-0000-0000-0000-000000000003 )" no
+kill "$rigLivePid" 2>/dev/null
 
 echo "-- no model was called anywhere --"
 rigAssert "no claude or codex call"                       "$( cat "$rigTmp/model-calls" 2>/dev/null | wc -l | tr -d ' ' )" 0

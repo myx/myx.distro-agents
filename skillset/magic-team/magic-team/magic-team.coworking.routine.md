@@ -3,6 +3,7 @@ executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
 default-for-session-kind: coworking
+session: coworking
 ---
 # magic-team.coworking.routine — the actual procedure
 
@@ -26,7 +27,7 @@ default-for-session-kind: coworking
 
 # Summary
 
-`magic-team.coworking.routine` is several members working one shared task together in one session, `magic-coordinator` leading it.
+`magic-team.coworking.routine` is several members working one shared task together in one session, its executor leading it, with a `magic-coordinator` instance always in it.
 
 ## Goals
 
@@ -59,7 +60,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
    - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate.
-4. **orchestrate-the-shared-task**: `magic-coordinator` leads the work as a participant, rules:
+4. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
    - keep the session on its goal; redirect drift.
    - make the real-time judgement calls a solo dispatch would leave to one member.
    - carry every participant's stuck point to an outcome.
@@ -90,8 +91,9 @@ None.
 
 All statements apply at the same time, always. These rules override a participant's own general `.armed.md` rules while this routine is active.
 
-- `magic-coordinator` is permitted and obliged to execute every step exactly as written, in order.
+- The executor is permitted and obliged to execute every step exactly as written, in order. The executor is one of the running routine's own `executors:`: `magic-coordinator` for this routine itself, either named executor for `magic-librarian.morning-review.routine`, any member for a `magic-team` one.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- **Every coworking-like session has a `magic-coordinator` instance in it**, whoever its executor is.
 - **session-start and close-session are open to every session.** Any member, and any ad-hoc, solo or IDE-chat session, runs both groups under its own identity, in simplified form where a step is type-gated. `executors:` governs a full coworking session only.
 - **Session-type taxonomy** — every session is one of two types:
   - **Coworking-like**: a structured routine extending this one (`magic-coordinator.daily.routine`, `magic-coordinator.retro.routine`, `magic-team.grooming.routine`, `magic-coordinator.one-on-one.routine`, `magic-librarian.morning-review.routine`, this routine), or several members on one shared task.

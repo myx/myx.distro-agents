@@ -59,9 +59,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **reconcile-untracked-session**: A live session with no board item is flagged once in `event-track`, naming its session id, member and sandbox. No item is created; whether it becomes tracked work is a judgement. Outcome `flagged-once`.
    - **reconcile-finished-session**: A live session whose tracked work reports finished and which nothing else needs is dismissed (`spawn-one-dispatch`'s **spawn-dismiss**). This covers sessions a heartbeat pass dispatched.
    - **reconcile-lost-reply**: A `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskUserQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny. An open ask never expires by age: the human may be away for weeks. It is closed only when its question is no longer current, is a duplicate, was resolved another way, or its session is complete and closed.
-5. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty, read its Result block, the output log it names, the session's handback and its output folder, steps:
-   - trivial and complete: accept it (`--magic-board-to-processed`), and dismiss its session if live
-   - trivial and not complete: return it to `board-running` (`--magic-advance-to-running`), comments appended
+5. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty (the scan's "review items addressed to advance.routine" section lists the routine's own), steps:
+   - trivial: apply `magic-team.handback-review.routine` to it
    - anything else: leave it in `board-review`
 6. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline, against this pass's board read.
 7. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this pass's read.

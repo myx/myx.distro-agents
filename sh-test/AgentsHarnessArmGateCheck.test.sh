@@ -117,7 +117,7 @@ rigAssert "after a full read, the Write lands"         "$( cat "$rigDir/ws/OUT/a
 rigAssert "and mcp__*__Write is no longer redirected"  "$( rigRedirected 8 )" no
 rigAssert "the .armed file holds when"                 "$( rigYes test -s "$rigDir/sandbox/rig-session-arm.armed" )" yes
 rigAssert "the redirects were posted to event-track once" "$( LC_ALL=C grep -c 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null || : )" 1
-rigAssert "naming the member and the tool"             "$( rigYes env LC_ALL=C grep -q "member: $rigMember.*tool: Write" "$rigDir/slack.bodies" )" yes
+rigAssert "naming the member and the tool"             "$( rigYes env LC_ALL=C grep -q -F "*$rigMember* · refusal · \`rig-sess\`\\nwhat: Unarmed call redirected\\ntool: \`Write\`" "$rigDir/slack.bodies" )" yes
 
 echo "-- what counts as arming: ranges must cover every line --"
 rigScenario ranged

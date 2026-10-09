@@ -280,9 +280,9 @@ rigAssert "exactly one marker line"                     "$( rigMarkerLines "$rig
 rigAssert "A COMPLETE WAIT RETURNS 0"                   "$rigOpStatus" 0
 rigAssert "it is not dressed as an error"               "$( rigHolds "$rigOpOut" 'WAIT-RESULT: ERROR' )" no
 rigAssert "stderr carries no diagnostic either"         "$( rigHolds "$rigOpErr" '⛔ ERROR' )" no
-rigAssert "it says in words that this is not a fault"   "$( rigHolds "$rigOpOut" 'COMPLETE, SUCCESSFUL wait' )" yes
+rigAssert "no prose: the Wait description says it once" "$( rigHolds "$rigOpOut" 'COMPLETE, SUCCESSFUL' )" no
 rigAssert "it really waited the bound out"              "$( rigAtLeast "$( rigWaited "$rigOpOut" )" 2 )" "at-least-2"
-rigAssert "it says the sources were read"               "$( rigHolds "$rigOpOut" 'those sources were read' )" yes
+rigAssert "and names its bound"                         "$( rigHolds "$rigOpOut" 'of 2s bound' )" yes
 rigAssert "no never-read line when every source was read" "$( rigHolds "$rigOpOut" 'WAIT-NEVER-READ:' )" no
 rigAssert "it does not say none could be read"          "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" no
 rigAssert "it names no source as never read"            "$( rigHolds "$rigOpOut" 'these sources could not be read at all' )" no
@@ -338,8 +338,7 @@ rigOp failing-source-alone "$rigMember" --wait-source "file:not-an-absolute-path
 rigAssert "alone: the wait completes"                   "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: TIMEOUT"
 rigAssert "alone: it returns 0"                         "$rigOpStatus" 0
 rigAssert "alone: the unreadable source is named"       "$( rigHolds "$rigOpOut" '[file:not-an-absolute-path]' )" yes
-rigAssert "alone: its silence is not read as quiet"     "$( rigHolds "$rigOpOut" 'Do not read their silence as quiet' )" yes
-rigAssert "alone: it says none could be read"           "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" yes
+rigAssert "alone: no prose, the never-read line says it" "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" no
 rigAssert "alone: the never-read line names it"         "$( rigHolds "$rigOpOut" 'WAIT-NEVER-READ: [file:not-an-absolute-path]' )" yes
 rigAssert "alone: it claims no read at all"             "$( rigHolds "$rigOpOut" 'were read' )" no
 rigAssert "alone: it claims no successful wait"         "$( rigHolds "$rigOpOut" 'COMPLETE, SUCCESSFUL' )" no
@@ -351,13 +350,31 @@ rigDropM="$rigTmp/dropM.txt"
 rigOp failing-source-mixed "$rigMember" --wait-source "file:not-an-absolute-path" --wait-source "file:$rigDropM" --wait-timeout 2 --wait-poll-interval 1
 rigAssert "mixed: the wait completes"                   "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: TIMEOUT"
 rigAssert "mixed: it returns 0"                         "$rigOpStatus" 0
-rigAssert "mixed: the read source is named as read"     "$( rigHolds "$rigOpOut" "on the sources that were read: [file:$rigDropM]" )" yes
-rigAssert "mixed: the other is named as never read"     "$( rigHolds "$rigOpOut" 'nothing is known about them either way: [file:not-an-absolute-path]' )" yes
+rigAssert "mixed: the read source is not named as never read" "$( LC_ALL=C grep '^WAIT-NEVER-READ: ' "$rigOpOut" | LC_ALL=C grep -c -F "$rigDropM" | tr -d ' ' )" 0
 rigAssert "mixed: it does not say none could be read"   "$( rigHolds "$rigOpOut" 'None of the sources could be read' )" no
 rigAssert "mixed: no blanket read claim"                "$( rigHolds "$rigOpOut" 'those sources were read' )" no
 rigAssert "mixed: the never-read line names only the unread one" "$( LC_ALL=C awk '/^WAIT-NEVER-READ: / { print ; }' "$rigOpOut" )" "WAIT-NEVER-READ: [file:not-an-absolute-path]"
 rigAssert "no request left this box"                    "$( rigCurlCalls )" 0
 rigVerdict "a source that cannot be read is named while the wait carries on over the rest"
+
+## ---------------------------------------------------------------------------
+## 4b. No --wait-timeout is NO BOUND: the wait returns on an arrival and on nothing
+##     else, and says so. Its control is the unreadable source alone, which an
+##     unbounded wait must not sit on forever: that returns at once as TIMEOUT.
+## ---------------------------------------------------------------------------
+rigDropNB="$rigTmp/dropNB.txt"
+: > "$rigDropNB"
+rigDropAfter 4 "$rigDropNB" RIG-UNBOUNDED-MARKER
+rigOp no-bound "$rigMember" --wait-source "file:$rigDropNB" --wait-poll-interval 1
+rigDropDone
+rigAssert "no bound: it returned on the arrival"        "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: RECEIVED"
+rigAssert "no bound: and says it ran with no bound"     "$( rigHolds "$rigOpOut" 's of no bound' )" yes
+rigAssert "no bound: the arrival came through"          "$( rigHolds "$rigOpOut" 'RIG-UNBOUNDED-MARKER' )" yes
+rigOp no-bound-unreadable "$rigMember" --wait-source "file:not-an-absolute-path" --wait-poll-interval 1
+rigAssert "no bound, nothing readable: TIMEOUT"         "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "no bound, nothing readable: at once"         "$( rigWithin "$rigOpElapsed" 5 )" "within-5"
+rigAssert "no bound, nothing readable: named"           "$( rigHolds "$rigOpOut" 'WAIT-NEVER-READ: [file:not-an-absolute-path]' )" yes
+rigVerdict "no --wait-timeout is no bound, and an unreadable first round still returns"
 
 ## ---------------------------------------------------------------------------
 ## 5. The --wait-since-utime baseline switch. Three legs over ONE file holding ONE
@@ -477,8 +494,9 @@ rigAssert "the dispatch arm did not fall through"        "$( rigHolds "$rigScena
 rigAssert "a tool result was returned at all"            "$( rigHolds "$rigScenarioDir/result" 'no-tool-result-in-this-request' )" no
 rigAssert "THE MODEL IS SHOWN TIMEOUT, AS ITS OPENING"   "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
 rigAssert "it is not dressed as a failed wait"           "$( rigHolds "$rigScenarioDir/result" 'the wait could not be performed' )" no
-rigAssert "the model is told it is not a fault"          "$( rigHolds "$rigScenarioDir/result" 'COMPLETE, SUCCESSFUL wait' )" yes
-rigAssert "the source it waited on is named to the model" "$( rigHolds "$rigScenarioDir/result" "file:$rigDropF" )" yes
+rigAssert "THE TIMEOUT IS ONE LINE, NAMING THE NEXT CALL" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
+rigAssert "with no prose: the description says it is normal" "$( rigHolds "$rigScenarioDir/result" 'COMPLETE, SUCCESSFUL' )" no
+rigAssert "and no header lines"                          "$( rigHolds "$rigScenarioDir/result" '# sources:' )" no
 rigAssert "the round carried on to an answer"            "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
 rigVerdict "the Wait tool -- declaration, announce, dispatch, and a TIMEOUT reaching the model as TIMEOUT"
 
@@ -1401,11 +1419,11 @@ rigAssert "the declaration carries wait"                       "$( rigHolds "$ri
 rigAssert "poll_interval left the declaration"                 "$( rigHolds "$rigScenarioDir/wait-declaration" 'poll_interval' )" no
 rigAssert "control: the declaration slice is the Wait one"     "$( rigHolds "$rigScenarioDir/wait-declaration" '"since_utime":{' )" yes
 rigAssert "control: and stops before the next tool"            "$( rigHolds "$rigScenarioDir/wait-declaration" '"name":"AskUserQuestion"' )" no
-rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
-rigAssert "it is shown the mode that ran"                      "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" yes
+rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT (' )" yes
+rigAssert "as the one line, without the mode header"           "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" no
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigAssert "the round carried on to an answer"                  "$( cat "$rigScenarioDir/out" )" RIG-FINAL-MARKER
-rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet -- to keep waiting on the same sources, call Wait mode=continue' )" yes
+rigAssert "a TIMEOUT names the continue call as its next step" "$( rigHolds "$rigScenarioDir/result" 's) NEXT: Wait mode=continue' )" yes
 rigAssert "and names it once"                                  "$( LC_ALL=C awk '{ hitCount += gsub( /NEXT: /, "&" ) ; } END { print hitCount + 0 ; }' "$rigScenarioDir/result" )" 1
 rigVerdict "the Wait tool declares mode and the id sets, and an explicit default stores its state"
 
@@ -1425,6 +1443,21 @@ rigAssert "a RECEIVED names the continue call as its next step" "$( rigHolds "$r
 rigAssert "control: not the TIMEOUT wording"                   "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet' )" no
 rigVerdict "the Wait tool's RECEIVED ends with the NEXT: line naming mode=continue"
 
+## A Wait with no timeout in our own harness is NOT capped: it reaches the operation with
+## no --wait-timeout at all, so it returns on the arrival and names no bound.
+rigStart tool-no-timeout
+rigDropNT="$rigScenarioDir/dropNT.txt"
+: > "$rigDropNT"
+rigWaitModeStream "$rigScenarioDir/res.1" "file:$rigDropNT" "" default
+rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
+rigDropAfter 3 "$rigDropNT" RIG-NO-TIMEOUT-MARKER
+MDAT_WAIT_POLL_SECONDS=1 rigRun --agent "$rigMember"
+rigDropDone
+rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
+rigAssert "no timeout: the model is shown RECEIVED"            "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: RECEIVED' )" yes
+rigAssert "no timeout: the wait ran with no bound, no 300s cap" "$( rigHolds "$rigScenarioDir/result" 's of no bound' )" yes
+rigVerdict "the harness Wait with no timeout waits until something arrives"
+
 rigStart tool-mode-omitted
 rigDropU="$rigScenarioDir/dropU.txt"
 : > "$rigDropU"
@@ -1433,7 +1466,7 @@ rigTextStream "$rigScenarioDir/res.2" RIG-FINAL-MARKER
 rigRun --agent "$rigMember"
 rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "an omitted mode is a wait that times out"           "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT' )" yes
-rigAssert "an omitted mode is the default mode"                "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" yes
+rigAssert "an omitted mode is stateful: its TIMEOUT is the one line" "$( rigHolds "$rigScenarioDir/result" 'NEXT: Wait mode=continue' )" yes
 rigAssert "and stored its state"                               "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigVerdict "the Wait tool with no mode -- the existing call shape -- is the default mode"
 

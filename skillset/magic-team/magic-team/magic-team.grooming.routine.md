@@ -2,6 +2,7 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-librarian, magic-architect
+session: coworking
 ---
 # magic-team.grooming.routine — the actual procedure
 
@@ -89,6 +90,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - `status: dispatch-succeeded` → `board-processed`.
      - `status: dispatch-failed` with `tracks:` → close it to `board-processed` with the reason; to retry, return the tracked item to `board-pending` with what the retry needs.
      - `status: dispatch-failed`, no `tracks:` → close it to `board-processed` with the failure. Its work may be dispatched anew by judgement.
+   - apply `magic-team.handback-review.routine` to each item the scan's `## review items addressed to grooming.routine` section lists.
    - recheck `board-running` items, steps:
      - a claimed completion gets a `magic-tester` testing round, in place.
      - testing clean → `board-processed`; clean but needing the human-owner's sign-off → `board-blocked`.
@@ -215,6 +217,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 - `magic-team/magic-team.board.md` — board states and the grooming/advance split.
 - `magic-coordinator.advance.routine` — applies the moves this routine decides.
+- `magic-team.handback-review.routine` — settles the `board-review` items addressed to this routine.
 - `magic-coordinator/magic-coordinator.armed.md` — "Dispatch & delegation" fast gate; `check-pending-comms-actions`.
 
 ### Conventions

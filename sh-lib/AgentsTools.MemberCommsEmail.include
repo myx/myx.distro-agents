@@ -10,7 +10,16 @@
 
 case "$1" in
 
-		--member-comms-email-check)
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-email-* implementation below directly.
+		--member-comms-email-check|--member-comms-email-read|--member-comms-email-mark-seen|--member-comms-email-send)
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-email-check)
 			shift
 			local memberName="$1"
 			shift || true
@@ -59,7 +68,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-email-read)
+		--intern-op-comms-email-read)
 			shift
 			local memberName="$1"
 			shift || true
@@ -125,7 +134,7 @@ case "$1" in
 			## Mutation strictly after a successful read, never before: a
 			## failed read must leave the message exactly as it was found.
 			if [ "$markSeen" = "true" ] ; then
-				DistroAgentsTools --member-comms-email-mark-seen "$memberName" "$uid" || {
+				DistroAgentsTools --intern-op-comms-email-mark-seen "$memberName" "$uid" || {
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: message was read, but --seen failed to mark UID=$uid -- the read output above is still valid" >&2
 					set +e ; return 1
 				}
@@ -133,7 +142,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-email-mark-seen)
+		--intern-op-comms-email-mark-seen)
 			shift
 			local memberName="$1"
 			shift || true
@@ -182,7 +191,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-email-send)
+		--intern-op-comms-email-send)
 			shift
 			local memberName="$1"
 			shift || true

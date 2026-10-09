@@ -73,7 +73,21 @@ AgentsMagicCommsSlackListPaged(){
 
 case "$1" in
 
-	--magic-comms-slack-resolve-ids)
+	## The coordinator acting as another member where the skillset requires it: a client-*
+	## member's own sources, handled as that member in the communication sweep. The member
+	## form's implementation, behind the dispatcher's --magic-* caller check.
+	--magic-comms-slack-read|--magic-comms-slack-send-message|--magic-comms-slack-react|--magic-comms-email-send|--magic-comms-email-mark-seen)
+		DistroAgentsTools "--intern-op-${1#--magic-}" "${@:2}"
+		return $?
+	;;
+
+	## The coordinator's stubs over two Slack helpers the tooling also calls for other members.
+	--magic-comms-slack-resolve-ids|--magic-comms-slack-conversations-roster)
+		DistroAgentsTools "--intern-op-${1#--magic-}" "${@:2}"
+		return $?
+	;;
+
+	--intern-op-comms-slack-resolve-ids)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
 			printf '%s\n' users:read channels:read groups:read im:read im:write mpim:read mpim:write
@@ -125,7 +139,7 @@ case "$1" in
 		done
 
 		local token tokenSource
-		token="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN )"
+		token="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )"
 		if [ -n "$token" ] ; then
 			tokenSource="member-user-token"
 		else
@@ -321,7 +335,7 @@ case "$1" in
 	## roster widened to channel types names the channels this identity is IN,
 	## not the workspace directory. DMs and group DMs carry no is_member and are
 	## kept as before: a conversation of that kind exists only with us in it.
-	--magic-comms-slack-conversations-roster)
+	--intern-op-comms-slack-conversations-roster)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
 			printf '%s\n' users:read channels:read groups:read im:read mpim:read
@@ -371,7 +385,7 @@ case "$1" in
 		## member with no user token has no user persona at all -- that is a
 		## configuration fact, reported as `no-token`, and it is NOT a failure.
 		local memberUserToken=""
-		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		memberUserToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
 		local memberHasUserToken="false"
 		[ -z "$memberUserToken" ] || memberHasUserToken="true"
 		memberUserToken=""

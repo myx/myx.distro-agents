@@ -12,7 +12,7 @@ set -u
 rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -28,7 +28,7 @@ trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team/templates" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/backlog"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigData/board/backlog"
 
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.test.sh"
@@ -46,9 +46,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 
-## A real brief template, a target member's own duty file, and the default routine --
+## The package's real brief template, a target member's own duty file, and the default routine --
 ## enough for --intern-op-spawn-prepare-brief to resolve a real, complete brief block.
-cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 ## --intern-root-harness's own caller, hardcoded magic-coordinator, needs its own
 ## basic.md (the real-member check --address-to's own send validates against) and
@@ -87,13 +86,13 @@ rigRootHarness(){ ## extra --intern-root-harness args...
 		' rig-root-harness-wrapper "$@" < /dev/null 2>&1
 }
 
-## True when the file's own "(none open)" line (the brief block's own last line) is
+## True when the file's own "When done, hand back; then Wait until dismissed." line (the brief block's own last line) is
 ## followed by exactly one blank line and then real content -- the "block, one blank
 ## line, then the spawn context" shape S5 asks for, checked the same way regardless of
 ## what the spawn context itself looks like in a given source mode.
 rigBlankGapThenContent(){ ## file
 	LC_ALL=C awk '
-		$0 == "(none open)" { base = NR ; next ; }
+		$0 == "When done, hand back; then Wait until dismissed." { base = NR ; next ; }
 		base && NR == base + 1 { blank = ( $0 == "" ) ; next ; }
 		base && NR == base + 2 { print ( blank && $0 != "" ) ? "ok" : "bad" ; exit ; }
 	' "$1"
@@ -121,7 +120,7 @@ rigAssert "the brief block opens the context"            "$( head -1 "$rigTmp/br
 rigAssert "the read-and-obey line names the default routine" \
 	"$( grep -c -x -F 'read-and-obey: read keeper-myx.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
 rigAssert "names the shared.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "one blank line separates the block from the task text" "$( rigBlankGapThenContent "$rigTmp/brief" )" ok
 rigAssert "the task text itself follows"                 "$( grep -c -x -F 'RIG-TASK-TEXT' "$rigTmp/brief" )" 1
 
@@ -166,7 +165,7 @@ rigAssert "the routine brief block opens the context"    "$( head -1 "$rigTmp/br
 rigAssert "the read-and-obey line names the given routine" \
 	"$( grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-team.coworking.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' "$rigTmp/brief" )" 1
 rigAssert "names the shared.md sections" \
-	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' "$rigTmp/brief" )" 1
+	"$( grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' "$rigTmp/brief" )" 1
 rigAssert "interactive by default"                        "$( grep -c -x -F 'INTERACTION-MODE: interactive -- keep looping, with a dedicated Slack thread for interaction.' "$rigTmp/brief" )" 1
 
 ## The payload routine goes into the packet by its resolved filename, worded as Step 16 of the heartbeat routine words it.

@@ -1,6 +1,7 @@
 ---
 executors: magic-coordinator, magic-librarian
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
+session: coworking
 ---
 # magic-librarian.morning-review.routine — the actual procedure
 
@@ -24,7 +25,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-`magic-librarian.morning-review.routine` is the once-per-workday joint `magic-coordinator` and `magic-librarian` checkpoint for board state-model drift and cross-file consistency.
+`magic-librarian.morning-review.routine` is the once-per-workday joint `magic-coordinator` and `magic-librarian` checkpoint for board state-model drift and cross-file consistency. People call it the board-review session: a literal review of the board, not the `review` board state or `magic-team.handback-review.routine`.
 
 ## Goals
 
@@ -34,29 +35,27 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 ## Scope
 
 - Does:
-  - Check state-model drift and cross-file consistency, and lightly recheck blocked and parked items.
+  - Check state-model drift and cross-file consistency.
   - Run as a coworking session, started by `magic-coordinator.daily.routine`'s **spawn-morning-review**.
 - Doesn't:
   - The broad skillset audit — `magic-librarian`'s `team-self-sufficiency-audit`.
   - Board writes by `magic-librarian`, or garbage collection.
+  - Rechecking blocked and parked items — `magic-coordinator.advance.routine` and `magic-team.grooming.routine`.
 
 # Steps
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **session-start**: Execute `magic-team.coworking.routine`'s Steps, with `magic-coordinator` and `magic-librarian` as participants.
-2. **read-board-shape**: `magic-coordinator` reads every board state and the `heartbeat-state-note`, and shares the result with `magic-librarian`.
-3. **process-own-inbox**: Run `magic-team.process-inbox.routine` for `magic-coordinator`: the board-state notes filed since the last pass are the claims **check-state-shape-drift** checks.
-4. **check-state-shape-drift**: Check the state model itself, not only content — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
-   - step: check the skillset files touched in this session for accreted dated narration, per `magic-librarian/magic-librarian.armed.md`'s "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
-   - step: check the `heartbeat-state-note` holds structured current state, with no narrative trail.
-5. **recheck-blocked-and-parked**: Recheck `board-blocked` and `board-parked` items for a changed condition. A change that is likely but uncertain is flagged for the next `magic-team.grooming.routine`, not resolved here.
-6. **check-cross-file-consistency**: Check status claims in one file against the current content of another.
-7. **flag-gc-candidates**: Flag a processed item that looks overdue for removal. Removal itself is the tooling's.
+2. **read-board-shape**: `magic-coordinator` reads `--magic-morning-review-input-scan`, and shares the result with `magic-librarian`.
+3. **check-state-shape-drift**: Check the state model itself, not only content, from the scan's state shape — for example `board-blocked` and `board-parked` items collapsed into `board-running` or `board-archived`, losing the difference between "stalled on something external" and "deliberately deferred".
+   - step: check the skillset files the scan lists as changed for accreted dated narration, per `magic-librarian/magic-librarian.armed.md`'s "Skillset content hygiene"; a rewrite is proposed for the skillset change rule.
+4. **check-cross-file-consistency**: Check status claims in one file against the current content of another, starting from the skillset files the scan lists as changed.
 
 # Closure steps
 
-1. **close-session**: Execute `magic-team.coworking.routine`'s Closure steps.
+1. **advance-cutoff**: `magic-coordinator` runs `--magic-morning-review-state-advance` with the scan's `next:` value.
+2. **close-session**: Execute `magic-team.coworking.routine`'s Closure steps.
 
 # Routine's local procedures
 
@@ -82,9 +81,9 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 
 ## DistroAgentsTools magic-tooling operations
 
+- `--magic-morning-review-input-scan <team-member>`
+- `--magic-morning-review-state-advance <team-member> <ts>`
 - `--member-upsert-member-inquiry <team-member> <item-filename>`
-
-`magic-coordinator`'s board and heartbeat-state reads in **read-board-shape** are its own operations, from `magic-coordinator/magic-coordinator.armed.md`.
 
 # Maintainer Notes
 

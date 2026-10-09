@@ -9,8 +9,8 @@
 
 case "$1" in
 
-	--member-comms-slack-presence-keep|--member-comms-slack-presence-status|--member-comms-slack-presence-stop)
-		local presenceOp="${1#--member-comms-slack-presence-}"
+	--intern-op-comms-slack-presence-keep|--intern-op-comms-slack-presence-status|--intern-op-comms-slack-presence-stop)
+		local presenceOp="${1#--intern-op-comms-slack-presence-}"
 		shift
 
 		if [ "${1:-}" = "--print-required-scopes" ] ; then
@@ -45,7 +45,7 @@ case "$1" in
 		AgentsToolsEmitRequestDetailHeader "$memberName" "<none>"
 
 		local presenceToken
-		presenceToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
+		presenceToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
 		if [ -z "$presenceToken" ] ; then
 			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: no SLACK_USER_TOKEN for $memberName -- presence is held by a user identity and the shared bot cannot hold it (rtm.connect answers not_allowed_token_type for a bot token)" >&2
 			set +e ; return 1

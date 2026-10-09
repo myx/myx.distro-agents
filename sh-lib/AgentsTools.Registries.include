@@ -179,7 +179,7 @@ AgentsToolsRegistryMemberNamesRead(){ ## member
 			family-name) readValue="$readFamily" ;;
 			alias) readValue="$readAlias" ;;
 		esac
-		readOverride="$( DistroAgentsTools --member-config-option "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
+		readOverride="$( DistroAgentsTools --agents-config-option "$readMember" --select "$readScopeKey" 2>/dev/null )" || readOverride=""
 		[ -z "$readOverride" ] || readValue="$readOverride"
 		[ "$readValue" != "not decided yet" ] || readValue=""
 		readReason=""

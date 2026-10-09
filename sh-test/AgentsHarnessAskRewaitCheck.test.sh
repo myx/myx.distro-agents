@@ -145,7 +145,7 @@ rigAssert "its wait item is in the session's Wait set" "$( rigWaitSet "$rigScena
 rigAsk rig-session-x 30 "{\"sources\":\"ask:$rigRewaitId\"}" Wait
 rigAssert "another session's Wait on it is refused"   "$( rigHolds "$rigScenarioDir/out" 'is a question asked by session rig-session-d' )" yes
 rigAsk rig-session-d 30 '{"mode":"continue"}' Wait
-rigAssert "Wait mode=continue, unanswered, times out" "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "Wait mode=continue, unanswered, times out" "$( LC_ALL=C head -1 "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 rigAssert "and the record stays open"                  "$( rigRecordStatus )" reply-pending
 rigReplies "$rigAnswer"
 rigAsk rig-session-d 30 '{"mode":"continue"}' Wait

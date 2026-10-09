@@ -164,6 +164,8 @@ function wireData(payload,   errorText, usagePrompt, usageCompletion, usageTotal
 		if (usageTotal != "") {
 			wireWrite("stream.usage", usagePrompt " " usageCompletion " " usageTotal "\n")
 			usageCached = wireHas("usage.prompt_tokens_details.cached_tokens") ? wireTrim(wireLeaf("usage.prompt_tokens_details.cached_tokens")) : "absent"
+			## The split for the session transcript: cached prompt tokens are a cache read, never a write.
+			wireWrite("stream.usage.detail", ((usagePrompt + 0) - (usageCached + 0)) " " (usageCached + 0) " 0 " (usageCompletion + 0) "\n")
 			print "U"
 			wireField(usagePrompt)
 			wireField(usageCached)

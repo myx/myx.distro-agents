@@ -74,7 +74,7 @@ rigExposure(){ ## label, body-carrying: yes|no
 		"$( grep -rl -F -e "$rigSentinel" -e "$rigSentinelB64" "$rigWs" | grep -v '/\.local/\.agents/' | head -n 1 )" ""
 }
 
-rigSendLog="$rigWs/.local/agents/comms-slack-send.log"
+rigSendLog="$rigWs/.local/agents/comms-slack-send.$( date -u +%Y-%m ).log"
 
 echo "-- a Slack send that succeeds --"
 rigCall ok --member-comms-slack-send-message magic-team magic-team --identity-bot "$rigBodyMarker"

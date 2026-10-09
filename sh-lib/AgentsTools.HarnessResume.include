@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.HarnessResume.include -- a review return resumes an ended universal-harness
+## session from its kept context (context.jsonl in its sandbox, AgentsHarnessContext.include)
+## instead of starting a new process. The tooling side: whether the old session can be
+## resumed (AgentsReviewRestart), and the proxy's console run that tries it. Sourced, never
+## run; functions only. Separate from the Claude-native resume (MDAT_SPAWN_RESUME_FROM): this
+## path is MDAT_SPAWN_RESUME_CONTEXT end to end, and the two never share a branch.
+##
+
+agentsHarnessResumeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+
+## Whether a context file parses as one the harness can load. rc 0 and its message count;
+## rc 1 and the reason.
+AgentsHarnessContextCheck(){ ## context file
+	[ -s "$1" ] || { printf 'no kept context at %s' "$1" ; return 1 ; }
+	LC_ALL=C awk -v mode=validate -f "$agentsHarnessResumeLib/AgentsHarnessJsonField.awk" -f "$agentsHarnessResumeLib/AgentsSessionTranscriptFormat.awk" \
+		-f "$agentsHarnessResumeLib/AgentsHarnessContextTranscript.awk" "$1" 2>&1
+}
+
+## Whether a returned item's ended session ran in the universal harness and can be resumed
+## from its kept context: the same cli and cli setting, a harness leg (not a *-native
+## vendor CLI), the same host, and a context.jsonl in its sandbox that parses and was kept by
+## that very session. The model, service and API host are checked by the harness itself when
+## it loads the file, and a mismatch there falls back the same way. rc 0 and the context
+## file; rc 1 and the reason.
+AgentsReviewContextResumeEligible(){ ## record path (may be empty)
+	local ctxRecord="$1" ctxSpawn ctxCli ctxNow ctxHost thisHost ctxFile ctxWhy ctxSession
+	[ -n "$ctxRecord" ] && [ -f "$ctxRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
+	ctxSpawn="${ctxRecord##*/}" ; ctxSpawn="${ctxSpawn%.md}"
+	ctxCli="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli )"
+	case "$ctxCli" in
+		''|none|-) printf 'the old session recorded no cli' ; return 1 ;;
+		*-native) printf 'the old session ran on %s, a native CLI, not the universal harness' "$ctxCli" ; return 1 ;;
+	esac
+	ctxNow="$( AgentsReviewCliResolved "" )"
+	[ "$ctxNow" = "$ctxCli" ] || { printf 'the cli is now %s, the old session ran on %s' "$ctxNow" "$ctxCli" ; return 1 ; }
+	[ "$( AgentsReviewCliSetting "$ctxNow" )" = "$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli-setting )" ] \
+		|| { printf 'the cli setting changed since the old session' ; return 1 ; }
+	ctxHost="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" host )"
+	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
+	[ "$ctxHost" = "$thisHost" ] || { printf 'the old session ran on host %s, not %s' "${ctxHost:--}" "$thisHost" ; return 1 ; }
+	ctxFile="${ctxRecord%/*}/context.jsonl"
+	ctxWhy="$( AgentsHarnessContextCheck "$ctxFile" )" || { printf 'the kept context does not load: %s' "$ctxWhy" ; return 1 ; }
+	ctxSession="$( head -1 "$ctxFile" | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || ctxSession=""
+	[ "$ctxSession" = "$ctxSpawn" ] || { printf 'the kept context belongs to session %s, not %s' "${ctxSession:--}" "$ctxSpawn" ; return 1 ; }
+	! AgentsReviewChildLive "$ctxRecord" > /dev/null || { printf 'the old session is still running' ; return 1 ; }
+	printf '%s' "$ctxFile"
+	return 0
+}
+
+## The async spawn's console run for a harness resume. The harness loads the kept context,
+## appends the corrections and marks MDAT_HARNESS_RESUME_MARKER before its first request;
+## the path that ran is then recorded on the item and in this spawn's transcript:
+## `restart: resumed-context (from <old session>)`. One that exits without the mark --
+## an ineligible model, service, host, or a file that does not load (the harness exits 7)
+## -- falls back, once, to a new process on the full brief.
+AgentsToolsSpawnProxyHarnessResumeRun(){ ## workspace, session id, session thread, conversation threads, full prompt, context file, resume prompt, member, item, console CLI args...
+	local runWs="$1" runSession="$2" runThread="$3" runConv="$4" runFull="$5" runContext="$6" runResume="$7" runWho="$8" runItem="$9"
+	local runMark runRc=0 runFrom="" runPid runSeen=""
+	shift 9
+	runFrom="$( head -1 "$runContext" 2>/dev/null | LC_ALL=C awk -v path=session -v optional=1 -f "$agentsHarnessResumeLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || runFrom=""
+	runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-context"
+	rm -f "$runMark"
+	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		MDAT_HARNESS_RESUME_CONTEXT="$runContext" MDAT_HARNESS_RESUME_MARKER="$runMark" \
+		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+	runPid=$!
+	## Recorded as soon as the harness says it loaded, so the line precedes the run's own.
+	while kill -0 "$runPid" 2>/dev/null ; do
+		if [ -z "$runSeen" ] && [ -e "$runMark" ] ; then
+			runSeen=yes
+			AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID"
+		fi
+		sleep 1
+	done
+	wait "$runPid" 2>/dev/null || runRc=$?
+	if [ -n "$runSeen" ] || [ -e "$runMark" ] ; then
+		[ -n "$runSeen" ] || AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID"
+		rm -f "$runMark"
+		return "$runRc"
+	fi
+	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the harness resume from $runContext exited $runRc before its first request -- starting a new process instead" >&2
+	AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the harness resume from the kept context exited $runRc before its first request)" RESTART "$MDAT_SPAWN_SESSION_ID"
+	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull"
+}

@@ -55,36 +55,36 @@ AgentsToolsSpawnProxyAnnounceCli(){
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
 }
 
-## One threaded reply closing the event-track thread this spawn opened. Silent when
+## One threaded reply closing the event-track thread this spawn opened: the `end`
+## tracking post (sh-lib/templates/event-track.post.format.md). Silent when
 ## none was opened. Replays only lines already present in the spawn output file,
 ## matched by the prefixes their producers print -- nothing here is derived or
 ## guessed, so a field a CLI never prints is never posted. Never on stdout, and
 ## never fails the spawn: one stderr warning at most per Slack call.
 AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds
 	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8"
+	local closeArmed="unknown" closeSetup="" closeTokens=""
 	[ -n "$closeThread" ] || return 0
-	{
-		printf '%s\n' "Spawn finished: $closeOutcome" '```'
-		printf 'exit-code: %s\n' "$closeExit"
-		printf 'launched: %s\n' "$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )"
-		printf 'cli-executed: %s\n' "$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )"
-		[ "$closeTimedOut" = "0" ] || printf 'timed-out-after-seconds: %s\n' "$closeTimeout"
-		[ "$closeExit" != "5" ] || printf 'setup-status: cli-not-configured\n'
-		[ "$closeExit" != "6" ] || printf 'setup-status: cli-not-authenticated\n'
-		if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -s "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.armed" ] ; then
-			printf 'armed: yes, at %s\n' "$( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
-		elif [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -e "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.harness" ] ; then
-			printf 'armed: no\n'
-		else
-			printf 'armed: unknown\n'
-		fi
-		printf 'resolved-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
-		[ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInternOpAgentSpawnProxyClip.awk" < "$closeLog"
-		printf '%s\n' '```'
-	} | DistroAgentsTools --member-comms-slack-send-message "$closeMember" "$closeThread" --identity-bot --from-stdin 2>&1 > /dev/null \
+	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -s "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.armed" ] ; then
+		closeArmed="yes, at $( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
+	elif [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -e "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.harness" ] ; then
+		closeArmed="no"
+	fi
+	[ "$closeExit" != "5" ] || closeSetup="cli-not-configured"
+	[ "$closeExit" != "6" ] || closeSetup="cli-not-authenticated"
+	## Its tokens, summed over its sub-sessions as shown now (AgentsTools.SessionTranscript.include).
+	! type AgentsSessionTokensLine > /dev/null 2>&1 || closeTokens="$( AgentsSessionTokensLine "" "${MDAT_SPAWN_SESSION_ID:-}" 2>/dev/null )" || closeTokens=""
+	closeTokens="${closeTokens#tokens: }"
+	{ [ -z "$closeLog" ] || [ ! -f "$closeLog" ] || LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsInternOpAgentSpawnProxyClip.awk" < "$closeLog" ; } \
+	  | DistroAgentsTools --intern-op-event-track-post "$closeMember" "$closeThread" --kind end --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field outcome="$closeOutcome" --field exit-code="$closeExit" \
+		--field launched="$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )" \
+		--field cli="$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )" --field armed="$closeArmed" --field setup="$closeSetup" \
+		--field timed-out-after="$( [ "$closeTimedOut" = "0" ] || printf '%s' "$closeTimeout" )" --field tokens="$closeTokens" \
+		--field ended-at="$( date +"%Y-%m-%d %H:%M %z" )" --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
-	DistroAgentsTools --member-comms-slack-react "$closeMember" "$closeThread" checkered_flag --identity-bot 2>&1 > /dev/null \
+	DistroAgentsTools --intern-op-comms-slack-react "$closeMember" "$closeThread" checkered_flag --identity-bot 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track finish flag not added " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
@@ -131,11 +131,53 @@ AgentsToolsSpawnProxyHandbackWarn(){
 		wait "$warnWatchPid" 2>/dev/null || :
 		LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
 	fi
-	printf '⚠️ %s ended without a posted handback -- no SubagentHandback call seen in its output.\n' "$warnMember" \
-	  | DistroAgentsTools --member-comms-slack-send-message "$warnMember" "$warnThread" --identity-bot --from-stdin 2>&1 > /dev/null \
+	DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnThread" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
+}
+
+## The async spawn's one console run. With a resume-from (a review return,
+## AgentsReviewRestart), the old native session is resumed and forked under this
+## spawn's own id, prompted with the corrections only; one that exits non-zero before
+## its first stream-json event falls back, once, to a new process on the full brief.
+## Either way the path that ran is recorded on the item and in this spawn's transcript.
+## The handback retry's own resume (MDAT_SPAWN_RESUME) is a different path, untouched.
+AgentsToolsSpawnProxyConsoleRun(){ ## workspace, session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
+	local runWs="$1" runSession="$2" runThread="$3" runConv="$4" runFull="$5" runFrom="$6" runResume="$7" runWho="$8" runItem="$9"
+	local runMark runPid runWatchPid runRc=0
+	shift 9
+	if [ -n "$runFrom" ] ; then
+		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
+		rm -f "$runMark"
+		env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
+			"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+		runPid=$!
+		## The resume recorded when its first event arrives, not when the session ends. The
+		## watcher ends within a second of the run (this shell's wait reaps it), either way.
+		(
+			while [ ! -e "$runMark" ] ; do
+				kill -0 "$runPid" 2>/dev/null || exit 0
+				sleep 1
+			done
+			AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID"
+		) &
+		runWatchPid=$!
+		wait "$runPid" 2>/dev/null || runRc=$?
+		wait "$runWatchPid" 2>/dev/null || :
+		if [ -e "$runMark" ] || [ "$runRc" = 0 ] ; then
+			## Each record in a subshell of its own: the tooling it calls leaves set -e behind.
+			[ -e "$runMark" ] || ( AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID" )
+			rm -f "$runMark"
+			return "$runRc"
+		fi
+		echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the resume of $runFrom exited $runRc before its first event -- starting a new process instead" >&2
+		( AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the resume of $runFrom exited $runRc before its first event)" RESTART "$MDAT_SPAWN_SESSION_ID" )
+	fi
+	env MMDAPP="$runWs" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull"
 }
 
 ## magic-architect's own finding: this spawn's own unanswered questions are already
@@ -148,8 +190,9 @@ AgentsToolsSpawnProxyOpenQuestionWarn(){
 	[ -n "$warnThread" ] || return 0
 	warnOpenLines="$( printf '%s\n' "$3" | LC_ALL=C grep -E '^(OPEN|UNMATCHED|UNREADABLE) ' || : )"
 	[ -n "$warnOpenLines" ] || return 0
-	printf '⚠️ %s ended with its own question still open, never answered.\n%s\n' "$warnMember" "$warnOpenLines" \
-	  | DistroAgentsTools --member-comms-slack-send-message "$warnMember" "$warnThread" --identity-bot --from-stdin 2>&1 > /dev/null \
+	printf '%s\n' "$warnOpenLines" \
+	  | DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnThread" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="ended with its own question still open, never answered" --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: open-question notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
@@ -196,48 +239,29 @@ AgentsToolsSpawnProxyEventTrackBatch(){ ## thread, member, output file
 		' "$batchLog" )"
 		lastLineCount="$totalLineCount"
 		[ -n "$newLines" ] || continue
-		printf '%s\n' "$newLines" | DistroAgentsTools --member-comms-slack-send-message "$batchMember" "$batchThread" --identity-bot --from-stdin > /dev/null 2>&1 || :
+		printf '%s\n' "$newLines" | DistroAgentsTools --intern-op-event-track-post "$batchMember" "$batchThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" --from-stdin > /dev/null 2>&1 || :
 	done
 }
 
-## One Slack edit, replacing the "Spawn started" event-track post's own
-## cli-requested value once the real CLI is known. Polls the launch marker
-## on its own -- deliberately not folded into AgentsToolsSpawnProxyEventTrackBatch,
-## which only runs when outputFile is set, so a --wait spawn with no output
-## file is covered too. The member is already in the original post
-## (coordinator ruling); this call only swaps the CLI name in, keeping the
-## same "<cli> of <member>" phrase, never a second value appended beside it.
-## Only the identity header is taken from the message read-back -- Slack's
-## own text fallback flattens the fenced field list to one space-joined
-## line, and posting that back would lose the one-field-per-line layout
-## the first post had. The rest of the body is rebuilt from this call's
-## own multi-line cliBody instead, where a line-start substitution stays
-## exact. Fires once, then returns; the caller kills it early once the
-## child ends, same as every other background reader here.
-AgentsToolsSpawnProxyEventTrackCliUpdate(){ ## thread, member, marker file, original body
-	local cliThread="$1" cliMember="$2" cliMarker="$3" cliBody="$4"
-	local cliPollSeconds=3 cliReal cliCurrent cliHeader cliNewBody
+## One Slack edit, replacing the session start post's own cli value once the
+## real CLI is known. Polls the launch marker on its own -- deliberately not
+## folded into AgentsToolsSpawnProxyEventTrackBatch, which only runs when
+## outputFile is set, so a --wait spawn with no output file is covered too.
+## The post is rendered again from the same template and the same fields, the
+## cli field given last so it wins, and replaces the first in place: nothing is
+## read back from Slack. Fires once, then returns; the caller kills it early
+## once the child ends, same as every other background reader here.
+AgentsToolsSpawnProxyEventTrackCliUpdate(){ ## thread, member, marker file, the start post's own op arguments...
+	local cliThread="$1" cliMember="$2" cliMarker="$3"
+	local cliPollSeconds=3 cliReal
+	shift 3
 	[ -n "$cliThread" ] || return 0
 	while ! AgentsToolsSpawnProxySawSentinel "$cliMarker" ; do
 		sleep "$cliPollSeconds"
 	done
 	cliReal="$( AgentsToolsSpawnProxyExecutedCli "$cliMarker" )"
 	[ -n "$cliReal" ] || return 0
-	cliCurrent="$( DistroAgentsTools --member-comms-slack-read "$cliMember" "$cliThread" 2>/dev/null \
-		| LC_ALL=C awk -v path=messages.0.text -v sentinel=1 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )"
-	cliCurrent="${cliCurrent%X}"
-	[ -n "$cliCurrent" ] || return 0
-	## Everything before this call's own first line's own text -- the header
-	## block the send call prepended, and nothing else. cliBody always
-	## starts with this exact literal line, so its own start is the boundary.
-	cliHeader="$( printf '%s' "$cliCurrent" | LC_ALL=C awk -v marker="Spawn started for" '
-		{ pos = index( $0, marker ) ; if ( pos > 1 ) { print substr( $0, 1, pos - 1 ) ; } exit ; }
-	' )"
-	cliNewBody="$( printf '%s\n' "$cliBody" | LC_ALL=C awk -v real="$cliReal" -v member="$cliMember" '
-		index( $0, "cli-requested: " ) == 1 { print "cli-requested: " real " of " member ; next ; }
-		{ print ; }
-	' )"
-	printf '%s\n%s\n' "$cliHeader" "$cliNewBody" | DistroAgentsTools --member-comms-slack-edit-message "$cliMember" "$cliThread" --identity-bot --from-stdin 2>&1 > /dev/null \
+	DistroAgentsTools --intern-op-event-track-post "$cliMember" "$cliThread" "$@" --field cli="$cliReal" --update 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track cli-requested update not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	return 0
@@ -592,9 +616,17 @@ case "$1" in
 			else
 				routineBriefArgs+=( --routine "$routineSelector" )
 			fi
+			[ -z "$spawnCliService" ] || routineBriefArgs+=( --cli-service "$spawnCliService" )
 			local routineBriefBlock
 			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
 			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
+		fi
+		## A board-tracked spawn reads its item's Decisions before anything else: they bind it.
+		if [ "$sourceMode" = "board" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+			local decisionsPath="" decisionsBlock=""
+			decisionsPath="$( AgentsToolsDecisionsItemPath "$fromBoardName" )" && decisionsBlock="$( AgentsToolsDecisionsBlock "$decisionsPath" 30 )" || decisionsBlock=""
+			[ -z "$decisionsBlock" ] || spawnContext="$( printf '%s\n\n%s\n' "$decisionsBlock" "$spawnContext" )"
 		fi
 
 		## A brief relaying messages from a thread continues that conversation too.
@@ -659,6 +691,22 @@ case "$1" in
 				set +e ; return 1
 			fi
 			spawnCliArgs=( --cli "$spawnCliService" )
+		fi
+		## A review return's resume (AgentsReviewRestart): taken out of the environment so
+		## no other child inherits it, and honoured only by the async run of a board item.
+		local resumeFrom="${MDAT_SPAWN_RESUME_FROM:-}" resumeText="${MDAT_SPAWN_RESUME_TEXT:-}"
+		unset MDAT_SPAWN_RESUME_FROM MDAT_SPAWN_RESUME_TEXT
+		if [ -n "$resumeFrom" ] && { [ "$waitMode" = "true" ] || [ "$sourceMode" != "board" ] ; } ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: a resume of $resumeFrom applies to an async board spawn only -- starting a new process" >&2
+			resumeFrom=""
+		fi
+		## A universal-harness session's resume from its kept context (AgentsTools.HarnessResume.include),
+		## on the same terms, and never alongside the native one above.
+		local resumeContextFile="${MDAT_SPAWN_RESUME_CONTEXT:-}"
+		unset MDAT_SPAWN_RESUME_CONTEXT
+		if [ -n "$resumeContextFile" ] && { [ -n "$resumeFrom" ] || [ "$waitMode" = "true" ] || [ "$sourceMode" != "board" ] ; } ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: a resume from $resumeContextFile applies to an async board spawn only -- starting a new process" >&2
+			resumeContextFile=""
 		fi
 
 		## Configured-only: an agent-initiated spawn starts the CLI named by
@@ -736,26 +784,26 @@ case "$1" in
 			sessionId="$inheritedSessionId"
 		fi
 
-		## No dispatch document, nothing in the team data tree: a waiting caller reads
-		## the child's streams on its own stderr, an async one keeps them in scratch.
-		local auditDir outputFile=""
-		if [ "$dispatchDocMode" != "none" ] ; then
-			auditDir="$MDAT_DATA_ROOT/audit/$( date -u +%Y-%m )"
-			mkdir -p "$auditDir" || {
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create audit directory: $auditDir" >&2
-				set +e ; return 1
-			}
-			outputFile="$auditDir/$receiptId.output.log"
-			## Its own channel: only the launcher writes it, so no agent output can reach it.
-			export MDAT_SPAWN_LAUNCH_MARKER="$auditDir/$receiptId.launch"
-		else
-			mkdir -p "$MMDAPP/.local/temp" || {
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create scratch directory: $MMDAPP/.local/temp" >&2
-				set +e ; return 1
-			}
-			export MDAT_SPAWN_LAUNCH_MARKER="$MMDAPP/.local/temp/mdat-$receiptId.launch"
-			[ "$waitMode" = "true" ] || outputFile="$MMDAPP/.local/temp/mdat-$receiptId.output.log"
-		fi
+		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
+		## dispatch item and the tracking file below carry its `transcript:` from the start.
+		type AgentsTranscriptStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null || :
+		local transcriptRel=""
+		type AgentsTranscriptNewRel > /dev/null 2>&1 && transcriptRel="$( AgentsTranscriptNewRel "$callerName" "$MDAT_SPAWN_SESSION_ID" )" || transcriptRel=""
+
+		## The spawn's own output is its session log, one per session and one name whatever
+		## the dispatch mode: sessions/<spawn-id>/session.log, beside the session's other
+		## state and never in the team data, where its transcript is the record. No dispatch
+		## document with --wait: the waiting caller reads the child's streams on its own stderr.
+		## Every writer opens it to append: the handback retry writes into it while the close
+		## steps still hold it, and a writer at its own offset would overwrite that retry.
+		local sessionStateDir="$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID" outputFile=""
+		mkdir -p "$sessionStateDir" || {
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: can't create the session state directory: $sessionStateDir" >&2
+			set +e ; return 1
+		}
+		## Its own channel: only the launcher writes it, so no agent output can reach it.
+		export MDAT_SPAWN_LAUNCH_MARKER="$sessionStateDir/launch"
+		[ "$dispatchDocMode" = "none" ] && [ "$waitMode" = "true" ] || outputFile="$sessionStateDir/session.log"
 
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
@@ -786,6 +834,7 @@ case "$1" in
 				--header:upsert:status:dispatch-started \
 				--header:upsert:session-id:"$sessionId" \
 				--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+				${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
 				${parentSessionId:+--header:upsert:review-by:"$parentSessionId"} \
 				--log-verb:created || {
@@ -817,6 +866,7 @@ case "$1" in
 							--context "$opContext" \
 							--header:upsert:session-id:"$sessionId" \
 							--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+							${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 							--header:upsert:status:dispatch-started \
 							--log-verb:updated \
 							|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: could not mark tracking item $trackedItemName as started" >&2
@@ -871,7 +921,7 @@ case "$1" in
 		## spawn is unaffected either way. Nothing reaches this op's stdout: callers
 		## parse it. Holds `<channel>:<ts>`, or is empty. Computed before the
 		## sandbox tracking file below so that file can carry it from the start,
-		## and pulled out of the subshell so the same text is available afterward
+		## and pulled out of the subshell so the same fields are available afterward
 		## to the CLI-update poller that later edits this same post in place.
 		## workspaceName is a basename, never a path -- the same convention the
 		## team-members registry's own workspace column already uses. Computed once,
@@ -884,21 +934,21 @@ case "$1" in
 		## a full machine path. It names the workspace and the file, never the path.
 		local outputFileDisplay="none"
 		[ -z "$outputFile" ] || outputFileDisplay="$workspaceName/${outputFile##*/}"
-		local eventTrackBody=""
-		eventTrackBody="$( printf '%s\n' "Spawn started for $callerName" '```' \
-			"session-id: $sessionId" "spawn-id: $MDAT_SPAWN_SESSION_ID" "parent-session-id: ${parentSessionId:-none}" \
-			"tracking-name: $sandboxName" "host: $( hostname -s 2>/dev/null || echo unknown )" "workspace: $workspaceName" \
-			"execution-receipt: $receiptId" "context: $opContext" "wait: $waitMode" \
-			"dispatch-doc: $dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
-			"cli-requested: ${spawnCliService:-configured} of $callerName" "output-file: $outputFileDisplay" \
-			"started-at: $( date +"%Y-%m-%d %H:%M %z" )" '```' )"
+		## The `start` tracking post's own op arguments (sh-lib/templates/event-track.post.format.md),
+		## kept so the CLI-update poller renders the same post again with the real CLI.
+		local eventTrackFields=( --kind start --session-id "$MDAT_SPAWN_SESSION_ID" \
+			--field spawn-id="$MDAT_SPAWN_SESSION_ID" --field session-id="$sessionId" --field parent-session-id="${parentSessionId:-none}" \
+			--field tracking-name="$sandboxName" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
+			--field receipt="$receiptId" --field context="$opContext" --field wait="$waitMode" \
+			--field dispatch="$dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
+			--field cli="${spawnCliService:-configured}" --field output-file="$outputFileDisplay" \
+			--field started-at="$( date +"%Y-%m-%d %H:%M %z" )" )
 		local eventTrackThread=""
 		eventTrackThread="$(
 			[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || exit 0
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 			AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
-			printf '%s\n' "$eventTrackBody" \
-			| DistroAgentsTools --member-comms-slack-send-message "$callerName" event-track --identity-bot --from-stdin 2>&1 > /dev/null \
+			DistroAgentsTools --intern-op-event-track-post "$callerName" event-track "${eventTrackFields[@]}" 2>&1 > /dev/null \
 			| LC_ALL=C awk -F= '
 				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
 				$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
@@ -944,7 +994,7 @@ case "$1" in
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 				AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
 				printf '%s' "$sessionOpenBody" \
-				| DistroAgentsTools --member-comms-slack-send-message "$callerName" magic-team --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
+				| DistroAgentsTools --intern-op-comms-slack-send-message "$callerName" magic-team --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '
 					$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
 					$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
@@ -960,7 +1010,7 @@ case "$1" in
 			if [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
 			elif [ "$( printf 'Session started for %s: %s' "$callerName" "${sessionNameOrComment:-$sessionId}" \
-				| DistroAgentsTools --member-comms-slack-send-message "$callerName" "$sessionThread" --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
+				| DistroAgentsTools --intern-op-comms-slack-send-message "$callerName" "$sessionThread" --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2
 			fi
@@ -977,6 +1027,16 @@ case "$1" in
 		## one record per spawn that ran under that tracking name, and a fixed name
 		## would have the second spawn overwrite the first one's record.
 		local sandboxTracking="$sandboxRoot/$MDAT_SPAWN_SESSION_ID.md"
+		## Where this spawn's handback goes (session-parent): the parent's own session thread,
+		## else magic-coordinator's, settled now, so a parent with no thread still leaves the
+		## handback, and the DISMISSED that follows it, a thread (AgentsTools.ReviewFlow.include).
+		local parentThread=""
+		type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+		parentThread="$( AgentsToolsSpawnParentThread "$parentSessionId" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
+		## The CLI this spawn resolves to and its setting, which a later resume compares (AgentsReviewResumeEligible).
+		local spawnCliResolved="none" spawnCliSetting="none+-"
+		! type AgentsReviewCliResolved > /dev/null 2>&1 || spawnCliResolved="$( AgentsReviewCliResolved "$spawnCliService" )"
+		! type AgentsReviewCliSetting > /dev/null 2>&1 || spawnCliSetting="$( AgentsReviewCliSetting "$spawnCliResolved" )"
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -994,6 +1054,7 @@ case "$1" in
 			## belongs to which session -- computed above and until now only ever
 			## reaching the event-track post, never this durable record.
 			printf 'parent-session-id: %s\n' "${parentSessionId:-none}"
+			[ -z "$parentThread" ] || printf 'parent-thread: %s\n' "$parentThread"
 			printf 'tracking-name: %s\n' "$sandboxName"
 			## The machine this spawn ran on, because a sandbox tree is synced between
 			## machines and a record found here did not necessarily run here. Without
@@ -1003,11 +1064,15 @@ case "$1" in
 			## host glob is matched against.
 			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
 			printf 'workspace: %s\n' "$workspaceName"
+			printf 'cli: %s\n' "$spawnCliResolved"
+			printf 'cli-setting: %s\n' "$spawnCliSetting"
 			printf 'owner: %s\n' "$callerName"
 			printf 'status: %s\n' "spawn-started"
 			printf 'started-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf 'execution-receipt: %s\n' "$receiptId"
 			[ -z "$outputFile" ] || printf 'output-file: %s\n' "$outputFile"
+			## The tooling-written session transcript, relative to the team data root.
+			[ -z "$transcriptRel" ] || printf 'transcript: %s\n' "$transcriptRel"
 			## The two thread pointers, side by side with the ids they belong to.
 			[ -z "$eventTrackThread" ] || printf 'agent-log-thread: %s\n' "$eventTrackThread"
 			[ -z "$sessionThread" ] || printf 'session-thread: %s\n' "$sessionThread"
@@ -1043,6 +1108,16 @@ case "$1" in
 			;;
 		esac
 
+		## The transcript opens here, with the pointers every later writer finds it by
+		## (sessions/<spawn-id>/transcript). Its start milestone, a commit, waits until the
+		## child runs and the close is guarded, so nothing slow sits before the signal traps.
+		if [ -n "$transcriptRel" ] ; then
+			AgentsTranscriptStart "$MDAT_SPAWN_SESSION_ID" "$MDAT_DATA_ROOT" "$transcriptRel" "$callerName" \
+				service "${spawnCliService:-configured}" parent "${parentSessionId:-none}" item "${dispatchItemName:-${trackedItemName:-none}}" \
+				coworking "$sessionId" tracking "$sandboxName" wait "$waitMode" || :
+			[ -z "${dispatchItemName:-$trackedItemState}" ] || AgentsTranscriptSetItem "$MDAT_SPAWN_SESSION_ID" "${dispatchItemName:-$trackedItemName}" || :
+		fi
+
 		## His own instruction: the sandbox path is named in the dispatch text, or the
 		## spawned session cannot use it at all. Appended after the dispatch document was
 		## written from the brief, so that document keeps the brief exactly as given.
@@ -1054,7 +1129,7 @@ case "$1" in
 			"Read-only input: $sandboxRoot/input" \
 			"Writable output, for deliverables and working files: $sandboxRoot/output" \
 			"Your own scratch inside it: $sandboxRoot/output/$callerName" )"
-		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, routines, pointers.
+		## input/ gets what the task reads: the brief as given, its board item, MAGIC.md copies, pointers.
 		local sandboxItem=""
 		if [ -n "$dispatchItemName" ] ; then
 			sandboxItem="$MDAT_DATA_ROOT/board/running/$dispatchItemName"
@@ -1099,6 +1174,14 @@ case "$1" in
 			done
 			spawnContext="$( printf '%s\n' "$spawnContext" "" "$conversationNote" )"
 		fi
+		## A resumed session already holds its brief: its prompt is the corrections and the item's newest Decisions.
+		local resumeContext=""
+		if [ -n "$resumeFrom" ] || [ -n "$resumeContextFile" ] ; then
+			resumeContext="$( printf 'RETURNED for corrections on %s. Continue the same task, then hand back again.\n\n%s\n' "${trackedItemName%.md}" "$resumeText" )"
+			decisionsBlock=""
+			decisionsPath="$( AgentsToolsDecisionsItemPath "$trackedItemName" )" && decisionsBlock="$( AgentsToolsDecisionsBlock "$decisionsPath" 10 )" || decisionsBlock=""
+			[ -z "$decisionsBlock" ] || resumeContext="$( printf '%s\n\n%s\n' "$resumeContext" "$decisionsBlock" )"
+		fi
 
 		if [ "$waitMode" = "true" ] ; then
 			local exitCode spawnPid watchPid timedOut waitTimeoutSeconds
@@ -1124,14 +1207,14 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
 					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" > "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
 				env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
@@ -1144,12 +1227,15 @@ case "$1" in
 			if [ -n "$outputFile" ] ; then
 				tail -n +1 -f "$outputFile" >&2 4>&- &
 				tailPid=$!
-				AgentsToolsSpawnProxyEventTrackBatch "$eventTrackThread" "$callerName" "$outputFile" 4>&- &
+				## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).
+				type AgentsEventTrackFeedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
+				AgentsEventTrackFeedOpen "$MDAT_SPAWN_SESSION_ID" "$eventTrackThread"
+				AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 				batchPid=$!
 			fi
 			## On its own, not gated by outputFile: a --wait spawn with no output
 			## file still needs its "Spawn started" post's CLI name filled in.
-			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$eventTrackBody" 4>&- &
+			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "${eventTrackFields[@]}" 4>&- &
 			cliUpdatePid=$!
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
 			## reach the real spawned console process immediately -- without this,
@@ -1164,6 +1250,8 @@ case "$1" in
 			## that would otherwise leave them behind.
 			## A detached spawn (made from inside a session) is meant to outlive its caller's pass, so a TERM sent to the pass never reaches it.
 			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; [ -z "$tailPid" ] || kill -TERM "$tailPid" 2>/dev/null ; [ -z "$batchPid" ] || kill -TERM "$batchPid" 2>/dev/null ; [ -z "$cliUpdatePid" ] || kill -TERM "$cliUpdatePid" 2>/dev/null' INT TERM
+			## The transcript's start milestone, now that an interrupt reaches the close.
+			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
 			## reaps its own children; KILL after a grace period for one that ignores TERM.
 			## The watcher's own exit status is how the foreground learns it fired -- a
@@ -1205,16 +1293,21 @@ case "$1" in
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			## The session's tokens onto its item first, so the closing post sums what is there now.
+			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
 			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				## The item's own state, never `running`: closing a spawn must not move
-				## a caller's backlog or parked item into the running column.
-				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$exitCode" "$outputFile" "$spawnOutcome" "$trackedItemState"
+				## a caller's backlog or parked item into the running column. A running
+				## one enters review, as a created dispatch item does.
+				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$exitCode" "$outputFile" "$spawnOutcome" "$trackedItemState" \
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended
 			fi
+			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$spawnOutcome" "$exitCode" || :
 			echo "RECEIPT_ID=$receiptId"
 			echo "SESSION_ID=$sessionId"
 			echo "SESSION_THREAD=${sessionThread:-none}"
@@ -1245,11 +1338,10 @@ case "$1" in
 			[ "$timedOut" = "0" ] || echo "TIMEOUT_SECONDS=$waitTimeoutSeconds"
 			[ -z "$outputFile" ] || echo "OUTPUT_FILE=$outputFile"
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
-			## The spawn's audit log is complete once the child is gone, on success, failure,
-			## timeout and interrupt alike -- every one of them reaches this line. A log kept in
-			## scratch is not under the store and is skipped by the helper.
+			## The session log stays in the session's state, never committed: the transcript,
+			## committed at its END above, is the record in the team data. Every way this
+			## spawn ends -- success, failure, timeout, interrupt -- reaches this line.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
-			[ -z "$outputFile" ] || AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, $callerName, $receiptId" "$outputFile"
 			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close"
 			AgentsToolsTeamDataDirtyWarning "agent-spawn-proxy close"
@@ -1265,12 +1357,23 @@ case "$1" in
 		(
 			[ -z "$parentSessionId" ] || trap '' HUP
 			set +e
-			AgentsToolsSpawnProxyEventTrackBatch "$eventTrackThread" "$callerName" "$outputFile" 4>&- &
+			## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).
+			type AgentsEventTrackFeedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
+			AgentsEventTrackFeedOpen "$MDAT_SPAWN_SESSION_ID" "$eventTrackThread"
+			AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 			batchPid=$!
 			## On its own, same as the wait-mode branch: not gated by outputFile.
-			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$eventTrackBody" 4>&- &
+			AgentsToolsSpawnProxyEventTrackCliUpdate "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "${eventTrackFields[@]}" 4>&- &
 			cliUpdatePid=$!
-			env MMDAPP="$spawnWorkspace" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext"
+			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
+			if [ -n "$resumeContextFile" ] ; then
+				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
+				AgentsToolsSpawnProxyHarnessResumeRun "$spawnWorkspace" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+					"$resumeContextFile" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
+			else
+			AgentsToolsSpawnProxyConsoleRun "$spawnWorkspace" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
+			fi
 			bgExitCode=$?
 			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
 			[ -z "$cliUpdatePid" ] || { kill "$cliUpdatePid" 2>/dev/null ; wait "$cliUpdatePid" 2>/dev/null ; }
@@ -1279,6 +1382,7 @@ case "$1" in
 			## Measured once, so the event-track close, the sandbox record and the board item
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
 			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
@@ -1289,17 +1393,18 @@ case "$1" in
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState"
+				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState" \
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )"
 			fi
+			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER"
 			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"
-			## Last, and silent: this subshell's own output IS the log, so any line after
-			## the commit would leave it dirty again. A failed commit is caught by the
-			## dirty-store warning at the next heartbeat or waited spawn close.
+			## Last, and silent. This subshell's own output IS the session log, which stays in
+			## the session's state and is never committed: the transcript, committed at its END
+			## above, is the record in the team data.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
-			AgentsToolsTeamDataCommitPaths "agent-spawn-proxy output, $callerName, $receiptId" "$outputFile" 2>/dev/null
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close" > /dev/null 2>&1
-		) > "$outputFile" 2>&1 4>&- &
+		) >> "$outputFile" 2>&1 4>&- &
 		local spawnPid=$!
 		[ -z "$parentSessionId" ] || set +m
 		echo "RECEIPT_ID=$receiptId"

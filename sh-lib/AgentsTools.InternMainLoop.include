@@ -310,8 +310,10 @@ case "$1" in
 			if [ -n "$passTimedOut" ] ; then
 				[ 0 -ne "$spawnRc" ] || spawnRc=124
 				mainLoopPassTimedOut=1
-				printf '%s\n' "Heartbeat pass timed out" '```' "timed-out-after-seconds: $passTimeoutSeconds" "ended-by: TERM then KILL, process group" "lock: left for the next pass's stale-lock recheck" "host: $( hostname -s 2>/dev/null || echo unknown )" "at: $( date +"%Y-%m-%d %H:%M %z" )" '```' \
-					| DistroAgentsTools --member-comms-slack-send-message magic-coordinator event-track --identity-bot --from-stdin > /dev/null 2>&1 \
+				DistroAgentsTools --intern-op-event-track-post magic-coordinator event-track --kind error \
+					--field what="Heartbeat pass timed out after ${passTimeoutSeconds}s" \
+					--field detail="ended by TERM then KILL, process group; its lock is left for the next pass's stale-lock recheck" \
+					--field host="$( hostname -s 2>/dev/null || echo unknown )" --field at="$( date +"%Y-%m-%d %H:%M %z" )" > /dev/null 2>&1 \
 					|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to event-track" >&2
 			fi
 			## Nothing may sit between a wait and its spawnRc above: any diagnostic there

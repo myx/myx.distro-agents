@@ -66,11 +66,34 @@ AgentsToolsPermissionSessionDir(){ ## session id
 	printf '%s' "$sessionDir"
 }
 
-## Posts one event-track entry for the session: into its thread when one is recorded,
-## otherwise as a new top-level post whose thread is then recorded. Never fails its
-## caller: a post that does not happen is one stderr warning.
-AgentsToolsPermissionEventTrack(){ ## member, session dir, body text
-	local trackMember="$1" trackDir="$2" trackBody="$3" trackTarget="event-track" trackThread="" trackOut
+## Where a refusal was made, as the lines its record and its post both carry: the short
+## host name, and the workspace by its name -- never its path. One source, so the two
+## never differ.
+AgentsToolsPermissionRefusalWhere(){
+	local whereHost whereWorkspace="${MMDAPP%/}"
+	whereHost="$( hostname -s 2>/dev/null )" || whereHost=""
+	whereWorkspace="${whereWorkspace##*/}"
+	printf 'host: %s\n' "${whereHost:-unknown}"
+	printf 'workspace: %s\n' "${whereWorkspace:-unknown}"
+}
+
+## One refusal's event-track post: the `refusal` tracking post, the same fields for every
+## refusal, where it was made from the same source as its record.
+AgentsToolsPermissionRefusalPost(){ ## owner, session dir, refusal id, session id, tool, target, reason
+	local postWhere
+	postWhere="$( AgentsToolsPermissionRefusalWhere )"
+	AgentsToolsPermissionEventTrack "$1" "$2" --kind refusal --session-id "$4" --field what="Permission refused" --field refusal-id="$3" \
+		--field host="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
+		--field workspace="$( printf '%s\n' "$postWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" \
+		--field tool="$5" --field target="$6" --field reason="${7:-none}"
+}
+
+## Posts one event-track entry for the session, through the tooling's own tracking post:
+## into its thread when one is recorded, otherwise as a new top-level post whose thread is
+## then recorded. Never fails its caller: a post that does not happen is one stderr warning.
+AgentsToolsPermissionEventTrack(){ ## member, session dir, --intern-op-event-track-post arguments...
+	local trackMember="$1" trackDir="$2" trackTarget="event-track" trackThread="" trackOut
+	shift 2
 	[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || {
 		echo "⚠️ WARNING: $MDSC_CMD: no event-track channel is configured, so this refusal is recorded locally only" >&2
 		return 0
@@ -88,7 +111,7 @@ AgentsToolsPermissionEventTrack(){ ## member, session dir, body text
 	[ -z "$trackThread" ] || trackTarget="$trackThread"
 	trackOut="$MMDAPP/.local/temp/mdat-permission-track.$$"
 	mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$trackLock" ; return 0 ; }
-	printf '%s\n' "$trackBody" | DistroAgentsTools --member-comms-slack-send-message "$trackMember" "$trackTarget" --identity-bot --from-stdin > /dev/null 2> "$trackOut" || {
+	DistroAgentsTools --intern-op-event-track-post "$trackMember" "$trackTarget" "$@" > /dev/null 2> "$trackOut" || {
 		echo "⚠️ WARNING: $MDSC_CMD: the refusal is recorded locally but was NOT posted to event-track: $( LC_ALL=C grep -m1 '⛔' "$trackOut" 2>/dev/null )" >&2
 		rm -f "$trackOut"
 		AgentsToolsLocalLockGive "$trackLock"
@@ -114,8 +137,8 @@ AgentsToolsPermissionPlannedIgnored(){ ## member, session id, dispatch item, ent
 	ignoredDir="$( AgentsToolsPermissionSessionDir "$2" )" || return 0
 	ignoredKey="$( printf '%s' "$4" | LC_ALL=C cksum | LC_ALL=C tr ' ' '-' )" || return 0
 	mkdir "$ignoredDir/planned-ignored-$ignoredKey" 2>/dev/null || return 0
-	AgentsToolsPermissionEventTrack "$1" "$ignoredDir" "$( printf '%s\n' "Planned allow ignored for $1" '```' \
-		"dispatch: $3" "entry: $( AgentsToolsSlackFenceSafeValue "$4" )" "why: $5" '```' )"
+	AgentsToolsPermissionEventTrack "$1" "$ignoredDir" --kind refusal --session-id "$2" --field what="Planned allow ignored" \
+		--field dispatch="$3" --field entry="$4" --field reason="$5"
 	return 0
 }
 
@@ -273,7 +296,7 @@ case "$1" in
 			printf '%s\n' "---"
 			printf 'status: %s\n' "refused"
 			printf 'owner: %s\n' "$refusalOwner"
-			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
+			AgentsToolsPermissionRefusalWhere
 			printf 'session-id: %s\n' "$refusalSession"
 			printf 'tool: %s\n' "$refusalTool"
 			printf 'target: %s\n' "$( AgentsToolsPermissionEscapeRecord "$refusalTarget" )"
@@ -287,10 +310,8 @@ case "$1" in
 		}
 		## The id on stdout before the post, because the record already stands without it.
 		printf '%s\n' "$refusalId"
-		AgentsToolsPermissionEventTrack "$refusalOwner" "$refusalDir" "$( printf '%s\n' "Permission refused for $refusalOwner" '```' \
-			"refusal-id: $refusalId" "session-id: $refusalSession" "tool: $refusalTool" \
-			"target: $( AgentsToolsSlackFenceSafeValue "$refusalTarget" )" \
-			"reason: $( AgentsToolsSlackFenceSafeValue "${refusalReason:-none}" )" '```' )"
+		AgentsToolsPermissionRefusalPost "$refusalOwner" "$refusalDir" "$refusalId" \
+			"$refusalSession" "$refusalTool" "$refusalTarget" "$refusalReason"
 		return 0
 	;;
 

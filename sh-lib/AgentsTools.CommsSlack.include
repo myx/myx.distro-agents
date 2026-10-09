@@ -325,7 +325,7 @@ AgentsToolsResolveSlackBotToken(){
 	local resolvedToken=""
 	## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
 	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] ; then
-		resolvedToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
+		resolvedToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
 		if [ -n "$resolvedToken" ] ; then
 			printf 'member-bot-token %s\n' "$resolvedToken"
 			return 0
@@ -358,7 +358,7 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 		return 0
 	fi
 	if [ -n "$memberName" ] && [ "$memberName" != "<none>" ] && [ "$memberName" != "magic-team" ] ; then
-		resolvedDomain="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
+		resolvedDomain="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
 		if [ -n "$resolvedDomain" ] ; then
 			printf '%s\n' "$resolvedDomain"
 			return 0
@@ -758,7 +758,7 @@ case "$1" in
 
 		## Identity selection -- one rule, applied here for every Slack op.
 		local memberUserToken="" sendIdentity="bot"
-		memberUserToken="$( DistroAgentsTools --member-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		memberUserToken="$( DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
 		local routineAuthored="false"
 		case "$callerMember" in
 			routine-*) routineAuthored="true" ;;
@@ -1392,7 +1392,7 @@ case "$1" in
 				scopeTokenLine="$( AgentsToolsResolveSlackBotToken "$callingMember" )" || scopeTokenLine=""
 				read -r scopeTokenSource token <<< "$scopeTokenLine"
 			else
-				token="$( DistroAgentsTools --member-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
+				token="$( DistroAgentsTools --agents-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
 			fi
 
 			if [ -z "$token" ] ; then

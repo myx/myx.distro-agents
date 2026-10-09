@@ -98,6 +98,26 @@ rigAssert "a line past the cap is named, not offered back" \
 	"... line 2 alone is over the 48000-byte cap of this reader, so it cannot be returned here ..."
 rm -f "$rigTmp/owners/rig-keeper/rig-keeper.big.md"
 
+echo "-- section reads only the named headings --"
+printf '# Top\nintro\n## Alpha: one, two\na-1\n### Alpha child\na-2\n```\n# not a heading\n```\n## Beta\nb-1\n# Second top\n## Gamma\ng-1\n' > "$rigTmp/owners/rig-keeper/rig-keeper.sections.md"
+rigAssert "one section runs to the next heading of its level, children included" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Alpha: one, two"}' | tr '\n' ' ' )" \
+	'## Alpha: one, two a-1 ### Alpha child a-2 ``` # not a heading ```'
+rigAssert "a top-level section stops at the next top-level heading only" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Top"}' | LC_ALL=C grep -c '' )" 11
+rigAssert "several sections, | separated, come back in the order asked" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Gamma|Beta"}' | tr '\n' ' ' )" \
+	"## Gamma g-1  ## Beta b-1"
+rigAssert "an unknown section is ERROR naming it" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Beta|Delta"}' | head -1 )" \
+	"ERROR: Skill: no such section: Delta -- the headings in this file are:"
+rigAssert "and it lists every heading, never a fenced line" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Delta"}' | tail -n +2 | tr '\n' ' ' )" \
+	"# Top ## Alpha: one, two ### Alpha child ## Beta # Second top ## Gamma"
+rigAssert "offset and limit page the section text" \
+	"$( rigSkill '{"name":"rig-keeper","file":"rig-keeper.sections.md","section":"Gamma","offset":2,"limit":1}' | head -1 )" "g-1"
+rm -f "$rigTmp/owners/rig-keeper/rig-keeper.sections.md"
+
 echo "-- a listing names what the file argument takes --"
 rigAssert "list prints names relative to the member folder" \
 	"$( rigSkill '{"name":"rig-keeper","list":true}' | LC_ALL=C sort | tr '\n' ' ' )" \

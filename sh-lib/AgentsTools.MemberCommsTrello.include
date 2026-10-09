@@ -8,7 +8,16 @@
 
 case "$1" in
 
-		--member-comms-trello-check)
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-trello-* implementation below directly.
+		--member-comms-trello-check|--member-comms-trello-read|--member-comms-trello-whoami)
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-trello-check)
 			shift
 			local memberName="$1"
 			shift || true
@@ -54,7 +63,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-trello-read)
+		--intern-op-comms-trello-read)
 			shift
 			local memberName="$1"
 			shift || true
@@ -113,7 +122,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-trello-whoami)
+		--intern-op-comms-trello-whoami)
 			shift
 			local memberName="$1"
 			shift || true

@@ -242,11 +242,11 @@ rigAssert "it stays open"                                  "$( rigField ask-old 
 rigAssert "both records still there"                       "$( ls "$rigScenarioDir/ws/.local/agents/pending/" | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' )" 2
 
 echo "-- the main loop runs the reminders, and goes on when they fail --"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 [ -f "$rigRealTemplate" ] || rigRefuse "the brief template is not in the package: $rigRealTemplate"
 rigLoopScenario(){ ## name
 	rigDir="$rigTmp/loop-$1"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/agents/pending" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator" "$rigDir/home/.claude/skills/magic-team/templates" \
+	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/agents/pending" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator" "$rigDir/home/.claude/skills/magic-team" \
 		"$rigDir/home/.claude/skills/$rigMember" "$rigDir/home/.claude/skills/human-owner"
 	printf '# magic-coordinator\n' > "$rigDir/home/.claude/skills/magic-coordinator/SKILL.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.basic.md"
@@ -254,7 +254,6 @@ rigLoopScenario(){ ## name
 	printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
 	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\n---\n# rig heartbeat routine fixture\n' \
 		> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
-	cp "$rigRealTemplate" "$rigDir/home/.claude/skills/magic-team/templates/spawn-brief.document.format.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\nSLACK_WORKSPACE_DOMAIN=rigspace\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
 	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\necho "start $$" >> "%s/console.log"\n' "$rigDir" > "$rigDir/ws/DistroAgentsConsole.sh"

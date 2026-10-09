@@ -38,6 +38,10 @@ A secret goes through `--values-from-stdin --apply`, so it never reaches a comma
 
 The two root install methods are `--install-workspace-integrations` and `--install-workspace-restrictions`. `--install-workspace-integrations` calls the VS Code, skillset-link, Claude trust, Claude permission and Copilot access steps. `--help-syntax` lists those steps.
 
+`--install-workspace-restrictions` is optional, and you run it yourself. Once it is installed, `--make-workspace-integrations` keeps it current. See [Workspace restrictions](installation.md#workspace-restrictions-optional).
+
+The first command to run in a new workspace is `--owner-setup-claude`. See [Getting started](installation.md#getting-started).
+
 
 ## Manuals
 

@@ -8,7 +8,7 @@
 
 - `--install-*` — install steps, such as `--install-skillset-symlinks`.
 - `--owner-*` — operations for the person who owns the installation: `--owner-setup-<domain>`, `--owner-workspace-*` and `--owner-credential-store-*`.
-- `--member-*` — operations that act for or on one team member, such as `--member-config-option <member>` and `--member-help <member>`.
+- `--member-*` — operations that act for or on one team member, such as `--member-help <member>`.
 - `--console-*` — keep-alive console sessions.
 
 ## Argument order

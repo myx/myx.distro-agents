@@ -10,6 +10,8 @@ import base64
 import hashlib
 import json
 import os
+import re
+import signal
 import socket
 import ssl
 import struct
@@ -27,11 +29,48 @@ OPCODE_CLOSE = 0x8
 OPCODE_PING = 0x9
 OPCODE_PONG = 0xA
 
+LOG_KEPT_BYTES = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:=/ -"
+LOG_TOKEN_SHAPE = re.compile(r"x(?:app|ox[a-z])-[A-Za-z0-9-]+")
+LOG_REASON_CAP = 200
 
-def logLine(text):
-    sys.stderr.write("%s AgentsSlackSocketMode.py: %s\n" % (
-        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), text))
-    sys.stderr.flush()
+
+def logClean(text):
+    ## The send writer's sanitising, byte for byte: LC_ALL=C tr -c 'A-Za-z0-9_.:=/ -' '_'.
+    return "".join(chr(b) if b in LOG_KEPT_BYTES else "_"
+                   for b in str(text).encode("utf-8", "replace"))
+
+
+## One row per receiver event in the workspace Slack log, in the member send's own
+## columns and month file (AgentsTools.MemberCommsSlack.include): time, member (the
+## app scope), target 'socket', channel ('-' when none), identity 'app', event kind
+## (connected|reconnect|received|error|stopped), reason, session '-'. Append only,
+## one write per row. The reason is a short detail -- never a body, token or payload.
+def logRow(eventKind, reasonText, channelId="-"):
+    logStamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    logReason = logClean(LOG_TOKEN_SHAPE.sub("redacted", str(reasonText)))[:LOG_REASON_CAP]
+    rowBytes = ("%s\t%s\tsocket\t%s\tapp\t%s\t%s\t-\n" % (
+        logStamp, logClean(sys.argv[1] if len(sys.argv) > 1 else "-"),
+        logClean(channelId or "-"), eventKind, logReason)).encode("ascii")
+    logDir = os.environ.get("SOCKET_MODE_LOG_DIR", "").strip()
+    try:
+        if not logDir:
+            raise OSError("SOCKET_MODE_LOG_DIR is not set")
+        os.makedirs(logDir, exist_ok=True)
+        logFd = os.open(os.path.join(logDir, "comms-slack-send.%s-%s.log" % (logStamp[0:4], logStamp[4:6])),
+                        os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o666)
+        try:
+            os.write(logFd, rowBytes)
+        finally:
+            os.close(logFd)
+    except OSError as logFailure:
+        sys.stderr.write("AgentsSlackSocketMode.py: could not append to the Slack log (%s): %s" % (
+            logFailure, rowBytes.decode("ascii")))
+        sys.stderr.flush()
+
+
+def stopOnSignal(signalNumber, stackFrame):
+    logRow("stopped", "signal=%s" % signal.Signals(signalNumber).name)
+    raise SystemExit(0)
 
 
 def connectSocket(socketUrl):
@@ -160,11 +199,10 @@ def fileInquiry(eventBody, toolPath):
     filingResult = subprocess.run(
         [toolPath, "--member-upsert-member-inquiry", "magic-coordinator", itemName],
         input=itemBody.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ## The tool's own output is not kept: it may quote the item, and so the message.
     if filingResult.returncode != 0:
-        logLine("FILING FAILED %s rc=%d -- the envelope is already acknowledged, so Slack will not resend it: %s" % (
-            itemName, filingResult.returncode, filingResult.stdout.decode("utf-8", "replace").strip()))
-        return
-    logLine("filed %s" % itemName)
+        logRow("error", "filing failed rc=%d %s -- already acknowledged, Slack will not resend it" % (
+            filingResult.returncode, itemName), channelId)
 
 
 def pumpSocket(wrappedSocket, toolPath):
@@ -192,7 +230,7 @@ def pumpSocket(wrappedSocket, toolPath):
         try:
             messageBody = json.loads(messageBytes.decode("utf-8"))
         except Exception:
-            logLine("frame that is not readable JSON ignored, and not acknowledged")
+            logRow("error", "frame that is not readable JSON ignored, and not acknowledged")
             continue
 
         ## Acknowledge first: Slack resends anything unacknowledged within three
@@ -204,17 +242,21 @@ def pumpSocket(wrappedSocket, toolPath):
 
         messageType = messageBody.get("type", "")
         if messageType == "hello":
-            logLine("hello: app_id=%s" % messageBody.get("connection_info", {}).get("app_id", ""))
+            logRow("connected", "hello app_id=%s" % messageBody.get("connection_info", {}).get("app_id", ""))
             continue
         if messageType == "disconnect":
             raise RuntimeError("disconnect requested, reason=%s" % messageBody.get("reason", ""))
         if messageType != "events_api":
-            logLine("envelope type=%s carries nothing this receiver consumes" % messageType)
+            logRow("received", "envelope type=%s carries nothing this receiver consumes" % messageType)
             continue
         eventBody = messageBody.get("payload", {}).get("event", {})
+        eventChannel = eventBody.get("channel", "") or "-"
+        eventPlace = "%s:%s" % (eventChannel, eventBody.get("ts", "") or eventBody.get("event_ts", ""))
         if eventBody.get("type") != "app_mention":
-            logLine("event type=%s is not declared in the manifest and is ignored" % eventBody.get("type", ""))
+            logRow("received", "%s %s not declared in the manifest, ignored" % (
+                eventBody.get("type", ""), eventPlace), eventChannel)
             continue
+        logRow("received", "app_mention %s" % eventPlace, eventChannel)
         fileInquiry(eventBody, toolPath)
 
 
@@ -222,7 +264,7 @@ def main():
     appToken = os.environ.get("SOCKET_MODE_APP_TOKEN", "").strip()
     toolPath = os.environ.get("SOCKET_MODE_TOOL_PATH", "").strip()
     if not appToken or not toolPath:
-        logLine("SOCKET_MODE_APP_TOKEN and SOCKET_MODE_TOOL_PATH are both required")
+        logRow("stopped", "SOCKET_MODE_APP_TOKEN and SOCKET_MODE_TOOL_PATH are both required")
         raise SystemExit(1)
 
     while True:
@@ -233,13 +275,13 @@ def main():
                 headers={"Authorization": "Bearer " + appToken}), timeout=30)
             openBody = json.loads(openResponse.read().decode("utf-8"))
             if not openBody.get("ok"):
-                logLine("apps.connections.open refused: %s" % openBody.get("error", "<no error field>"))
+                logRow("error", "apps.connections.open refused: %s" % openBody.get("error", "<no error field>"))
             else:
                 wrappedSocket = connectSocket(openBody.get("url", ""))
-                logLine("connected")
+                logRow("connected", "websocket open")
                 pumpSocket(wrappedSocket, toolPath)
         except Exception as connectionFailure:
-            logLine("reconnecting after: %s" % connectionFailure)
+            logRow("reconnect", "reconnecting after: %s" % connectionFailure)
         if wrappedSocket is not None:
             try:
                 sendFrame(wrappedSocket, OPCODE_CLOSE)
@@ -250,4 +292,5 @@ def main():
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, stopOnSignal)
     main()

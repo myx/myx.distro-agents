@@ -79,10 +79,12 @@ case "$1" in
 
 	## Closes one of the member's own open questions as settled, with the reason, when it
 	## no longer needs an answer. Only the member that asked it, and only a plain question:
-	## a readback, decision or permission closes through its own escalation ops.
-	--member-pending-reply-settle)
+	## a readback, decision or permission closes through its own escalation ops. The
+	## --magic-* stub is the coordinator settling another member's question on its behalf.
+	--member-pending-reply-settle|--magic-pending-reply-settle)
+		local settleOp="$1"
 		shift
-		MDSC_CMD="$MDSC_CMD --member-pending-reply-settle"
+		MDSC_CMD="$MDSC_CMD $settleOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local settleMember="${1:-}" settleId="${2:-}" settleReason="" settleFile settleOwner settleKind settleRc=0
 		shift 2 2>/dev/null || shift $#
@@ -104,10 +106,15 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$settleMember" "<team-member>" pending-reply-settle || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$settleId" "<pending-id>" pending-reply-settle || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$settleMember" "${settleOp#--}" || { set +e ; return 1 ; }
+		if [ "$settleOp" = "--magic-pending-reply-settle" ] && [ "$settleMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator settles another member's question, not $settleMember -- a member settles its own with --member-pending-reply-settle" >&2
+			set +e ; return 1
+		fi
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
 		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
 		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
-		if [ "$settleOwner" != "$settleMember" ] ; then
+		if [ "$settleOp" = "--member-pending-reply-settle" ] && [ "$settleOwner" != "$settleMember" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot settle it; it stays as it is" >&2
 			set +e ; return 1
 		fi

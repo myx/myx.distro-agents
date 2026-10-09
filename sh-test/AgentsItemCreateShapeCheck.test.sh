@@ -96,7 +96,18 @@ rigAssert "type, from (the spawned member), owner"          "$( rigField "$rigI1
 rigAssert "and a date"                                      "$( rigFieldCount "$rigI1Path" date )" 1
 rigAssert "the content follows"                             "$( rigHolds "$rigI1Path" 'Please look.' )" yes
 
-printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-other rigOp "$rigTmp/i2" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
+echo "-- inbox: an inquiry is from its caller, and never over another member's item --"
+rigQ="$rigData/inboxes/rig-member/inquiry-20261006T0932Z-rig-asked.md"
+printf 'Spoofed.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q1" --member-upsert-member-inquiry rig-member "${rigQ##*/}" --from-member magic-coordinator
+rigAssert "a --from-member naming another member is refused, nothing written" "$( cat "$rigTmp/q1.rc" ):$( [ -f "$rigQ" ] && echo written || echo absent ):$( rigHolds "$rigTmp/q1" 'this session acts as rig-other' )" "1:absent:yes"
+printf 'Asked.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q2" --member-upsert-member-inquiry rig-member "${rigQ##*/}" --from-member rig-other
+rigAssert "naming itself writes the new item, from it"     "$( cat "$rigTmp/q2.rc" ):$( rigField "$rigQ" from )" "0:rig-other"
+printf -- '---\nfrom: magic-coordinator\n---\nOverwritten.\n' | RIG_AGENT=magic-coordinator rigOp "$rigTmp/q3" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
+rigAssert "another member cannot overwrite it"             "$( cat "$rigTmp/q3.rc" ):$( rigHolds "$rigQ" 'Asked.' ):$( rigHolds "$rigTmp/q3" 'written by rig-other, so magic-coordinator cannot overwrite it' )" "1:yes:yes"
+printf -- '---\nfrom: rig-other\n---\nAsked again.\n' | RIG_AGENT=rig-other rigOp "$rigTmp/q4" --member-upsert-member-inquiry rig-member "${rigQ##*/}"
+rigAssert "its author updates it"                           "$( cat "$rigTmp/q4.rc" ):$( rigHolds "$rigQ" 'Asked again.' )" "0:yes"
+
+printf -- '---\nowner: magic-coordinator\n---\nnote text\n' | RIG_AGENT=rig-member rigOp "$rigTmp/i2" --member-inbox-note-upsert rig-member note-20261006T0930Z-given.md --from-member magic-coordinator
 rigI2Path="$rigData/inboxes/rig-member/note-20261006T0930Z-given.md"
 rigAssert "--from-member wins over the session's member"   "$( cat "$rigTmp/i2.rc" ):$( rigField "$rigI2Path" from )" "0:magic-coordinator"
 rigAssert "a given owner is never overwritten"              "$( rigField "$rigI2Path" owner ):$( rigFieldCount "$rigI2Path" owner )" "magic-coordinator:1"
@@ -110,6 +121,18 @@ rigAssert "an old-shape name is still written, warned"     "$( cat "$rigTmp/i4.r
 printf 'misfiled\n' | rigOp "$rigTmp/i5" --member-inbox-note-upsert rig-member warning-20261006T0930Z-rig-misfiled.md
 rigAssert "a board type in an inbox is written, warned"    "$( cat "$rigTmp/i5.rc" ):$( rigHolds "$rigTmp/i5" 'is not an inbox type' )" "0:yes"
 
+echo "-- inbox: a note, a reflection and a trash are the inbox owner's own --"
+printf 'not mine to write\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a1" --member-inbox-note-upsert rig-member note-20261006T0931Z-other.md
+rigAssert "another member's session writes no note here"   "$( cat "$rigTmp/a1.rc" ):$( [ -f "$rigData/inboxes/rig-member/note-20261006T0931Z-other.md" ] && echo written || echo absent ):$( rigHolds "$rigTmp/a1" 'this session acts as rig-other' )" "1:absent:yes"
+printf 'a lesson\n' | RIG_AGENT=rig-other rigOp "$rigTmp/a2" --member-inbox-reflection-upsert rig-member reflection-20261006T0931Z-other.md
+rigAssert "nor a reflection"                                "$( cat "$rigTmp/a2.rc" ):$( [ -f "$rigData/inboxes/rig-member/reflection-20261006T0931Z-other.md" ] && echo written || echo absent )" "1:absent"
+printf 'a lesson\n' | RIG_AGENT=rig-member rigOp "$rigTmp/a3" --member-inbox-reflection-upsert rig-member reflection-20261006T0931Z-own.md
+rigAssert "its own session writes its own reflection"      "$( cat "$rigTmp/a3.rc" ):$( [ -f "$rigData/inboxes/rig-member/reflection-20261006T0931Z-own.md" ] && echo written || echo absent )" "0:written"
+RIG_AGENT=rig-other rigOp "$rigTmp/a4" --member-inbox-item-trash rig-member warning-20261006T0930Z-rig-misfiled.md
+rigAssert "another member's session trashes nothing here"  "$( cat "$rigTmp/a4.rc" ):$( [ -f "$rigData/inboxes/rig-member/warning-20261006T0930Z-rig-misfiled.md" ] && echo kept || echo gone )" "1:kept"
+RIG_AGENT=rig-member rigOp "$rigTmp/a5" --member-inbox-item-trash rig-member warning-20261006T0930Z-rig-misfiled.md
+rigAssert "its own session trashes its own item"           "$( cat "$rigTmp/a5.rc" ):$( [ -f "$rigData/inboxes/rig-member/warning-20261006T0930Z-rig-misfiled.md" ] && echo kept || echo gone )" "0:gone"
+
 echo "-- --member-inbox-to-processed --"
 rigOp "$rigTmp/p1" --member-inbox-to-processed rig-member "$rigI1"
 rigAssert "the member's own item is marked in place"        "$( cat "$rigTmp/p1.rc" ):$( [ -f "$rigI1Path" ] && echo still || echo gone ):$( [ -e "$rigData/inboxes/rig-member/processed" ] && echo folder || echo nofolder )" "0:still:nofolder"
@@ -120,6 +143,18 @@ RIG_AGENT=rig-member rigOp "$rigTmp/p3" --member-inbox-to-processed rig-member n
 rigAssert "its own session is not"                          "$( cat "$rigTmp/p3.rc" ):$( rigFieldCount "$rigI2Path" processed-at )" "0:1"
 rigOp "$rigTmp/p4" --librarian-inbox-to-processed rig-member 2026-07-22-note-legacy.md
 rigAssert "the librarian op still works"                    "$( cat "$rigTmp/p4.rc" ):$( rigFieldCount "$rigData/inboxes/rig-member/2026-07-22-note-legacy.md" processed-at )" "0:1"
+
+echo "-- a --magic-* op is magic-coordinator's, or the console's --"
+RIG_AGENT=rig-other rigOp "$rigTmp/m1" --magic-heartbeat-lock-status magic-coordinator
+rigAssert "another member's session is refused"            "$( cat "$rigTmp/m1.rc" ):$( rigHolds "$rigTmp/m1" "this session acts as rig-other, and magic-heartbeat-lock-status is magic-coordinator's only" )" "1:yes"
+RIG_AGENT=magic-coordinator rigOp "$rigTmp/m2" --magic-heartbeat-lock-status magic-coordinator
+rigAssert "the coordinator's own session is not"           "$( rigHolds "$rigTmp/m2" "is magic-coordinator's only" )" no
+rigOp "$rigTmp/m3" --magic-heartbeat-lock-status magic-coordinator
+rigAssert "nor the console"                                "$( rigHolds "$rigTmp/m3" "is magic-coordinator's only" )" no
+RIG_AGENT=rig-other rigOp "$rigTmp/m4" --magic-morning-review-input-scan rig-other
+rigAssert "a --magic-morning-review-* op is refused to another member's session too" "$( cat "$rigTmp/m4.rc" ):$( rigHolds "$rigTmp/m4" "is magic-coordinator's only" )" "1:yes"
+RIG_AGENT=rig-other rigOp "$rigTmp/m5" --magic-contact-digest-send rig-member rig-member --resolved rig digest
+rigAssert "--magic-contact-digest-send is refused to another member's session too" "$( cat "$rigTmp/m5.rc" ):$( rigHolds "$rigTmp/m5" "is magic-coordinator's only" )" "1:yes"
 
 echo "-- heartbeat: state write refreshes a held lock; board counts --"
 rigLock="$rigData/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"

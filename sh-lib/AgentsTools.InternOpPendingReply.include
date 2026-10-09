@@ -25,8 +25,8 @@
 ## first, then the bot, since which identity may react differs by conversation.
 ## `already_reacted` is a success of the react op. A failure is logged and changes nothing.
 AgentsToolsPendingReplyReact(){ ## member, <channel>:<ts>, emoji, pending id
-	DistroAgentsTools --member-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
-		|| DistroAgentsTools --member-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
+	DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
+		|| DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
 		|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
 	return 0
 }
@@ -49,7 +49,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
-		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## A typed question's own facts, kept so an answer can be classified and applied later.
@@ -65,6 +65,9 @@ case "$1" in
 				## Its tag within a thread several questions share, and the key a duplicate is found by.
 				--question-tag) pendingTag="${2:-}" ; shift 2 ;;
 				--question-key) pendingKey="${2:-}" ; shift 2 ;;
+				## The board item the ask belongs to: named directly, or found in AskUserQuestion's task_ref.
+				--item) pendingItem="${2:-}" ; shift 2 ;;
+				--task-ref) pendingTaskRef="${2:-}" ; shift 2 ;;
 				## The identity the question was posted under, so a reminder posts under the same one.
 				--ask-identity)
 					case "${2:-}" in
@@ -112,6 +115,14 @@ case "$1" in
 			set +e ; return 1
 		}
 		[ -n "$pendingBlockedOn" ] || pendingBlockedOn="reply from $pendingTo"
+		## The item its answer is recorded on: --item, else the first item task_ref names, else
+		## the session's own `spawns:` dispatch item, else none. Only an item on the board counts.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		if [ -n "$pendingItem" ] && AgentsToolsDecisionsItemPath "$pendingItem" > /dev/null ; then
+			pendingItem="${pendingItem##*/}" ; pendingItem="${pendingItem%.md}"
+		else
+			pendingItem="$( AgentsToolsDecisionsItemFromRef "$pendingTaskRef" "$pendingSession" 2>/dev/null )" || pendingItem=""
+		fi
 		{
 			printf '%s\n' "---"
 			printf 'status: %s\n' "reply-pending"
@@ -137,6 +148,7 @@ case "$1" in
 			[ -z "$pendingTag" ] || printf 'question-tag: %s\n' "${pendingTag//$'\n'/ }"
 			[ -z "$pendingKey" ] || printf 'question-key: %s\n' "${pendingKey//$'\n'/ }"
 			[ -z "$pendingIdentity" ] || printf 'ask-identity: %s\n' "$pendingIdentity"
+			[ -z "$pendingItem" ] || printf 'item: %s\n' "$pendingItem"
 			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'
@@ -169,9 +181,21 @@ case "$1" in
 		local pendingId="$1"
 		shift || true
 		local pendingStatus="" pendingVerdict="" pendingAnsweredBy="" pendingIfOpen="" pendingAnswerTs="" pendingMark=""
-		local pendingAmend="" pendingAmendedBy="" pendingAmendReason=""
+		local pendingAmend="" pendingAmendedBy="" pendingAmendReason="" pendingNoDecision=""
+		## Closed with no reaction: the main loop's pass closing an ask whose session still runs
+		## (--quiet, or MDAT_PENDING_CLOSE_QUIET=1 through the escalation op it calls).
+		local pendingQuiet="${MDAT_PENDING_CLOSE_QUIET:-}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--quiet)
+					pendingQuiet=1
+					shift
+				;;
+				## The answer came from the item's own Decisions, so it is not recorded there twice.
+				--no-decision)
+					pendingNoDecision=1
+					shift
+				;;
 				## The ts of the reply taken as the answer, marked :eyes: once the record is closed.
 				--answer-ts)
 					pendingAnswerTs="${2:-}"
@@ -312,13 +336,18 @@ case "$1" in
 		{ printf '%s\n' "$pendingBody" > "$pendingFile.$$" && mv -f "$pendingFile.$$" "$pendingFile" ; } \
 			|| { rm -f "$pendingFile.$$" ; AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		AgentsToolsLocalLockGive "$pendingLock"
+		## The outcome goes to the ask's item, where a reopened or continued task reads it.
+		if [ -z "$pendingNoDecision" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+			AgentsToolsDecisionsFromPending "$pendingId" "$pendingFile" "$pendingStatus" "$pendingAmend" "$pendingAnswerTs"
+		fi
 		## A resolved question shows it where people look: :eyes: on the reply taken as its
 		## answer, a mark on the question in its thread (:white_check_mark: answered,
 		## :ballot_box_with_check: settled), and :white_check_mark: on the thread's opener in
 		## the conversation once no question in that thread is open. Best effort, after the
 		## record is closed: a reaction that fails is logged and never undoes the close. Never
 		## an answer either: only an addressee's reaction answers.
-		if [ "$pendingStatus" = "reply-received" ] && [ -z "$pendingAmend" ] ; then
+		if [ "$pendingStatus" = "reply-received" ] && [ -z "$pendingAmend" ] && [ "$pendingQuiet" != "1" ] ; then
 			local reactOwner="" reactChannel="" reactQuestion="" reactThread="" reactTo="" reactKey reactValue
 			while IFS=$'\t' read -r reactKey reactValue ; do
 				case "$reactKey" in
@@ -362,7 +391,7 @@ case "$1" in
 		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-collect"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
-		local collectSession="" collectEnded="" collectId="" collectMark=""
+		local collectSession="" collectEnded="" collectId="" collectMark="" collectTyped=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id)
@@ -398,12 +427,46 @@ case "$1" in
 		else
 			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done \
 				< <( LC_ALL=C grep -r -l -x -F --include='*.md' "collect: ended" "$collectStore" 2>/dev/null )
+			## Only a spawn's own close marks its records ended, so an ask from any other session
+			## (a native or console one) was never collected and stayed pending for good. Every
+			## open one asked over MDAT_PENDING_COLLECT_STALE_MINUTES ago (default 120) is
+			## collected too, at most MDAT_PENDING_COLLECT_STALE_MAX (default 40) a pass, oldest
+			## first: a live session's wait finds it closed and says so, which costs nothing.
+			local collectStaleMinutes="${MDAT_PENDING_COLLECT_STALE_MINUTES:-120}" collectStaleMax="${MDAT_PENDING_COLLECT_STALE_MAX:-40}"
+			case "$collectStaleMinutes" in ''|*[!0-9]*) collectStaleMinutes=120 ;; esac
+			case "$collectStaleMax" in ''|*[!0-9]*) collectStaleMax=40 ;; esac
+			while IFS= read -r collectFile ; do collectFiles+=( "$collectFile" ) ; done < <(
+				LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$collectStore" 2>/dev/null \
+					| while IFS= read -r collectFile ; do
+						LC_ALL=C grep -q -x -F "collect: ended" "$collectFile" && continue
+						LC_ALL=C awk -v file="$collectFile" '$0 == "---" { if ( ++dashes == 2 ) { exit ; } next ; } dashes == 1 && index( $0, "question-ts: " ) == 1 { split( substr( $0, 14 ), part, "." ) ; print part[1] "\t" file ; exit ; }' "$collectFile" 2>/dev/null
+					done \
+					| LC_ALL=C awk -F '\t' -v cutoff="$(( $( date +%s ) - collectStaleMinutes * 60 ))" '$1 ~ /^[0-9]+$/ && $1 + 0 <= cutoff + 0' \
+					| while IFS=$'\t' read -r collectTs collectFile ; do
+						## Least recently checked first: a checked record is touched below, so one
+						## still unanswered goes to the back and the cap never starves newer asks.
+						printf '%s\t%s\n' "$( stat -f %m "$collectFile" 2>/dev/null || stat -c %Y "$collectFile" 2>/dev/null || printf '%s' "$collectTs" )" "$collectFile"
+					done \
+					| LC_ALL=C sort -n | head -n "$collectStaleMax" | cut -f2- )
+			collectTyped=1
 		fi
-		local collectOutcome collectAnswer collectLine collectOwner collectNoteId
+		local collectOutcome collectAnswer collectLine collectOwner collectNoteId collectQuiet="" collectRunning="" collectAskSession
+		## In the main loop's pass, an ask whose session is still running -- a stale ask of a
+		## live session, or a marked one whose session was joined again -- is closed silently:
+		## its answer and Decisions line are recorded and its blocker cleared, and no reaction
+		## and no "after your session ended" note go out. Its own wait finds it closed.
+		## Read once a pass, and only when there is something to collect.
+		[ -z "$collectEnded" ] || [ "${#collectFiles[@]}" -eq 0 ] || collectRunning="$( AgentsToolsPendingReplySessionsRunning )"
 		for collectFile in "${collectFiles[@]}" ; do
 			[ -f "$collectFile" ] || continue
+			collectQuiet=""
+			if [ -n "$collectEnded" ] ; then
+				collectAskSession="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" session-id )"
+				case "$collectRunning" in *" ${collectAskSession:-<none>} "*) collectQuiet=1 ;; esac
+			fi
 			collectLine="$( AgentsToolsPendingReplyCollectOne "$collectFile" )"
 			collectOutcome="${collectLine%% *}"
+			[ -z "$collectTyped" ] || [ ! -f "$collectFile" ] || touch "$collectFile" 2>/dev/null || :
 			case "$collectOutcome" in
 				''|SKIPPED) continue ;;
 			esac
@@ -411,7 +474,7 @@ case "$1" in
 			case "$collectOutcome" in
 				ANSWERED)
 					collectAnswered=$(( collectAnswered + 1 ))
-					if [ -n "$collectEnded" ] ; then
+					if [ -n "$collectEnded" ] && [ -z "$collectQuiet" ] ; then
 						## Its session is gone, so the answer goes to whoever next runs as the asker.
 						collectOwner="$( AgentsToolsPendingReplyCollectFieldOf "$collectFile" owner )"
 						collectNoteId="${collectFile##*/}" ; collectNoteId="${collectNoteId%.md}"
@@ -440,6 +503,89 @@ case "$1" in
 			fi
 		done
 		printf 'COLLECT: answered=%s unmatched=%s open=%s unreadable=%s\n' "$collectAnswered" "$collectUnmatched" "$collectOpen" "$collectUnreadable"
+		return 0
+	;;
+
+	## Before a question is asked: the answer it already has, so it is not asked again. Read-only.
+	## The session's own closed records first -- same addressee and kind, and the same key or the
+	## same first line compared loosely -- newest first; then the item's `## Decisions`, then
+	## those of the item it `tracks:` (EARLIER-DECISION then names that item). A
+	## permission is matched only on the same refusal, or by a deny, since an allow needs a grant
+	## of its own; Decisions never answer one. The question text is read from stdin. Prints one of
+	##   EARLIER-RECORD <id> | <verdict> | <answered-by> | <resolved-at>
+	##   EARLIER-DECISION <item> | <Decisions line>
+	## or nothing, rc 0, when no answer is known.
+	--intern-op-pending-reply-earlier)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-earlier"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		local earlyMember="${1:-}" earlySession="" earlyKey="" earlyKind="question" earlyRefusal="" earlyAddress="" earlyTaskRef="" earlyItem="" earlyQuestion
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id|--question-key|--kind|--refusal-id|--address-to|--task-ref|--item|--context)
+					[ $# -ge 2 ] || { echo "$MDSC_CMD: ⛔ ERROR: $1 requires a value" >&2 ; set +e ; return 1 ; }
+					case "$1" in
+						--session-id) earlySession="$2" ;;
+						--question-key) earlyKey="$2" ;;
+						--kind) earlyKind="${2:-question}" ;;
+						--refusal-id) earlyRefusal="$2" ;;
+						--address-to) earlyAddress="$2" ;;
+						--task-ref) earlyTaskRef="$2" ;;
+						--item) earlyItem="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		[ -n "$earlyMember" ] || { echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> [--session-id <id>] [--question-key <key>] [--kind <kind>] [--refusal-id <id>] [--address-to <party>] [--task-ref <text>|--item <item>] -- the question text is read from stdin" >&2 ; set +e ; return 1 ; }
+		earlyQuestion="$( cat )"
+		local earlyFirst earlyFile earlyBest="" earlyBestEpoch=-1
+		earlyFirst="$( AgentsToolsDecisionsNorm "$( printf '%s\n' "$earlyQuestion" | LC_ALL=C awk '$0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print ; exit ; }' )" )"
+		if [ -n "$earlySession" ] && [ -d "$MMDAPP/.local/agents/pending" ] ; then
+			while IFS= read -r earlyFile ; do
+				[ -f "$earlyFile" ] || continue
+				earlyBest="$( LC_ALL=C awk -v wantKey="$earlyKey" -v wantKind="$earlyKind" -v wantRefusal="$earlyRefusal" -v wantTo="$earlyAddress" -v best="$earlyBest" -v bestEpoch="$earlyBestEpoch" -v wantFirst="$earlyFirst" '
+					function norm( text ) { text = tolower( text ) ; gsub( /[^a-z0-9]+/, " ", text ) ; sub( /^ /, "", text ) ; sub( / $/, "", text ) ; return text ; }
+					$0 == "---" { dashes++ ; next ; }
+					dashes == 1 { colon = index( $0, ": " ) ; if ( colon > 1 ) { key = substr( $0, 1, colon - 1 ) ; if ( ! ( key in val ) ) { val[key] = substr( $0, colon + 2 ) ; } } next ; }
+					dashes >= 2 && $0 !~ /^#/ && $0 !~ /^[ \t]*$/ { first = $0 ; exit ; }
+					END {
+						kind = ( val["kind"] == "" ? "question" : val["kind"] ) ;
+						same = ( wantKey != "" && val["question-key"] == wantKey ) || ( length( wantFirst ) >= 12 && norm( first ) == wantFirst ) ;
+						taken = ( val["status"] == "reply-received" && kind == wantKind && same && ( wantTo == "" || val["address-to"] == wantTo ) ) ;
+						if ( taken && kind == "permission" && val["refusal-id"] != wantRefusal && val["verdict"] != "deny" ) { taken = 0 ; }
+						epoch = val["resolved-epoch"] + 0 ;
+						if ( taken && epoch > bestEpoch + 0 ) {
+							id = FILENAME ; sub( /^.*\//, "", id ) ; sub( /\.md$/, "", id ) ;
+							printf "%s\tEARLIER-RECORD %s | %s | %s | %s\n", epoch, id, val["verdict"], val["answered-by"], val["resolved-at"] ;
+						} else if ( best != "" ) { printf "%s\t%s\n", bestEpoch, best ; }
+					}
+				' "$earlyFile" 2>/dev/null )" || earlyBest=""
+				earlyBestEpoch="${earlyBest%%$'\t'*}" ; earlyBest="${earlyBest#*$'\t'}"
+				[ -n "$earlyBest" ] || earlyBestEpoch=-1
+			done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "session-id: $earlySession" "$MMDAPP/.local/agents/pending" 2>/dev/null )
+		fi
+		if [ -n "$earlyBest" ] ; then
+			printf '%s\n' "$earlyBest"
+			return 0
+		fi
+		[ "$earlyKind" != "permission" ] || return 0
+		if [ -n "$earlyItem" ] ; then
+			earlyItem="${earlyItem##*/}" ; earlyItem="${earlyItem%.md}"
+		else
+			earlyItem="$( AgentsToolsDecisionsItemFromRef "$earlyTaskRef" "$earlySession" 2>/dev/null )" || earlyItem=""
+		fi
+		local earlyPath earlyLine
+		[ -n "$earlyItem" ] && earlyPath="$( AgentsToolsDecisionsItemPath "$earlyItem" )" || return 0
+		## The item's own Decisions, then those of the task it `tracks:`, which a new dispatch shares.
+		earlyLine="$( AgentsToolsDecisionsEarlierTracked "$earlyPath" "$earlyQuestion" )" || return 0
+		printf 'EARLIER-DECISION %s\n' "$earlyLine"
 		return 0
 	;;
 

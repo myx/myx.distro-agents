@@ -65,7 +65,7 @@ AgentsToolsPendingReplyRemindQuestion(){ ## record file
 ## then magic-team's), else chat.getPermalink, else the plain <channel>:<ts> reference.
 AgentsToolsPendingReplyRemindLink(){ ## owner, channel, question ts, thread ts
 	local linkDomain="" linkUrl=""
-	linkDomain="$( DistroAgentsTools --member-config-option "$1" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || linkDomain=""
+	linkDomain="$( DistroAgentsTools --agents-config-option "$1" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || linkDomain=""
 	[ -n "$linkDomain" ] || linkDomain="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || linkDomain=""
 	if [ -n "$linkDomain" ] ; then
 		linkDomain="${linkDomain#https://}" ; linkDomain="${linkDomain%%/*}"
@@ -121,9 +121,9 @@ AgentsToolsPendingReplyRemindSend(){ ## owner, identity, target, address to, tex
 	local sendOut sendRc=0
 	sendOut="$( mktemp "$MMDAPP/.local/temp/mdat-pending-remind-send.XXXXXX" )" || { printf 'no work file\n' ; return 1 ; }
 	if [ "$2" = "bot" ] ; then
-		printf '%s' "$5" | DistroAgentsTools --member-comms-slack-send-message "$1" "$3" --address-to "$4" --identity-bot --from-stdin > "$sendOut" 2>&1 || sendRc=$?
+		printf '%s' "$5" | DistroAgentsTools --intern-op-comms-slack-send-message "$1" "$3" --address-to "$4" --identity-bot --from-stdin > "$sendOut" 2>&1 || sendRc=$?
 	else
-		printf '%s' "$5" | DistroAgentsTools --member-comms-slack-send-message "$1" "$3" --address-to "$4" --from-stdin > "$sendOut" 2>&1 || sendRc=$?
+		printf '%s' "$5" | DistroAgentsTools --intern-op-comms-slack-send-message "$1" "$3" --address-to "$4" --from-stdin > "$sendOut" 2>&1 || sendRc=$?
 	fi
 	if [ "$sendRc" != "0" ] ; then
 		printf 'rc=%s %s\n' "$sendRc" "$( LC_ALL=C grep -m1 'ERROR' "$sendOut" | LC_ALL=C tr -s '\t' ' ' )"
@@ -236,7 +236,14 @@ AgentsToolsPendingReplyRemindRun(){
 			IFS=$'\t' read -r _ _ _ _ _ _ dOwner dIdentity _ < "$remindWork/group"
 			{
 				printf '⏰ %s questions are still waiting for your answer:\n\n' "$remindCount"
+				## Slack refuses an over-long message, so the digest lists the oldest ones only.
+				local remindListed=0 remindListCap="${MDAT_PENDING_REMIND_DIGEST_MAX:-20}"
 				while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
+					remindListed=$(( remindListed + 1 ))
+					if [ "$remindListed" -gt "$remindListCap" ] ; then
+						printf -- '- ...and %s more, newer than these\n' "$(( remindCount - remindListCap ))"
+						break
+					fi
 					remindExcerpt="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C tr -s ' \t\n' '   ' | LC_ALL=C sed 's/^ //;s/ $//' )"
 					[ "${#remindExcerpt}" -le 100 ] || remindExcerpt="${remindExcerpt:0:100}..."
 					remindLink="$( AgentsToolsPendingReplyRemindLink "$rOwner" "$rChannel" "$rQts" "$rTts" < /dev/null )"

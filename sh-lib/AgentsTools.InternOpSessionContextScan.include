@@ -505,7 +505,7 @@ case "$1" in
 					## Presence only -- reduced to a boolean on the next lines and
 					## dropped. No credential is compared, stored or printed.
 					local ownTokenPresent=""
-					ownTokenPresent="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_USER_TOKEN )" || ownTokenPresent=""
+					ownTokenPresent="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || ownTokenPresent=""
 					slackOwnCredentials="false"
 					[ -z "$ownTokenPresent" ] || slackOwnCredentials="true"
 					ownTokenPresent=""
@@ -526,7 +526,7 @@ case "$1" in
 					slackRosterTypesArg=( --types im,mpim,public_channel,private_channel )
 
 					local configuredSource
-					configuredSources="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
+					configuredSources="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_CONVERSATIONS )" || configuredSources=""
 					for configuredSource in ${configuredSources//,/ } ; do
 						slackSourceSpecs+=( "user|$configuredSource|$configuredSource|" )
 					done
@@ -542,7 +542,7 @@ case "$1" in
 				fi
 				local ownSlackId="" ownResolveOutput=""
 				if [ "$slackOwnCredentials" = "true" ] ; then
-					ownResolveOutput="$( DistroAgentsTools --magic-comms-slack-resolve-ids "$actingMember" )" || true
+					ownResolveOutput="$( DistroAgentsTools --intern-op-comms-slack-resolve-ids "$actingMember" )" || true
 				fi
 				ownSlackId="$( printf '%s\n' "$ownResolveOutput" | LC_ALL=C sed -n 's/^AUTH_USER_ID=//p' | head -1 )" || ownSlackId=""
 				if [ -z "$ownSlackId" ] && [ "$slackOwnCredentials" = "true" ] ; then
@@ -573,7 +573,7 @@ case "$1" in
 				## there may be turned into a DM scope test.)
 				local dmRosterOutput="" dmRosterRc=0
 				if [ "$slackOwnCredentials" = "true" ] ; then
-					dmRosterOutput="$( DistroAgentsTools --magic-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg \
+					dmRosterOutput="$( DistroAgentsTools --intern-op-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg \
 						"${slackRosterTypesArg[@]+"${slackRosterTypesArg[@]}"}" )" || dmRosterRc=$?
 				else
 					dmRosterRc=4
@@ -693,7 +693,7 @@ case "$1" in
 				if [ "$commsDoSlackTags" = "true" ] ; then
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					local mentionUserToken=""
-					mentionUserToken="$( DistroAgentsTools --member-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
+					mentionUserToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
 					local mentionHasToken="false"
 					[ -z "$mentionUserToken" ] || mentionHasToken="true"
 					mentionUserToken=""
@@ -1257,7 +1257,7 @@ case "$1" in
 					}
 				' )" || threadOrder=""
 
-				local threadEst threadCheckedDone=-1 threadDone threadAbove threadInFlight
+				local threadEst threadCheckedDone=-1 threadCheckedEst="" threadDone threadAbove threadInFlight
 				while read -r dtIndex dt threadEst ; do
 					[ -n "$dt" ] || continue
 					if [ "$threadCapEngaged" = "true" ] && [ -n "$threadEst" ] ; then
@@ -1267,8 +1267,10 @@ case "$1" in
 							continue
 						fi
 						threadDone="$( ls -1 "$threadFetchWorkDir" | LC_ALL=C grep -c '^status\.' || : )"
-						if [ "$threadDone" != "$threadCheckedDone" ] ; then
+						## The count depends on both: the reads finished and this thread's own recency.
+						if [ "$threadDone" != "$threadCheckedDone" ] || [ "$threadEst" != "$threadCheckedEst" ] ; then
 							threadCheckedDone="$threadDone"
+							threadCheckedEst="$threadEst"
 							threadAbove="$( AgentsSessionContextImGroupsAbove "$threadEst" )" || threadAbove=0
 						fi
 						## Reads still in flight could tip it: wait for them, only then.
@@ -1277,6 +1279,7 @@ case "$1" in
 							&& [ $(( ${threadAbove:-0} + threadInFlight )) -ge "$sessionContextCapIm" ] ; then
 							wait
 							threadCheckedDone="$( ls -1 "$threadFetchWorkDir" | LC_ALL=C grep -c '^status\.' || : )"
+							threadCheckedEst="$threadEst"
 							threadAbove="$( AgentsSessionContextImGroupsAbove "$threadEst" )" || threadAbove=0
 						fi
 						if [ "${threadAbove:-0}" -ge "$sessionContextCapIm" ] ; then
@@ -1450,7 +1453,7 @@ case "$1" in
 				fi
 				local trelloWhoami="" trelloUser="" trelloId=""
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					trelloWhoami="$( DistroAgentsTools --member-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
+					trelloWhoami="$( DistroAgentsTools --intern-op-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
 					trelloUser="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USERNAME=//p' | head -1 )" || trelloUser=""
 					trelloId="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USER_ID=//p' | head -1 )" || trelloId=""
 				fi
@@ -1460,7 +1463,7 @@ case "$1" in
 				local trelloJson
 				## The ACTING MEMBER, same reason as the email check above.
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					trelloJson="$( DistroAgentsTools --member-comms-trello-check "$actingMember" )" || trelloFailed="true"
+					trelloJson="$( DistroAgentsTools --intern-op-comms-trello-check "$actingMember" )" || trelloFailed="true"
 				fi
 				if [ "$trelloNotConfigured" = "false" ] && [ "$trelloFailed" = "false" ] ; then
 					trelloBlocks="$( printf '%s\n' "$trelloJson" | LC_ALL=C awk -v kind=trello -f "$commsItemsAwk" )" || {
@@ -1807,6 +1810,12 @@ case "$1" in
 		fi
 
 		local h val mi
+		## Each item's token totals, summed now over what sits under it, never stored
+		## (AgentsTools.SessionTranscript.include); one read of the board for all of them.
+		local boardTokenRows=""
+		if [ ${#matchedFiles[@]} -gt 0 ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
+			boardTokenRows="$( AgentsSessionTokensRollupRows "${matchedFiles[@]##*/}" 2>/dev/null )"
+		fi
 		mi=0
 		while [ "$mi" -lt "${#matchedFiles[@]}" ] ; do
 			f="${matchedFiles[$mi]}"
@@ -1815,11 +1824,17 @@ case "$1" in
 			base="${f##*/}"
 
 			printf '## %s/%s\n' "$state" "$base"
+			## An item the scan was named for (one task's own input) shows its Decisions first: they bind it.
+			if [ ${#items[@]} -gt 0 ] ; then
+				type AgentsToolsDecisionsBlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+				AgentsToolsDecisionsBlock "$f" 30 | LC_ALL=C sed 's/^## /### /' || :
+			fi
 			if [ ${#headers[@]} -eq 0 ] ; then
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrint.awk" "$f"
 			else
 				LC_ALL=C awk -v headers="$headersJoined" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$f"
 			fi
+			[ -z "$boardTokenRows" ] || AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$boardTokenRows" "$base" )" tokens-total
 			printf '\n'
 		done
 

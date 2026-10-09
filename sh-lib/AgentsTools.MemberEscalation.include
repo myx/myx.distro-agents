@@ -67,8 +67,9 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		return 0
 	fi
 	applyKind="$( AgentsToolsEscalationField "$applyFile" kind )"
+	## Its Decisions line is written below, once the verdict text is on the record too.
 	DistroAgentsTools --intern-op-pending-reply-close "$applyId" --status reply-received --verdict "$applyVerdict" --answered-by "$applyBy" \
-		--context escalation > /dev/null 2>&1 || {
+		--no-decision --context escalation > /dev/null 2>&1 || {
 		## The lock goes with the failed close, or the record could never be answered again.
 		rmdir "${applyFile%.md}.answered" 2>/dev/null || :
 		echo "$MDSC_CMD: ⛔ ERROR: the verdict $applyVerdict for $applyId could not be recorded, so it is not applied" >&2
@@ -93,6 +94,9 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	[ -z "$applyGrant" ] || set -- "$@" grant "${applyGrant#GRANT: }"
 	[ $# -eq 0 ] || AgentsToolsEscalationUpsert "$applyFile" "$@" \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but its text or grant line is not kept on $applyId" >&2
+	## The verdict, with its text, on the ask's item, where a reopened task reads it.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+	AgentsToolsDecisionsFromPending "$applyId" "$applyFile" reply-received "" ""
 	printf 'ESCALATION: %s answered\n' "$applyId"
 	printf 'VERDICT: %s\n' "$applyVerdict"
 	[ -z "$applyText" ] || printf 'VERDICT-TEXT: %s\n' "$applyText"
@@ -107,7 +111,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 	local threadMember="$1" threadFile="$2" threadPending="$3" threadChannel="$4" threadQuestion="$5" threadRoot="$6" threadAuthors="$7" threadAsBot="${8:-}"
 	local threadWork threadRc=0 threadVerdict threadAuthor threadAsking threadOptions=""
 	[ -n "$threadChannel" ] && [ -n "$threadQuestion" ] && [ -n "$threadRoot" ] && [ -n "$threadAuthors" ] || { printf 'UNCLASSIFIED\t\n' ; return 0 ; }
-	threadWork="$( DistroAgentsTools --member-comms-slack-read "$threadMember" "$threadChannel:$threadRoot" --thread ${threadAsBot:+--identity-bot} 2> /dev/null )" || threadRc=$?
+	threadWork="$( DistroAgentsTools --intern-op-comms-slack-read "$threadMember" "$threadChannel:$threadRoot" --thread ${threadAsBot:+--identity-bot} 2> /dev/null )" || threadRc=$?
 	[ ! -f "${threadFile%.md}.options" ] || threadOptions="$( cat "${threadFile%.md}.options" )"
 	## A thread several questions share (AgentsTools.AskThread.include): a reply with no number
 	## answers the latest question above it; one after that question closed is set aside, and
@@ -154,9 +158,18 @@ AgentsToolsEscalationRecord(){ ## request id
 
 case "$1" in
 
+	## The member stub. It reads threads under the named member's own credentials, so a
+	## spawned session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+	## --intern-op-escalation-read implementation below directly.
 	--member-escalation-read)
+		[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-escalation-read "${@:2}"
+		return $?
+	;;
+
+	--intern-op-escalation-read)
 		shift
-		MDSC_CMD="$MDSC_CMD --member-escalation-read"
+		MDSC_CMD="$MDSC_CMD --intern-op-escalation-read"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local readMember="$1" readId="$2" readFile readStatus readKind readVerdict readText=""
 		if [ -z "$readMember" ] || [ -z "$readId" ] ; then
@@ -202,9 +215,12 @@ case "$1" in
 		return 0
 	;;
 
-	--member-escalation-answer)
+	## The addressee answers as itself. The --magic-* stub is the coordinator answering a
+	## question addressed to another member, on its behalf, signed as the coordinator.
+	--member-escalation-answer|--magic-escalation-answer)
+		local answerOp="$1"
 		shift
-		MDSC_CMD="$MDSC_CMD --member-escalation-answer"
+		MDSC_CMD="$MDSC_CMD $answerOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local answerMember="$1" answerId="$2" answerVerdict="$3" answerText="${4:-}" answerFile answerKind answerOwner answerTo answerOptionLine answerFound=""
 		if [ -z "$answerMember" ] || [ -z "$answerId" ] || [ -z "$answerVerdict" ] ; then
@@ -212,12 +228,18 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$answerMember" "<team-member>" escalation-answer || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$answerMember" "${answerOp#--}" || { set +e ; return 1 ; }
+		if [ "$answerOp" = "--magic-escalation-answer" ] && [ "$answerMember" != "magic-coordinator" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: only magic-coordinator answers on another member's behalf, not $answerMember -- the addressee answers with --member-escalation-answer" >&2
+			set +e ; return 1
+		fi
 		answerFile="$( AgentsToolsEscalationRecord "$answerId" )" || { set +e ; return 1 ; }
 		answerKind="$( AgentsToolsEscalationField "$answerFile" kind )"
 		answerOwner="$( AgentsToolsEscalationField "$answerFile" owner )"
 		answerTo="$( AgentsToolsEscalationField "$answerFile" address-to )"
-		## Only the member the question was addressed to answers it, and never the one who asked.
-		if [ "$answerMember" != "$answerTo" ] || [ "$answerMember" = "$answerOwner" ] ; then
+		## Only the member the question was addressed to answers it, or the coordinator on its
+		## behalf, and never the one who asked.
+		if { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerTo" ] ; } || [ "$answerMember" = "$answerOwner" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it" >&2
 			set +e ; return 1
 		fi
@@ -263,7 +285,7 @@ case "$1" in
 		AgentsToolsEscalationApply "$answerFile" "$answerId" "$answerVerdict" "$answerText" "$answerMember" "$answerSession" || { set +e ; return 1 ; }
 		## Said in the question's thread too, so the people there see it was answered and by whom.
 		[ -z "$( AgentsToolsEscalationField "$answerFile" channel )" ] || printf '%s\n' "Answered by $answerMember: $answerVerdict${answerText:+ -- $answerText}" \
-			| DistroAgentsTools --member-comms-slack-send-message "$answerMember" \
+			| DistroAgentsTools --intern-op-comms-slack-send-message "$answerMember" \
 				"$( AgentsToolsEscalationField "$answerFile" channel ):$( AgentsToolsEscalationField "$answerFile" thread-ts )" --from-stdin > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but it was not said in the question's thread" >&2
 		return 0
@@ -288,10 +310,27 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: $forwardId is not open, so there is nothing to forward" >&2
 			set +e ; return 1
 		fi
+		## Not forwarded when it is already answered: by an earlier ask of the same session, or in its item's Decisions.
+		local forwardEarlier=""
+		forwardEarlier="$( LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$forwardFile" \
+			| DistroAgentsTools --intern-op-pending-reply-earlier "$forwardBy" \
+				--kind "$( AgentsToolsEscalationField "$forwardFile" kind )" \
+				--session-id "$( AgentsToolsEscalationField "$forwardFile" session-id )" \
+				--question-key "$( AgentsToolsEscalationField "$forwardFile" question-key )" \
+				--address-to "$( AgentsToolsEscalationField "$forwardFile" address-to )" \
+				--refusal-id "$( AgentsToolsEscalationField "$forwardFile" refusal-id )" \
+				--item "$( AgentsToolsEscalationField "$forwardFile" item )" 2>/dev/null \
+			| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || forwardEarlier=""
+		if [ -n "$forwardEarlier" ] ; then
+			printf 'ESCALATION: %s answered-earlier\n' "$forwardId"
+			printf '%s\n' "$forwardEarlier"
+			echo "⚠️ WARNING: $MDSC_CMD: $forwardId was not forwarded: the same question already has an answer, shown above; answer it with --member-escalation-answer" >&2
+			return 0
+		fi
 		forwardOut="$( {
 			printf 'Forwarded by %s. The answer in this thread is the verdict for request %s.\n\n' "$forwardBy" "$forwardId"
 			LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$forwardFile"
-		} | DistroAgentsTools --member-comms-slack-send-message "$forwardBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+		} | DistroAgentsTools --intern-op-comms-slack-send-message "$forwardBy" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
 			echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $forwardId is still answered only where it was asked: $( LC_ALL=C grep -m1 '⛔' <<< "$forwardOut" )" >&2
 			set +e ; return 1
 		}

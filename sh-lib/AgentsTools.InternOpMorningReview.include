@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternOpMorningReview.include -- magic-librarian.morning-review.routine's
+## own input scan: the --intern-op-morning-review-input-scan implementation and the
+## --magic-morning-review-input-scan stub magic-coordinator calls. Sourced from the dispatcher's
+## `--intern-op-morning-review-*|--magic-morning-review-*` arm; relies on being dot-sourced
+## for $1/$@/$MDSC_CMD.
+##
+## The scan returns this caller's own cut-off, the board's current state shape (counts, and a
+## capped header-only sample of items whose headers contradict their state), and the
+## skillset files changed since the cut-off, names only. EVERY CALLER KEEPS ITS OWN CUT-OFF,
+## in a fixed record in its own inbox, moved only by --magic-morning-review-state-advance.
+##
+## Exit status: 0 every source read, 2 some read (each gap is a `**NOTE:** partial`
+## line), 1 none.
+##
+
+## Prints the path of <member>'s own morning-review cut-off record.
+AgentsToolsMorningReviewStatePath(){ ## member
+	printf '%s\n' "$MDAT_DATA_ROOT/inboxes/$1/note-20261008T000000Z-morning-review-state.md"
+}
+
+## Prints <member>'s own stored `last_reviewed_ts`: rc 0 found, rc 3 nothing stored yet,
+## rc 1 a record that cannot be read (never read as "nothing stored").
+AgentsToolsMorningReviewStoredTs(){ ## member
+	local storedTarget storedTs
+	storedTarget="$( AgentsToolsMorningReviewStatePath "$1" )"
+	[ -f "$storedTarget" ] || return 3
+	storedTs="$( LC_ALL=C awk '
+		NR == 1 && $0 == "---" { inFm = 1 ; sawFm = 1 ; next }
+		inFm && $0 == "---" { inFm = 0 ; closed = 1 ; exit }
+		inFm && index($0, "last_reviewed_ts:") == 1 { v = substr($0, 18) ; gsub(/^[ \t]+|[ \t]+$/, "", v) }
+		END { if (!sawFm || !closed) exit 1 ; if (v == "") exit 3 ; print v }
+	' "$storedTarget" )" || return $?
+	case "$storedTs" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+	printf '%s\n' "$storedTs"
+}
+
+## Prints epoch <ts> as local `YYYY-MM-DD HH:MM:SS`, the form --librarian-list-team-files-dates
+## prints, or nothing when it cannot be converted.
+AgentsToolsMorningReviewLocalTime(){ ## epoch
+	date -r "$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -d "@$1" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || :
+}
+
+case "$1" in
+
+	## The stub, magic-coordinator's (the dispatcher refuses any other member's session):
+	## <team-member> is one of the routine's executors, then the implementation.
+	--magic-morning-review-input-scan|--magic-morning-review-state-advance)
+		local mrStubOp="$1"
+		shift
+		local mrStubMember="${1:-}"
+		case "$mrStubMember" in
+			magic-coordinator|magic-librarian) ;;
+			'')
+				echo "⛔ ERROR: $MDSC_CMD $mrStubOp: <team-member> required" >&2
+				set +e ; return 1
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $mrStubOp: unsupported caller: $mrStubMember (allowed: magic-coordinator | magic-librarian, the routine's executors). SEE Skill magic-librarian/magic-librarian.morning-review.routine.md" >&2
+				set +e ; return 1
+			;;
+		esac
+		DistroAgentsTools "--intern-op-${mrStubOp#--magic-}" "$@" --context "$mrStubOp"
+		return $?
+	;;
+
+	--intern-op-morning-review-input-scan)
+		shift
+		local mrMember="${1:-}" mrContext="--intern-op-morning-review-input-scan"
+		shift || true
+		if [ "${1:-}" = "--context" ] && [ -n "${2:-}" ] ; then mrContext="$2" ; shift 2 ; fi
+		if [ -z "$mrMember" ] || [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: syntax is <team-member>, no other arguments -- an input-scan reads all baseline-relevant items itself. SEE Skill magic-librarian/magic-librarian.morning-review.routine.md" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$mrMember" "<team-member>" morning-review-input-scan || { set +e ; return 1 ; }
+		if [ -z "${MDAT_DATA_ROOT:-}" ] || [ ! -d "$MDAT_DATA_ROOT/board" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: no board to read -- MDAT_DATA_ROOT is not set or has no board/" >&2
+			set +e ; return 1
+		fi
+		local mrDefaultDays=7 mrSampleCap=3 mrFilesCap=20
+		local mrPartial="" mrSourcesRead=0 mrNow mrSince="" mrSinceFrom="" mrStoredRc=0
+		mrNow="$( date +%s )"
+
+		## The cut-off: this caller's own, else the default window.
+		mrSince="$( AgentsToolsMorningReviewStoredTs "$mrMember" )" || mrStoredRc=$?
+		case "$mrStoredRc" in
+			0) mrSinceFrom="stored" ;;
+			3) mrSince="$(( mrNow - mrDefaultDays * 86400 ))" ; mrSinceFrom="default, $mrDefaultDays days, nothing stored yet" ;;
+			*) mrSince="" ; mrPartial="$mrPartial**NOTE:** partial -- $mrMember's cut-off record $( AgentsToolsMorningReviewStatePath "$mrMember" ) cannot be read, so the changed files are not listed"$'\n' ;;
+		esac
+		printf '## cutoff (morning-review, %s)\n\n' "$mrMember"
+		if [ -n "$mrSince" ] ; then
+			printf 'since: %s (%s) -- %s\n' "$mrSince" "$( AgentsToolsMorningReviewLocalTime "$mrSince" )" "$mrSinceFrom"
+		else
+			printf 'since: unknown\n'
+		fi
+		printf 'next: %s -- at close: --magic-morning-review-state-advance %s %s\n' "$mrNow" "$mrMember" "$mrNow"
+
+		## State shape: live counts, then the sample.
+		printf '\n## state shape\n\n'
+		local mrState mrFile mrN mrCounts="" mrShapeFiles=()
+		for mrState in backlog pending running review blocked parked processed archived retained ; do
+			mrN=0
+			for mrFile in "$MDAT_DATA_ROOT/board/$mrState"/*.md ; do
+				[ -f "$mrFile" ] || continue
+				mrN=$(( mrN + 1 ))
+				case "$mrState" in running|review|blocked|parked|processed) mrShapeFiles+=( "$mrFile" ) ;; esac
+			done
+			mrCounts="$mrCounts${mrCounts:+, }$mrState $mrN"
+		done
+		printf 'counts: %s\n\n' "$mrCounts"
+		## Sessions the spawned-sessions registry knows and holds none live (as advance reads them).
+		local mrEndedFile="" mrRegistryText=""
+		mrEndedFile="$( mktemp "${TMPDIR:-/tmp}/mdat-morning-review-ended.XXXXXX" )" || mrEndedFile=""
+		if [ -n "$mrEndedFile" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2>/dev/null ; then
+			mrRegistryText="$( AgentsToolsRegistryRenderSpawnedSessions agents 2>/dev/null )" || mrRegistryText=""
+			case "$mrRegistryText" in
+				*"no spawn sandbox root exists"*) : ;;
+				""|*"**NOTE:** no scan was made"*)
+					mrPartial="$mrPartial**NOTE:** partial -- the spawned-sessions registry could not be read, so running-session-ended is not checked"$'\n'
+				;;
+				*)
+					printf '%s\n' "$mrRegistryText" | LC_ALL=C awk '
+						NF == 13 { seen[$2] = 1 ; if ($13 == "running" || $13 == "waiting") live[$2] = 1 }
+						END { for (s in seen) if (!(s in live) && s != "-") print s }
+					' > "$mrEndedFile"
+				;;
+			esac
+		else
+			mrPartial="$mrPartial**NOTE:** partial -- the spawned-sessions registry could not be read, so running-session-ended is not checked"$'\n'
+		fi
+		if LC_ALL=C awk -v cap="$mrSampleCap" -v width=100 -v endedFile="$mrEndedFile" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMorningReviewStateShape.awk" \
+			"${mrShapeFiles[@]+"${mrShapeFiles[@]}"}" ; then
+			mrSourcesRead=$(( mrSourcesRead + 1 ))
+		else
+			mrPartial="$mrPartial**NOTE:** partial -- the state-shape sample could not be computed"$'\n'
+		fi
+		[ -z "$mrEndedFile" ] || rm -f -- "$mrEndedFile"
+
+		## Skillset files changed since the cut-off: names only, newest first.
+		printf '\n## skillset files changed since cutoff\n\n'
+		local mrSinceLocal="" mrListed="" mrChanged="" mrChangedN=0 mrFilesListed="false"
+		if [ -n "$mrSince" ] ; then
+			mrSinceLocal="$( AgentsToolsMorningReviewLocalTime "$mrSince" )"
+			if [ -z "$mrSinceLocal" ] ; then
+				mrPartial="$mrPartial**NOTE:** partial -- the cut-off could not be turned into a local time, so the changed files are not listed"$'\n'
+			elif [ -z "${MDAT_SKILLSET_ROOT:-}" ] || [ ! -d "$MDAT_SKILLSET_ROOT" ] ; then
+				mrPartial="$mrPartial**NOTE:** partial -- no skillset root, so the changed files are not listed"$'\n'
+			elif mrListed="$( DistroAgentsTools --librarian-list-team-files-dates 2>/dev/null )" ; then
+				mrChanged="$( printf '%s\n' "$mrListed" | LC_ALL=C awk -v since="$mrSinceLocal" 'length($0) > 21 && substr($0, 1, 19) > since { print substr($0, 22) }' )"
+				[ -z "$mrChanged" ] || mrChangedN="$( printf '%s\n' "$mrChanged" | LC_ALL=C awk 'END { print NR }' )"
+				if [ "$mrChangedN" -gt "$mrFilesCap" ] ; then
+					printf 'changed: %s (capped, %s shown)\n' "$mrChangedN" "$mrFilesCap"
+				else
+					printf 'changed: %s\n' "$mrChangedN"
+				fi
+				[ -z "$mrChanged" ] || printf '%s\n' "$mrChanged" | head -n "$mrFilesCap"
+				mrSourcesRead=$(( mrSourcesRead + 1 ))
+				mrFilesListed="true"
+			else
+				mrPartial="$mrPartial**NOTE:** partial -- --librarian-list-team-files-dates failed, so the changed files are not listed"$'\n'
+			fi
+		fi
+		[ "$mrFilesListed" = "true" ] || printf '(not listed)\n'
+
+		if [ -n "$mrPartial" ] ; then
+			printf '\n%s' "$mrPartial"
+			[ "$mrSourcesRead" -gt 0 ] || { set +e ; return 1 ; }
+			set +e ; return 2
+		fi
+		return 0
+	;;
+
+	## Moves ONE caller's own cut-off to <ts>, the scan's own `next:` value. Equal is a
+	## no-op, backwards and future are refused, a missing record is created.
+	--intern-op-morning-review-state-advance)
+		shift
+		local mrMember="${1:-}" mrTs="${2:-}" mrContext="--intern-op-morning-review-state-advance"
+		shift 2 2>/dev/null || shift $#
+		if [ "${1:-}" = "--context" ] && [ -n "${2:-}" ] ; then mrContext="$2" ; shift 2 ; fi
+		if [ -z "$mrMember" ] || [ -z "$mrTs" ] || [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: syntax is <team-member> <ts> -- <ts> is the \`next:\` epoch the input scan printed" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$mrMember" "<team-member>" morning-review-state-advance || { set +e ; return 1 ; }
+		case "$mrTs" in
+			*[!0-9]*)
+				echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: <ts> must be epoch seconds: $mrTs" >&2
+				set +e ; return 1
+			;;
+		esac
+		[ -n "${MDAT_DATA_ROOT:-}" ] || {
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: MDAT_DATA_ROOT is not set" >&2
+			set +e ; return 1
+		}
+		local mrNow ; mrNow="$( date +%s )"
+		if [ "${#mrTs}" -gt 12 ] || [ "$mrTs" -gt "$(( mrNow + 60 ))" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: refusing a cut-off in the future ($mrTs, now $mrNow) -- it would hide every change until then" >&2
+			set +e ; return 1
+		fi
+		local mrTarget mrExisting="" mrExistingRc=0 mrContent=""
+		mrTarget="$( AgentsToolsMorningReviewStatePath "$mrMember" )"
+		mrExisting="$( AgentsToolsMorningReviewStoredTs "$mrMember" )" || mrExistingRc=$?
+		case "$mrExistingRc" in
+			0)
+				if [ "$mrExisting" = "$mrTs" ] ; then
+					echo "# $MDSC_CMD $mrContext: $mrMember: already at $mrTs, nothing written" >&2
+					return 0
+				fi
+				if [ "$mrTs" -lt "$mrExisting" ] ; then
+					echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: refusing to move the cut-off BACKWARDS, from $mrExisting to $mrTs" >&2
+					set +e ; return 1
+				fi
+			;;
+			3) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: ${mrTarget##*/} cannot be read; restore its leading --- block and last_reviewed_ts, nothing written" >&2
+				set +e ; return 1
+			;;
+		esac
+		mkdir -p "${mrTarget%/*}" || {
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: can't create inbox directory: ${mrTarget%/*}" >&2
+			set +e ; return 1
+		}
+		if [ -f "$mrTarget" ] ; then
+			mrContent="$( LC_ALL=C awk -v ts="$mrTs" '
+				NR == 1 && $0 == "---" { inFm = 1 ; sawFm = 1 ; print ; next }
+				inFm && $0 == "---" { if (!done) print "last_reviewed_ts: " ts ; done = 1 ; inFm = 0 ; print ; next }
+				inFm && index($0, "last_reviewed_ts:") == 1 { if (!done) print "last_reviewed_ts: " ts ; done = 1 ; next }
+				{ print }
+				END { if (!sawFm || inFm) exit 1 }
+			' "$mrTarget" )" || {
+				echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: ${mrTarget##*/} has no closed frontmatter block, nothing written" >&2
+				set +e ; return 1
+			}
+		else
+			mrContent="$( printf -- '---\ntype: note\nfrom: %s\nowner: %s\nlast_reviewed_ts: %s\n---\n\n# morning-review-state-note\n\nThis caller'"'"'s own magic-librarian.morning-review.routine cut-off. Moved only by --magic-morning-review-state-advance.\n' "$mrMember" "$mrMember" "$mrTs" )"
+		fi
+		printf '%s\n' "$mrContent" > "$mrTarget" || {
+			echo "⛔ ERROR: $MDSC_CMD $mrContext: $mrMember: could not write ${mrTarget##*/}" >&2
+			set +e ; return 1
+		}
+		echo "# $MDSC_CMD $mrContext: $mrMember: last_reviewed_ts ${mrExisting:-<none>} -> $mrTs" >&2
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+		AgentsToolsTeamDataCommitPaths "magic-morning-review-state-advance, $mrMember" "$mrTarget"
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

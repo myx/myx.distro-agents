@@ -30,11 +30,11 @@ Always written `board-<state>`.
 - **`board-backlog`** — newly created, not yet assessed.
 - **`board-pending`** — `approved-by`/`approved-at` recorded, not yet dispatched.
   - Deferred, not built: a `magic-coordinator.heartbeat.routine` session may move a backlog item straight to `board-running` when its restart is trivial.
-- **`board-running`** — dispatched and in progress, including its testing round. An item reaches it only through dispatch, or by creation for `approval-*`, `dispatch-*` and `interview-*`.
+- **`board-running`** — dispatched and in progress, including its testing round and while waiting on an ask. An item reaches it only through dispatch, or by creation for `approval-*`, `dispatch-*` and `interview-*`.
   - When implementation is claimed complete, `magic-coordinator` dispatches `magic-tester` for a testing round, in place.
   - Clean → `board-processed`; or `board-blocked` awaiting the human-owner's sign-off where the work needs it.
   - Concerns → an investigation `task-*`, `spawned-by` the parent, ending as **escalate** or **solve**; after a fix the round repeats.
-- **`board-review`** — a finished dispatch awaiting its reviewer, named in `review-by` (`human-owner`, a member, a session, or `<session-id>:<member>`). The reviewer accepts (→ `board-processed`) or rejects (→ `board-running`, with comments appended). `magic-coordinator` reviews when `review-by` is itself or empty.
+- **`board-review`** — a handback arrived, or the child ended with no verdict; it awaits its reviewer, named in `review-by` (`human-owner`, a member, a session, `<session-id>:<member>`, or a routine such as `grooming.routine`). The reviewer applies `magic-team.handback-review.routine`: accept (→ `board-processed`), return (→ `board-running`, the same session), reject (→ `board-pending`, for a fresh session), follow-up, or a combination. `magic-coordinator` reviews when `review-by` is itself or empty.
   - Planned, not built: entering this state fires one notice, once, to whoever `review-by` names.
 - **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item.
 - **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done; a recheck only asks whether the condition has arrived.

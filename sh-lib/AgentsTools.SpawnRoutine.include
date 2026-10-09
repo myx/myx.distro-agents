@@ -70,6 +70,16 @@ AgentsToolsSpawnRoutineResolve(){ ## selector
 	esac
 }
 
+## rc 0 when a routine file is coworking-like: its own frontmatter carries `session: coworking`
+## (the routine contract's own optional key, set on every routine magic-team.coworking.routine's
+## session-type taxonomy names). rc 1 otherwise. No routine name is hardcoded here.
+AgentsToolsSpawnRoutineIsCoworking(){ ## routine file path
+	local routineSessionValue
+	routineSessionValue="$( LC_ALL=C awk -v headers="session" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$1" )"
+	[ "${routineSessionValue#session: }" = "coworking" ]
+}
+
 ## Reads executors/maintainers/invitees out of a routine file's own frontmatter, through
 ## AgentsBoardItemFrontmatterPrintSelected.awk, unchanged. One "key: value" line per key,
 ## in that fixed order; an absent or empty value reads as an empty string after the colon.

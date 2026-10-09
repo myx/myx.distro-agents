@@ -41,7 +41,7 @@ wait
 rigAssert "the wait completes as TIMEOUT"             "$( head -1 "$rigTmp/rf.out" )" "WAIT-RESULT: TIMEOUT"
 rigAssert "it returns 0"                              "$rigRc" 0
 rigAssert "the source is named as having failed probes" "$( rigHolds "$rigTmp/rf.out" "could not run this wait" )" yes
-rigAssert "it says some reads failed after it was read" "$( rigHolds "$rigTmp/rf.out" 'some reads of the sources listed above failed' )" yes
+rigAssert "the probe-failure header is its only report" "$( rigHolds "$rigTmp/rf.out" 'some reads of the sources listed above failed' )" no
 rigAssert "it is not reported as never-read"          "$( rigHolds "$rigTmp/rf.out" 'WAIT-NEVER-READ:' )" no
 
 echo "-- control: a source unreadable from the start --"

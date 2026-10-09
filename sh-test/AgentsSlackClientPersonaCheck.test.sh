@@ -535,12 +535,12 @@ rigScopeRaw keeper-sc 'ALIAS=has space'
 rigScopeRaw keeper-sq 'ALIAS=a"b'
 rigScopeRaw keeper-ud 'FIRST_NAME=not decided yet'
 mkdir -p "$rigAgentsDir"
-printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 'seed-replies\n' > "$rigAgentsDir/pending-replies.registry" ; printf 'seed-log\n' > "$rigAgentsDir/comms-slack-send.log"
-rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )"
+printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 'seed-replies\n' > "$rigAgentsDir/pending-replies.registry" ; printf 'seed-log\n' > "$rigAgentsDir/comms-slack-send.2026-10.log"
+rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the two registries and the member index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.log members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
-rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.log" | cksum )" "$rigSeedSum"
+rigAssert "the build makes exactly the two registries and the member index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )" "$rigSeedSum"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
 rigAssert "the persona member's own row is an ordinary row"                "$( rigIndexRow "$rigPersona" )" "$rigPersona|🐭|Magic|Vane|dispatchr"
@@ -729,7 +729,7 @@ rigFnCut(){ ## file, function name -- that function's text, from its first line 
 }
 rigAssert "the Slack include names no basic.md path in code"               "$( rigNamers "$rigInclude" '[.]basic[.]md' )" ""
 rigAssert "the registries include names a basic.md path in the marks function and the Name bullet function only" "$( rigNamers "$rigRegInclude" '[.]basic[.]md' )" "AgentsToolsCommsSlackMemberMarks AgentsToolsRegistryMemberNameBullet "
-rigAssert "the registries include reads a member's scope in one function only" "$( rigNamers "$rigRegInclude" '--member-config-option' )" "AgentsToolsRegistryMemberNamesRead "
+rigAssert "the registries include reads a member's scope in one function only" "$( rigNamers "$rigRegInclude" '--agents-config-option' )" "AgentsToolsRegistryMemberNamesRead "
 rigAssert "the Slack include names no presentation scope key at all"       "$( LC_ALL=C grep -c -E 'FIRST_NAME|FAMILY_NAME|--select[ \"]*ALIAS' "$rigInclude" || : )" 0
 printf 'F(){\n\tx="$d/.basic.md"\n}\nG(){\n\ty="$d/.basic.md"\n}\n# the .basic.md again in a comment\n' > "$rigTmp/sample.include"
 rigAssert "control: a sample with two functions naming a basic.md is caught, a comment is not" "$( rigNamers "$rigTmp/sample.include" '[.]basic[.]md' )" "F G "
@@ -804,7 +804,7 @@ rigUpsert(){ ## locale, member, key, value -- one --upsert-from-stdin; rc in rig
 }
 rigSelect(){ ## locale, member, key
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" LC_ALL="$1" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
-		bash "$rigTool" --member-config-option "$2" --select "$3" 2> /dev/null )
+		bash "$rigTool" --agents-config-option "$2" --select "$3" 2> /dev/null )
 }
 for rigLocale in C en_US.UTF-8 ; do
 	for rigKey in FIRST_NAME FAMILY_NAME ALIAS ; do

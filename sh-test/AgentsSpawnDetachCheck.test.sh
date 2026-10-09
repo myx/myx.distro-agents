@@ -20,7 +20,7 @@ rigRefuse(){
 rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSpawnDetachCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPassPid=""
-trap '[ -z "$rigPassPid" ] || kill -KILL -- "-$rigPassPid" 2>/dev/null ; for p in "$rigTmp"/*/console.pid ; do [ -f "$p" ] && kill -KILL "$( cat "$p" )" 2>/dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap '[ -z "$rigPassPid" ] || kill -KILL -- "-$rigPassPid" 2>/dev/null ; for p in "$rigTmp"/*/console.pid ; do [ -f "$p" ] && kill -KILL "$( cat "$p" )" 2>/dev/null ; done ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \

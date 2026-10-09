@@ -44,6 +44,8 @@ AgentsMcpSendResult(){
 ## mcpErrText is held: escaping forks awk, which must stay outside the lock.
 AgentsMcpSendError(){
 	local mcpErrText=''
+	## Kept for the call's transcript line, which follows the response.
+	mcpCallError="$3"
 	[ -n "$1" ] || return 0
 	mcpErrText="$( printf '%s' "$3" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" || mcpErrText=''
 	if ! AgentsMcpWireLockAcquire ; then
@@ -63,6 +65,45 @@ AgentsMcpSendNotification(){
 	fi
 	printf '{"jsonrpc":"2.0","method":"%s"}\n' "$1" >&3
 	rmdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null
+	return 0
+}
+
+## One notifications/progress line for a call still running. The token is the raw JSON value the
+## client sent (string or number). Written under the wire lock like every frame, so it is one
+## whole line, and never once the stop file exists: the call's result is then about to go out,
+## and no progress may follow it.
+## rc 1 only when the write itself failed: the client end of the wire is gone.
+AgentsMcpSendProgress(){ ## raw token, progress, stop file
+	local progressRc=0
+	AgentsMcpWireLockAcquire || return 0
+	[ -f "$3" ] || printf '{"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":%s,"progress":%s,"message":"still waiting"}}\n' "$1" "$2" >&3 || progressRc=1
+	rmdir "$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/wire.lock" 2>/dev/null
+	return "$progressRc"
+}
+
+## The heartbeat of one long tools/call: a progress frame every <seconds> while <pid> runs,
+## until the stop file appears. TERM only cuts its sleep short. The caller removes the stop
+## file, and only after this has exited, so no frame can follow the result. A frame that
+## cannot be written means the client is gone, so the call it watches is ended too, rather
+## than left polling for the rest of its long bound (pid leads its own process group).
+AgentsMcpProgressBeat(){ ## raw token, seconds, pid, stop file
+	local beatCount=0 beatSleep=""
+	trap '' PIPE
+	trap '[ -z "$beatSleep" ] || kill "$beatSleep" 2>/dev/null' TERM
+	while [ ! -f "$4" ] && kill -0 "$3" 2>/dev/null ; do
+		sleep "$2" &
+		beatSleep=$!
+		wait "$beatSleep"
+		beatSleep=""
+		[ ! -f "$4" ] || break
+		kill -0 "$3" 2>/dev/null || break
+		beatCount=$(( beatCount + 1 ))
+		AgentsMcpSendProgress "$1" "$beatCount" "$4" 2>/dev/null || {
+			printf '%s\n' "$MDSC_CMD: mcp-request: progress frame not written, the client is gone -- ending the call it was for" >&2
+			kill -TERM -- "-$3" 2>/dev/null
+			break
+		}
+	done
 	return 0
 }
 
@@ -226,6 +267,14 @@ case "$1" in
 			;;
 			tools/call)
 				mcpJobsDir="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/jobs"
+				## The session transcript hooks (AgentsTools.SessionTranscript.include): each call's
+				## tool line goes to the session's transcript and, with its session, to the daemon log.
+				mcpCallError='' ; mcpTranscript=''
+				if [ -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" ] \
+					&& . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
+					mcpTranscript=1
+					agentsTranscriptT0="$( AgentsTranscriptNowMs )"
+				fi
 
 				## Membership in the floor rendered above, and only for a name that is
 				## actually there. The name is matched as a whole quoted JSON value in the
@@ -278,12 +327,41 @@ case "$1" in
 					## already runs in its own job -- so a long call holds its own
 					## handler and never this server. The watchdog exists only so a
 					## wedged call cannot hold that handler for the process's whole life.
+					## WAIT ON THIS PATH. A Wait with no timeout of its own returns by a bound the
+					## harness takes from MDAT_MCP_WAIT_SERVED_BOUND: MDAT_MCP_WAIT_BOUND (default
+					## 1700), safely under a native client idle cutoff of about 1800s. When the call
+					## carries params._meta.progressToken, a notifications/progress frame goes out
+					## every MDAT_MCP_PROGRESS_SECONDS (default 60) while it runs, and the bound is
+					## MDAT_MCP_WAIT_BOUND_PROGRESS (default 14400): Claude Code resets its idle
+					## cutoff on each progress frame. No token, no frame, and the safe bound holds.
+					## AskUserQuestion gets the same: it blocks on the answer through the same
+					## served wait bound, in rounds that can outlast the cutoff together.
+					mcpProgressToken='' ; mcpWaitBound='' ; mcpToolWatch=3600
+					if [ "Wait" = "$mcpToolName" ] || [ "AskUserQuestion" = "$mcpToolName" ] ; then
+						mcpWaitBound="${MDAT_MCP_WAIT_BOUND:-1700}"
+						case "$mcpWaitBound" in ''|*[!0123456789]*) mcpWaitBound=1700 ;; esac
+						mcpProgressToken="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params._meta.progressToken" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mcpProgressToken=''
+						## A JSON string or an integer only, as the protocol allows.
+						case "$mcpProgressToken" in
+							'"'*'"') ;;
+							''|*[!0123456789-]*|-|*?-*) mcpProgressToken='' ;;
+						esac
+						mcpProgressSeconds="${MDAT_MCP_PROGRESS_SECONDS:-60}"
+						case "$mcpProgressSeconds" in ''|0|*[!0123456789]*) mcpProgressSeconds=60 ;; esac
+						if [ -n "$mcpProgressToken" ] ; then
+							mcpWaitBound="${MDAT_MCP_WAIT_BOUND_PROGRESS:-14400}"
+							case "$mcpWaitBound" in ''|*[!0123456789]*) mcpWaitBound=14400 ;; esac
+						fi
+						## The watchdog outlives the bound, so it still only catches a wedged call.
+						[ "$mcpWaitBound" -lt 3300 ] || mcpToolWatch=$(( mcpWaitBound + 300 ))
+					fi
+
 					mcpExitCode=0
 					set -m
-					( printf '%s\n' "$mcpToolArgs" | MDAT_MCP_RESULT_HEAD_FILE="$mcpOutFile.head" MDAT_MCP_RESULT_IMAGE_FILE="$mcpOutFile.image" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" 3>&- &
+					( printf '%s\n' "$mcpToolArgs" | MDAT_MCP_WAIT_SERVED_BOUND="$mcpWaitBound" MDAT_MCP_RESULT_HEAD_FILE="$mcpOutFile.head" MDAT_MCP_RESULT_IMAGE_FILE="$mcpOutFile.image" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" 3>&- &
 					mcpCmdPid=$!
 					(
-						sleep 3600
+						sleep "$mcpToolWatch"
 						kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
 						: > "$mcpKillFile"
 						kill -TERM -- "-$mcpCmdPid" 2>/dev/null
@@ -292,10 +370,22 @@ case "$1" in
 					) 3>&- &
 					mcpWatchPid=$!
 					set +m
+					## The heartbeat keeps fd 3: it is the one child that writes to the wire.
+					mcpBeatPid='' ; mcpBeatStop="$mcpOutFile.beatstop"
+					rm -f "$mcpBeatStop"
+					if [ -n "$mcpProgressToken" ] ; then
+						AgentsMcpProgressBeat "$mcpProgressToken" "$mcpProgressSeconds" "$mcpCmdPid" "$mcpBeatStop" &
+						mcpBeatPid=$!
+					fi
 
 					wait "$mcpCmdPid" || mcpExitCode=$?
 					kill -TERM -- "-$mcpWatchPid" 2>/dev/null
 					wait "$mcpWatchPid" 2>/dev/null
+					## Stopped before the result is sent: past the stop file no frame is written.
+					if [ -n "$mcpBeatPid" ] ; then
+						: > "$mcpBeatStop"
+						kill -TERM "$mcpBeatPid" 2>/dev/null
+					fi
 					set +e
 
 					mcpOutput="$( < "$mcpOutFile" )"
@@ -303,7 +393,7 @@ case "$1" in
 					mcpIsError='false'
 					if [ -f "$mcpKillFile" ] ; then
 						mcpIsError='true'
-						mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after 3600s and was killed; partial output above is kept at: $mcpOutFile]"
+						mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after ${mcpToolWatch}s and was killed; partial output above is kept at: $mcpOutFile]"
 						rm -f "$mcpKillFile"
 					elif [ 0 -ne "$mcpExitCode" ] ; then
 						## The harness exits non-zero on its own ERROR result, which is
@@ -326,6 +416,11 @@ case "$1" in
 					[ -z "$mcpHead" ] || mcpContent="{\"type\":\"text\",\"text\":\"$( printf '%s' "$mcpHead" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )\"},$mcpContent"
 					[ ! -f "$mcpOutFile.image" ] || { IFS=$'\t' read -r mcpImageMime mcpImageData < "$mcpOutFile.image" ; rm -f "$mcpOutFile.image" ; mcpContent="$mcpContent,{\"type\":\"image\",\"data\":\"$mcpImageData\",\"mimeType\":\"$mcpImageMime\"}" ; }
 					AgentsMcpSendResult "$mcpId" "{\"content\":[$mcpContent],\"isError\":$mcpIsError}"
+					## After the result, so the response never waits on the last sleep of the heartbeat.
+					if [ -n "$mcpBeatPid" ] ; then
+						wait "$mcpBeatPid" 2>/dev/null
+						rm -f "$mcpBeatStop"
+					fi
 
 				## Reached through another server: say which bound refused this, because
 				## the same name works on the server the host registered directly, and
@@ -532,6 +627,10 @@ case "$1" in
 
 					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
 				fi
+				## After the response: the tool line of every call but a harness tool, whose
+				## served harness writes its own -- execute, Monitor, and every refusal here.
+				[ -z "$mcpTranscript" ] || [ -n "$mcpIsHarnessTool" ] \
+					|| AgentsTranscriptMcpCallDone "$mcpToolName" "$mcpLine" "${mcpOutput:-}" "${mcpIsError:-false}" "$mcpCallError" >&2 || :
 			;;
 			'')
 				AgentsMcpSendError "$mcpId" -32700 "Parse error"

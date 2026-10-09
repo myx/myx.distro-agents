@@ -666,6 +666,23 @@ if [ -n "$MDAT_SPAWN_SESSION_ID" ] ; then
 				exit 1
 			;;
 		esac
+	## MDAT_SPAWN_RESUME_FROM: a review return's restart (AgentsReviewRestart, through the
+	## proxy's AgentsToolsSpawnProxyConsoleRun). The old native session is resumed and forked
+	## under this spawn's own id, so the record's spawn-id still names the native session.
+	## Only the vendor claude binary carries --resume/--fork-session; anything else refuses
+	## before launching, and the proxy then starts a new process on the full brief.
+	elif [ -n "${MDAT_SPAWN_RESUME_FROM:-}" ] ; then
+		case "$DAGC_CLI" in
+			claude|claude-native)
+				if [ "$DAGC_CLI_EXEC" = "claude" ] ; then
+					DAGC_SESSION_ID_ARGS=( --resume "$MDAT_SPAWN_RESUME_FROM" --fork-session --session-id "$MDAT_SPAWN_SESSION_ID" )
+				fi
+			;;
+		esac
+		if [ ${#DAGC_SESSION_ID_ARGS[@]} -eq 0 ] ; then
+			echo "⛔ ERROR: DistroAgentsConsole: MDAT_SPAWN_RESUME_FROM is set but '$DAGC_CLI' is not the vendor claude binary, which alone can resume it -- refusing, so the caller starts a new process" >&2
+			exit 1
+		fi
 	elif DagcCliIsLeg "$DAGC_CLI" || [ "$DAGC_CLI" = "claude" ] || [ "$DAGC_CLI" = "claude-native" ] || [ "$DAGC_CLI" = "copilot" ] || [ "$DAGC_CLI" = "copilot-native" ] ; then
 		DAGC_SESSION_ID_ARGS=( --session-id "$MDAT_SPAWN_SESSION_ID" )
 	else
@@ -749,13 +766,37 @@ fi
 ## what makes -p's silent batch mode show live progress. exec'ing a pipeline
 ## would break the spawn proxy's PID-based timeout kill, so claude runs
 ## backgrounded with its real PID captured, and TERM/INT are forwarded to it.
+## Its stdin to its stdout unchanged, creating MDAT_SPAWN_RESUME_EVENT_MARKER once the
+## first line, a stream-json event, has arrived. A function, so the process substitution
+## below carries no inline text that bash would parse again when it runs.
+DagcResumeEventTee(){
+	local firstLine=""
+	IFS= read -r firstLine || [ -n "$firstLine" ] || return 0
+	case "$firstLine" in
+		'{'*) : > "$MDAT_SPAWN_RESUME_EVENT_MARKER" ;;
+	esac
+	printf '%s\n' "$firstLine"
+	cat
+}
 DagcRunClaudeStreaming(){
 	local claudePrompt="$1" progressAwkPath streamAwkPath claudePid awkPid claudeStatus
 	## Order is load-bearing: the formatter calls progressLineSafe() and does not
 	## define it, and an undefined awk function is a fatal exit 2 at call time.
 	progressAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsProgressLineSafe.awk"
 	streamAwkPath="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonFormat.awk"
-	exec 3> >( LC_ALL=C awk -f "$progressAwkPath" -f "$streamAwkPath" )
+	## The session transcript writer rides the same stream, ahead of the formatter that exits
+	## on the result line, and only where both of its files are present.
+	local transcriptAwkArgs=()
+	[ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionTranscriptFormat.awk" ] \
+		|| [ ! -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonTranscript.awk" ] \
+		|| transcriptAwkArgs=( -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSessionTranscriptFormat.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsClaudeStreamJsonTranscript.awk" )
+	## A resume (MDAT_SPAWN_RESUME_EVENT_MARKER, from the proxy) marks its first stream-json
+	## event, so a resume that fails before it is told apart from one that ran.
+	if [ -n "${MDAT_SPAWN_RESUME_EVENT_MARKER:-}" ] ; then
+		exec 3> >( DagcResumeEventTee | LC_ALL=C awk -f "$progressAwkPath" "${transcriptAwkArgs[@]}" -f "$streamAwkPath" )
+	else
+		exec 3> >( LC_ALL=C awk -f "$progressAwkPath" "${transcriptAwkArgs[@]}" -f "$streamAwkPath" )
+	fi
 	awkPid=$!
 	## $DAGC_CLI_EXEC, not $DAGC_CLI: this launches a BINARY, and the two differ
 	## for any CLI whose name is not its own executable. It read $DAGC_CLI safely

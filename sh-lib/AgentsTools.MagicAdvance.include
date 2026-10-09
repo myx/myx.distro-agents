@@ -191,7 +191,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 		itemName="${itemPath##*/}"
 		reviewBy="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" review-by )"
 		case "$reviewBy" in
-			''|human-owner|advance.routine) continue ;;
+			## A routine reviews on its own next run, from its own input scan: grooming.routine, advance.routine, any <routine>.
+			''|human-owner|*.routine) continue ;;
 			*:*) reviewId="${reviewBy%%:*}" ;;
 			magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) continue ;;
 			*) [ ! -f "${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}/$reviewBy/SKILL.md" ] || continue ; reviewId="$reviewBy" ;;
@@ -267,6 +268,10 @@ case "$1" in
 			--no-board-related \
 			--context --magic-advance-input-scan
 		local advanceScanRc=$?
+		## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+		printf '\n%s\n\n' "## review items addressed to advance.routine"
+		AgentsReviewItemsForRoutine advance
 		## All three registries ride in this scan's output because the pass that reads
 		## the board also needs to know who can be spawned, what is actually running
 		## and what is waiting on an answer. The rescan is what keeps each one a cache

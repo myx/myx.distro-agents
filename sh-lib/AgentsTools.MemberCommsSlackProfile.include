@@ -66,7 +66,7 @@ AgentsToolsCommsSlackProfileCall(){
 
 case "$1" in
 
-	--member-comms-slack-profile-set)
+	--intern-op-comms-slack-profile-set)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
 			printf '%s\n' users.profile:read users.profile:write users:read users:write dnd:read dnd:write
@@ -376,7 +376,7 @@ case "$1" in
 		return 0
 	;;
 
-	--member-comms-slack-profile-get)
+	--intern-op-comms-slack-profile-get)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
 			printf '%s\n' users.profile:read users.profile:write users:read users:write dnd:read dnd:write

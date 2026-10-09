@@ -98,8 +98,9 @@ rigSame(){ ## file, file -- same or different
 rigHk(){ ## file -- its housekeeping: lines, sorted
 	LC_ALL=C grep '^housekeeping: ' "$1" 2> /dev/null | LC_ALL=C sort
 }
+## A tracking post sends Slack's control characters escaped: the text is read back with them decoded.
 rigLines(){ ## scenario dir -- the housekeeping: lines of the text posted to the fake Slack, sorted
-	LC_ALL=C sed 's/","thread_ts".*//' "$1/bodies.log" 2> /dev/null | LC_ALL=C awk '{ gsub(/\\n/, "\n") ; print }' | LC_ALL=C grep '^housekeeping: ' | LC_ALL=C sort
+	LC_ALL=C sed -e 's/","thread_ts".*//' -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g' "$1/bodies.log" 2> /dev/null | LC_ALL=C awk '{ gsub(/\\n/, "\n") ; print }' | LC_ALL=C grep '^housekeeping: ' | LC_ALL=C sort
 }
 rigNoHk(){ ## file -- everything but its housekeeping: lines
 	LC_ALL=C grep -v '^housekeeping: ' "$1" 2> /dev/null || :
@@ -375,8 +376,8 @@ rigCheck "control: the fake curl is first on PATH"                        "$( PA
 rigScan "$rigTmp/b5.s1"
 rigCheck "the acting pass closed the dead dispatch"                       "$( rigLoc dispatch-rig-d1.md )" review
 rigCheck "exactly one post reached the thread"                            "$( rigPosts "$rigTmp/b5/scenario" )" 1
-rigPostText(){ ## scenario dir -- the text field of the posted body, the blocks copy cut off
-	LC_ALL=C sed 's/","thread_ts".*//' "$1/bodies.log" 2> /dev/null
+rigPostText(){ ## scenario dir -- the text field of the posted body, the rest cut off, Slack's escapes decoded
+	LC_ALL=C sed -e 's/","thread_ts".*//' -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g' "$1/bodies.log" 2> /dev/null
 }
 rigCheck "the post's text names the closed item"                          "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'dispatch-rig-d1.md' | LC_ALL=C awk 'END { print NR ; }' )" 1
 rigCheck "one line per action, each opening with 'housekeeping: ' (the record, the item, the review-by)" "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'housekeeping: ' | LC_ALL=C awk 'END { print NR ; }' )" 3
@@ -477,7 +478,13 @@ rigSpawnInc="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAgent
 rigCheck "the 4 console launch sites that redirect their own output each close fd 4 with 4>&-" "$( LC_ALL=C awk '
 	index($0, "DistroAgentsConsole.sh\" \"${spawnCliArgs[@]}\" --non-interactive") && index($0, "\"$spawnContext\" >") > 0 { sites++ ; if ( index($0, "4>&-") > 0 ) { closed++ } }
 	END { printf "%d %d", sites, closed }' "$rigSpawnInc" )" "4 4"
-rigCheck "the fifth, the detached subshell's console, sits in a subshell whose closing line closes fd 4" "$( LC_ALL=C grep -c -F ') > "$outputFile" 2>&1 4>&- &' "$rigSpawnInc" || : )" 1
+rigCheck "the fifth, the detached subshell's console, sits in a subshell whose closing line closes fd 4" "$( LC_ALL=C grep -c -F ') >> "$outputFile" 2>&1 4>&- &' "$rigSpawnInc" || : )" 1
+## The session log takes the handback retry's appended lines while the close steps still hold it:
+## a writer at its own offset would overwrite them, so every writer appends.
+rigCheck "every writer of the session log appends: three appending, none truncating" "$( LC_ALL=C awk '
+	index($0, ">> \"$outputFile\"") > 0 { appending++ }
+	index($0, "> \"$outputFile\"") > 0 && index($0, ">> \"$outputFile\"") == 0 { truncating++ }
+	END { printf "%d %d", appending, truncating }' "$rigSpawnInc" )" "3 0"
 rigNew b10 ; rigSp="$rigW/.local/agents/spawned"
 mkdir -p "$rigW/.local/.agents" "$rigTmp/b10/skills/rig-member" "$rigTmp/b10/home" "$rigW/source/rigrepo/rigpkg"
 printf 'SPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.env"

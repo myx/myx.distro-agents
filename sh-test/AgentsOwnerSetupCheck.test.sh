@@ -94,6 +94,23 @@ rigExpect "and it is still stored" \
 rigExpect "a flag with no value at all is still refused" \
 	"$( rigRun --owner-setup-storage --team-data-git-remote )" "a value is required"
 
+## SLACK_AUTH_IDENTITY in --magic-heartbeat-config-check: auth.test is answered by a
+## stand-in curl first on PATH, so no request leaves this host.
+mkdir -p "$rigTmp/bin"
+printf '#!/bin/sh\ncat >/dev/null\nprintf %%s "$RIG_AUTH_REPLY"\n' > "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl"
+export RIG_AUTH_REPLY='{"ok":true,"user_id":"URIG00001"}'
+rigIdentity(){ PATH="$rigTmp/bin:$PATH" rigRun --magic-heartbeat-config-check | grep -A2 '^SLACK_AUTH_IDENTITY:' ; }
+rigExpect "identity: no SLACK_USER_TOKEN is a WARN" \
+	"$( rigIdentity )" "SLACK_AUTH_IDENTITY: WARN"
+printf 'xoxp-rig' | rigRun --agents-config-option magic-coordinator --upsert-from-stdin SLACK_USER_TOKEN >/dev/null
+grep -q '^SLACK_USER_TOKEN=' "$rigWs/.local/.agents/magic-coordinator.agent.env" 2>/dev/null \
+	|| rigRefuse "could not store a SLACK_USER_TOKEN, so no identity verdict below would mean anything"
+rigExpect "identity: auth.test's user_id is reported as OK" \
+	"$( rigIdentity )" "user_id: URIG00001"
+export RIG_AUTH_REPLY='{"ok":false,"error":"invalid_auth"}'
+rigExpect "identity: auth.test with no user_id is a WARN" \
+	"$( rigIdentity )" "SLACK_AUTH_IDENTITY: WARN"
+
 ## A home that has never held a skills directory: the lock beside the workspace's own registry must still be taken.
 rigInstallHome="$rigTmp/home-without-skills"
 mkdir -p "$rigInstallHome"

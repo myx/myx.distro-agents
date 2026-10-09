@@ -438,8 +438,14 @@ case "$1" in
 			--header:upsert:groomed-from:"$fromStateVal" \
 			--header:upsert:track:true \
 			--context --magic-grooming-to-archived \
-			"${passthrough[@]}"
-		return $?
+			"${passthrough[@]}" || return $?
+		## An archive ends the item's child, ordered and recorded (AgentsTools.ReviewFlow.include):
+		## only on a real move into archived, and never failing the move.
+		if [ "$fromStateVal" != archived ] && [ -f "$MDAT_DATA_ROOT/board/archived/$itemName" ] ; then
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+			AgentsReviewEndChild "$callingMember" "$MDAT_DATA_ROOT/board/archived/$itemName" archived || :
+		fi
+		return 0
 	;;
 
 	## routine-grooming does NOT move items into board-retained, and this op
@@ -897,7 +903,12 @@ case "$1" in
 			--no-board-related \
 			"${groomingInboxAlso[@]+"${groomingInboxAlso[@]}"}" \
 			--context --magic-grooming-input-scan
-		return $?
+		local groomingScanRc=$?
+		## The review items this routine reviews on this run (AgentsTools.ReviewFlow.include).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+		printf '\n%s\n\n' "## review items addressed to grooming.routine"
+		AgentsReviewItemsForRoutine grooming
+		return $groomingScanRc
 	;;
 
 	## HEADER ORDER IS LOAD-BEARING.

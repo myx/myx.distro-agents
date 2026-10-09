@@ -31,6 +31,8 @@ git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m seed || rigRefuse "
 
 export MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigStore" MDLT_ORIGIN
 [ "$MDAT_DATA_ROOT" = "$rigStore" ] || rigRefuse "MDAT_DATA_ROOT is not the temp store"
+## A rig run from a spawned session must not act as that session's member: the writers here name their own.
+unset MDAT_SPAWN_AGENT MDAT_SPAWN_SESSION_ID
 
 rigPassCount=0
 rigFailCount=0

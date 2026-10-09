@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ToolingTemplate.include -- the one rule for where the template of a message
+## the tooling produces automatically lives: this package's own sh-lib/templates/, never the
+## skillset, so a template and the code that fills it are always the same version. Sourced
+## by AgentsTools.InternOpEventTrackPost.include and AgentsTools.InternOpSpawnPrepareBrief.include.
+## Function-only.
+##
+
+if ! type AgentsToolsToolingTemplate > /dev/null 2>&1 ; then
+
+	## The path of one tooling template, by its file name, under the current MDLT_ORIGIN.
+	AgentsToolsToolingTemplate(){ ## template file name
+		printf '%s' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/$1"
+	}
+
+fi

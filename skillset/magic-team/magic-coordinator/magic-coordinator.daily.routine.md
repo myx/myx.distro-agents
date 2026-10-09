@@ -2,6 +2,7 @@
 executors: magic-coordinator
 maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 invitees: magic-team
+session: coworking
 ---
 # magic-coordinator.daily.routine — the actual procedure
 

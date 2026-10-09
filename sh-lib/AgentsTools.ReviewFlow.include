@@ -1,0 +1,547 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ReviewFlow.include -- how a dispatched board item enters review, the
+## verdicts on it, and every ending of its child the tooling orders. Sourced, never run;
+## functions only. The ops are AgentsTools.InternOpReview.include; the hooks call these
+## functions from the spawn close, SubagentHandback, Wait, TaskStop, the archive move,
+## the trash and the spawn proxy. Contract: MAGIC.md, "Review and ordered endings".
+##
+## States: `running` (in progress, asks included), `review` (a handback arrived, or the
+## child ended with no verdict), `processed` (accepted), `pending` (rejected, for a fresh
+## session). Only an item in `running` ever enters `review`.
+## Every entry, verdict and ending is one line in the item's `## Decisions`
+## (AgentsTools.ItemDecisions.include) and one line in its session transcript
+## (AgentsTools.SessionTranscript.include): REVIEW, VERDICT or ENDING.
+##
+
+agentsReviewLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+
+## The team tooling: the dispatcher's own function where this shell has it, else the script.
+AgentsReviewTools(){
+	if type DistroAgentsTools > /dev/null 2>&1 ; then
+		DistroAgentsTools "$@"
+	else
+		"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+	fi
+}
+
+AgentsReviewLoad(){
+	type AgentsToolsDecisionsItemPath > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.ItemDecisions.include"
+	type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SpawnSandbox.include"
+	type AgentsTranscriptEvent > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SessionTranscript.include"
+	return 0
+}
+
+## The board state folder of a board item path.
+AgentsReviewStateOfPath(){ ## item path
+	local statePath="${1%/*}"
+	printf '%s' "${statePath##*/}"
+}
+
+## REVIEW_WAIT_LIMIT from the team config: how long a child waits in review for its verdict.
+AgentsReviewWaitLimit(){
+	local limitValue
+	limitValue="$( AgentsReviewTools --agents-config-option magic-team --select-default REVIEW_WAIT_LIMIT 3600 2> /dev/null )" || limitValue=3600
+	case "$limitValue" in ''|*[!0123456789]*) limitValue=3600 ;; esac
+	printf '%s' "$limitValue"
+}
+
+## One Decisions line on the item (and on the item it tracks), and one line in the
+## transcript of the session that works it. Never fails its caller.
+AgentsReviewRecord(){ ## who, item name, decisions kind, text, transcript event, spawn id (empty: the item's own)
+	local recWho="${1:-unknown}" recItem="${2%.md}" recKind="$3" recText="$4" recEvent="$5" recSpawn="${6:-}" recPath
+	AgentsReviewLoad
+	if [ -z "$recSpawn" ] && recPath="$( AgentsToolsDecisionsItemPath "$recItem" )" ; then
+		recSpawn="$( AgentsToolsDecisionsField "$recPath" spawn-id )"
+	fi
+	AgentsReviewTools --intern-op-decisions-append "$recWho" "$recItem" --kind "$recKind" --text "$recText" \
+		--source "${recSpawn:-no-session}" --context "${MDSC_CMD:-review}" > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $recKind of $recItem was not recorded in its Decisions" >&2
+	case "$recSpawn" in
+		''|-) ;;
+		*) AgentsTranscriptEvent "$recSpawn" "$recEvent" "" 0 item "$recItem" kind "$recKind" by "$recWho" text "$recText" 2> /dev/null || : ;;
+	esac
+	return 0
+}
+
+## The board item a session works: its spawn record's `spawns:` dispatch item, else its
+## `spawned-by:` item. Prints the file name; rc 1 when it works none on the board.
+AgentsReviewItemOfSession(){ ## spawn id
+	local sesRecord sesField sesLink
+	case "$1" in ''|*/*|.|..) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	AgentsReviewLoad
+	for sesRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$sesRecord" ] || continue
+		for sesField in spawns spawned-by ; do
+			sesLink="$( AgentsToolsSpawnSandboxRecordHeader "$sesRecord" "$sesField" )"
+			sesLink="${sesLink%%,*}" ; sesLink="${sesLink%% *}" ; sesLink="${sesLink%.md}"
+			[ -n "$sesLink" ] && AgentsToolsDecisionsItemPath "$sesLink" > /dev/null || continue
+			printf '%s.md\n' "$sesLink"
+			return 0
+		done
+	done
+	return 1
+}
+
+## The spawn record of an item's child: the one its spawn-id names, else the one live record
+## linking it. Prints the path; rc 1 when there is none, or more than one live candidate.
+AgentsReviewChildRecord(){ ## item path
+	local childSpawn childCandidate childFolder childFound=""
+	AgentsReviewLoad
+	childSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$1" spawn-id )"
+	if [ -n "$childSpawn" ] && [ "$childSpawn" != "-" ] ; then
+		for childCandidate in "$MMDAPP/.local/agents/spawned"/*/"$childSpawn.md" ; do
+			[ ! -f "$childCandidate" ] || { printf '%s\n' "$childCandidate" ; return 0 ; }
+		done
+		return 1
+	fi
+	for childFolder in $( AgentsToolsSpawnSandboxFoldersOfItem "$1" ) ; do
+		for childCandidate in "$MMDAPP/.local/agents/spawned/$childFolder"/*.md ; do
+			[ -f "$childCandidate" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$childCandidate" status )" = spawn-started ] || continue
+			[ -z "$childFound" ] || return 1
+			childFound="$childCandidate"
+		done
+	done
+	[ -n "$childFound" ] || return 1
+	printf '%s\n' "$childFound"
+}
+
+## Whether a spawn record's session still runs: status started and, on this host, its
+## spawn id in the process list. rc 0 live; rc 1 ended, with the reason printed.
+AgentsReviewChildLive(){ ## record path
+	local liveSpawn="${1##*/}" liveStatus liveHost thisHost
+	liveSpawn="${liveSpawn%.md}"
+	liveStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
+	[ "$liveStatus" = spawn-started ] || { printf 'spawn %s has already ended (status %s)\n' "$liveSpawn" "${liveStatus:--}" ; return 1 ; }
+	liveHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
+	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
+	[ "$liveHost" = "$thisHost" ] || return 0
+	case "$( ps -A -ww -o args= 2> /dev/null )" in
+		*"$liveSpawn"*) return 0 ;;
+	esac
+	printf 'spawn %s is not running on this host, so its session has ended\n' "$liveSpawn"
+	return 1
+}
+
+## A message to a live child in its own session thread, addressed to its member -- the
+## same send an accept's DISMISSED uses. Prints `sent <member> <thread>`, or `not sent: <why>`.
+AgentsReviewSendToChild(){ ## sending member, record path, body
+	local sendBy="$1" sendRecord="$2" sendBody="$3" sendSpawn="${2##*/}" sendMember sendThread="" sendOut
+	sendSpawn="${sendSpawn%.md}"
+	sendMember="$( AgentsToolsSpawnSandboxRecordHeader "$sendRecord" owner )"
+	[ -n "$sendMember" ] || { printf 'not sent: spawn %s names no owner member to address\n' "$sendSpawn" ; return 1 ; }
+	[ "$sendMember" != "$sendBy" ] || { printf 'not sent: the sending member %s is the child member itself, and its own Wait ignores what it authored\n' "$sendBy" ; return 1 ; }
+	sendThread="$( AgentsToolsSpawnSandboxRecordHeader "$sendRecord" session-thread )"
+	if [ -z "$sendThread" ] || [ "$sendThread" = "-" ] ; then
+		sendThread=""
+		[ ! -f "${sendRecord%/*}/session.thread" ] || IFS= read -r sendThread < "${sendRecord%/*}/session.thread" || :
+	fi
+	AgentsToolsSpawnConversationThreadValid "$sendThread" || { printf 'not sent: spawn %s has no session thread to post in\n' "$sendSpawn" ; return 1 ; }
+	if sendOut="$( printf '%s' "$sendBody" | AgentsReviewTools --intern-op-comms-slack-send-message "$sendBy" "$sendThread" --identity-bot --address-to "$sendMember" --from-stdin 2>&1 )" ; then
+		printf 'sent %s %s\n' "$sendMember" "$sendThread"
+		return 0
+	fi
+	printf 'not sent: the send to %s in %s failed: %s\n' "$sendMember" "$sendThread" "$( printf '%s\n' "$sendOut" | LC_ALL=C grep -m1 'ERROR' )"
+	return 1
+}
+
+## running -> review, and from running only. A handback is recorded whatever the state;
+## any other entry only when it moves the item. A spawn id that is not the item's own
+## child moves nothing. Prints one REVIEW: line.
+AgentsReviewToReview(){ ## who, item file name, kind (handback|review), reason word, spawn id (may be empty), detail text (may be empty)
+	local toWho="$1" toItem="${2%.md}.md" toKind="$3" toReason="$4" toSpawn="${5:-}" toDetail="${6:-}" toPath toState toItemSpawn
+	AgentsReviewLoad
+	toPath="$( AgentsToolsDecisionsItemPath "$toItem" )" || { printf 'REVIEW: not moved: no board item %s\n' "${toItem%.md}" ; return 1 ; }
+	toState="$( AgentsReviewStateOfPath "$toPath" )"
+	toItemSpawn="$( AgentsToolsDecisionsField "$toPath" spawn-id )"
+	if [ -n "$toSpawn" ] && [ -n "$toItemSpawn" ] && [ "$toItemSpawn" != "-" ] && [ "$toItemSpawn" != "$toSpawn" ] ; then
+		printf 'REVIEW: not moved: %s belongs to spawn %s, not %s\n' "${toItem%.md}" "$toItemSpawn" "$toSpawn"
+		return 0
+	fi
+	if [ "$toState" != running ] ; then
+		[ "$toKind" != handback ] || AgentsReviewRecord "$toWho" "$toItem" handback "$toReason${toDetail:+: $toDetail} (item in $toState, not moved)" REVIEW "$toSpawn"
+		printf 'REVIEW: not moved: %s is in %s; only a running item enters review\n' "${toItem%.md}" "$toState"
+		return 0
+	fi
+	mkdir -p "$MDAT_DATA_ROOT/board/review" 2> /dev/null || :
+	if ! AgentsReviewTools --intern-op-board-upsert-move-edit review "$toItem" --from-state:running \
+		--header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$toReason" \
+		--context "${MDSC_CMD:-review}" --log-verb:updated > /dev/null 2>&1 ; then
+		printf 'REVIEW: not moved: the move of %s to review failed\n' "${toItem%.md}"
+		return 1
+	fi
+	AgentsReviewRecord "$toWho" "$toItem" "$toKind" "$toReason${toDetail:+: $toDetail}" REVIEW "$toSpawn"
+	printf 'REVIEW: %s running->review (%s)\n' "${toItem%.md}" "$toReason"
+	return 0
+}
+
+## An ordered ending: the item's child dismissed through the accept's own send, and the
+## reason recorded. --no-dismiss records only (the process is stopped another way).
+## Prints one END-DISMISS line.
+AgentsReviewEndChild(){ ## sending member, item path, reason, dismiss (yes|no)
+	local endBy="$1" endPath="$2" endReason="$3" endOut
+	AgentsReviewLoad
+	[ -f "$endPath" ] || { printf 'END-DISMISS (%s): not sent: no item at %s\n' "$endReason" "$endPath" ; return 0 ; }
+	if [ "${4:-yes}" = no ] ; then
+		endOut="recorded only, the process is stopped by $endReason"
+	else
+		endOut="$( AgentsToolsBoardAcceptDismissChild "$endBy" "$endPath" )"
+		endOut="${endOut#ACCEPT-DISMISS: }"
+	fi
+	printf 'END-DISMISS (%s): %s\n' "$endReason" "$endOut"
+	AgentsReviewRecord "$endBy" "${endPath##*/}" dismissed "$endReason: $endOut" ENDING ""
+	return 0
+}
+
+## The state a verdict may start from, or an ERROR line and rc 1.
+AgentsReviewVerdictPath(){ ## item name, allowed states (space-separated)
+	local vPath vState
+	vPath="$( AgentsToolsDecisionsItemPath "$1" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item ${1%.md} in any board state" >&2 ; return 1 ; }
+	vState="$( AgentsReviewStateOfPath "$vPath" )"
+	case " $2 " in
+		*" $vState "*) printf '%s\n' "$vPath" ; return 0 ;;
+	esac
+	echo "$MDSC_CMD: ⛔ ERROR: ${1%.md} is in $vState; this verdict applies to an item in: $2" >&2
+	return 1
+}
+
+## The awk program that appends one titled section to an item body, from the environment.
+agentsReviewSectionAwk='{ print ; } END { print "" ; print ENVIRON["MDAT_REVIEW_HEAD"] ; print "" ; print ENVIRON["MDAT_REVIEW_TEXT"] ; }'
+
+## Moves an item to another state with one titled section appended, through the board edit primitive.
+AgentsReviewMoveWithSection(){ ## item name, from state, to state, section heading, text, extra header ops...
+	local mvItem="${1%.md}.md" mvFrom="$2" mvTo="$3" mvHead="$4" mvText="$5"
+	shift 5
+	mkdir -p "$MDAT_DATA_ROOT/board/$mvTo" 2> /dev/null || :
+	printf '%s' "$agentsReviewSectionAwk" | MDAT_REVIEW_HEAD="$mvHead" MDAT_REVIEW_TEXT="$mvText" AgentsReviewTools --intern-op-board-upsert-move-edit "$mvTo" "$mvItem" \
+		--from-state:"$mvFrom" --edit-script-from-stdin:awk "$@" --context "${MDSC_CMD:-review}" --log-verb:updated
+}
+
+## The CLI a spawn resolves to: the service its caller named, else the workspace's
+## SPAWN_CLI_SERVICE (a spawn never scans PATH). Prints it, or `none`.
+AgentsReviewCliResolved(){ ## service named by the caller (may be empty)
+	local cliName="${1:-}"
+	[ -n "$cliName" ] || cliName="$( AgentsReviewTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || cliName=""
+	printf '%s' "${cliName:-none}"
+}
+
+## What a resume compares beside the CLI: SPAWN_CLI_SERVICE as configured, `+`, a short
+## hash of the vendor binary's `--version` output (`-` for a CLI that is no vendor binary).
+AgentsReviewCliSetting(){ ## resolved cli
+	local setValue setBin="" setHash="-"
+	setValue="$( AgentsReviewTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2> /dev/null )" || setValue=""
+	case "$1" in
+		claude-native) setBin=claude ;;
+		copilot-native) setBin=copilot ;;
+		grok-native) setBin=grok ;;
+	esac
+	if [ -n "$setBin" ] && command -v "$setBin" > /dev/null 2>&1 ; then
+		setHash="$( "$setBin" --version < /dev/null 2> /dev/null | LC_ALL=C cksum | LC_ALL=C awk '{ printf "%08x", $1 ; }' )" || setHash="-"
+	fi
+	printf '%s+%s' "${setValue:-none}" "${setHash:--}"
+}
+
+## Whether a returned item's ended session can be resumed in its own native transcript
+## rather than started anew. rc 0 eligible; rc 1 with the reason printed.
+AgentsReviewResumeEligible(){ ## record path (may be empty)
+	local elRecord="$1" elSpawn elCli elNow elHost thisHost elJsonl elFound=""
+	[ -n "$elRecord" ] && [ -f "$elRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
+	elSpawn="${elRecord##*/}" ; elSpawn="${elSpawn%.md}"
+	elCli="$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli )"
+	case "$elCli" in
+		claude|claude-native) ;;
+		*) printf 'the old session ran on %s, not claude or claude-native' "${elCli:-an unrecorded cli}" ; return 1 ;;
+	esac
+	elNow="$( AgentsReviewCliResolved "" )"
+	[ "$elNow" = "$elCli" ] || { printf 'the cli is now %s, the old session ran on %s' "$elNow" "$elCli" ; return 1 ; }
+	[ "$( AgentsReviewCliSetting "$elNow" )" = "$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli-setting )" ] \
+		|| { printf 'the cli setting changed since the old session' ; return 1 ; }
+	elHost="$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" host )"
+	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
+	[ "$elHost" = "$thisHost" ] || { printf 'the old session ran on host %s, not %s' "${elHost:--}" "$thisHost" ; return 1 ; }
+	for elJsonl in "${HOME:-/nonexistent}/.claude/projects"/*/"$elSpawn.jsonl" ; do
+		[ ! -f "$elJsonl" ] || elFound=yes
+	done
+	[ -n "$elFound" ] || { printf 'the old session has no native transcript' ; return 1 ; }
+	! AgentsReviewChildLive "$elRecord" > /dev/null || { printf 'the old session is still running' ; return 1 ; }
+	return 0
+}
+
+## A returned item's ended session, started again: the same coworking session, sandbox and
+## board item (--dispatch-doc:reuse). Where AgentsReviewResumeEligible holds and the session
+## can be joined, its native session is resumed with the corrections (the proxy's
+## AgentsToolsSpawnProxyConsoleRun); else a new process, its brief the item with its
+## Decisions first. Which path ran is recorded: `restart: resumed` or `restart: new-process (<why>)`.
+AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
+	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
+	local rsFrom="" rsWhy=""
+	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
+	if rsWhy="$( AgentsReviewResumeEligible "$rsRecord" )" ; then
+		rsFrom="${rsRecord##*/}" ; rsFrom="${rsFrom%.md}"
+	fi
+	## Not a native resume: a universal-harness session resumes from its kept context
+	## (AgentsTools.HarnessResume.include), a separate branch end to end. Its reason replaces
+	## the native one only for a session that did not run on claude at all.
+	local rsContext="" rsContextWhy=""
+	if [ -z "$rsFrom" ] ; then
+		type AgentsReviewContextResumeEligible > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.HarnessResume.include"
+		if rsContextWhy="$( AgentsReviewContextResumeEligible "$rsRecord" )" ; then
+			rsContext="$rsContextWhy"
+		else
+			case "$rsWhy:$rsContextWhy" in
+				*'native CLI'*|'no spawn record'*) ;;
+				'the old session ran on '*) rsWhy="$rsContextWhy" ;;
+			esac
+		fi
+	fi
+	if [ -n "$rsRecord" ] && [ -f "$rsRecord" ] ; then
+		rsMember="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" owner )"
+		rsTracking="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" tracking-name )"
+		rsSession="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-id )"
+		rsThread="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-thread )"
+	fi
+	[ -n "$rsMember" ] || rsMember="$( AgentsToolsDecisionsField "$rsPath" owner )"
+	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
+	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state running --dispatch-doc:reuse
+	[ -z "$rsTracking" ] || set -- "$@" --tracking-name "$rsTracking"
+	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
+	## A resumed session keeps the thread it remembers, so it resumes only when joined there.
+	if [ -n "$rsSession" ] && [ -n "$rsThread" ] && [ "$rsThread" != "-" ] ; then
+		rsOut="$( [ -z "$rsFrom" ] || export MDAT_SPAWN_RESUME_FROM="$rsFrom" MDAT_SPAWN_RESUME_TEXT="$rsText" ; [ -z "$rsContext" ] || export MDAT_SPAWN_RESUME_CONTEXT="$rsContext" MDAT_SPAWN_RESUME_TEXT="$rsText" ; AgentsReviewTools "$@" --session-id "$rsSession" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		[ "$rsRc" = 0 ] || {
+			rsRc=0
+			[ -z "$rsFrom" ] || { rsFrom="" ; rsWhy="the session $rsSession could not be joined" ; }
+			[ -z "$rsContext" ] || { rsContext="" ; rsWhy="the session $rsSession could not be joined" ; }
+			rsOut="$( AgentsReviewTools "$@" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		}
+	else
+		[ -z "$rsFrom" ] || { rsFrom="" ; rsWhy="the old session has no thread to join" ; }
+		[ -z "$rsContext" ] || { rsContext="" ; rsWhy="the old session has no thread to join" ; }
+		rsOut="$( AgentsReviewTools "$@" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+	fi
+	if [ "$rsRc" != 0 ] ; then
+		printf 'RETURN: not restarted: the spawn of %s for %s failed (rc %s): %s\n' "$rsMember" "${rsItem%.md}" "$rsRc" "$( printf '%s\n' "$rsOut" | LC_ALL=C grep -m1 'ERROR' )"
+		return 1
+	fi
+	## A resume records its own path once it runs (the proxy); a new process is recorded here.
+	[ -n "$rsFrom" ] || [ -n "$rsContext" ] || AgentsReviewRecord "$rsWho" "$rsItem" review "restart: new-process ($rsWhy)" RESTART ""
+	printf 'RETURN: restarted %s on %s, session %s, sandbox %s, %s\n' "$rsMember" "${rsItem%.md}" "$( printf '%s\n' "$rsOut" | LC_ALL=C sed -n 's/^SESSION_ID=//p' | head -1 )" "${rsTracking:-new}" \
+		"$( if [ -n "$rsFrom" ] ; then printf 'resuming %s' "$rsFrom" ; elif [ -n "$rsContext" ] ; then printf 'resuming its kept context %s' "$rsContext" ; else printf 'new process (%s)' "$rsWhy" ; fi )"
+	return 0
+}
+
+## Review items addressed to a routine (`review-by: <name>.routine`, or its full
+## `<member>.<name>.routine`), one `- <item> [review-by: <value>]` line each, or `(none)`.
+AgentsReviewItemsForRoutine(){ ## routine short name, e.g. grooming or advance
+	local rfPath rfBy rfCount=0
+	AgentsReviewLoad
+	for rfPath in "$MDAT_DATA_ROOT"/board/review/*.md ; do
+		[ -f "$rfPath" ] || continue
+		rfBy="$( AgentsToolsSpawnSandboxRecordHeader "$rfPath" review-by )"
+		case "$rfBy" in
+			"$1.routine"|*".$1.routine") ;;
+			*) continue ;;
+		esac
+		rfPath="${rfPath##*/}"
+		printf -- '- %s [review-by: %s]\n' "${rfPath%.md}" "$rfBy"
+		rfCount=$(( rfCount + 1 ))
+	done
+	[ "$rfCount" -gt 0 ] || printf '(none)\n'
+	return 0
+}
+
+## Where a spawn's handback goes when it names session-parent: the parent session's own
+## thread, else magic-coordinator's -- the newest live magic-coordinator spawn with a
+## thread -- so a handback, and the DISMISSED it leads to, always have a thread.
+## Only for a spawn that has a parent. Prints `<channel>:<ts>`; rc 1 for none.
+AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
+	local ptParent="$1" ptOwn="$2" ptRecord ptThread="" ptBest="" ptBestRecord=""
+	case "$ptParent" in ''|none|*/*|.|..) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	AgentsReviewLoad
+	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.md" ; do
+		[ -f "$ptRecord" ] || continue
+		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
+		AgentsToolsSpawnConversationThreadValid "$ptThread" && { printf '%s\n' "$ptThread" ; return 0 ; }
+	done
+	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/*.md ; do
+		[ -f "$ptRecord" ] || continue
+		case "${ptRecord##*/}" in "$ptOwn.md") continue ;; esac
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" owner )" = magic-coordinator ] || continue
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" status )" = spawn-started ] || continue
+		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
+		AgentsToolsSpawnConversationThreadValid "$ptThread" || continue
+		if [ -z "$ptBestRecord" ] || [ "$ptRecord" -nt "$ptBestRecord" ] ; then
+			ptBest="$ptThread" ; ptBestRecord="$ptRecord"
+		fi
+	done
+	[ -n "$ptBest" ] || return 1
+	printf '%s\n' "$ptBest"
+	return 0
+}
+
+## For a Wait of a session whose own item waits in review: `expired` once
+## REVIEW_WAIT_LIMIT seconds have passed since it entered review, else the seconds left.
+## rc 1, nothing printed, when the session's item is not in review.
+AgentsReviewWaitLeft(){ ## spawn id
+	local leftItem leftPath leftSince leftLimit leftNow
+	AgentsReviewLoad
+	leftItem="$( AgentsReviewItemOfSession "$1" )" || return 1
+	leftPath="$( AgentsToolsDecisionsItemPath "$leftItem" )" || return 1
+	[ "$( AgentsReviewStateOfPath "$leftPath" )" = review ] || return 1
+	[ "$( AgentsToolsDecisionsField "$leftPath" spawn-id )" = "$1" ] || return 1
+	leftSince="$( AgentsToolsDecisionsField "$leftPath" review-since-epoch )"
+	case "$leftSince" in ''|*[!0123456789]*) return 1 ;; esac
+	leftLimit="$( AgentsReviewWaitLimit )"
+	leftNow="$( date +%s )"
+	if [ $(( leftNow - leftSince )) -ge "$leftLimit" ] ; then
+		printf 'expired\n'
+	else
+		printf '%s\n' "$(( leftSince + leftLimit - leftNow ))"
+	fi
+	return 0
+}
+
+## The review limit reached: the ending recorded once per review entry (the item stays in
+## review, and a return can restart the same session). Prints the Wait result the session ends on.
+AgentsReviewWaitExpire(){ ## who, spawn id
+	local exItem exPath exSince exDir exMark=""
+	exItem="$( AgentsReviewItemOfSession "$2" )" || return 1
+	exPath="$( AgentsToolsDecisionsItemPath "$exItem" )" || return 1
+	exSince="$( AgentsToolsDecisionsField "$exPath" review-since-epoch )"
+	exDir="$( AgentsTranscriptSessionDir "$2" 2> /dev/null )" || exDir=""
+	[ -z "$exDir" ] || [ ! -f "$exDir/review-expired" ] || IFS= read -r exMark < "$exDir/review-expired" || :
+	if [ "$exMark" != "$exSince" ] ; then
+		AgentsReviewRecord "$1" "$exItem" dismissed "review-wait-expired: no verdict within $( AgentsReviewWaitLimit )s; the item stays in review" ENDING "$2"
+		[ -z "$exDir" ] || { mkdir -p "$exDir" 2> /dev/null && printf '%s\n' "$exSince" > "$exDir/review-expired" 2> /dev/null ; } || :
+	fi
+	printf 'WAIT-RESULT: DISMISSED\nWAIT-DISMISSED-BY: tooling (review-wait-expired: no verdict on %s within %ss; it stays in review)\n' "${exItem%.md}" "$( AgentsReviewWaitLimit )"
+	return 0
+}
+
+## Every live spawn dismissed with reason shutdown: DISMISSED into its session thread, and the
+## ending recorded on the item it works. One SHUTDOWN line per spawn, then a count.
+AgentsReviewShutdown(){ ## sending member
+	local sdBy="$1" sdRecord sdSpawn sdItem sdWhy sdSent=0 sdSeen=0
+	AgentsReviewLoad
+	for sdRecord in "$MMDAPP/.local/agents/spawned"/*/*.md ; do
+		[ -f "$sdRecord" ] || continue
+		sdWhy="$( AgentsReviewChildLive "$sdRecord" )" || continue
+		sdSpawn="${sdRecord##*/}" ; sdSpawn="${sdSpawn%.md}"
+		sdSeen=$(( sdSeen + 1 ))
+		sdWhy="$( AgentsReviewSendToChild "$sdBy" "$sdRecord" DISMISSED )" && sdSent=$(( sdSent + 1 ))
+		printf 'SHUTDOWN: spawn %s: %s\n' "$sdSpawn" "$sdWhy"
+		sdItem="$( AgentsReviewItemOfSession "$sdSpawn" )" || continue
+		AgentsReviewRecord "$sdBy" "$sdItem" dismissed "shutdown: $sdWhy" ENDING "$sdSpawn"
+	done
+	printf 'SHUTDOWN: %s of %s live spawn(s) dismissed\n' "$sdSent" "$sdSeen"
+	return 0
+}
+
+## The one entry of the review ops (AgentsTools.InternOpReview.include), by verb.
+AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismiss (yes|no)
+	local opVerb="$1" opWho="$2" opItem="${3%.md}" opNew="${4%.md}" opText="$5" opReason="$6" opSession="$7" opDismiss="${8:-yes}"
+	local opPath opState opRecord opWhy opOut
+	AgentsReviewLoad
+	[ -z "$opItem" ] || opItem="$opItem.md"
+	case "$opVerb" in
+		handback)
+			opSession="${opSession:-${MDAT_SPAWN_SESSION_ID:-}}"
+			[ -n "$opSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id <spawn-id> is required, and this process has none" >&2 ; return 1 ; }
+			opItem="$( AgentsReviewItemOfSession "$opSession" )" || { printf 'REVIEW: nothing to move: session %s works no board item\n' "$opSession" ; return 0 ; }
+			AgentsReviewToReview "$opWho" "$opItem" handback handback "$opSession" "${opText:-}"
+			return 0
+		;;
+		request)
+			[ -n "$opReason" ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason <text> is required" >&2 ; return 1 ; }
+			AgentsReviewToReview "$opWho" "$opItem" review review-requested "" "by $opWho: $opReason" || return 1
+			return 0
+		;;
+		accept)
+			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
+			opState="$( AgentsReviewStateOfPath "$opPath" )"
+			opOut="$( AgentsReviewTools --intern-op-board-to-processed "$opWho" "$opItem" --from-state:"$opState" 2>&1 )" || {
+				printf '%s\n' "$opOut" >&2
+				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to processed failed, so nothing was accepted" >&2
+				return 1
+			}
+			printf '%s\n' "$opOut" | LC_ALL=C grep -v '^# ' || :
+			opWhy="$( printf '%s\n' "$opOut" | LC_ALL=C sed -n 's/^ACCEPT-DISMISS: //p' | head -1 )"
+			AgentsReviewRecord "$opWho" "$opItem" verdict "accepted${opText:+: $opText}${opWhy:+ (child: $opWhy)}" VERDICT ""
+			printf 'VERDICT: %s accepted -> processed\n' "${opItem%.md}"
+			return 0
+		;;
+		return)
+			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the corrections are required, with --message <text> or --from-stdin" >&2 ; return 1 ; }
+			opPath="$( AgentsReviewVerdictPath "$opItem" "review" )" || return 1
+			AgentsReviewMoveWithSection "$opItem" review running "## Review: returned ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
+				--header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
+				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} back to running failed, so nothing was returned" >&2
+				return 1
+			}
+			AgentsReviewRecord "$opWho" "$opItem" verdict "returned: $opText" VERDICT ""
+			opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" || return 1
+			opRecord="$( AgentsReviewChildRecord "$opPath" )" || opRecord=""
+			if [ -n "$opRecord" ] && AgentsReviewChildLive "$opRecord" > /dev/null ; then
+				opWhy="$( AgentsReviewSendToChild "$opWho" "$opRecord" "$( printf 'RETURNED for corrections on %s. Continue the same task, then hand back again.\n\n%s' "${opItem%.md}" "$opText" )" )" || {
+					printf 'RETURN: not delivered: %s\n' "${opWhy#not sent: }"
+					return 1
+				}
+				printf 'RETURN: delivered to %s in %s\n' "$( printf '%s' "$opWhy" | cut -d' ' -f2 )" "$( printf '%s' "$opWhy" | cut -d' ' -f3 )"
+				return 0
+			fi
+			AgentsReviewRestart "$opItem" "$opRecord" "$opText" "$opWho" || return 1
+			return 0
+		;;
+		reject)
+			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the corrections are required, with --message <text> or --from-stdin" >&2 ; return 1 ; }
+			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
+			opState="$( AgentsReviewStateOfPath "$opPath" )"
+			AgentsReviewMoveWithSection "$opItem" "$opState" pending "## Review: rejected ($( date -u +%Y-%m-%dT%H:%MZ ), $opWho)" "$opText" \
+				--header:upsert:status:review-rejected --header:remove:review-since-epoch --header:remove:review-reason > /dev/null 2>&1 || {
+				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to pending failed, so nothing was rejected" >&2
+				return 1
+			}
+			opWhy="$( AgentsToolsBoardAcceptDismissChild "$opWho" "$MDAT_DATA_ROOT/board/pending/$opItem" )"
+			opWhy="${opWhy#ACCEPT-DISMISS: }"
+			printf 'REJECT-DISMISS: %s\n' "$opWhy"
+			AgentsReviewRecord "$opWho" "$opItem" verdict "rejected: $opText (child: $opWhy)" VERDICT ""
+			printf 'VERDICT: %s rejected -> pending\n' "${opItem%.md}"
+			return 0
+		;;
+		follow-up)
+			[ -n "$opNew" ] || { echo "$MDSC_CMD: ⛔ ERROR: <new-item-name> is required" >&2 ; return 1 ; }
+			[ -n "$opText" ] || { echo "$MDSC_CMD: ⛔ ERROR: the new item body is required, on stdin with --from-stdin" >&2 ; return 1 ; }
+			AgentsToolsDecisionsItemPath "$opItem" > /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: no board item ${opItem%.md} in any board state" >&2 ; return 1 ; }
+			! AgentsToolsDecisionsItemPath "$opNew" > /dev/null || { echo "$MDSC_CMD: ⛔ ERROR: a board item ${opNew} already exists" >&2 ; return 1 ; }
+			mkdir -p "$MDAT_DATA_ROOT/board/pending" 2> /dev/null || :
+			printf '%s\n' "$opText" | AgentsReviewTools --intern-op-board-upsert-move-edit pending "$opNew.md" --create --acting-member:"$opWho" \
+				--upsert-from-stdin --header:upsert:follows-up:"${opItem%.md}" --context "${MDSC_CMD:-review}" --log-verb:created > /dev/null || {
+				echo "$MDSC_CMD: ⛔ ERROR: the follow-up item $opNew could not be created" >&2
+				return 1
+			}
+			AgentsReviewRecord "$opWho" "$opItem" verdict "follow-up: $opNew" VERDICT ""
+			printf 'FOLLOW-UP: %s created in pending, follows-up %s\n' "$opNew" "${opItem%.md}"
+			return 0
+		;;
+		end)
+			[ -n "$opReason" ] || { echo "$MDSC_CMD: ⛔ ERROR: --reason <reason> is required" >&2 ; return 1 ; }
+			opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" || { echo "$MDSC_CMD: ⛔ ERROR: no board item ${opItem%.md} in any board state" >&2 ; return 1 ; }
+			AgentsReviewEndChild "$opWho" "$opPath" "$opReason" "$opDismiss"
+			return 0
+		;;
+		shutdown)
+			AgentsReviewShutdown "$opWho"
+			return 0
+		;;
+	esac
+	echo "$MDSC_CMD: ⛔ ERROR: invalid review operation: $opVerb" >&2
+	return 1
+}
+
+## Its dependencies, loaded once with it, so no function finds one missing in this shell.
+AgentsReviewLoad

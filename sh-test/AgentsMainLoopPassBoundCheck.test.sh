@@ -9,7 +9,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -40,17 +40,16 @@ rigAssert(){ ## what is asserted, got, want
 ## call only, and a Slack-shaped curl that keeps every posted body.
 rigScenario(){ ## name, pass timeout seconds, first-pass seconds
 	rigDir="$rigTmp/$1"
-	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator" "$rigDir/home/.claude/skills/magic-team/templates"
+	mkdir -p "$rigDir/ws/.local/.agents" "$rigDir/data" "$rigDir/bin" "$rigDir/home/.claude/skills/magic-coordinator" "$rigDir/home/.claude/skills/magic-team"
 	## The sender is resolved from its skill folder, so the event-track post needs one.
 	printf '# magic-coordinator\n' > "$rigDir/home/.claude/skills/magic-coordinator/SKILL.md"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.basic.md"
 	## --intern-root-harness's own --routine heartbeat is now unconditional (main-loop
 	## always names it), so spawn-prepare-brief needs an armed.md, a resolvable routine
-	## file whose name carries "heartbeat", and the real brief template to fill.
+	## file whose name carries "heartbeat", and the package's real brief template to fill.
 	printf '# rig armed\n' > "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.armed.md"
 	printf -- '---\nexecutors: magic-coordinator (light)\nmaintainers: rig\n---\n# rig heartbeat routine fixture\n' \
 		> "$rigDir/home/.claude/skills/magic-coordinator/magic-coordinator.heartbeat.routine.md"
-	cp "$rigRealTemplate" "$rigDir/home/.claude/skills/magic-team/templates/spawn-brief.document.format.md"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\nSPAWN_CLI_SERVICE=rig-cli\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'MAIN_LOOP_RESTART_DELAY_SECONDS=2\nMAIN_LOOP_PASS_TIMEOUT_SECONDS=%s\n' "$2" > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"
 	## stdin capture, keyed by the console's own PID, so the brief --intern-root-harness
@@ -172,7 +171,9 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
 rigAssert "names the shared.md sections" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' )" 1
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
+rigAssert "ends its block with the handback line" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
 
 echo "-- --one names heartbeat as the routine to run, non-interactively --"
 rigScenario routine-one 0 1
@@ -182,7 +183,9 @@ rigAssert "told INTERACTION-MODE: non-interactive" \
 rigAssert "names heartbeat as the routine to run" \
 	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'read-and-obey: read magic-coordinator.armed.md and magic-coordinator.heartbeat.routine.md, through the skillset reader, carefully and in full, before acting, and obey them.' )" 1
 rigAssert "names the shared.md sections" \
-	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.' )" 1
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}' )" 1
+rigAssert "ends its block with the handback line" \
+	"$( cat "$rigDir"/console.stdin.* 2>/dev/null | LC_ALL=C grep -c -x -F 'When done, hand back; then Wait until dismissed.' )" 1
 
 rigAssert "no request left for a real host"            "$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C grep -v -c 'slack.com/api/' || : )" 0
 

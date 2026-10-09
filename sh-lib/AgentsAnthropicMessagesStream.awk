@@ -123,6 +123,8 @@ function wireMessageStop(   usagePrompt, usageOutput, usageTotal, probeOut, prob
 		usageTotal = probeParts[2]
 	}
 	wireWrite("stream.usage", usagePrompt " " usageOutput " " usageTotal "\n")
+	## The same round split for the session transcript: input, cache-read, cache-write, output.
+	wireWrite("stream.usage.detail", (wireUsageInput + 0) " " (wireUsageRead + 0) " " (wireUsageWrite + 0) " " (usageOutput + 0) "\n")
 	print "M"
 	wireField(usagePrompt)
 	wireField(wireUsageRead)

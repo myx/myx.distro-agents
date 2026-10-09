@@ -12,30 +12,85 @@
 
 case "$1" in
 
+	## A note and a reflection go into the writer's own inbox only: a spawned session names itself.
 	--member-inbox-note-upsert)
 		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-inbox-note-upsert || return 1
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-note-upsert || return 1
 		return 0
 	;;
 
+	## An inquiry into any member's inbox, from the caller: --from-member names the acting
+	## member only, and an item already there is updated only by the member that wrote it.
 	--member-upsert-member-inquiry)
 		shift
+		local inquiryFrom="" inquiryArg inquiryNext="" inquiryFile inquiryAuthor
+		for inquiryArg in "$@" ; do
+			[ -z "$inquiryNext" ] || { inquiryFrom="$inquiryArg" ; inquiryNext="" ; continue ; }
+			[ "$inquiryArg" != "--from-member" ] || inquiryNext=1
+		done
+		[ -z "$inquiryFrom" ] || AgentsToolsActingMemberCheck "$inquiryFrom" member-upsert-member-inquiry || { set +e ; return 1 ; }
+		[ -n "$inquiryFrom" ] || inquiryFrom="$( AgentsToolsActingMember )"
+		case "${1:-}:${2:-}" in
+			*/*|:*|*:) ;;
+			*)
+				inquiryFile="${MDAT_DATA_ROOT:-}/inboxes/$1/$2"
+				if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -f "$inquiryFile" ] && [ -n "$inquiryFrom" ] ; then
+					inquiryAuthor="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "from: " ) == 1 { print substr( $0, 7 ) ; exit ; }' "$inquiryFile" 2> /dev/null )" || inquiryAuthor=""
+					if [ "$inquiryAuthor" != "$inquiryFrom" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-upsert-member-inquiry: $2 is already in $1's inbox, written by ${inquiryAuthor:-nobody named}, so $inquiryFrom cannot overwrite it -- nothing was done" >&2
+						set +e ; return 1
+					fi
+				fi
+			;;
+		esac
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-upsert-member-inquiry || return 1
 		return 0
 	;;
 
 	--member-inbox-reflection-upsert|--member-upsert-inbox-reflection)
 		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-inbox-reflection-upsert || return 1
 		DistroAgentsTools --intern-op-member-inbox-upsert "$@" --context --member-inbox-reflection-upsert || return 1
 		return 0
 	;;
 
+	## The member's stub: the calling session's own transcript, or a named shared one.
+	## A spawned session appends as its own member only.
 	--member-append-session-transcript)
+		shift
+		[ -z "${1:-}" ] || AgentsToolsActingMemberCheck "$1" member-append-session-transcript || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-append-session-transcript "${1:-}" - "${@:2}"
+		return $?
+	;;
+
+	## The coordinator's stub: any session's transcript, named by its id.
+	--magic-append-session-transcript)
+		shift
+		if [ -z "${2:-}" ] || [ "${2:-}" = "-" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-append-session-transcript: syntax is <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]" >&2
+			set +e ; return 1
+		fi
+		if [ "$1" != magic-coordinator ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-append-session-transcript: runs only as magic-coordinator, and $1 is not it -- a member appends to its own session with --member-append-session-transcript" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsActingMemberCheck "$1" magic-append-session-transcript || { set +e ; return 1 ; }
+		DistroAgentsTools --intern-op-append-session-transcript "$1" "$2" "${@:3}"
+		return $?
+	;;
+
+	## The implementation. <session-id> is `-` for the calling session's own transcript.
+	--intern-op-append-session-transcript)
 		shift
 		local memberName="$1"
 		shift || true
+		local namedSessionId="${1:-}"
+		shift || true
+		[ "$namedSessionId" != "-" ] || namedSessionId=""
+		[ -z "$namedSessionId" ] || AgentsToolsAssertBareName "$namedSessionId" "<session-id>" intern-op-append-session-transcript || { set +e ; return 1 ; }
 		if [ -z "$memberName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> --speaker <speaker-name> --timestamp <ISO-UTC-date-time> (--message <verbatim-text>|--from-stdin|--from-file <path>) --transcript-name <transcript-file-name> [--create]" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: syntax is <team-member> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--transcript-name <transcript-file-name>] [--create]" >&2
 			set +e ; return 1
 		fi
 		AgentsToolsAssertBareName "$memberName" "<team-member>" member-append-session-transcript || { set +e ; return 1 ; }
@@ -80,8 +135,21 @@ case "$1" in
 			esac
 		done
 
-		if [ -z "$speakerName" ] || [ -z "$timestampUtc" ] || [ -z "$transcriptName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: required args: --speaker --timestamp --transcript-name" >&2
+		## With no --transcript-name: the calling session's own transcript, never another
+		## session's (AgentsTranscriptSessionKey). --create starts it when the session has
+		## none yet. Refused where no session resolves.
+		local sessionMode="false"
+		if [ -n "$namedSessionId" ] && [ -n "$transcriptName" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-op-append-session-transcript: a named session takes no --transcript-name" >&2
+			set +e ; return 1
+		fi
+		if [ -z "$transcriptName" ] ; then
+			sessionMode="true"
+			[ -n "$speakerName" ] || speakerName="$memberName"
+			[ -n "$timestampUtc" ] || timestampUtc="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		fi
+		if [ -z "$speakerName" ] || [ -z "$timestampUtc" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: required args with --transcript-name: --speaker --timestamp" >&2
 			set +e ; return 1
 		fi
 		local payloadSources=0
@@ -107,7 +175,34 @@ case "$1" in
 			fi
 			messageText="$(cat -- "$messageFile")"
 		fi
+		if [ "$sessionMode" = "true" ] ; then
+			if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
+				set +e ; return 1
+			fi
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include"
+			local sessionOut="" sessionRc=0 targetSessionId=""
+			targetSessionId="${namedSessionId:-$( AgentsTranscriptSessionKey )}"
+			if [ "$allowCreate" = "true" ] && [ -n "$targetSessionId" ] && ! AgentsTranscriptBase "$targetSessionId" > /dev/null 2>&1 ; then
+				AgentsTranscriptStart "$targetSessionId" "${MDAT_DATA_ROOT:-}" "$( AgentsTranscriptNewRel "$memberName" "$targetSessionId" )" "$memberName"
+			fi
+			sessionOut="$( AgentsTranscriptNote "$targetSessionId" "$speakerName" "$messageText" "$timestampUtc" )" || sessionRc=$?
+			if [ "$sessionRc" != "0" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: ${sessionOut#ERROR: }" >&2
+				set +e ; return 1
+			fi
+			echo "$sessionOut"
+			return 0
+		fi
 		AgentsToolsAssertBareName "$transcriptName" "<transcript-file-name>" member-append-session-transcript || { set +e ; return 1 ; }
+		## A session's tooling-written log is that session's alone: it is reached with no
+		## --transcript-name, from inside the session, never named from another.
+		case "$transcriptName" in
+			session-*.log|session-*-part[0-9]*.log)
+				echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: $transcriptName is a session's own log -- only that session writes it, with no --transcript-name" >&2
+				set +e ; return 1
+			;;
+		esac
 		if ! printf '%s' "$timestampUtc" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' ; then
 			echo "⛔ ERROR: $MDSC_CMD --member-append-session-transcript: --timestamp must be ISO UTC date-time (suffix Z): $timestampUtc" >&2
 			set +e ; return 1
@@ -375,10 +470,9 @@ case "$1" in
 	##
 	## <member> is one positional carrying both the acting member and the
 	## owning inbox, matching --member-inbox-item-read's own convention.
-	## NOTE for whoever hardens this next: that makes the two the same
-	## STRING, not the same IDENTITY -- nothing here proves the caller is
-	## the member it names, so this positional is not access control and
-	## must not be relied on as any.
+	## A spawned session naming another member than itself is refused
+	## (AgentsToolsActingMemberCheck); a call from no spawned session, a
+	## human at the console, is taken at the name it gives.
 	##
 	## No type-prefix whitelist, unlike the sibling read op: see the
 	## "DELIBERATELY ABSENT" note in AgentsTools.InternOpBoardTrash.include
@@ -420,6 +514,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$memberName" "<member>" member-inbox-item-trash || { set +e ; return 1 ; }
 		AgentsToolsAssertBareName "$itemName" "<item-filename>" member-inbox-item-trash || { set +e ; return 1 ; }
+		AgentsToolsActingMemberCheck "$memberName" member-inbox-item-trash || { set +e ; return 1 ; }
 		case "$itemName" in
 			*.md) ;;
 			*)

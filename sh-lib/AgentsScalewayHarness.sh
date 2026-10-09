@@ -43,6 +43,13 @@ HARNESS_CONTEXT_TOKENS_MAIN="256000"
 HARNESS_TOKEN_LIGHT="${SCALEWAY_GEMMA:-${SCALEWAY_DEEPSEEK:-}}"
 HARNESS_TOKEN_MAIN="${SCALEWAY_DEEPSEEK:-${SCALEWAY_GEMMA:-}}"
 
+## --- prompt_cache_key: off by default here ---------------------------------
+## UNOBSERVED: no request carrying the field has been sent to this endpoint, and an
+## OpenAI-compatible server may refuse a body field it does not know. Off until a live
+## run shows it accepted; HARNESS_PROMPT_CACHE_KEY=on in the environment tries it.
+HARNESS_PROMPT_CACHE_KEY="${HARNESS_PROMPT_CACHE_KEY:-off}"
+
+export HARNESS_PROMPT_CACHE_KEY
 export HARNESS_PROVIDER_NAME HARNESS_SELF_NAME HARNESS_ENDPOINT HARNESS_HOST
 export HARNESS_WIRE HARNESS_CREDENTIAL_NAMES
 export HARNESS_MODEL_LIGHT HARNESS_MODEL_MAIN HARNESS_TOKEN_LIGHT HARNESS_TOKEN_MAIN

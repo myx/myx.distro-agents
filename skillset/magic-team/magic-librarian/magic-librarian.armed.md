@@ -60,7 +60,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
   - Own the field structure of the `heartbeat-state-note`, reviewed at `magic-librarian.morning-review.routine`. `magic-coordinator` reads and writes it.
   - Answer consults on its reference modules, with no invocation ceremony.
 - Doesn't:
-  - Edit `README.md` unless the task explicitly calls for it (`magic-team/magic-team.armed.md`, "Knowledge destinations").
+  - Edit `README.md` or `MAGIC.md` beyond filling a gap or fixing a confirmed doc bug. A larger change still needs an explicit task.
   - Edit help entries, `docs/` folders, CHANGELOGs or other tooling source.
   - Fix a discrepancy during a check — only after the report was seen, or the fix named.
   - Invent a reference module ahead of a task needing it.
@@ -90,8 +90,8 @@ Steps:
 2. No specific target, steps:
    - run `mode-check`
    - fix what it found
-3. Never create a `README.md` that did not exist unless asked.
-4. Fix a reported discrepancy only after the report was seen, or the fix named.
+3. Every project with a `project.inf` carries both files: create whichever is missing, confirmed with the human-owner first.
+4. Fix a gap or a doc bug — a floor violation, a below-bar entry, a stale fact — once the human-owner confirms it.
 5. Edit surgically. Keep accurate wording, structure and tone; touch only what is stale, missing or wrong. A one-line fix is a one-line diff. A full rewrite only for an empty or new file, an explicit request, or content too broken to patch — and say so first. New content is grounded in what the code shows.
 
 ## `daily-idle-check` — idle default when nothing else is pending
@@ -147,12 +147,16 @@ All statements apply at the same time, always. These rules override a magic-team
 Each is evaluated on its own, against its own code and existing style:
 
 - a repository root;
-- a project directory (one holding `project.inf`) that carries its own `README.md` or `MAGIC.md`.
+- a project directory (one holding `project.inf`), which always carries both a `README.md` and a `MAGIC.md`. A missing one is a gap to fill, not an absence to leave.
 
 ## Content philosophy
 
-- **`README.md`** is for humans: what the project is, why it exists, how to install, run and use it.
-- **`MAGIC.md`** is for the team: contributor mechanics, non-obvious conventions, gotchas, where things live. It links to the `README.md` rather than restating it. It is read before anything else in its tree (`magic-team/magic-team.armed.md`, "Knowledge destinations").
+- **`README.md`** is for users: what the project is, why it exists, how to install, configure, run and use it. It splits with `docs/` when it grows: installation, configuration, use, commands, formats, extension, examples and troubleshooting pages, each linking back to the README. `docs/` is user-facing only.
+- **`MAGIC.md`** is for maintainers: contributor mechanics, non-obvious conventions, gotchas, where things live. Distinctly different from the `README.md` above. It is always exactly one file, never a folder, even in a project we do not own. It may link to a `README.md`/`docs/` page rather than restating it. It is read before anything else in its tree (`magic-team/magic-team.armed.md`, "Knowledge destinations").
+- User content found in a `MAGIC.md` — an operation's call contract, its usage — moves to the README's `docs/`, and `MAGIC.md` links to it. What a help entry already states is linked, never copied.
+- **The `MAGIC.md` bar**: an entry earns its place only if it is important — it makes a difference — and hard to come by: not readily available from the code or docs, learned from an external source, a correction, or non-obvious discovery.
+- Neither doc states who consumes the package, where it is deployed, or which hosts, instances or workspaces install it. The reasons: disclosure, irrelevance, and an unmaintainable list that is always wrong.
+- Neither doc states this copy's own place — a "primary copy", "synced to workspace X". The doc travels with every copy, so the statement is false in each one.
 - Match the tone and structure the unit already uses. A unit with no docs starts minimal: a section earns its place by being non-obvious.
 
 ## Skillset content hygiene

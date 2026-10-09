@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.EventTrackFeed.include -- a spawn's event-track Slack thread as its technical
+## debug feed: the same formatter lines its session transcript gets, posted as code blocks.
+## Sourced, never run; functions only.
+##
+## THE FEED: $MMDAPP/.local/agents/sessions/<sid>/feed, written only while
+## sessions/<sid>/event-track names the thread (AgentsEventTrackFeedOpen, from the spawn
+## proxy). Its writers: every transcript event and tool line (AgentsTranscriptFeed: board
+## moves, Decisions, dismissals, MCP calls served to native clients, endings), a native
+## spawn's stream writer, and a universal-harness session's kept context, rendered live
+## (AgentsHarnessContextFeed: tool calls, rounds with their tokens). Every writer opens it
+## for each write. It is the session's state, a buffer and never a log: the poster takes it
+## whole (renamed to feed.posting, so the next write starts a new feed) and removes what it
+## took once every line in it is read into the poster, which posts it: on disk the feed only
+## ever holds lines not yet posted.
+## THE POSTS: ordinary lines, ROUND lines among them, are batched into one post every
+## EVENT_TRACK_BATCH_SECONDS (team config, MDAT_EVENT_TRACK_BATCH_SECONDS overrides it,
+## default 30), counted from the first line waiting. An error -- a TOOL line ending error
+## or refused, an ERROR line, a line with outcome=error -- or a state change (the kinds in
+## MDAT_EVENT_TRACK_IMMEDIATE_KINDS, default START MODEL RESTART HANDBACK DISMISSED END:
+## session start and end, a model or service change, a restart, the handback, the
+## dismissal) posts at once, with whatever was waiting before it. Each batch is one tracking
+## post of the kind its most important line names (AgentsEventTrackFeedKind), rendered from
+## sh-lib/templates/event-track.post.format.md: a header naming the member, the kind and
+## the session, then the lines as a code block, cut at line boundaries to
+## MDAT_EVENT_TRACK_CHUNK_BYTES (default 3000, Slack's block text limit). Every post goes
+## through --intern-op-event-track-post, the tooling's own post path, never a member's
+## message: no addressee, no @here. It sends through --intern-op-slack-call, so the shared
+## Slack call's own rate-limit handling (Retry-After, bounded retries) applies unchanged.
+##
+
+agentsEventTrackFeedTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+
+## Opens a session's feed: from now on its lines are kept for the thread.
+AgentsEventTrackFeedOpen(){ ## session id, thread
+	local openDir
+	[ -n "$2" ] || return 0
+	case "$1" in ''|*/*|.|..|*' '*) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	openDir="$MMDAPP/.local/agents/sessions/$1"
+	mkdir -p "$openDir" 2>/dev/null && printf '%s\n' "$2" > "$openDir/event-track" 2>/dev/null || :
+	return 0
+}
+
+AgentsEventTrackFeedInterval(){
+	local intervalValue="${MDAT_EVENT_TRACK_BATCH_SECONDS:-}"
+	[ -n "$intervalValue" ] || intervalValue="$( "$agentsEventTrackFeedTools" --agents-config-option magic-team --select-default EVENT_TRACK_BATCH_SECONDS 30 2>/dev/null )" || intervalValue=30
+	case "$intervalValue" in ''|*[!0123456789]*) intervalValue=30 ;; esac
+	printf '%s' "$intervalValue"
+}
+
+## One batch to the thread, its lines on stdin, as one tracking post of that kind. Through
+## the tooling's own post op only, which renders it and cuts it to the chunk size.
+AgentsEventTrackFeedSend(){ ## member, thread, kind, session id
+	"$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind "$3" ${4:+--session-id "$4"} --from-stdin > /dev/null 2>&1 || :
+}
+
+## The kind of post a batch is, by its most important line: error, refusal, handback,
+## dismissed, review, state change, else activity.
+AgentsEventTrackFeedKind(){ ## lines
+	printf '%s\n' "$1" | LC_ALL=C awk '
+		BEGIN { rank["activity"] = 0 ; rank["state"] = 1 ; rank["review"] = 2 ; rank["dismissed"] = 3 ; rank["handback"] = 4 ; rank["refusal"] = 5 ; rank["error"] = 6 ; best = "activity" }
+		function take(kind) { if (rank[kind] > rank[best]) best = kind }
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ {
+			if ($2 == "ERROR" || $0 ~ / outcome=error( |$)/ || ($2 == "TOOL" && $0 ~ / -> error( |$)/)) take("error")
+			else if ($2 == "TOOL" && $0 ~ / -> refused( |$)/) take("refusal")
+			else if ($2 == "HANDBACK") take("handback")
+			else if ($2 == "DISMISSED" || $2 == "ENDING") take("dismissed")
+			else if ($2 == "REVIEW" || $2 == "VERDICT") take("review")
+			else if ($2 == "START" || $2 == "MODEL" || $2 == "RESTART" || $2 == "END") take("state")
+		}
+		END { print best }'
+}
+
+## A batch of lines as one tracking post; the post op cuts it into parts of the chunk size.
+AgentsEventTrackFeedPost(){ ## member, thread, lines, session id
+	[ -n "$3" ] || return 0
+	printf '%s\n' "$3" | AgentsEventTrackFeedSend "$1" "$2" "$( AgentsEventTrackFeedKind "$3" )" "${4:-}"
+	return 0
+}
+
+## Whether new feed lines hold one that posts at once: rc 0 yes.
+AgentsEventTrackFeedUrgent(){ ## lines
+	printf '%s\n' "$1" | LC_ALL=C awk -v kinds=" ${MDAT_EVENT_TRACK_IMMEDIATE_KINDS:-START MODEL RESTART HANDBACK DISMISSED END} " '
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T/ {
+			if (index(kinds, " " $2 " ") > 0 || $2 == "ERROR") { found = 1 ; exit }
+			if ($2 == "TOOL" && ($0 ~ / -> error( |$)/ || $0 ~ / -> refused( |$)/)) { found = 1 ; exit }
+			if ($0 ~ / outcome=error( |$)/) { found = 1 ; exit }
+		}
+		END { exit (found ? 0 : 1) }'
+}
+
+## Removes the feed the poster took once nothing in it is left unread; rc 0 when it went.
+AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
+	local dropSize
+	[ -f "$1" ] || return 1
+	dropSize="$( wc -c < "$1" | tr -d ' ' )"
+	[ "${dropSize:-0}" -le "${2:-0}" ] || return 1
+	rm -f "$1"
+}
+
+## The poster: runs until killed, then posts what is still waiting. Polls the feed every
+## MDAT_EVENT_TRACK_POLL_SECONDS (default 2); reads whole lines only. Takes the feed whole,
+## renamed to feed.posting, and removes that at the next poll once every line in it is read
+## and so held here to post: the file on disk only ever holds what is not yet posted.
+AgentsEventTrackFeedRun(){ ## session id, member, thread
+	local LC_ALL=C
+	local runFeed runTaken runOffset=0 runSize runNew runPending="" runSince=0 runInterval runPoll="${MDAT_EVENT_TRACK_POLL_SECONDS:-2}" runNow runCut
+	[ -n "$3" ] && [ -n "${MMDAPP:-}" ] || return 0
+	runFeed="$MMDAPP/.local/agents/sessions/$1/feed"
+	runTaken="$runFeed.posting"
+	runInterval="$( AgentsEventTrackFeedInterval )"
+	case "$runPoll" in ''|*[!0123456789]*) runPoll=2 ;; esac
+	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runPending" "$1" ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT HUP
+	while : ; do
+		## The feed taken at the last poll goes once all of it is read. A poll later, never at
+		## once: a write that opened the feed just before it was taken has landed by then.
+		! AgentsEventTrackFeedDrop "$runTaken" "$runOffset" || runOffset=0
+		## One taken at a time, so no line is read twice. Its writers open the feed for each
+		## write, so the next write starts a new one.
+		[ -f "$runTaken" ] || [ ! -s "$runFeed" ] || { mv -f "$runFeed" "$runTaken" 2>/dev/null && runOffset=0 ; }
+		if [ -f "$runTaken" ] ; then
+			runSize="$( wc -c < "$runTaken" | tr -d ' ' )"
+			if [ "${runSize:-0}" -gt "$runOffset" ] ; then
+				## Up to the last newline: a block being written is taken next time.
+				runNew="$( tail -c +"$(( runOffset + 1 ))" "$runTaken" | head -c "$(( runSize - runOffset ))" ; printf X )"
+				runNew="${runNew%X}"
+				runCut="${runNew%$'\n'*}"
+				if [ "$runCut" != "$runNew" ] ; then
+					runOffset=$(( runOffset + ${#runCut} + 1 ))
+					[ -n "$runPending" ] || runSince="$( date +%s )"
+					runPending="${runPending:+$runPending$'\n'}$runCut"
+					if AgentsEventTrackFeedUrgent "$runCut" ; then
+						AgentsEventTrackFeedPost "$2" "$3" "$runPending" "$1"
+						runPending=""
+					fi
+				fi
+			fi
+		fi
+		runNow="$( date +%s )"
+		if [ -n "$runPending" ] && [ $(( runNow - runSince )) -ge "$runInterval" ] ; then
+			AgentsEventTrackFeedPost "$2" "$3" "$runPending" "$1"
+			runPending=""
+		fi
+		sleep "$runPoll" &
+		wait $! 2>/dev/null || :
+	done
+}

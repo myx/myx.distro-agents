@@ -69,12 +69,18 @@ AgentsToolsHeartbeatBoardCounts(){
 ## The active and blocked items, one `<state>/<item-filename>` line each, at
 ## most 40, then one `(+<n> more)` line for the rest; `(none)` when empty.
 AgentsToolsHeartbeatBoardActiveItems(){
-	local activeState activeFile activeN=0 activeCap=40
+	local activeState activeFile activeN=0 activeCap=40 activeRows="" activeTokens
+	## Token totals, summed now over what sits under each item (AgentsTools.SessionTranscript.include).
+	if . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
+		activeRows="$( cd "$MDAT_DATA_ROOT/board" 2>/dev/null && AgentsSessionTokensRollupRows running/*.md review/*.md pending/*.md blocked/*.md 2>/dev/null )"
+	fi
 	for activeState in running review pending blocked ; do
 		for activeFile in "$MDAT_DATA_ROOT/board/$activeState"/*.md ; do
 			[ -f "$activeFile" ] || continue
 			activeN=$(( activeN + 1 ))
-			[ "$activeN" -gt "$activeCap" ] || printf '%s/%s\n' "$activeState" "${activeFile##*/}"
+			activeTokens=""
+			[ -z "$activeRows" ] || activeTokens="$( AgentsSessionTokensRollupText "$( AgentsSessionTokensRollupRowOf "$activeRows" "${activeFile##*/}" )" )"
+			[ "$activeN" -gt "$activeCap" ] || printf '%s/%s%s\n' "$activeState" "${activeFile##*/}" "${activeTokens:+ -- $activeTokens}"
 		done
 	done
 	[ "$activeN" -le "$activeCap" ] || printf '(+%s more)\n' "$(( activeN - activeCap ))"
@@ -245,6 +251,27 @@ case "$1" in
 			configRc=1
 		else
 			echo "SLACK_TOKEN: OK"
+		fi
+		## Her own identity is her user token's account. The user_id printed here is
+		## the one every user-token send is confirmed against (message.user) by
+		## --member-comms-slack-send-message itself. Never gates: WARN only.
+		local identToken="" identResp="" identUserId=""
+		identToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null )" || identToken=""
+		if [ -z "$identToken" ] ; then
+			echo "SLACK_AUTH_IDENTITY: WARN"
+			echo "  warn: magic-coordinator has no SLACK_USER_TOKEN, so she posts under a bot identity, never her own"
+			echo "  fix:  printf '%s' '<xoxp-token>' | DistroAgentsTools.fn.sh --agents-config-option magic-coordinator --upsert-from-stdin SLACK_USER_TOKEN"
+		else
+			identResp="$( curl -sS --connect-timeout 10 --max-time 30 https://slack.com/api/auth.test -H @- <<< "Authorization: Bearer $identToken" 2>/dev/null )" || identResp=""
+			identUserId="$( printf '%s\n' "$identResp" | LC_ALL=C awk -v path=user_id -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || identUserId=""
+			if [ -n "$identUserId" ] && printf '%s' "$identResp" | grep -q '"ok":true' ; then
+				echo "SLACK_AUTH_IDENTITY: OK"
+				echo "  user_id: $identUserId -- the account her user-token sends are confirmed against"
+			else
+				echo "SLACK_AUTH_IDENTITY: WARN"
+				echo "  warn: auth.test on magic-coordinator's SLACK_USER_TOKEN returned no user_id, so her own identity is not established"
+				echo "  fix:  replace SLACK_USER_TOKEN with a valid user token for her own Slack account"
+			fi
 		fi
 		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
@@ -684,7 +711,7 @@ case "$1" in
 			printf '\nActive and blocked items:\n\n'
 			AgentsToolsHeartbeatBoardActiveItems | sed 's/^/- /'
 		)"
-		printf '%s\n' "$reportBody" | DistroAgentsTools --member-comms-email-send "$callingMember" "$reportTo" -- "$reportSubject" -- --text-group report --from-stdin || {
+		printf '%s\n' "$reportBody" | DistroAgentsTools --intern-op-comms-email-send "$callingMember" "$reportTo" -- "$reportSubject" -- --text-group report --from-stdin || {
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: the send failed, so last-test-email-sent is not stamped" >&2
 			set +e ; return 1
 		}

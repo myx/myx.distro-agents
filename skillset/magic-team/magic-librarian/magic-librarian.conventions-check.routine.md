@@ -46,6 +46,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **identify-target-and-analog**: Identify what is reviewed and its closest real analog — a sibling operation, a sibling file of the same type. Read the analog directly. In a batch, resolve the analog per finding.
 2. **compare-against-analog**: Compare the proposal with the analog: naming, error-message shape, placement, shape and verbosity, and style rules stated in the analog itself, including `magic-librarian/magic-librarian.armed.md`'s "Two writing modes".
    - rule: shape and verbosity means how much the analog carries — lead-in length, prose around the substance, element count. A proposal several times more elaborate than its analog fails here alone.
+   - rule: a `MAGIC.md` or `README.md` change is also measured against the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") and the no-narration floor (`magic-team/magic-team.armed.md`'s "Rule/instruction/definition/description conventions"), not only against a sibling file.
    - rule: emitted text is compared against `magic-team/magic-team.shared.md`'s "The output-style floor", as `magic-librarian/magic-librarian.armed.md`'s "Applying the output-style floor" applies it. Carried spans are not measured.
 3. **structure-the-output**: Structure every output in labelled sections, with before and after where relevant.
 4. **classify-each-finding**: Classify each finding: genuine violation, judgement call worth flagging, or clean. A formulation is a genuine finding when it is not easily understood, when a readback drops an intent, detail or benchmark the original had, or when a better candidate exists.
@@ -55,6 +56,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - check for behaviour with no rule behind it
    - check each rule is stated, or pointed to, at the step where it must fire
    - check every sentence against `magic-team/magic-team.shared.md`'s "Duty content only": can a member perform this step without it? A leaked tooling internal is a genuine finding, fixed by moving it to the destination that rule names
+   - check a `MAGIC.md` or `README.md` change against the `MAGIC.md` bar and the no-narration floor, not only its sibling files
    - report a missing or incomplete rule as its own finding
 7. **recheck-the-fix**: Re-run this check on the fix for each blocking finding. The same fix failing three times in a row is escalated to `magic-coordinator`, not tried a fourth time.
 8. **find-best-replacement-wording**: For each finding whose own wording is the fault, steps:

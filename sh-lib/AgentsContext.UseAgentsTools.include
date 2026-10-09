@@ -40,6 +40,53 @@ if ! type AgentsToolsAssertBareName >/dev/null 2>&1 ; then
 	}
 fi
 
+if ! type AgentsToolsActingMember >/dev/null 2>&1 ; then
+	## The member a session the tooling spawned acts as: MDAT_SPAWN_AGENT, else the harness's
+	## own harnessAgent, else the `owner:` of the spawn record MDAT_SPAWN_SESSION_ID names.
+	## Prints nothing for a call from no such session: a human at the console.
+	AgentsToolsActingMember(){
+		local actingName="${MDAT_SPAWN_AGENT:-${harnessAgent:-}}" actingRecord
+		if [ -z "$actingName" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -n "${MMDAPP:-}" ] ; then
+			case "$MDAT_SPAWN_SESSION_ID" in
+				*/*|.|..) ;;
+				*)
+					for actingRecord in "$MMDAPP/.local/agents/spawned"/*/"$MDAT_SPAWN_SESSION_ID.md" ; do
+						[ -f "$actingRecord" ] || continue
+						actingName="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "owner: " ) == 1 { print substr( $0, 8 ) ; exit ; }' "$actingRecord" 2> /dev/null )" || actingName=""
+						[ -z "$actingName" ] || break
+					done
+				;;
+			esac
+		fi
+		printf '%s' "$actingName"
+	}
+	## The session this call comes from, by the rule the spawn proxy names a parent with.
+	AgentsToolsActingSession(){
+		printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+	}
+	## A --member-* call naming another member than the spawned session it runs in is
+	## refused: rc 1 with the reason. A call from no such session keeps the name it gives.
+	AgentsToolsActingMemberCheck(){ ## named member, operation
+		local checkActing
+		checkActing="$( AgentsToolsActingMember )"
+		[ -n "$checkActing" ] && [ "$checkActing" != "$1" ] || return 0
+		echo "$MDSC_CMD: $2: ⛔ ERROR: this session acts as $checkActing, so it cannot act as $1 -- nothing was done" >&2
+		return 1
+	}
+fi
+
+if ! type AgentsToolsMagicCallerCheck >/dev/null 2>&1 ; then
+	## A --magic-* op is magic-coordinator's: refused from a spawned session acting as
+	## another member. A call from no such session is the console's, and accepted.
+	AgentsToolsMagicCallerCheck(){ ## operation
+		local checkActing
+		checkActing="$( AgentsToolsActingMember )"
+		[ -n "$checkActing" ] && [ "$checkActing" != magic-coordinator ] || return 0
+		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and $1 is magic-coordinator's only -- nothing was done" >&2
+		return 1
+	}
+fi
+
 ## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
 ## no unbound-variable death for a caller that runs under `set -u`. No
 ## shipped caller does today -- this is idiom, not a fix for a live fault.

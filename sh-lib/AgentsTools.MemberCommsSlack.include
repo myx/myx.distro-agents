@@ -131,7 +131,7 @@ AgentsToolsCommsSlackMentionUserId(){
 	fi
 
 	local memberId="" memberToken
-	memberToken="$( DistroAgentsTools --member-config-option "$1" --select SLACK_USER_TOKEN 2>/dev/null )" || memberToken=""
+	memberToken="$( DistroAgentsTools --agents-config-option "$1" --select SLACK_USER_TOKEN 2>/dev/null )" || memberToken=""
 	if [ -n "$memberToken" ] ; then
 		## Token on curl's stdin, never argv -- keeps it out of ps.
 		local authResp
@@ -161,25 +161,37 @@ AgentsToolsCommsSlackMentionUserId(){
 
 case "$1" in
 
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-slack-* implementation below directly.
+		--member-comms-slack-read|--member-comms-slack-search-messages|--member-comms-slack-react|--member-comms-slack-delete-message|--member-comms-slack-edit-message|--member-comms-slack-file-info|--member-comms-slack-file-fetch|--member-comms-slack-file-share|--member-comms-slack-send-message|--member-comms-slack-presence-keep|--member-comms-slack-presence-status|--member-comms-slack-presence-stop|--member-comms-slack-profile-set|--member-comms-slack-profile-get|--member-comms-slack-socket-start|--member-comms-slack-socket-status|--member-comms-slack-socket-stop)
+			case "${2:-}" in
+				''|--print-required-scopes) ;;
+				*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+			esac
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
 		## Own file for size only; the service keeps one dispatcher arm.
-		--member-comms-slack-presence-*)
+		--intern-op-comms-slack-presence-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlackPresence.include"
 			return $?
 		;;
 
 		## Own file for size only; the service keeps one dispatcher arm.
-		--member-comms-slack-profile-*)
+		--intern-op-comms-slack-profile-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlackProfile.include"
 			return $?
 		;;
 
 		## Own file for size only; the service keeps one dispatcher arm.
-		--member-comms-slack-socket-*)
+		--intern-op-comms-slack-socket-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlackSocket.include"
 			return $?
 		;;
 
-		--member-comms-slack-read)
+		--intern-op-comms-slack-read)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write
@@ -320,7 +332,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-search-messages)
+		--intern-op-comms-slack-search-messages)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' search:read
@@ -565,7 +577,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-react)
+		--intern-op-comms-slack-react)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' reactions:write reactions:read im:write
@@ -679,7 +691,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-delete-message)
+		--intern-op-comms-slack-delete-message)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' chat:write im:write
@@ -817,7 +829,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-edit-message)
+		--intern-op-comms-slack-edit-message)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' chat:write im:write
@@ -984,7 +996,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-file-info)
+		--intern-op-comms-slack-file-info)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' files:read
@@ -1145,7 +1157,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-file-fetch)
+		--intern-op-comms-slack-file-fetch)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' files:read
@@ -1241,7 +1253,7 @@ case "$1" in
 			echo "# $MDSC_CMD --member-comms-slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
 			## The metadata op's own diagnostic goes straight to stderr rather than
 			## through a capture: it was only ever re-emitted there.
-			infoOut="$( DistroAgentsTools --member-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
+			infoOut="$( DistroAgentsTools --intern-op-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
 
 			case "$infoRc" in
 				0) ;;
@@ -1368,7 +1380,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-slack-file-share)
+		--intern-op-comms-slack-file-share)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
 				printf '%s\n' files:write chat:write im:write channels:read im:read
@@ -1610,7 +1622,7 @@ case "$1" in
 				local shareCommentArgs=( "$memberName" "$shareCommentTarget" )
 				[ "$shareAsBot" = "false" ] || shareCommentArgs+=( --identity-bot )
 				local shareCommentRc=0
-				printf '%s\n' "$shareComment" | DistroAgentsTools --member-comms-slack-send-message "${shareCommentArgs[@]}" --from-stdin >/dev/null || shareCommentRc=$?
+				printf '%s\n' "$shareComment" | DistroAgentsTools --intern-op-comms-slack-send-message "${shareCommentArgs[@]}" --from-stdin >/dev/null || shareCommentRc=$?
 				if [ "$shareCommentRc" != "0" ] ; then
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: the file was shared as $shareFileId but its accompanying message could not be posted (see the send op's own diagnostic above). A shared file with no message beside it is a FAILED operation, not a partial success: the material is there and nothing says what it is for. Post the message yourself with --member-comms-slack-send-message against $shareCommentTarget, or delete the file." >&2
 					set +e ; return 1
@@ -1619,7 +1631,7 @@ case "$1" in
 			return 0
 		;;
 
-	--member-comms-slack-send-message)
+	--intern-op-comms-slack-send-message)
 		shift
 		if [ "$1" = "--print-required-scopes" ] ; then
 			printf '%s\n' chat:write users:read channels:read 'channels:join|channels:write' im:write mpim:write
@@ -1670,7 +1682,7 @@ case "$1" in
 					targetMemberId="$( AgentsToolsCommsSlackMentionUserId "$targetMember" )"
 					if [ -z "$targetMemberId" ] ; then
 						## A member holding a token whose account could not be read is a fault, never a member without a DM.
-						if [ -n "$( DistroAgentsTools --member-config-option "$targetMember" --select SLACK_USER_TOKEN 2>/dev/null )" ] ; then
+						if [ -n "$( DistroAgentsTools --agents-config-option "$targetMember" --select SLACK_USER_TOKEN 2>/dev/null )" ] ; then
 							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: team member '$targetMember' holds a Slack user token but its account could not be read, so nothing was sent and its inbox was not used" >&2
 							set +e ; return 1
 						fi
@@ -1880,7 +1892,7 @@ blocks|verbatim|caller|stdin file"
 		fi
 
 		local sendIdentity="bot" memberUserToken=""
-		memberUserToken="$( DistroAgentsTools --member-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
+		memberUserToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
 
 		local routineAuthored="false"
 		case "$memberName" in
@@ -1901,7 +1913,7 @@ blocks|verbatim|caller|stdin file"
 			false:human-owner|false:human-owner:*)
 				if [ -z "$memberUserToken" ] ; then
 					if [ "$memberName" != "magic-coordinator" ] ; then
-						memberUserToken="$( DistroAgentsTools --member-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null || true )"
+						memberUserToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null || true )"
 						relayedForMember="true"
 					fi
 					if [ -z "$memberUserToken" ] ; then
@@ -2354,11 +2366,38 @@ blocks|verbatim|caller|stdin file"
 		## console: a session that did not send can still read what happened. Outside
 		## the team-data store, so a send adds no commit. Target, identity and outcome
 		## only -- never the body, never a token, never Slack's raw response.
-		local sendLog="$MMDAPP/.local/agents/comms-slack-send.log"
+		## Rolled over monthly, like audit/: comms-slack-send.YYYY-MM.log, the UTC
+		## month of the line's own time. Columns: time, member, target, channel,
+		## identity, ok|failed, reason, session id (last, so positional readers of
+		## the first seven keep working; '-' when no session is known). The session
+		## is resolved by the same rule as AgentsHarnessSessionKey.
+		local sendLogDir="$MMDAPP/.local/agents"
+		local sendLog=""
+		AgentsToolsSlackSendLogMigrate(){ ## once: split the pre-monthly comms-slack-send.log by month
+			local migOld="$sendLogDir/comms-slack-send.log" migLock="$sendLogDir/comms-slack-send.migrate.lock" migMonth
+			[ -f "$migOld" ] || return 0
+			mkdir "$migLock" 2>/dev/null || return 0
+			## Only when no monthly file exists yet for any month the old file holds.
+			for migMonth in $( LC_ALL=C awk -F'\t' '$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) ; if (!(m in seen)) { seen[m] = 1 ; print m } }' "$migOld" ) ; do
+				[ ! -e "$sendLogDir/comms-slack-send.$migMonth.log" ] || { rmdir "$migLock" 2>/dev/null ; return 0 ; }
+			done
+			## A line whose time is unreadable stays with the month of the line before it,
+			## or of the first readable line when it leads the file.
+			LC_ALL=C awk -F'\t' -v dir="$sendLogDir" '
+				$1 ~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T/ { m = substr($1, 1, 4) "-" substr($1, 5, 2) }
+				m == "" { held[++h] = $0 ; next }
+				{ f = dir "/comms-slack-send." m ".log" ; for (i = 1 ; i <= h ; i++) print held[i] >> f ; h = 0 ; print >> f }
+			' "$migOld" && mv -f "$migOld" "$migOld.migrated"
+			rmdir "$migLock" 2>/dev/null
+			return 0
+		}
 		AgentsToolsSlackSendLogLine(){ ## ok|failed, reason
-			local logReason
+			local logReason logStamp logSession
 			logReason="$( printf '%s' "$2" | LC_ALL=C tr -c 'A-Za-z0-9_.:=/ -' '_' )"
-			{ mkdir -p "${sendLog%/*}" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$( date -u +%Y%m%dT%H%M%SZ )" "$memberName" "$target" "$channel" "$sendIdentity" "$1" "$logReason" >> "$sendLog" ; } 2>/dev/null \
+			logStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+			logSession="$( printf '%s' "${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" | LC_ALL=C tr '\t\n\r' '___' )"
+			sendLog="$sendLogDir/comms-slack-send.${logStamp:0:4}-${logStamp:4:2}.log"
+			{ mkdir -p "$sendLogDir" && AgentsToolsSlackSendLogMigrate && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$logStamp" "$memberName" "$target" "$channel" "$sendIdentity" "$1" "$logReason" "${logSession:--}" >> "$sendLog" ; } 2>/dev/null \
 				|| echo "⚠️ WARNING: $MDSC_CMD --member-comms-slack-send-message: could not append this send's outcome to $sendLog" >&2
 		}
 		AgentsToolsSlackSendErrorCode(){ ## Slack's error code from $response, alone
@@ -2537,7 +2576,7 @@ blocks|verbatim|caller|stdin file"
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no EMAIL_USER configured, cannot notify" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --member-comms-email-send magic-coordinator "$fallbackUser" -- \
+		DistroAgentsTools --intern-op-comms-email-send magic-coordinator "$fallbackUser" -- \
 			"Slack comms stuck -- message queued for target $target" -- \
 			"Slack did not confirm this send after $maxAttempts retries -- comms to Slack appear stuck." "" \
 			"Nothing was rerouted to email -- this is a notification only. The" \

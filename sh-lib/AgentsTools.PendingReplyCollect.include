@@ -8,9 +8,10 @@
 ##
 ## Each open record is read once and never waited on: one --member-wait-for-input round
 ## with a zero bound, over the question's own thread, since the question -- the same
-## probe and the same answer rules a live wait uses. Only plain questions are collected:
-## a readback, decision or permission always waits for its verdict, so a collect never
-## reads, closes or grants one.
+## probe and the same answer rules a live wait uses. A plain question its item's Decisions
+## already answer is closed from there. A readback, decision or permission is read only by
+## the main loop's pass over ended and stale records, through the escalation op that reads
+## and applies every verdict; a session's own collect never reads, closes or grants one.
 ##
 ## Pure tooling, run by the tooling itself: no model is called anywhere here.
 ##
@@ -55,6 +56,17 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 	return 0
 }
 
+## The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
+## spawned-sessions row in state running (its process is alive on this host) or
+## unknown-foreign (another host's, not closed, unmeasurable from here) -- the same render
+## and states the review hand-over reads. A session with no spawn record is not listed.
+AgentsToolsPendingReplySessionsRunning(){
+	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+	printf ' %s \n' "$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
+		NF == 13 && $2 != "-" && ( $13 == "running" || $13 == "unknown-foreign" ) && ! seen[$2]++ { printf "%s ", $2 ; }
+	' )"
+}
+
 ## One field, for the rare single read.
 AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
 	LC_ALL=C awk -v key="$2" '
@@ -67,7 +79,7 @@ AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
 ## for the caller. The record is closed here only when it is answered.
 AgentsToolsPendingReplyCollectOne(){ ## record file
 	local oneFile="$1" oneId oneLine oneKey oneValue oneWork oneRc=0 oneBody oneHead oneClose
-	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst=""
+	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst="" oneItem=""
 	collectOutcome="" ; collectAnswer=""
 	oneId="${oneFile##*/}" ; oneId="${oneId%.md}"
 	while IFS=$'\t' read -r oneKey oneValue ; do
@@ -80,21 +92,63 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			thread-ts) oneTts="$oneValue" ;;
 			addressees) oneAddr="$oneValue" ;;
 			question-tag) oneTag="$oneValue" ;;
+			item) oneItem="$oneValue" ;;
 			first) oneFirst="$oneValue" ;;
 		esac
 	done < <( AgentsToolsPendingReplyCollectFields "$oneFile" )
+	[ "$oneStatus" = "reply-pending" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+	## A readback, decision or permission is read only for a session that is gone (collectTyped,
+	## set by the main loop's pass): its verdict is read and applied by the escalation op, the one
+	## place that does it, exactly as the asking session's own wait would have.
 	case "$oneKind" in
 		''|question) ;;
-		*) collectOutcome="SKIPPED" ; return 0 ;;
+		*)
+			[ -n "${collectTyped:-}" ] && [ -n "$oneOwner" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+			local oneRead oneVerdict
+			oneRead="$( MDAT_PENDING_CLOSE_QUIET="${collectQuiet:-}" DistroAgentsTools --intern-op-escalation-read "$oneOwner" "$oneId" 2>/dev/null )" || oneRead=""
+			oneVerdict="$( printf '%s\n' "$oneRead" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"
+			case "$oneRead" in
+				*"ESCALATION: $oneId answered"*)
+					collectOutcome="ANSWERED" ; collectAnswer="$oneVerdict"
+					printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$oneVerdict"
+				;;
+				*"ESCALATION: $oneId open"*)
+					collectOutcome="OPEN"
+					printf 'OPEN %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
+				;;
+				*)
+					collectOutcome="UNREADABLE"
+					printf 'UNREADABLE %s %s | the escalation read gave no verdict and no open state\n' "$oneId" "${oneTag:--}"
+				;;
+			esac
+			return 0
+		;;
 	esac
-	[ "$oneStatus" = "reply-pending" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+	## A question its item's Decisions already answer is closed with that answer, read from
+	## there, so it is not recorded there a second time.
+	## The item's own Decisions first, then those of the task it `tracks:`.
+	local oneItemPath="" oneDecision=""
+	if [ -n "$oneItem" ] ; then
+		type AgentsToolsDecisionsEarlierTracked > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		oneItemPath="$( AgentsToolsDecisionsItemPath "$oneItem" )" && oneDecision="$( AgentsToolsDecisionsEarlierTracked "$oneItemPath" "$oneFirst" )" || oneDecision=""
+	fi
+	if [ -n "$oneDecision" ] ; then
+		collectAnswer="${oneDecision##* -> }" ; collectAnswer="${collectAnswer% (*} (from the Decisions of ${oneDecision%% | *})"
+		oneRc=0
+		oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received --no-decision ${collectQuiet:+--quiet} \
+			--verdict "$collectAnswer" --answered-by decisions --context collect 2>/dev/null )" || oneRc=$?
+		case "$oneRc" in
+			0) collectOutcome="ANSWERED" ; printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$collectAnswer" ; return 0 ;;
+			3) collectOutcome="ALREADY-CLOSED" ; printf '%s\n' "$oneClose" ; return 0 ;;
+		esac
+	fi
 	if [ -z "$oneChannel" ] || [ -z "$oneQts" ] || [ -z "$oneTts" ] || [ -z "$oneAddr" ] || [ -z "$oneOwner" ] ; then
 		collectOutcome="UNREADABLE"
 		printf 'UNREADABLE %s %s | the record names no thread, question or addressee to read\n' "$oneId" "${oneTag:--}"
 		return 0
 	fi
 	oneWork="$( mktemp "$MMDAPP/.local/temp/mdat-pending-collect.XXXXXX" )" || { collectOutcome="UNREADABLE" ; printf 'UNREADABLE %s %s | no work file\n' "$oneId" "${oneTag:--}" ; return 0 ; }
-	DistroAgentsTools --member-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
+	DistroAgentsTools --intern-op-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
 		--wait-timeout 0 --wait-since-utime "$oneQts" --wait-addressee "$oneAddr" > "$oneWork" 2> "$oneWork.err" || oneRc=$?
 	if [ "$oneRc" != "0" ] || LC_ALL=C grep -q '^WAIT-NEVER-READ: ' "$oneWork" || ! LC_ALL=C grep -q -E '^WAIT-RESULT: (RECEIVED|TIMEOUT)$' "$oneWork" ; then
 		collectOutcome="UNREADABLE"
@@ -115,7 +169,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 	' "$oneWork" )"
 	rm -f "$oneWork" "$oneWork.err"
 	## An answer is a reply head or a reaction, exactly what ends a live wait on a question.
-	oneHead="$( printf '%s\n' "$oneBody" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )"
+	oneHead="$( printf '%s\n' "$oneBody" | LC_ALL=C grep -m1 -E '^([0-9]+\.[0-9]+ \| |reaction on the question: )' )" || oneHead=""
 	if [ -z "$oneHead" ] ; then
 		collectOutcome="UNMATCHED"
 		printf 'UNMATCHED %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
@@ -133,7 +187,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		;;
 	esac
 	oneRc=0
-	oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received \
+	oneClose="$( DistroAgentsTools --intern-op-pending-reply-close "$oneId" --if-open --status reply-received ${collectQuiet:+--quiet} \
 		--verdict "$collectAnswer" --answered-by "$oneBy" ${oneAnswerTs:+--answer-ts "$oneAnswerTs"} --context collect 2>/dev/null )" || oneRc=$?
 	case "$oneRc" in
 		0)

@@ -16,7 +16,7 @@ Sign in once with `claude auth login`. Every workspace on the machine then uses 
 
 ## Store a secret without exposing it
 
-	DistroAgentsTools.fn.sh --member-config-option <member> --upsert-from-stdin <key>
+	DistroAgentsTools.fn.sh --agents-config-option <member> --upsert-from-stdin <key>
 
 ## Run one prompt without a session
 

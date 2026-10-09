@@ -16,7 +16,8 @@
 ## So stdout ALWAYS opens with exactly one marker line:
 ##
 ##     WAIT-RESULT: RECEIVED   -- something arrived; the detail follows
-##     WAIT-RESULT: TIMEOUT    -- the bound expired with nothing new; normal
+##     WAIT-RESULT: TIMEOUT    -- the bound expired with nothing new; normal. No --wait-timeout
+##                                is no bound, so then only an unreadable first round returns it
 ##     WAIT-RESULT: ERROR      -- the wait could not be performed; see stderr
 ##     WAIT-RESULT: CLOSED     -- --wait-close ended the stored wait; nothing was waited on
 ##
@@ -171,7 +172,7 @@ AgentsWaitProbeSlack(){
 	esac
 	## Output to a file, never a capture: the read operation forks curl, and a
 	## capture returns on pipe EOF rather than on the process that holds it.
-	DistroAgentsTools --member-comms-slack-read "${probeArgs[@]}" \
+	DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" \
 		> "$probeOut.read" 2> "$probeOut.err" || probeRc=$?
 	if [ "$probeRc" != "0" ] ; then
 		## Actually onto stderr: the TIMEOUT text tells the caller a failed probe's
@@ -322,7 +323,18 @@ AgentsWaitProbeFunctionName(){
 
 case "$1" in
 
+	## The member stub. A wait reads and reacts under the named member's own credentials, so
+	## a spawned session names only itself; tooling calls --intern-op-wait-for-input directly.
 	--member-wait-for-input)
+		if [ -n "${2:-}" ] && ! AgentsToolsActingMemberCheck "$2" member-wait-for-input ; then
+			echo "WAIT-RESULT: ERROR"
+			set +e ; return 1
+		fi
+		DistroAgentsTools --intern-op-wait-for-input "${@:2}"
+		return $?
+	;;
+
+	--intern-op-wait-for-input)
 		shift
 		local memberName="$1"
 		shift || true
@@ -572,7 +584,10 @@ case "$1" in
 				waitSources="$waitSources$carrySource "
 			done
 		fi
-		[ -n "$waitTimeout" ] || waitTimeout=300
+		## THE RETURN BOUND. No --wait-timeout is no bound: the wait returns on an arrival and on
+		## nothing else, so an idle caller spends no round per quiet interval. A caller that must
+		## return by a deadline (an MCP client cutoff, a zero-bound read) names one.
+		## THE POLL CADENCE is separate and only decides how soon an arrival is noticed.
 		## A given interval stays fixed. Unset, the interval backs off: 5s growing by 15s
 		## every 5 minutes waited, capped at 5 minutes.
 		local waitBackoff="false"
@@ -580,7 +595,8 @@ case "$1" in
 		[ -n "$waitPoll" ] || { waitPoll=5 ; waitBackoff="true" ; }
 
 		case "$waitTimeout" in
-			''|*[!0-9]*)
+			'') ;;
+			*[!0-9]*)
 				echo "WAIT-RESULT: ERROR"
 				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-timeout must be a whole number of seconds, got: $waitTimeout" >&2
 				set +e ; return 1
@@ -816,8 +832,8 @@ case "$1" in
 				[ "${reactWord%%=*}" = "$reactSet" ] || continue
 				reactId="${reactWord#*=}"
 				## The member's own identity first, then the bot: which one may react differs by conversation.
-				if DistroAgentsTools --member-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
-					|| DistroAgentsTools --member-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
+				if DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" > /dev/null 2>&1 \
+					|| DistroAgentsTools --intern-op-comms-slack-react "$memberName" "$reactId" "$reactEmoji" --identity-bot > /dev/null 2>&1 ; then
 					reactOk=$(( reactOk + 1 ))
 				else
 					reactFailed="$reactFailed$reactId "
@@ -865,9 +881,9 @@ case "$1" in
 		local waitBaselineMode="first-probe"
 		[ -z "$waitSince" ] || waitBaselineMode="empty"
 
-		local waitStart waitDeadline
+		local waitStart waitDeadline=""
 		waitStart="$( date +%s )"
-		waitDeadline=$(( waitStart + waitTimeout ))
+		[ -z "$waitTimeout" ] || waitDeadline=$(( waitStart + waitTimeout ))
 
 		## What a probe READS from, which is not what the baseline is taken against.
 		## With no cut-off named, a source that can narrow reads from this wait's own
@@ -994,19 +1010,24 @@ case "$1" in
 				fi
 			done
 			[ "$waitOutcome" != "RECEIVED" ] || break
+			## Unbounded, a first round that could read no source at all returns at once rather
+			## than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
+			[ -n "$waitDeadline" ] || [ -n "$waitReadSources" ] || break
 
 			local waitNow waitRemaining waitNap
 			waitNow="$( date +%s )"
-			if [ "$waitNow" -ge "$waitDeadline" ] ; then
+			if [ -n "$waitDeadline" ] && [ "$waitNow" -ge "$waitDeadline" ] ; then
 				break
 			fi
-			waitRemaining=$(( waitDeadline - waitNow ))
 			waitNap="$waitPoll"
 			if [ "$waitBackoff" = "true" ] ; then
 				waitNap=$(( 5 + ( waitNow - waitStart ) / 20 ))
 				[ "$waitNap" -le 300 ] || waitNap=300
 			fi
-			[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
+			if [ -n "$waitDeadline" ] ; then
+				waitRemaining=$(( waitDeadline - waitNow ))
+				[ "$waitNap" -le "$waitRemaining" ] || waitNap="$waitRemaining"
+			fi
 			## The only thing this process does between probes. No spin, no token.
 			sleep "$waitNap"
 		done
@@ -1080,7 +1101,9 @@ case "$1" in
 		echo "# member: $memberName"
 		echo "# sources: ${waitSources% }"
 		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
-		echo "# waited: ${waitElapsed}s of ${waitTimeout}s bound, ${waitRound} poll round(s) at $( [ "$waitBackoff" = "true" ] && printf 'backoff from 5s' || printf '%ss' "$waitPoll" ), baseline: $waitBaselineMode"
+		local waitBoundText="no bound"
+		[ -z "$waitTimeout" ] || waitBoundText="${waitTimeout}s bound"
+		echo "# waited: ${waitElapsed}s of ${waitBoundText}, ${waitRound} poll round(s) at $( [ "$waitBackoff" = "true" ] && printf 'backoff from 5s' || printf '%ss' "$waitPoll" ), baseline: $waitBaselineMode"
 		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
 
 		case "$waitOutcome" in
@@ -1111,18 +1134,8 @@ case "$1" in
 				done
 				[ -z "$waitLastLines" ] || printf '%s\n' "${waitLastLines%$'\n'}"
 			;;
-			*)
-				## A read is claimed only for a source read at least once, so the text differs by which were.
-				if [ -z "$waitReadSources" ] ; then
-					echo "# None of the sources could be read at all this wait, so NOTHING is known about them, arrivals included. The wait itself ran its bound, which is why this is TIMEOUT and not ERROR. Do not read their silence as quiet. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation."
-				elif [ -n "$waitNeverRead" ] ; then
-					echo "# Nothing new arrived within the bound on the sources that were read: ${waitReadSources% }. For those, this is a COMPLETE, SUCCESSFUL wait, not a failure and not an error. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation."
-					echo "# NOTE: these sources could not be read at all this wait, so nothing is known about them either way: ${waitNeverRead% }. Do not read their silence as quiet."
-				else
-					echo "# Nothing new arrived on any source within the bound. This is a COMPLETE, SUCCESSFUL wait, not a failure and not an error: those sources were read and held nothing new. Decide what to do next -- wait again, look elsewhere, or escalate under the rules that already govern escalation -- and do not report this as a fault."
-					[ -z "$waitProbeFailures" ] || echo "# NOTE: some reads of the sources listed above failed. Each was read at least once, so this covers only the rounds that were read."
-				fi
-			;;
+			## TIMEOUT carries no prose: that it is a normal, successful outcome is stated once, in
+			## the Wait tool description, and a source never read is named by WAIT-NEVER-READ above.
 		esac
 
 		## Stored only after RECEIVED or TIMEOUT; floors are the newest ts returned, others keep base.<position>.

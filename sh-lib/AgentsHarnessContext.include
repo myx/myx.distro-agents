@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsHarnessContext.include -- the universal harness keeps its model context.
+## Sourced by AgentsUniversalHarness.sh on the model path only, after the wire adapter;
+## functions only, and every one returns 0 on its own failure except the resume, whose
+## failure the harness turns into its exit (rc 7, before any request is made).
+##
+## THE FILE: $MDAT_SPAWN_SANDBOX_ROOT/context.jsonl, the exact message array this leg
+## sends -- system text, a reference to the tools, then every message record byte for
+## byte (tool_use ids, tool results and thinking signatures included), one JSON object
+## a line. The layout is AgentsHarnessContextTranscript.awk's header comment. Local
+## working state: never committed, removed with the sandbox. Kept only for a spawned,
+## non-waiting session (MDAT_SPAWN_SANDBOX_ROOT, MDAT_SPAWN_SESSION_ID, and no
+## MDAT_SPAWN_CALLER_WAITS=true); MDAT_HARNESS_CONTEXT=off turns it off. A --wait spawn
+## and a native session are untouched.
+##
+## Records are appended as the array grows (AgentsHarnessContextSync), so the file is
+## always the array as last sent; a new leg (summarise-and-restart) rewrites it whole.
+## THE TRANSCRIPT reads its model rounds from here at milestones
+## (AgentsTranscriptContextRender), and the event-track feed reads the same lines live.
+## THE RESUME: MDAT_HARNESS_RESUME_CONTEXT names a file to continue from. Its array is
+## loaded as stored and the prompt this process was given -- the review corrections --
+## is appended as a new user turn, so the request begins with the old one byte for byte.
+##
+
+harnessContextFile=""
+harnessContextCount=0
+harnessContextLeg=0
+harnessContextFrom=0
+harnessContextFeed=""
+harnessContextLastAssistant=0
+harnessContextResumed=0
+harnessContextAwk=( -f "$harnessHere/AgentsHarnessJsonField.awk" -f "$harnessHere/AgentsSessionTranscriptFormat.awk" -f "$harnessHere/AgentsHarnessContextTranscript.awk" )
+
+AgentsHarnessContextEscape(){ ## raw text -- a JSON string body
+	printf '%s' "$1" | LC_ALL=C awk -f "$harnessHere/AgentsMcpJsonEscape.awk"
+}
+
+AgentsHarnessContextStamp(){
+	date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+## The tools array exactly as AgentsWireRequestBody places it.
+AgentsHarnessContextToolsJson(){
+	case "$harnessWire" in
+		AnthropicMessages) printf '%s' "${agentsWireToolsJson%]}${harnessMcpToolsJson:-}]" ;;
+		*) printf '%s' "${harnessToolsJson%]}${harnessMcpToolsJson:-}]" ;;
+	esac
+}
+
+## The system text as sent: the Anthropic wire's own rendering, else the escaped text
+## its first message carries.
+AgentsHarnessContextSystemJson(){
+	case "$harnessWire" in
+		AnthropicMessages) printf '%s' "${agentsWireSystemJson:-}" ;;
+		*) AgentsHarnessContextEscape "$harnessSystemText" ;;
+	esac
+}
+
+AgentsHarnessContextMachine(){
+	hostname -s 2>/dev/null || echo unknown
+}
+
+## Decides whether this run keeps its context, and says where. Called once, before the loop.
+AgentsHarnessContextInit(){
+	local initDir
+	harnessContextFile=""
+	harnessContextFeed=""
+	[ "${MDAT_HARNESS_CONTEXT:-on}" != "off" ] || return 0
+	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -d "$MDAT_SPAWN_SANDBOX_ROOT" ] || return 0
+	[ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || return 0
+	[ "${MDAT_SPAWN_CALLER_WAITS:-}" != "true" ] || return 0
+	[ "$( AgentsTranscriptSessionKey 2>/dev/null )" = "$MDAT_SPAWN_SESSION_ID" ] || return 0
+	harnessContextFile="$MDAT_SPAWN_SANDBOX_ROOT/context.jsonl"
+	## The transcript renders from the log from here on, not from the per-call hooks.
+	agentsTranscriptFromLog=1
+	if initDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" && mkdir -p "$initDir" 2>/dev/null ; then
+		printf '%s\n' "$harnessContextFile" > "$initDir/context" 2>/dev/null || :
+		[ ! -s "$initDir/event-track" ] || harnessContextFeed="$initDir/feed"
+	fi
+	return 0
+}
+
+## One message line; the record last, as its own bytes, or escaped where it holds a newline.
+AgentsHarnessContextLine(){ ## n, kind, meta fragment (starting with a comma, or empty), record
+	local lineRecord="$4" lineMs
+	lineMs="$( AgentsTranscriptNowMs 2>/dev/null )" || lineMs=0
+	case "$lineRecord" in
+		*$'\n'*)
+			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record_text":"%s"}\n' \
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( AgentsHarnessContextStamp )" "${lineMs:-0}" "$3" "$( AgentsHarnessContextEscape "$lineRecord" )"
+		;;
+		*)
+			printf '{"type":"message","n":%s,"leg":%s,"kind":"%s","round":%s,"ts":"%s","ms":%s%s,"record":%s}\n' \
+				"$1" "$harnessContextLeg" "$2" "${harnessRound:-0}" "$( AgentsHarnessContextStamp )" "${lineMs:-0}" "$3" "$lineRecord"
+		;;
+	esac
+}
+
+## A leg's file, written whole: header, system, tools reference, and every message so far.
+## from: the messages this session did not produce (a resume's loaded ones), never rendered.
+AgentsHarnessContextBegin(){ ## from (default 0)
+	local beginTools beginTemp beginIndex=0 beginKind
+	[ -n "$harnessContextFile" ] || return 0
+	harnessContextLeg=$(( harnessContextLeg + 1 ))
+	harnessContextFrom="${1:-0}"
+	harnessContextLastAssistant=0
+	beginTools="$( AgentsHarnessContextToolsJson )"
+	beginTemp="$harnessContextFile.$$"
+	{
+		printf '{"type":"context","version":1,"session":"%s","member":"%s","service":"%s","model":"%s","api_host":"%s","wire":"%s","machine":"%s","leg":%s,"from":%s,"ts":"%s","cache_key":"%s","task":"%s"}\n' \
+			"$MDAT_SPAWN_SESSION_ID" "$( AgentsHarnessContextEscape "${harnessAgent:-}" )" "$( AgentsHarnessContextEscape "${harnessProviderName:-}" )" \
+			"$( AgentsHarnessContextEscape "${harnessModel:-}" )" "$( AgentsHarnessContextEscape "${harnessHost:-}" )" "$harnessWire" \
+			"$( AgentsHarnessContextEscape "$( AgentsHarnessContextMachine )" )" "$harnessContextLeg" "$harnessContextFrom" "$( AgentsHarnessContextStamp )" \
+			"${agentsWirePromptCacheKey:-}" "$( AgentsHarnessContextEscape "$harnessPrompt" )"
+		printf '{"type":"system","text":"%s"}\n' "$( AgentsHarnessContextSystemJson )"
+		printf '{"type":"tools","cksum":"%s","bytes":%s}\n' "$( printf '%s' "$beginTools" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" "$( printf '%s' "$beginTools" | LC_ALL=C wc -c | tr -d ' ' )"
+		while [ "$beginIndex" -lt "${#harnessMessages[@]}" ] ; do
+			case "${harnessMessages[$beginIndex]}" in
+				'{"role":"assistant"'*) beginKind=assistant ; harnessContextLastAssistant=$(( beginIndex + 1 )) ;;
+				'{"role":"tool"'*|'{"role":"user","content":[{"type":"tool_result"'*) beginKind=tool ;;
+				*) beginKind=user ;;
+			esac
+			## The first record is the task; on the chat-completions wire it is the system text, and the task follows.
+			case "$harnessWire:$beginIndex" in
+				AnthropicMessages:0) beginKind=task ;;
+				AnthropicMessages:*) ;;
+				*:0) beginKind=system ;;
+				*:1) beginKind=task ;;
+			esac
+			AgentsHarnessContextLine "$(( beginIndex + 1 ))" "$beginKind" "" "${harnessMessages[$beginIndex]}"
+			beginIndex=$(( beginIndex + 1 ))
+		done
+	} > "$beginTemp" 2>/dev/null && mv -f "$beginTemp" "$harnessContextFile" 2>/dev/null || {
+		rm -f "$beginTemp" 2>/dev/null
+		echo "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: the model context could not be kept in $harnessContextFile -- this run carries on without it, and cannot be resumed" >&2
+		harnessContextFile=""
+		agentsTranscriptFromLog=""
+		return 0
+	}
+	harnessContextCount="${#harnessMessages[@]}"
+	return 0
+}
+
+## Appends every record the array gained since the last call, each with the kind and
+## meta given; then the new lines go to the event-track feed, where there is one.
+AgentsHarnessContextSync(){ ## kind (user|assistant|tool), meta fragment
+	local syncKind="$1" syncMeta="${2:-}" syncFirst
+	[ -n "$harnessContextFile" ] || return 0
+	[ -f "$harnessContextFile" ] || { AgentsHarnessContextBegin "$harnessContextFrom" ; return 0 ; }
+	[ "$harnessContextCount" -lt "${#harnessMessages[@]}" ] || return 0
+	syncFirst=$(( harnessContextCount + 1 ))
+	while [ "$harnessContextCount" -lt "${#harnessMessages[@]}" ] ; do
+		AgentsHarnessContextLine "$(( harnessContextCount + 1 ))" "$syncKind" "$syncMeta" "${harnessMessages[$harnessContextCount]}" >> "$harnessContextFile" 2>/dev/null || :
+		harnessContextCount=$(( harnessContextCount + 1 ))
+		[ "$syncKind" != "assistant" ] || harnessContextLastAssistant="$harnessContextCount"
+	done
+	AgentsHarnessContextFeed "$syncFirst"
+	return 0
+}
+
+## The event-track feed's live copy of the new lines, by the transcript's own reader. The
+## read starts at the latest assistant record, which the calls' arguments come from.
+AgentsHarnessContextFeed(){ ## first new message n
+	local feedStart="$1"
+	[ -n "$harnessContextFeed" ] || return 0
+	[ "$harnessContextLastAssistant" -lt 1 ] || [ "$harnessContextLastAssistant" -ge "$feedStart" ] || feedStart="$harnessContextLastAssistant"
+	tail -n +"$(( feedStart + 3 ))" "$harnessContextFile" 2>/dev/null \
+		| LC_ALL=C awk -v from="$1" "${harnessContextAwk[@]}" >> "$harnessContextFeed" 2>/dev/null || :
+	return 0
+}
+
+## The meta of an assistant record: this round's tokens, as the transcript reads them.
+AgentsHarnessContextAssistantMeta(){
+	local metaIn=0 metaCr=0 metaCw=0 metaOut=0
+	[ ! -s "$harnessScratch/stream.usage.detail" ] || read -r metaIn metaCr metaCw metaOut < "$harnessScratch/stream.usage.detail" || :
+	printf ',"in":%s,"cache_read":%s,"cache_write":%s,"out":%s' "${metaIn:-0}" "${metaCr:-0}" "${metaCw:-0}" "${metaOut:-0}"
+}
+
+## The meta of a tool result: the call it answers, how long it ran and how it came out.
+AgentsHarnessContextToolMeta(){ ## tool name, call id, result, preset outcome
+	local metaDur=0
+	[ -z "${agentsTranscriptT0:-}" ] || metaDur=$(( $( AgentsTranscriptNowMs ) - agentsTranscriptT0 ))
+	printf ',"tool":"%s","id":"%s","dur_ms":%s,"outcome":"%s"' "$( AgentsHarnessContextEscape "$1" )" "$( AgentsHarnessContextEscape "$2" )" "$metaDur" "$( AgentsTranscriptOutcomeOf "$3" "$4" )"
+}
+
+## A reply with no tool call, kept as the assistant turn it was, so a resume continues
+## after it: the Anthropic wire's own blocks, else the chat-completions text message.
+AgentsHarnessContextAssistantRecord(){
+	case "$harnessWire" in
+		AnthropicMessages) AgentsWireAssistantToolCallsRecord "" ;;
+		*) printf '{"role":"assistant","content":"%s"}' "$( AgentsHarnessContextEscape "$( AgentsWireFinalContent )" )" ;;
+	esac
+}
+
+## That reply appended and kept: the final answer, a closing round's, a summary's.
+AgentsHarnessContextReply(){
+	[ -n "$harnessContextFile" ] || return 0
+	harnessMessages+=( "$( AgentsHarnessContextAssistantRecord )" )
+	AgentsHarnessContextSync assistant "$( AgentsHarnessContextAssistantMeta )"
+	return 0
+}
+
+## A header field of a context file, decoded.
+AgentsHarnessContextHeader(){ ## file, field
+	local headerValue
+	headerValue="$( head -1 "$1" | LC_ALL=C awk -v path="$2" -v optional=1 -v sentinel=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || headerValue=""
+	printf '%s' "${headerValue%X}"
+}
+
+## Loads MDAT_HARNESS_RESUME_CONTEXT in place of AgentsWireInitMessages, then appends the
+## corrections. rc 1, with the reason on stderr, when it is not this run's to continue:
+## another model, service, API host, wire or machine, or a file that does not parse.
+AgentsHarnessContextResume(){
+	local resumeFile="$MDAT_HARNESS_RESUME_CONTEXT" resumeCount resumeIndex=1 resumeDir resumeWhy="" resumeSystem resumeTools resumeKey resumeTask
+	if [ ! -s "$resumeFile" ] ; then
+		resumeWhy="no context file at $resumeFile"
+	elif ! resumeCount="$( LC_ALL=C awk -v mode=validate "${harnessContextAwk[@]}" "$resumeFile" 2>&1 )" ; then
+		resumeWhy="$resumeFile does not parse: $resumeCount"
+	elif [ "$( AgentsHarnessContextHeader "$resumeFile" model )" != "$harnessModel" ] ; then
+		resumeWhy="the context was kept for model $( AgentsHarnessContextHeader "$resumeFile" model ), this run is $harnessModel"
+	elif [ "$( AgentsHarnessContextHeader "$resumeFile" service )" != "$harnessProviderName" ] ; then
+		resumeWhy="the context was kept for service $( AgentsHarnessContextHeader "$resumeFile" service ), this run is $harnessProviderName"
+	elif [ "$( AgentsHarnessContextHeader "$resumeFile" api_host )" != "$harnessHost" ] ; then
+		resumeWhy="the context was kept for API host $( AgentsHarnessContextHeader "$resumeFile" api_host ), this run is $harnessHost"
+	elif [ "$( AgentsHarnessContextHeader "$resumeFile" wire )" != "$harnessWire" ] ; then
+		resumeWhy="the context was kept on wire $( AgentsHarnessContextHeader "$resumeFile" wire ), this run is $harnessWire"
+	elif [ "$( AgentsHarnessContextHeader "$resumeFile" machine )" != "$( AgentsHarnessContextMachine )" ] ; then
+		resumeWhy="the context was kept on host $( AgentsHarnessContextHeader "$resumeFile" machine ), not $( AgentsHarnessContextMachine )"
+	elif [ "${resumeCount:-0}" -lt 1 ] ; then
+		resumeWhy="the context holds no message"
+	fi
+	if [ -n "$resumeWhy" ] ; then
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: MDAT_HARNESS_RESUME_CONTEXT cannot be resumed here -- $resumeWhy. Nothing was sent." >&2
+		return 1
+	fi
+	resumeDir="$harnessScratch/resume"
+	mkdir -p "$resumeDir" && LC_ALL=C awk -v mode=extract -v dir="$resumeDir" "${harnessContextAwk[@]}" "$resumeFile" > /dev/null 2>&1 || {
+		echo "${harnessBad}⛔ ERROR:${harnessOff} $harnessSelfName: the records of $resumeFile could not be read back. Nothing was sent." >&2
+		return 1
+	}
+	## The system line's own bytes: `{"type":"system","text":"` ... `"}`.
+	resumeSystem="$( sed -n 2p "$resumeFile" )"
+	resumeSystem="${resumeSystem#\{\"type\":\"system\",\"text\":\"}"
+	resumeSystem="${resumeSystem%\"\}}"
+	[ "$harnessWire" != "AnthropicMessages" ] || agentsWireSystemJson="$resumeSystem"
+	harnessMessages=()
+	while [ "$resumeIndex" -le "$resumeCount" ] ; do
+		harnessMessages+=( "$( cat "$resumeDir/rec.$resumeIndex" ; printf X )" )
+		harnessMessages[$(( resumeIndex - 1 ))]="${harnessMessages[$(( resumeIndex - 1 ))]%X}"
+		resumeIndex=$(( resumeIndex + 1 ))
+	done
+	rm -rf "$resumeDir" 2>/dev/null || :
+	## The same prompt-cache routing key the context was kept under, where the wire has one.
+	resumeKey="$( AgentsHarnessContextHeader "$resumeFile" cache_key )"
+	if [ -n "$resumeKey" ] && [ -n "${agentsWirePromptCacheKey:-}" ] && [ "$resumeKey" != "$agentsWirePromptCacheKey" ] ; then
+		harnessExtraHeaders="${harnessExtraHeaders//$agentsWirePromptCacheKey/$resumeKey}"
+		agentsWirePromptCacheKey="$resumeKey"
+	fi
+	resumeTools="$( sed -n 3p "$resumeFile" | LC_ALL=C awk -v path=cksum -v optional=1 -f "$harnessHere/AgentsHarnessJsonField.awk" 2>/dev/null )" || resumeTools=""
+	[ "$resumeTools" = "$( AgentsHarnessContextToolsJson | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )" ] \
+		|| echo "${harnessWarn}⚠️  WARNING:${harnessOff} $harnessSelfName: the tool set differs from the one the context was kept with -- resuming anyway, but the prompt cache will not cover the tools" >&2
+	## The corrections are the new user turn; the task a later restart re-renders keeps both.
+	resumeTask="$( AgentsHarnessContextHeader "$resumeFile" task )"
+	harnessMessages+=( "$( AgentsWireUserRecord "$harnessPrompt" )" )
+	[ -z "$resumeTask" ] || printf -v harnessPrompt '%s\n\n%s' "$resumeTask" "$harnessPrompt"
+	printf '%s\n' "${harnessValue}♻️  resumed${harnessOff} ${harnessDim}-- $resumeCount messages from $resumeFile, then the corrections as a new user turn${harnessOff}" >&2
+	harnessContextResumed="$resumeCount"
+	[ -z "${MDAT_HARNESS_RESUME_MARKER:-}" ] || : > "$MDAT_HARNESS_RESUME_MARKER" 2>/dev/null || :
+	return 0
+}

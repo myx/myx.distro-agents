@@ -16,7 +16,7 @@ rigHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -31,7 +31,7 @@ trap 'chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigSkills="$rigTmp/skills"
 rigData="$rigTmp/data"
-mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team/templates" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigSkills/rig-plain" "$rigData/board/running" "$rigData/inboxes/keeper-myx"
+mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigSkills/magic-team" "$rigSkills/keeper-myx" "$rigSkills/magic-coordinator" "$rigSkills/rig-plain" "$rigData/board/running" "$rigData/inboxes/keeper-myx"
 
 cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package"
@@ -40,15 +40,18 @@ PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
 ## The console the proxy launches: records its stdin once (a later handback retry must
-## not overwrite the brief under test) and signals a launch.
+## not overwrite the brief under test) and signals a launch. An Agent spawn returns at
+## once and its proxy runs on behind it, so the previous spawn's handback retry can land
+## after the next one emptied the brief: a retry is never recorded, by its own text.
 printf '%s\n' '#!/usr/bin/env bash' \
 	'## --cli-configured stand-in: writes MDAT_SPAWN_LAUNCH_MARKER and records the context.' \
 	'[ -s "$RIG_SCENARIO/brief" ] && { cat > /dev/null ; exit 0 ; }' \
-	'cat > "$RIG_SCENARIO/brief"' \
+	'rigContext="$( cat )"' \
+	'case "$rigContext" in "Your previous run on this task ended without calling SubagentHandback."*) exit 0 ;; esac' \
+	'printf "%s\n" "$rigContext" > "$RIG_SCENARIO/brief"' \
 	'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' > "$rigWs/DistroAgentsConsole.sh"
 chmod +x "$rigWs/DistroAgentsConsole.sh"
 
-cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 printf '# rig armed\n' > "$rigSkills/keeper-myx/keeper-myx.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/magic-coordinator/magic-coordinator.basic.md"
 printf '# rig armed\n' > "$rigSkills/magic-coordinator/magic-coordinator.armed.md"

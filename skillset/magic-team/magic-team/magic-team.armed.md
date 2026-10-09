@@ -103,12 +103,13 @@ All statements apply at the same time, always. These rules override a magic-team
 
 # Waiting
 
-**wait-never-quit**: Any agent or task in a session never stops on its own. When its task is done, it tells its caller it is done and waiting for further instructions (a post or an Ask), then keeps waiting with `Wait` (`mcp__myx_distro__Wait` in a native client), at least on its own session thread, and keeps obeying what arrives.
-- A caller that is satisfied and not continuing explicitly dismisses it: it sends `DISMISSED` with `SendMessage` to the agent's session thread, `address_to=<member>`. The agent's `Wait` returns `DISMISSED`; it hands back (`SubagentHandback`) and ends.
+**wait-never-quit**: Any agent or task in a session never stops on its own. Its handback is the final report of its work and its last message, through `SubagentHandback` or any other way it reports. After it, it only waits with `Wait` (`mcp__myx_distro__Wait` in a native client), at least on its own session thread, and keeps obeying what arrives.
+- Only the system or its caller ends it: an accept, a reject, the review wait limit, a cancel, a shutdown. The ending reaches it as `DISMISSED` in its session thread, addressed to it; its `Wait` returns `DISMISSED`, and it ends.
+- The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - Exception: a session spawned with its caller blocked on it (`--wait`, such as the host loop's heartbeat or root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
 - `TaskStop` is only a last-resort force-stop for an unresponsive agent.
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
-- When the task is literally done, it goes through the review process (`board-review`); other cases are general communication.
+- A handback puts its item into `board-review`; the reviewer settles it with `magic-team.handback-review.routine`. Other cases are general communication.
 - Whatever it waits for — an answer, a verdict, a spawned member, a board or inbox change — it waits with `Wait`. `Wait` with no sources waits on the session thread.
 - `TIMEOUT` is a normal result, never an answer. Read what is pending, then wait again or re-ask. People may take hours.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
@@ -150,7 +151,7 @@ Writing:
 Git, scope and finishing:
 - **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`, and the member asks with a `permission` ask ("Nothing stops on its own"); the grant is `allow-once` or `allow-session`.
 - A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (`magic-team.conversations.md`'s **anchor-refusal-safeguard**).
-- **Commits are the human-owner's.** A member runs no git command; the tooling does its own data commits. Source work ends at a correct, uncommitted tree, checked by reading the files.
+- **A human's checkout and git identity are never the team's.** In a checkout the team does not own, a member never commits, resets, stashes, discards or pushes, and never uses the human's account or key, unless explicitly tasked. Git state there is never evidence: other sessions and the human share the same uncommitted tree, so a member may look but never relies on it. Git work happens only in a dedicated checkout of the member's own. Team-data commits are the tooling's. Source work ends at a correct, uncommitted tree, checked by reading the files.
 - Which directory is a repository, or whether two checkouts are one, is answered by a tooling op or the human-owner, never inferred. A working-tree status in a shared checkout is not evidence about one task.
 - A task's scope is exactly what was approved. Growth is filed as a proposal while the approved scope continues. A narrowing is final: never re-expanded, never re-asked.
 - A root cause outside the named scope is escalated, not fixed.
@@ -208,7 +209,7 @@ Tools and channels:
 # Rule/instruction/definition/description conventions
 
 - A rule is a short, abstract, present-tense statement, never a narrative. Register by kind: `magic-team.shared.md`'s "Generalise a rule, sharpen an instruction".
-- State a durable fact, never narrate a past action or cite session provenance. A pending/settled status marker is allowed.
+- Every instruction and document states a durable fact and its reason. Never narrate a past action, a measurement, or session provenance — a task or rule needing narrated text says so explicitly. A pending/settled status marker is allowed.
 - **A skillset file changes only by `quorum-all-agree` of its own `maintainers:`, reached in one `magic-team.coworking.routine` session with the maintainers as participants and `magic-librarian` running `magic-librarian.conventions-check.routine` on the change.** That agreement lands it; no further validation step exists. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
 - A file that includes another may override, extend or waive the included rules, unless the included rule forbids it.
 - A term's short definition lives in one terminology list. Each consumer describes its own use of it.
@@ -279,8 +280,9 @@ A board item is cited in prose as `board://<state>/<item-filename>`; a tool take
 
 - A rule, convention or contract change → the skillset, through the change rule above.
 - A ruling on one piece of work → that work's own document (`magic-team.conversations.md`'s **decision-lands-in-the-document-it-binds**).
+- **Decisions in a tracking document are binding context; tooling records them.** Its `## Decisions` lines (answers and verdicts, written as each ask closes) are read before acting and never asked again; record a clarification with `--member-decision-record`.
 - A member's own small lesson → a `reflection-*` in its own inbox. Once it binds anyone else, it is a convention.
-- **Every repo- or workspace-relevant finding is written into a `MAGIC.md` at once**, without waiting to be asked: the touched repo's root `MAGIC.md` (under `## For <team-member>` if new), else the `util.repository-<namespace>/MAGIC.md`, else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge when its files live in a repository we own.
+- **A repo- or workspace-relevant finding that passes the `MAGIC.md` bar (`magic-librarian/magic-librarian.armed.md`'s "Content philosophy") is written into a `MAGIC.md` at once**, where everyone reads it, never parked in an inbox or backlog nobody reads: the touched repo's root `MAGIC.md` (under `## For <team-member>` if new), else the `util.repository-<namespace>/MAGIC.md`, else the owning `keeper-*`/`partner-*`/`client-*` member's domain knowledge when its files live in a repository we own. Below the bar: not recorded — git keeps it.
 - A cross-customer member (`magic-*`) keeps only the generic pattern in its own files, with a pointer to the concrete instance.
 - `README.md` is read-only unless a task explicitly calls for editing it. `CLAUDE.md`, `AGENTS.md` and `MEMORY.md` are not team homes: nothing is written there.
 - **A `MAGIC.md` is read before anything else in its tree**: the repo's own, the namespace's, the workspace project's. Other documents there may be stale.
@@ -328,6 +330,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 - `--member-escalation-answer`
 - `--member-pending-reply-read`
 - `--member-pending-reply-settle`
+- `--member-decision-record`
 - `--member-inbox-note-upsert`
 - `--member-upsert-member-inquiry`
 - `--member-inbox-reflection-upsert`

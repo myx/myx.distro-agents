@@ -15,7 +15,7 @@ function flush(   keyIdx, keyName) {
 	printf "question: %s\n\n", first ;
 	shown++ ;
 }
-BEGIN { keyCount = split("status owner kind question-tag channel question-ts thread-ts address-to session-id asked-at resolved-at verdict answered-by amended-at amended-by amend-reason amended-from amended-from-answered-by", keys, " ") ; }
+BEGIN { keyCount = split("status owner kind question-tag channel question-ts thread-ts address-to session-id item asked-at resolved-at verdict answered-by amended-at amended-by amend-reason amended-from amended-from-answered-by", keys, " ") ; }
 FNR == 1 { if ( haveRecord ) { flush() ; } resetRecord() ; }
 $0 == "---" { dashes++ ; next ; }
 dashes == 1 {

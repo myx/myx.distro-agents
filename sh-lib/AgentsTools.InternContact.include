@@ -74,7 +74,7 @@ case "$1" in
 		if [ "$digestRoute" = "--needs-ruling" ] ; then
 			## His own Slack DM, because that is where he replies: the send
 			## path's own human-owner target, which forces a user identity.
-			DistroAgentsTools --member-comms-slack-send-message "$digestMember" human-owner \
+			DistroAgentsTools --intern-op-comms-slack-send-message "$digestMember" human-owner \
 				--address-to "$digestOrigin" "${digestText# }"
 			return $?
 		fi
@@ -88,7 +88,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $opContext: --resolved: no SLACK_CHANNEL_HUMAN_OWNER configured -- the bot's own conversation with him cannot be addressed without his account id" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --member-comms-slack-send-message "$digestMember" "$ownerUserId" --identity-bot \
+		DistroAgentsTools --intern-op-comms-slack-send-message "$digestMember" "$ownerUserId" --identity-bot \
 			--address-to "$digestOrigin" "${digestText# }"
 		return $?
 	;;
@@ -100,7 +100,9 @@ case "$1" in
 	## magic-team/templates/contacts.document.format.md, counts regardless of
 	## its own permission-level: this gate is about a recipient being on
 	## record at all, not about the separate tier-3 permission question that
-	## format's own permission-level field answers. Not known: refused via
+	## format's own permission-level field answers. The team's own configured
+	## addresses -- the human-owner's and each member's -- are known as well,
+	## read from config, never listed anywhere by hand. Not known: refused via
 	## the existing --intern-op-permission-refusal-log/grant-open flow, so
 	## approval travels the one path every other refusal already does.
 	--intern-op-contact-assert-known)
@@ -191,19 +193,47 @@ case "$1" in
 			fi
 		fi
 
+		## The team's own configured addresses, compared regardless of case:
+		## the human-owner's own EMAIL_USER and his Slack account -- magic-team's
+		## SLACK_CHANNEL_HUMAN_OWNER, the user id every human-owner send already
+		## resolves -- and the own EMAIL_USER of every member the member index
+		## lists. No member scope holds a Slack account id of its own (that is
+		## resolved from its token), so a member is matched by its address only.
+		## Each read is --agents-config-option's, so a member is read in the
+		## workspace that holds it.
+		local assertOwn assertOwnName assertOwnRest
+		assertOwn="$( DistroAgentsTools --agents-config-option human-owner --select EMAIL_USER 2>/dev/null )"
+		assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )"
+		if [ -f "$MMDAPP/.local/agents/members.index" ] ; then
+			while IFS=$'\t' read -r assertOwnName assertOwnRest ; do
+				AgentsToolsAssertBareName "$assertOwnName" "<member-index-name>" intern-op-contact-assert-known 2>/dev/null || continue
+				assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option "$assertOwnName" --select EMAIL_USER 2>/dev/null )"
+			done < "$MMDAPP/.local/agents/members.index"
+		fi
+		if printf '%s\n' "$assertOwn" | LC_ALL=C awk -v want="$assertTarget" '
+			function trim(s) { sub(/^[ \t\r]+/, "", s) ; sub(/[ \t\r]+$/, "", s) ; return tolower(s) }
+			{ own = trim($0) ; if ( own != "" && own == trim(want) ) { found = 1 ; exit } }
+			END { exit found ? 0 : 1 }
+		' ; then
+			return 0
+		fi
+
 		## Not known: refused, bound to this exact message text so a later
 		## approval covers only what the human-owner actually saw -- a
 		## changed message to the same recipient needs its own approval.
 		local assertDigest assertBoundTarget
 		assertDigest="$( printf '%s' "$assertMessage" | LC_ALL=C cksum | LC_ALL=C awk '{ print $1 }' )"
 		assertBoundTarget="$assertTarget#msg-$assertDigest"
+		## The checks this gate made, in the order above: one wording for the
+		## recorded reason and the ERROR alike.
+		local assertChecks="not addressed as a partner-*/human-owner member, not listed in ${assertMember}'s own contacts note, not one of the team's own configured addresses (human-owner or member)"
 		local assertRefusalId=""
 		assertRefusalId="$( DistroAgentsTools --intern-op-permission-refusal-log "$assertMember" \
 			--session-id "${MDAT_SPAWN_SESSION_ID:-no-session-$$}" \
 			--tool "$assertTool" --target "$assertBoundTarget" \
-			--reason "outbound --$assertTool to '$assertTarget' refused: not the human-owner's own chat, not a partner-/human- member, not listed in ${assertMember}'s own contacts note" \
+			--reason "outbound --$assertTool to '$assertTarget' refused: $assertChecks" \
 			2>/dev/null | LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' | head -1 )" || assertRefusalId=""
-		echo "⛔ ERROR: $MDSC_CMD --$assertTool: REFUSED -- '$assertTarget' is not a known contact (not the human-owner's own chat, not a partner-/human- member, not listed in ${assertMember}'s own contacts note). This message was NOT sent. REFUSAL-ID: ${assertRefusalId:-none}. To send it: show the EXACT text of this message to the human-owner and wait for his approved reply -- approval covers only this exact text to this recipient; a changed message needs fresh approval." >&2
+		echo "⛔ ERROR: $MDSC_CMD --$assertTool: REFUSED -- '$assertTarget' is not a known contact ($assertChecks). This message was NOT sent. REFUSAL-ID: ${assertRefusalId:-none}. To send it: show the EXACT text of this message to the human-owner and wait for his approved reply -- approval covers only this exact text to this recipient; a changed message needs fresh approval." >&2
 		set +e ; return 1
 	;;
 

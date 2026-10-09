@@ -18,7 +18,15 @@ wires both into a workspace.
   items; per-member credentials; keep-alive console sessions; and the state
   machinery the team's routines run on.
 - **The console** — `DistroAgentsConsole.sh`, which starts an agent CLI session
-  against the workspace instead of a bash shell.
+  against the workspace instead of a bash shell. Every line sent to it goes
+  through a model, so run `DistroAgentsTools.fn.sh` directly for read-only calls.
+  See [Use](docs/use.md#running-the-agents-console).
+
+## Getting started
+
+After installing the toolset, run `DistroAgentsTools.fn.sh --owner-setup-claude`,
+then the `--apply` command it prints. Workspace restrictions are an optional
+extra step. See [Installation](docs/installation.md#getting-started).
 
 ## Documentation
 
@@ -30,6 +38,8 @@ wires both into a workspace.
 - [Extension](docs/extension.md) — adding your own members, builders, directives and commands.
 - [Examples](docs/examples.md) — worked examples from start to finish.
 - [Troubleshooting](docs/troubleshooting.md) — symptoms, causes and actions.
+
+Maintainers: see [MAGIC.md](MAGIC.md) for the decisions, conventions and gotchas behind the code.
 
 ## Getting help
 

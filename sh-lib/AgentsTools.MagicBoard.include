@@ -185,7 +185,14 @@ case "$1" in
 		return $?
 	;;
 
+	## The coordinator's stub. The implementation is --intern-op-board-to-processed, which the
+	## review accept (AgentsTools.ReviewFlow.include) also calls for an item's own reviewer.
 	--magic-board-to-processed)
+		DistroAgentsTools --intern-op-board-to-processed "${@:2}"
+		return $?
+	;;
+
+	--intern-op-board-to-processed)
 		shift
 		local callingMember="$1"
 		shift || true
@@ -237,12 +244,23 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
 			set +e ; return 1
 		}
+		local processedRc=0
 		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
 			"$fromStateArg" \
 			"${moveStamps[@]}" \
 			--context --magic-board-to-processed \
-			"${passthrough[@]}"
-		return $?
+			"${passthrough[@]}" || processedRc=$?
+		## An accept releases the item's own spawned child (AgentsToolsBoardAcceptDismissChild):
+		## only on a real move into processed, never a same-state edit, and never failing the move.
+		if [ "$processedRc" = "0" ] && [ "${fromStateArg#--from-state:}" != "processed" ] && [ -f "$MDAT_DATA_ROOT/board/processed/$itemName" ] ; then
+			type AgentsToolsBoardAcceptDismissChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+			AgentsToolsBoardAcceptDismissChild "$callingMember" "$MDAT_DATA_ROOT/board/processed/$itemName" || :
+		fi
+		## The closed item's token totals, summed now over its sessions and sub-items, for the closing message.
+		if [ "$processedRc" = "0" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
+			AgentsSessionTokensLine "$itemName" "" 2>/dev/null || :
+		fi
+		return $processedRc
 	;;
 
 	--magic-board-create-running)

@@ -98,14 +98,14 @@ Steps:
 1. **spawn-choose-shape**: Reuse a live session already on the same line of work by message. Otherwise spawn fresh. One session holds one line of work.
    - rule: a spawned session commands only members it spawned itself (`magic-team.coworking.routine`'s "An executor can only command members it spawned itself"). Work needing a quorum of members that already exist is convened by the session that spawned them.
    - rule: prefer flat dispatch. A spawned instance spawning further members is the exception, and its report about other members' work is verified against the artefacts.
-2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (`magic-team/templates/spawn-brief.document.format.md`) itself; the brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these three labelled lines, each present even when the answer is none:
+2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (the tooling's `sh-lib/templates/spawn-brief.document.format.md`) itself; the brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these three labelled lines, each present even when the answer is none:
    - `warnings:` — the open `warning-*` items relevant to this dispatch, restated short. Relevance is this session's judgement now; a warning it cannot say why it includes is left out. `none relevant` when the open set was read and none qualified, `none open` when there was none.
    - `held-context:` — the messages and relays the calling session holds that the spawn needs, or `none`.
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--magic-spawn-session`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
-5. **spawn-dismiss**: A spawned member never ends on its own: it reports done, then waits. Once its work is collected and nothing more is needed from it, dismiss it explicitly: `SendMessage` `DISMISSED` to its session thread with `address_to=<member>`; its `Wait` returns `DISMISSED`, it hands back and ends (`magic-team.armed.md`'s **wait-never-quit**). A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when.
+5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (`magic-team.armed.md`'s **wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when.
 
 Execution discipline:
 - A requested spawn is launched in the same pass, or the procedure returns a loud error. It never silently becomes "deferred".
@@ -251,7 +251,7 @@ The fast gate at task creation: may this task exist, and may the asking member a
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
   - Members ask participants for facts, and this member, by `AskUserQuestion`, for consent, decisions and permissions (`magic-team.armed.md`'s "Escalation and chain of command").
-  - It settles a simple question itself and answers with `--member-escalation-answer`, permission verdicts included.
+  - It settles a simple question itself and answers with `--magic-escalation-answer`, permission verdicts included.
   - A question whose answer binds the team is registered as a board item blocking the work it gates, and forwarded to him at once with `--magic-escalation-forward`, never held for a summary. Whether an answer binds is the test, not what the question blocks.
   - One bounded exception: this member explicitly directs a member to seek his approval for something outside that member's mandate.
   - A member with no coordinator present asks him itself with `AskUserQuestion`.
@@ -333,7 +333,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--member-upsert-member-inquiry <member> <item-filename>`
 - `--magic-team-roster-read <team-member>`
 - `--magic-team-roster-upsert <team-member>`
-- `--member-escalation-answer <member> <request-id> <verdict> [text]`
+- `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
 - `--magic-escalation-forward <coordinator> <request-id>`
 - `--owner-workspace-list`
 
@@ -378,7 +378,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - `TEAM-ORGANIZATION-VISION.md` — the team's organisational vision, including when the human-owner is actually needed.
 - `magic-team/magic-team.board.md` — board states and transitions.
 - `magic-team/magic-team.authority.<type>.contract.md` — decision authority per member family.
-- `magic-team/templates/spawn-brief.document.format.md` — the mechanical brief block the tooling adds.
+- `myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md` (tooling, not skillset) — the mechanical brief block the tooling adds.
 - `magic-team.grooming.routine`'s `check-backlog-promote` and `rice-scoring` — backlog promotion and scoring.
 - `magic-librarian` — `MAGIC.md`/`README.md` and skillset writing. `magic-architect` — design consistency, joint grooming. `magic-tester` — testing rounds.
 

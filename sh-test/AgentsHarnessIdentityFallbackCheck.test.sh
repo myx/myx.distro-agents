@@ -44,7 +44,7 @@ rigHolds(){ ## file, fixed text
 echo "-- root unset, the member in the workspace's member index --"
 rigWait "$rigTmp/a" "$rigTmp/ws" HOME="$rigTmp/home"
 rigAssert "the fallback is stated"                     "$( rigHolds "$rigTmp/a.err" "the served identity is read from the fallback $rigTmp/ws/.local/agents/members" )" yes
-rigAssert "and the identity it names works: the wait runs" "$( head -1 "$rigTmp/a" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "and the identity it names works: the wait runs" "$( head -1 "$rigTmp/a" | sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 
 echo "-- root unset, no member index, the member only in the vendor folder under HOME --"
 rigWait "$rigTmp/b" "$rigTmp/bare" HOME="$rigTmp/home"
@@ -53,7 +53,7 @@ rigAssert "the refusal names the path it tried"        "$( rigHolds "$rigTmp/b" 
 echo "-- control: root set --"
 rigWait "$rigTmp/c" "$rigTmp/bare" MDAT_SKILLSET_ROOT="$rigTmp/ws/.local/agents/members" HOME="$rigTmp/bare"
 rigAssert "no fallback is stated"                      "$( rigHolds "$rigTmp/c.err" 'read from the fallback' )" no
-rigAssert "and the wait runs"                          "$( head -1 "$rigTmp/c" )" "WAIT-RESULT: TIMEOUT"
+rigAssert "and the wait runs"                          "$( head -1 "$rigTmp/c" | sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ IDENTITY FALLBACK CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

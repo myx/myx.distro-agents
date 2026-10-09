@@ -89,7 +89,16 @@ AgentsToolsGoogleCall() {
 
 case "$1" in
 
-		--member-comms-google-whoami)
+		## The member stubs. Each acts under the named member's own credentials, so a spawned
+		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
+		## --intern-op-comms-google-* implementation below directly.
+		--member-comms-google-whoami|--member-comms-google-file-find|--member-comms-google-sheet-read|--member-comms-google-sheet-info|--member-comms-google-sheet-write|--member-comms-google-sheet-clear|--member-comms-google-doc-read|--member-comms-google-doc-write|--member-comms-google-comment-read|--member-comms-google-comment-post)
+			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		--intern-op-comms-google-whoami)
 			shift
 			local memberName="$1"
 			shift || true
@@ -112,7 +121,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-file-find)
+		--intern-op-comms-google-file-find)
 			shift
 			local memberName="$1"
 			shift || true
@@ -167,7 +176,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-sheet-read)
+		--intern-op-comms-google-sheet-read)
 			shift
 			local memberName="$1"
 			shift || true
@@ -206,7 +215,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-sheet-info)
+		--intern-op-comms-google-sheet-info)
 			shift
 			local memberName="$1"
 			shift || true
@@ -235,7 +244,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-sheet-write)
+		--intern-op-comms-google-sheet-write)
 			shift
 			local memberName="$1"
 			shift || true
@@ -296,7 +305,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-sheet-clear)
+		--intern-op-comms-google-sheet-clear)
 			shift
 			local memberName="$1"
 			shift || true
@@ -323,7 +332,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-doc-read)
+		--intern-op-comms-google-doc-read)
 			shift
 			local memberName="$1"
 			shift || true
@@ -348,7 +357,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-doc-write)
+		--intern-op-comms-google-doc-write)
 			shift
 			local memberName="$1"
 			shift || true
@@ -398,7 +407,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-comment-read)
+		--intern-op-comms-google-comment-read)
 			shift
 			local memberName="$1"
 			shift || true
@@ -423,7 +432,7 @@ case "$1" in
 			return 0
 		;;
 
-		--member-comms-google-comment-post)
+		--intern-op-comms-google-comment-post)
 			shift
 			local memberName="$1"
 			shift || true

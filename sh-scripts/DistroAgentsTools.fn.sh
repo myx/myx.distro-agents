@@ -20,7 +20,7 @@ DistroAgentsTools(){
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 	## An operation naming a team member runs in a workspace where that member is present; the spawn operations resolve their own, since their records stay here.
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|*:|*:-*) ;;
 		--*:*)
 			local memberWorkspace
 			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }
@@ -31,6 +31,13 @@ DistroAgentsTools(){
 		;;
 	esac
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+
+	## Every --magic-* op is magic-coordinator's, or the console's (AgentsToolsMagicCallerCheck).
+	## One the skillset documents for any member stays open until the human-owner rules on its
+	## name: MAGIC.md, "Who may call".
+	case "$1" in
+		--magic-*) AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
+	esac
 
 	case "$1" in
 		--console-*)
@@ -44,21 +51,14 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--member-config-option)
-			shift
-			: ${1:?"⛔ ERROR: --member-config-option requires <member-name> argument to follow!"}
-			local scopeMemberName="$1"
-			shift
-			DistroAgentsTools --agents-config-option "$scopeMemberName" "$@"
-			return $?
-		;;
-
+		## No --member-config-option: a scope holds credentials, and no member reads one
+		## through the tooling, so config is the tooling's and the console's op above.
 		--members)
 			shift
 			case "$1" in
 				--backend)
 					shift
-					DistroAgentsTools --member-config-option "$@"
+					DistroAgentsTools --agents-config-option "$@"
 					return $?
 				;;
 				*)
@@ -68,7 +68,14 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		--member-comms-slack-*)
+		## The coordinator's two Slack helpers: implementation and stubs both in MagicComms.include.
+		--intern-op-comms-slack-resolve-ids|--intern-op-comms-slack-conversations-roster)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+			return $?
+		;;
+
+		## Each comms family: the --member-* stubs and their --intern-op-comms-* implementation.
+		--member-comms-slack-*|--intern-op-comms-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
 			return $?
 		;;
@@ -98,27 +105,27 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--member-comms-email-*)
+		--member-comms-email-*|--intern-op-comms-email-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsEmail.include"
 			return $?
 		;;
 
-		--member-comms-trello-*)
+		--member-comms-trello-*|--intern-op-comms-trello-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsTrello.include"
 			return $?
 		;;
 
-		--member-comms-google-*)
+		--member-comms-google-*|--intern-op-comms-google-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include"
 			return $?
 		;;
 
-		--member-comms-confluence-*)
+		--member-comms-confluence-*|--intern-op-comms-confluence-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsConfluence.include"
 			return $?
 		;;
 
-		--member-comms-jira-*)
+		--member-comms-jira-*|--intern-op-comms-jira-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsJira.include"
 			return $?
 		;;
@@ -162,18 +169,30 @@ DistroAgentsTools(){
 
 		## Ahead of the --member-* catch-all below, as every other --member-<service>
 		## family is: the long-poll operation is its own file, not a Member.include arm.
-		--member-wait-*)
+		--member-wait-*|--intern-op-wait-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWait.include"
 			return $?
 		;;
 
-		--member-escalation-*|--magic-escalation-*)
+		--member-escalation-*|--magic-escalation-*|--intern-op-escalation-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberEscalation.include"
 			return $?
 		;;
 
 		--member-pending-reply-*|--magic-pending-reply-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberPendingReply.include"
+			return $?
+		;;
+
+		## A board item's `## Decisions`: the tooling's append and the member stub.
+		--intern-op-decisions-*|--member-decision-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDecisions.include"
+			return $?
+		;;
+
+		## A dispatched item's review: into review, the verdicts, the ordered endings.
+		--intern-op-review-*|--member-review-*|--magic-review-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpReview.include"
 			return $?
 		;;
 
@@ -265,6 +284,12 @@ DistroAgentsTools(){
 
 		--intern-op-spawn-prepare-brief)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpSpawnPrepareBrief.include"
+			return $?
+		;;
+
+		## The tooling's own tracking posts, from the event-track post template: never a member's message.
+		--intern-op-event-track-post)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpEventTrackPost.include"
 			return $?
 		;;
 
@@ -406,6 +431,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## magic-librarian.morning-review.routine: its input scan and cut-off advance, implementation and stubs.
+		--intern-op-morning-review-*|--magic-morning-review-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpMorningReview.include"
+			return $?
+		;;
+
 		--magic-daily-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicDaily.include"
 			return $?
@@ -416,8 +447,14 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--magic-board-*)
+		--magic-board-*|--intern-op-board-to-processed)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"
+			return $?
+		;;
+
+		## The coordinator's append to any session's transcript, and the implementation both stubs call.
+		--magic-append-session-transcript|--intern-op-append-session-transcript)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?
 		;;
 

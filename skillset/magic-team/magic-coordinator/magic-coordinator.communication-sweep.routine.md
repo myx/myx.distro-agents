@@ -55,13 +55,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **process-own-inbox**: Run standalone (not inside an advance pass or a daily): run `magic-team.process-inbox.routine magic-coordinator` first. Inside those, the caller already did.
 2. **check**: Run `--magic-sweep-input-scan <team-member>`. Each member's part resumes from that member's own `last_swept_ts`, by the tooling. Read the result this way:
-   - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
+   - New messages are found by every participant's own message timestamps, diffed against what was handled — never by "after my own last post". Read the top level, then each open thread in full (`--member-comms-slack-read <team-member> <channel>:<ts> --thread`, `--magic-comms-slack-read` on a `client-*` member's source). Open threads are the open board items whose `communication-channel-id` is `slack:<channel>:<ts>`.
    - A thread this member started, was answered in or was tagged in is followed whatever its age.
    - The executor's own new messages form one set, ascending by timestamp. Each member's part is attributed by the member it names, and read in the order it declares. Messages are never ordered across sources.
    - Nothing new, could not be read, and no part at all are three different results. The run's exit status says whether all, some or none of the sources were scanned; output present is never evidence of success. A capped section is never read as complete.
    - A member's own inbox and board items in its part are read to know what is recorded, never answered.
    - A post by another member is inbound. Its author is the item's `author:`, who it is for its `addressees:`; `@here (unaddressed)` is unaddressed. The conversation it was posted in settles neither.
-3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call, steps:
+3. **process-each-message**: For each message, in order — the executor's set, then each `client-*` member's run — run this sequence before the next one. A message on a member's own source is handled as that member: it is the `<team-member>` of every call. On a `client-*` member's source each comms call is its `--magic-comms-*` form, since a `--member-comms-*` call acts only as this executor. Steps:
    1. **read**: Read the full message. A message quoting a block is read past the quote: the instruction is usually after it.
    2. **analyze**: Cross-reference it with the board and the current todo state. Identify what it needs: work ready to dispatch, an idle-pass candidate, a knowledge candidate for `magic-librarian`, a reply. Nothing needed is a normal result. Whether it was handled is judged from what it asked and whether that was done, never from a later reply existing. Slack: react 👀 now.
    3. **act**: Settle whether it is routed or handled:
@@ -100,7 +100,7 @@ Slack only. Reactions add up, per `magic-team.conversations.md`'s **react-at-eac
 - ✅ done — at **reply-if-warranted**, when it is resolved this sweep.
 - ⏳ waiting — at **reply-if-warranted**, when it now waits on a tracked board item. File a `note-pending-slack-reaction-<matter>` record in `magic-coordinator`'s own inbox (`--member-inbox-note-upsert`), naming the `communication-channel-id` and the board item. `check-pending-comms-actions` adds the outcome reaction when the item resolves.
 
-A reaction is removed or replaced when the request is declined, becomes blocked pending the human-owner, or he stops or parks the work. An assumption he called wrong gets ❌ on the message it came from. The reaction target stays the original message for the item's whole life: promotion carries `communication-channel-id` unchanged. React on the member's own source as that member (`--member-comms-slack-react`). Messages handled before this routine read them are not backfilled.
+A reaction is removed or replaced when the request is declined, becomes blocked pending the human-owner, or he stops or parks the work. An assumption he called wrong gets ❌ on the message it came from. The reaction target stays the original message for the item's whole life: promotion carries `communication-channel-id` unchanged. React on the member's own source as that member (`--magic-comms-slack-react` for a `client-*` member). Messages handled before this routine read them are not backfilled.
 
 # Routine's local rules
 
@@ -130,6 +130,11 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
 - `--member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
 - `--member-comms-email-mark-seen <team-member> <uid>`
+- `--magic-comms-slack-read <team-member> <channel>:<ts> [--thread]`
+- `--magic-comms-slack-send-message <team-member> <target> [text...]`
+- `--magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
+- `--magic-comms-email-send <team-member> <email@address>... -- <subject> -- <body...>`
+- `--magic-comms-email-mark-seen <team-member> <uid>`
 - `--member-upsert-member-inquiry <member> <item-filename>`
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--magic-team-roster-upsert <team-member>`

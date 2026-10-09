@@ -34,13 +34,17 @@ The part of every spawn brief that tooling produces the same way each time: the 
 ```
 SPAWN-PREPARE-BRIEF: {{member}}
 tool-routing: use the tools and MCP this session was given, in the ways your instructions prescribe. Read --member-help {{member}} when unsure how a tool works. Follow what a refused call says: the tool to use instead, or the REFUSAL-ID to escalate by. Report a blockage the prescribed way, so the tooling can be polished. Never hack around it. Do not research source code unless it is the task.
+[native] tools: first, in one call: ToolSearch select:mcp__myx_distro__Skill,mcp__myx_distro__Read,mcp__myx_distro__Grep,mcp__myx_distro__Glob,mcp__myx_distro__Edit,mcp__myx_distro__Write,mcp__myx_distro__execute,mcp__myx_distro__Wait,mcp__myx_distro__SendMessage,mcp__myx_distro__SubagentHandback
+[native] skillset-reader: mcp__myx_distro__Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.shared.md}
+[own] skillset-reader: Skill {name: <member>, file: <file>}, for example {name: magic-team, file: magic-team.shared.md}
 scratchpad: your own files go in the output/ folder this dispatch's own "## Your sandbox" section names
 read-and-obey: read {{member}}.armed.md and {{routine}}, through the skillset reader, carefully and in full, before acting, and obey them.
-Read these two sections of magic-team/magic-team.shared.md, the same way: Nothing stops on its own: log, escalate, resolve. Every message is addressed, tagged, and sent on a real channel.
+Read these two sections of magic-team/magic-team.shared.md, the same way, with section and not the whole file: {name: magic-team, file: magic-team.shared.md, section: Nothing stops on its own: log, escalate, resolve|Every message is addressed, tagged, and sent on a real channel}
 executors: {{executors}}
 invitees: {{invitees}}
 ## open warning-* items
 {{open-warnings}}
+When done, hand back; then Wait until dismissed.
 ```
 
 # Contract
@@ -50,4 +54,5 @@ invitees: {{invitees}}
 - rule: `{{executors}}` is the resolved routine's own `executors` frontmatter value.
 - rule: `{{invitees}}` is the resolved routine's own `invitees` frontmatter value, or `none` where that field is absent or empty.
 - rule: `{{open-warnings}}` is one `- <warning-item-filename> [<state>]` line per open `warning-*` board item, across `backlog`, `pending`, `running`, `blocked` and `parked`, or `(none open)` where there is none.
+- rule: a line tagged `[own]` or `[native]` is emitted, without its tag, only into a brief for that harness: `native` for a `*-native` client, `own` for the universal harness.
 - rule: every line outside the slots is emitted exactly as written here.

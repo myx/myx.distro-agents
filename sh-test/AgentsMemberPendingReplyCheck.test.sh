@@ -4,7 +4,9 @@
 ## it, and shows one by id with its first line; settle closes the member's own open
 ## question with the reason, refuses another member's record and a readback, leaves a
 ## closed record as it is, and of two settles racing on one record exactly one closes
-## it. Offline: a temp workspace under the workspace's .local/temp, no Slack.
+## it. A session settles only as itself; the coordinator settles another member's question
+## with --magic-pending-reply-settle. Offline: a temp workspace under the workspace's
+## .local/temp, no Slack.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -59,8 +61,9 @@ rigHolds(){ ## file, fixed string
 rigOp(){ ## output name, op, arguments...
 	local opOut="$1" ; shift
 	rigRc=0
-	( cd "$rigTmp/ws" && env HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" \
+	## RIG_AGENT, when set, is the spawned session's own member (MDAT_SPAWN_AGENT); unset, the console.
+	( cd "$rigTmp/ws" && env -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigTmp/data" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/$opOut" 2> "$rigTmp/$opOut.err" || rigRc=$?
 }
 rigStatus(){ ## id
@@ -147,6 +150,21 @@ rigAssert "and stays open"                            "$( rigStatus 11111111-000
 rigOp amendOther --magic-pending-reply-amend magic-tester 11111111-0000-0000-0000-000000000006 --verdict "x" --reason "y"
 rigAssert "another member may not amend"              "$( rigHolds "$rigTmp/amendOther.err" 'only magic-coordinator amends' )" yes
 rigAssert "and the verdict stands"                    "$( rigField 11111111-0000-0000-0000-000000000006 verdict )" "No - keep it elsewhere"
+
+echo "-- settle: a session settles as itself; the coordinator, on another's behalf, with --magic-pending-reply-settle --"
+rigRecord 11111111-0000-0000-0000-000000000008 magic-tester reply-pending "" "May the rig keep report eight?"
+RIG_AGENT=magic-coordinator rigOp settle8a --member-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000008 --reason "as another"
+rigAssert "a session settling as another member is refused" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigHolds "$rigTmp/settle8a.err" 'this session acts as magic-coordinator' )" "non-zero:yes"
+rigAssert "and it stays open"                         "$( rigStatus 11111111-0000-0000-0000-000000000008 )" reply-pending
+RIG_AGENT=magic-tester rigOp settle8b --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "not the coordinator"
+rigAssert "the magic form from another member's session is refused" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigHolds "$rigTmp/settle8b.err" "is magic-coordinator's only" )" "non-zero:yes"
+rigOp settle8c --magic-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000008 --reason "named a member"
+rigAssert "the magic form naming another member is refused" "$( rigHolds "$rigTmp/settle8c.err" 'only magic-coordinator settles another member' ):$( rigStatus 11111111-0000-0000-0000-000000000008 )" "yes:reply-pending"
+RIG_AGENT=magic-coordinator rigOp settle8d --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000008 --reason "settled for the tester"
+rigAssert "the coordinator settles it on the asker's behalf" "$( head -1 "$rigTmp/settle8d" ):$( rigStatus 11111111-0000-0000-0000-000000000008 )" "SETTLED 11111111-0000-0000-0000-000000000008:reply-received"
+rigAssert "signed as the coordinator"                 "$( rigField 11111111-0000-0000-0000-000000000008 answered-by )" "magic-coordinator (settled)"
+RIG_AGENT=magic-coordinator rigOp settle4m --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000004 --reason "a readback"
+rigAssert "a readback is refused on the magic form too" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigStatus 11111111-0000-0000-0000-000000000004 )" "non-zero:reply-pending"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MEMBER PENDING REPLY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

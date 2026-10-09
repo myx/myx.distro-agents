@@ -34,8 +34,8 @@ AgentsToolsSpawnSandboxNearestMagic(){ ## path
 	done
 }
 
-## Fills input/: the brief, the board item behind it, the MAGIC.md copies, a named
-## routine, pointers.md, and conversation.md when the spawn continues a conversation.
+## Fills input/: the brief, the board item behind it, the MAGIC.md copies,
+## pointers.md, and conversation.md when the spawn continues a conversation.
 ## Copies, never links, and never secret material: the
 ## credentials line in pointers.md names the identity the tooling acts as, not a value.
 AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path (may be empty), member, conversation threads (may be empty)
@@ -65,7 +65,9 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 	if [ "$fillCount" -eq 0 ] && [ -f "$MMDAPP/MAGIC.md" ] ; then
 		cp -p "$MMDAPP/MAGIC.md" "$fillInput/MAGIC.workspace.md" 2>/dev/null
 	fi
-	## Routines and skillset files: a named routine is copied; every skillset file is a pointer.
+	## Routines and skillset files: every one is a pointer, routines included. A copy is a
+	## snapshot of whatever tree the root resolved to at spawn time, and the brief has the
+	## spawn read its routine through the skillset reader anyway, which serves the live file.
 	fillSkillsRoot="${MDAT_SKILLSET_ROOT:-$MMDAPP/.local/agents/members}"
 	{
 		printf '%s\n' "# Pointers for this spawn" ""
@@ -74,19 +76,12 @@ AgentsToolsSpawnSandboxFillInput(){ ## sandbox root, brief text, board item path
 		printf '%s\n' "$fillText" | LC_ALL=C grep -oE '[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)+\.md' | LC_ALL=C sort -u | while IFS= read -r fillName ; do
 			for fillMemberDir in "$fillSkillsRoot"/*/ ; do
 				[ -f "$fillMemberDir$fillName" ] || continue
-				case "$fillName" in
-					*.routine.md)
-						cp -p "$fillMemberDir$fillName" "$fillInput/$fillName" 2>/dev/null && printf '%s\n' "- \`$fillName\`: copied here; also readable with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
-					;;
-					*)
-						printf '%s\n' "- \`$fillName\`: read with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
-					;;
-				esac
+				printf '%s\n' "- \`$fillName\`: read with Skill, name \`$( basename "${fillMemberDir%/}" )\`, file \`$fillName\`"
 				break
 			done
 		done
 	} > "$fillInput/pointers.md" 2>/dev/null
-	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations"
+	[ -z "$fillConversations" ] || AgentsToolsSpawnConversationHistory "$fillInput/conversation.md" "$fillMember" "$fillConversations" "$fillItem"
 	## Read-only by mode, whatever the client's access flag can say: a flag with no verb
 	## grants input/ for writing too, so the files and the folder carry no write bit.
 	chmod -R a-w "$fillInput" 2>/dev/null || :
@@ -153,18 +148,26 @@ AgentsToolsSpawnConversationDerive(){ ## brief text
 ## read as the member, newest MDAT_CONVERSATION_HISTORY_MAX messages (default 50), oldest first.
 ## A post tagged [sender: <member>] is marked (own); one by another member (team: <name>).
 ## A thread that cannot be read says so in the file, never reads as an empty one.
-AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-separated)
-	local historyFile="$1" historyMember="$2" historyThreads="$3" historyThread historyMax historyRead
+## The board item behind the spawn, when there is one, has its `## Decisions` shown ahead of
+## the threads: they are binding, and a thread's older messages may be cut.
+AgentsToolsSpawnConversationHistory(){ ## output file, member, threads (space-separated), board item path (may be empty)
+	local historyFile="$1" historyMember="$2" historyThreads="$3" historyItem="${4:-}" historyThread historyMax historyRead historyDecisions=""
 	historyMax="${MDAT_CONVERSATION_HISTORY_MAX:-50}"
 	case "$historyMax" in ''|*[!0123456789]*|0) historyMax=50 ;; esac
 	[ -n "$historyThreads" ] || return 0
 	historyRead="${historyFile%/*}/.conversation.read.$$"
+	## Its own item, the one that tracks, and the items its earlier sessions in this sandbox asked under.
+	type AgentsToolsDecisionsBlock > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+	historyDecisions="$( AgentsToolsDecisionsRelatedPaths "$historyItem" "${historyFile%/input/*}" | while IFS= read -r historyThread ; do
+		AgentsToolsDecisionsBlock "$historyThread" 30 && printf '\n'
+	done )" || historyDecisions=""
 	{
 		printf '%s\n' "# Conversation history" ""
+		[ -z "$historyDecisions" ] || printf '%s\n\n' "$historyDecisions"
 		printf '%s\n' "The conversation this session continues: read it before acting. Newest $historyMax messages per thread, oldest first, one \`<ts> | <user> | <text>\` head per message. (own) marks a post by $historyMember, (team: <name>) one by another team member."
 		for historyThread in $historyThreads ; do
 			printf '\n## Thread %s\n\n' "$historyThread"
-			if DistroAgentsTools --member-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
+			if DistroAgentsTools --intern-op-comms-slack-read "$historyMember" "$historyThread" --thread > "$historyRead" 2>/dev/null \
 				&& LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" < "$historyRead" > "$historyRead.fmt" 2>/dev/null ; then
 				LC_ALL=C awk -v max="$historyMax" -v member="$historyMember" '
 					{ line[NR] = $0 ; if ( $0 ~ /^[0-9]+\.[0-9]+ \| / ) { head[++heads] = NR ; } }
@@ -220,7 +223,8 @@ AgentsToolsWaitDefaultSources(){
 	return 0
 }
 
-## Empties input/ of every sandbox on this host with no live session, and says which.
+## Empties input/ of every sandbox on this host with no live session, and says which; and
+## clears the harness scratch a run left in its tmp/ when it ended before its own cleanup.
 ## A sandbox recorded on another host, or with any session still running, is never touched.
 AgentsToolsSpawnSandboxSweep(){ ## where
 	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive thisHost psText
@@ -230,7 +234,7 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 	for sweepDir in "$sweepRoot"/*/ ; do
 		sweepDir="${sweepDir%/}"
 		[ -d "$sweepDir/input" ] || continue
-		[ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] || continue
+		[ -n "$( find "$sweepDir/input" "$sweepDir/tmp" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] || continue
 		## A sandbox with no record, or with a record under 10 minutes old, may still be launching.
 		sweepLive="no-record"
 		for sweepRecord in "$sweepDir"/*.md ; do
@@ -247,8 +251,16 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 			case "$psText" in *"$sweepSession"*) sweepLive="running" ; break ;; esac
 		done
 		[ -z "$sweepLive" ] || continue
-		AgentsToolsSpawnSandboxCleanInput "$sweepDir"
-		echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
+		if [ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
+			AgentsToolsSpawnSandboxCleanInput "$sweepDir"
+			echo "# $MDSC_CMD: $1: emptied input/ of ${sweepDir##*/}, whose session is no longer running" >&2
+		fi
+		## Scratch stays scratch: what a harness run left in tmp/ (a run killed before its
+		## own cleanup) goes; whatever mattered was already written to its session log.
+		if [ -n "$( find "$sweepDir/tmp" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
+			find "$sweepDir/tmp" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
+			echo "# $MDSC_CMD: $1: cleared the scratch left in tmp/ of ${sweepDir##*/}, whose session is no longer running" >&2
+		fi
 	done
 	return 0
 }
@@ -286,7 +298,23 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	## grooming sees" -- board-review now sits between them, entered here and left
 	## only by a reviewer's own reject/accept. This op marks and parks; it never adjudicates the close.
 	local itemTargetState="${7:-$itemState}"
-	local currentBody resultBody
+	## Why a running item enters review here: a child that ended with no handback, by default.
+	local reviewReason="${8:-ended-without-handback}"
+	local currentBody resultBody actualState reviewHeaders=()
+	## The close moves only an item still where the caller left it, and the one move it makes
+	## is running -> review. An item a handback, a verdict or an ending already moved is never
+	## moved out of review, processed or pending by a close: one in review gets its Result in
+	## place, any other is left as it is (AgentsTools.ReviewFlow.include).
+	actualState="$( AgentsToolsSpawnProxyBoardStateOf "$itemName" )"
+	if [ "$actualState" != "$itemState" ] ; then
+		if [ "$actualState" != review ] ; then
+			echo "# --intern-op-agent-spawn-proxy: $itemName is in ${actualState:-no board state}, not $itemState, so the close leaves it as it is" >&2
+			return 0
+		fi
+		itemState=review ; itemTargetState=review
+	fi
+	[ "$itemState" != running ] || [ "$itemTargetState" != review ] \
+		|| reviewHeaders=( --header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$reviewReason" )
 	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
@@ -307,10 +335,70 @@ AgentsToolsSpawnProxyCloseDispatch(){
 		--from-state:"$itemState" \
 		--header:upsert:status:dispatch-"$outcome" \
 		--header:upsert:resolved-at:"$( date +"%Y-%m-%d %H:%M %z" )" \
+		"${reviewHeaders[@]+"${reviewHeaders[@]}"}" \
 		--upsert-from-stdin \
 		--context --intern-op-agent-spawn-proxy \
 		--log-verb:updated \
-		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2
+		|| { echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not close dispatch item $itemName" >&2 ; return 0 ; }
+	## The entry into review recorded, in Decisions and the transcript.
+	if [ "${#reviewHeaders[@]}" -gt 0 ] ; then
+		type AgentsReviewRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+		AgentsReviewRecord tooling "$itemName" review "$reviewReason: the child ended ($outcome, exit $childExit)" REVIEW "" || :
+	fi
+	return 0
+}
+
+## An accept releases the child: a board item moved to processed has its own spawned
+## session dismissed, through the same send an explicit spawn-dismiss uses -- a DISMISSED
+## body addressed to the child member in the child's session thread, which its Wait turns
+## into WAIT-RESULT: DISMISSED. The child is the spawn record the item's spawn-id names,
+## or, with none, the one live record whose spawns/spawned-by links the item. Never fails
+## the move it follows: prints one ACCEPT-DISMISS line, saying what was sent or why nothing was.
+AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
+	local sendBy="$1" itemPath="$2" itemSpawn recordPath="" recordCandidate folderName
+	local childStatus childMember childThread="" childHost thisHost psText sendOut
+	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
+	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
+		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.md" ; do
+			[ ! -f "$recordCandidate" ] || { recordPath="$recordCandidate" ; break ; }
+		done
+	else
+		for folderName in $( AgentsToolsSpawnSandboxFoldersOfItem "$itemPath" ) ; do
+			for recordCandidate in "$MMDAPP/.local/agents/spawned/$folderName"/*.md ; do
+				[ -f "$recordCandidate" ] || continue
+				[ "$( AgentsToolsSpawnSandboxRecordHeader "$recordCandidate" status )" = spawn-started ] || continue
+				[ -z "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: more than one live spawn links %s, so which child to dismiss is not decided here\n' "${itemPath##*/}" ; return 0 ; }
+				recordPath="$recordCandidate"
+			done
+		done
+	fi
+	[ -n "$recordPath" ] || { printf 'ACCEPT-DISMISS: not sent: no spawn record found for %s (spawn-id %s)\n' "${itemPath##*/}" "${itemSpawn:--}" ; return 0 ; }
+	itemSpawn="${recordPath##*/}" ; itemSpawn="${itemSpawn%.md}"
+	childStatus="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" status )"
+	[ "$childStatus" = spawn-started ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s has already ended (status %s)\n' "$itemSpawn" "${childStatus:--}" ; return 0 ; }
+	childHost="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" host )"
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
+	if [ "$childHost" = "$thisHost" ] ; then
+		psText="$( ps -A -ww -o args= 2>/dev/null )" || psText=""
+		case "$psText" in
+			*"$itemSpawn"*) ;;
+			*) printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ;;
+		esac
+	fi
+	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
+	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s names no owner member to address\n' "$itemSpawn" ; return 0 ; }
+	[ "$childMember" != "$sendBy" ] || { printf 'ACCEPT-DISMISS: not sent: the accepting member %s is the child member itself, and its own Wait ignores a DISMISSED it authored\n' "$sendBy" ; return 0 ; }
+	childThread="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" session-thread )"
+	if [ -z "$childThread" ] || [ "$childThread" = "-" ] ; then
+		childThread=""
+		[ ! -f "${recordPath%/*}/session.thread" ] || IFS= read -r childThread < "${recordPath%/*}/session.thread" || :
+	fi
+	AgentsToolsSpawnConversationThreadValid "$childThread" || { printf 'ACCEPT-DISMISS: not sent: spawn %s has no session thread to post in\n' "$itemSpawn" ; return 0 ; }
+	if sendOut="$( printf 'DISMISSED' | DistroAgentsTools --intern-op-comms-slack-send-message "$sendBy" "$childThread" --identity-bot --address-to "$childMember" --from-stdin 2>&1 )" ; then
+		printf 'ACCEPT-DISMISS: sent DISMISSED to %s in %s (spawn %s)\n' "$childMember" "$childThread" "$itemSpawn"
+	else
+		printf 'ACCEPT-DISMISS: not sent: the send to %s in %s failed: %s\n' "$childMember" "$childThread" "$( printf '%s\n' "$sendOut" | LC_ALL=C grep -m1 'ERROR' )"
+	fi
 	return 0
 }
 
@@ -372,7 +460,8 @@ AgentsToolsHousekeepingReport(){ ## member, lines
 	[ -s "$reportRoot/event-track.thread" ] || return 0
 	IFS= read -r reportThread < "$reportRoot/event-track.thread" || :
 	[ -n "$reportThread" ] || return 0
-	printf '%s\n' "$2" | DistroAgentsTools --member-comms-slack-send-message "$1" "$reportThread" --identity-bot --from-stdin > /dev/null 2>&1 || :
+	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :
 	return 0
 }
 

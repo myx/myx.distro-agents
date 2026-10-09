@@ -21,7 +21,7 @@ rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
 rigResolveInclude="$rigHere/AgentsTools.MemberWorkspace.include"
 rigSpawnInclude="$rigHere/AgentsTools.InternOpAgentSpawnProxy.include"
-rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team/templates/spawn-brief.document.format.md"
+rigRealTemplate="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/spawn-brief.document.format.md"
 rigResolveFn="AgentsToolsMemberWorkspaceResolve"
 rigSwitchFn="AgentsToolsWorkspaceSwitch"
 
@@ -93,7 +93,6 @@ rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the 
 	for wsName in ws-here ws-there ws-third ws-rig ; do mkdir -p "$rigWork/$wsName/.local/.agents" "$rigWork/$wsName/.local/agents" ; done
 	for memberName in keeper-here keeper-both client-ndm keeper-multi keeper-nosrc keeper-nowhere keeper-gone keeper-gonemix keeper-pre keeper-rel keeper-there keeper-unknown magic-team human-owner magic-coordinator ; do rigMemberDir "$memberName" ; done
 	printf -- '---\nexecutors: magic-coordinator\nmaintainers: magic-coordinator\ninvitees: magic-team\ndefault-for-session-kind: coworking\n---\n# rig coworking routine fixture\n' > "$rigSkills/magic-team/magic-team.coworking.routine.md"
-	mkdir -p "$rigSkills/magic-team/templates" ; cp "$rigRealTemplate" "$rigSkills/magic-team/templates/spawn-brief.document.format.md"
 	## the members index: who is present where, and how
 	mkdir -p "${rigIndexFile%/*}" ; : > "$rigIndexFile"
 	rigIdx keeper-here ws-here source-symlink
@@ -196,7 +195,7 @@ rigEnvOf(){ ## method, field -- that field of the first logged call of that meth
 }
 
 rigWorld
-rigRunIn ws-here --member-config-option keeper-here --select WHERE
+rigRunIn ws-here --agents-config-option keeper-here --select WHERE
 [ "$rigRc" = 0 ] && [ "$( cat "$rigTmp/out" )" = "ws-here" ] || rigRefuse "the baseline config select did not answer from the current workspace, so no row below would be measured: rc=$rigRc $( LC_ALL=C grep -m1 -E 'ERROR|WARNING' "$rigTmp/err" )"
 rigResolve ws-here client-ndm RigOp
 [ "$resRc" = 0 ] && [ -n "$resOut" ] || rigRefuse "the resolver is not callable on its own or does not resolve the baseline member: rc=$resRc $resErr"
@@ -273,57 +272,57 @@ rigAssert "(a) accepted sibling: a member present in the current workspace needs
 rigWorld
 
 echo "-- 3. the dispatcher: a member operation runs under the member's workspace --"
-rigRunIn ws-here --member-config-option keeper-here --select WHERE
+rigRunIn ws-here --agents-config-option keeper-here --select WHERE
 rigAssert "a member in the current workspace: its own scope, no note about a switch on stderr" "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c -i -E 'switch|tracked|moved to' "$rigTmp/err" || : )" "0 ws-here 0"
-rigRunIn ws-here --member-config-option keeper-both --select WHERE
+rigRunIn ws-here --agents-config-option keeper-both --select WHERE
 rigAssert "present in both: the current workspace's scope"                 "$rigRc $( cat "$rigTmp/out" )" "0 ws-here"
-rigRunIn ws-here --member-config-option client-ndm --select WHERE
+rigRunIn ws-here --agents-config-option client-ndm --select WHERE
 rigAssert "a member only elsewhere: that workspace's scope answers, and no note about a switch on stderr" "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c -i -E 'switch|tracked|moved to' "$rigTmp/err" || : )" "0 ws-there 0"
-rigRunIn ws-here --member-config-option keeper-multi --select WHERE
+rigRunIn ws-here --agents-config-option keeper-multi --select WHERE
 rigAssert "in two others: the source link's scope"                         "$rigRc $( cat "$rigTmp/out" )" "0 ws-third"
-rigRunIn ws-here --member-config-option keeper-nosrc --select WHERE
+rigRunIn ws-here --agents-config-option keeper-nosrc --select WHERE
 rigAssert "in two others, no source link: the first tracked workspace's scope"  "$rigRc $( cat "$rigTmp/out" )" "0 ws-there"
-rigRunIn ws-rig --member-config-option client-ndm --select WHERE
+rigRunIn ws-rig --agents-config-option client-ndm --select WHERE
 rigAssert "from a rig workspace the index has no row for: never switched, its own scope" "$rigRc $( cat "$rigTmp/out" )" "0 ws-rig"
 rigRunIn ws-here --agents-config-option client-ndm --select WHERE
 rigAssert "the config operation taking the scope name first switches as well" "$rigRc $( cat "$rigTmp/out" )" "0 ws-there"
-rigRunIn ws-here --member-config-option keeper-nowhere --select WHERE
-rigAssert "(a) a known member in no tracked workspace: named error from the dispatcher, rc 1, nothing on stdout" "$rigRc $( rigLines "$rigTmp/out" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --member-config-option: member 'keeper-nowhere' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 0 1"
-rigRunIn ws-here --member-config-option keeper-gone --select WHERE
-rigAssert "(b) a chosen path missing: named error, rc 1, nothing on stdout" "$rigRc $( rigLines "$rigTmp/out" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --member-config-option: the workspace of member 'keeper-gone' is not present on this machine: $rigWork/gone/ws-gone -- nothing was done" )" "1 0 1"
+rigRunIn ws-here --agents-config-option keeper-nowhere --select WHERE
+rigAssert "(a) a known member in no tracked workspace: named error from the dispatcher, rc 1, nothing on stdout" "$rigRc $( rigLines "$rigTmp/out" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --agents-config-option: member 'keeper-nowhere' is in the team members index but is present in no tracked workspace -- nothing was done" )" "1 0 1"
+rigRunIn ws-here --agents-config-option keeper-gone --select WHERE
+rigAssert "(b) a chosen path missing: named error, rc 1, nothing on stdout" "$rigRc $( rigLines "$rigTmp/out" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --agents-config-option: the workspace of member 'keeper-gone' is not present on this machine: $rigWork/gone/ws-gone -- nothing was done" )" "1 0 1"
 mkdir -p "$rigWork/gone/ws-gone/.local/.agents" "$rigWork/ws-nolist/.local/.agents" ; rigListAdd "$rigWork/ws-nolist"
 printf 'WHERE=ws-gone\n' > "$rigWork/gone/ws-gone/.local/.agents/keeper-gone.agent.env"
 printf 'WHERE=ws-nolist\n' > "$rigWork/ws-nolist/.local/.agents/keeper-nowhere.agent.env"
-rigRunIn ws-here --member-config-option keeper-gone --select WHERE
+rigRunIn ws-here --agents-config-option keeper-gone --select WHERE
 rigAssert "(b) accepted sibling: with the directory present the operation runs there" "$rigRc $( cat "$rigTmp/out" )" "0 ws-gone"
-rigRunIn ws-here --member-config-option keeper-nowhere --select WHERE
+rigRunIn ws-here --agents-config-option keeper-nowhere --select WHERE
 rigAssert "(a) accepted sibling: once tracked the operation runs there"     "$rigRc $( cat "$rigTmp/out" )" "0 ws-nolist"
 rigWorld
-rigRunIn ws-here --member-config-option keeper-unknown --select WHERE
+rigRunIn ws-here --agents-config-option keeper-unknown --select WHERE
 rigUnknownWith="$rigRc $( cat "$rigTmp/out" ) $( cat "$rigTmp/err" )"
 rigIndexOff
-rigRunIn ws-here --member-config-option keeper-unknown --select WHERE
+rigRunIn ws-here --agents-config-option keeper-unknown --select WHERE
 rigUnknownWithout="$rigRc $( cat "$rigTmp/out" ) $( cat "$rigTmp/err" )"
 rigIndexOn
 rigAssert "(c) a name not in the index: the operation answers exactly as with no index at all" "$rigUnknownWith" "$rigUnknownWithout"
-rigRunIn ws-here --member-config-option keeper-here --select WHERE
+rigRunIn ws-here --agents-config-option keeper-here --select WHERE
 rigWith="$rigRc $( cat "$rigTmp/out" ) $( cat "$rigTmp/err" )"
 rigIndexOff
-rigRunIn ws-here --member-config-option keeper-here --select WHERE
+rigRunIn ws-here --agents-config-option keeper-here --select WHERE
 rigWithout="$rigRc $( cat "$rigTmp/out" ) $( cat "$rigTmp/err" )"
 rigIndexOn
 rigAssert "unchanged: a member in the current workspace answers byte for byte as with no index at all, stderr included" "$rigWith" "$rigWithout"
-rigRunIn ws-here --member-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM
+rigRunIn ws-here --agents-config-option magic-team --select SLACK_CHANNEL_MAGIC_TEAM
 rigAssert "magic-team as the member argument: never switched, the current workspace's channel" "$rigRc $( cat "$rigTmp/out" )" "0 CHERE0001"
-rigAssert "the caller's own shell keeps its MMDAPP after a switched call"  "$( MMDAPP="$rigWork/ws-here" ; ( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c 'bash "$1" --member-config-option client-ndm --select WHERE > /dev/null 2>&1 ; printf "%s" "$MMDAPP"' rig-shell "$rigTool" ) )" "$rigWork/ws-here"
+rigAssert "the caller's own shell keeps its MMDAPP after a switched call"  "$( MMDAPP="$rigWork/ws-here" ; ( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$MMDAPP" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" bash -c 'bash "$1" --agents-config-option client-ndm --select WHERE > /dev/null 2>&1 ; printf "%s" "$MMDAPP"' rig-shell "$rigTool" ) )" "$rigWork/ws-here"
 
 echo "-- 4. no re-entry loop after a switch --"
-rigTraceIn ws-here --member-config-option client-ndm --select WHERE
-rigAssert "a switched call resolves twice, once before and once after the switch, and finishes" "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn client-ndm --member-config-option" "$rigTmp/trace" || : )" "0 ws-there 2"
-rigTraceIn ws-here --member-config-option keeper-here --select WHERE
-rigAssert "control: a call that needs no switch resolves once"             "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn keeper-here --member-config-option" "$rigTmp/trace" || : )" "0 ws-here 1"
-rigTraceIn ws-here --member-config-option keeper-multi --select WHERE
-rigAssert "a member whose chosen workspace is not the first row: still two"  "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn keeper-multi --member-config-option" "$rigTmp/trace" || : )" "0 ws-third 2"
+rigTraceIn ws-here --agents-config-option client-ndm --select WHERE
+rigAssert "a switched call resolves twice, once before and once after the switch, and finishes" "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn client-ndm --agents-config-option" "$rigTmp/trace" || : )" "0 ws-there 2"
+rigTraceIn ws-here --agents-config-option keeper-here --select WHERE
+rigAssert "control: a call that needs no switch resolves once"             "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn keeper-here --agents-config-option" "$rigTmp/trace" || : )" "0 ws-here 1"
+rigTraceIn ws-here --agents-config-option keeper-multi --select WHERE
+rigAssert "a member whose chosen workspace is not the first row: still two"  "$rigRc $( cat "$rigTmp/out" ) $( LC_ALL=C grep -c "$rigResolveFn keeper-multi --agents-config-option" "$rigTmp/trace" || : )" "0 ws-third 2"
 
 echo "-- 5. after a switch: the workspace's state follows, the origin stays, the old index state is gone --"
 rigPre=( MDSC_CACHED=/stale/cache MDSC_ID_RIGSTALE=stale )
@@ -417,7 +416,7 @@ rigSpawnIn ws-here keeper-there
 rigAssert "the session is launched by the console of the member's workspace, started there"  "$rigRc $( rigLaunched )" "0 THERE=ws-there"
 rigAssert "the task text reaches that console"                              "$( LC_ALL=C grep -c -x 'RIG-TASK-TEXT' "$rigTmp/brief.THERE" 2> /dev/null || : )" 1
 rigAssert "the spawn record stays in the spawning workspace, none in the member's" "$( rigSpawnedCount ws-here ) $( rigSpawnedCount ws-there )" "1 0"
-rigAssert "the member's workspace gained only the send log of the session-thread post, no record, no sandbox, no registry" "$( cd "$rigWork/ws-there/.local/agents" && find . -type f | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed "s|./comms-slack-send.log ||" )" "$rigFilesThere"
+rigAssert "the member's workspace gained only the send log of the session-thread post, no record, no sandbox, no registry" "$( cd "$rigWork/ws-there/.local/agents" && find . -type f | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed "s|./comms-slack-send\.[0-9][0-9][0-9][0-9]-[0-9][0-9]\.log ||" )" "$rigFilesThere"
 rigSpawnIn ws-here keeper-here
 rigAssert "control: a member in the spawning workspace is launched there, as before" "$rigRc $( rigLaunched )" "0 HERE=ws-here"
 rigSpawnIn ws-here keeper-unknown
@@ -573,8 +572,10 @@ rigDispatchEntry="$( LC_ALL=C awk '/^DistroAgentsTools\(\)\{/ { on = 1 } on { pr
 rigAssert "control: the dispatcher's entry was cut out, up to the context include"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c 'AgentsContext.UseAgentsTools.include' || : )" 1
 rigAssert "the entry resolves once, before the context include"           "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigResolveFn \"\$2\" \"\$1\"" || : )" 1
 rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:-*) ;;' | LC_ALL=C sed -e 's/^[[:space:]]*//' -e 's/) ;;$//' )"
-rigAssert "the entry's one exclusion line: the spawn proxy, the two operations that wrap it, the MCP execute, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|*:|*:-*'
-rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//' )"
+## The Decisions append and the review implementations are the tooling's own: their <who> is the name recorded, not
+## the member whose workspace the item lives in, and they run where their caller's records are.
+rigAssert "the entry's one exclusion line: the spawn proxy, the two operations that wrap it, the MCP execute, the Decisions append, the review implementations, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|*:|*:-*'
+rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//' )"
 rigAssert "a switch re-runs the whole call in a subshell under the new root"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "( $rigSwitchFn \"\$memberWorkspace\" ; DistroAgentsTools \"\$@\" )" || : )" 1
 rigAssert "the resolver is called from the dispatcher entry and the spawn proxy, and nowhere else" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.InternOpAgentSpawnProxy.include DistroAgentsTools.fn.sh "
 rigAssert "the spawn proxy launches the console of the resolved workspace, with MMDAPP set to it, never the spawning one" "$( [ "$( LC_ALL=C grep -c 'MMDAPP="\$spawnWorkspace".*"\$spawnWorkspace/DistroAgentsConsole.sh"' "$rigSpawnInclude" || : )" -gt 0 ] && printf launches-there || printf blind ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c 'MMDAPP="\$MMDAPP".*DistroAgentsConsole.sh' || : )" "launches-there 0"
