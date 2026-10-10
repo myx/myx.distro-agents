@@ -64,10 +64,15 @@ AgentsToolsSpawnProxyAnnounceCli(){
 ## most per Slack call.
 AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, marker, output file, timed out, timeout seconds
 	local closeThread="$1" closeMember="$2" closeOutcome="$3" closeExit="$4" closeMarker="$5" closeLog="$6" closeTimedOut="$7" closeTimeout="$8"
-	local closeArmed="unknown" closeSetup="" closeTokens=""
+	local closeArmed="unknown" closeSetup="" closeTokens="" closeArmedAt="" closeEndedAt=""
 	[ -n "$closeThread" ] || return 0
+	## A date or a time in the post is a Slack date token, so each reader sees it in their own
+	## timezone (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
+	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
+	closeEndedAt="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null )" || closeEndedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 	if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -s "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.armed" ] ; then
-		closeArmed="yes, at $( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
+		closeArmedAt="$( head -1 "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.armed" )"
+		closeArmed="yes, at $( AgentsToolsSlackDateToken "$closeArmedAt" date-time 2> /dev/null || printf '%s' "$closeArmedAt" )"
 	elif [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -e "$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.harness" ] ; then
 		closeArmed="no"
 	fi
@@ -81,7 +86,7 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 		--field launched="$( AgentsToolsSpawnProxySawSentinel "$closeMarker" && echo true || echo false )" \
 		--field cli="$( AgentsToolsSpawnProxyExecutedCli "$closeMarker" )" --field armed="$closeArmed" --field setup="$closeSetup" \
 		--field timed-out-after="$( [ "$closeTimedOut" = "0" ] || printf '%s' "$closeTimeout" )" --field tokens="$closeTokens" \
-		--field ended-at="$( date +"%Y-%m-%d %H:%M %z" )" < /dev/null 2>&1 > /dev/null \
+		--field ended-at="$closeEndedAt" < /dev/null 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track close not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
 	DistroAgentsTools --intern-op-comms-slack-react "$closeMember" "$closeThread" checkered_flag --identity-bot 2>&1 > /dev/null \
@@ -1100,6 +1105,11 @@ case "$1" in
 		[ -z "$parentSessionId" ] || eventTrackParent="${parentSessionId:0:8}"
 		[ "$parentSessionId" != "$sessionId" ] || eventTrackParent="-"
 		[ "$sandboxName" != "$sessionId" ] || eventTrackTracking="-"
+		## The start time as a Slack date token, so each reader sees it in their own timezone
+		## (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
+		local eventTrackStartedAt=""
+		type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
+		eventTrackStartedAt="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null )" || eventTrackStartedAt="$( date +"%Y-%m-%d %H:%M %z" )"
 		local eventTrackFields=( --kind start --session-id "$MDAT_SPAWN_SESSION_ID" \
 			--field cli="$spawnCliResolved" --field runs="$spawnCliKind" --field tier="$spawnCliTier" --field wait="$waitMode" \
 			--field routine="${routineSelector:-$( [ "$routineDefault" != "true" ] || printf 'default' )}" \
@@ -1108,7 +1118,7 @@ case "$1" in
 			--field spawn-id="${MDAT_SPAWN_SESSION_ID:0:8}" --field session-id="${sessionId:0:8}" --field parent-session-id="$eventTrackParent" \
 			--field session-thread="$eventTrackSessionThread" \
 			--field tracking-name="$eventTrackTracking" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
-			--field started-at="$( date +"%Y-%m-%d %H:%M %z" )" )
+			--field started-at="$eventTrackStartedAt" )
 		local eventTrackThread=""
 		eventTrackThread="$(
 			[ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null )" ] || exit 0

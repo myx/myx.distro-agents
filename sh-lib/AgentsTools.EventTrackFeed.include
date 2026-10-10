@@ -18,14 +18,14 @@
 ## took once every line in it is read into the poster, which posts it: on disk the feed only
 ## ever holds lines not yet posted.
 ## THE POSTS: the lines collect into one open post, in the order they happened, whoever they
-## regard: the post's own blocks say that, a subject header each time the subject changes.
+## regard: the post's own blocks say that, a box for its subject each time the subject changes.
 ## Fixed in code, never configured, the open post goes on whichever comes first:
 ##   - 5 seconds after its first line, even when nothing follows: the poster's loop never
 ##     sleeps past that moment;
 ##   - right after an immediate line joins it: an error, a refusal, or a session event
 ##     (start, end, model, restart, handback, dismissed), AgentsEventTrackFeedPlan.awk;
-##   - at the size limit: the post op cuts it at line boundaries into posts of at most
-##     4000 characters, Slack's limit for a message's `text`.
+##   - at the size limit: the post op cuts it between boxes into posts of at most 50
+##     blocks, a box's children counted too, Slack's limit for a message.
 ## The feed is polled every 4 seconds, so a line waits at most 4 s to be read, then at most
 ## 5 s more (just under 6 on the whole-second clock) before its post goes: under 10 s from
 ## the line to the send call.
@@ -50,7 +50,7 @@ AgentsEventTrackFeedOpen(){ ## session id, thread
 }
 
 ## One post to the thread, its lines on stdin. Through the tooling's own post op only, which
-## renders it and cuts it to the chunk size; never --update.
+## renders it as boxes and cuts it at Slack's limits; never --update.
 AgentsEventTrackFeedSend(){ ## member, thread, session id
 	"$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
 }

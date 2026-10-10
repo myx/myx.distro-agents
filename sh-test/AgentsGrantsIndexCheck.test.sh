@@ -25,7 +25,7 @@
 ##   6. the team floor tools in code (agentsPermissionFloorTools) and the inert reference lines
 ##      in myx.distro-agents/project.inf name exactly the same tools, both ways; and so do the
 ##      reference lines of magic-architect and magic-tester and their built-in rows;
-##   7. a workspace with no source/, as an mdci rig: no registry, the built-in grants all the same.
+##   7. a workspace with no source/: no registry, the built-in grants all the same.
 ## Offline: HOME, every workspace, every registry and the team data are this rig's own; a fake
 ## curl is first on PATH.
 set -u
@@ -347,7 +347,7 @@ rigBuiltinRows="$( LC_ALL=C grep -E '^(magic-architect|magic-tester):ws-main:(bu
 rigAssert "every embedded member reference has its built-in rows" "$( LC_ALL=C comm -23 <( printf '%s\n' "$rigBuiltinRef" ) <( printf '%s\n' "$rigBuiltinRows" ) | LC_ALL=C tr '\n' ' ' )" ""
 rigAssert "every built-in row has its reference line, once"     "$( LC_ALL=C comm -13 <( printf '%s\n' "$rigBuiltinRef" ) <( printf '%s\n' "$rigBuiltinRows" ) | LC_ALL=C tr '\n' ' ' )" ""
 
-echo "-- 7. a workspace with no source/, as an mdci rig: the built-in grants hold all the same --"
+echo "-- 7. a workspace with no source/: the built-in grants hold all the same --"
 ## Its own HOME, so no registry of another workspace reaches it: what it holds is built in.
 rigHomeMain="$rigHome" rigHome="$rigTmp/home-nosrc"
 rigNoSrc="$rigTmp/ws-nosrc" rigTestbedC="$rigTmp/ws-c-testbed"

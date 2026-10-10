@@ -85,7 +85,7 @@ AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 }
 
 ## The standing grants of the members this package carries, built in beside magic-librarian's
-## read rather than declared, so a workspace with no source/ (an mdci rig) holds them as one
+## read rather than declared, so a workspace with no source/ holds them as one
 ## with myx.distro-agents in source does: magic-architect's WebFetch and WebSearch; magic-tester's
 ## read of the test trees and .local/myx in every tooling workspace, and its write of all of
 ## every workspace place named *-testbed. myx.distro-agents/project.inf names each one as an

@@ -1248,6 +1248,15 @@ op's own option arm.
   External sends carry no default `magic_sender` metadata; client addressees stay plain text (their ids
   are in another workspace); the bot swap after `channel_not_found` is skipped unless the bot is the
   member's own. Email shows only the address.
+- **`AgentsSlackDate.awk` is the one helper for every date or time the tooling writes into Slack
+  text** (`AgentsToolsSlackDateToken`, `AgentsTools.SlackDate.include`). `sldToken` renders a fixed
+  style (`time`, `time-secs`, `date-time`, `date-time-secs`, `date`); `sldTokenAs` takes any
+  caller-given token string instead (`{date_short_pretty} at {time}`, `{ago}`), refused when it
+  holds `|`, `^`, `<` or `>`. The fallback is always the same moment as plain UTC text, which
+  `sldFallbacks` restores when a sent message is read back, and `sldKeep` re-escapes everything
+  except a token of this exact shape. Already used by the main loop, pending-reply remind, the spawn
+  proxy and the event-track post contract (`sh-lib/templates/event-track.post.format.md`); a new site
+  writing a date into Slack text goes through it, never a literal string.
 - **`AgentsSlackBlocksBuild.awk`** (markdown → Block Kit):
   - backslash escapes run before every other branch, including code spans; the punctuation set is spelled
     out there, not taken from `isPunctCh()`, which drops backtick and quotes on purpose;

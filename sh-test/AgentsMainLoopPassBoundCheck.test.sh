@@ -122,6 +122,15 @@ rigAssert "the hung pass is gone, its whole group with it" "$( kill -0 "$rigFirs
 rigAssert "it never reached its own end"               "$( LC_ALL=C grep -c "^end $rigFirstPid$" "$rigDir/console.log" )" 0
 rigAssert "the ending is said on stderr"               "$( LC_ALL=C grep -c 'passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=20 -- ending it' "$rigDir/loop.err" )" 1
 rigAssert "event-track is told"                        "$( LC_ALL=C grep -q -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null && printf yes || printf no )" yes
+## When it happened is a Slack date token, so each reader sees it in their own timezone: its
+## epoch is this run's own time, and its fallback is that same moment as UTC text.
+rigAtToken="$( LC_ALL=C grep -o -E 'at: <!date\^[0-9]+\^\{date_num\} \{time\}\|[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC>' "$rigDir/posted" 2>/dev/null | head -1 )"
+rigAtEpoch="$( printf '%s' "$rigAtToken" | LC_ALL=C sed -n 's/^at: <!date^\([0-9]*\)^.*$/\1/p' )"
+rigAssert "it says when, as a Slack date token, unescaped" \
+	"$( [ -n "$rigAtToken" ] && printf yes || printf no ):$( LC_ALL=C grep -c -F '&lt;!date' "$rigDir/posted" 2>/dev/null )" yes:0
+rigAssert "the token's epoch is this run's time, and its fallback the same moment in UTC" \
+	"$( [ "${rigAtEpoch:-0}" -ge "$(( $( date +%s ) - 600 ))" ] && [ "${rigAtEpoch:-0}" -le "$( date +%s )" ] && printf now || printf off ):${rigAtToken#at: }" \
+	"now:$( printf '%s\tdate-time\n' "${rigAtEpoch:-x}" | LC_ALL=C awk -v sldStandalone=token -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackDate.awk" )"
 rigWaitFor 60 rigAtLeast 2 rigStarts
 rigAssert "the next pass proceeds"                     "$( [ "$( rigStarts )" -ge 2 ] && printf yes || printf no )" yes
 rigLoopStop

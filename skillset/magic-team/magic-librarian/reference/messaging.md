@@ -88,6 +88,23 @@ only fix.
 **Do not put the constant into the conventions file.** It is a vendor detail with a shelf life; the
 rule that survives is "platforms impose limits and may truncate silently".
 
+## Slack layout and dates
+
+- **A message sets no font size of its own; the block carries it.** `header` renders large,
+  `section`/`rich_text` render normal, `context` renders small and grey, and no block mixes two
+  sizes on one line. Blocks stack top to bottom only — two never sit side by side. A wish for a
+  visibly smaller date beside a normal-size name, on the same line, cannot be met on this platform;
+  the only place for it is a separate block, never a shared line.
+- **A quote line is `>` with no trailing space.** A space after it renders as a leading space on
+  every wrapped row of the quote bar after the first.
+- **A date or time written into message text is one control sequence**:
+  `<!date^<epoch seconds>^<token string>|<fallback text>>`. Each reader sees it rendered in their
+  own device's timezone; the fallback text is required and is what a plain client, or a message
+  read back programmatically, actually sees — so the fallback always carries the same moment as
+  plain UTC text, never a stand-in. It is a control sequence: sent escaped, or placed inside a code
+  span, it renders as those literal characters instead.
+
+
 ## Consequences for composition
 
 - One point per message. Sub-points only within a report.

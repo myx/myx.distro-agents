@@ -313,10 +313,14 @@ case "$1" in
 			if [ -n "$passTimedOut" ] ; then
 				[ 0 -ne "$spawnRc" ] || spawnRc=124
 				mainLoopPassTimedOut=1
+				## The time as a Slack date token, so each reader sees it in their own timezone
+				## (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
+				type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
 				DistroAgentsTools --intern-op-event-track-post magic-coordinator event-track --kind error \
 					--field what="Heartbeat pass timed out after ${passTimeoutSeconds}s" \
 					--field detail="ended by TERM then KILL, process group; its lock is left for the next pass's stale-lock recheck" \
-					--field host="$( hostname -s 2>/dev/null || echo unknown )" --field at="$( date +"%Y-%m-%d %H:%M %z" )" > /dev/null 2>&1 \
+					--field host="$( hostname -s 2>/dev/null || echo unknown )" \
+					--field at="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null || date +"%Y-%m-%d %H:%M %z" )" > /dev/null 2>&1 \
 					|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to event-track" >&2
 			fi
 			## Nothing may sit between a wait and its spawnRc above: any diagnostic there

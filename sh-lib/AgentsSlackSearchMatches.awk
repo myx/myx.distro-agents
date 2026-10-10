@@ -215,6 +215,23 @@ function permalinkThreadTs(link,   qs, qmark, count, pairs, i, eq, name) {
 	return ""
 }
 
+## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
+## as its fallback text: what a reader of these lines can use, where the raw control
+## string is noise. The tooling's own posts carry them (sh-lib/AgentsSlackDate.awk, whose
+## sldFallbacks this is, word for word; a copy, because this file runs with no other
+## loaded, as it carries its JSON engine).
+function dateFallbacks(textValue,   outText, tokenText, barAt) {
+	outText = ""
+	while (match(textValue, /<!date\^[0-9]+\^[^|>]*\|[^>]*>/)) {
+		tokenText = substr(textValue, RSTART, RLENGTH)
+		outText = outText substr(textValue, 1, RSTART - 1)
+		textValue = substr(textValue, RSTART + RLENGTH)
+		barAt = index(tokenText, "|")
+		outText = outText substr(tokenText, barAt + 1, length(tokenText) - barAt - 1)
+	}
+	return outText textValue
+}
+
 ## Only the four leaves this reader actually reports, plus the envelope's own
 ## ok/error and paging counters. Everything else in a match object -- score,
 ## iid, blocks, team -- is deliberately not collected.
@@ -382,7 +399,7 @@ END {
 	## AgentsSlackMessagesFormat.awk prints in, so the two ops read alike.
 	for (k = inRange - 1; k >= 0; k--) {
 		i = keep[k]
-		text = (i in textOf) ? textOf[i] : ""
+		text = (i in textOf) ? dateFallbacks(textOf[i]) : ""
 		gsub(/\n/, " ", text)
 		gsub(/\r/, " ", text)
 		line = sprintf("%s | %s | %s", tsOf[i], (i in userOf ? userOf[i] : "?"), text)

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SlackDate.include -- the shell side of the one Slack date helper,
+## sh-lib/AgentsSlackDate.awk, which holds the rule, the moments it reads and its styles.
+## Sourced by every include whose own text to Slack names a date or a time, so each
+## reader sees it in their own timezone. Function-only.
+##
+
+if ! type AgentsToolsSlackDateToken > /dev/null 2>&1 ; then
+
+	## Prints the Slack date token of a moment in a style:
+	## `<!date^<epoch seconds>^<token string>|<the same moment as UTC text>>`. Prints
+	## nothing and returns 1 for a moment or a style it cannot read, so a caller keeps
+	## the text it had.
+	AgentsToolsSlackDateToken(){ ## moment (epoch seconds, or a date-time), style (time-secs|time|date-time|date-time-secs|date)
+		printf '%s\t%s\n' "${1:-}" "${2:-}" | LC_ALL=C awk -v sldStandalone=token -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackDate.awk"
+	}
+
+fi

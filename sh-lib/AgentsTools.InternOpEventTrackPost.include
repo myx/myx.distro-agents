@@ -9,10 +9,16 @@
 ## The text is the tooling template sh-lib/templates/event-track.post.format.md, read
 ## from this package's own sh-lib, so the template and the code that fills it are always
 ## the same version. This op fills its slots (AgentsEventTrackPostFill.awk): blocks, each a
-## subject header then its lines, every line given becoming one operation's line by its own
-## template, never posted as it came and never as a code block. It cuts the post into
-## posts of at most 4000 characters, fixed in code: Slack's limit for a message's `text`,
-## the field this op sends (AgentsEventTrackPostFill.awk). It posts each once and never
+## subject then its lines, every line given becoming one operation's line by its own
+## template, never posted as it came and never as a code block. A post goes as Slack
+## blocks, each block one box (a `container` block: a title, a subtitle with the time of
+## its first line, its lines, its secondary details small and grey), with a short text
+## beside them for a notification. The limits are Slack's, fixed in code
+## (AgentsEventTrackPostFill.awk): 3000 characters to a section, 10 children to a box, 50
+## blocks to a post with a box's children counted too; what is beyond goes in the next
+## post. A post whose blocks Slack refuses goes once more as plain text, each block under
+## its header line, in posts of at most 4000 characters, Slack's limit for a message's
+## `text`, with a warning, so nothing is lost. It posts each once and never
 ## edits a post: what is learned later is a new post, a reply in the thread. Nothing of
 ## the member send's addressing runs: no addressee, no author line, no conversation lookup.
 ##
@@ -35,8 +41,9 @@ AgentsEventTrackPostTemplate(){
 	AgentsToolsToolingTemplate event-track.post.format.md
 }
 
-## Renders the posts into a directory, one file each (000001, ...); rc 3 for a kind the
-## template has no block for, 1 when nothing could be rendered.
+## Renders the posts into a directory, each as its files (000001.blocks, its boxes;
+## 000001.text, its short text; 000001.plain.001, ..., the same post as plain text); rc 3 for
+## a kind the template has no block for, 1 when nothing could be rendered.
 AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, name=value...
 	local renderKind="$1" renderMember="$2" renderSession="$3" renderDir="$4" renderLines="$5" renderFields="" renderField
 	shift 5
@@ -62,11 +69,14 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 		[ "$renderKind" != "feed" ] || [ ! -d "${MMDAPP:-}/.local/agents/sessions/$renderSession" ] \
 			|| renderWaitState="$MMDAPP/.local/agents/sessions/$renderSession/event-track.wait-on"
 	;; esac
-	## The transcript formatter first, for its redaction and tool names.
+	## The transcript formatter first, for its redaction and tool names, then the Slack date
+	## helper, for every time a post shows. ETP_NOW is the moment the post is made: the time
+	## of a kind's own lines, which its box's subtitle shows.
 	ETP_KIND="$renderKind" ETP_MEMBER="$renderMember" ETP_SESSION="$renderSession" ETP_FIELDS="$renderFields" \
 		ETP_DIR="$renderDir" ETP_MEMBERS=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | cut -f1 | tr '\n' ' ' )" \
-		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" \
-		LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/AgentsEventTrackPostFill.awk" \
+		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$( date +%s )" \
+		LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/AgentsSlackDate.awk" \
+		-f "$agentsEventTrackPostLib/AgentsEventTrackPostFill.awk" \
 		"$( AgentsEventTrackPostTemplate )" "$renderLines"
 }
 
@@ -156,7 +166,7 @@ case "$1" in
 		AgentsEventTrackPostRender "$etpKind" "$etpMember" "$etpSession" "$etpDir/posts" "$etpDir/lines" ${etpFields[@]+"${etpFields[@]}"} || etpRenderRc=$?
 		local etpPosts=()
 		local etpPostFile
-		for etpPostFile in "$etpDir/posts"/* ; do
+		for etpPostFile in "$etpDir/posts"/*.blocks ; do
 			[ ! -f "$etpPostFile" ] || etpPosts+=( "$etpPostFile" )
 		done
 		if [ "$etpRenderRc" != "0" ] || [ "${#etpPosts[@]}" -eq 0 ] ; then
@@ -169,48 +179,79 @@ case "$1" in
 			set +e ; return 1
 		fi
 
-		## One post per part. A post to a conversation opens a thread; its later parts go there.
+		## One post per part, as Slack blocks: its boxes, beside the short text a notification
+		## shows. A post whose blocks Slack refuses (invalid_blocks, or any error that names
+		## them) goes once more as plain text, in the text rendering cut to Slack's `text` limit,
+		## with a warning: nothing is lost. A post to a conversation opens a thread; what
+		## follows it goes there.
 		local etpMetadata="{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"$etpMember\",\"tracking\":\"$etpKind\"}}"
-		local etpIndex=0 etpText etpPayload etpResponse etpRc etpJoined="false" etpTs etpError
+		local etpIndex=0 etpText etpPayload etpResponse etpRc etpJoined="false" etpTs etpError etpErrorName
+		local etpSends=() etpSendAt etpSendFile etpAsText etpBlocksRefused etpSentAny="false"
 		for etpPostFile in "${etpPosts[@]}" ; do
 			etpIndex=$(( etpIndex + 1 ))
-			etpText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsMcpJsonEscape.awk" < "$etpPostFile" )"
-			etpPayload="{\"channel\":\"$etpChannel\",\"text\":\"$etpText\"${etpThread:+,\"thread_ts\":\"$etpThread\"},\"metadata\":$etpMetadata}"
-			while : ; do
-				etpRc=0
-				etpResponse="$( DistroAgentsTools --intern-op-slack-call "$etpMember" --api chat.postMessage --identity bot --json-body "$etpPayload" \
-					--context --intern-op-event-track-post 2> "$etpDir/call.err" )" || etpRc=$?
-				## The shared call's own warnings (a rate limit waited out) are said here too.
-				LC_ALL=C grep -F '⚠️ WARNING' "$etpDir/call.err" >&2 || :
-				[ "$etpRc" != "0" ] || break
-				## The bot not yet in the conversation joins it once, as the member send does for a top-level post.
-				if [ "$etpJoined" = "false" ] && [ -z "$etpThread" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$etpDir/call.err" ; then
-					etpJoined="true"
-					if DistroAgentsTools --intern-op-slack-call "$etpMember" --api conversations.join --identity bot --form "channel=$etpChannel" \
-						--context --intern-op-event-track-post > /dev/null 2>&1 ; then
+			## What goes for this post: its blocks; refused, its plain text parts in their place.
+			etpSends=( "$etpPostFile" ) ; etpSendAt=0 ; etpAsText=""
+			while [ "$etpSendAt" -lt "${#etpSends[@]}" ] ; do
+				etpSendFile="${etpSends[$etpSendAt]}"
+				case "$etpSendFile" in
+					*.blocks)
+						etpText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsMcpJsonEscape.awk" < "${etpSendFile%.blocks}.text" )"
+						etpPayload="{\"channel\":\"$etpChannel\",\"text\":\"$etpText\",\"blocks\":$( cat "$etpSendFile" )${etpThread:+,\"thread_ts\":\"$etpThread\"},\"metadata\":$etpMetadata}"
+					;;
+					*)
+						etpText="$( LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsMcpJsonEscape.awk" < "$etpSendFile" )"
+						etpPayload="{\"channel\":\"$etpChannel\",\"text\":\"$etpText\"${etpThread:+,\"thread_ts\":\"$etpThread\"},\"metadata\":$etpMetadata}"
+					;;
+				esac
+				while : ; do
+					etpRc=0
+					etpResponse="$( DistroAgentsTools --intern-op-slack-call "$etpMember" --api chat.postMessage --identity bot --json-body "$etpPayload" \
+						--context --intern-op-event-track-post 2> "$etpDir/call.err" )" || etpRc=$?
+					## The shared call's own warnings (a rate limit waited out) are said here too.
+					LC_ALL=C grep -F '⚠️ WARNING' "$etpDir/call.err" >&2 || :
+					[ "$etpRc" != "0" ] || break
+					## The bot not yet in the conversation joins it once, as the member send does for a top-level post.
+					if [ "$etpJoined" = "false" ] && [ -z "$etpThread" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$etpDir/call.err" ; then
+						etpJoined="true"
+						if DistroAgentsTools --intern-op-slack-call "$etpMember" --api conversations.join --identity bot --form "channel=$etpChannel" \
+							--context --intern-op-event-track-post > /dev/null 2>&1 ; then
+							continue
+						fi
+					fi
+					break
+				done
+				if [ "$etpRc" != "0" ] ; then
+					etpError="$( LC_ALL=C grep -m1 'ERROR' "$etpDir/call.err" 2>/dev/null )" || etpError=""
+					etpErrorName="$( printf '%s' "$etpError" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1 )"
+					## Slack refused the blocks: its error names them, or points into them.
+					etpBlocksRefused=""
+					case "$etpErrorName" in *block*) etpBlocksRefused="yes" ;; esac
+					case "$etpError" in *json-pointer:/blocks*) etpBlocksRefused="yes" ;; esac
+					if [ -z "$etpAsText" ] && [ -n "$etpBlocksRefused" ] ; then
+						etpAsText="yes"
+						etpSends=( "${etpPostFile%.blocks}".plain.* ) ; etpSendAt=0
+						echo "⚠️ WARNING: $MDSC_CMD --intern-op-event-track-post: Slack refused the blocks of the $etpKind post, part $etpIndex of ${#etpPosts[@]} (${etpErrorName:-a block error}), so it goes as plain text instead" >&2
 						continue
 					fi
+					AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" failed "not posted: event-track $etpKind part $etpIndex of ${#etpPosts[@]} error=$etpErrorName"
+					rm -rf "$etpDir"
+					echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the $etpKind post, part $etpIndex of ${#etpPosts[@]}, was not posted to $etpTarget: ${etpError:-the Slack call failed}" >&2
+					set +e ; return 1
 				fi
-				break
+				etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
+				[ -n "$etpTs" ] || etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=message.ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
+				AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" ok "event-track $etpKind posted${etpAsText:+ as text, its blocks refused} ts=$etpTs"
+				if [ "$etpSentAny" = "false" ] ; then
+					etpSentAny="true"
+					echo "SENT_MESSAGE_CHANNEL=$etpChannel" >&2
+					echo "SENT_MESSAGE_TS=$etpTs" >&2
+					echo "SENT_MESSAGE_THREAD_TS=${etpThread:-$etpTs}" >&2
+				fi
+				printf 'EVENT_TRACK_POST=%s:%s\n' "$etpChannel" "$etpTs"
+				## What follows a post that opened a thread goes into it.
+				[ -n "$etpThread" ] || [ -z "$etpTs" ] || etpThread="$etpTs"
+				etpSendAt=$(( etpSendAt + 1 ))
 			done
-			if [ "$etpRc" != "0" ] ; then
-				etpError="$( LC_ALL=C grep -m1 'ERROR' "$etpDir/call.err" 2>/dev/null )" || etpError=""
-				AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" failed "not posted: event-track $etpKind part $etpIndex of ${#etpPosts[@]} error=$( printf '%s' "$etpError" | LC_ALL=C sed -n 's/.*"error":"\([a-z_]*\)".*/\1/p' | head -n 1 )"
-				rm -rf "$etpDir"
-				echo "⛔ ERROR: $MDSC_CMD --intern-op-event-track-post: the $etpKind post, part $etpIndex of ${#etpPosts[@]}, was not posted to $etpTarget: ${etpError:-the Slack call failed}" >&2
-				set +e ; return 1
-			fi
-			etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
-			[ -n "$etpTs" ] || etpTs="$( printf '%s\n' "$etpResponse" | LC_ALL=C awk -v path=message.ts -v optional=1 -v dialect=slack -f "$agentsEventTrackPostLib/AgentsHarnessJsonField.awk" 2>/dev/null )" || etpTs=""
-			AgentsEventTrackPostLog "$etpMember" "$etpTarget" "$etpChannel" ok "event-track $etpKind posted ts=$etpTs"
-			if [ "$etpIndex" = "1" ] ; then
-				echo "SENT_MESSAGE_CHANNEL=$etpChannel" >&2
-				echo "SENT_MESSAGE_TS=$etpTs" >&2
-				echo "SENT_MESSAGE_THREAD_TS=${etpThread:-$etpTs}" >&2
-			fi
-			printf 'EVENT_TRACK_POST=%s:%s\n' "$etpChannel" "$etpTs"
-			## The later parts of a post that opened a thread go into it.
-			[ -n "$etpThread" ] || [ -z "$etpTs" ] || etpThread="$etpTs"
 		done
 		rm -rf "$etpDir"
 		return 0

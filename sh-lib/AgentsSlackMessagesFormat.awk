@@ -114,6 +114,23 @@ function parseString(   c, out, hex, code, hex2, code2, cp) {
 	return out
 }
 
+## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
+## as its fallback text: what a reader of this rendering can use, where the raw control
+## string is noise. The tooling's own posts carry them (sh-lib/AgentsSlackDate.awk, whose
+## sldFallbacks this is, word for word; a copy, because this file runs with no other
+## loaded, as it carries its JSON engine).
+function dateFallbacks(textValue,   outText, tokenText, barAt) {
+	outText = ""
+	while (match(textValue, /<!date\^[0-9]+\^[^|>]*\|[^>]*>/)) {
+		tokenText = substr(textValue, RSTART, RLENGTH)
+		outText = outText substr(textValue, 1, RSTART - 1)
+		textValue = substr(textValue, RSTART + RLENGTH)
+		barAt = index(tokenText, "|")
+		outText = outText substr(tokenText, barAt + 1, length(tokenText) - barAt - 1)
+	}
+	return outText textValue
+}
+
 ## Slack-specific: track ts/user/bot_id/text plus each message's own
 ## reactions[] array and reply_count/latest_reply fields, per
 ## message index; print in END once every field has been seen -- field
@@ -283,6 +300,6 @@ END {
 				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
 		}
 
-		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, textOf[i])
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, dateFallbacks(textOf[i]))
 	}
 }

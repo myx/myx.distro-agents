@@ -118,6 +118,23 @@ function oneLine(v) {
 	return v
 }
 
+## A text with every Slack date token in it, `<!date^<epoch>^<token string>|<fallback>>`,
+## as its fallback text: what a reader of this document can use, where the raw control
+## string is noise. The tooling's own posts carry them (sh-lib/AgentsSlackDate.awk, whose
+## sldFallbacks this is, word for word; a copy, because this file runs with no other
+## loaded, as it carries its JSON engine).
+function dateFallbacks(textValue,   outText, tokenText, barAt) {
+	outText = ""
+	while (match(textValue, /<!date\^[0-9]+\^[^|>]*\|[^>]*>/)) {
+		tokenText = substr(textValue, RSTART, RLENGTH)
+		outText = outText substr(textValue, 1, RSTART - 1)
+		textValue = substr(textValue, RSTART + RLENGTH)
+		barAt = index(tokenText, "|")
+		outText = outText substr(tokenText, barAt + 1, length(tokenText) - barAt - 1)
+	}
+	return outText textValue
+}
+
 ## A raw `U…` beside the handle it belongs to, when the caller supplied a map.
 ## The id STAYS and the handle is ADDED, never substituted: a reader needs the
 ## name, and every follow-up call in this family is addressed by the id, so
@@ -203,7 +220,8 @@ function flushLeg(   i, oneText) {
 		if (legIdentity != "") printf("identity: %s\n", legIdentity)
 		printf("ts: %s\n", tsOf[i])
 		printf("user: %s\n", (i in userOf) ? whoIs(userOf[i]) : "?")
-		oneText = oneLine(textOf[i])
+		## A date token reads as its fallback, in the header fields and in the text alike.
+		oneText = oneLine(dateFallbacks(textOf[i]))
 		readHeader(oneText)
 		if (hdrAuthor != "") {
 			printf("author: %s\n", hdrAuthor)
@@ -214,7 +232,7 @@ function flushLeg(   i, oneText) {
 		}
 		if (i in threadTsOf) printf("thread-ts: %s\n", threadTsOf[i])
 		if ((i in replyCountOf) && replyCountOf[i] + 0 > 0) printf("reply-count: %s\n", replyCountOf[i])
-		printf("text: %s\n", oneLine(textOf[i]))
+		printf("text: %s\n", oneText)
 		printf("\n")
 	}
 }

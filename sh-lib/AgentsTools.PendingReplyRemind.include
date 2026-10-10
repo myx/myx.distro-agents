@@ -196,11 +196,15 @@ AgentsToolsPendingReplyRemindRun(){
 	LC_ALL=C sort -t "$( printf '\t' )" -k1,1 -k2,2n "$remindWork/due" > "$remindWork/due.sorted"
 	local remindPerson remindText remindQuote remindAsked remindWhy
 	local rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt
+	## When an ask was asked is said as a Slack date token, so each reader sees it in their own
+	## timezone (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
+	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
 	for remindPerson in $( LC_ALL=C cut -f1 "$remindWork/due.sorted" | LC_ALL=C uniq ) ; do
 		LC_ALL=C awk -F'\t' -v p="$remindPerson" '$1 == p' "$remindWork/due.sorted" > "$remindWork/group"
 		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
 			remindQuote="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C sed 's/^/> /' )"
-			remindAsked="${rAskedAt:0:16}" ; [ "$rAskedAt" != "-" ] || remindAsked="an earlier date"
+			if [ "$rAskedAt" = "-" ] ; then remindAsked="an earlier date"
+			else remindAsked="$( AgentsToolsSlackDateToken "$rAskedAt" date-time 2> /dev/null )" || remindAsked="${rAskedAt:0:16}" ; fi
 			remindText="⏰ Still waiting for your answer (asked $remindAsked, reminder $rN):"
 			[ -z "$remindQuote" ] || remindText="$remindText"$'\n'"$remindQuote"
 			if remindWhy="$( AgentsToolsPendingReplyRemindSend "$rOwner" "$rIdentity" "$rChannel:$rTts" "$rPerson" "$remindText" < /dev/null )" ; then

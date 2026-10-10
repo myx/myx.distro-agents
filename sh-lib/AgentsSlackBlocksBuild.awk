@@ -47,6 +47,12 @@
 #                            code span and "\*" opens no delimiter run.
 #   "`text`"               -> code, first branch after the escape; content is
 #                            taken verbatim, never re-scanned for emphasis.
+#   "<!date^…^…|…>"        -> a real rich_text `date` element, from Slack's own
+#                            date control sequence, which the tooling writes
+#                            for a date or a time so each reader sees it in
+#                            their own timezone (sh-lib/AgentsSlackDate.awk).
+#                            Consumed in ONE step; in a code span or a fence
+#                            it stays text.
 #   "@name"                -> a real rich_text mention where the name resolves.
 #   "[text](url)"          -> a real rich_text `link` element, the label in
 #                            "text" and the target in "url". Both consumed in
@@ -167,6 +173,24 @@ function linkElem(labelText, targetUrl) {
 	return "{\"type\":\"link\",\"url\":\"" jsonEscapeLine(targetUrl) "\",\"text\":\"" jsonEscapeLine(labelText) "\"}"
 }
 
+## A real Slack date: the structured "date" element, from the inside of the text
+## version's own control sequence, `<epoch>^<token string>[^<link>]|<fallback>`
+## (`<!date^…>` without its ends, sh-lib/AgentsSlackDate.awk). Slack shows it in
+## each reader's own timezone, and the fallback where it cannot. An element,
+## for the reason a mention is one: the escape form inside rich_text stays
+## inert plain text.
+function dateElem(tokenInner,   barAt, headText, caretAt, stampText, formatText, urlText) {
+	barAt = index(tokenInner, "|")
+	headText = substr(tokenInner, 1, barAt - 1)
+	caretAt = index(headText, "^")
+	stampText = substr(headText, 1, caretAt - 1)
+	formatText = substr(headText, caretAt + 1)
+	urlText = ""
+	caretAt = index(formatText, "^")
+	if (caretAt > 0) { urlText = substr(formatText, caretAt + 1) ; formatText = substr(formatText, 1, caretAt - 1) ; }
+	return "{\"type\":\"date\",\"timestamp\":" sprintf("%d", stampText + 0) ",\"format\":\"" jsonEscapeLine(formatText) "\"" (urlText != "" ? ",\"url\":\"" jsonEscapeLine(urlText) "\"" : "") ",\"fallback\":\"" jsonEscapeLine(substr(tokenInner, barAt + 1)) "\"}"
+}
+
 function appendElem(list, elem) {
 	return (list == "") ? elem : list "," elem
 }
@@ -281,6 +305,7 @@ function emitTokens(   t, out, curText, curB, curI) {
 		if (tkType[t] == "code") out = appendElem(out, styledElem(tkText[t], "code"))
 		else if (tkType[t] == "mention") out = appendElem(out, mentionElem(tkText[t]))
 		else if (tkType[t] == "link") out = appendElem(out, linkElem(tkText[t], tkUrl[t]))
+		else if (tkType[t] == "date") out = appendElem(out, dateElem(tkText[t]))
 	}
 	if (curText != "") out = appendElem(out, styleElem(curText, curB, curI))
 	return out
@@ -342,6 +367,17 @@ function parseInlineStyles(line,   n, i, j, k, c, closeIdx, spanText, mname, run
 			spanText = (closeIdx > 0) ? substr(line, i + 1, closeIdx - i - 1) : ""
 			if (spanText != "") { addTok("code", spanText, "", 0) ; i = closeIdx + 1 ; continue ; }
 			addTok("text", c, "", 0) ; i++
+			continue
+		}
+		## A Slack date token, `<!date^<epoch>^<token string>|<fallback>>`, which
+		## the tooling writes for a date or a time (sh-lib/AgentsSlackDate.awk):
+		## a real rich_text `date` element. AFTER the code-span branch, so one
+		## inside a code span stays verbatim, and consumed in ONE step, as a link
+		## is, so its own "_", "|" and "{" never reach a branch below. A text
+		## that only starts like one stays literal.
+		if (c == "<" && substr(line, i, 7) == "<!date^" && match(substr(line, i), /^<!date\^[0-9]+\^[^|>]+\|[^>]+>/)) {
+			addTok("date", substr(line, i + 7, RLENGTH - 8), "", 0)
+			i += RLENGTH
 			continue
 		}
 		## Mention AFTER the code-span branch, so it INHERITS that exclusion by

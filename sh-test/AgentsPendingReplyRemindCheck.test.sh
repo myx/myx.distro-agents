@@ -119,7 +119,16 @@ rigAssert "2h1m: reminders 2"                              "$( rigField ask-2h1m
 rigAssert "two posts"                                      "$( rigPosts )" 2
 rigPostOf31="$( LC_ALL=C grep -l -F "$(( rigNow - 31 * 60 - 1 )).000100" "$rigScenarioDir"/post.[0-9] | head -1 )"
 rigAssert "the reminder is a reply in the ask's own thread" "$( [ -n "$rigPostOf31" ] && rigHolds "$rigPostOf31" "\"thread_ts\":\"$(( rigNow - 31 * 60 - 1 )).000100\"" )" yes
-rigAssert "it says how long it has waited"                 "$( rigHolds "$rigPostOf31" 'Still waiting for your answer (asked 2026-09-29 12:00, reminder 1):' )" yes
+## When it was asked is a Slack date token, so each reader sees it in their own timezone: the
+## record's `asked-at: 2026-09-29 12:00 +0300` is epoch 1790672400, 09:00 UTC.
+rigAssert "it says when it was asked, as a Slack date token with its UTC fallback" \
+	"$( rigHolds "$rigPostOf31" 'Still waiting for your answer (asked <!date^1790672400^{date_num} {time}|2026-09-29 09:00 UTC>, reminder 1):' )" yes
+rigAssert "the token is unescaped and outside a code span" \
+	"$( rigHolds "$rigPostOf31" '&lt;!date' ):$( rigHolds "$rigPostOf31" '`<!date' ):$( LC_ALL=C grep -c -F '"style":{"code":true}' "$rigPostOf31" )" no:no:0
+rigAssert "the blocks carry the same moment as a date element" \
+	"$( rigHolds "$rigPostOf31" '{"type":"text","text":"⏰ Still waiting for your answer (asked "},{"type":"date","timestamp":1790672400,"format":"{date_num} {time}","fallback":"2026-09-29 09:00 UTC"},{"type":"text","text":", reminder 1):"}' )" yes
+rigAssert "no UTC label follows the token, and no local time is said beside it" \
+	"$( rigHolds "$rigPostOf31" 'UTC> UTC' ):$( rigHolds "$rigPostOf31" '2026-09-29 12:00' )" no:no
 rigAssert "it quotes the question"                         "$( rigHolds "$rigPostOf31" '> May the rig keep report ask-31m?' )" yes
 rigAssert "every line of it"                               "$( rigHolds "$rigPostOf31" '> It is the second line.' )" yes
 rigAssert "and none of the how-to-answer section"          "$( rigHolds "$rigPostOf31" 'How to answer' )" no

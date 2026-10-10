@@ -1,16 +1,26 @@
 #!/usr/bin/env awk
 # Renders one tracking post from the template sh-lib/templates/event-track.post.format.md
 # (AgentsTools.InternOpEventTrackPost.include), as its `# Contract` says: blocks, each a
-# subject header then its lines; every operation one line by its own template, from its
-# parsed fields only, so no line given is ever posted as it came and nothing is a code block.
-# Loaded after the transcript formatter, for its redaction and its tool names:
-#   LC_ALL=C awk -f AgentsSessionTranscriptFormat.awk -f AgentsEventTrackPostFill.awk <template> <lines>
+# subject then its lines; every operation one line by its own template, from its parsed
+# fields only, so no line given is ever posted as it came and nothing is a code block. A post
+# is written as Slack blocks, each block one box (a `container` block: a title, a subtitle
+# with the time of its first line, its lines in sections, its context lines small and grey),
+# with the short text that goes beside them, and once more as plain text, each block under
+# its header line, for a Slack that refuses the blocks.
+# Loaded after the transcript formatter, for its redaction and its tool names, and after the
+# Slack date helper, for every time a post shows (a subtitle's date; a plain-text header's
+# span; a date token a field gives):
+#   LC_ALL=C awk -f AgentsSessionTranscriptFormat.awk -f AgentsSlackDate.awk -f AgentsEventTrackPostFill.awk <template> <lines>
 # Environment: ETP_KIND, ETP_MEMBER, ETP_MEMBERS (" <name> ... ", the team's members),
-# ETP_SESSION, ETP_FIELDS (name=value per line, the last of a name wins), ETP_DIR (where post
-# files 000001... are written), ETP_USERS (" <slack id>=<name> ...", who a message's author
-# is), ETP_WAIT_STATE (a file holding the session's previous Wait set, read first and left
-# holding this post's last one; empty for none). A post is at most 4000 characters, fixed here: Slack's limit
-# for a message's `text`, the field the post op sends, counted in characters as Slack counts.
+# ETP_SESSION, ETP_FIELDS (name=value per line, the last of a name wins), ETP_DIR (where each
+# post's files are written: 000001.blocks, its boxes as a JSON array; 000001.text, its short
+# text for a notification; 000001.plain.001..., the same post as plain text), ETP_USERS
+# (" <slack id>=<name> ...", who a message's author is), ETP_WAIT_STATE (a file holding the
+# session's previous Wait set, read first and left holding this post's last one; empty for
+# none), ETP_NOW (epoch seconds, the moment the post is made: the time of a kind's own lines).
+# Fixed here, Slack's limits, counted in characters as Slack counts: a section's text is at
+# most 3000, a box has at most 10 children, a post at most 50 blocks with every box's children
+# counted too, and a plain-text post is at most 4000, a message's `text`.
 # Exit 3: the template has no block for the kind. Run with LC_ALL=C: lengths are bytes, and
 # charLength() counts the UTF-8 characters.
 
@@ -37,10 +47,11 @@ function charLength( text,    astral ) {
 	return length( text ) + 2 * astral ;
 }
 
-## A text cut to capBytes at a character boundary, with an ellipsis.
+## A text cut to capBytes at a character boundary, with an ellipsis; never inside a Slack
+## date token, which goes whole or not at all (sldCutAt).
 function cutBytes( text, capBytes ) {
 	if ( capBytes <= 0 || length( text ) <= capBytes ) { return text ; }
-	text = substr( text, 1, capBytes ) ;
+	text = substr( text, 1, sldCutAt( text, capBytes ) ) ;
 	sub( /[\300-\377][\200-\277]*$/, "", text ) ;
 	return text "\342\200\246" ;
 }
@@ -213,12 +224,13 @@ function bodyText(    bodyNo, outText ) {
 
 ## ---- what a Wait waited on, and what it got ----
 
-## A Slack message's text as a reader wants its first line: Slack's own entities decoded (the
-## post escapes them again), a link as its label, and the member send's author line --
-## [sender: …], its emoji, its *_name_* and its `@from → @to.` -- left out. Sets slackSender
-## to the member a [sender: …] tag names.
+## A Slack message's text as a reader wants its first line: a date token as its fallback text,
+## Slack's own entities decoded (the post escapes them again), a link as its label, and the
+## member send's author line -- [sender: …], its emoji, its *_name_* and its `@from → @to.` --
+## left out. Sets slackSender to the member a [sender: …] tag names.
 function slackText( text,    linkText, labelAt ) {
 	slackSender = "" ;
+	text = sldFallbacks( text ) ;
 	gsub( /&lt;/, "<", text ) ; gsub( /&gt;/, ">", text ) ; gsub( /&amp;/, "\\&", text ) ;
 	sub( /^[ \t]+/, "", text ) ;
 	if ( match( text, /^\[sender: [^]]*\]/ ) ) { slackSender = substr( text, 10, RLENGTH - 10 ) ; text = substr( text, RLENGTH + 1 ) ; sub( /^[ \t]+/, "", text ) ; }
@@ -510,7 +522,8 @@ function takeEvent(    eventKind ) {
 	curKind = "" ;
 	delete evField ;
 	evKeyCount = 0 ; evToolName = "" ; evOutcome = "" ; evFirst = "" ; evBytes = "" ; evLines = "" ; evDur = "" ; evComment = "" ;
-	evAt = substr( curLine, 12, 8 ) ;
+	## The line's own moment, whole (`YYYY-MM-DDTHH:MM:SSZ`): a span's date token needs the day too.
+	evAt = substr( curLine, 1, 20 ) ;
 	if ( eventKind == "TOOL" ) { parseTool( curLine ) ; takeTool() ; return ; }
 	parseFields( curLine, 23 + length( eventKind ) ) ;
 	if ( eventKind in companionTool ) { takeCompanion( eventKind ) ; return ; }
@@ -519,12 +532,16 @@ function takeEvent(    eventKind ) {
 
 ## ---- filling ----
 
-## A slot's value: an operation's field while one fills, else the post's.
+## A slot's value: an operation's field while one fills, else the post's. In a title the
+## member and the session are sent as they are, since a title's text is not mrkdwn.
 function slotValue( name ) {
 	if ( fillOp > 0 ) { return ( ( fillOp, name ) in opF ) ? cleanValue( opF[fillOp, name] ) : "" ; }
-	if ( name == "member" ) { return esc( fillMember != "" ? fillMember : member ) ; }
-	if ( name == "session" ) { return shortSession ; }
+	if ( name == "member" ) { return ( fillTitle ? titleValue( fillMember != "" ? fillMember : member ) : esc( fillMember != "" ? fillMember : member ) ) ; }
+	if ( name == "session" ) { return ( fillTitle ? titleSession : shortSession ) ; }
 	if ( name == "span" ) { return fillSpan ; }
+	if ( name == "date" ) { return fillDate ; }
+	if ( name == "subjects" ) { return fillSubjects ; }
+	if ( name == "line-count" ) { return fillLineCount ; }
 	if ( name in field ) { return field[name] ; }
 	return "" ;
 }
@@ -571,9 +588,11 @@ function kindLineGone( filled ) {
 	return ( requiredEmpty > 0 || filled !~ /[^ \t]/ ) ;
 }
 
+## A block's span: its first and its last moment, each a Slack date token showing the time
+## with seconds, so each reader sees it in their own timezone; one token when both are the same.
 function spanOf( fromAt, toAt ) {
 	if ( fromAt == "" ) { return "" ; }
-	return ( fromAt == toAt || toAt == "" ? fromAt : fromAt "\342\200\223" toAt ) " UTC" ;
+	return ( fromAt == toAt || toAt == "" ? sldToken( fromAt, "time-secs" ) : sldToken( fromAt, "time-secs" ) "\342\200\223" sldToken( toAt, "time-secs" ) ) ;
 }
 
 ## A block's header, for its subject, member and span.
@@ -584,16 +603,242 @@ function headerText( subject, who, fromAt, toAt,    text ) {
 	return text ;
 }
 
-function addLine( text, header, isHeader ) {
+## One line of the post: its text, its block's header, whether it is that header; for a
+## block's own line, the moment it is of and whether it is a context line, a secondary detail.
+function addLine( text, header, isHeader, atText, isContext ) {
 	outLine[++outCount] = text ;
 	outHeader[outCount] = header ;
 	outIsHeader[outCount] = isHeader ;
+	outAt[outCount] = atText ;
+	outContext[outCount] = ( isContext ? 1 : 0 ) ;
 }
 
-function writePost( number, text,    path ) {
-	path = outDir "/" sprintf( "%06d", number ) ;
+## A block's header line, with what its box needs: its subject and who it regards.
+function addHeader( text, subject, who ) {
+	addLine( text, text, 1 ) ;
+	outSubject[outCount] = subject ;
+	outWho[outCount] = who ;
+}
+
+## ---- the boxes: a post as Slack blocks ----
+
+## A value in a box's title: one line, with no backtick to end a code span, and not escaped,
+## since a title's text is not mrkdwn.
+function titleValue( text ) {
+	gsub( /[\t\r\n]/, " ", text ) ;
+	gsub( /`/, "%60", text ) ;
+	return text ;
+}
+
+## A JSON string's body, by the table and the handling of AgentsMcpJsonEscape.awk, as
+## AgentsSlackBlocksBuild.awk's jsonEscapeLine has them; a line break is \n.
+function jsonText( text,    outText, oneChar ) {
+	outText = "" ;
+	while ( match( text, /[\\"\001-\037]/ ) ) {
+		oneChar = substr( text, RSTART, 1 ) ;
+		outText = outText substr( text, 1, RSTART - 1 ) ( oneChar == "\n" ? "\\n" : ( ( oneChar in jsonCtl ) ? jsonCtl[oneChar] : "\\" oneChar ) ) ;
+		text = substr( text, RSTART + 1 ) ;
+	}
+	return outText text ;
+}
+
+function listAdd( listText, itemText ) {
+	if ( itemText == "" ) { return listText ; }
+	return ( listText == "" ? itemText : listText "," itemText ) ;
+}
+
+function mrkdwnJson( text ) {
+	return "{\"type\":\"mrkdwn\",\"text\":\"" jsonText( text ) "\"}" ;
+}
+
+function sectionJson( text ) {
+	return "{\"type\":\"section\",\"text\":" mrkdwnJson( text ) "}" ;
+}
+
+function contextJson( text ) {
+	return "{\"type\":\"context\",\"elements\":[" mrkdwnJson( text ) "]}" ;
+}
+
+## One box: a container block of full width, its title, its subtitle where it has one, its children.
+function boxJson( titleJson, subtitleText, childrenJson,    outText ) {
+	outText = "{\"type\":\"container\",\"width\":\"full\",\"rich_text_title\":{\"type\":\"rich_text\",\"elements\":[{\"type\":\"rich_text_section\",\"elements\":[" titleJson "]}]}" ;
+	if ( subtitleText != "" ) { outText = outText ",\"subtitle\":" mrkdwnJson( subtitleText ) ; }
+	return outText ",\"child_blocks\":[" childrenJson "]}" ;
+}
+
+## One element of a title: a text element, in code style where it was a code span.
+function titleElement( text, isCode ) {
+	if ( text == "" ) { return "" ; }
+	return "{\"type\":\"text\",\"text\":\"" jsonText( text ) "\"" ( isCode ? ",\"style\":{\"code\":true}" : "" ) "}" ;
+}
+
+## A box's title, the elements of a rich_text section, from its filled line: a `:name:` that
+## opens it is an emoji element by name (a Unicode emoji in a title's text shows as its name),
+## a code span a text element in code style, the rest text elements as written. Sets
+## titlePlain, the same as plain text: what names the box in the notification text.
+function titleElements( text,    outText, tickAt, endAt ) {
+	outText = "" ; titlePlain = "" ;
+	if ( match( text, /^:[a-z0-9_+-]+:/ ) ) {
+		outText = "{\"type\":\"emoji\",\"name\":\"" substr( text, 2, RLENGTH - 2 ) "\"}" ;
+		text = substr( text, RLENGTH + 1 ) ;
+	}
+	while ( text != "" ) {
+		tickAt = index( text, "`" ) ;
+		endAt = ( tickAt > 0 ) ? index( substr( text, tickAt + 1 ), "`" ) : 0 ;
+		if ( endAt < 2 ) { outText = listAdd( outText, titleElement( text, 0 ) ) ; titlePlain = titlePlain text ; break ; }
+		outText = listAdd( outText, titleElement( substr( text, 1, tickAt - 1 ), 0 ) ) ;
+		outText = listAdd( outText, titleElement( substr( text, tickAt + 1, endAt - 1 ), 1 ) ) ;
+		titlePlain = titlePlain substr( text, 1, tickAt - 1 ) substr( text, tickAt + 1, endAt - 1 ) ;
+		text = substr( text, tickAt + endAt + 1 ) ;
+	}
+	sub( /^[ \t]+/, "", titlePlain ) ;
+	return outText ;
+}
+
+## A box's title for its subject and who it regards; a subject the template gives no title
+## is named by who it regards.
+function boxTitle( subject, who,    text ) {
+	fillMember = who ; fillTitle = 1 ;
+	text = ( subject in subjectTitle ) ? fillText( subjectTitle[subject] ) : "" ;
+	fillMember = "" ; fillTitle = 0 ;
+	if ( text !~ /[^ \t]/ ) { text = titleValue( who != "" ? who : ( subject != "" ? subject : "system" ) ) ; }
+	return titleElements( text ) ;
+}
+
+## A box's subtitle, its small grey text, for its subject, who it regards and the moment of
+## its first line: left out when a required slot of it is empty, so with no date where its
+## template requires one. Its date is one Slack date token, made by the shared helper
+## (sldTokenAs, AgentsSlackDate.awk) in the format its subject's template gives, its fallback
+## the UTC date and time; it is made here, where it is sent, and never escaped. At most 150
+## characters, Slack's limit, and never cut inside its date: longer, it is the date alone.
+function boxSubtitle( subject, who, atText,    text ) {
+	if ( ! ( subject in subjectSubtitle ) ) { return "" ; }
+	fillMember = who ; fillDate = sldTokenAs( atText, subjectDateFormat[subject], "date-time" ) ;
+	text = fillText( subjectSubtitle[subject] ) ;
+	if ( kindLineGone( text ) ) { text = "" ; }
+	else if ( charLength( text ) > 150 ) { text = ( fillDate != "" ? fillDate : cutBytes( text, 147 ) ) ; }
+	fillMember = "" ; fillDate = "" ;
+	return text ;
+}
+
+## One child block of the block being built: its JSON, the lines it holds, the moment of its first.
+function addChild( jsonValue, lineList, atText ) {
+	childTotal++ ;
+	childJson[childTotal] = jsonValue ; childLines[childTotal] = lineList ; childAt[childTotal] = atText ;
+}
+
+## One block as its boxes, into the units of the post: its lines in sections of at most
+## sectionCap characters, a line never cut in two, then its context lines, joined, small and
+## grey; at most childCap children to a box, the rest in a further box with the same title,
+## its subtitle the moment of its own first line. A block with no header has no box: its
+## sections stand alone.
+function buildBlock( headAt, firstLine, lastLine,    lineNo, lineText, packText, packLines, packAt, blockAt, fromChild, childNo, boxChildren, boxLines, boxAt, titleText, namePlain ) {
+	childTotal = 0 ;
+	packText = "" ; packLines = "" ; packAt = "" ;
+	for ( lineNo = firstLine ; lineNo <= lastLine ; lineNo++ ) {
+		if ( outContext[lineNo] ) { continue ; }
+		lineText = outLine[lineNo] ;
+		if ( charLength( lineText ) > sectionCap ) { lineText = cutBytes( lineText, sectionCap - 3 ) ; }
+		if ( packText != "" && charLength( packText ) + 1 + charLength( lineText ) > sectionCap ) {
+			addChild( sectionJson( packText ), packLines, packAt ) ;
+			packText = "" ; packLines = "" ; packAt = "" ;
+		}
+		packText = ( packText == "" ? lineText : packText "\n" lineText ) ;
+		packLines = packLines " " lineNo ;
+		if ( packAt == "" ) { packAt = outAt[lineNo] ; }
+	}
+	if ( packText != "" ) { addChild( sectionJson( packText ), packLines, packAt ) ; }
+	packText = "" ; packLines = "" ;
+	for ( lineNo = firstLine ; lineNo <= lastLine ; lineNo++ ) {
+		if ( ! outContext[lineNo] ) { continue ; }
+		lineText = outLine[lineNo] ;
+		if ( charLength( lineText ) > sectionCap ) { lineText = cutBytes( lineText, sectionCap - 3 ) ; }
+		if ( packText != "" && charLength( packText ) + 3 + charLength( lineText ) > sectionCap ) {
+			addChild( contextJson( packText ), packLines, "" ) ;
+			packText = "" ; packLines = "" ;
+		}
+		packText = ( packText == "" ? lineText : packText " \302\267 " lineText ) ;
+		packLines = packLines " " lineNo ;
+	}
+	if ( packText != "" ) { addChild( contextJson( packText ), packLines, "" ) ; }
+	if ( headAt == 0 ) {
+		for ( childNo = 1 ; childNo <= childTotal ; childNo++ ) {
+			unitCount++ ;
+			unitJson[unitCount] = childJson[childNo] ; unitWeight[unitCount] = 1 ; unitLines[unitCount] = childLines[childNo] ; unitName[unitCount] = "" ;
+		}
+		return ;
+	}
+	titleText = boxTitle( outSubject[headAt], outWho[headAt] ) ; namePlain = titlePlain ;
+	blockAt = "" ;
+	for ( childNo = 1 ; childNo <= childTotal && blockAt == "" ; childNo++ ) { blockAt = childAt[childNo] ; }
+	for ( fromChild = 1 ; fromChild <= childTotal ; fromChild += childCap ) {
+		boxChildren = "" ; boxLines = "" ; boxAt = "" ;
+		for ( childNo = fromChild ; childNo < fromChild + childCap && childNo <= childTotal ; childNo++ ) {
+			boxChildren = listAdd( boxChildren, childJson[childNo] ) ;
+			boxLines = boxLines childLines[childNo] ;
+			if ( boxAt == "" ) { boxAt = childAt[childNo] ; }
+		}
+		if ( boxAt == "" ) { boxAt = blockAt ; }
+		unitCount++ ;
+		unitJson[unitCount] = boxJson( titleText, boxSubtitle( outSubject[headAt], outWho[headAt], boxAt ), boxChildren ) ;
+		unitWeight[unitCount] = 1 + childNo - fromChild ;
+		unitLines[unitCount] = boxLines ;
+		unitName[unitCount] = namePlain ;
+	}
+}
+
+function writePart( basePath, number, text,    path ) {
+	path = basePath ".plain." sprintf( "%03d", number ) ;
 	printf "%s", text > path ;
 	close( path ) ;
+}
+
+## A post as plain text, for a Slack that refuses its boxes: the lines it holds, in the
+## order given, each block under its header, cut at line boundaries into parts of at most
+## cap characters. A part that starts inside a block repeats its header, a header never ends
+## a part, and every header but a part's first has one empty line before it.
+function writePlain( basePath, lineList,    listTotal, listItems, itemNo, lineNo, lastBlock, plainCount, partTotal, chunk, chunkChars, needText, lineBreak ) {
+	delete plainOf ;
+	listTotal = split( lineList, listItems, " " ) ;
+	for ( itemNo = 1 ; itemNo <= listTotal ; itemNo++ ) { plainOf[listItems[itemNo] + 0] = 1 ; }
+	plainCount = 0 ; lastBlock = -1 ;
+	for ( lineNo = 1 ; lineNo <= outCount ; lineNo++ ) {
+		if ( outIsHeader[lineNo] || ! ( lineNo in plainOf ) ) { continue ; }
+		if ( outBlock[lineNo] != lastBlock ) {
+			lastBlock = outBlock[lineNo] ;
+			if ( lastBlock > 0 ) { plainCount++ ; plainLine[plainCount] = outLine[lastBlock] ; plainHeader[plainCount] = outLine[lastBlock] ; plainIsHeader[plainCount] = 1 ; }
+		}
+		plainCount++ ; plainLine[plainCount] = outLine[lineNo] ; plainHeader[plainCount] = outHeader[lineNo] ; plainIsHeader[plainCount] = 0 ;
+	}
+	partTotal = 0 ; chunk = "" ; chunkChars = 0 ;
+	for ( lineNo = 1 ; lineNo <= plainCount ; lineNo++ ) {
+		needText = plainLine[lineNo] ;
+		if ( plainIsHeader[lineNo] && lineNo < plainCount && ! plainIsHeader[lineNo + 1] ) { needText = needText "\n" plainLine[lineNo + 1] ; }
+		lineBreak = ( plainIsHeader[lineNo] ? "\n\n" : "\n" ) ;
+		if ( chunk != "" && chunkChars + length( lineBreak ) + charLength( needText ) > cap ) { writePart( basePath, ++partTotal, chunk ) ; chunk = "" ; chunkChars = 0 ; }
+		if ( chunk == "" && ! plainIsHeader[lineNo] && plainHeader[lineNo] != "" ) { chunk = plainHeader[lineNo] ; chunkChars = charLength( chunk ) ; }
+		chunkChars += ( chunk == "" ? 0 : length( lineBreak ) ) + charLength( plainLine[lineNo] ) ;
+		chunk = ( chunk == "" ? plainLine[lineNo] : chunk lineBreak plainLine[lineNo] ) ;
+	}
+	if ( chunk != "" ) { writePart( basePath, ++partTotal, chunk ) ; }
+}
+
+## One post's files: <n>.blocks, its boxes as a JSON array; <n>.text, the short text it
+## carries beside them, for a notification; <n>.plain.<m>, the same post as plain text.
+function writeBoxes( number, blocksText, lineList, nameList,    basePath, path, lineItems, text ) {
+	basePath = outDir "/" sprintf( "%06d", number ) ;
+	path = basePath ".blocks" ;
+	printf "[%s]", blocksText > path ;
+	close( path ) ;
+	fillSubjects = cutBytes( esc( nameList ), 120 ) ;
+	fillLineCount = plural( split( lineList, lineItems, " " ) "", "line", "lines" ) ;
+	text = ( notifyTmpl != "" ) ? fillText( notifyTmpl ) : "" ;
+	if ( text !~ /[^ \t]/ ) { text = fillLineCount ; }
+	fillSubjects = "" ; fillLineCount = "" ;
+	path = basePath ".text" ;
+	printf "%s", text > path ;
+	close( path ) ;
+	writePlain( basePath, lineList ) ;
 }
 
 BEGIN {
@@ -601,8 +846,15 @@ BEGIN {
 	member = ENVIRON["ETP_MEMBER"] ;
 	teamMembers = ENVIRON["ETP_MEMBERS"] ;
 	shortSession = cleanValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
-	## Characters per post, never configured: Slack's limit for a message's `text`.
+	## Characters per post of plain text, never configured: Slack's limit for a message's `text`.
 	cap = 4000 ;
+	## Slack's limits for blocks, never configured: the characters of a section's text, the
+	## children of a box, the blocks of a post with every box's children counted too.
+	sectionCap = 3000 ; childCap = 10 ; blockCap = 50 ;
+	for ( ctlNo = 1 ; ctlNo <= 31 ; ctlNo++ ) { jsonCtl[sprintf( "%c", ctlNo )] = sprintf( "\\u%04x", ctlNo ) ; }
+	titleSession = titleValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
+	## The moment the post is made, epoch seconds: the time of a kind's own lines.
+	nowAt = ( ENVIRON["ETP_NOW"] ~ /^[0-9]+$/ ) ? ENVIRON["ETP_NOW"] : "" ;
 	outDir = ENVIRON["ETP_DIR"] ;
 	fieldCount = split( ENVIRON["ETP_FIELDS"], fieldLines, "\n" ) ;
 	for ( fieldNo = 1 ; fieldNo <= fieldCount ; fieldNo++ ) {
@@ -613,7 +865,9 @@ BEGIN {
 		## A value given as - is no value: no field is ever shown as a placeholder.
 		if ( fieldValue == "-" ) { delete field[fieldName] ; continue ; }
 		if ( fieldName == "tokens" ) { fieldValue = tokensText( fieldValue ) ; }
-		field[fieldName] = cleanValue( fieldValue ) ;
+		## Escaped as every value is, but for a Slack date token of the helper's own making,
+		## which a caller gives for a date or a time and which works only unescaped (sldKeep).
+		field[fieldName] = sldKeep( cleanValue( fieldValue ) ) ;
 	}
 	## Who a Slack account is, by the team's own account cache.
 	userCount = split( ENVIRON["ETP_USERS"], userPairs, " " ) ;
@@ -649,9 +903,21 @@ FNR == NR {
 	if ( heading == "" ) { next ; }
 	if ( $0 ~ /^```/ ) { inBlock = ! inBlock ; if ( ! inBlock ) { heading = "" ; } next ; }
 	if ( ! inBlock ) { next ; }
-	if ( section == "# Skeleton" && heading == kind ) { tmpl[++tmplCount] = $0 ; blockDone = 1 ; }
-	else if ( section == "# Subjects" && ! ( heading in subjectTmpl ) ) { subjectTmpl[heading] = $0 ; }
+	if ( section == "# Skeleton" && heading == kind ) {
+		tmpl[++tmplCount] = $0 ; blockDone = 1 ;
+		## A line that opens with {{context}} is a secondary detail: a context line of its box.
+		if ( index( $0, "{{context}}" ) == 1 ) { tmpl[tmplCount] = substr( $0, 12 ) ; tmplContext[tmplCount] = 1 ; }
+	}
+	else if ( section == "# Subjects" ) {
+		## A subject's box: its title, its subtitle and the date format in it, each by its mark;
+		## the line with no mark is its header in the plain-text rendering.
+		if ( index( $0, "{{title}}" ) == 1 ) { subjectTitle[heading] = substr( $0, 10 ) ; }
+		else if ( index( $0, "{{subtitle}}" ) == 1 ) { subjectSubtitle[heading] = substr( $0, 13 ) ; }
+		else if ( index( $0, "{{date-format}}" ) == 1 ) { subjectDateFormat[heading] = substr( $0, 16 ) ; }
+		else if ( ! ( heading in subjectTmpl ) ) { subjectTmpl[heading] = $0 ; }
+	}
 	else if ( section == "# Operations" && ! ( heading in opTmpl ) ) { opTmpl[heading] = $0 ; }
+	else if ( section == "# Notification" && notifyTmpl == "" ) { notifyTmpl = $0 ; }
 	next ;
 }
 
@@ -704,15 +970,16 @@ END {
 		kindSubject = substr( tmpl[1], 11, length( tmpl[1] ) - 12 ) ;
 		currentHeader = headerText( kindSubject, member, "", "" ) ;
 		currentKey = kindSubject SUBSEP member ;
-		addLine( currentHeader, currentHeader, 1 ) ;
+		addHeader( currentHeader, kindSubject, member ) ;
 		lineNo = 2 ;
 	}
+	## A kind's own line is of the moment the post is made.
 	opsAt = 0 ;
 	for ( ; lineNo <= tmplCount ; lineNo++ ) {
 		if ( tmpl[lineNo] == "{{operations}}" ) { opsAt = lineNo ; break ; }
 		filled = fillText( tmpl[lineNo] ) ;
 		if ( kindLineGone( filled ) ) { continue ; }
-		addLine( cutBytes( filled, lineCap ), currentHeader, 0 ) ;
+		addLine( cutBytes( filled, lineCap ), currentHeader, 0, nowAt, ( lineNo in tmplContext ) ) ;
 	}
 	## The operations, a block each time the subject changes: a run of them regarding the same
 	## subject, an immediate one too, shares one header.
@@ -739,16 +1006,16 @@ END {
 			}
 			currentHeader = headerText( opSubject[op], opSubject[op] == "member" ? opMember[op] : member, opFirstAt[op], blockLast ) ;
 			currentKey = opKey ;
-			addLine( currentHeader, currentHeader, 1 ) ;
+			addHeader( currentHeader, opSubject[op], opSubject[op] == "member" ? opMember[op] : member ) ;
 		}
 		fillOp = op ;
-		addLine( cutBytes( fillText( opText ), lineCap ), currentHeader, 0 ) ;
+		addLine( cutBytes( fillText( opText ), lineCap ), currentHeader, 0, opFirstAt[op], 0 ) ;
 		fillOp = 0 ;
 	}
 	for ( lineNo = opsAt + 1 ; opsAt > 0 && lineNo <= tmplCount ; lineNo++ ) {
 		filled = fillText( tmpl[lineNo] ) ;
 		if ( kindLineGone( filled ) ) { continue ; }
-		addLine( cutBytes( filled, lineCap ), currentHeader, 0 ) ;
+		addLine( cutBytes( filled, lineCap ), currentHeader, 0, nowAt, ( lineNo in tmplContext ) ) ;
 	}
 	## A header goes only with a line under it: one whose block was left with none is dropped.
 	keptCount = 0 ;
@@ -756,21 +1023,36 @@ END {
 		if ( outIsHeader[lineNo] && ( lineNo == outCount || outIsHeader[lineNo + 1] ) ) { continue ; }
 		keptCount++ ;
 		outLine[keptCount] = outLine[lineNo] ; outHeader[keptCount] = outHeader[lineNo] ; outIsHeader[keptCount] = outIsHeader[lineNo] ;
+		outAt[keptCount] = outAt[lineNo] ; outContext[keptCount] = outContext[lineNo] ; outSubject[keptCount] = outSubject[lineNo] ; outWho[keptCount] = outWho[lineNo] ;
 	}
 	outCount = keptCount ;
-	## Into posts of at most cap characters at line boundaries: a post that starts inside a
-	## block repeats its header, and a header never ends a post. Every header but a post's
-	## first has one empty line before it, so each block stands apart.
-	partTotal = 0 ; chunk = "" ; chunkChars = 0 ;
-	for ( lineNo = 1 ; lineNo <= outCount ; lineNo++ ) {
-		needText = outLine[lineNo] ;
-		if ( outIsHeader[lineNo] && lineNo < outCount && ! outIsHeader[lineNo + 1] ) { needText = needText "\n" outLine[lineNo + 1] ; }
-		lineBreak = ( outIsHeader[lineNo] ? "\n\n" : "\n" ) ;
-		if ( chunk != "" && chunkChars + length( lineBreak ) + charLength( needText ) > cap ) { writePost( ++partTotal, chunk ) ; chunk = "" ; chunkChars = 0 ; }
-		if ( chunk == "" && ! outIsHeader[lineNo] && outHeader[lineNo] != "" ) { chunk = outHeader[lineNo] ; chunkChars = charLength( chunk ) ; }
-		chunkChars += ( chunk == "" ? 0 : length( lineBreak ) ) + charLength( outLine[lineNo] ) ;
-		chunk = ( chunk == "" ? outLine[lineNo] : chunk lineBreak outLine[lineNo] ) ;
+	## The boxes: each block one box, or more where it outgrows one (buildBlock), each line
+	## marked with the block it is in.
+	lineNo = 1 ; unitCount = 0 ;
+	while ( lineNo <= outCount ) {
+		headAt = 0 ;
+		if ( outIsHeader[lineNo] ) { headAt = lineNo ; lineNo++ ; }
+		firstLine = lineNo ;
+		while ( lineNo <= outCount && ! outIsHeader[lineNo] ) { outBlock[lineNo] = headAt ; lineNo++ ; }
+		buildBlock( headAt, firstLine, lineNo - 1 ) ;
 	}
-	if ( chunk != "" ) { writePost( ++partTotal, chunk ) ; }
+	## Into posts of at most blockCap blocks, a box's children counted too, cut between boxes:
+	## what is beyond goes in the next post. Each post is named, for its notification text, by
+	## its boxes' titles, each once.
+	postTotal = 0 ; postBlocks = "" ; postWeight = 0 ; postLines = "" ; postNames = "" ;
+	for ( unitNo = 1 ; unitNo <= unitCount ; unitNo++ ) {
+		if ( postBlocks != "" && postWeight + unitWeight[unitNo] > blockCap ) {
+			writeBoxes( ++postTotal, postBlocks, postLines, postNames ) ;
+			postBlocks = "" ; postWeight = 0 ; postLines = "" ; postNames = "" ; delete postNamed ;
+		}
+		postBlocks = listAdd( postBlocks, unitJson[unitNo] ) ;
+		postWeight += unitWeight[unitNo] ;
+		postLines = postLines unitLines[unitNo] ;
+		if ( unitName[unitNo] != "" && ! ( unitName[unitNo] in postNamed ) ) {
+			postNamed[unitName[unitNo]] = 1 ;
+			postNames = postNames ( postNames == "" ? "" : ", " ) unitName[unitNo] ;
+		}
+	}
+	if ( postBlocks != "" ) { writeBoxes( ++postTotal, postBlocks, postLines, postNames ) ; }
 	exit 0 ;
 }
