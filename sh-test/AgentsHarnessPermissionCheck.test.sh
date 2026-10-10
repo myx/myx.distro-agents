@@ -838,7 +838,7 @@ rigAssert "the record carries the host"                    "$( rigRecordField "$
 rigAssert "the record carries the workspace by name"       "$( rigRecordField "$rigIdG" workspace )" ws
 rigAssert "the record carries no path of this check"       "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/$rigIdG.md" "${rigTmp##*/}" )" no
 rigAssert "one post was made"                              "$( rigCalls chat.postMessage )" 1
-rigAssert "the post has host and workspace after the id"   "$( rigHolds "$rigScenarioDir/post.1" "refusal-id: \`$rigIdG\`\\nwhere: $( hostname -s ) / ws" )" yes
+rigAssert "the post has host and workspace after the id"   "$( rigHolds "$rigScenarioDir/post.1" "refusal-id: \`$rigIdG\` · where: $( hostname -s ) / ws" )" yes
 rigAssert "the post carries no path of this check"         "$( rigHolds "$rigScenarioDir/post.1" "${rigTmp##*/}" )" no
 rigVerdict "the contact gate -- own configured addresses known, a refusal says where by name"
 

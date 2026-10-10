@@ -98,9 +98,15 @@ rigSame(){ ## file, file -- same or different
 rigHk(){ ## file -- its housekeeping: lines, sorted
 	LC_ALL=C grep '^housekeeping: ' "$1" 2> /dev/null | LC_ALL=C sort
 }
-## A tracking post sends Slack's control characters escaped: the text is read back with them decoded.
-rigLines(){ ## scenario dir -- the housekeeping: lines of the text posted to the fake Slack, sorted
-	LC_ALL=C sed -e 's/","thread_ts".*//' -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g' "$1/bodies.log" 2> /dev/null | LC_ALL=C awk '{ gsub(/\\n/, "\n") ; print }' | LC_ALL=C grep '^housekeeping: ' | LC_ALL=C sort
+## A tracking post goes as a box: its lines are its section's text, each report line after a
+## bullet, Slack's control characters escaped. They are read back from the JSON posted, by the
+## package's own reader, with the escapes decoded.
+rigBoxLines(){ ## scenario dir -- the lines of the box posted to the fake Slack
+	LC_ALL=C awk -v path=blocks.0.child_blocks.0.text.text -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" "$1/bodies.log" 2> /dev/null \
+		| LC_ALL=C sed -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g'
+}
+rigLines(){ ## scenario dir -- the housekeeping: lines of the box posted to the fake Slack, sorted
+	rigBoxLines "$1" | LC_ALL=C sed -n 's/^• \(housekeeping: \)/\1/p' | LC_ALL=C sort
 }
 rigNoHk(){ ## file -- everything but its housekeeping: lines
 	LC_ALL=C grep -v '^housekeeping: ' "$1" 2> /dev/null || :
@@ -376,8 +382,8 @@ rigCheck "control: the fake curl is first on PATH"                        "$( PA
 rigScan "$rigTmp/b5.s1"
 rigCheck "the acting pass closed the dead dispatch"                       "$( rigLoc dispatch-rig-d1.md )" review
 rigCheck "exactly one post reached the thread"                            "$( rigPosts "$rigTmp/b5/scenario" )" 1
-rigPostText(){ ## scenario dir -- the text field of the posted body, the rest cut off, Slack's escapes decoded
-	LC_ALL=C sed -e 's/","thread_ts".*//' -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&amp;/\&/g' "$1/bodies.log" 2> /dev/null
+rigPostText(){ ## scenario dir -- the lines of the posted box, Slack's escapes decoded
+	rigBoxLines "$1"
 }
 rigCheck "the post's text names the closed item"                          "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'dispatch-rig-d1.md' | LC_ALL=C awk 'END { print NR ; }' )" 1
 rigCheck "one line per action, each opening with 'housekeeping: ' (the record, the item, the review-by)" "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'housekeeping: ' | LC_ALL=C awk 'END { print NR ; }' )" 3
@@ -396,8 +402,8 @@ rigCheck "no thread file: the daemon lines are still on stderr"          "$( rig
 rigExtraEnv=()
 
 echo "-- the daemon line: file descriptor 4 carries each report line, and never the agent's output --"
-rigLines(){ ## scenario dir -- the housekeeping: lines of the posted text, sorted
-	rigPostText "$1" | LC_ALL=C awk '{ gsub(/\\n/, "\n") ; print }' | LC_ALL=C grep '^housekeeping: ' | LC_ALL=C sort
+rigLines(){ ## scenario dir -- the housekeeping: lines of the posted box, sorted
+	rigPostText "$1" | LC_ALL=C sed -n 's/^• \(housekeeping: \)/\1/p' | LC_ALL=C sort
 }
 rigPostSetup b7 yes
 rigFd4="$rigTmp/b7.fd4" ; : > "$rigFd4"

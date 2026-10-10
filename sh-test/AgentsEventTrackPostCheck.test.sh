@@ -133,52 +133,142 @@ rigRenderWs="$rigTmp/render-ws"
 rigRenderSid="abcdef01-2345-4000-8000-000000000001"
 mkdir -p "$rigRenderWs/.local/.agents"
 printf '%s\n' 'rig-generation' 'human-owner=U0RIGOWNER=owner=Owner=Owner=rig' 'magic-devops=-' > "$rigRenderWs/.local/.agents/slack-mention-ids.cache"
-rigRender(){ ## kind, out dir, lines file, name=value...
-	local renderKind="$1" renderDir="$2" renderFrom="$3"
+rigRender(){ ## kind, out dir, lines file, name=value... -- each post's files, and beside them <n>: its blocks as rigBoxes reads them
+	local renderKind="$1" renderDir="$2" renderFrom="$3" renderRc=0 renderPost
 	shift 3
 	rm -rf "$renderDir" ; mkdir -p "$renderDir"
-	MMDAPP="$rigRenderWs" AgentsEventTrackPostRender "$renderKind" magic-tester "$rigRenderSid" "$renderDir" "$renderFrom" "$@"
+	MMDAPP="$rigRenderWs" AgentsEventTrackPostRender "$renderKind" magic-tester "$rigRenderSid" "$renderDir" "$renderFrom" "$@" || renderRc=$?
+	for renderPost in "$renderDir"/*.blocks ; do
+		[ ! -f "$renderPost" ] || rigBoxes "$renderPost" > "${renderPost%.blocks}"
+	done
+	return "$renderRc"
 }
-rigSession='🧵 session `abcdef01` · *magic-tester*'
-rigSystem='⚙️ system · `abcdef01`'
-for rigKindLabel in "start|$rigSession|🚀 session start — rig-what" "end|$rigSession|🏁 session end" "handback|$rigSession|📦 handback: none posted" \
-	"notice|$rigSession|⚠️ notice: rig-what" "refusal|$rigSystem|🚫 refusal: rig-what" "error|$rigSystem|⛔ error: rig-what" "activity|$rigSystem|📋 rig-what" ; do
-	rigKind="${rigKindLabel%%|*}" ; rigRest="${rigKindLabel#*|}" ; rigHeader="${rigRest%%|*}" ; rigLabel="${rigRest#*|}"
+## A box's title elements, each leaf as <n>.<key>=<value>, `|` after each.
+rigTitle(){ ## blocks or payload file, box number from 0
+	rigFlat "$1" | LC_ALL=C grep -v -E '=[{[][0-9]+$' | LC_ALL=C sed -n "s/^blocks\\.$2\\.rich_text_title\\.elements\\.0\\.elements\\.//p" | LC_ALL=C tr '\n' '|'
+}
+rigSession='BOX [thread] session `abcdef01` | *magic-tester* · <date {ago}>'
+rigSystem='BOX [gear] system | session `abcdef01` · <date {date_short_pretty} at {time}>'
+rigPlainSession='🧵 session `abcdef01` · *magic-tester*'
+rigPlainSystem='⚙️ system · `abcdef01`'
+rigKindsFrom="$( date +%s )"
+for rigKindLabel in "start;session;🚀 session start — rig-what" "end;session;🏁 session end" "handback;session;📦 handback: none posted" \
+	"notice;session;⚠️ notice: rig-what" "refusal;system;🚫 refusal: rig-what" "error;system;⛔ error: rig-what" "activity;system;📋 rig-what" ; do
+	rigKind="${rigKindLabel%%;*}" ; rigRest="${rigKindLabel#*;}" ; rigSubject="${rigRest%%;*}" ; rigLabel="${rigRest#*;}"
+	rigHeader="$rigSession" ; rigPlainHeader="$rigPlainSession"
+	[ "$rigSubject" != "system" ] || { rigHeader="$rigSystem" ; rigPlainHeader="$rigPlainSystem" ; }
 	rigRender "$rigKind" "$rigTmp/k-$rigKind" /dev/null what=rig-what cli=rig-cli outcome=succeeded handback='none posted' \
 		tokens='in=1100 cache-read=200 cache-write=300 out=1400 (incl. 1 sub-session)'
 	rigPost="$rigTmp/k-$rigKind/000001"
-	rigAssert "$rigKind: one post, its subject's header, then its own label" \
-		"$( rigPostCount "$rigTmp/k-$rigKind" ):$( sed -n 1p "$rigPost" ):$( sed -n 2p "$rigPost" )" "1:$rigHeader:$rigLabel"
+	rigAssert "$rigKind: one post, one box of its subject, its subtitle one date of that subject's form, then its own label" \
+		"$( rigPostCount "$rigTmp/k-$rigKind" ):$( LC_ALL=C grep -c '^BOX ' "$rigPost" ):$( sed -n 1p "$rigPost" | rigMask ):$( sed -n 2p "$rigPost" )" "1:1:$rigHeader:$rigLabel"
+	rigAssert "$rigKind: nothing but the box: no block outside one, no odd child, no divider, no quote bar, no empty line" "$( rigShape "$rigPost.blocks" )" 0:0:0:0:0
+	rigAssert "$rigKind: its plain-text rendering keeps its subject's header line, then the label" \
+		"$( sed -n 1p "$rigPost.plain.001" ):$( sed -n 2p "$rigPost.plain.001" )" "$rigPlainHeader:$rigLabel"
 	rigAssert "$rigKind: no @here, no addressee line, no member-message author line" \
 		"$( LC_ALL=C grep -c -e '@here' -e '^→' -e '\*_' "$rigPost" )" 0
 done
+rigKindsTo="$( date +%s )"
 rigAssert "the fields the caller gave fill their slots" "$( rigCount "$rigTmp/k-end/000001" 'cli: rig-cli' )" 1
 rigAssert "a given tokens field reads as in, cache and out" "$( rigCount "$rigTmp/k-end/000001" 'tokens: in 1.1K · cache 500 · out 1.4K (incl. 1 sub-session)' )" 1
-rigAssert "a line whose slots are all empty is left out" "$( cat "$rigTmp/k-error/000001" "$rigTmp/k-end/000001" | LC_ALL=C grep -c -e '^detail:' -e '^ended:' -e '^timed out' )" 0
+rigAssert "a line whose slots are all empty is left out" "$( cat "$rigTmp/k-error/000001" "$rigTmp/k-end/000001" | LC_ALL=C grep -c -e 'detail:' -e 'ended:' -e 'timed out' )" 0
 rigAssert "an empty field on a kept line is left out, its label with it" "$( rigCount "$rigTmp/k-end/000001" 'outcome: succeeded' )" 1
 rigAssert "no field anywhere reads as a placeholder" "$( cat "$rigTmp"/k-*/000001 | LC_ALL=C grep -c -e ': -$' -e ': - ' -e ' -$' )" 0
 rigAssert "a line whose first field is empty opens with the next one, not its separator" \
-	"$( rigRender start "$rigTmp/k-sep" /dev/null runs=native wait=true dispatch=none ; sed -n '3,4p' "$rigTmp/k-sep/000001" | LC_ALL=C tr '\n' '|' )" 'runs: native · wait: true|dispatch: `none`'
+	"$( rigRender start "$rigTmp/k-sep" /dev/null runs=native wait=true dispatch=none ; sed -n '3,4p' "$rigTmp/k-sep/000001" | LC_ALL=C tr '\n' '|' )" 'runs: native · wait: true|dispatch: `none`|'
 rigAssert "a value given as - is no value" "$( rigRender end "$rigTmp/k-dash" /dev/null outcome=- exit-code=0 ; sed -n 3p "$rigTmp/k-dash/000001" )" 'exit: 0'
 rigRender start "$rigTmp/k-root" /dev/null cli=claude-native runs=native spawn-id=99d85f58 session-id=154edb9e parent-session-id=- tracking-name=- \
 	session-thread=CRIG:1.2 host=rig-host workspace=rig-ws started-at='2030-01-01 00:00 +0000' output-file=rig-ws/session.log receipt=spawn-proxy-rig context=rig-context
-rigAssert "a compact root: the short ids, no parent or tracking that only repeats the session, no output, receipt or context" \
-	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-root/000001" )" \
+rigAssert "a compact root: the short ids, no parent or tracking that only repeats the session, no output, receipt or context; its ids, its thread and where it runs are its context" \
+	"$( rigMask < "$rigTmp/k-root/000001" | LC_ALL=C tr '\n' '|' )" \
+	'BOX [thread] session `abcdef01` | *magic-tester* · <date {ago}>|🚀 session start|cli: claude-native · runs: native|~ spawn: `99d85f58` · session: `154edb9e` · session thread: `CRIG:1.2` · where: rig-host / rig-ws · started: 2030-01-01 00:00 +0000|'
+rigAssert "the same root as plain text: each line where the template has it" \
+	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-root/000001.plain.001" )" \
 	'🧵 session `abcdef01` · *magic-tester*|🚀 session start|cli: claude-native · runs: native|spawn: `99d85f58` · session: `154edb9e`|session thread: `CRIG:1.2`|where: rig-host / rig-ws · started: 2030-01-01 00:00 +0000'
 rigRender start "$rigTmp/k-root" /dev/null spawn-id=99d85f58 session-id=154edb9e parent-session-id=3f2488f9 tracking-name=rig-track
 rigAssert "a parent or tracking name that differs from the session is kept" \
-	"$( sed -n 3p "$rigTmp/k-root/000001" )" 'spawn: `99d85f58` · session: `154edb9e` · parent: `3f2488f9` · tracking: `rig-track`'
+	"$( sed -n 3p "$rigTmp/k-root/000001" )" '~ spawn: `99d85f58` · session: `154edb9e` · parent: `3f2488f9` · tracking: `rig-track`'
 printf '%s\n' '2030-01-01T00:09:00Z TOOL Read path=/x/only.md -> ok 10B/1L 1ms' > "$rigTmp/lines.nowhat"
 rigRender activity "$rigTmp/k-nowhat" "$rigTmp/lines.nowhat"
-rigAssert "no header without a line under it: the activity block, its line left out, has none" \
-	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-nowhat/000001" )" '👤 *magic-tester* · 00:09:00 UTC|📖 Read `x/only.md` → 10 B'
+rigAssert "no box without a line in it: the activity block, its line left out, has none" \
+	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-nowhat/000001" )" 'BOX [bust_in_silhouette] magic-tester | <!date^1893456540^{date_short_pretty} at {time}|2030-01-01 00:09 UTC>|📖 Read `x/only.md` → 10 B|'
 for rigGone in state review dismissed nonesuch ; do
 	rigRender "$rigGone" "$rigTmp/k-$rigGone" /dev/null ; rigNoneRc=$?
 	rigAssert "a kind the template has no block for renders nothing: $rigGone" "$rigNoneRc:$( rigPostCount "$rigTmp/k-$rigGone" )" 3:0
 done
 mkdir -p "$rigTmp/k-nosession"
 AgentsEventTrackPostRender error magic-tester "" "$rigTmp/k-nosession" /dev/null what=x
-rigAssert "no session: the system header leaves it out" "$( head -1 "$rigTmp/k-nosession/000001" )" '⚙️ system'
+rigAssert "no session: the system box's subtitle is its date alone, and its plain-text header leaves the session out" \
+	"$( rigBoxes "$rigTmp/k-nosession/000001.blocks" | head -1 | rigMask ):$( head -1 "$rigTmp/k-nosession/000001.plain.001" )" 'BOX [gear] system | <date {date_short_pretty} at {time}>:⚙️ system'
+
+## ---------------------------------------------------------------------------
+echo "-- a box is the approved structure: a full-width container, a rich_text title, one date under it --"
+## ---------------------------------------------------------------------------
+rigFlat "$rigTmp/k-start/000001.blocks" > "$rigTmp/flat.start"
+rigFlat "$rigTmp/k-error/000001.blocks" > "$rigTmp/flat.error"
+rigFlat "$rigTmp/k-nowhat/000001.blocks" > "$rigTmp/flat.member"
+rigAssert "a box is a container block of full width, its title rich_text, its subtitle mrkdwn" \
+	"$( LC_ALL=C grep -c -x -F -e 'blocks.0.type=container' -e 'blocks.0.width=full' -e 'blocks.0.rich_text_title.type=rich_text' -e 'blocks.0.rich_text_title.elements.0.type=rich_text_section' -e 'blocks.0.subtitle.type=mrkdwn' "$rigTmp/flat.start" )" 5
+rigAssert "a session box's title: the thread emoji as an emoji element, ' session ', then the short session id in code style" \
+	"$( rigTitle "$rigTmp/k-start/000001.blocks" 0 )" '0.type=emoji|0.name=thread|1.type=text|1.text= session |2.type=text|2.text=abcdef01|2.style.code=true|'
+rigAssert "a system box's title: the gear emoji as an emoji element, then ' system'" \
+	"$( rigTitle "$rigTmp/k-error/000001.blocks" 0 )" '0.type=emoji|0.name=gear|1.type=text|1.text= system|'
+rigAssert "a member box's title: the bust emoji as an emoji element, then the member's name" \
+	"$( rigTitle "$rigTmp/k-nowhat/000001.blocks" 0 )" '0.type=emoji|0.name=bust_in_silhouette|1.type=text|1.text= magic-tester|'
+rigAssert "no title's text holds a Unicode emoji: it would show as its name" \
+	"$( cat "$rigTmp/flat.start" "$rigTmp/flat.error" "$rigTmp/flat.member" | LC_ALL=C grep -e '\.rich_text_title\..*\.text=' | LC_ALL=C grep -c '[^ -~]' )" 0
+rigSubtitle(){ LC_ALL=C sed -n 's/^blocks\.0\.subtitle\.text=//p' "$1" ; }
+rigAssert "a session box's subtitle: the member, then one date as {ago}, its fallback the UTC date and time" \
+	"$( rigSubtitle "$rigTmp/flat.start" | LC_ALL=C grep -c -E '^\*magic-tester\* · <!date\^[0-9]+\^\{ago\}\|[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC>$' )" 1
+rigAssert "a system box's subtitle: the session beside it, then one date as {date_short_pretty} at {time}" \
+	"$( rigSubtitle "$rigTmp/flat.error" | LC_ALL=C grep -c -E '^session `abcdef01` · <!date\^[0-9]+\^\{date_short_pretty\} at \{time\}\|[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC>$' )" 1
+rigAssert "a member box's subtitle: one date as {date_short_pretty} at {time}, the time of its first line" \
+	"$( rigSubtitle "$rigTmp/flat.member" )" '<!date^1893456540^{date_short_pretty} at {time}|2030-01-01 00:09 UTC>'
+rigAssert "one date in a subtitle, never a range" \
+	"$( for rigOne in start error member ; do rigSubtitle "$rigTmp/flat.$rigOne" | LC_ALL=C grep -o '<!date' | LC_ALL=C awk 'END { printf "%d ", NR }' ; done )" '1 1 1 '
+rigKindAt="$( rigSubtitle "$rigTmp/flat.start" | LC_ALL=C sed -n 's/.*<!date^\([0-9]*\)^.*/\1/p' )"
+rigAssert "a kind's own line is of the moment the post is made: that is its box's date" \
+	"$( [ -n "$rigKindAt" ] && [ "$rigKindAt" -ge "$rigKindsFrom" ] && [ "$rigKindAt" -le "$rigKindsTo" ] && printf now || printf 'not now: %s' "$rigKindAt" )" now
+. "$rigLib/AgentsTools.SlackDate.include"
+rigAssert "the date is the shared helper's: its moment and its UTC fallback, in the subject's own format" \
+	"$( rigSubtitle "$rigTmp/flat.member" | LC_ALL=C sed 's/\^{[^|]*|/^|/' )" "$( AgentsToolsSlackDateToken 1893456540 date-time | LC_ALL=C sed 's/\^{[^|]*|/^|/' )"
+rigAssert "both date formats are the template's own lines, to change there" \
+	"$( LC_ALL=C grep -c -x -F -e '{{date-format}}{date_short_pretty} at {time}' -e '{{date-format}}{ago}' "$rigTemplate" )" 3
+printf '%s\n' 'housekeeping: a line with no time' > "$rigTmp/lines.notime"
+rigRender feed "$rigTmp/k-notime" "$rigTmp/lines.notime"
+rigAssert "no date, no subtitle: a box whose first line has no time has none" \
+	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-notime/000001" ):$( rigFlat "$rigTmp/k-notime/000001.blocks" | LC_ALL=C grep -c 'subtitle' )" 'BOX [gear] system|• housekeeping: a line with no time|:0'
+rigLongName="$( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 14 ; n++ ) printf "long-name-" }' )"
+mkdir -p "$rigTmp/k-longname"
+AgentsEventTrackPostRender notice "$rigLongName" "$rigRenderSid" "$rigTmp/k-longname" /dev/null what=x
+rigAssert "a subtitle is at most 150 characters, never cut inside its date: longer, it is the date alone" \
+	"$( rigBoxes "$rigTmp/k-longname/000001.blocks" | head -1 | rigMask ):$( [ "$( rigTextMax "$rigTmp/k-longname/000001.blocks" subtitle )" -le 150 ] && printf within || printf over )" 'BOX [thread] session `abcdef01` | <date {ago}>:within'
+
+echo "-- a kind's secondary details are its box's context: small grey text under its lines --"
+rigRender refusal "$rigTmp/k-ctx" /dev/null what='Permission refused' tool=Write target=/x/README.md reason='not in the write-root set' \
+	refusal-id=refusal-rig-1 dispatch=rig-item entry=rig-entry host=rig-host workspace=rig-ws
+rigAssert "the lines in one section, then one context child holding one mrkdwn text" \
+	"$( rigFlat "$rigTmp/k-ctx/000001.blocks" | LC_ALL=C grep -E -e '^blocks\.0\.child_blocks(\.[0-9]+(\.text|\.elements\.0)?\.type)?=' | LC_ALL=C tr '\n' '|' )" \
+	'blocks.0.child_blocks.0.type=section|blocks.0.child_blocks.0.text.type=mrkdwn|blocks.0.child_blocks.1.type=context|blocks.0.child_blocks.1.elements.0.type=mrkdwn|blocks.0.child_blocks=[2|'
+rigAssert "a refusal: the label, the call and the reason are its lines; the refusal id, the item and where are its context" \
+	"$( rigMask < "$rigTmp/k-ctx/000001" | LC_ALL=C tr '\n' '|' )" \
+	'BOX [gear] system | session `abcdef01` · <date {date_short_pretty} at {time}>|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|reason: not in the write-root set|~ refusal-id: `refusal-rig-1` · dispatch: `rig-item` · entry: `rig-entry` · where: rig-host / rig-ws|'
+rigAssert "as plain text a context line is a line like any other, where the template has it" \
+	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-ctx/000001.plain.001" )" \
+	'⚙️ system · `abcdef01`|🚫 refusal: Permission refused|tool: `Write` · target: `/x/README.md`|reason: not in the write-root set|refusal-id: `refusal-rig-1`|dispatch: `rig-item` · entry: `rig-entry`|where: rig-host / rig-ws'
+rigRender end "$rigTmp/k-ctx-end" /dev/null outcome=succeeded cli=rig-cli armed=no ended-at='<!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>'
+rigAssert "an end: when it ended is its context, and a date token a caller gives stays one there, unescaped" \
+	"$( sed -n '2,$p' "$rigTmp/k-ctx-end/000001" | LC_ALL=C tr '\n' '|' ):$( LC_ALL=C grep -c -e '&lt;!date' "$rigTmp/k-ctx-end/000001" )" \
+	'🏁 session end|outcome: succeeded|cli: rig-cli · armed: no|~ ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>|:0'
+rigRender error "$rigTmp/k-ctx-error" /dev/null what=rig-what detail=rig-detail host=rig-host at=rig-at
+rigAssert "an error: where and when are its context" "$( sed -n '2,$p' "$rigTmp/k-ctx-error/000001" | LC_ALL=C tr '\n' '|' )" '⛔ error: rig-what|detail: rig-detail|~ where: rig-host · at: rig-at|'
+rigAssert "a kind with no secondary detail given has no context child" "$( rigFlat "$rigTmp/k-handback/000001.blocks" | LC_ALL=C grep -c -e '=context$' )" 0
+
+echo "-- every post carries a short text beside its boxes --"
+rigAssert "the boxes' titles as plain text, then how many lines" \
+	"$( cat "$rigTmp/k-start/000001.text" ):$( cat "$rigTmp/k-handback/000001.text" ):$( cat "$rigTmp/k-ctx/000001.text" ):$( cat "$rigTmp/k-nowhat/000001.text" )" \
+	'session abcdef01 · 2 lines:session abcdef01 · 1 line:system · 6 lines:magic-tester · 1 line'
+rigAssert "the template's own line, to change there" "$( LC_ALL=C grep -c -x -F -e '[[{{subjects}}]][[ · {{line-count}}]]' "$rigTemplate" )" 1
 
 ## ---------------------------------------------------------------------------
 echo "-- every operation renders as one line by its own template --"
@@ -299,20 +389,27 @@ done <<'RIG_WANT_EOF'
 ⛔ error · result: The run ended on an error
 🏁 session end · succeeded · exit 0 · in 1.1K · cache 500 · out 1.4K
 RIG_WANT_EOF
-rigAssert "one line per operation, a call and its message events one line, nothing else" \
-	"$( LC_ALL=C grep -c -v -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' -e '^$' "$rigPost" )" "$rigOpsCount"
+rigAssert "one line per operation, a call and its message events one line, nothing else: no empty line either" \
+	"$( LC_ALL=C grep -c -v -e '^BOX ' "$rigPost" )" "$rigOpsCount"
 rigAssert "a comment shows once, not again on the next line that has the same" "$( LC_ALL=C grep -c -F 'Syntax check' "$rigPost" )" 1
-rigAssert "the blocks: a header each time the subject changes, a run of the same subject under one, the immediate operations too" \
-	"$( rigHeaders "$rigPost" | LC_ALL=C awk '{ print $1 }' | LC_ALL=C tr '\n' ' ' )" \
-	"👤 🧵 👤 ⚙️ 👤 🧵 👤 🧵 "
-rigAssert "a member block's header names the member and its span" "$( sed -n 1p "$rigPost" )" '👤 *magic-tester* · 00:01:00–00:01:14 UTC'
-rigAssert "a session block's header names the session, the member and its span" "$( rigCount "$rigPost" '🧵 session `abcdef01` · *magic-tester* · 00:01:15–00:01:16 UTC' )" 1
-rigAssert "the handback, both dismissals, the model, the restart and the start, in a row, share one session header, its span theirs" \
-	"$( rigCount "$rigPost" '🧵 session `abcdef01` · *magic-tester* · 00:02:03–00:02:08 UTC' ):$( LC_ALL=C awk '/^🧵 / { on = ( index( $0, "00:02:03" ) > 0 ) ; next } /^$/ { on = 0 } on { n++ } END { print n + 0 }' "$rigPost" )" 1:6
-## Empty lines, then misplaced lines: a header after a non-empty line, or anything but a header after an empty one.
+rigAssert "one box per run of a subject: a new one each time the subject changes, a run of the same subject in one, the immediate operations too" \
+	"$( rigHeaders "$rigPost" | LC_ALL=C awk '{ print $2 }' | LC_ALL=C tr '\n' ' ' ):$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -x -E 'blocks\.[0-9]+\.type=container' )" \
+	"[bust_in_silhouette] [thread] [bust_in_silhouette] [gear] [bust_in_silhouette] [thread] [bust_in_silhouette] [thread] :8"
+rigAssert "a member box names the member; its subtitle is one date, the time of its first line, never a span" \
+	"$( sed -n 1p "$rigPost" )" 'BOX [bust_in_silhouette] magic-tester | <!date^1893456060^{date_short_pretty} at {time}|2030-01-01 00:01 UTC>'
+rigAssert "a session box names the session; its subtitle names the member, then one date" \
+	"$( rigCount "$rigPost" 'BOX [thread] session `abcdef01` | *magic-tester* · <!date^1893456075^{ago}|2030-01-01 00:01 UTC>' )" 1
+rigAssert "the handback, both dismissals, the model, the restart and the start, in a row, share one session box, its date their first's" \
+	"$( rigCount "$rigPost" 'BOX [thread] session `abcdef01` | *magic-tester* · <!date^1893456123^{ago}|2030-01-01 00:02 UTC>' ):$( LC_ALL=C awk '/^BOX / { on = ( index( $0, "^1893456123^" ) > 0 ) ; next } on { n++ } END { print n + 0 }' "$rigPost" )" 1:6
+rigAssert "the box sets a block apart: no block outside one, no odd child, no divider, no quote bar, no empty line" "$( rigShape "$rigPost.blocks" )" 0:0:0:0:0
+rigAssert "each box's lines are one section, a line break between them" \
+	"$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -E '^blocks\.[0-9]+\.child_blocks=\[1$' ):$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -F 'blocks.0.child_blocks.0.text.text=📖 Read `magic-team.shared.md` · lines 1–200 → 20 KB\n🔍 Grep `review-by` in `myx.distro-agents/sh-lib` → 31 lines\n' )" 8:1
+## A post's plain-text rendering. Empty lines, then misplaced lines: a header after a non-empty line, or anything but a header after an empty one.
 rigBlankCheck(){ LC_ALL=C awk '{ head = ( $0 ~ /^(👤 |🧵 session |⚙️ system)/ ) } NR == 1 && ! head { bad++ } NR > 1 && head != ( prev == "" ) { bad++ } $0 == "" { blank++ } { prev = $0 } END { print blank + 0 ":" bad + 0 }' "$1" ; }
-rigAssert "an empty line before every header but the post's first, and nowhere else" \
-	"$( rigBlankCheck "$rigPost" ):$( rigHeaders "$rigPost" | LC_ALL=C awk 'END { print NR - 1 }' )" "7:0:7"
+rigAssert "as plain text: an empty line before every header but the first, and nowhere else" \
+	"$( rigBlankCheck "$rigPost.plain.001" ):$( rigPlainHeaders "$rigPost.plain.001" | LC_ALL=C awk 'END { print NR - 1 }' )" "7:0:7"
+rigAssert "as plain text: a header keeps its block's span, the first and the last time" \
+	"$( sed -n 1p "$rigPost.plain.001" )" '👤 *magic-tester* · <!date^1893456060^{time_secs}|00:01:00 UTC>–<!date^1893456074^{time_secs}|00:01:14 UTC>'
 
 echo "-- no code block and no raw transcript line in any post --"
 rigAssert "no code fence" "$( LC_ALL=C grep -c -F '```' "$rigPost" )" 0
@@ -341,7 +438,10 @@ rigAssert "each one reads [redacted], the name or scheme before it kept" \
 rigAssert "Slack's control characters are escaped, so nothing mentions anyone" \
 	"$( rigCount "$rigPost" '✉️ SendMessage → *magic-coordinator*: "token [redacted] &lt;!here&gt; &lt;@U123&gt; &amp; %60code%60 here"' )" 1
 rigAssert "a backtick in a value is %60, so no code span breaks" "$( rigCount "$rigPost" '📖 Read `we%60ird&lt;name&gt;.md` → 3 B' )" 1
-rigAssert "the operations given to a kind follow its own block" "$( rigHeaders "$rigPost" | LC_ALL=C awk '{ print $1 }' | LC_ALL=C tr '\n' ' ' )" "⚙️ 👤 "
+rigAssert "the operations given to a kind follow its own box" "$( rigHeaders "$rigPost" | LC_ALL=C awk '{ print $2 }' | LC_ALL=C tr '\n' ' ' )" "[gear] [bust_in_silhouette] "
+rigAssert "what is sent is JSON all the same: a quote and a backslash in a value are escaped in it" \
+	"$( printf '%s\n' '2030-01-01T00:03:05Z NOTE by=magic-tester' '> say "hi" and c:\dir\new' > "$rigTmp/lines.json" ; rigRender feed "$rigTmp/k-json" "$rigTmp/lines.json" ; sed -n 2p "$rigTmp/k-json/000001" ):$( LC_ALL=C grep -c -F 'say \"hi\" and c:\\dir\\new' "$rigTmp/k-json/000001.blocks" )" \
+	'🗒️ note by *magic-tester*: "say "hi" and c:\dir\new":1'
 
 ## ---------------------------------------------------------------------------
 echo "-- one post holds several subjects' blocks, a header each time the subject changes --"
@@ -362,24 +462,37 @@ RIG_BLOCKS_EOF
 MDAT_SKILLSET_ROOT="$rigTmp/skills" rigRender feed "$rigTmp/k-blocks" "$rigTmp/lines.blocks"
 rigPost="$rigTmp/k-blocks/000001"
 rigAssert "one post: no split on a change of member or subject" "$( rigPostCount "$rigTmp/k-blocks" )" 1
-rigAssert "the headers, in order: the same member again after another member, the session and the system" \
-	"$( rigHeaders "$rigPost" )" "$( printf '%s\n' '👤 *magic-tester* · 00:04:00 UTC' '👤 *magic-coordinator* · 00:04:01 UTC' '👤 *magic-tester* · 00:04:02 UTC' \
-		'🧵 session `abcdef01` · *magic-tester* · 00:04:03 UTC' '👤 *magic-tester* · 00:04:04 UTC' '⚙️ system · `abcdef01`' '👤 *magic-tester* · 00:04:05–00:04:06 UTC' )"
-rigAssert "each block's lines follow its header, in the order given" \
-	"$( LC_ALL=C awk '/^$/ { next } /^👤 |^🧵 |^⚙️ / { printf "%s|", $1 ; next } { printf "%s ", $1 } END { print "" }' "$rigPost" )" \
-	'👤|📖 👤|🗒️ 👤|🗒️ 🧵|⚖️ 👤|📁 ⚙️|• 👤|📖 📖 ⛔ '
-rigAssert "each block stands apart: an empty line before every header but the first, and nowhere else" "$( rigBlankCheck "$rigPost" )" "6:0"
-rigAssert "a by= naming no member of the team stays in the post's member's block" \
-	"$( LC_ALL=C awk '/^👤 |^🧵 |^⚙️ / { header = $0 ; next } index( $0, "by *tooling*" ) > 0 { print header }' "$rigPost" )" '👤 *magic-tester* · 00:04:02 UTC'
+rigAssert "one container per run of a subject, in order: the same member again after another member, the session and the system" \
+	"$( rigFlat "$rigPost.blocks" | LC_ALL=C grep -c -x -E 'blocks\.[0-9]+\.type=container' ):$( rigHeaders "$rigPost" )" "7:$( printf '%s\n' \
+		'BOX [bust_in_silhouette] magic-tester | <!date^1893456240^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>' \
+		'BOX [bust_in_silhouette] magic-coordinator | <!date^1893456241^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>' \
+		'BOX [bust_in_silhouette] magic-tester | <!date^1893456242^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>' \
+		'BOX [thread] session `abcdef01` | *magic-tester* · <!date^1893456243^{ago}|2030-01-01 00:04 UTC>' \
+		'BOX [bust_in_silhouette] magic-tester | <!date^1893456244^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>' \
+		'BOX [gear] system' \
+		'BOX [bust_in_silhouette] magic-tester | <!date^1893456245^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>' )"
+rigAssert "each box's lines are its block's, in the order given" \
+	"$( LC_ALL=C awk '/^BOX / { printf "%s|", $2 ; next } { printf "%s ", $1 } END { print "" }' "$rigPost" )" \
+	'[bust_in_silhouette]|📖 [bust_in_silhouette]|🗒️ [bust_in_silhouette]|🗒️ [thread]|⚖️ [bust_in_silhouette]|📁 [gear]|• [bust_in_silhouette]|📖 📖 ⛔ '
+rigAssert "each box stands for its block: no block outside one, no odd child, no divider, no quote bar, no empty line" "$( rigShape "$rigPost.blocks" )" 0:0:0:0:0
+rigAssert "the post's short text names its boxes, each once, and counts its lines" "$( cat "$rigPost.text" )" 'magic-tester, magic-coordinator, session abcdef01, system · 9 lines'
+rigAssert "as plain text each block stands apart: an empty line before every header but the first, and nowhere else" "$( rigBlankCheck "$rigPost.plain.001" )" "6:0"
+rigAssert "a by= naming no member of the team stays in the post's member's box" \
+	"$( LC_ALL=C awk '/^BOX / { header = $0 ; next } index( $0, "by *tooling*" ) > 0 { print header }' "$rigPost" )" 'BOX [bust_in_silhouette] magic-tester | <!date^1893456242^{date_short_pretty} at {time}|2030-01-01 00:04 UTC>'
 ## A session's close as a real transcript has it: the dismissal, the Wait it ended, then the end, in a row.
 printf '%s\n' '2030-01-01T00:04:10Z TOOL Wait mode=continue -> ok 52B/1L 7m34s' '2030-01-01T00:04:10Z WAIT-RESULT' '> WAIT-RESULT: TIMEOUT (455s) NEXT: Wait mode=continue' \
 	'2030-01-01T00:04:11Z ENDING item=rig-item kind=dismissed by=magic-coordinator text="review-wait-expired"' \
 	'2030-01-01T00:04:11Z TOOL Wait mode=continue -> ok 203B/3L 424ms' '2030-01-01T00:04:11Z DISMISSED' '> WAIT-RESULT: DISMISSED' '> WAIT-DISMISSED-BY: tooling (review-wait-expired)' \
 	'2030-01-01T00:04:12Z END outcome=succeeded exit=0' > "$rigTmp/lines.close"
 rigRender activity "$rigTmp/k-close" "$rigTmp/lines.close" what=rig-close
-rigAssert "the dismissal, its Wait and the end share one session header; a header repeats only after another subject" \
-	"$( LC_ALL=C tr '\n' '|' < "$rigTmp/k-close/000001" )" \
-	'⚙️ system · `abcdef01`|📋 rig-close||👤 *magic-tester* · 00:04:10 UTC|⏳ Wait → TIMEOUT 455 s · 7 m 34 s||🧵 session `abcdef01` · *magic-tester* · 00:04:11–00:04:12 UTC|🛑 dismissed `rig-item` by *magic-coordinator*: review-wait-expired|⏳ Wait → DISMISSED by *tooling*: "review-wait-expired" · 424 ms|🏁 session end · succeeded · exit 0'
+rigAssert "the dismissal, its Wait and the end share one session box; a box repeats only after another subject" \
+	"$( rigMask < "$rigTmp/k-close/000001" | LC_ALL=C tr '\n' '|' )" \
+	'BOX [gear] system | session `abcdef01` · <date {date_short_pretty} at {time}>|📋 rig-close|BOX [bust_in_silhouette] magic-tester | <date {date_short_pretty} at {time}>|⏳ Wait → TIMEOUT 455 s · 7 m 34 s|BOX [thread] session `abcdef01` | *magic-tester* · <date {ago}>|🛑 dismissed `rig-item` by *magic-coordinator*: review-wait-expired|⏳ Wait → DISMISSED by *tooling*: "review-wait-expired" · 424 ms|🏁 session end · succeeded · exit 0|'
+rigAssert "that session box's date is its first line's, 00:04:11, one token and no range to its last" \
+	"$( LC_ALL=C grep -c -x -F 'BOX [thread] session `abcdef01` | *magic-tester* · <!date^1893456251^{ago}|2030-01-01 00:04 UTC>' "$rigTmp/k-close/000001" )" 1
+rigAssert "the same as plain text, as it was: headers with their spans, an empty line between blocks" \
+	"$( rigMask < "$rigTmp/k-close/000001.plain.001" | LC_ALL=C tr '\n' '|' | LC_ALL=C sed 's/|$//' )" \
+	'⚙️ system · `abcdef01`|📋 rig-close||👤 *magic-tester* · <date {time_secs}>|⏳ Wait → TIMEOUT 455 s · 7 m 34 s||🧵 session `abcdef01` · *magic-tester* · <date {time_secs}>–<date {time_secs}>|🛑 dismissed `rig-item` by *magic-coordinator*: review-wait-expired|⏳ Wait → DISMISSED by *tooling*: "review-wait-expired" · 424 ms|🏁 session end · succeeded · exit 0'
 
 ## ---------------------------------------------------------------------------
 echo "-- the agent's own description leads the line, and a command reads without its boilerplate --"
@@ -404,7 +517,7 @@ RIG_INTENT_EOF
 rigRender feed "$rigTmp/k-intent" "$rigTmp/lines.intent"
 while IFS= read -r rigWant ; do
 	[ -n "$rigWant" ] || continue
-	rigAssert "renders: $rigWant" "$( cat "$rigTmp/k-intent"/* | LC_ALL=C grep -c -x -F -- "$rigWant" )" 1
+	rigAssert "renders: $rigWant" "$( cat "$rigTmp/k-intent"/?????? | LC_ALL=C grep -c -x -F -- "$rigWant" )" 1
 done <<'RIG_INTENT_WANT_EOF'
 💻 Reading the task item — execute `DistroAgentsTools --member-board-item-read magic-tester task-x.md` → exit 0 · 64 ms
 💻 execute `DistroAgentsTools --member-help magic-tester` → exit 0 · 60 ms
@@ -433,12 +546,12 @@ done
 rigRender feed "$rigTmp/k-every" "$rigTmp/lines.every"
 rigEveryLed=0
 for rigName in $rigFloorNames ; do
-	if [ "$( cat "$rigTmp/k-every"/* | LC_ALL=C grep -c -F -- "Intent for $rigName — " )" = 1 ] ; then rigEveryLed=$(( rigEveryLed + 1 )) ; else printf '        not led: %s\n' "$rigName" ; fi
+	if [ "$( cat "$rigTmp/k-every"/?????? | LC_ALL=C grep -c -F -- "Intent for $rigName — " )" = 1 ] ; then rigEveryLed=$(( rigEveryLed + 1 )) ; else printf '        not led: %s\n' "$rigName" ; fi
 done
 rigAssert "every tool's line leads with its own description (read from the floor, so never vacuous)" \
 	"$rigEveryLed:$( [ "$rigEveryTotal" -gt 20 ] && echo floor-read )" "$rigEveryTotal:floor-read"
-rigAssert "and the model's text before the call is on none of them" "$( cat "$rigTmp/k-every"/* | LC_ALL=C grep -c -F 'RIG model text' )" 0
-rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTmp/k-every"/* | LC_ALL=C grep -c -x -F '📖 Intent for Read — Read → 10 B' )" 1
+rigAssert "and the model's text before the call is on none of them" "$( cat "$rigTmp/k-every"/?????? | LC_ALL=C grep -c -F 'RIG model text' )" 0
+rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTmp/k-every"/?????? | LC_ALL=C grep -c -x -F '📖 Intent for Read — Read → 10 B' )" 1
 
 ## ---------------------------------------------------------------------------
 echo "-- a Wait says how it resolved, from whom, and what it waited on where that changed --"
@@ -478,7 +591,7 @@ RIG_WAIT_EOF
 rigRender feed "$rigTmp/k-wait" "$rigTmp/lines.wait"
 while IFS= read -r rigWant ; do
 	[ -n "$rigWant" ] || continue
-	rigAssert "renders: $rigWant" "$( cat "$rigTmp/k-wait"/* | LC_ALL=C grep -c -x -F -- "$rigWant" )" 1
+	rigAssert "renders: $rigWant" "$( cat "$rigTmp/k-wait"/?????? | LC_ALL=C grep -c -x -F -- "$rigWant" )" 1
 done <<'RIG_WAIT_WANT_EOF'
 ⏳ Wait → RECEIVED from *magic-devops*: "Handback  the &lt;b&gt; check, see the board" (+1 more) · on: magic-team, ask:2dc1d732 · 30.0 s
 ⏳ Wait → answered YES from *human-owner*: "1. recheck" · 10.0 s
@@ -502,47 +615,117 @@ rigAssert "only a feed post reads or keeps it: any other shows its first Wait's 
 rm -rf "$rigRenderWs/.local/agents"
 
 ## ---------------------------------------------------------------------------
-echo "-- a long post is cut into posts of at most 4000 characters, fixed in code --"
+echo "-- Slack's limits hold, fixed in code, and nothing is cut inside a line or a date token --"
 ## ---------------------------------------------------------------------------
 ## The characters of a file as Slack counts a message's text: bytes less UTF-8 continuation
 ## bytes, a character outside the BMP twice (UTF-16), the last newline not part of the text.
 rigChars(){ LC_ALL=C awk '{ line = $0 ; gsub( /[\200-\277]/, "", line ) ; astral = gsub( /[\360-\367]/, "", line ) ; n += length( line ) + 2 * astral + 1 } END { print n - 1 }' "$1" ; }
+## The operations a rendering names, in order: a read as its number, a verdict as v and its number.
+rigOpsOf(){ LC_ALL=C awk 1 "$@" | LC_ALL=C grep -o -e 'file-number-[0-9]*' -e 'rig-item-[0-9]*' | LC_ALL=C sed -e 's/^file-number-0*//' -e 's/^rig-item-0*/v/' | LC_ALL=C tr '\n' ' ' ; }
 rigLongCount=300
 rigLong="$rigTmp/lines.long"
 LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", 5 + int( n / 60 ), n % 60, n ; if ( n % 25 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", 5 + int( n / 60 ), n % 60, n } }' > "$rigLong"
+rigLongOps="$( LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "%d ", n ; if ( n % 25 == 0 ) printf "v%d ", n } }' )"
 rigRender feed "$rigTmp/k-long" "$rigLong"
-rigCheckOver=0 ; rigCheckHead=0 ; rigCheckFence=0
-for rigCheckPost in "$rigTmp/k-long"/* ; do
-	[ "$( rigChars "$rigCheckPost" )" -le 4000 ] || rigCheckOver=$(( rigCheckOver + 1 ))
-	[ -n "$( head -1 "$rigCheckPost" | rigHeaders )" ] || rigCheckHead=$(( rigCheckHead + 1 ))
-	[ "$( LC_ALL=C grep -c -F '```' "$rigCheckPost" )" = 0 ] || rigCheckFence=$(( rigCheckFence + 1 ))
-done
-rigAssert "several posts" "$( [ "$( rigPostCount "$rigTmp/k-long" )" -gt 2 ] && printf yes || printf no )" yes
-rigAssert "none over 4000 characters, each opening with its block's header, none with a code fence" "$rigCheckOver:$rigCheckHead:$rigCheckFence" 0:0:0
-rigAssert "the operations, joined again, are every one given, in order, once" \
-	"$( LC_ALL=C awk 1 "$rigTmp/k-long"/* | LC_ALL=C grep -o -e 'file-number-[0-9]*' -e 'rig-item-[0-9]*' | LC_ALL=C sed -e 's/^file-number-0*//' -e 's/^rig-item-0*/v/' | LC_ALL=C tr '\n' ' ' )" \
-	"$( LC_ALL=C awk -v total="$rigLongCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "%d ", n ; if ( n % 25 == 0 ) printf "v%d ", n } }' )"
-rigAssert "and nothing else: one line per operation, besides the headers and the empty line before each" \
-	"$( LC_ALL=C awk 1 "$rigTmp/k-long"/* | LC_ALL=C grep -c -v -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' -e '^$' )" "$(( rigLongCount + rigLongCount / 25 ))"
-rigCheckBad=0
-for rigCheckPost in "$rigTmp/k-long"/* ; do [ "$( rigBlankCheck "$rigCheckPost" | LC_ALL=C cut -d: -f2 )" = 0 ] || rigCheckBad=$(( rigCheckBad + 1 )) ; done
-rigAssert "cut into posts, each still opens with its header, an empty line only before its later ones" "$rigCheckBad" 0
-## Characters, not bytes: 40 lines of two-byte letters are about 3100 characters and 5500 bytes.
+rigAssert "300 operations in 24 runs of a subject are one post: 24 boxes, 48 blocks with their sections, within the 50" \
+	"$( rigPostCount "$rigTmp/k-long" ):$( rigFlat "$rigTmp/k-long/000001.blocks" | LC_ALL=C grep -c -x -E 'blocks\.[0-9]+\.type=container' ):$( rigBlockCount "$rigTmp/k-long/000001.blocks" )" 1:24:48
+rigAssert "the operations in its boxes are every one given, in order, once" "$( rigOpsOf "$rigTmp/k-long"/?????? )" "$rigLongOps"
+rigAssert "and nothing else: one line per operation, besides the box titles" \
+	"$( cat "$rigTmp/k-long"/?????? | LC_ALL=C grep -c -v -e '^BOX ' )" "$(( rigLongCount + rigLongCount / 25 ))"
+
+echo "-- a section's text is at most 3000 characters: a long block has further sections, cut between lines --"
+rigSect="$rigTmp/lines.sect"
+LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 200 ; n++ ) printf "2030-01-01T01:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, n }' > "$rigSect"
+rigRender feed "$rigTmp/k-sect" "$rigSect"
+rigSectMax="$( rigTextMax "$rigTmp/k-sect/000001.blocks" section )"
+rigAssert "200 lines of one member, about 7400 characters: one post, one box, three sections" \
+	"$( rigPostCount "$rigTmp/k-sect" ):$( rigFlat "$rigTmp/k-sect/000001.blocks" | LC_ALL=C grep -c -x -E 'blocks\.[0-9]+\.type=container' ):$( rigFlat "$rigTmp/k-sect/000001.blocks" | LC_ALL=C sed -n 's/^blocks\.0\.child_blocks=\[//p' )" 1:1:3
+rigAssert "no section over 3000 characters, and each filled to its last whole line" \
+	"$( [ "$rigSectMax" -le 3000 ] && printf within || printf 'over: %s' "$rigSectMax" ):$( [ "$rigSectMax" -gt 2900 ] && printf filled || printf 'short: %s' "$rigSectMax" )" within:filled
+rigAssert "never cut inside a line: every line of every section is whole, in order, once" \
+	"$( LC_ALL=C grep -c -x -E '📖 Read `file-number-[0-9]{3}\.md` → 10 B' "$rigTmp/k-sect/000001" ):$( rigOpsOf "$rigTmp/k-sect/000001" )" "200:$( seq 1 200 | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the box's one date is its first line's" "$( sed -n 1p "$rigTmp/k-sect/000001" )" 'BOX [bust_in_silhouette] magic-tester | <!date^1893459601^{date_short_pretty} at {time}|2030-01-01 01:00 UTC>'
+## Characters, not bytes: 30 lines of two-byte letters are about 2300 characters and 4100 bytes.
 rigWide="$rigTmp/lines.wide"
 rigWideLine="housekeeping: $( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 60 ; n++ ) printf "\321\217" }' )"
-for rigN in $( seq 1 40 ) ; do printf '%s\n' "$rigWideLine" ; done > "$rigWide"
+for rigN in $( seq 1 30 ) ; do printf '%s\n' "$rigWideLine" ; done > "$rigWide"
 rigRender feed "$rigTmp/k-wide" "$rigWide"
-rigAssert "counted in characters: over 4000 bytes and under 4000 characters is one post" \
-	"$( rigPostCount "$rigTmp/k-wide" ):$( [ "$( LC_ALL=C wc -c < "$rigTmp/k-wide/000001" | tr -d ' ' )" -gt 4000 ] && printf over || printf under ):$( [ "$( rigChars "$rigTmp/k-wide/000001" )" -le 4000 ] && printf within || printf over )" \
+rigAssert "counted in characters: over 3000 bytes and under 3000 characters is one section" \
+	"$( rigFlat "$rigTmp/k-wide/000001.blocks" | LC_ALL=C sed -n 's/^blocks\.0\.child_blocks=\[//p' ):$( [ "$( LC_ALL=C wc -c < "$rigTmp/k-wide/000001.blocks" | tr -d ' ' )" -gt 3000 ] && printf over || printf under ):$( [ "$( rigTextMax "$rigTmp/k-wide/000001.blocks" section )" -le 3000 ] && printf within || printf over )" \
+	"1:over:within"
+for rigN in $( seq 1 10 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
+rigRender feed "$rigTmp/k-wide" "$rigWide"
+rigAssert "control: 40 such lines, over 3000 characters, are two sections, each within" \
+	"$( rigFlat "$rigTmp/k-wide/000001.blocks" | LC_ALL=C sed -n 's/^blocks\.0\.child_blocks=\[//p' ):$( [ "$( rigTextMax "$rigTmp/k-wide/000001.blocks" section )" -le 3000 ] && printf within || printf over )" "2:within"
+rigAssert "as plain text, counted in characters too: over 4000 bytes and under 4000 characters is one post" \
+	"$( ls "$rigTmp/k-wide" | LC_ALL=C grep -c '\.plain\.' ):$( [ "$( LC_ALL=C wc -c < "$rigTmp/k-wide/000001.plain.001" | tr -d ' ' )" -gt 4000 ] && printf over || printf under ):$( [ "$( rigChars "$rigTmp/k-wide/000001.plain.001" )" -le 4000 ] && printf within || printf over )" \
 	"1:over:within"
 for rigN in $( seq 1 20 ) ; do printf '%s\n' "$rigWideLine" ; done >> "$rigWide"
 rigRender feed "$rigTmp/k-wide" "$rigWide"
-rigAssert "control: 60 such lines, over 4000 characters, are two posts, each within" \
-	"$( rigPostCount "$rigTmp/k-wide" ):$( for rigCheckPost in "$rigTmp/k-wide"/* ; do [ "$( rigChars "$rigCheckPost" )" -le 4000 ] && printf within || printf over ; printf ' ' ; done )" "2:within within "
+rigAssert "control: 60 such lines, over 4000 characters, are two plain-text posts, each within" \
+	"$( for rigCheckPost in "$rigTmp/k-wide"/000001.plain.* ; do [ "$( rigChars "$rigCheckPost" )" -le 4000 ] && printf within || printf over ; printf ' ' ; done )" "within within "
+
+echo "-- a date token is never cut in two: it goes whole, or not at all --"
+rigToken='<!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>'
+rigPad="$( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 2950 ; n++ ) printf "x" }' )"
+rigRender notice "$rigTmp/k-cut" /dev/null what="$rigPad $rigToken and a tail"
+rigAssert "a line over 3000 characters is cut, with its ellipsis, before a token the cut would fall inside" \
+	"$( [ "$( rigTextMax "$rigTmp/k-cut/000001.blocks" section )" -le 3000 ] && printf within || printf over ):$( sed -n 2p "$rigTmp/k-cut/000001" | LC_ALL=C grep -c -e '<!date' -e '!date' -e 'UTC' ):$( sed -n 2p "$rigTmp/k-cut/000001" | LC_ALL=C grep -c 'x …$' )" within:0:1
+rigRender notice "$rigTmp/k-cut" /dev/null what="${rigPad:0:2900} $rigToken and a tail ${rigPad:0:100}"
+rigAssert "control: a token that ends before the cut stays whole, and the cut comes after it" \
+	"$( [ "$( rigTextMax "$rigTmp/k-cut/000001.blocks" section )" -le 3000 ] && printf within || printf over ):$( sed -n 2p "$rigTmp/k-cut/000001" | LC_ALL=C grep -c -F "$rigToken and a tail x" ):$( sed -n 2p "$rigTmp/k-cut/000001" | LC_ALL=C grep -c '…$' )" within:1:1
+
+echo "-- a box has at most 10 children: a longer block goes on in a further box with the same title --"
+rigKids="$rigTmp/lines.kids"
+LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 1000 ; n++ ) printf "2030-01-01T%02d:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%04d.md -> ok 10B/1L 1ms\n", 2 + int( n / 3600 ), int( n / 60 ) % 60, n % 60, n }' > "$rigKids"
+rigRender feed "$rigTmp/k-kids" "$rigKids"
+rigAssert "1000 lines of one member, 13 sections: one post, two boxes, 10 children in the first and the rest in the second" \
+	"$( rigPostCount "$rigTmp/k-kids" ):$( rigFlat "$rigTmp/k-kids/000001.blocks" | LC_ALL=C sed -n 's/^blocks\.[0-9]*\.child_blocks=\[//p' | LC_ALL=C tr '\n' ' ' ):$( rigBlockCount "$rigTmp/k-kids/000001.blocks" )" "1:10 3 :15"
+rigAssert "the further box has the same title" "$( rigTitle "$rigTmp/k-kids/000001.blocks" 1 )" "$( rigTitle "$rigTmp/k-kids/000001.blocks" 0 )"
+rigAssert "and its subtitle is one date, the time of its own first line" \
+	"$( LC_ALL=C awk '/^BOX / { boxes++ ; if ( boxes == 2 ) { at = $0 ; sub( /.*<!date\^/, "", at ) ; sub( /\^.*/, "", at ) ; want = 1 } next } want { n = $0 ; sub( /.*file-number-0*/, "", n ) ; sub( /\.md.*/, "", n ) ; print ( at == 1893463200 + n ? "its own first line" : "not: " at " for line " n ) ; want = 0 }' "$rigTmp/k-kids/000001" )" 'its own first line'
+rigAssert "no section over 3000 characters, every line whole, in order, once" \
+	"$( [ "$( rigTextMax "$rigTmp/k-kids/000001.blocks" section )" -le 3000 ] && printf within || printf over ):$( rigOpsOf "$rigTmp/k-kids/000001" | cksum )" "within:$( seq 1 1000 | LC_ALL=C tr '\n' ' ' | cksum )"
+
+echo "-- a post has at most 50 blocks, a box's children counted too: what is beyond goes in the next post --"
+rigManyCount=60
+rigMany="$rigTmp/lines.many"
+LC_ALL=C awk -v total="$rigManyCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) { printf "2030-01-01T03:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, n ; printf "2030-01-01T03:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", int( n / 60 ), n % 60, n } }' > "$rigMany"
+rigManyOps="$( LC_ALL=C awk -v total="$rigManyCount" 'BEGIN { for ( n = 1 ; n <= total ; n++ ) printf "%d v%d ", n, n }' )"
+rigRender feed "$rigTmp/k-many" "$rigMany"
+rigAssert "120 runs of a subject, 240 blocks: five posts, none over 50 blocks, each full but the last" \
+	"$( rigPostCount "$rigTmp/k-many" ):$( for rigCheckPost in "$rigTmp/k-many"/*.blocks ; do printf '%s ' "$( rigBlockCount "$rigCheckPost" )" ; done )" "5:50 50 50 50 40 "
+rigAssert "children are counted: 25 boxes and their 25 sections fill a post" \
+	"$( rigFlat "$rigTmp/k-many/000001.blocks" | LC_ALL=C grep -c -x -E 'blocks\.[0-9]+\.type=container' ):$( rigFlat "$rigTmp/k-many/000001.blocks" | LC_ALL=C grep -c -E '^blocks\.[0-9]+\.child_blocks\.[0-9]+\.type=' )" 25:25
+rigAssert "a post is cut between boxes: each opens with a box, and none is anything but boxes" \
+	"$( for rigCheckPost in "$rigTmp/k-many"/?????? ; do head -1 "$rigCheckPost" | LC_ALL=C cut -c1-3 | LC_ALL=C tr '\n' ' ' ; rigShape "$rigCheckPost.blocks" | LC_ALL=C tr '\n' ' ' ; done )" 'BOX 0:0:0:0:0 BOX 0:0:0:0:0 BOX 0:0:0:0:0 BOX 0:0:0:0:0 BOX 0:0:0:0:0 '
+rigAssert "the operations over the posts are every one given, in order, once" "$( rigOpsOf "$rigTmp/k-many"/?????? )" "$rigManyOps"
+rigAssert "each post carries its own short text, none empty" \
+	"$( cat "$rigTmp/k-many/000001.text" ):$( cat "$rigTmp/k-many/000005.text" ):$( for rigCheckPost in "$rigTmp/k-many"/*.text ; do [ -s "$rigCheckPost" ] || printf 'empty ' ; done )" \
+	'magic-tester, session abcdef01 · 25 lines:magic-tester, session abcdef01 · 20 lines:'
+
+echo "-- the same post as plain text, for a Slack that refuses its blocks: posts of at most 4000 characters --"
+rigCheckOver=0 ; rigCheckHead=0 ; rigCheckFence=0
+for rigCheckPost in "$rigTmp/k-long"/000001.plain.* ; do
+	[ "$( rigChars "$rigCheckPost" )" -le 4000 ] || rigCheckOver=$(( rigCheckOver + 1 ))
+	[ -n "$( head -1 "$rigCheckPost" | rigPlainHeaders )" ] || rigCheckHead=$(( rigCheckHead + 1 ))
+	[ "$( LC_ALL=C grep -c -F '```' "$rigCheckPost" )" = 0 ] || rigCheckFence=$(( rigCheckFence + 1 ))
+done
+rigAssert "the long post is several plain-text posts" "$( [ "$( ls "$rigTmp/k-long" | LC_ALL=C grep -c '\.plain\.' )" -gt 2 ] && printf yes || printf no )" yes
+rigAssert "none over 4000 characters, each opening with its block's header, none with a code fence" "$rigCheckOver:$rigCheckHead:$rigCheckFence" 0:0:0
+rigAssert "the operations, joined again, are every one given, in order, once" "$( rigOpsOf "$rigTmp/k-long"/000001.plain.* )" "$rigLongOps"
+rigAssert "and nothing else: one line per operation, besides the headers and the empty line before each" \
+	"$( LC_ALL=C awk 1 "$rigTmp/k-long"/000001.plain.* | LC_ALL=C grep -c -v -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' -e '^$' )" "$(( rigLongCount + rigLongCount / 25 ))"
+rigCheckBad=0
+for rigCheckPost in "$rigTmp/k-long"/000001.plain.* ; do [ "$( rigBlankCheck "$rigCheckPost" | LC_ALL=C cut -d: -f2 )" = 0 ] || rigCheckBad=$(( rigCheckBad + 1 )) ; done
+rigAssert "cut into posts, each still opens with its header, an empty line only before its later ones" "$rigCheckBad" 0
+rigAssert "each post's plain text holds that post's own lines, no other's: the same operations as its boxes" \
+	"$( for rigCheckPost in "$rigTmp/k-many"/?????? ; do [ "$( rigOpsOf "$rigCheckPost".plain.* )" = "$( rigOpsOf "$rigCheckPost" )" ] && printf same || printf differs ; printf ' ' ; done )" 'same same same same same '
 echo "-- the knobs are gone: the chunk size and the poll interval are fixed in code --"
 head -40 "$rigWide" > "$rigTmp/lines.wide40"
 MDAT_EVENT_TRACK_CHUNK_BYTES=300 rigRender feed "$rigTmp/k-wide" "$rigTmp/lines.wide40"
-rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post" "$( rigPostCount "$rigTmp/k-wide" )" 1
+rigAssert "MDAT_EVENT_TRACK_CHUNK_BYTES changes nothing: still one post, and one plain-text post beside it" \
+	"$( rigPostCount "$rigTmp/k-wide" ):$( ls "$rigTmp/k-wide" | LC_ALL=C grep -c '\.plain\.' )" 1:1
 rigAssert "neither knob is read anywhere in sh-lib" \
 	"$( LC_ALL=C grep -r -l -e 'MDAT_EVENT_TRACK_CHUNK_BYTES' -e 'MDAT_EVENT_TRACK_POLL_SECONDS' -e 'ETP_CAP' "$rigLib" | LC_ALL=C awk 'END { print NR }' )" 0
 rigAssert "the feed polls every 4 s: with the 5 s window, under 10 s from a line to its send" \
@@ -606,9 +789,12 @@ echo "-- the op posts through the shared Slack call, offline --"
 ## ---------------------------------------------------------------------------
 mkdir -p "$rigTmp/bin" "$rigTmp/ws/.local/.agents" "$rigTmp/data" "$rigTmp/home" "$rigTmp/scenario"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSLACK_BOT_TOKEN=rig-not-a-token\n' > "$rigTmp/ws/.local/.agents/magic-team.agent.env"
-## A Slack-shaped curl: logs each method, keeps each body, answers by method; a scenario file
-## makes the next call (ratelimit-once) or a numbered call (ratelimit-call) rate-limited, with
-## status and Retry-After where -D names a file, or every post refused.
+## A Slack-shaped curl: logs each method, and for each post whether it carried blocks or text
+## alone (kinds), keeps each body, answers by method; a scenario file makes the next call
+## (ratelimit-once) or a numbered call (ratelimit-call) rate-limited, with status and
+## Retry-After where -D names a file, or every post refused (refuse), or only a post with
+## blocks refused, by an error that names them (refuse-blocks) or one that points into them
+## (refuse-blocks-pointer), or only a post of text alone refused (refuse-text).
 cat > "$rigTmp/bin/curl" <<'RIGEOF'
 #!/usr/bin/env bash
 set -u
@@ -635,7 +821,15 @@ fi
 [ -z "$rigHeaders" ] || printf 'HTTP/2 200\r\n\r\n' > "$rigHeaders"
 case "$rigMethod" in
 	chat.postMessage|chat.update)
+		rigKind="text"
+		[ -z "$rigBody" ] || ! LC_ALL=C grep -q -F '"blocks":[' "$rigBody" || rigKind="blocks"
+		printf '%s\n' "$rigKind" >> "$RIG_SCENARIO/kinds"
 		if [ -f "$RIG_SCENARIO/refuse" ] ; then printf '{"ok":false,"error":"channel_not_found"}\n' ; exit 0 ; fi
+		if [ "$rigKind" = "blocks" ] && [ -f "$RIG_SCENARIO/refuse-blocks" ] ; then printf '{"ok":false,"error":"invalid_blocks"}\n' ; exit 0 ; fi
+		if [ "$rigKind" = "blocks" ] && [ -f "$RIG_SCENARIO/refuse-blocks-pointer" ] ; then
+			printf '{"ok":false,"error":"invalid_arguments","response_metadata":{"messages":["[ERROR] unsupported type: container [json-pointer:/blocks/0/type]"]}}\n' ; exit 0
+		fi
+		if [ "$rigKind" = "text" ] && [ -f "$RIG_SCENARIO/refuse-text" ] ; then printf '{"ok":false,"error":"channel_not_found"}\n' ; exit 0 ; fi
 		rigN=$(( $( cat "$RIG_SCENARIO/posts" 2>/dev/null || echo 0 ) + 1 ))
 		printf '%s' "$rigN" > "$RIG_SCENARIO/posts"
 		[ -z "$rigBody" ] || cp "$rigBody" "$RIG_SCENARIO/post.$rigN"
@@ -669,8 +863,17 @@ rigAssert "a feed post succeeds"                         "$rigOpRc" 0
 rigAssert "one chat.postMessage, no edit, and no addressee lookup" "$( rigCalls chat.postMessage ):$( rigCalls chat.update ):$( rigCalls conversations.info ):$( rigCalls auth.test )" 1:0:0:0
 rigBody="$rigTmp/scenario/post.1"
 rigAssert "to the event-track channel, top level"        "$( rigYes env LC_ALL=C grep -q -F '"channel":"CRIGTRACK","text":"' "$rigBody" ):$( rigYes env LC_ALL=C grep -q -F 'thread_ts' "$rigBody" )" yes:no
-rigAssert "its text is the block: the member's header, then one line per operation" \
-	"$( rigYes env LC_ALL=C grep -q -F '"text":"👤 *magic-tester* · 00:01:00–00:01:02 UTC\n📖 Read `the-file.md` → 3 B\n🧠 round 4 · in 1 · cache 2 · out 3"' "$rigBody" )" yes
+rigFlat "$rigBody" > "$rigTmp/flat.body"
+rigAssert "what was sent is JSON: the channel, a short text that is not empty, the blocks, the metadata" \
+	"$( LC_ALL=C grep -c -x -F -e 'channel=CRIGTRACK' -e 'text=magic-tester · 2 lines' -e 'blocks=[1' -e 'metadata.event_type=magic_sender' "$rigTmp/flat.body" ):$( LC_ALL=C grep -c 'NOT-JSON' "$rigTmp/flat.body" )" 4:0
+rigAssert "its blocks are the box: the member's title, one date under it, then one line per operation in a section" \
+	"$( rigBoxes "$rigBody" | LC_ALL=C tr '\n' '|' )" \
+	'BOX [bust_in_silhouette] magic-tester | <!date^1893456060^{date_short_pretty} at {time}|2030-01-01 00:01 UTC>|📖 Read `the-file.md` → 3 B|🧠 round 4 · in 1 · cache 2 · out 3|'
+rigAssert "the box sent is the approved structure, leaf by leaf" \
+	"$( LC_ALL=C grep -e '^blocks\.' "$rigTmp/flat.body" | LC_ALL=C grep -v -E '=[{[][0-9]+$' | LC_ALL=C tr '\n' '|' )" \
+	'blocks.0.type=container|blocks.0.width=full|blocks.0.rich_text_title.type=rich_text|blocks.0.rich_text_title.elements.0.type=rich_text_section|blocks.0.rich_text_title.elements.0.elements.0.type=emoji|blocks.0.rich_text_title.elements.0.elements.0.name=bust_in_silhouette|blocks.0.rich_text_title.elements.0.elements.1.type=text|blocks.0.rich_text_title.elements.0.elements.1.text= magic-tester|blocks.0.subtitle.type=mrkdwn|blocks.0.subtitle.text=<!date^1893456060^{date_short_pretty} at {time}|2030-01-01 00:01 UTC>|blocks.0.child_blocks.0.type=section|blocks.0.child_blocks.0.text.type=mrkdwn|blocks.0.child_blocks.0.text.text=📖 Read `the-file.md` → 3 B\n🧠 round 4 · in 1 · cache 2 · out 3|'
+rigAssert "nothing but the box: no block outside one, no odd child, no divider, no quote bar, no empty line" "$( rigShape "$rigBody" )" 0:0:0:0:0
+rigAssert "one post, and it carried blocks" "$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" )" 'blocks '
 rigAssert "no code fence, no raw line, no @here and no addressee line" \
 	"$( LC_ALL=C grep -c -e '```' -e 'TOOL Read' -e '@here' -e '\\n→' "$rigBody" )" 0
 rigAssert "the sender is named in its metadata, with the kind" "$( rigYes env LC_ALL=C grep -q -F '"metadata":{"event_type":"magic_sender","event_payload":{"sender":"magic-tester","tracking":"feed"}}' "$rigBody" )" yes
@@ -679,13 +882,17 @@ rigAssert "one ok line in the monthly send log, as the bot" "$( rigLog | LC_ALL=
 
 echo "-- a long post to a conversation threads its later parts under the first, in order --"
 rigReset
-rigOp "$rigLong" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigOp "$rigMany" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
 rigPosts="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
-rigAssert "several posts, no edit"                       "$rigOpRc:$( [ "$rigPosts" -gt 2 ] && printf yes || printf no ):$( rigCalls chat.update )" 0:yes:0
+rigAssert "several posts, each with its blocks, no edit" "$rigOpRc:$rigPosts:$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( rigCalls chat.update )" '0:5:blocks blocks blocks blocks blocks :0'
+rigAssert "none over Slack's 50 blocks, a box's children counted too" \
+	"$( for rigN in $( seq 1 "$rigPosts" ) ; do printf '%s ' "$( rigBlockCount "$rigTmp/scenario/post.$rigN" )" ; done )" '50 50 50 50 40 '
 rigAssert "the first opens the thread, every later one is in it" \
 	"$( rigYes env LC_ALL=C grep -q -F 'thread_ts' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -l -F '"thread_ts":"1700000001.000101"' "$rigTmp/scenario"/post.[0-9]* | LC_ALL=C awk 'END { print NR }' )" "no:$(( rigPosts - 1 ))"
 rigOrder(){ for rigN in $( seq 1 "$1" ) ; do LC_ALL=C grep -o 'file-number-[0-9]*' "$rigTmp/scenario/post.$rigN" ; done | LC_ALL=C sed 's/^file-number-0*//' | LC_ALL=C tr '\n' ' ' ; }
-rigAssert "every operation posted once, in order"        "$( rigOrder "$rigPosts" )" "$( seq 1 "$rigLongCount" | LC_ALL=C tr '\n' ' ' )"
+rigAssert "every operation posted once, in order"        "$( rigOrder "$rigPosts" )" "$( seq 1 "$rigManyCount" | LC_ALL=C tr '\n' ' ' )"
+rigAssert "only the first post is reported as the one sent, the thread's root" \
+	"$( LC_ALL=C grep -c -e '^SENT_MESSAGE_TS=' "$rigTmp/op.err" ):$( LC_ALL=C grep -c -x -e 'SENT_MESSAGE_TS=1700000001.000101' "$rigTmp/op.err" ):$( LC_ALL=C grep -c -e '^EVENT_TRACK_POST=CRIGTRACK:' "$rigTmp/op.out" )" 1:1:5
 
 echo "-- a rate limit is waited out by the shared call, and the order holds --"
 rigReset
@@ -695,10 +902,10 @@ rigAssert "two calls, one post"                          "$rigOpRc:$( rigCalls c
 rigAssert "the wait was said"                            "$( LC_ALL=C grep -c 'waiting 1s as Retry-After asks' "$rigTmp/op.err" )" 1
 rigReset
 printf '3' > "$rigTmp/scenario/ratelimit-call"
-rigOp "$rigLong" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigOp "$rigMany" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
 rigPosts="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
 rigAssert "a part held back by Retry-After is posted once it may, the parts still in order" \
-	"$rigOpRc:$( LC_ALL=C grep -c 'waiting 1s as Retry-After asks' "$rigTmp/op.err" ):$( rigOrder "$rigPosts" )" "0:1:$( seq 1 "$rigLongCount" | LC_ALL=C tr '\n' ' ' )"
+	"$rigOpRc:$( LC_ALL=C grep -c 'waiting 1s as Retry-After asks' "$rigTmp/op.err" ):$( rigOrder "$rigPosts" )" "0:1:$( seq 1 "$rigManyCount" | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- into a thread; and no post is ever edited: the op has no edit option --"
 rigReset
@@ -718,6 +925,44 @@ rigLogBefore="$( rigLog | LC_ALL=C awk 'END { print NR }' )"
 rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --from-stdin
 rigAssert "the op fails with one ERROR line"             "$rigOpRc:$( LC_ALL=C grep -c '^⛔ ERROR: .*--intern-op-event-track-post: the feed post, part 1 of 1, was not posted' "$rigTmp/op.err" )" 1:1
 rigAssert "and logs it failed"                           "$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "failed" { n++ } END { print n + 0 }' )" 1
+rigAssert "a refusal that is not about the blocks is not sent again as text" \
+	"$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( LC_ALL=C grep -c 'Slack refused the blocks' "$rigTmp/op.err" )" 'blocks :0'
+
+## ---------------------------------------------------------------------------
+echo "-- a post whose blocks Slack refuses goes once more as plain text, with a warning: nothing is lost --"
+## ---------------------------------------------------------------------------
+rigReset
+: > "$rigTmp/scenario/refuse-blocks"
+rigLogBefore="$( rigLog | LC_ALL=C awk 'END { print NR }' )"
+rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigAssert "the op succeeds: the blocks once, refused, then the same post once as text" \
+	"$rigOpRc:$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( cat "$rigTmp/scenario/posts" 2>/dev/null )" '0:blocks text :1'
+rigFlat "$rigTmp/scenario/post.1" > "$rigTmp/flat.body"
+rigAssert "the text sent is the plain-text rendering: the member's header with its span, then one line per operation, and no blocks" \
+	"$( LC_ALL=C grep -c -x -F 'text=👤 *magic-tester* · <!date^1893456060^{time_secs}|00:01:00 UTC>–<!date^1893456062^{time_secs}|00:01:02 UTC>\n📖 Read `the-file.md` → 3 B\n🧠 round 4 · in 1 · cache 2 · out 3' "$rigTmp/flat.body" ):$( LC_ALL=C grep -c -e '^blocks' "$rigTmp/flat.body" ):$( LC_ALL=C grep -c -x -F 'channel=CRIGTRACK' "$rigTmp/flat.body" )" 1:0:1
+rigAssert "a warning says so, naming the post and Slack's error" \
+	"$( LC_ALL=C grep -c '^⚠️ WARNING: .*--intern-op-event-track-post: Slack refused the blocks of the feed post, part 1 of 1 (invalid_blocks), so it goes as plain text instead' "$rigTmp/op.err" ):$( LC_ALL=C grep -c '⛔ ERROR: .*--intern-op-event-track-post' "$rigTmp/op.err" )" 1:0
+rigAssert "the post is reported and logged as sent, as text" \
+	"$( LC_ALL=C grep -c -x -e 'SENT_MESSAGE_TS=1700000001.000101' "$rigTmp/op.err" ):$( rigLog | LC_ALL=C awk -F'\t' -v from="$rigLogBefore" 'NR > from && $6 == "ok" && index( $7, "posted as text" ) > 0 { n++ } NR > from && $6 == "failed" { bad++ } END { print n + 0 ":" bad + 0 }' )" 1:1:0
+rigReset
+: > "$rigTmp/scenario/refuse-blocks"
+rigOp "$rigLong" --intern-op-event-track-post magic-tester event-track --kind feed --session-id abcdef01-2345 --from-stdin
+rigPosts="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
+rigAssert "a long post refused: its blocks tried once, then every plain-text part of it, none with blocks" \
+	"$rigOpRc:$( LC_ALL=C sort "$rigTmp/scenario/kinds" | LC_ALL=C uniq -c | LC_ALL=C awk '{ printf "%s=%s ", $2, $1 }' ):$( [ "$rigPosts" -gt 2 ] && printf several || printf few ):$( head -1 "$rigTmp/scenario/kinds" )" "0:blocks=1 text=$rigPosts :several:blocks"
+rigAssert "nothing is lost: every operation posted once, in order" "$( rigOrder "$rigPosts" )" "$( seq 1 "$rigLongCount" | LC_ALL=C tr '\n' ' ' )"
+rigAssert "the first part opens the thread, every later one is in it, and one warning covers the post" \
+	"$( rigYes env LC_ALL=C grep -q -F 'thread_ts' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -l -F '"thread_ts":"1700000001.000101"' "$rigTmp/scenario"/post.[0-9]* | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C grep -c 'Slack refused the blocks' "$rigTmp/op.err" ):$( LC_ALL=C grep -c -e '^SENT_MESSAGE_TS=' "$rigTmp/op.err" )" "no:$(( rigPosts - 1 )):1:1"
+rigReset
+: > "$rigTmp/scenario/refuse-blocks-pointer"
+rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --from-stdin
+rigAssert "any block error: one that only points into the blocks goes as text too" \
+	"$rigOpRc:$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( LC_ALL=C grep -c 'Slack refused the blocks of the feed post, part 1 of 1 (invalid_arguments)' "$rigTmp/op.err" )" '0:blocks text :1'
+rigReset
+: > "$rigTmp/scenario/refuse-blocks" ; : > "$rigTmp/scenario/refuse-text"
+rigOp "$rigLines" --intern-op-event-track-post magic-tester event-track --kind feed --from-stdin
+rigAssert "the text refused as well: the op fails, said, after the one further try" \
+	"$rigOpRc:$( LC_ALL=C tr '\n' ' ' < "$rigTmp/scenario/kinds" ):$( LC_ALL=C grep -c '^⛔ ERROR: .*--intern-op-event-track-post: the feed post, part 1 of 1, was not posted' "$rigTmp/op.err" )" '1:blocks text :1'
 
 ## ---------------------------------------------------------------------------
 echo "-- a spawn announces itself once, resolved first; what comes later is a reply --"
@@ -767,11 +1012,15 @@ rigSpawn rig-cli
 rigAssert "the spawn ran and launched"                    "$rigOpRc:$( LC_ALL=C grep -c '^LAUNCHED=true$' "$rigTmp/op.out" )" 0:1
 rigAssert "one start post, the first post, a root, with the CLI resolved before it: no placeholder" \
 	"$( rigPostsMade | LC_ALL=C awk '$3 == "🚀_session_start" { print $1 ":" $2 }' ):$( LC_ALL=C grep -l -F 'cli: configured' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" "1:root:0"
+rigAssert "the root is a session box: its title the session, its subtitle the member and one date, and nothing outside the box" \
+	"$( rigBoxes "$rigTmp/scenario/post.1" | head -1 | rigMask | LC_ALL=C sed -E 's/`[0-9a-f]{8}`/`<id>`/' ):$( rigShape "$rigTmp/scenario/post.1" )" 'BOX [thread] session `<id>` | *magic-tester* · <date {ago}>:0:0:0:0:0'
 rigAssert "it names the resolved CLI, how it runs, and everything else settled before it" \
-	"$( rigYes env LC_ALL=C grep -q -F '\n🚀 session start\ncli: rig-cli · runs: native · wait: true\ndispatch: `none`\nspawn: ' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '\nsession thread: `this thread`\n' "$rigTmp/scenario/post.1" )" yes:yes
+	"$( rigYes env LC_ALL=C grep -q -F '"text":"🚀 session start\ncli: rig-cli · runs: native · wait: true\ndispatch: `none`"' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F ' · session thread: `this thread` · where: ' "$rigTmp/scenario/post.1" )" yes:yes
 rigAssert "and leaves out what is not known, with no placeholder" "$( LC_ALL=C grep -c -e 'tier: -' -e 'routine: -' -e ': - ' "$rigTmp/scenario/post.1" )" 0
-rigAssert "a compact root: each id its first 8 characters, no parent when there is none, no tracking name that is the session's own, no output, receipt or context" \
-	"$( rigYes env LC_ALL=C grep -q -E '\\nspawn: `[0-9a-f]{8}` · session: `[0-9a-f]{8}`\\n' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'tracking: ' -e 'output: ' -e 'receipt: ' -e 'context: ' "$rigTmp/scenario/post.1" )" yes:0
+rigAssert "a compact root: each id its first 8 characters, in its context, no parent when there is none, no tracking name that is the session's own, no output, receipt or context" \
+	"$( rigYes env LC_ALL=C grep -q -E '\{"type":"context","elements":\[\{"type":"mrkdwn","text":"spawn: `[0-9a-f]{8}` · session: `[0-9a-f]{8}` · session thread: ' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'tracking: ' -e 'output: ' -e 'receipt: ' -e 'context: ' "$rigTmp/scenario/post.1" )" yes:0
+rigAssert "when it started is a date token, sent as one: unescaped, in its context" \
+	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep -c -E '^~ .* · started: <!date\^[0-9]+\^\{date_num\} \{time\}\|[0-9: -]+ UTC>$' ):$( LC_ALL=C grep -c -e '&lt;!date' "$rigTmp/scenario/post.1" )" 1:0
 rigAssert "no chat.update call is ever made"              "$( rigCalls chat.update )" 0
 rigAssert "the launch agreed with it, so the only reply is the end post, in its thread" \
 	"$( rigPostsMade | LC_ALL=C awk 'NR > 1 { printf "%s %s ", $2, $3 }' )" "1700000001.000101 🏁_session_end "
@@ -794,11 +1043,11 @@ rigReset
 { cat "$rigTmp/agent.env.base" ; printf 'SPAWN_CLI_SERVICE=rig-cli\n' ; } > "$rigEnvFile"
 rigSpawn rig-cli "$rigJoinSession" "$rigJoinSession"
 rigAssert "spawned from the session's own spawn: the session, short, and no parent or tracking that only repeat it" \
-	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -E '\\nspawn: `[0-9a-f]{8}` · session: `154edb9e`\\n' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' "$rigTmp/scenario/post.1" )" 0:yes:0
+	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -E '"text":"spawn: `[0-9a-f]{8}` · session: `154edb9e` · session thread: ' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' "$rigTmp/scenario/post.1" )" 0:yes:0
 rigReset
 rigSpawn rig-cli "3f2488f9-2c54-4b8c-9f92-f1e330e00d14" "$rigJoinSession"
 rigAssert "spawned from another spawn in it: that parent is kept, short" \
-	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -E '\\nspawn: `[0-9a-f]{8}` · session: `154edb9e` · parent: `3f2488f9`\\n' "$rigTmp/scenario/post.1" )" 0:yes
+	"$rigOpRc:$( rigYes env LC_ALL=C grep -q -E '"text":"spawn: `[0-9a-f]{8}` · session: `154edb9e` · parent: `3f2488f9` · session thread: ' "$rigTmp/scenario/post.1" )" 0:yes
 cp "$rigTmp/agent.env.base" "$rigEnvFile"
 
 echo "-- no request left for a real host --"

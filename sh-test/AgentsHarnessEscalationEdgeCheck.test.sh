@@ -114,14 +114,14 @@ printf -- '---\nstatus: dispatch-started\nowner: %s\nsession-id: rig-plan\nallow
 RIG_DATA_ROOT="$rigScenarioDir/ws/DATA"
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.1"
 rigAssert "the malformed entries admit nothing"        "$( [ -e "$rigBad" ] && printf written || printf refused )" refused
-rigAssert "each malformed entry is reported"           "$( rigPostsWith 'what: Planned allow ignored' )" 4
+rigAssert "each malformed entry is reported"           "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 4
 ## A tracking post sends Slack's control characters escaped, so the entry form reads as entities in the body.
 rigAssert "one says it is not the entry form"          "$( rigPostsWith 'is not &lt;kind&gt;:&lt;tool&gt;:&lt;target&gt;:&lt;granted-by&gt;:&lt;time&gt;' )" 1
 rigAssert "one says its kind is once"                  "$( rigPostsWith 'its kind is once' )" 1
 rigAssert "one says it names nobody"                   "$( rigPostsWith 'it names nobody who granted it' )" 1
 rigAssert "one says it is self-signed"                 "$( rigPostsWith "signed by the session's own member" )" 1
 rigTool rig-plan Write "{\"path\":\"$rigBad\",\"content\":\"x\"}" "$rigScenarioDir/out.2"
-rigAssert "the same session is not told twice"         "$( rigPostsWith 'what: Planned allow ignored' )" 4
+rigAssert "the same session is not told twice"         "$( rigPostsWith '🚫 refusal: Planned allow ignored' )" 4
 rigTool rig-plan Write "{\"path\":\"$rigOk\",\"content\":\"x\"}" "$rigScenarioDir/out.3"
 rigAssert "control: the well-formed entry admits its call" "$( LC_ALL=C sed -n '1s/^\(OK: wrote\).*/\1/p' "$rigScenarioDir/out.3" )" "OK: wrote"
 RIG_DATA_ROOT=""
