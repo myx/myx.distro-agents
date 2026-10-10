@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 ## Behavioural check on the tooling's own tracking posts (--intern-op-event-track-post,
 ## AgentsTools.InternOpEventTrackPost.include) and where the event-track feed ends them
-## (AgentsTools.EventTrackFeed.include): a post is blocks, each a subject header (member,
-## session or system) then its lines; every kind renders from the template
-## sh-lib/templates/event-track.post.format.md; every operation renders as one line by its own
-## template; no post holds a code block or a raw transcript line; values are redacted and
-## escaped; one post holds several subjects' blocks, the header repeated only when the subject
-## changes, and an empty line before each but the first; a start post names short ids and
-## nothing that only repeats another; a long post is cut into posts of at most 4000 characters, fixed (Slack's `text`
-## limit, counted in characters, not bytes), a block's header repeated; the feed ends a post
-## right after an immediate line, sends its posts one at a time and in order, and never edits
-## one; the op posts through the shared Slack call (a rate limit is waited out), threads the
+## (AgentsTools.EventTrackFeed.include): a post is blocks, each a subject (member, session
+## or system) then its lines, and goes to Slack as boxes: one `container` block per block,
+## its title a rich_text title that opens with an emoji element, its subtitle one Slack date
+## token of the form its subject's template gives, its lines in `section` children and a
+## kind's secondary details in a `context` child, with no quote bar, no divider and no empty
+## line; every kind renders from the template sh-lib/templates/event-track.post.format.md;
+## every operation renders as one line by its own template; no post holds a code block or a
+## raw transcript line; values are redacted and escaped; one post holds several subjects'
+## boxes, a new one only when the subject changes; a start post names short ids and nothing
+## that only repeats another; Slack's limits hold, fixed and counted in characters, not
+## bytes (3000 to a section, 10 children to a box, 50 blocks to a post with children counted,
+## 150 to a subtitle), with nothing cut inside a line or a date token; every post carries a
+## short text beside its boxes; a post whose blocks Slack refuses goes once more as plain
+## text, in posts of at most 4000 characters, with a warning; the feed ends a post right
+## after an immediate line, sends its posts one at a time and in order, and never edits one;
+## the op posts through the shared Slack call (a rate limit is waited out), threads the
 ## later parts of a post under the first, logs each post, and has no edit option; a spawn's
 ## start post is made once, after its CLI is resolved, and what is learned later is a reply.
 ## Offline: a Slack-shaped fake curl first on PATH answers every call, and every op runs in a
@@ -43,9 +49,72 @@ rigYes(){ "$@" > /dev/null 2>&1 && printf yes || printf no ; }
 rigCount(){ ## file, fixed line -- how many lines are exactly it
 	LC_ALL=C grep -c -x -F -- "$2" "$1" 2>/dev/null || :
 }
-rigPostCount(){ ls "$1" | LC_ALL=C awk 'END { print NR }' ; }
-## The block headers of a post, one per line.
-rigHeaders(){ LC_ALL=C grep -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' "$@" ; }
+## What was made to send is read back as JSON, by the package's own reader, into lines to
+## assert on. rigFlat: every node as path=value, an array as [count and an object as {count,
+## a line break in a value as \n, a bare blocks array under blocks as a payload has it.
+## rigBoxes: each `container` block as a line `BOX <title> | <subtitle>` (an emoji element as
+## [name], code style in backticks, no subtitle where it has none), then its section lines as
+## they are and each context text after `~ `; a section or a context outside a box reads the
+## same with no BOX line before it. A text that is not JSON reads NOT-JSON.
+cat > "$rigTmp/view.awk" <<'RIG_VIEW_EOF'
+BEGIN { jfLibrary = 1 }
+{ doc = doc ( NR > 1 ? "\n" : "" ) $0 }
+function head() { if ( inBox && ! headed ) { print "BOX " title ( subtitle != "" ? " | " subtitle : "" ) ; headed = 1 } }
+END {
+	if ( jfWalkText( doc ) != 0 ) { print "NOT-JSON" ; exit 1 }
+	prefix = ( jfRootChar == "[" ) ? "blocks" : ""
+	for ( i = 1 ; i <= jfNodeN ; i++ ) {
+		p = prefix jfNodePath[i] ; t = jfNodeType[i] ; v = jfNodeValue[i]
+		if ( view == "flat" ) { gsub( /\n/, "\\n", v ) ; print p "=" ( t == "{" || t == "[" ? t : "" ) v ; continue }
+		if ( p ~ /^blocks\.[0-9]+\.type$/ ) { inBox = ( v == "container" ) ; headed = 0 ; title = "" ; subtitle = "" ; pend = "" ; code = 0 }
+		else if ( p ~ /^blocks\.[0-9]+\.rich_text_title\.elements\.0\.elements\.[0-9]+\.name$/ ) { title = title "[" v "]" }
+		else if ( p ~ /^blocks\.[0-9]+\.rich_text_title\.elements\.0\.elements\.[0-9]+\.text$/ ) { pend = v }
+		else if ( p ~ /^blocks\.[0-9]+\.rich_text_title\.elements\.0\.elements\.[0-9]+\.style\.code$/ ) { code = 1 }
+		else if ( p ~ /^blocks\.[0-9]+\.rich_text_title\.elements\.0\.elements\.[0-9]+$/ ) { title = title ( code ? "`" pend "`" : pend ) ; pend = "" ; code = 0 }
+		else if ( p ~ /^blocks\.[0-9]+\.subtitle\.text$/ ) { subtitle = v }
+		else if ( p ~ /^blocks\.[0-9]+\.child_blocks\.[0-9]+\.text\.text$/ ) { head() ; print v }
+		else if ( p ~ /^blocks\.[0-9]+\.child_blocks\.[0-9]+\.elements\.[0-9]+\.text$/ ) { head() ; print "~ " v }
+		else if ( p ~ /^blocks\.[0-9]+\.text\.text$/ ) { print v }
+		else if ( p ~ /^blocks\.[0-9]+\.elements\.[0-9]+\.text$/ ) { print "~ " v }
+	}
+}
+RIG_VIEW_EOF
+rigFlat(){ LC_ALL=C awk -v view=flat -f "$rigLib/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
+rigBoxes(){ LC_ALL=C awk -f "$rigLib/AgentsHarnessJsonField.awk" -f "$rigTmp/view.awk" < "$1" ; }
+## A date token as its form alone, <date FORMAT>: the moment of a kind's own line is now.
+rigMask(){ LC_ALL=C sed -E 's/<!date\^[0-9]+\^([^|]*)\|[^>]*>/<date \1>/g' ; }
+## What the box replaces, counted over the blocks made: a block that is no box, a child that
+## is neither a section nor a context, a divider, a line under a quote bar, an empty line.
+rigShape(){
+	rigFlat "$1" | LC_ALL=C awk '
+		/^blocks\.[0-9]+\.type=/ && $0 !~ /=container$/ { loose++ }
+		/^blocks\.[0-9]+\.child_blocks\.[0-9]+\.type=/ && $0 !~ /=(section|context)$/ { odd++ }
+		/\.type=divider$/ { divider++ }
+		/\.text=/ {
+			text = substr( $0, index( $0, "=" ) + 1 )
+			if ( text ~ /^(>|&gt;)/ || text ~ /\\n(>|&gt;)/ ) quote++
+			if ( text == "" || text ~ /^\\n/ || text ~ /\\n\\n/ || text ~ /\\n$/ ) spacer++
+		}
+		END { print loose + 0 ":" odd + 0 ":" divider + 0 ":" quote + 0 ":" spacer + 0 }'
+}
+## The longest text of one kind among the blocks made, in characters as Slack counts them
+## (UTF-16): section, a section's text; context, a context's; subtitle, a box's subtitle.
+rigTextMax(){ ## blocks or payload file, section|context|subtitle
+	rigFlat "$1" | LC_ALL=C awk -v want="$2" '
+		( want == "section" && /^blocks\.[0-9]+\.(child_blocks\.[0-9]+\.)?text\.text=/ ) || ( want == "context" && /^blocks\.[0-9]+\.(child_blocks\.[0-9]+\.)?elements\.[0-9]+\.text=/ ) || ( want == "subtitle" && /^blocks\.[0-9]+\.subtitle\.text=/ ) {
+			text = substr( $0, index( $0, "=" ) + 1 )
+			gsub( /\\n/, "\n", text ) ; gsub( /[\200-\277]/, "", text ) ; astral = gsub( /[\360-\367]/, "", text )
+			if ( length( text ) + 2 * astral > most ) most = length( text ) + 2 * astral
+		}
+		END { print most + 0 }'
+}
+## How many posts were rendered, and how many blocks one holds, every box's children counted too.
+rigPostCount(){ ls "$1" | LC_ALL=C grep -c '\.blocks$' || : ; }
+rigBlockCount(){ rigFlat "$1" | LC_ALL=C grep -c -E '^blocks\.[0-9]+(\.child_blocks\.[0-9]+)?\.type=' || : ; }
+## The boxes of a post as rigBoxes reads it, one title line each; and the block headers of a
+## post's plain-text rendering.
+rigHeaders(){ LC_ALL=C grep -e '^BOX ' "$@" ; }
+rigPlainHeaders(){ LC_ALL=C grep -e '^👤 ' -e '^🧵 session ' -e '^⚙️ system' "$@" ; }
 
 ## The team's members, for a line's by=: two of them.
 mkdir -p "$rigTmp/skills/magic-tester" "$rigTmp/skills/magic-coordinator"
