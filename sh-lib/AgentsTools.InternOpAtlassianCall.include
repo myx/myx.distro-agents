@@ -28,10 +28,22 @@
 ##
 
 ## One authenticated Atlassian request. Arguments in order: acting member,
-## product, method, path, calling context, JSON body (empty for none).
-## Response body on stdout, every diagnostic on stderr.
+## product, method, path, calling context, JSON body (empty for none), and a
+## local file sent as a multipart attachment under its own base name (empty for
+## none, never with a JSON body). Response body on stdout, every diagnostic on stderr.
 AgentsToolsAtlassianCall() {
-	local actingMember="$1" productName="$2" methodName="$3" pathText="$4" callContext="$5" jsonBody="$6"
+	local actingMember="$1" productName="$2" methodName="$3" pathText="$4" callContext="$5" jsonBody="$6" attachFile="${7:-}"
+	## curl -F reads ; , and a double quote in its value as its own syntax.
+	case "$attachFile" in
+		*';'*|*','*|*'"'*)
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: an attachment path may not hold ; , or a double quote: $attachFile" >&2
+			return 1
+		;;
+	esac
+	if [ -n "$attachFile" ] && { [ -n "$jsonBody" ] || [ ! -f "$attachFile" ] ; } ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: an attachment is one existing file and never travels with a JSON body: $attachFile" >&2
+		return 1
+	fi
 
 	AgentsToolsAssertBareName "$actingMember" "<team-member>" "$callContext" || return 1
 
@@ -125,6 +137,8 @@ AgentsToolsAtlassianCall() {
 			printf '%s' "$jsonBody" > "$bodyFile" || exit 1
 			curlArgs+=( -H 'Content-Type: application/json' --data-binary "@$bodyFile" )
 		fi
+		## Confluence refuses an upload without this header, as a cross-site request guard.
+		[ -z "$attachFile" ] || curlArgs+=( -H 'X-Atlassian-Token: no-check' -F "file=@$attachFile" )
 		printf '%s\n' "Authorization: Basic $( printf '%s' "$userEmail:$apiToken" | base64 | tr -d '\n' )" | curl "${curlArgs[@]}" )" || curlRc=$?
 	if [ "$curlRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$callContext: curl exit $curlRc" >&2
@@ -280,6 +294,196 @@ AgentsToolsJiraAdfValidate() {
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$adfContext: $adfLabel is not valid JSON -- an Atlassian Document Format value is a full JSON document ({\"type\":\"doc\",\"version\":1,\"content\":[...]}), and the value passed did not parse as one" >&2
 		return 1
 	fi
+	return 0
+}
+
+## The arguments of one Atlassian helper call, refused when --member or --context is given
+## twice: the check the --intern-op-atlassian-* operations make before they dispatch.
+AgentsToolsAtlassianArgsOnce() { ## arguments...
+	local scanSeen=" " scanArg
+	for scanArg in "$@" ; do
+		case "$scanArg" in
+			--member|--context)
+				case "$scanSeen" in
+					*" $scanArg "*)
+						printf '%s\n' "⛔ ERROR: $MDSC_CMD: $scanArg is given twice, so the call is refused before anything is sent" >&2
+						return 1
+					;;
+				esac
+				scanSeen="$scanSeen$scanArg "
+			;;
+		esac
+	done
+	return 0
+}
+
+## One Jira issue, read as the acting member: in-context helper, no operation of its own
+## (MAGIC.md, section 1). Diagnostics on stderr; the description (adf), the rendered
+## description, or the whole raw body on stdout. Exit codes as in this file's header.
+AgentsToolsAtlassianJiraIssueRead() { ## --member <team-member> --issue-key <issue-key> [--format adf|rendered|raw] [--context <caller>]
+	local MDSC_CMD='DistroAgentsTools'
+	AgentsToolsAtlassianArgsOnce "$@" || { set +e ; return 1 ; }
+	local jiraReadMember="" jiraReadKeyArg="" jiraReadFormat="" jiraReadContext="atlassian-jira-issue-read"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--issue-key|--format|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: $1 value missing" >&2
+					set +e ; return 1
+				fi
+				case "$1" in
+					--member)    jiraReadMember="$2" ;;
+					--issue-key) jiraReadKeyArg="$2" ;;
+					--format)    jiraReadFormat="$2" ;;
+					--context)   jiraReadContext="$2" ;;
+				esac
+				shift 2
+			;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$jiraReadMember" ] || [ -z "$jiraReadKeyArg" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered|raw] [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$jiraReadKeyArg" "<issue-key>" "$jiraReadContext" || { set +e ; return 1 ; }
+	[ -n "$jiraReadFormat" ] || jiraReadFormat=adf
+	case "$jiraReadFormat" in
+		adf|rendered|raw) ;;
+		*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: --format invalid: $jiraReadFormat" >&2 ; set +e ; return 1 ;;
+	esac
+	## raw asks for every field (--fields-json/--update-json on the write side
+	## is unconstrained, so a fixed field list cannot speak for what a write
+	## could change); adf/rendered keep the original fixed, human-read list.
+	local jiraReadFieldsParam="summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description"
+	[ "$jiraReadFormat" = raw ] && jiraReadFieldsParam="*all"
+	local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraReadKeyArg" )?fields=$( AgentsToolsAtlassianUrlEncode "$jiraReadFieldsParam" )"
+	[ "$jiraReadFormat" = rendered ] && jiraReadPath="${jiraReadPath}&expand=renderedFields"
+	local jiraReadBody jiraReadRc=0
+	jiraReadBody="$( AgentsToolsAtlassianCall "$jiraReadMember" jira GET "$jiraReadPath" "$jiraReadContext" "" )" || jiraReadRc=$?
+	if [ "$jiraReadRc" -ne 0 ] ; then
+		set +e ; return "$jiraReadRc"
+	fi
+	local jiraReadFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+	local jiraReadKeySeen="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
+	[ -n "$jiraReadKeySeen" ] || jiraReadKeySeen="$jiraReadKeyArg"
+	local jiraReadLabels="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
+	printf '# issue %s: type=%s status=%s resolution=%s assignee=%s reporter=%s priority=%s created=%s updated=%s labels=%s format=%s\n' \
+		"$jiraReadKeySeen" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
+		"$jiraReadLabels" \
+		"$jiraReadFormat" >&2
+	printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
+	if [ "$jiraReadFormat" = raw ] ; then
+		## The already-fetched response body, verbatim -- every field the API
+		## returned for this issue, not only the 10 named ones above. No second
+		## call: this is the same $jiraReadBody the diagnostics just read from.
+		printf '%s' "$jiraReadBody"
+		return 0
+	fi
+	if [ "$jiraReadFormat" = rendered ] ; then
+		local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
+		if [ -z "$jiraReadRendered" ] ; then
+			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: renderedFields description unreadable" >&2
+			set +e ; return 3
+		fi
+		printf '%s' "$jiraReadRendered"
+		return 0
+	fi
+	local jiraReadDescription jiraReadDescRc=0
+	jiraReadDescription="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" || jiraReadDescRc=$?
+	if [ "$jiraReadDescRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: description field unreadable" >&2
+		set +e ; return 3
+	fi
+	if [ -z "$jiraReadDescription" ] ; then
+		printf '%s\n' "# issue $jiraReadKeySeen: this issue really has no description -- the field was returned and its value is null, which is an answer, not a failed read" >&2
+	else
+		printf '%s\n' "$jiraReadDescription"
+	fi
+	return 0
+}
+
+## One Confluence page body, read as the acting member: in-context helper, no operation of
+## its own (MAGIC.md, section 1). Diagnostics on stderr, the body on stdout.
+AgentsToolsAtlassianConfluencePageRead() { ## --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>]
+	local MDSC_CMD='DistroAgentsTools'
+	AgentsToolsAtlassianArgsOnce "$@" || { set +e ; return 1 ; }
+	local confPRMember="" confPRPageId="" confPRFormat="" confPRVersion="" confPRContext="atlassian-confluence-page-read"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--member|--page-id|--format|--version|--context)
+				if [ -z "${2:-}" ] ; then
+					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $1 value missing" >&2
+					set +e ; return 1
+				fi
+				case "$1" in
+					--member)  confPRMember="$2" ;;
+					--page-id) confPRPageId="$2" ;;
+					--format)  confPRFormat="$2" ;;
+					--version) confPRVersion="$2" ;;
+					--context) confPRContext="$2" ;;
+				esac
+				shift 2
+			;;
+			*)
+				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$confPRMember" ] || [ -z "$confPRPageId" ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAtlassianAssertNumber "$confPRPageId" "<page-id>" "$confPRContext" || { set +e ; return 1 ; }
+	[ -n "$confPRFormat" ] || confPRFormat=storage
+	case "$confPRFormat" in
+		storage|atlas_doc_format) ;;
+		*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: --format invalid: $confPRFormat" >&2 ; set +e ; return 1 ;;
+	esac
+	## Read-only: a version query asks the v2 page-by-id endpoint for that
+	## exact historical rendering, same transport and response shape as the
+	## current-version read. Nothing here writes, so there is nothing to
+	## conflict and no next-version number to compute.
+	if [ -n "$confPRVersion" ] ; then
+		AgentsToolsAtlassianAssertNumber "$confPRVersion" "--version" "$confPRContext" || { set +e ; return 1 ; }
+	fi
+	local confPRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPRPageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confPRFormat" )"
+	if [ -n "$confPRVersion" ] ; then
+		confPRPath="$confPRPath&version=$( AgentsToolsAtlassianUrlEncode "$confPRVersion" )"
+	fi
+	local confPRBody confPRRc=0
+	confPRBody="$( AgentsToolsAtlassianCall "$confPRMember" confluence GET "$confPRPath" "$confPRContext" "" )" || confPRRc=$?
+	if [ "$confPRRc" -ne 0 ] ; then
+		set +e ; return "$confPRRc"
+	fi
+	local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+	local confPRRawFlag=()
+	[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
+	local confPRValue confPRValueRc=0
+	confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
+	if [ "$confPRValueRc" -ne 0 ] ; then
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
+		set +e ; return 3
+	fi
+	printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
+		"$confPRPageId" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
+		"$confPRFormat" >&2
+	printf '%s' "$confPRValue"
 	return 0
 }
 
@@ -763,99 +967,6 @@ case "$1" in
 		return 0
 	;;
 
-	--intern-op-atlassian-jira-issue-read)
-		shift
-		local jiraReadMember="" jiraReadKeyArg="" jiraReadFormat="" jiraReadContext="intern-op-atlassian-jira-issue-read"
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--member|--issue-key|--format|--context)
-					if [ -z "${2:-}" ] ; then
-						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: $1 value missing" >&2
-						set +e ; return 1
-					fi
-					case "$1" in
-						--member)    jiraReadMember="$2" ;;
-						--issue-key) jiraReadKeyArg="$2" ;;
-						--format)    jiraReadFormat="$2" ;;
-						--context)   jiraReadContext="$2" ;;
-					esac
-					shift 2
-				;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -z "$jiraReadMember" ] || [ -z "$jiraReadKeyArg" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: syntax is --member <team-member> --issue-key <issue-key> [--format adf|rendered|raw] [--context <caller>] -- the acting member is required, since an issue is readable only by identities its project is shared with" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAssertBareName "$jiraReadKeyArg" "<issue-key>" "$jiraReadContext" || { set +e ; return 1 ; }
-		[ -n "$jiraReadFormat" ] || jiraReadFormat=adf
-		case "$jiraReadFormat" in
-			adf|rendered|raw) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: --format invalid: $jiraReadFormat" >&2 ; set +e ; return 1 ;;
-		esac
-		## raw asks for every field (--fields-json/--update-json on the write side
-		## is unconstrained, so a fixed field list cannot speak for what a write
-		## could change); adf/rendered keep the original fixed, human-read list.
-		local jiraReadFieldsParam="summary,status,assignee,reporter,priority,issuetype,resolution,labels,created,updated,description"
-		[ "$jiraReadFormat" = raw ] && jiraReadFieldsParam="*all"
-		local jiraReadPath="/rest/api/3/issue/$( AgentsToolsAtlassianUrlEncode "$jiraReadKeyArg" )?fields=$( AgentsToolsAtlassianUrlEncode "$jiraReadFieldsParam" )"
-		[ "$jiraReadFormat" = rendered ] && jiraReadPath="${jiraReadPath}&expand=renderedFields"
-		local jiraReadBody jiraReadRc=0
-		jiraReadBody="$( AgentsToolsAtlassianCall "$jiraReadMember" jira GET "$jiraReadPath" "$jiraReadContext" "" )" || jiraReadRc=$?
-		if [ "$jiraReadRc" -ne 0 ] ; then
-			set +e ; return "$jiraReadRc"
-		fi
-		local jiraReadFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
-		local jiraReadKeySeen="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=key -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
-		[ -n "$jiraReadKeySeen" ] || jiraReadKeySeen="$jiraReadKeyArg"
-		local jiraReadLabels="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.labels -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null | sed -e 's/^\[//' -e 's/\]$//' -e 's/"//g' )"
-		printf '# issue %s: type=%s status=%s resolution=%s assignee=%s reporter=%s priority=%s created=%s updated=%s labels=%s format=%s\n' \
-			"$jiraReadKeySeen" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.issuetype.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.status.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.resolution.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.assignee.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.reporter.displayName -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.priority.name -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.created -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.updated -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" \
-			"$jiraReadLabels" \
-			"$jiraReadFormat" >&2
-		printf '# issue %s: summary=%s\n' "$jiraReadKeySeen" "$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.summary -v optional=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" >&2
-		if [ "$jiraReadFormat" = raw ] ; then
-			## The already-fetched response body, verbatim -- every field the API
-			## returned for this issue, not only the 10 named ones above. No second
-			## call: this is the same $jiraReadBody the diagnostics just read from.
-			printf '%s' "$jiraReadBody"
-			return 0
-		fi
-		if [ "$jiraReadFormat" = rendered ] ; then
-			local jiraReadRendered="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=renderedFields.description -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )"
-			if [ -z "$jiraReadRendered" ] ; then
-				printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: renderedFields description unreadable" >&2
-				set +e ; return 3
-			fi
-			printf '%s' "$jiraReadRendered"
-			return 0
-		fi
-		local jiraReadDescription jiraReadDescRc=0
-		jiraReadDescription="$( printf '%s\n' "$jiraReadBody" | LC_ALL=C awk -v path=fields.description -v raw=1 -v dialect=atlassian -f "$jiraReadFieldAwk" 2>/dev/null )" || jiraReadDescRc=$?
-		if [ "$jiraReadDescRc" -ne 0 ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$jiraReadContext: description field unreadable" >&2
-			set +e ; return 3
-		fi
-		if [ -z "$jiraReadDescription" ] ; then
-			printf '%s\n' "# issue $jiraReadKeySeen: this issue really has no description -- the field was returned and its value is null, which is an answer, not a failed read" >&2
-		else
-			printf '%s\n' "$jiraReadDescription"
-		fi
-		return 0
-	;;
-
 	--intern-op-atlassian-jira-comment-read)
 		shift
 		local jiraCRMember="" jiraCRKey="" jiraCRFormat="" jiraCRStartAt="" jiraCRContext="intern-op-atlassian-jira-comment-read"
@@ -1238,76 +1349,6 @@ case "$1" in
 		if [ "$jiraIDRc" -ne 0 ] ; then
 			set +e ; return "$jiraIDRc"
 		fi
-		return 0
-	;;
-
-	--intern-op-atlassian-confluence-page-read)
-		shift
-		local confPRMember="" confPRPageId="" confPRFormat="" confPRVersion="" confPRContext="intern-op-atlassian-confluence-page-read"
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--member|--page-id|--format|--version|--context)
-					if [ -z "${2:-}" ] ; then
-						printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $1 value missing" >&2
-						set +e ; return 1
-					fi
-					case "$1" in
-						--member)  confPRMember="$2" ;;
-						--page-id) confPRPageId="$2" ;;
-						--format)  confPRFormat="$2" ;;
-						--version) confPRVersion="$2" ;;
-						--context) confPRContext="$2" ;;
-					esac
-					shift 2
-				;;
-				*)
-					printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -z "$confPRMember" ] || [ -z "$confPRPageId" ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: syntax is --member <team-member> --page-id <page-id> [--format storage|atlas_doc_format] [--version <n>] [--context <caller>] -- a page is readable only by identities it is shared with" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAtlassianAssertNumber "$confPRPageId" "<page-id>" "$confPRContext" || { set +e ; return 1 ; }
-		[ -n "$confPRFormat" ] || confPRFormat=storage
-		case "$confPRFormat" in
-			storage|atlas_doc_format) ;;
-			*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: --format invalid: $confPRFormat" >&2 ; set +e ; return 1 ;;
-		esac
-		## Read-only: a version query asks the v2 page-by-id endpoint for that
-		## exact historical rendering, same transport and response shape as the
-		## current-version read. Nothing here writes, so there is nothing to
-		## conflict and no next-version number to compute.
-		if [ -n "$confPRVersion" ] ; then
-			AgentsToolsAtlassianAssertNumber "$confPRVersion" "--version" "$confPRContext" || { set +e ; return 1 ; }
-		fi
-		local confPRPath="/wiki/api/v2/pages/$( AgentsToolsAtlassianUrlEncode "$confPRPageId" )?body-format=$( AgentsToolsAtlassianUrlEncode "$confPRFormat" )"
-		if [ -n "$confPRVersion" ] ; then
-			confPRPath="$confPRPath&version=$( AgentsToolsAtlassianUrlEncode "$confPRVersion" )"
-		fi
-		local confPRBody confPRRc=0
-		confPRBody="$( AgentsToolsAtlassianCall "$confPRMember" confluence GET "$confPRPath" "$confPRContext" "" )" || confPRRc=$?
-		if [ "$confPRRc" -ne 0 ] ; then
-			set +e ; return "$confPRRc"
-		fi
-		local confPRFieldAwk="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
-		local confPRRawFlag=()
-		[ "$confPRFormat" = storage ] || confPRRawFlag=( -v raw=1 )
-		local confPRValue confPRValueRc=0
-		confPRValue="$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path="body.$confPRFormat.value" "${confPRRawFlag[@]}" -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" || confPRValueRc=$?
-		if [ "$confPRValueRc" -ne 0 ] ; then
-			printf '%s\n' "⛔ ERROR: $MDSC_CMD --$confPRContext: $confPRFormat body unreadable" >&2
-			set +e ; return 3
-		fi
-		printf '# page %s: title=%s version=%s spaceId=%s format=%s\n' \
-			"$confPRPageId" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=title -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=version.number -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
-			"$( printf '%s\n' "$confPRBody" | LC_ALL=C awk -v path=spaceId -v optional=1 -v dialect=atlassian -f "$confPRFieldAwk" 2>/dev/null )" \
-			"$confPRFormat" >&2
-		printf '%s' "$confPRValue"
 		return 0
 	;;
 

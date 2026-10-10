@@ -59,12 +59,27 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 ## The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
 ## spawned-sessions row in state running (its process is alive on this host) or
 ## unknown-foreign (another host's, not closed, unmeasurable from here) -- the same render
-## and states the review hand-over reads. A session with no spawn record is not listed.
+## and states the review hand-over reads. A session with no spawn record and a store of its own
+## (a root session) that asked is listed until that store says it ended
+## (AgentsToolsGrantsSessionEnded, the marker its SessionEnd hook writes), never by the age of
+## its ask; one with neither record nor store is not listed, as before.
 AgentsToolsPendingReplySessionsRunning(){
+	local runningIds runningRoot runningRecord runningSeen
 	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-	printf ' %s \n' "$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
+	type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
 		NF == 13 && $2 != "-" && ( $13 == "running" || $13 == "unknown-foreign" ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"
+	while IFS= read -r runningRoot ; do
+		case "$runningRoot" in ''|*/*|.|..) continue ;; esac
+		runningSeen=""
+		for runningRecord in "$MMDAPP/.local/agents/spawned"/*/"$runningRoot.md" ; do
+			[ ! -f "$runningRecord" ] || runningSeen=1
+		done
+		[ -z "$runningSeen" ] && [ -d "$MMDAPP/.local/agents/sessions/$runningRoot" ] || continue
+		AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$runningRoot" || runningIds="$runningIds$runningRoot "
+	done <<< "$( LC_ALL=C awk 'FNR == 1 { dashes = 0 } $0 == "---" { dashes++ ; next } dashes == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) }' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | LC_ALL=C sort -u )"
+	printf ' %s \n' "$runningIds"
 }
 
 ## One field, for the rare single read.
@@ -195,10 +210,12 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$collectAnswer"
 			## The answer is the reply's first line; the rest of it and every later reply are its
 			## clarifications, kept on the record and the item's Decisions.
-			local oneClarify=""
+			## Its thread stays watched from the newest message read here (AgentsWaitProbeAsk).
+			local oneClarify="" oneFloor=""
 			oneClarify="$( printf '%s\n' "$oneBody" | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || oneClarify=""
-			[ -z "$oneClarify" ] || printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --context collect > /dev/null 2>&1 \
+			oneFloor="$( printf '%s\n' "$oneBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )"
+			printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --follow-floor "${oneFloor:-$oneQts}" --context collect > /dev/null 2>&1 \
 				|| echo "$MDSC_CMD: ⚠️ WARNING: $oneId is closed, but its clarifications were not kept" >&2
 		;;
 		3)

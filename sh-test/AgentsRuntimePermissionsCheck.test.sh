@@ -89,7 +89,15 @@ rigRun(){ ## op and arguments... -- the tool in ws-main as RIG_AGENT in RIG_SESS
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$HOME" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			cd "$MMDAPP" && exec bash "'"$rigFn"'" "$@"
-		' rig "$@" > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+		' rig "$@" > "$rigTmp/out" 2> "$rigTmp/err" < "${RIG_STDIN:-/dev/null}" || rigRc=$?
+}
+## An in-context helper (no operation of its own) as a script for --intern-mcp-execute, which
+## runs it inside the tool's own set-up context: its include, then the call with these arguments.
+rigHelperScript(){ ## include, function, arguments...
+	printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n' "$1"
+	printf '%s' "$2" ; shift 2
+	[ $# -eq 0 ] || printf ' %q' "$@"
+	printf '\n'
 }
 rigRun --intern-directory-register
 [ "$rigRc" = 0 ] || rigRefuse "the places of ws-main could not be registered: $( head -3 "$rigTmp/err" )"
@@ -265,7 +273,8 @@ printf -- '---\nstatus: task\nowner: keeper-d\n---\n\n# Task\n' > "$rigSetItem"
 rigSpawn sb-s s-set keeper-d
 mkdir -p "$rigMain/.local/agents/pending"
 printf 'scope: task\nitem: task-set\nsession-id: s-set\nparticipants: keeper-d\nentry: Write:%s\n' "$rigTmp/rw-dir/sub/s.txt" > "$rigMain/.local/agents/pending/set-ask-rig.set"
-rigRun --intern-op-permission-set-apply set-ask-rig human-owner
+rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionSetApply set-ask-rig human-owner > "$rigTmp/helper.in"
+RIG_STDIN="$rigTmp/helper.in" rigRun --intern-mcp-execute
 rigSetRef="$( LC_ALL=C sed -n 's/^task:Write:[^:]*:human-owner:[^:]*:\(set-[0-9a-f-]*\)$/\1/p' "$rigMain/.local/agents/sessions/s-set/grants" 2>/dev/null | head -1 )"
 rigAssert "control: the set is granted and is the item's allows" "$rigRc:$( [ -n "$rigSetRef" ] && printf ref || printf none ):$( rigN "$rigSetItem" "allows: task:Write:$rigTmp/rw-dir/sub/s.txt:human-owner:" )" "0:ref:1"
 printf -- '---\nstatus: dispatch-started\nowner: keeper-d\nsession-id: s-later\ntracks: task-set\n---\n\n# Dispatch\n' > "$rigData/board/running/dispatch-20261009T1200Z-later.md"

@@ -355,6 +355,24 @@ rigAssert "and not advance's"                              "$( rigSection "$rigT
 rigAssert "advance lists its own"                          "$( rigSection "$rigTmp/s2" '## review items addressed to advance.routine' | LC_ALL=C grep -c '^- dispatch-20261008T1200Z-adv ' )" 1
 rigAssert "housekeeping keeps a routine reviewer, however old" "$( LC_ALL=C grep -c -x 'review-by: grooming.routine' "$rigData/board/review/dispatch-20261008T1200Z-gr1.md" )" 1
 
+echo "-- 12b. a root session as review-by: ended only when its store says so, never by the age of the item --"
+## A root session has no spawn record and no registry row: its store under .local/agents/sessions, and the
+## marker its SessionEnd hook writes there, decide (AgentsToolsGrantsSessionEnded). An id with no store keeps the age rule.
+rigRootLive="rig-root-live-$$" ; rigRootEnded="rig-root-ended-$$"
+mkdir -p "$rigWs/.local/agents/sessions/$rigRootLive" "$rigWs/.local/agents/sessions/$rigRootEnded"
+printf 'ended-at: 2026-10-09T12:00:00Z\nreason: prompt_input_exit\n' > "$rigWs/.local/agents/sessions/$rigRootEnded/ended"
+rigItem review dispatch-20261008T1200Z-rl1 "" "review-by: $rigRootLive
+"
+rigItem review dispatch-20261008T1200Z-re1 "" "review-by: $rigRootEnded
+"
+rigItem review dispatch-20261008T1200Z-ns1 "" "review-by: rig-no-store-$$
+"
+touch -t 202001010000 "$rigData"/board/review/dispatch-20261008T1200Z-rl1.md "$rigData"/board/review/dispatch-20261008T1200Z-ns1.md
+rigOp "$rigTmp/s12b" --magic-advance-input-scan magic-coordinator
+rigAssert "a root session still open keeps its review, however old the item" "$( LC_ALL=C grep -c -x "review-by: $rigRootLive" "$rigData/board/review/dispatch-20261008T1200Z-rl1.md" )" 1
+rigAssert "a root session its SessionEnd hook ended hands its review on at once" "$( LC_ALL=C grep -c -x 'review-by: magic-coordinator' "$rigData/board/review/dispatch-20261008T1200Z-re1.md" )" 1
+rigAssert "control: an id with no store at all still goes by age" "$( LC_ALL=C grep -c -x 'review-by: magic-coordinator' "$rigData/board/review/dispatch-20261008T1200Z-ns1.md" )" 1
+
 ## ---------------------------------------------------------------- endings ordered by tooling
 echo "-- 13. archive: the child dismissed, archived recorded --"
 rigLive rig-live-arc-$$

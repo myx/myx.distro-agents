@@ -1455,7 +1455,7 @@ case "$1" in
 				AgentsHarnessHooksRecordSplit "$hookRecord" || exit 1
 				hookJson='{'
 				[ -z "$agentsHookMatcher" ] || hookJson="$hookJson\"matcher\": \"$agentsHookMatcher\", "
-				hookJson="$hookJson\"hooks\": [{\"type\": \"command\", \"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/$agentsHookScript${agentsHookArg:+ $agentsHookArg}\"}]}"
+				hookJson="$hookJson\"hooks\": [{\"type\": \"command\", \"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/$agentsHookScript${agentsHookArg:+ $agentsHookArg}\"${agentsHookTimeout:+, \"timeout\": $agentsHookTimeout}}]}"
 				if [ "$agentsHookEvent" = PreToolUse ] ; then
 					printf '%s\t%s\n' "$agentsHookKey" "$hookJson"
 				else

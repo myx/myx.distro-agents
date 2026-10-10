@@ -38,7 +38,7 @@ PATH="$rigTmp/bin:$PATH"
 printf 'EMAIL_USER=rig@example.com\nEMAIL_APP_PASSWORD=rig-app-password\nEMAIL_SMTP_HOST=smtp.rig.invalid\nEMAIL_SMTP_PORT=587\n' \
 	> "$rigWs/.local/.agents/keeper-myx.agent.env"
 
-## The send's outbound contact gate (--intern-op-contact-assert-known) refuses a
+## The send's outbound contact gate (AgentsToolsContactAssertKnown) refuses a
 ## recipient missing from the sender's own contacts note, before the build-only
 ## exit. The rig's recipient is listed there, in the contacts document format
 ## (templates/contacts.document.format.md), under the store this rig derives:

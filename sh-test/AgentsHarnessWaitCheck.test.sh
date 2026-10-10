@@ -951,6 +951,49 @@ rigAssert "it returned inside 10s of a 30s bound"              "$( rigWithin "$r
 rigVerdict "the poll backs off from 5s by default, MDAT_WAIT_POLL_SECONDS sets it for tests, --wait-poll-interval wins, the bound is never exceeded"
 
 ## ---------------------------------------------------------------------------
+## 10f2. The backoff counts from the newest activity on the watched sources, not from
+##       the call start alone: a question asked, or an own post made where a watched
+##       source carries its reply, an hour into a long call puts it back at 5s. The
+##       formula and the 300s cap are as before. The two functions run from the include
+##       itself, sourced with no operation, against a scratch store.
+## ---------------------------------------------------------------------------
+rigNewStart activity
+rigActNow="$( date +%s )"
+rigActStart=$(( rigActNow - 3600 ))
+mkdir -p "$rigNewDir/ws/.local/agents/pending" "$rigNewDir/ws/.local/agents/sessions/rig-act"
+printf -- '---\nstatus: reply-pending\nchannel: CRIG00001\nquestion-ts: %s.000100\nthread-ts: %s.000100\n---\n\n# Question asked\n' "$(( rigActNow - 2 ))" "$(( rigActNow - 2 ))" > "$rigNewDir/ws/.local/agents/pending/rig-fresh.md"
+printf -- '---\nstatus: reply-pending\nchannel: CRIG00001\nquestion-ts: %s.000100\nthread-ts: %s.000100\n---\n\n# Question asked\n' "$rigActStart" "$rigActStart" > "$rigNewDir/ws/.local/agents/pending/rig-old.md"
+## The include sourced with no operation defines its functions, then refuses the empty one.
+rigActNap(){ ## sources, floors -- prints "<what> <nap>"
+	( set +u ; MMDAPP="$rigNewDir/ws" ; . "$rigInclude" --rig-functions-only > /dev/null 2>&1
+	  rigActLine="$( AgentsWaitNewestActivity "$rigActStart" rig-act "$1" "$2" )"
+	  printf '%s %s\n' "${rigActLine#*$'\t'}" "$( AgentsWaitBackoffNap "$rigActNow" "${rigActLine%%$'\t'*}" )" )
+}
+rigActBare(){ ## seconds since the activity -- prints the nap
+	( set +u ; MMDAPP="$rigNewDir/ws" ; . "$rigInclude" --rig-functions-only > /dev/null 2>&1 ; AgentsWaitBackoffNap "$rigActNow" "$(( rigActNow - $1 ))" )
+}
+rigAssert "an hour into a quiet call: 5 + 3600/20"              "$( rigActNap "slack:human-owner" "slack:human-owner=$rigActStart" )" "start 185"
+rigAssert "the 300s cap is unchanged"                           "$( rigActBare 7200 )" 300
+rigAssert "the formula is unchanged: 10 minutes is 35s"         "$( rigActBare 600 )" 35
+rigAssert "a fresh question inside a long call is back at 5s"   "$( rigActNap "slack:human-owner ask:rig-fresh" "" )" "question 5"
+rigAssert "control: an old question leaves it backed off"       "$( rigActNap "slack:human-owner ask:rig-old" "" )" "start 185"
+printf 'CRIG00001:1700000001.000101 %s.000300\n' "$(( rigActNow - 1 ))" > "$rigNewDir/ws/.local/agents/sessions/rig-act/last-own-post"
+rigAssert "an own post on a watched thread is back at 5s"       "$( rigActNap "slack:CRIG00001:1700000001.000101:conversation" "" )" "own-post 5"
+rigAssert "control: an own post on an unwatched thread is not"  "$( rigActNap "slack:CRIG00001:1700000009.000999 file:$rigNewDir/x" "" )" "start 185"
+rigAssert "a reply just returned on a source is back at 5s"     "$( rigActNap "slack:CRIG00001:1700000009.000999" "slack:CRIG00001:1700000009.000999=$(( rigActNow - 3 )).000500" )" "floor 5"
+rigNewPoll=""
+rigDropAct="$rigNewDir/dropAct.txt"
+: > "$rigDropAct"
+rigNewIn activity-line --wait-default --wait-source "file:$rigDropAct" --wait-timeout 2
+rigAssert "the waited line names the base it counted from"      "$( rigHolds "$rigNewOut" 'poll round(s) at backoff from 5s, cap 300s, since the newest activity (start) ' )" yes
+rigNewPoll="1"
+rigNewReplies ""
+: > "$rigNewDir/curl.log"
+rigNewIn activity-reads --wait-default --wait-source "slack:$rigReactChannel:$rigReactThread:conversation" --wait-source "slack:$rigReactChannel:1700000001.000999:conversation" --wait-since-utime "$rigReactThread" --wait-timeout 4 --wait-poll-interval 1
+rigAssert "two Slack thread sources: two reads per round, no more" "$( LC_ALL=C awk '$0 == "conversations.replies" { hitCount++ ; } END { print hitCount + 0 ; }' "$rigNewDir/curl.log" )" "$(( $( LC_ALL=C awk '/^# waited: / { roundText = $0 ; sub(/.*bound, /, "", roundText) ; sub(/ poll round.*/, "", roundText) ; print roundText ; }' "$rigNewOut" ) * 2 ))"
+rigVerdict "the backoff counts from the newest activity: a fresh question or own post resets it to 5s, the 300s cap and formula unchanged"
+
+## ---------------------------------------------------------------------------
 ## 10g. The existing call shape, with no mode and no session id: unchanged -- a
 ##      wait, no state stored. The 125 assertions above are the full control.
 ## ---------------------------------------------------------------------------

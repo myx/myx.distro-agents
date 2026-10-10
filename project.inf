@@ -6,13 +6,29 @@ Declares: \
 	distro-image-sync:source-prepare-pull:repo:myx/myx.distro-agents:main:git@github.com:myx/myx.distro-agents.git \
 	--magic-team:permissions:workspace:*:allow-write:*:source/**/MAGIC.md \
 	--magic-team:permissions:workspace:*:allow-write:*:.local/temp/** \
-	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
-	magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
-	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \
-	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/test/** \
-	magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/tests/** \
-	magic-team:permissions:workspace:*:allow-read:magic-tester:.local/myx/** \
-	magic-team:permissions:workspace:*-testbed:allow-write:magic-tester:** \
+	--magic-team:permissions:workspace:*:allow-tool:*:Skill \
+	--magic-team:permissions:workspace:*:allow-tool:*:SendMessage \
+	--magic-team:permissions:workspace:*:allow-tool:*:Wait \
+	--magic-team:permissions:workspace:*:allow-tool:*:SubagentHandback \
+	--magic-team:permissions:workspace:*:allow-tool:*:AskUserQuestion \
+	--magic-team:permissions:workspace:*:allow-tool:*:ToolSearch \
+	--magic-team:permissions:workspace:*:allow-tool:*:ListAgents \
+	--magic-team:permissions:workspace:*:allow-tool:*:TaskOutput \
+	--magic-team:permissions:workspace:*:allow-tool:*:TaskStop \
+	--magic-team:permissions:workspace:*:allow-tool:*:Monitor \
+	--magic-team:permissions:workspace:*:allow-tool:*:PushNotification \
+	--magic-team:permissions:workspace:*:allow-tool:*:SessionTranscriptAppend \
+	--magic-team:permissions:workspace:*:allow-tool:*:ReportFindings \
+	--magic-team:permissions:workspace:*:allow-tool:*:ListMcpResourcesTool \
+	--magic-team:permissions:workspace:*:allow-tool:*:ReadMcpResourceTool \
+	--magic-team:permissions:workspace:*:allow-tool:*:ReadMcpResourceDirTool \
+	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebFetch \
+	--magic-team:permissions:workspace:*:allow-tool:magic-architect:WebSearch \
+	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/sh-test/** \
+	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/test/** \
+	--magic-team:permissions:workspace:*:allow-read:magic-tester:source/**/tests/** \
+	--magic-team:permissions:workspace:*:allow-read:magic-tester:.local/myx/** \
+	--magic-team:permissions:workspace:*-testbed:allow-write:magic-tester:** \
 
 Requires: \
 	myx/myx.distro-source \

@@ -97,7 +97,8 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrTool rrTarget rrHolder="" rrTo rrOut
 	rrTool="${rrWhat%%$'\t'*}" ; rrTarget="${rrWhat#*$'\t'}"
 	rrTo="$( AgentsToolsEscalationField "$rrFile" address-to )"
-	rrHolder="$( DistroAgentsTools --intern-op-permission-holders "$rrTool" "$rrTarget" \
+	type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+	rrHolder="$( AgentsToolsPermissionHoldersPrint "$rrTool" "$rrTarget" \
 		--session-id "$( AgentsToolsEscalationField "$rrFile" session-id )" --task "$( AgentsToolsEscalationField "$rrFile" item )" \
 		--exclude "$( AgentsToolsEscalationField "$rrFile" owner )" --exclude "$rrBy" --exclude "$rrTo" 2>/dev/null \
 		| LC_ALL=C sed -n 's/^HOLDER: \([^ ]*\) .*$/\1/p' | LC_ALL=C awk '$0 != "human-owner" { print ; exit ; }' )" || rrHolder=""
@@ -130,8 +131,8 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 ## Applies one verdict to one open record: closes it carrying the verdict and who gave
 ## it, and writes the grant an allow carries. Prints the result lines. One mkdir is the
 ## lock, so of two answers landing together only the first is applied.
-AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback)
-	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyKind applySession applyRefusal applyGrant=""
+AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text, answered by, optional answering session, optional closed-by (readback), optional follow floor
+	local applyFile="$1" applyId="$2" applyVerdict="$3" applyText="$4" applyBy="$5" applyAnswerSession="${6:-}" applyClosedBy="${7:-}" applyFloor="${8:-}" applyKind applySession applyRefusal applyGrant=""
 	## An allow is applied only from an approver who holds what it approves; the
 	## human-owner holds everything. Anyone else's goes up the chain, still open.
 	case "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" in
@@ -184,7 +185,8 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	fi
 	## An approved permission set becomes the participants' grants and the item's record.
 	if [ "$applyKind" = "permission-set" ] && [ "$applyVerdict" = "allow-set" ] ; then
-		applyGrant="$( DistroAgentsTools --intern-op-permission-set-apply "$applyId" "$applyBy" 2>&1 )" || applyGrant=""
+		type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+		applyGrant="$( AgentsToolsPermissionSetApply "$applyId" "$applyBy" 2>&1 )" || applyGrant=""
 		applyGrant="$( printf '%s\n' "$applyGrant" | LC_ALL=C sed -n 's/^\(GRANT: .*\)$/\1/p' | head -1 )"
 		[ -n "$applyGrant" ] || applyGrant="GRANT: none -- the verdict was allow-set but the set could not be applied"
 	fi
@@ -194,6 +196,10 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	[ -z "$applyAnswerSession" ] || set -- "$@" answered-session "$applyAnswerSession"
 	[ -z "$applyClosedBy" ] || set -- "$@" closed-by "$applyClosedBy"
 	[ -z "$applyGrant" ] || set -- "$@" grant "${applyGrant#GRANT: }"
+	## Answered, its thread is still watched from here on: every later message there is a
+	## clarification, which the asking session's Wait keeps (AgentsWaitProbeAsk).
+	[ -z "$( AgentsToolsEscalationField "$applyFile" channel )" ] \
+		|| set -- "$@" follow-floor "${applyFloor:-$( AgentsToolsEscalationField "$applyFile" question-ts )}"
 	[ $# -eq 0 ] || AgentsToolsEscalationUpsert "$applyFile" "$@" \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but its text or grant line is not kept on $applyId" >&2
 	## The verdict, with its text, on the ask's item, where a reopened task reads it.
@@ -258,15 +264,30 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		*" $threadAuthor "*) printf 'UNCLASSIFIED\t\tthe answer came from the account that asked, so it is not taken\n' ; return 0 ;;
 	esac
 	printf '%s\n' "$threadVerdict"
+	[ -z "$threadVerdictTs" ] || printf 'ANSWER-TS\t%s\n' "$threadVerdictTs"
 	[ -z "$threadClarify" ] || printf '%s\n' "$threadClarify"
 }
 
-## Keeps the CLARIFY lines a thread verdict carried on the record and its item's Decisions.
-AgentsToolsEscalationClarify(){ ## request id, thread verdict output
+## The follow floor a thread verdict leaves: the newest message it read there, the reply the
+## verdict came from or the last one kept with it; empty when it read none (a reaction alone).
+AgentsToolsEscalationFloor(){ ## thread verdict output
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '
+		function newer( a, b,    sa, sb, fa, fb ) {
+			sa = a ; sub( /\..*$/, "", sa ) ; sb = b ; sub( /\..*$/, "", sb ) ;
+			fa = a ; sub( /^[^.]*\.?/, "", fa ) ; fb = b ; sub( /^[^.]*\.?/, "", fb ) ;
+			return ( sa + 0 > sb + 0 || ( sa + 0 == sb + 0 && substr( fa "000000", 1, 6 ) > substr( fb "000000", 1, 6 ) ) ) ;
+		}
+		$1 == "ANSWER-TS" || $1 == "CLARIFY" { if ( top == "" || newer( $2, top ) ) { top = $2 ; } }
+		END { print top ; }'
+}
+
+## Keeps the CLARIFY lines a thread verdict carried on the record and its item's Decisions,
+## and moves its follow floor up to <floor> when one is given.
+AgentsToolsEscalationClarify(){ ## request id, thread verdict output, optional follow floor
 	local clarifyLines
 	clarifyLines="$( printf '%s\n' "$2" | LC_ALL=C awk 'index( $0, "CLARIFY\t" ) == 1 { print substr( $0, 9 ) ; }' )"
-	[ -n "$clarifyLines" ] || return 0
-	printf '%s\n' "$clarifyLines" | DistroAgentsTools --intern-op-pending-reply-clarify "$1" --from-stdin --context "$MDSC_CMD" 2>/dev/null \
+	[ -n "$clarifyLines" ] || [ -n "${3:-}" ] || return 0
+	printf '%s\n' "$clarifyLines" | DistroAgentsTools --intern-op-pending-reply-clarify "$1" --from-stdin ${3:+--follow-floor "$3"} --context "$MDSC_CMD" 2>/dev/null \
 		| LC_ALL=C grep '^CLARIFIED ' || echo "⚠️ WARNING: $MDSC_CMD: the clarifications on $1 were not kept" >&2
 	return 0
 }
@@ -328,11 +349,11 @@ case "$1" in
 			"$( AgentsToolsEscalationField "$readFile" channel )" "$( AgentsToolsEscalationField "$readFile" question-ts )" \
 			"$( AgentsToolsEscalationField "$readFile" thread-ts )" "$( AgentsToolsEscalationField "$readFile" addressees )" )"
 		readVerdict="${readOut%%$'\n'*}"
-		local readReason=""
+		local readReason="" readForward=""
 		if [ "${readVerdict%%$'\t'*}" = "UNCLASSIFIED" ] ; then
-			[ -z "$( AgentsToolsEscalationField "$readFile" forward-ts )" ] || readOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
+			[ -z "$( AgentsToolsEscalationField "$readFile" forward-ts )" ] || { readForward=1 ; readOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
 				"$( AgentsToolsEscalationField "$readFile" forward-channel )" "$( AgentsToolsEscalationField "$readFile" forward-ts )" \
-				"$( AgentsToolsEscalationField "$readFile" forward-ts )" "$( AgentsToolsEscalationField "$readFile" forward-addressees )" true )"
+				"$( AgentsToolsEscalationField "$readFile" forward-ts )" "$( AgentsToolsEscalationField "$readFile" forward-addressees )" true )" ; }
 			readVerdict="${readOut%%$'\n'*}"
 		fi
 		if [ "${readVerdict%%$'\t'*}" = "UNCLASSIFIED" ] ; then
@@ -346,7 +367,11 @@ case "$1" in
 			'correct -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#correct -- }" ; readVerdict="correct"$'\t'"${readVerdict#*$'\t'}" ;;
 			'edit -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#edit -- }" ; readVerdict="edit"$'\t'"${readVerdict#*$'\t'}" ;;
 		esac
-		AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" || { set +e ; return 1 ; }
+		## The floor is a message of the question's own thread, which is what stays watched; a
+		## verdict read from a forward's thread leaves it at the question.
+		local readFloor=""
+		[ -n "$readForward" ] || readFloor="$( AgentsToolsEscalationFloor "$readOut" )"
+		AgentsToolsEscalationApply "$readFile" "$readId" "${readVerdict%%$'\t'*}" "$readText" "${readVerdict#*$'\t'}" "" "" "$readFloor" || { set +e ; return 1 ; }
 		## The rest of the reply and every later one: clarifications on this verdict.
 		[ "$( AgentsToolsEscalationField "$readFile" status )" != "reply-received" ] || AgentsToolsEscalationClarify "$readId" "$readOut"
 		return 0
@@ -433,9 +458,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the readback could not be posted in the thread of $rbId, so it stays open" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsEscalationApply "$rbFile" "$rbId" "$rbOption" "$rbText" "$rbMember (readback)" "" readback || { set +e ; return 1 ; }
-		AgentsToolsEscalationUpsert "$rbFile" follow-floor "$rbTs" \
-			|| echo "⚠️ WARNING: $MDSC_CMD: $rbId is closed by the readback, but a later reply there will not be seen" >&2
+		AgentsToolsEscalationApply "$rbFile" "$rbId" "$rbOption" "$rbText" "$rbMember (readback)" "" readback "$rbTs" || { set +e ; return 1 ; }
 		AgentsToolsEscalationClarify "$rbId" "$rbOut"
 		printf 'FOLLOW-FLOOR: %s\n' "$rbTs"
 		return 0

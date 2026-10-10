@@ -72,8 +72,9 @@ AgentsHarnessHooksRecordsComputed(){
 }
 
 ## One record split into its six fields, by parameter expansion: `read` with a TAB IFS
-## would fold an empty matcher into its neighbour.
-agentsHookEvent="" agentsHookClass="" agentsHookKey="" agentsHookMatcher="" agentsHookScript="" agentsHookArg=""
+## would fold an empty matcher into its neighbour. An optional seventh field is the client's
+## own per-hook timeout in seconds (agentsHookTimeout, empty when absent).
+agentsHookEvent="" agentsHookClass="" agentsHookKey="" agentsHookMatcher="" agentsHookScript="" agentsHookArg="" agentsHookTimeout=""
 AgentsHarnessHooksRecordSplit(){ ## record
 	local splitRest="$1"
 	case "$splitRest" in *$'\t'*$'\t'*$'\t'*$'\t'*$'\t'*) ;; *) return 1 ;; esac
@@ -82,6 +83,11 @@ AgentsHarnessHooksRecordSplit(){ ## record
 	agentsHookKey="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
 	agentsHookMatcher="${splitRest%%$'\t'*}" ; splitRest="${splitRest#*$'\t'}"
 	agentsHookScript="${splitRest%%$'\t'*}" ; agentsHookArg="${splitRest#*$'\t'}"
+	agentsHookTimeout=""
+	case "$agentsHookArg" in
+		*$'\t'*) agentsHookTimeout="${agentsHookArg#*$'\t'}" ; agentsHookArg="${agentsHookArg%%$'\t'*}" ;;
+	esac
+	case "$agentsHookTimeout" in *[!0123456789]*) return 1 ;; esac
 	[ -n "$agentsHookEvent" ] && [ -n "$agentsHookClass" ] && [ -n "$agentsHookScript" ]
 }
 

@@ -255,8 +255,11 @@ case "$1" in
 			## stamped in each record (AgentsTools.PendingReplyRemind.include). Tooling only; a
 			## failure is logged and the iteration goes on. It never closes an ask.
 			mkdir -p "$MMDAPP/.local/agents" \
-				&& DistroAgentsTools --intern-op-pending-reply-remind --context --intern-main-loop \
-					> "$MMDAPP/.local/agents/pending-remind.last.$$" 2>/dev/null \
+				&& (
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
+					. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"
+					AgentsToolsPendingReplyRemindRun
+				) > "$MMDAPP/.local/agents/pending-remind.last.$$" 2>/dev/null \
 				&& mv -f "$MMDAPP/.local/agents/pending-remind.last.$$" "$MMDAPP/.local/agents/pending-remind.last" \
 				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-remind.last" )" >&2 \
 				|| { rm -f "$MMDAPP/.local/agents/pending-remind.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply reminders could not run" >&2 ; }

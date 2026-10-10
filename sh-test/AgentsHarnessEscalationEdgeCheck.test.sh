@@ -220,10 +220,11 @@ rigAssert "control: the coordinator's session answers as the addressee itself" "
 rigAskStop
 
 echo "-- only a reply's first word is an answer: one anywhere else is never taken --"
-## The reader alone, over one rendered reply: "<verdict>|<author>".
+## The reader alone, over one rendered reply: "<verdict>|<author>" (its third field, the
+## reply ts, is left out here).
 rigVerdictOf(){ ## kind, options, reply text
 	printf '1700000001.000200 | URIGOWNER | %s\n' "$3" \
-		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|'
+		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
 }
 rigDecisionOptions="- alpha the first way"$'\n'"- beta the second way"
 rigAssert "control: a first-word answer is classified"   "$( rigVerdictOf permission '' 'allow-once' )" "allow-once|URIGOWNER"
@@ -242,6 +243,33 @@ rigAssert "decision: the option's first word answers"    "$( rigVerdictOf decisi
 rigAssert "a reply naming no answer stays unclassified"  "$( rigVerdictOf permission '' 'YES, SURE allow' )" "UNCLASSIFIED|"
 rigAssert "a reply naming two answers stays unclassified" "$( rigVerdictOf decision "$rigDecisionOptions" 'I pick alpha or beta' )" "UNCLASSIFIED|"
 rigAssert "an answer inside a longer word is not named"  "$( rigVerdictOf permission '' 'reallow-once-ish' )" "UNCLASSIFIED|"
+
+echo "-- a plain affirmation: yes for a readback, the recommended option for a decision, never a permission --"
+rigRecommendedOptions="- alpha the first way"$'\n'"- beta the second way (Recommended)"
+rigAssert "readback: \"I confirm this Q\" is yes"         "$( rigVerdictOf readback '' 'I confirm this Q' )" "yes|URIGOWNER"
+rigAssert "readback: \"Ok.\" is yes"                       "$( rigVerdictOf readback '' 'Ok.' )" "yes|URIGOWNER"
+rigAssert "readback: \"I do not confirm\" is not"          "$( rigVerdictOf readback '' 'I do not confirm' )" "UNCLASSIFIED|"
+rigAssert "decision: \"Agreed\" takes the recommended one" "$( rigVerdictOf decision "$rigRecommendedOptions" 'Agreed, go' )" "beta|URIGOWNER"
+rigAssert "decision: an option word still wins over it"   "$( rigVerdictOf decision "$rigRecommendedOptions" 'alpha' )" "alpha|URIGOWNER"
+rigAssert "decision: with none marked, ok answers nothing" "$( rigVerdictOf decision "$rigDecisionOptions" 'ok' )" "UNCLASSIFIED|"
+rigAssert "permission: ok answers nothing"                "$( rigVerdictOf permission '' 'ok' )" "UNCLASSIFIED|"
+rigAssert "permission: yes answers nothing"               "$( rigVerdictOf permission '' 'yes' )" "UNCLASSIFIED|"
+rigReactionOf(){ ## kind, options, reaction name
+	printf 'reaction on the question: [reactions: %s x1 (URIGOWNER)]\n' "$3" \
+		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
+}
+rigAssert "decision: a +1 reaction takes the recommended one" "$( rigReactionOf decision "$rigRecommendedOptions" '+1::skin-tone-2' )" "beta|URIGOWNER"
+rigAssert "readback: an ok_hand reaction is yes"          "$( rigReactionOf readback '' 'ok_hand' )" "yes|URIGOWNER"
+rigAssert "permission: a +1 reaction answers nothing"     "$( rigReactionOf permission '' '+1' )" "UNCLASSIFIED|"
+
+echo "-- a reply opening with a quote of the question: its first unquoted line is the verdict --"
+rigAssert "a fenced quote, then I confirm, is yes"        "$( rigVerdictOf readback '' $'```Did I read your intent right?```\nI confirm this Q, go ahead' )" "yes|URIGOWNER"
+rigAssert "a fence over several lines is skipped"         "$( rigVerdictOf readback '' $'```\nDid I read\nyour intent right?\n```\nyes' )" "yes|URIGOWNER"
+rigAssert "&gt; quoted lines are skipped"                 "$( rigVerdictOf decision "$rigDecisionOptions" $'&gt; Which way?\n&gt; alpha or beta\n\nbeta' )" "beta|URIGOWNER"
+rigAssert "> quoted lines are skipped"                    "$( rigVerdictOf permission '' $'> May the rig write it?\nallow-once' )" "allow-once|URIGOWNER"
+rigAssert "an unquoted first line still decides alone"    "$( rigVerdictOf readback '' $'hmm\nyes' )" "UNCLASSIFIED|"
+rigAssert "the plain answer text skips the quote too"     "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -f "$rigHere/AgentsPendingReplyAnswerText.awk" )" "keep it, signed off"
+rigAssert "and the clarifications start after it"         "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -v answerTs=1700000001.000200 -f "$rigHere/AgentsPendingReplyClarifications.awk" | cut -f3 )" "more"
 
 rigAssert "no request left this box"                   "$( cat "$rigTmp"/*/curl.log | LC_ALL=C awk '/^url:/ { hitCount++ ; } END { print hitCount + 0 ; }' )" 0
 

@@ -4,6 +4,11 @@
 ##
 ## AgentsTools.InternOpPermission.include -- refusal records and grants, per session.
 ##
+## In-context helpers with no operation of their own (MAGIC.md, section 1):
+## AgentsToolsPermissionHoldersPrint and AgentsToolsPermissionSetApply. DUAL USE: a name not its
+## own runs nothing, so a caller sources this file for them:
+##   type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+##
 ## A permission refusal is a logged fact with an id, never a verdict. It is recorded
 ## in the session's own store before anything is posted, so an escalation can name
 ## it and a grant can take its tool and target from it rather than from the text of
@@ -368,6 +373,119 @@ AgentsToolsPermissionEscalationAsk(){ ## caller, workspace root, pending id, ask
 	printf 'item: %s\n' "${eaItem:-none}"
 	printf 'holders: %s\n' "${eaHolders:-unknown}"
 	printf 'set-requests: %s\n' "${eaSets:-none}"
+}
+
+## Who holds one permission among a session's and a task's participants, one
+## `HOLDER: <member> <layer>` line each, `HOLDER: human-owner human-owner` always last.
+AgentsToolsPermissionHoldersPrint(){ ## <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]...
+	local MDSC_CMD='DistroAgentsTools permission-holders'
+	local holdersTool="${1:-}" holdersTarget="${2:-}" holdersSession="" holdersTask="" holdersExclude="" holdersLine
+	shift 2 2>/dev/null || shift $#
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--session-id) holdersSession="${2:-}" ; shift 2 ;;
+			--task) holdersTask="${2:-}" ; shift 2 ;;
+			--exclude) holdersExclude="$holdersExclude ${2:-}" ; shift 2 ;;
+			*)
+				echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$holdersTool" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: syntax is <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]..." >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$holdersTool" "<tool>" permission-holders || { set +e ; return 1 ; }
+	while IFS= read -r holdersLine ; do
+		[ -z "$holdersLine" ] || printf 'HOLDER: %s\n' "$holdersLine"
+	done <<< "$( AgentsToolsPermissionHolders "$holdersTool" "$holdersTarget" "$holdersSession" "$holdersTask" "$holdersExclude" )"
+	return 0
+}
+
+## An approved permission set, applied: a grant of the set's scope for every
+## participant and every extra entry, signed by the approver; for a task, also the
+## item's `allows:`, so a later dispatch tracking it carries the set; and the set on
+## the item's Decisions. Called by the escalation verdict path only.
+AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
+	local MDSC_CMD='DistroAgentsTools permission-set-apply'
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+	local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries="" applySetPlaces=""
+	if [ -z "$applySetId" ] || [ -z "$applySetBy" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-id> <approver>" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$applySetId" "<pending-id>" permission-set-apply || { set +e ; return 1 ; }
+	AgentsToolsAssertBareName "$applySetBy" "<approver>" permission-set-apply || { set +e ; return 1 ; }
+	applySetFile="$MMDAPP/.local/agents/pending/$applySetId.set"
+	[ -f "$applySetFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no permission set is recorded for $applySetId" >&2 ; set +e ; return 1 ; }
+	while IFS= read -r applySetLine ; do
+		case "$applySetLine" in
+			'scope: '*) applySetScope="${applySetLine#scope: }" ;;
+			'item: '*) applySetItem="${applySetLine#item: }" ;;
+			'session-id: '*) applySetSession="${applySetLine#session-id: }" ;;
+			'participants: '*) applySetParts="${applySetLine#participants: }" ;;
+			'entry: '*) applySetEntries="${applySetEntries}${applySetLine#entry: }"$'\n' ;;
+			'place: '*) applySetPlaces="${applySetPlaces}${applySetLine#place: }"$'\n' ;;
+		esac
+	done < "$applySetFile"
+	[ -n "$applySetEntries" ] || { echo "$MDSC_CMD: ⛔ ERROR: the permission set $applySetId names no entry" >&2 ; set +e ; return 1 ; }
+	local applySetTime applySetPart applySetRef applySetDir applySetCount=0 applySetAllows="" applySetText="" permEntryTool permEntryTarget
+	applySetTime="$( date -u +%Y%m%dT%H%MZ )"
+	## Grants for the participants, in the session's store.
+	if [ -n "$applySetSession" ] && AgentsToolsAssertBareName "$applySetSession" "session-id" permission-set-apply 2>/dev/null ; then
+		applySetDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$applySetSession" )"
+		mkdir -p "$applySetDir" 2>/dev/null || { echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $applySetSession" >&2 ; set +e ; return 1 ; }
+		for applySetPart in $applySetParts ; do
+			AgentsToolsAssertBareName "$applySetPart" "participant" permission-set-apply 2>/dev/null || continue
+			applySetRef="$( AgentsToolsPermissionNewRef set- )" || { echo "$MDSC_CMD: ⛔ ERROR: no id could be generated" >&2 ; set +e ; return 1 ; }
+			{
+				printf '%s\n' "---"
+				printf 'status: %s\n' "set"
+				printf 'owner: %s\n' "$applySetPart"
+				printf 'approved-by: %s\n' "$applySetBy"
+				printf 'session-id: %s\n' "$applySetSession"
+				printf 'kind: %s\n' "$applySetScope"
+				[ "$applySetScope" != "task" ] || printf 'task: %s\n' "$applySetItem"
+				printf 'escalation: %s\n' "$applySetId"
+				printf '%s\n' "---"
+				printf '\n# Permission set\n\n'
+				printf '%s' "$applySetEntries" | LC_ALL=C awk 'NF { print "- " $0 ; }'
+			} > "$applySetDir/$applySetRef.md" || { echo "$MDSC_CMD: ⛔ ERROR: can't write the set record for $applySetPart" >&2 ; set +e ; return 1 ; }
+			## The places its entries were asked by, as name:relative, beside it.
+			[ -z "$applySetPlaces" ] || printf '%s' "$applySetPlaces" > "$applySetDir/$applySetRef.places" \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the places of the set grants for $applySetPart were not recorded" >&2
+			while IFS= read -r applySetLine ; do
+				[ -n "$applySetLine" ] || continue
+				AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
+				printf '%s:%s:%s:%s:%s:%s\n' "$applySetScope" "$permEntryTool" "$( AgentsToolsPermissionEscape "$permEntryTarget" )" "$applySetBy" "$applySetTime" "$applySetRef" >> "$applySetDir/grants" \
+					|| { echo "$MDSC_CMD: ⛔ ERROR: can't write the set grants for $applySetPart" >&2 ; set +e ; return 1 ; }
+				applySetCount=$(( applySetCount + 1 ))
+			done <<< "$applySetEntries"
+		done
+	fi
+	## The entries, as the item's planned allows (a task set) and on its Decisions.
+	while IFS= read -r applySetLine ; do
+		[ -n "$applySetLine" ] || continue
+		AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
+		applySetAllows="${applySetAllows:+$applySetAllows,}task:$permEntryTool:$( AgentsToolsPermissionEscape "$permEntryTarget" ):$applySetBy:$applySetTime"
+		applySetText="${applySetText:+$applySetText, }$applySetLine"
+	done <<< "$applySetEntries"
+	local applySetPath applySetState applySetOld
+	if [ "$applySetScope" = "task" ] && applySetPath="$( AgentsToolsDecisionsItemPath "$applySetItem" )" ; then
+		applySetState="${applySetPath%/*}" ; applySetState="${applySetState##*/}"
+		applySetOld="$( AgentsToolsDecisionsField "$applySetPath" allows )" || applySetOld=""
+		printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$applySetState" "${applySetPath##*/}" --from-state:"$applySetState" \
+			--edit-script-from-stdin:awk "--header:upsert:allows:${applySetOld:+$applySetOld,}$applySetAllows" \
+			--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 \
+			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not written as $applySetItem's allows, so a later dispatch tracking it does not carry it" >&2
+	fi
+	DistroAgentsTools --intern-op-decisions-append "$applySetBy" "$applySetItem" --kind verdict \
+		--text "permission set approved for the $applySetScope ($applySetParts): $applySetText" --source "$applySetId" \
+		--context "$MDSC_CMD" > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not recorded on $applySetItem's Decisions" >&2
+	printf 'GRANT: set %s entries for %s\n' "$applySetCount" "${applySetParts:-nobody}"
+	return 0
 }
 
 case "$1" in
@@ -792,36 +910,6 @@ case "$1" in
 		return 0
 	;;
 
-	## Who holds one permission among a session's and a task's participants, one
-	## `HOLDER: <member> <layer>` line each, `HOLDER: human-owner human-owner` always last.
-	--intern-op-permission-holders)
-		shift
-		MDSC_CMD="$MDSC_CMD --intern-op-permission-holders"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local holdersTool="${1:-}" holdersTarget="${2:-}" holdersSession="" holdersTask="" holdersExclude="" holdersLine
-		shift 2 2>/dev/null || shift $#
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--session-id) holdersSession="${2:-}" ; shift 2 ;;
-				--task) holdersTask="${2:-}" ; shift 2 ;;
-				--exclude) holdersExclude="$holdersExclude ${2:-}" ; shift 2 ;;
-				*)
-					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -z "$holdersTool" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <tool> <target> [--session-id <id>] [--task <item>] [--exclude <member>]..." >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAssertBareName "$holdersTool" "<tool>" permission-holders || { set +e ; return 1 ; }
-		while IFS= read -r holdersLine ; do
-			[ -z "$holdersLine" ] || printf 'HOLDER: %s\n' "$holdersLine"
-		done <<< "$( AgentsToolsPermissionHolders "$holdersTool" "$holdersTarget" "$holdersSession" "$holdersTask" "$holdersExclude" )"
-		return 0
-	;;
-
 	## Passing a held permission on. The member's own judgement whether to; tooling
 	## enforces only the limits: no more than the passer holds, no longer than its own
 	## grant lives, and only to a participant of the session or task, or a member it
@@ -1111,93 +1199,6 @@ case "$1" in
 		return 0
 	;;
 
-	## An approved permission set, applied: a grant of the set's scope for every
-	## participant and every extra entry, signed by the approver; for a task, also the
-	## item's `allows:`, so a later dispatch tracking it carries the set; and the set on
-	## the item's Decisions. Called by the escalation verdict path only.
-	--intern-op-permission-set-apply)
-		shift
-		MDSC_CMD="$MDSC_CMD --intern-op-permission-set-apply"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
-		local applySetId="${1:-}" applySetBy="${2:-}" applySetFile applySetLine applySetScope="" applySetItem="" applySetSession="" applySetParts="" applySetEntries="" applySetPlaces=""
-		if [ -z "$applySetId" ] || [ -z "$applySetBy" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-id> <approver>" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAssertBareName "$applySetId" "<pending-id>" permission-set-apply || { set +e ; return 1 ; }
-		AgentsToolsAssertBareName "$applySetBy" "<approver>" permission-set-apply || { set +e ; return 1 ; }
-		applySetFile="$MMDAPP/.local/agents/pending/$applySetId.set"
-		[ -f "$applySetFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no permission set is recorded for $applySetId" >&2 ; set +e ; return 1 ; }
-		while IFS= read -r applySetLine ; do
-			case "$applySetLine" in
-				'scope: '*) applySetScope="${applySetLine#scope: }" ;;
-				'item: '*) applySetItem="${applySetLine#item: }" ;;
-				'session-id: '*) applySetSession="${applySetLine#session-id: }" ;;
-				'participants: '*) applySetParts="${applySetLine#participants: }" ;;
-				'entry: '*) applySetEntries="${applySetEntries}${applySetLine#entry: }"$'\n' ;;
-				'place: '*) applySetPlaces="${applySetPlaces}${applySetLine#place: }"$'\n' ;;
-			esac
-		done < "$applySetFile"
-		[ -n "$applySetEntries" ] || { echo "$MDSC_CMD: ⛔ ERROR: the permission set $applySetId names no entry" >&2 ; set +e ; return 1 ; }
-		local applySetTime applySetPart applySetRef applySetDir applySetCount=0 applySetAllows="" applySetText="" permEntryTool permEntryTarget
-		applySetTime="$( date -u +%Y%m%dT%H%MZ )"
-		## Grants for the participants, in the session's store.
-		if [ -n "$applySetSession" ] && AgentsToolsAssertBareName "$applySetSession" "session-id" permission-set-apply 2>/dev/null ; then
-			applySetDir="$MMDAPP/.local/agents/sessions/$( AgentsToolsPermissionShareStore "$applySetSession" )"
-			mkdir -p "$applySetDir" 2>/dev/null || { echo "$MDSC_CMD: ⛔ ERROR: can't create the session store for $applySetSession" >&2 ; set +e ; return 1 ; }
-			for applySetPart in $applySetParts ; do
-				AgentsToolsAssertBareName "$applySetPart" "participant" permission-set-apply 2>/dev/null || continue
-				applySetRef="$( AgentsToolsPermissionNewRef set- )" || { echo "$MDSC_CMD: ⛔ ERROR: no id could be generated" >&2 ; set +e ; return 1 ; }
-				{
-					printf '%s\n' "---"
-					printf 'status: %s\n' "set"
-					printf 'owner: %s\n' "$applySetPart"
-					printf 'approved-by: %s\n' "$applySetBy"
-					printf 'session-id: %s\n' "$applySetSession"
-					printf 'kind: %s\n' "$applySetScope"
-					[ "$applySetScope" != "task" ] || printf 'task: %s\n' "$applySetItem"
-					printf 'escalation: %s\n' "$applySetId"
-					printf '%s\n' "---"
-					printf '\n# Permission set\n\n'
-					printf '%s' "$applySetEntries" | LC_ALL=C awk 'NF { print "- " $0 ; }'
-				} > "$applySetDir/$applySetRef.md" || { echo "$MDSC_CMD: ⛔ ERROR: can't write the set record for $applySetPart" >&2 ; set +e ; return 1 ; }
-				## The places its entries were asked by, as name:relative, beside it.
-				[ -z "$applySetPlaces" ] || printf '%s' "$applySetPlaces" > "$applySetDir/$applySetRef.places" \
-					|| echo "⚠️ WARNING: $MDSC_CMD: the places of the set grants for $applySetPart were not recorded" >&2
-				while IFS= read -r applySetLine ; do
-					[ -n "$applySetLine" ] || continue
-					AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
-					printf '%s:%s:%s:%s:%s:%s\n' "$applySetScope" "$permEntryTool" "$( AgentsToolsPermissionEscape "$permEntryTarget" )" "$applySetBy" "$applySetTime" "$applySetRef" >> "$applySetDir/grants" \
-						|| { echo "$MDSC_CMD: ⛔ ERROR: can't write the set grants for $applySetPart" >&2 ; set +e ; return 1 ; }
-					applySetCount=$(( applySetCount + 1 ))
-				done <<< "$applySetEntries"
-			done
-		fi
-		## The entries, as the item's planned allows (a task set) and on its Decisions.
-		while IFS= read -r applySetLine ; do
-			[ -n "$applySetLine" ] || continue
-			AgentsToolsPermissionEntrySplit "$applySetLine" permission-set-apply 2>/dev/null || continue
-			applySetAllows="${applySetAllows:+$applySetAllows,}task:$permEntryTool:$( AgentsToolsPermissionEscape "$permEntryTarget" ):$applySetBy:$applySetTime"
-			applySetText="${applySetText:+$applySetText, }$applySetLine"
-		done <<< "$applySetEntries"
-		local applySetPath applySetState applySetOld
-		if [ "$applySetScope" = "task" ] && applySetPath="$( AgentsToolsDecisionsItemPath "$applySetItem" )" ; then
-			applySetState="${applySetPath%/*}" ; applySetState="${applySetState##*/}"
-			applySetOld="$( AgentsToolsDecisionsField "$applySetPath" allows )" || applySetOld=""
-			printf '{ print ; }\n' | DistroAgentsTools --intern-op-board-upsert-move-edit "$applySetState" "${applySetPath##*/}" --from-state:"$applySetState" \
-				--edit-script-from-stdin:awk "--header:upsert:allows:${applySetOld:+$applySetOld,}$applySetAllows" \
-				--context "$MDSC_CMD" --log-verb:updated > /dev/null 2>&1 \
-				|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not written as $applySetItem's allows, so a later dispatch tracking it does not carry it" >&2
-		fi
-		DistroAgentsTools --intern-op-decisions-append "$applySetBy" "$applySetItem" --kind verdict \
-			--text "permission set approved for the $applySetScope ($applySetParts): $applySetText" --source "$applySetId" \
-			--context "$MDSC_CMD" > /dev/null 2>&1 \
-			|| echo "⚠️ WARNING: $MDSC_CMD: the set is granted, but not recorded on $applySetItem's Decisions" >&2
-		printf 'GRANT: set %s entries for %s\n' "$applySetCount" "${applySetParts:-nobody}"
-		return 0
-	;;
-
 	## magic-coordinator.permission-escalation.routine's input scan: the stub, and the
 	## implementation only the stub uses.
 	--magic-permission-escalation-input-scan)
@@ -1395,9 +1396,16 @@ case "$1" in
 		return 0
 	;;
 
-	*)
+	## A permission operation this file does not implement -- the retired
+	## --intern-op-permission-holders and -set-apply among them -- is reported, never swallowed.
+	--intern-op-permission-*|--member-permission-*|--magic-permission-*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid operation: $1" >&2
 		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helpers. Nothing to dispatch.
+	*)
+		:
 	;;
 
 esac

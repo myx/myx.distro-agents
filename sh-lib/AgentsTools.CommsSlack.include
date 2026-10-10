@@ -3,10 +3,11 @@
 
 ##
 ## AgentsTools.CommsSlack.include -- THE ONE PLACE. Every piece of non-member
-## Slack code in this tool family lives in this file: the shared helpers, and
-## the three operations that reach api.slack.com on the team's behalf rather
-## than on one member's behalf. OUT -- the member stubs, which are a member's
-## own surface, keep their own arms in the dispatcher, and source THIS file.
+## Slack code in this tool family lives in this file: the shared helpers, the
+## in-context helper AgentsToolsSlackCheck (one conversation or thread read, no operation
+## of its own -- MAGIC.md, section 1), and the two operations that reach api.slack.com on
+## the team's behalf rather than on one member's behalf. OUT -- the member stubs, which
+## are a member's own surface, keep their own arms in the dispatcher, and source THIS file.
 ##
 ## DUAL USE -- dispatch, and definitions-only sourcing. `case "$1"` ends in a
 ## branch that does nothing at all when $1 is not one of the Slack operations
@@ -466,6 +467,312 @@ AgentsToolsSlackFenceSafeValue(){ ## value
 	fenceValue="${fenceValue//$'\n'/%0A}"
 	fenceValue="${fenceValue//$'\r'/%0D}"
 	printf '%s' "${fenceValue//\`/%60}"
+}
+
+## One conversation, DM or thread read as the acting member: the in-context helper behind
+## the member reads and the session scans. Pretty text, or with --raw the response bodies.
+## rc 0 read; 1 failed early; a human-owner fan-out: 3 one of its two DMs read, 4 neither.
+AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--page-until <epoch>] [--identity-bot] [--raw] | --print-required-scopes
+	local MDSC_CMD='DistroAgentsTools'
+	if [ "$1" = "--print-required-scopes" ] ; then
+		printf '%s\n' channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write
+		return 0
+	fi
+	local memberName="$1"
+	shift || true
+	if [ -z "$memberName" ] ; then
+		echo "$MDSC_CMD: slack-check: ⛔ ERROR: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$memberName" "<team-member>" slack-check || { set +e ; return 1 ; }
+	case "$memberName" in
+		routine-*)
+			## Same routine-* carve-out as the sibling arms.
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				set +e ; return 1
+			fi
+		;;
+	esac
+
+	local target="$1"
+	shift || true
+
+	if [ -z "$target" ] ; then
+		echo "$MDSC_CMD: slack-check: ⛔ ERROR: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
+		set +e ; return 1
+	fi
+
+	local oldest pretty="true" identityAsBot="false" pageUntil=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--oldest)
+				oldest="$2" ; shift 2
+			;;
+			## NOT --oldest. --oldest is sent to Slack and drops messages;
+			## this bounds only how far BACK the paging walks, and the page
+			## that straddles it is still returned whole. It exists so a
+			## resumable sweep does not re-page an entire channel history
+			## every pass while still being allowed to see thread parents
+			## older than its own cut-off. IGNORED for a thread target: a
+			## thread is read in one call (the header above says why), so
+			## a paging bound has no meaning against it.
+			--page-until)
+				if [ -z "${2:-}" ] ; then
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: --page-until: value required (<epoch>[.<micros>])" >&2
+					set +e ; return 1
+				fi
+				pageUntil="$2" ; shift 2
+			;;
+			--raw)
+				pretty="false" ; shift
+			;;
+			--identity-bot)
+				identityAsBot="true" ; shift
+			;;
+			*)
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+
+	local resolved rc channel threadTs
+	resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+	case "$rc" in
+		0)
+			## Read in the shell, not by a sed per field: one per call adds up
+			## over a sweep of hundreds of conversations.
+			local resolvedLine
+			channel="" threadTs=""
+			while IFS= read -r resolvedLine ; do
+				case "$resolvedLine" in
+					CHANNEL=*)	channel="${channel:+$channel$'\n'}${resolvedLine#CHANNEL=}" ;;
+					THREAD_TS=*)	threadTs="${threadTs:+$threadTs$'\n'}${resolvedLine#THREAD_TS=}" ;;
+				esac
+			done <<< "$resolved"
+		;;
+		2)
+			echo "$MDSC_CMD: slack-check: ⛔ ERROR: unrecognized target: $target" >&2
+			set +e ; return 1
+		;;
+		*)
+			local targetKey=""
+			case "${target%%:*}" in
+				event-track)	targetKey="SLACK_CHANNEL_EVENT_TRACK" ;;
+				event-alert)	targetKey="SLACK_CHANNEL_EVENT_ALERT" ;;
+				magic-team)	targetKey="SLACK_CHANNEL_MAGIC_TEAM" ;;
+				human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
+			esac
+			if [ -n "$targetKey" ] ; then
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
+			else
+				echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
+			fi
+			set +e ; return 1
+		;;
+	esac
+
+	local fanOutParty=""
+	case "$target" in
+		human-owner)
+			case "$channel" in
+				U*|W*) fanOutParty="$channel" ;;
+			esac
+		;;
+	esac
+
+	if [ -n "$fanOutParty" ] ; then
+		echo "## target=$target channel=$fanOutParty (party id -- reads BOTH human-owner DMs, one per identity)"
+
+		local tabChar=$'\t'
+		local legIdentity legIndex=0
+		local legOkCount=0
+		local legProvenance="" legFailReport="" legMerged="" legRaw=""
+		local pagedPages=()
+		for legIdentity in user bot ; do
+			legIndex=$(( legIndex + 1 ))
+			local legDm="" legReason="" legInfo="" legRc=0
+			local legDmRc=0
+
+			while true ; do
+				legRc=0
+				legInfo="$( DistroAgentsTools --intern-op-slack-call "$memberName" \
+					--api conversations.info \
+					--resolve-dm "$fanOutParty" \
+					--identity "$legIdentity" \
+					--context "slack-check human-owner ($legIdentity identity, DM discovery)" )" || legRc=$?
+				if [ "$legRc" != "0" ] ; then
+					legReason="the call failed (rc=$legRc); whatever diagnostic it wrote is on stderr above"
+					break
+				fi
+				legDmRc=0
+				legDm="$( LC_ALL=C awk -v path=channel.id \
+					-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" \
+					<<< "$legInfo" )" || legDmRc=$?
+				if [ "$legDmRc" = "3" ] ; then
+					legReason="the DM-discovery call succeeded but reported no DM for party $fanOutParty under the $legIdentity identity -- its own conversations.info body carries no channel.id (field reader rc 3: that path is absent from this payload, which is not the same as a present-but-empty value)"
+					break
+				fi
+				if [ "$legDmRc" != "0" ] ; then
+					legReason="the DM-discovery call succeeded but its own conversations.info body could not be read for party $fanOutParty under the $legIdentity identity (field reader rc=$legDmRc -- 1: the body was not a parseable Slack API response, 2: the reader was called without a key path). This is a FAILED READ, not an absent DM: nothing here says whether that DM exists"
+					break
+				fi
+				if [ -z "$legDm" ] ; then
+					legReason="the DM-discovery call reported channel.id as PRESENT but empty for party $fanOutParty under the $legIdentity identity -- refusing to carry an empty channel id into the conversation read"
+					break
+				fi
+
+				echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest} (paged to the end of the DM, not one page)" >&2
+				legRc=0
+				## Same paging as the single-conversation path below: this leg
+				## used to make one call and drop the cursor, so a human-owner
+				## DM longer than one page was read as if it ended there.
+				## `--expect-counterparty` goes INTO the paged read, which
+				## attaches it to page 1 only -- the control is its own
+				## conversations.info call, so asserting it there costs exactly
+				## what the unpaged read already cost, and nothing per page.
+				AgentsToolsSlackReadPagedConversation "$memberName" conversations.history "$legDm" \
+					"$legIdentity" "" "$oldest" \
+					"slack-check human-owner ($legIdentity identity, DM $legDm)" \
+					"$pageUntil" "$fanOutParty" || legRc=$?
+				if [ "$legRc" != "0" ] ; then
+					legReason="the call failed (rc=$legRc); whatever diagnostic it wrote is on stderr above"
+					break
+				fi
+
+				if [ "$pretty" = "true" ] ; then
+					local legFmt="" legFmtRc=0
+					legFmt="$( AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" )" || legFmtRc=$?
+					if [ "$legFmtRc" != "0" ] ; then
+						legReason="the response was read but could not be formatted (the formatter's own error is above)"
+						break
+					fi
+					local legTagged="" legTagRc=0
+					legTagged="$( LC_ALL=C awk -v dmId="$legDm" -v legIndex="$legIndex" '
+						{
+							if ( $0 ~ /^[0-9][0-9]*\.[0-9][0-9]* \| / ) {
+								recTs = $0;
+								sub(/ .*/, "", recTs);
+								recKind = "H";
+							} else {
+								recKind = "C";
+							}
+							print recTs "\t" legIndex "\t" NR "\t" dmId "\t" recKind "\t" $0;
+						}
+					' <<< "$legFmt" )" || legTagRc=$?
+					if [ "$legTagRc" != "0" ] ; then
+						legReason="the response was read and formatted but could not be tagged with its own DM for the merge"
+						break
+					fi
+					[ -z "$legTagged" ] || legMerged="$legMerged$legTagged"$'\n'
+				else
+					## One marker per PAGE, each carrying this leg's own
+					## identity exactly as before -- the consumers scope their
+					## per-message arrays to the document a marker opens, so a
+					## second page's message index 0 cannot overwrite a first
+					## page's without one.
+					local legPageIndex=1 legPage
+					for legPage in "${pagedPages[@]}" ; do
+						legRaw="$legRaw## dm=$legDm identity=$legIdentity (this DM's own raw API response, page $legPageIndex, follows)"$'\n'"$legPage"$'\n'
+						legPageIndex=$(( legPageIndex + 1 ))
+					done
+				fi
+				break
+			done
+
+			if [ -n "$legReason" ] ; then
+				legProvenance="$legProvenance## dm=${legDm:-<not resolved>} identity=$legIdentity status=FAILED reason=$legReason"$'\n'
+				legFailReport="$legFailReport the $legIdentity identity's DM (${legDm:-not resolved}) with party $fanOutParty -- $legReason ;"
+				continue
+			fi
+			legOkCount=$(( legOkCount + 1 ))
+			legProvenance="$legProvenance## dm=$legDm identity=$legIdentity status=ok"$'\n'
+		done
+
+		## Provenance header first, always both legs, then the payload.
+		printf '%s' "$legProvenance"
+
+		if [ "$pretty" = "true" ] ; then
+			if [ -n "$legMerged" ] ; then
+				## Each stage is tested on its own and decides the verdict: a failed sort or render is never reported as DMs read.
+				local legSorted=""
+				legSorted="$( LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${legMerged%$'\n'}" )" || {
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read could not be sorted into one chronological conversation (sort rc=$?). Nothing was printed as the conversation, and nothing is concluded from this call." >&2
+					set +e ; return 1
+				}
+				LC_ALL=C awk -F "$tabChar" '
+						{
+							body = $6;
+							for ( i = 7 ; i <= NF ; i++ ) { body = body "\t" $i; }
+							if ( $5 == "H" ) { print $4 " | " body; }
+							else { print body; }
+						}
+					' <<< "$legSorted" || {
+					echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read were sorted but could not be rendered, so what is above is not the answer. Nothing is concluded from this call." >&2
+					set +e ; return 1
+				}
+			fi
+		else
+			[ -z "$legRaw" ] || printf '%s' "$legRaw"
+		fi
+
+		if [ "$legOkCount" = "2" ] ; then
+			echo "# $MDSC_CMD: slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
+			return 0
+		fi
+		if [ "$legOkCount" = "1" ] ; then
+			echo "$MDSC_CMD: slack-check: ⛔ ERROR: PARTIAL -- only ONE of the human-owner's two DMs was read. Failed:$legFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the failed DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM read) and from rc=1 (this operation failed before any fan-out)." >&2
+			set +e ; return 3
+		fi
+		echo "$MDSC_CMD: slack-check: ⛔ ERROR: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
+		set +e ; return 4
+	fi
+
+	echo "## target=$target channel=$channel"
+
+	local apiMethod
+	if [ -n "$threadTs" ] ; then
+		apiMethod="conversations.replies"
+	else
+		apiMethod="conversations.history"
+	fi
+
+	echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest} (read whole, not one page)" >&2
+
+	local checkIdentity="user"
+	if [ "$identityAsBot" = "true" ] ; then
+		checkIdentity="bot"
+	fi
+
+	local pagedPages=() pagedCallRc=0
+	AgentsToolsSlackReadPagedConversation "$memberName" "$apiMethod" "$channel" "$checkIdentity" \
+		"$threadTs" "$oldest" "slack-check" "$pageUntil" "" || pagedCallRc=$?
+	if [ "$pagedCallRc" != "0" ] ; then
+		set +e ; return 1
+	fi
+
+	local awkStatus=0 pageIndex=1 pageBody
+	if [ "$pretty" = "true" ] ; then
+		## Marker lines are deliberately not written on this path: they are
+		## not JSON, and this formatter parses every line it is given as a body.
+		AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" || awkStatus=$?
+	else
+		for pageBody in "${pagedPages[@]}" ; do
+			## No `identity=` on this marker, deliberately -- see
+			## AgentsToolsSlackReadPagedConversation's own note.
+			printf '## dm=%s (page %s of this conversation'"'"'s own raw read follows)\n' "$channel" "$pageIndex"
+			printf '%s\n' "$pageBody"
+			pageIndex=$(( pageIndex + 1 ))
+		done
+	fi
+
+	if [ "$awkStatus" != "0" ] ; then
+		set +e ; return 1
+	fi
+	return 0
 }
 
 ## ===========================================================================
@@ -1017,309 +1324,6 @@ case "$1" in
 		return 0
 	;;
 
-	--intern-op-slack-check)
-		shift
-		if [ "$1" = "--print-required-scopes" ] ; then
-			printf '%s\n' channels:read channels:history groups:read groups:history im:read im:history mpim:read mpim:history im:write
-			return 0
-		fi
-		local memberName="$1"
-		shift || true
-		if [ -z "$memberName" ] ; then
-			echo "$MDSC_CMD: slack-check: ⛔ ERROR: syntax is <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>> [--oldest <ts>] [--identity-bot] [--raw] -- the acting member is required, since a direct conversation belongs to one identity and the member decides which conversation is read" >&2
-			set +e ; return 1
-		fi
-		AgentsToolsAssertBareName "$memberName" "<team-member>" slack-check || { set +e ; return 1 ; }
-		case "$memberName" in
-			routine-*)
-				## Same routine-* carve-out as the sibling arms.
-			;;
-			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-					echo "$MDSC_CMD: slack-check: ⛔ ERROR: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-					set +e ; return 1
-				fi
-			;;
-		esac
-
-		local target="$1"
-		shift || true
-
-		if [ -z "$target" ] ; then
-			echo "$MDSC_CMD: slack-check: ⛔ ERROR: target required (magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>)" >&2
-			set +e ; return 1
-		fi
-
-		local oldest pretty="true" identityAsBot="false" pageUntil=""
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--oldest)
-					oldest="$2" ; shift 2
-				;;
-				## NOT --oldest. --oldest is sent to Slack and drops messages;
-				## this bounds only how far BACK the paging walks, and the page
-				## that straddles it is still returned whole. It exists so a
-				## resumable sweep does not re-page an entire channel history
-				## every pass while still being allowed to see thread parents
-				## older than its own cut-off. IGNORED for a thread target: a
-				## thread is read in one call (the header above says why), so
-				## a paging bound has no meaning against it.
-				--page-until)
-					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: slack-check: ⛔ ERROR: --page-until: value required (<epoch>[.<micros>])" >&2
-						set +e ; return 1
-					fi
-					pageUntil="$2" ; shift 2
-				;;
-				--raw)
-					pretty="false" ; shift
-				;;
-				--identity-bot)
-					identityAsBot="true" ; shift
-				;;
-				*)
-					echo "$MDSC_CMD: slack-check: ⛔ ERROR: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-
-		local resolved rc channel threadTs
-		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
-		case "$rc" in
-			0)
-				## Read in the shell, not by a sed per field: one per call adds up
-				## over a sweep of hundreds of conversations.
-				local resolvedLine
-				channel="" threadTs=""
-				while IFS= read -r resolvedLine ; do
-					case "$resolvedLine" in
-						CHANNEL=*)	channel="${channel:+$channel$'\n'}${resolvedLine#CHANNEL=}" ;;
-						THREAD_TS=*)	threadTs="${threadTs:+$threadTs$'\n'}${resolvedLine#THREAD_TS=}" ;;
-					esac
-				done <<< "$resolved"
-			;;
-			2)
-				echo "$MDSC_CMD: slack-check: ⛔ ERROR: unrecognized target: $target" >&2
-				set +e ; return 1
-			;;
-			*)
-				local targetKey=""
-				case "${target%%:*}" in
-					event-track)	targetKey="SLACK_CHANNEL_EVENT_TRACK" ;;
-					event-alert)	targetKey="SLACK_CHANNEL_EVENT_ALERT" ;;
-					magic-team)	targetKey="SLACK_CHANNEL_MAGIC_TEAM" ;;
-					human-owner)	targetKey="SLACK_CHANNEL_HUMAN_OWNER" ;;
-				esac
-				if [ -n "$targetKey" ] ; then
-					echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- check $targetKey in .local/.agents" >&2
-				else
-					echo "$MDSC_CMD: slack-check: ⛔ ERROR: could not resolve a channel for target '$target' -- it names a conversation directly, so no config key backs it; its channel part is empty" >&2
-				fi
-				set +e ; return 1
-			;;
-		esac
-
-		local fanOutParty=""
-		case "$target" in
-			human-owner)
-				case "$channel" in
-					U*|W*) fanOutParty="$channel" ;;
-				esac
-			;;
-		esac
-
-		if [ -n "$fanOutParty" ] ; then
-			echo "## target=$target channel=$fanOutParty (party id -- reads BOTH human-owner DMs, one per identity)"
-
-			local tabChar=$'\t'
-			local legIdentity legIndex=0
-			local legOkCount=0
-			local legProvenance="" legFailReport="" legMerged="" legRaw=""
-			local pagedPages=()
-			for legIdentity in user bot ; do
-				legIndex=$(( legIndex + 1 ))
-				local legDm="" legReason="" legInfo="" legRc=0
-				local legDmRc=0
-
-				while true ; do
-					legRc=0
-					legInfo="$( DistroAgentsTools --intern-op-slack-call "$memberName" \
-						--api conversations.info \
-						--resolve-dm "$fanOutParty" \
-						--identity "$legIdentity" \
-						--context "--intern-op-slack-check human-owner ($legIdentity identity, DM discovery)" )" || legRc=$?
-					if [ "$legRc" != "0" ] ; then
-						legReason="the call failed (rc=$legRc); whatever diagnostic it wrote is on stderr above"
-						break
-					fi
-					legDmRc=0
-					legDm="$( LC_ALL=C awk -v path=channel.id \
-						-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" \
-						<<< "$legInfo" )" || legDmRc=$?
-					if [ "$legDmRc" = "3" ] ; then
-						legReason="the DM-discovery call succeeded but reported no DM for party $fanOutParty under the $legIdentity identity -- its own conversations.info body carries no channel.id (field reader rc 3: that path is absent from this payload, which is not the same as a present-but-empty value)"
-						break
-					fi
-					if [ "$legDmRc" != "0" ] ; then
-						legReason="the DM-discovery call succeeded but its own conversations.info body could not be read for party $fanOutParty under the $legIdentity identity (field reader rc=$legDmRc -- 1: the body was not a parseable Slack API response, 2: the reader was called without a key path). This is a FAILED READ, not an absent DM: nothing here says whether that DM exists"
-						break
-					fi
-					if [ -z "$legDm" ] ; then
-						legReason="the DM-discovery call reported channel.id as PRESENT but empty for party $fanOutParty under the $legIdentity identity -- refusing to carry an empty channel id into the conversation read"
-						break
-					fi
-
-					echo "# $MDSC_CMD: slack-check: GET conversations.history channel=$legDm (human-owner DM under $legIdentity identity, counterparty asserted against $fanOutParty)${oldest:+ oldest=$oldest} (paged to the end of the DM, not one page)" >&2
-					legRc=0
-					## Same paging as the single-conversation path below: this leg
-					## used to make one call and drop the cursor, so a human-owner
-					## DM longer than one page was read as if it ended there.
-					## `--expect-counterparty` goes INTO the paged read, which
-					## attaches it to page 1 only -- the control is its own
-					## conversations.info call, so asserting it there costs exactly
-					## what the unpaged read already cost, and nothing per page.
-					AgentsToolsSlackReadPagedConversation "$memberName" conversations.history "$legDm" \
-						"$legIdentity" "" "$oldest" \
-						"--intern-op-slack-check human-owner ($legIdentity identity, DM $legDm)" \
-						"$pageUntil" "$fanOutParty" || legRc=$?
-					if [ "$legRc" != "0" ] ; then
-						legReason="the call failed (rc=$legRc); whatever diagnostic it wrote is on stderr above"
-						break
-					fi
-
-					if [ "$pretty" = "true" ] ; then
-						local legFmt="" legFmtRc=0
-						legFmt="$( AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" )" || legFmtRc=$?
-						if [ "$legFmtRc" != "0" ] ; then
-							legReason="the response was read but could not be formatted (the formatter's own error is above)"
-							break
-						fi
-						local legTagged="" legTagRc=0
-						legTagged="$( LC_ALL=C awk -v dmId="$legDm" -v legIndex="$legIndex" '
-							{
-								if ( $0 ~ /^[0-9][0-9]*\.[0-9][0-9]* \| / ) {
-									recTs = $0;
-									sub(/ .*/, "", recTs);
-									recKind = "H";
-								} else {
-									recKind = "C";
-								}
-								print recTs "\t" legIndex "\t" NR "\t" dmId "\t" recKind "\t" $0;
-							}
-						' <<< "$legFmt" )" || legTagRc=$?
-						if [ "$legTagRc" != "0" ] ; then
-							legReason="the response was read and formatted but could not be tagged with its own DM for the merge"
-							break
-						fi
-						[ -z "$legTagged" ] || legMerged="$legMerged$legTagged"$'\n'
-					else
-						## One marker per PAGE, each carrying this leg's own
-						## identity exactly as before -- the consumers scope their
-						## per-message arrays to the document a marker opens, so a
-						## second page's message index 0 cannot overwrite a first
-						## page's without one.
-						local legPageIndex=1 legPage
-						for legPage in "${pagedPages[@]}" ; do
-							legRaw="$legRaw## dm=$legDm identity=$legIdentity (this DM's own raw API response, page $legPageIndex, follows)"$'\n'"$legPage"$'\n'
-							legPageIndex=$(( legPageIndex + 1 ))
-						done
-					fi
-					break
-				done
-
-				if [ -n "$legReason" ] ; then
-					legProvenance="$legProvenance## dm=${legDm:-<not resolved>} identity=$legIdentity status=FAILED reason=$legReason"$'\n'
-					legFailReport="$legFailReport the $legIdentity identity's DM (${legDm:-not resolved}) with party $fanOutParty -- $legReason ;"
-					continue
-				fi
-				legOkCount=$(( legOkCount + 1 ))
-				legProvenance="$legProvenance## dm=$legDm identity=$legIdentity status=ok"$'\n'
-			done
-
-			## Provenance header first, always both legs, then the payload.
-			printf '%s' "$legProvenance"
-
-			if [ "$pretty" = "true" ] ; then
-				if [ -n "$legMerged" ] ; then
-					## Each stage is tested on its own and decides the verdict: a failed sort or render is never reported as DMs read.
-					local legSorted=""
-					legSorted="$( LC_ALL=C sort -t "$tabChar" -k1,1 -k2,2n -k3,3n <<< "${legMerged%$'\n'}" )" || {
-						echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read could not be sorted into one chronological conversation (sort rc=$?). Nothing was printed as the conversation, and nothing is concluded from this call." >&2
-						set +e ; return 1
-					}
-					LC_ALL=C awk -F "$tabChar" '
-							{
-								body = $6;
-								for ( i = 7 ; i <= NF ; i++ ) { body = body "\t" $i; }
-								if ( $5 == "H" ) { print $4 " | " body; }
-								else { print body; }
-							}
-						' <<< "$legSorted" || {
-						echo "$MDSC_CMD: slack-check: ⛔ ERROR: the DM lines read were sorted but could not be rendered, so what is above is not the answer. Nothing is concluded from this call." >&2
-						set +e ; return 1
-					}
-				fi
-			else
-				[ -z "$legRaw" ] || printf '%s' "$legRaw"
-			fi
-
-			if [ "$legOkCount" = "2" ] ; then
-				echo "# $MDSC_CMD: slack-check: BOTH human-owner DMs read (one per identity, each asserted individually against party $fanOutParty). The lines above are the two conversations merged chronologically, each carrying its own DM id." >&2
-				return 0
-			fi
-			if [ "$legOkCount" = "1" ] ; then
-				echo "$MDSC_CMD: slack-check: ⛔ ERROR: PARTIAL -- only ONE of the human-owner's two DMs was read. Failed:$legFailReport The output above is therefore HALF the conversation: a message the human-owner sent in the failed DM is absent from it, and nothing here supports concluding that no such message exists. Fix the named leg and read again before treating this as an answer. rc=3 means exactly this partial state, distinct from rc=4 (neither DM read) and from rc=1 (this operation failed before any fan-out)." >&2
-				set +e ; return 3
-			fi
-			echo "$MDSC_CMD: slack-check: ⛔ ERROR: NEITHER of the human-owner's two DMs was read. Failed:$legFailReport Nothing was read at all, so nothing whatsoever is known from this call about what the human-owner has or has not written. rc=4 means exactly this, distinct from rc=3 (one DM read, one failed)." >&2
-			set +e ; return 4
-		fi
-
-		echo "## target=$target channel=$channel"
-
-		local apiMethod
-		if [ -n "$threadTs" ] ; then
-			apiMethod="conversations.replies"
-		else
-			apiMethod="conversations.history"
-		fi
-
-		echo "# $MDSC_CMD: slack-check: GET $apiMethod channel=$channel${threadTs:+ ts=$threadTs}${oldest:+ oldest=$oldest} (read whole, not one page)" >&2
-
-		local checkIdentity="user"
-		if [ "$identityAsBot" = "true" ] ; then
-			checkIdentity="bot"
-		fi
-
-		local pagedPages=() pagedCallRc=0
-		AgentsToolsSlackReadPagedConversation "$memberName" "$apiMethod" "$channel" "$checkIdentity" \
-			"$threadTs" "$oldest" "--intern-op-slack-check" "$pageUntil" "" || pagedCallRc=$?
-		if [ "$pagedCallRc" != "0" ] ; then
-			set +e ; return 1
-		fi
-
-		local awkStatus=0 pageIndex=1 pageBody
-		if [ "$pretty" = "true" ] ; then
-			## Marker lines are deliberately not written on this path: they are
-			## not JSON, and this formatter parses every line it is given as a body.
-			AgentsToolsSlackFormatPagedConversation "${pagedPages[@]}" || awkStatus=$?
-		else
-			for pageBody in "${pagedPages[@]}" ; do
-				## No `identity=` on this marker, deliberately -- see
-				## AgentsToolsSlackReadPagedConversation's own note.
-				printf '## dm=%s (page %s of this conversation'"'"'s own raw read follows)\n' "$channel" "$pageIndex"
-				printf '%s\n' "$pageBody"
-				pageIndex=$(( pageIndex + 1 ))
-			done
-		fi
-
-		if [ "$awkStatus" != "0" ] ; then
-			set +e ; return 1
-		fi
-		return 0
-	;;
-
 	--intern-op-slack-check-scopes)
 		shift
 		local opContext="<no --context given>"
@@ -1371,7 +1375,11 @@ case "$1" in
 		local srcOp srcScopes
 		local srcNames=() srcLists=()
 		for srcOp in "${scopeSources[@]}" ; do
-			srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes=""
+			## A source is an operation, or an in-context helper (AgentsTools*) that answers the same flag.
+			case "$srcOp" in
+				AgentsTools*) srcScopes="$( "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
+				*) srcScopes="$( DistroAgentsTools "$srcOp" --print-required-scopes 2>/dev/null )" || srcScopes="" ;;
+			esac
 			if [ -z "$srcScopes" ] ; then
 				echo "$MDSC_CMD: slack-check-scopes: ⛔ ERROR: declared --scope-source '$srcOp' returned no scope declaration -- it does not implement --print-required-scopes, so its requirements cannot be verified. A declared check with nothing implementing it must never pass silently." >&2
 				set +e ; return 1
@@ -1508,7 +1516,8 @@ case "$1" in
 		return 0
 	;;
 
-	## A Slack operation name this file does not implement. Reported, never swallowed.
+	## A Slack operation name this file does not implement -- the retired --intern-op-slack-check
+	## among them. Reported, never swallowed.
 	--intern-op-slack-*|--intern-op-check-slack-*)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1

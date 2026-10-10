@@ -203,10 +203,21 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			NF == 13 && $2 == wantSession { sawRow = 1 ; if ( $13 == "running" || $13 == "waiting" ) { sawLive = 1 ; } }
 			END { if ( sawLive ) { print "live" ; } else if ( sawRow ) { print "ended" ; } }
 		' )"
-		case "$sessionKind" in
-			live) continue ;;
-			ended) ;;
-			*) [ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue ;;
+		case "$sessionKind:$reviewId" in
+			live:*) continue ;;
+			ended:*) ;;
+			## No row, and a store of its own (a root session among them): ended only when that store
+			## says so (AgentsToolsGrantsSessionEnded, its record, else the marker its SessionEnd hook
+			## writes), never by age. An id with no store at all, by age as before.
+			*/*|:.|:..|:) [ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue ;;
+			*)
+				if [ -d "$MMDAPP/.local/agents/sessions/$reviewId" ] ; then
+					type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+					AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$reviewId" || continue
+				else
+					[ -z "$( find "$itemPath" -mmin -"$(( staleHours * 60 ))" 2> /dev/null | head -1 )" ] || continue
+				fi
+			;;
 		esac
 		if DistroAgentsTools --intern-op-board-upsert-move-edit review "$itemName" --from-state:review \
 			--header:upsert:review-by:magic-coordinator --context --magic-advance-input-scan > /dev/null 2>&1 ; then
@@ -219,6 +230,8 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 }
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
+
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
 
 case "$1" in
 
@@ -402,7 +415,7 @@ case "$1" in
 		done
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--header:upsert:state:advance-running \
 			"${passthrough[@]}" \
@@ -571,7 +584,7 @@ case "$1" in
 
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		if ! DistroAgentsTools --intern-op-item-read "$callingMember" \
+		if ! AgentsToolsItemRead "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--commit-message "* advance.routine: activate, lock" \
@@ -615,7 +628,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 10 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--update-lock \
 			--header:upsert:state:advance-running \
@@ -660,7 +673,7 @@ case "$1" in
 		fi
 		## gcRc=2: nothing to delete -- not a failure, continue.
 
-		if ! DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		if ! AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			"${passthrough[@]}" \
 			--unlock-lock \
@@ -704,7 +717,7 @@ case "$1" in
 				break
 			done
 			if [ "$pushRc" -ne 0 ] ; then
-				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: push failed after unlock commits landed locally -- closing anyway (same tolerance as --intern-op-item-upsert's own closing-update warning): $pushOut" >&2
+				echo "⚠️ WARNING: $MDSC_CMD --magic-advance-close-state-and-unlock: push failed after unlock commits landed locally -- closing anyway (same tolerance as AgentsToolsItemUpsert's own closing-update warning): $pushOut" >&2
 			fi
 			local advanceSyncOut
 			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
@@ -725,7 +738,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260809T154715Z-advance-state-and-lock.md \
 			--context --magic-advance-lock-status
 		return $?

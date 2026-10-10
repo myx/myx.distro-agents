@@ -107,6 +107,16 @@ rigAssert "install: no file grant is written, Read, Edit or Write" "$( LC_ALL=C 
 rigAssert "install: the granted-call allow hook is wired, its script the package's" \
 	"$( rigVerify "" .claude/hooks/allow-granted-native-tool.sh "$rigTmp/fresh/.claude/settings.json" ) / $( cmp -s "$rigHere/client-hooks/allow-granted-native-tool.sh" "$rigTmp/fresh/.claude/hooks/allow-granted-native-tool.sh" && [ -x "$rigTmp/fresh/.claude/hooks/allow-granted-native-tool.sh" ] && printf same || printf differs )" \
 	"hooks.PreToolUse .claude/hooks/allow-granted-native-tool.sh: OK / same"
+rigFlat(){ ## settings -- the file with every space, tab and newline dropped
+	tr -d '\n\t ' < "$1"
+}
+rigAssert "install: the root-session end hook is wired under SessionEnd with its own 5 s timeout" \
+	"$( rigVerify SessionEnd ".claude/hooks/root-session-end.sh end" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F 'root-session-end.shend","timeout":5}' )" \
+	"hooks.SessionEnd .claude/hooks/root-session-end.sh end: OK / 1"
+rigAssert "install: its resume hook is wired under SessionStart, matcher resume, no timeout of its own" \
+	"$( rigVerify SessionStart ".claude/hooks/root-session-end.sh resume" "$rigTmp/fresh/.claude/settings.json" ) / $( rigFlat "$rigTmp/fresh/.claude/settings.json" | LC_ALL=C grep -c -F '"matcher":"resume","hooks":[{"type":"command","command":"\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/root-session-end.shresume"}]' )" \
+	"hooks.SessionStart .claude/hooks/root-session-end.sh resume: OK / 1"
+rigAssert "install: its script is the package's, executable" "$( cmp -s "$rigHere/client-hooks/root-session-end.sh" "$rigTmp/fresh/.claude/hooks/root-session-end.sh" && [ -x "$rigTmp/fresh/.claude/hooks/root-session-end.sh" ] && printf same || printf differs )" same
 ## The entries an earlier install wrote here, beside one of the user's own: they go, it stays.
 rigOld="$rigTmp/old-grants"
 mkdir -p "$rigOld/.claude"

@@ -40,7 +40,7 @@ case "$1" in
 					printf '%s\n' "" >&2
 					printf '%s\n' "  $MDSC_CMD --intern-root-harness [--routine <selector>] [--non-interactive] [--wait]" >&2
 					printf '%s\n' "      --routine <selector> names the routine to run meanwhile, between root-harness's own loop iterations (for example: heartbeat). Omitted: no payload routine." >&2
-					printf '%s\n' "      --non-interactive: one loop, then exit, posting to the event-track channel. Omitted: interactive, keeps looping, posts to the magic-team channel." >&2
+					printf '%s\n' "      --non-interactive: one loop, then exit, posting to the event-track channel. Omitted: interactive, keeps looping, posts to the magic-team channel, and always waits in the foreground: Ctrl+C stops the session and closes it." >&2
 					printf '%s\n' "      --wait: block for the spawned session's own completion and return its status, same contract --intern-op-agent-spawn-proxy already gives." >&2
 					set +e ; return 1
 				;;
@@ -76,6 +76,13 @@ case "$1" in
 			return 1
 		fi
 
+		## Interactive is a start from a terminal (the console, or by hand), so it always waits: the
+		## session stays the foreground job, and Ctrl+C reaches the spawn proxy, which stops it and
+		## runs its close. In the background the session died with the hangup the moment the
+		## terminal command returned, and its record was never closed.
+		if [ "$rootHarnessInteractive" = "true" ] ; then
+			rootHarnessWaitFlag="true"
+		fi
 		local rootHarnessSpawnArgs=( --magic-heartbeat-spawn-proxy magic-coordinator "--session-thread:$rootHarnessSessionThread" )
 		[ -z "$rootHarnessRoutineSelector" ] || rootHarnessSpawnArgs+=( --routine "$rootHarnessRoutineSelector" )
 		[ -z "$rootHarnessWaitFlag" ] || rootHarnessSpawnArgs+=( --wait )

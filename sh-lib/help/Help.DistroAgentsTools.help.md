@@ -2552,7 +2552,7 @@
 		--magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
 			Commits everything pending under the team-data store in one
 			commit (new/changed/deleted paths) and pushes it the way
-			--intern-op-item-upsert does, with one retry on a network
+			the team-data item write does, with one retry on a network
 			failure; every other team-data op commits only what it
 			writes, this one catches the rest. <team-member> must be
 			magic-coordinator. Nothing outside $MDAT_DATA_ROOT is
@@ -2678,7 +2678,13 @@
 			--wait-poll-interval: whole seconds between probes,
 			fixed when given (or MDAT_WAIT_POLL_SECONDS when set),
 			minimum 1. Unset, it backs off: 5s, growing 15s per 5
-			minutes waited, capped at 300s. Only affects how soon an
+			minutes, capped at 300s, counted from the newest
+			activity on the watched sources -- the call start, the
+			last message a wait returned on a Slack source, a
+			watched question's own ts or follow floor, or this
+			session's own latest post where a watched source would
+			carry its reply -- so a question asked late in a long
+			wait is watched closely again. Only affects how soon an
 			arrival is noticed. --wait-since-utime: epoch seconds;
 			give it to catch something already posted (e.g. a
 			message just sent) so it counts as an immediate
@@ -2770,7 +2776,11 @@
 			`slack:<channel>:<ts>` thread source, whose since and
 			addressee the stored wait would share. This is how an
 			asked question's `ask:<pending-id>` joins its
-			session's wait and leaves it once answered.
+			session's wait. Once answered it stays there, its
+			thread watched from the record's `follow-floor`, so a
+			later message there arrives and is kept with the
+			answer as a clarification; a question withdrawn or
+			settled leaves it.
 
 			--wait-react-seen, --wait-react-note,
 			--wait-react-done and --wait-react-wait each take
@@ -2815,7 +2825,10 @@
 			question withdrawn by its asker prints `ESCALATION: <id>
 			closed withdrawn` and takes no verdict.
 
-			Only a reply's first line gives its verdict. A plain
+			Only a reply's first line gives its verdict: its first
+			line that is no quote of the question, a ``` fenced
+			block or lines starting with ">" or "&gt;" heading the
+			reply being skipped. A plain
 			affirmation -- a first word ok, okay, yes, agree, agreed,
 			confirm or confirmed, also after a leading "I", in any
 			case, or a +1, ok_hand or white_check_mark reaction on the
@@ -2827,7 +2840,10 @@
 			clarifications: under the record's `## Clarifications`,
 			and as `clarification` lines on its item's `## Decisions`
 			(`CLARIFIED <id> <n>`). A decision closed by its asker's
-			readback also prints `CLOSED-BY: readback`.
+			readback also prints `CLOSED-BY: readback`. An answered
+			record keeps `follow-floor:`, the newest message of its
+			thread already read, from which the asking session's
+			Wait keeps watching that thread.
 
 			While a typed escalation waits, the first reply from an
 			addressee ends the wait, judged against every reply since
@@ -3153,7 +3169,7 @@
 			`SHUTDOWN: spawn <id>: ...` line per spawn and a count. The
 			other ordered endings are recorded the same way, as
 			`dismissed: <reason>`: an archive (--magic-grooming-to-archived)
-			and a trash (--intern-op-board-trash) dismiss the item's live
+			and a trash (--magic-heartbeat-board-item-trash) dismiss the item's live
 			child, and a TaskStop records `taskstop` before its signal.
 
 		--magic-review-accept <magic-coordinator> <item-filename> [--summary <text>]
@@ -3450,8 +3466,8 @@
 			<why>` follows (no record, already ended, not running on
 			this host, no thread, the sender is the child member,
 			the send failed); the move's own result is never changed.
-			Approval cascade (every op moving through
-			`--intern-op-board-upsert-move-edit`): an `approval-*`
+			Approval cascade (every board move or edit, whichever
+			operation makes it): an `approval-*`
 			arriving in board/processed/ from another state, carrying
 			both `approved-by` and `approved-at`, copies them onto each
 			item its `blocks` names (values that item already has

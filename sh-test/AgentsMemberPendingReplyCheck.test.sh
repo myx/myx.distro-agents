@@ -166,6 +166,28 @@ rigAssert "signed as the coordinator"                 "$( rigField 11111111-0000
 RIG_AGENT=magic-coordinator rigOp settle4m --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000004 --reason "a readback"
 rigAssert "a readback is refused on the magic form too" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 ):$( rigStatus 11111111-0000-0000-0000-000000000004 )" "non-zero:reply-pending"
 
+echo "-- withdraw: the asker discards its own open question, of any kind --"
+rigRecord 11111111-0000-0000-0000-000000000010 magic-tester reply-pending permission "Rig permission ten"
+rigRecord 11111111-0000-0000-0000-000000000011 magic-coordinator reply-pending decision "Rig decision eleven"
+rigPostsBefore="$( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 )"
+RIG_AGENT=magic-tester rigOp wd10 --member-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000010 --reason "the task was cancelled" --withdraw
+rigAssert "it says withdrawn"                         "$( head -1 "$rigTmp/wd10" )" "WITHDRAWN 11111111-0000-0000-0000-000000000010"
+rigAssert "closed as withdrawn, a permission too"     "$( rigStatus 11111111-0000-0000-0000-000000000010 )" withdrawn
+rigAssert "with the reason and who withdrew it"       "$( rigField 11111111-0000-0000-0000-000000000010 withdraw-reason ):$( rigField 11111111-0000-0000-0000-000000000010 withdrawn-by )" "the task was cancelled:magic-tester"
+rigAssert "and no verdict, so nothing is granted"     "$( rigField 11111111-0000-0000-0000-000000000010 verdict ):$( rigField 11111111-0000-0000-0000-000000000010 grant )" ":"
+rigAssert "a note is posted in its thread"            "$(( $( cat "$rigTmp/scenario/posts" 2>/dev/null || echo 0 ) - rigPostsBefore ))" 1
+rigAssert "and the note says it needs no answer"      "$( cat "$rigTmp/scenario/post.$( cat "$rigTmp/scenario/posts" )" 2>/dev/null | LC_ALL=C grep -c -F 'no longer needs an answer' )" 1
+rigOp list10 --member-pending-reply-read magic-tester
+rigAssert "it is no longer listed as waiting"         "$( rigHolds "$rigTmp/list10" '000000000010' )" no
+RIG_AGENT=magic-tester rigOp wd11 --member-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000011 --reason "not mine" --withdraw
+rigAssert "another member's question is refused"      "$( rigHolds "$rigTmp/wd11.err" 'cannot withdraw it' ):$( rigStatus 11111111-0000-0000-0000-000000000011 )" "yes:reply-pending"
+RIG_AGENT=magic-coordinator rigOp wd8m --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000005 --reason "for the tester" --withdraw
+rigAssert "the coordinator withdraws none but its own" "$( rigHolds "$rigTmp/wd8m.err" 'cannot withdraw it' )" yes
+RIG_AGENT=magic-coordinator rigOp wd11c --magic-pending-reply-settle magic-coordinator 11111111-0000-0000-0000-000000000011 --reason "asked the wrong person" --withdraw
+rigAssert "control: it withdraws its own decision"    "$( head -1 "$rigTmp/wd11c" ):$( rigStatus 11111111-0000-0000-0000-000000000011 )" "WITHDRAWN 11111111-0000-0000-0000-000000000011:withdrawn"
+RIG_AGENT=magic-tester rigOp wd10again --member-pending-reply-settle magic-tester 11111111-0000-0000-0000-000000000010 --reason "again" --withdraw
+rigAssert "a closed record is left as it is"          "$( head -1 "$rigTmp/wd10again" ):$( rigField 11111111-0000-0000-0000-000000000010 withdraw-reason )" "ALREADY-CLOSED 11111111-0000-0000-0000-000000000010 withdrawn:the task was cancelled"
+
 echo "-- a permission set: its own verdicts, the human-owner's to give --"
 rigRecord 11111111-0000-0000-0000-000000000009 magic-coordinator reply-pending permission-set "Rig permission set nine"
 LC_ALL=C awk 'NR == 2 { print "address-to: human-owner" ; print "session-id: rig-set-session" ; } { print ; }' "$rigStore/11111111-0000-0000-0000-000000000009.md" > "$rigTmp/r9" && mv "$rigTmp/r9" "$rigStore/11111111-0000-0000-0000-000000000009.md"

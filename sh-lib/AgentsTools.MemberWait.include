@@ -302,6 +302,8 @@ AgentsWaitProbeAsk(){
 	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
 		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-$probeTs}" "$probeOut" "$probeAddressees" "false" || return 2
 	else
+		## No thread is read here, so a record's status is all there is to watch: closed, it says so.
+		probeFollow=""
 		: > "$probeOut" || return 2
 	fi
 	[ "$probeStatus" = "reply-pending" ] || [ -n "$probeFollow" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
@@ -324,6 +326,67 @@ AgentsWaitProbeFunctionName(){
 	nameHead="$( printf '%s' "$nameKind" | cut -c1 | tr '[:lower:]' '[:upper:]' )"
 	nameTail="$( printf '%s' "$nameKind" | cut -c2- )"
 	printf 'AgentsWaitProbe%s%s' "$nameHead" "$nameTail"
+}
+
+## THE BACKOFF IS MEASURED FROM THE NEWEST ACTIVITY on what a wait watches, never from
+## when the call started alone: in a long call, a question asked an hour in must still be
+## watched closely. The newest of: the call start; the floor of each Slack source (the last
+## message a wait returned there, or the since given); each watched question's own ts and
+## follow floor; and the session's own latest post (last-own-post), where a watched source
+## would carry its reply -- that thread, an ask's thread, or a whole conversation. Prints
+## "<epoch seconds>\t<what>", <what> one of start, floor, question, own-post.
+AgentsWaitNewestActivity(){ ## call start (epoch), session id, sources, floors used ("<source>=<ts> ...")
+	local actBest="$1" actWhat="start" actOne actSource actLine actOwn="" actOwnWhere="" actOwnTs="" actOwnSeen=""
+	local actChannel actThread actQts actFollow
+	for actOne in $4 ; do
+		actOne="${actOne##*=}" ; actOne="${actOne%%.*}"
+		case "$actOne" in ''|*[!0-9]*) continue ;; esac
+		[ "$actOne" -le "$actBest" ] || { actBest="$actOne" ; actWhat="floor" ; }
+	done
+	if [ -n "$2" ] && [ -f "$MMDAPP/.local/agents/sessions/$2/last-own-post" ] ; then
+		IFS= read -r actOwn < "$MMDAPP/.local/agents/sessions/$2/last-own-post" || :
+		actOwnWhere="${actOwn%% *}" ; actOwnTs="${actOwn##* }" ; actOwnTs="${actOwnTs%%.*}"
+		case "$actOwnTs" in ''|*[!0-9]*) actOwnTs="" ;; esac
+	fi
+	for actSource in $3 ; do
+		case "$actSource" in
+			slack:*:*:conversation) actOne="${actSource#slack:}" ; [ "${actOne%:conversation}" != "$actOwnWhere" ] || actOwnSeen=1 ;;
+			slack:*:*) [ "${actSource#slack:}" != "$actOwnWhere" ] || actOwnSeen=1 ;;
+			slack:*) actOwnSeen=1 ;;
+			ask:*)
+				[ -f "$MMDAPP/.local/agents/pending/${actSource#ask:}.md" ] || continue
+				actChannel="" actThread="" actQts="" actFollow=""
+				while IFS= read -r actLine ; do
+					case "$actLine" in
+						'channel: '*) actChannel="${actLine#channel: }" ;;
+						'thread-ts: '*) actThread="${actLine#thread-ts: }" ;;
+						'question-ts: '*) actQts="${actLine#question-ts: }" ;;
+						'follow-floor: '*) actFollow="${actLine#follow-floor: }" ;;
+						'# '*) break ;;
+					esac
+				done < "$MMDAPP/.local/agents/pending/${actSource#ask:}.md"
+				[ "$actChannel:$actThread" != "$actOwnWhere" ] || actOwnSeen=1
+				for actOne in "$actQts" "$actFollow" ; do
+					actOne="${actOne%%.*}"
+					case "$actOne" in ''|*[!0-9]*) continue ;; esac
+					[ "$actOne" -le "$actBest" ] || { actBest="$actOne" ; actWhat="question" ; }
+				done
+			;;
+		esac
+	done
+	if [ -n "$actOwnSeen" ] && [ -n "$actOwnTs" ] && [ "$actOwnTs" -gt "$actBest" ] ; then
+		actBest="$actOwnTs" ; actWhat="own-post"
+	fi
+	printf '%s\t%s\n' "$actBest" "$actWhat"
+}
+
+## One nap of the default backoff, in seconds: 5, plus 1 for every 20 since the newest
+## activity, capped at 300 -- the formula and cap as ever, only its base is the activity.
+AgentsWaitBackoffNap(){ ## now (epoch), newest activity (epoch)
+	local napSeconds=5
+	[ "$1" -le "$2" ] || napSeconds=$(( 5 + ( $1 - $2 ) / 20 ))
+	[ "$napSeconds" -le 300 ] || napSeconds=300
+	printf '%s\n' "$napSeconds"
 }
 
 case "$1" in
@@ -578,8 +641,9 @@ case "$1" in
 			fi
 		fi
 		## An asked question's wait item (ask:<pending-id>) stays in the session's wait through a
-		## default call too, while its record exists: it leaves by --wait-drop once answered, and
-		## a default call that dropped it would leave the answer with nothing waiting for it.
+		## default call too, while its record exists: it leaves by --wait-drop only once closed for
+		## good (an answered one keeps its thread watched), and a default call that dropped it
+		## would leave the answer with nothing waiting for it.
 		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
 			local carrySource
 			for carrySource in $waitStoredSources ; do
@@ -593,9 +657,11 @@ case "$1" in
 		## nothing else, so an idle caller spends no round per quiet interval. A caller that must
 		## return by a deadline (an MCP client cutoff, a zero-bound read) names one.
 		## THE POLL CADENCE is separate and only decides how soon an arrival is noticed.
-		## A given interval stays fixed. Unset, the interval backs off: 5s growing by 15s
-		## every 5 minutes waited, capped at 5 minutes.
-		local waitBackoff="false"
+		## A given interval (--wait-poll-interval, else MDAT_WAIT_POLL_SECONDS) stays fixed.
+		## Unset, the interval backs off: 5s growing by 15s every 5 minutes, capped at 5
+		## minutes, counted from the newest activity on the watched sources
+		## (AgentsWaitNewestActivity) rather than from the call start alone.
+		local waitBackoff="false" waitActivity=""
 		[ -n "$waitPoll" ] || waitPoll="${MDAT_WAIT_POLL_SECONDS:-}"
 		[ -n "$waitPoll" ] || { waitPoll=5 ; waitBackoff="true" ; }
 
@@ -1026,8 +1092,9 @@ case "$1" in
 			fi
 			waitNap="$waitPoll"
 			if [ "$waitBackoff" = "true" ] ; then
-				waitNap=$(( 5 + ( waitNow - waitStart ) / 20 ))
-				[ "$waitNap" -le 300 ] || waitNap=300
+				## Re-read each round: a question asked, or a post made, during this call counts.
+				waitActivity="$( AgentsWaitNewestActivity "$waitStart" "$waitSessionId" "$waitSources" "$waitFloorsUsed" )"
+				waitNap="$( AgentsWaitBackoffNap "$waitNow" "${waitActivity%%$'\t'*}" )"
 			fi
 			if [ -n "$waitDeadline" ] ; then
 				waitRemaining=$(( waitDeadline - waitNow ))
@@ -1108,7 +1175,13 @@ case "$1" in
 		[ -z "$waitAddressee" ] || echo "# answers counted only from: ${waitAddressee% }"
 		local waitBoundText="no bound"
 		[ -z "$waitTimeout" ] || waitBoundText="${waitTimeout}s bound"
-		echo "# waited: ${waitElapsed}s of ${waitBoundText}, ${waitRound} poll round(s) at $( [ "$waitBackoff" = "true" ] && printf 'backoff from 5s' || printf '%ss' "$waitPoll" ), baseline: $waitBaselineMode"
+		local waitPollText="${waitPoll}s"
+		if [ "$waitBackoff" = "true" ] ; then
+			## Honest about its base: the newest activity it counted from, and how long before the end.
+			waitActivity="$( AgentsWaitNewestActivity "$waitStart" "$waitSessionId" "$waitSources" "$waitFloorsUsed" )"
+			waitPollText="backoff from 5s, cap 300s, since the newest activity (${waitActivity#*$'\t'}) $(( waitEnd - ${waitActivity%%$'\t'*} ))s before the end"
+		fi
+		echo "# waited: ${waitElapsed}s of ${waitBoundText}, ${waitRound} poll round(s) at $waitPollText, baseline: $waitBaselineMode"
 		[ -z "$waitProbeFailures" ] || echo "# probes that could not run this wait (their diagnostics are on stderr): ${waitProbeFailures% }"
 
 		case "$waitOutcome" in

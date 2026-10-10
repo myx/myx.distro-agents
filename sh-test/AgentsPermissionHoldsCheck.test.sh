@@ -53,7 +53,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 {
 	printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs"
 	printf 'keeper-myx:ws:namespace:Edit(/%s/KEEP/**)\n' "$rigWs"
-	printf 'magic-architect:ws:tool:WebFetch:https://docs.rig.example/*\n'
+	printf 'keeper-myx:ws:tool:WebFetch:https://docs.rig.example/*\n'
 	printf 'magic-architect:ws:tool:WebSearch\n'
 } > "$rigWs/.local/agents/permissions.registry"
 ## Running sessions: a session grant ends when its session closes (AgentsToolsGrantsSessionEnded).
@@ -76,6 +76,14 @@ rigOp(){
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_ID \
 		${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} ${RIG_OP_AGENT:+MDAT_SPAWN_AGENT="$RIG_OP_AGENT"} \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err"
+}
+## An in-context helper (no operation of its own) as a script for --intern-mcp-execute, which
+## runs it inside the tool's own set-up context: its include, then the call with these arguments.
+rigHelperScript(){ ## include, function, arguments...
+	printf '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/%s"\n' "$1"
+	printf '%s' "$2" ; shift 2
+	[ $# -eq 0 ] || printf ' %q' "$@"
+	printf '\n'
 }
 rigHolds(){ ## member, tool, target, [session]
 	rigOp --intern-op-permission-holds "$1" "$2" "$3" ${4:+--session-id "$4"}
@@ -117,15 +125,15 @@ rigAssert "a member folder is read by the floor"           "$( rigHolds magic-te
 rigAssert "a keeper's own domain is standing rwe"          "$( rigHolds keeper-myx Edit "$rigWs/KEEP/a/b.txt" ):$( rigHolds keeper-myx Execute "$rigWs/KEEP/run.sh" ):$( rigHolds keeper-myx Read "$rigWs/KEEP/.env" )" "HOLDS standing:HOLDS standing:HOLDS standing"
 rigAssert "nobody else's domain is held by it"             "$( rigHolds keeper-myx Write "$rigWs/DEV/x" )" "NOT-HOLDS"
 rigAssert "a .. out of a domain is never covered"          "$( rigHolds keeper-myx Write "$rigWs/KEEP/../ELSE/x" )" "NOT-HOLDS"
-rigAssert "a standing tool row holds its prefix"           "$( rigHolds magic-architect WebFetch https://docs.rig.example/a/b )" "HOLDS standing"
-## Rows are machine-wide (every workspace HOME's pointers name), and a real one may grant
-## magic-architect any URL: the rig's own rows alone, under a rig HOME.
-rigAssert "and not beyond it"                              "$( HOME="$rigTmp" rigHolds magic-architect WebFetch https://other.rig.example/ )" "NOT-HOLDS"
+rigAssert "a standing tool row holds its prefix"           "$( rigHolds keeper-myx WebFetch https://docs.rig.example/a/b )" "HOLDS standing"
+## Rows are machine-wide (every workspace HOME's pointers name), and magic-architect holds any
+## URL built in: the prefix row is a keeper's, read off the rig's own rows alone, under a rig HOME.
+rigAssert "and not beyond it"                              "$( HOME="$rigTmp" rigHolds keeper-myx WebFetch https://other.rig.example/ )" "NOT-HOLDS"
 rigAssert "a bare tool row holds any target"               "$( rigHolds magic-architect WebSearch 'any query' )" "HOLDS standing"
 rigAssert "another member does not hold WebFetch"          "$( rigHolds magic-developer WebFetch https://docs.rig.example/a )" "NOT-HOLDS"
 rigAssert "cred starts with no member"                     "$( rigHolds magic-architect cred prod-db ):$( rigHolds magic-coordinator spend 100usd )" "NOT-HOLDS:NOT-HOLDS"
 rigAssert "the human-owner holds everything"               "$( rigHolds human-owner cred prod-db ):$( rigHolds URIGOWNER Write /anywhere )" "HOLDS human-owner:HOLDS human-owner"
-rigOp --intern-op-permission-holders Write "$rigWs/DEV/a" --session-id rig-tester
+rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionHoldersPrint Write "$rigWs/DEV/a" --session-id rig-tester | rigOp --intern-mcp-execute
 rigAssert "holders: participants that hold it, then the human-owner" "$( LC_ALL=C tr '\n' '|' < "$rigTmp/op.out" )" "HOLDER: magic-developer standing|HOLDER: human-owner human-owner|"
 
 echo "-- rule 1: the coordinator approving what it does not hold --"
@@ -165,7 +173,7 @@ rigAssert "one post was made for it"                       "$(( $( rigCalls chat
 
 echo "-- a cred or spend request goes to the human-owner --"
 rigIdC="$( rigRefusal magic-tester rig-tester cred prod-db-password )"
-rigOp --intern-op-permission-holders cred prod-db-password --session-id rig-tester
+rigHelperScript AgentsTools.InternOpPermission.include AgentsToolsPermissionHoldersPrint cred prod-db-password --session-id rig-tester | rigOp --intern-mcp-execute
 rigAssert "nobody in the session holds a cred"            "$( LC_ALL=C tr '\n' '|' < "$rigTmp/op.out" )" "HOLDER: human-owner human-owner|"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdC" )"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session

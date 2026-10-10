@@ -169,7 +169,7 @@ checkRequiredOf(){ ## tool name -- its required list as written
 		index($0, "\"name\":\"" name "\"") { partCount = split($0, parts, "\"required\":") ; tail = parts[partCount] ; sub(/\].*/, "]", tail) ; print tail ; exit ; }
 	'
 }
-for checkPair in 'SubagentHandback=["outcome"]' 'ReportFindings=["to","subject","findings"]' 'PushNotification=["to","severity","headline"]' 'Artifact=["to","url"]' ; do
+for checkPair in 'SubagentHandback=["outcome"]' 'ReportFindings=["to","subject","findings"]' 'PushNotification=["to","severity","headline"]' 'Artifact=["to"]' ; do
 	checkGot="$( checkRequiredOf "${checkPair%%=*}" )"
 	if [ "$checkGot" != "${checkPair#*=}" ] ; then
 		echo "HARNESS_TOOLS_JSON: FAIL"

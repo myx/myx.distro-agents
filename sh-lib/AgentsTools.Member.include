@@ -312,7 +312,7 @@ case "$1" in
 	;;
 
 	## Read one board item by filename and optional state restrictions, with
-	## optional line range. Path lookup remains inside --intern-op-data-read.
+	## optional line range. Path lookup remains inside AgentsToolsDataRead.
 	--member-board-item-read)
 		shift
 		local memberName="$1"
@@ -383,7 +383,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --member-board-item-read: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
-		local readArgs=( --intern-op-data-read "$itemName" --context --member-board-item-read )
+		local readArgs=( "$itemName" --context --member-board-item-read )
 		local boardState
 		for boardState in "${boardStates[@]}" ; do
 			readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
@@ -392,7 +392,8 @@ case "$1" in
 		if [ -n "$startLine" ] ; then
 			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
 		fi
-		DistroAgentsTools "${readArgs[@]}"
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead "${readArgs[@]}"
 		return $?
 	;;
 
@@ -452,13 +453,14 @@ case "$1" in
 		}
 		local inboxDir="$MDAT_DATA_ROOT/inboxes/$memberName"
 		## Root first; processed/ is the legacy folder, a read-only fallback until the GC drains it.
-		local readArgs=( --intern-op-data-read "$itemName" --context --member-inbox-item-read \
+		local readArgs=( "$itemName" --context --member-inbox-item-read \
 			--lookup-folder "$inboxDir" --lookup-folder "$inboxDir/processed" )
 
 		if [ -n "$startLine" ] ; then
 			readArgs+=( --start-line "$startLine" --end-line "$endLine" )
 		fi
-		DistroAgentsTools "${readArgs[@]}"
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
+		AgentsToolsDataRead "${readArgs[@]}"
 		return $?
 	;;
 

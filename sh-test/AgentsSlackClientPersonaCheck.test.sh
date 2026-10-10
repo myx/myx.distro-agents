@@ -114,7 +114,7 @@ rigWorld(){ ## -- a fresh workspace and skillset with the default tokens, member
 	printf 'SLACK_USER_TOKEN=rig-user-token-KEEPER\n' > "$rigWs/.local/.agents/keeper-myx.agent.env"
 	: > "$rigTmp/post-answers"
 	## Each client's own contacts note: an external send passes the outbound contact gate
-	## (--intern-op-contact-assert-known) only for a listed recipient, and these are the
+	## (AgentsToolsContactAssertKnown) only for a listed recipient, and these are the
 	## rig's own channel, owner and DM. Under the data root every send here is given,
 	## outside .local/agents so the registry folder holds only what the build wrote.
 	local contactsMember

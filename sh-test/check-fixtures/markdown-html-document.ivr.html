@@ -1,0 +1,52 @@
+<h1>IVR-002: Slack send drops a reply under rate limiting</h1>
+<p><strong>Jira:</strong> <a href="https://example.atlassian.net/browse/MAGIC-12">MAGIC-12</a></p>
+<h2>Root cause</h2>
+<p>The retry loop reads <code>Retry-After</code> from the wrong header line, so a <code>429</code>
+reply is treated as success.</p>
+<h2>Effect</h2>
+<ul>
+<li>Replies posted during a burst are lost.</li>
+<li>The sender logs no error.</li>
+</ul>
+<h2>Flow</h2>
+<ol>
+<li>The send posts the message.</li>
+<li>Slack answers <code>429</code> with <code>Retry-After: 3</code>.</li>
+<li>The loop compares <code>429\r</code> with <code>429</code>, finds no match, and stops.</li>
+</ol>
+<h2>Locations</h2>
+<p><code>sh-lib/AgentsTools.Member.include</code>, the retry loop:</p>
+<pre><code class="language-sh">status=&quot;$( awk 'NR==1 { print $2 ; }' &quot;$headers&quot; )&quot;
+[ &quot;$status&quot; = 429 ] &amp;&amp; sleep &quot;$retryAfter&quot;</code></pre>
+<h2>Confirmed</h2>
+<table>
+<thead>
+<tr><th>What</th><th>By</th><th>Evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>The header line ends in CR LF</td><td>magic-developer</td><td>a <code>curl -D</code> capture</td></tr>
+<tr><td>The retry never runs</td><td>magic-tester</td><td>the log of 3 bursts</td></tr>
+</tbody>
+</table>
+<h2>Not verified</h2>
+<ul>
+<li>Whether other operations share the same loop.
+<ul>
+<li>The Trello send is the likeliest one.</li>
+</ul>
+</li>
+</ul>
+<h2>Fix options</h2>
+<ol>
+<li>
+<p>Strip the <code>\r</code> before comparing.<br>
+This is the smallest change.</p>
+</li>
+<li>
+<p>Parse the status with <code>curl -w</code> instead.</p>
+</li>
+</ol>
+<blockquote>
+<p>Proposals only. Nothing changes until the owner rules.</p>
+</blockquote>
+<p>See <a href="https://api.slack.com/docs/rate-limits">https://api.slack.com/docs/rate-limits</a> for the limits.</p>

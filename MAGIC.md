@@ -49,30 +49,48 @@ that the code and docs do not readily tell you.
   big. Size is the only reason to split. A family arm works only because every stub of that family
   lives in the include it sources. A stub placed in another file is not routed, and nothing reports it.
 - **Order matters.** The comms routes come before the `--member-*` route, or the broader glob takes
-  them. An arm that claims a prefix (`--intern-op-slack-*`, `--intern-op-item-*`) must have any
+  them. An arm that claims a prefix (`--intern-op-slack-*`, `--intern-op-permission-*`) must have any
   differently-routed op of that prefix above it.
 - **Family routes.** `--magic-comms-*` → `AgentsTools.MagicComms.include`. `--client-comms-*` →
   `AgentsTools.ClientComms.include`. `--member-comms-<service>-*` and `--intern-op-comms-<service>-*`
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today.
-- **All non-member Slack code is in `sh-lib/AgentsTools.CommsSlack.include`**: the shared helpers and
-  `--intern-op-slack-call`, `-check` and `-check-scopes`. The dispatcher holds no Slack code. Any
+- **All non-member Slack code is in `sh-lib/AgentsTools.CommsSlack.include`**: the shared helpers, the
+  in-context helper `AgentsToolsSlackCheck`, and `--intern-op-slack-call` and `-check-scopes` (whose
+  `--scope-source` may name an `AgentsTools*` helper). The dispatcher holds no Slack code. Any
   include may source that file just for its helpers: its `case` ends in a branch that runs nothing for
   a name that is not its own. An unimplemented `--intern-op-slack-*` name is still refused there.
-- **One operation calling another** recurses into `DistroAgentsTools` itself, never a private helper
-  (the `DistroLocalTools --upgrade-installed-tools` precedent).
+- **One operation calling another** recurses into `DistroAgentsTools` itself (the `DistroLocalTools
+  --upgrade-installed-tools` precedent) when it needs what the dispatcher does on entry: the call is a
+  root entry, or it names a member whose workspace can differ from the caller's (the member-workspace
+  switch). Code already running in a set-up context, acting for its own member or for none, calls an
+  in-context helper instead: an `AgentsTools<Area><Thing>` function in its family's include, sourced
+  without running that include's `case`, with no `--` operation of its own.
 - **An external caller runs a script; an internal caller sources the include in a subshell.** A script
   also sets up the execution context, which is why the MCP daemon execs the tooling. Re-entering the
   whole script makes an internal caller pay for option parsing twice.
 - **`--intern-` is a namespace, and the next segment is the kind.** `--intern-op-*` is operations,
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
+  `--intern-artifact-*` is one, approved for the Artifact publish (`AgentsTools.InternArtifact.include`).
 - **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
   even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
   for any member, the tooling checking access on its arguments; `--magic-*` for the coordinator only;
-  `--owner-*` for the human. About 25 older `--intern-op-*` ops used by tooling break it, and are
-  renamed later in one approved sweep.
+  `--owner-*` for the human. Older `--intern-op-*` ops used by tooling break it. Those called only
+  from a set-up context are now in-context helpers with no operation: `--intern-op-slack-check` →
+  `AgentsToolsSlackCheck`, `-url-post-bytes` → `AgentsToolsUrlPostBytes`, `-comms-slack-file-info` →
+  `AgentsToolsCommsSlackFileInfo`, `-comms-slack-resolve-ids` → `AgentsToolsCommsSlackResolveIds`,
+  `-comms-slack-conversations-roster` → `AgentsToolsCommsSlackConversationsRoster`,
+  `-comms-email-mark-seen` → `AgentsToolsCommsEmailMarkSeen`, `-comms-trello-check` and `-whoami` →
+  `AgentsToolsCommsTrelloCheck` and `AgentsToolsCommsTrelloWhoami`, `-atlassian-jira-issue-read` →
+  `AgentsToolsAtlassianJiraIssueRead`, `-atlassian-confluence-page-read` →
+  `AgentsToolsAtlassianConfluencePageRead`, `-contact-assert-known` → `AgentsToolsContactAssertKnown`,
+  `-data-read` → `AgentsToolsDataRead`, `-item-read` and `-item-upsert` → `AgentsToolsItemRead` and
+  `AgentsToolsItemUpsert`, `-board-to-processed` → `AgentsToolsBoardToProcessed`,
+  `-pending-reply-remind` → `AgentsToolsPendingReplyRemindRun`, `-permission-holders` →
+  `AgentsToolsPermissionHoldersPrint`, `-permission-set-apply` → `AgentsToolsPermissionSetApply`. The rest cross a process
+  boundary or need the member-workspace switch: they stay operations, renamed later in one approved sweep.
 - **`--intern-*` is left out of the help.** Out of `Help.DistroAgentsTools.include` syntax lines and out
   of the help.md reference and examples. A public entry that must contrast itself with an internal op
   says so in behavioural terms, without naming the internal op.
@@ -480,7 +498,11 @@ User steps are in [docs/installation.md](docs/installation.md).
   is every workspace place whose name matches, tagged `wildcard`, none matching no error and no row;
   `directory:<name>` resolves through the places and is capped to read on a read-only one; an unknown
   name is an `unresolved` row, warned), plus
-  each acting member's own directory and magic-librarian's read of `source/**`; then `grants.index`,
+  each acting member's own directory, magic-librarian's read of `source/**`, and the built-in grants of
+  the members this package carries (`AgentsToolsGrantsBuiltinText`, never declared, so no `source/` is
+  needed: magic-architect's WebFetch and WebSearch; magic-tester's read of `source/**/{sh-test,test,tests}/**`
+  and `.local/myx/**` in every tooling workspace and write of `**` in `*-testbed` ones; project.inf names
+  them as inert `--magic-team:` references); then `grants.index`,
   every workspace's registry fully unrolled per member, with the floor (`.local/temp/**` write in every
   tooling workspace; where agents are installed, read `source/**/{MAGIC.md,README.md}` and
   `source/**/docs/**.md`, write `source/**/MAGIC.md`; the readable member directories and reference
@@ -512,6 +534,10 @@ User view: [docs/installation.md](docs/installation.md#workspace-restrictions-op
   read-only place `deny` first, a granted native file call `allow` (an allow-once used up through the
   tooling first), anything else no answer, left to the client rules and the `PermissionRequest` hook.
   Another hook's deny wins over its allow.
+- **The root-session hooks** `root-session-end.sh end` (`SessionEnd`) and `resume` (`SessionStart`, matcher
+  `resume`), class `native`, act only for a session with no spawn record and no `MDAT_SPAWN_SESSION_ID`: the
+  end writes `sessions/<id>/ended` and touches the store, then, detached, `--mark-ended` and the transcript
+  END; a resume removes the marker. Nothing on stdout (a `SessionStart` hook's stdout joins the context).
 - **`AgentsTools.ClientToolPolicy.include` is the single source** of the reroute set, hook paths, every
   hook record with its class, and entry keys. The refusal wording lives in the hook script. The script's
   last arm denies loudly, since no decision reads as allow.
@@ -714,7 +740,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   local content is reported, to merge by hand.
 - **`--intern-root-harness [--routine <selector>] [--non-interactive] [--wait]`**, no member argument.
   It spawns `--magic-heartbeat-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
-  thread in `magic-team`; `--non-interactive` runs one loop and posts to `event-track`, and needs
+  thread in `magic-team` and always waits, as the foreground job of its terminal: Ctrl+C reaches the
+  proxy, which stops the session and closes it (an async start died with the terminal hangup, its
+  record never closed); `--non-interactive` runs one loop and posts to `event-track`, and needs
   `--routine`. The brief is the static `root-harness-session-start.prompt-packet.verbatim.md` with an
   `INTERACTION-MODE:` line (and a `ROUTINE:` line) prepended; no templating inside it.
 - **The `🤖 AI service used:` line** is the spawn proxy's, read from the child's `DISTRO_CONSOLE_EXEC=`.
@@ -969,6 +997,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   nothing for ordinary multi-word questions. Whether that is acceptable is open.
 - **`SessionTranscriptAppend`** appends one NOTE line to the current session's transcript through
   `--member-append-session-transcript` with no `--transcript-name`.
+- **`Artifact`** announces a `url` as it always did, ungated. With `file` (and `files`) it publishes
+  first: `AgentsHarnessArtifactPublish` checks `AgentsHarnessGranted Artifact publish` (not on the
+  floor: a standing `allow-tool` row or a task or session grant), runs the read gate on every file,
+  then calls `--intern-artifact-publish` and posts what it printed (`ARTIFACT_URL`, `ARTIFACT_TITLE`,
+  `ARTIFACT_KIND`). A publish that fails after the document exists says its URL and posts nothing.
+  The publish never goes through the `--magic-`/`--client-` page-create stubs: it is the caller
+  acting with its own credentials, gated by the permission alone (human-owner, 2026-10-10).
 
 ## 16. Team data, board and inbox
 
@@ -978,7 +1013,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `merge-base --is-ancestor`, merge with `pull.rebase=false`, read back. `AgentsToolsTeamDataDirtyWarning`
   states an uncommitted or ahead store. The store is cloned at dispatch once per process tree
   (`MDAT_TEAM_DATA_CLONE_TRIED`), never into a nested repository.
-- **`--intern-op-item-upsert`: the commit gate is `.git`, the push gate is `TEAM_DATA_GIT_REMOTE`.** No repo:
+- **`AgentsToolsItemUpsert`: the commit gate is `.git`, the push gate is `TEAM_DATA_GIT_REMOTE`.** No repo:
   write. Repo, no remote: write and commit. Both: write, commit, push, resync, read back. `--no-push` has
   its own message. Without a remote a lock is local and unverified.
 - **`--intern-op-board-upsert-move-edit` is the one board move primitive.** It commits both ends (gated on
@@ -1047,6 +1082,30 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   no-op; an edit keeps the original stamp (it is the GC clock). Readers use
   `AgentsInboxProcessedAtList.awk`, bounded to a frontmatter block starting on line 1. The legacy
   `processed/` folder is read-only and drains. A mark does not wake a wait.
+- **Published documents** (`--intern-artifact-publish`, `AgentsTools.InternArtifact.include`):
+  - The type table is `AgentsToolsArtifactTypes`, one `<code> TAB <name>` row per numbered type;
+    a kind matching a code or name (any case) is numbered, anything else is free text with no number.
+  - The team place: Confluence when `CONFLUENCE_SPACE` is set -- the caller's own scope first (one
+    member, such as `client-ndm` beside a Google team), then `magic-team`, a general team key -- else
+    Google; no key names Artifact (human-owner). The caller's own credentials for that place are
+    required, and their absence is rc 6 naming the keys. The Google team root is listed, never
+    configured: the one folder named `magic-team` the caller sees (none or several is rc 6).
+    Inside, the structure is the tooling's: one Confluence
+    index page `<CODE> index` (`Documents index` untyped) per type, the document its child and
+    listed on it; one Drive folder `<CODE>` (`Documents`) per type. Found by title, made on first use.
+  - Markdown goes through `AgentsMarkdownHtmlDocument.awk`; HTML references are rewritten by
+    `AgentsArtifactHtml.py` (Confluence: XHTML, given files as attachments; Google: images inline as
+    `data:` URIs, other files uploaded beside the document as `<number or title> - <name>`); any other
+    file is published as it is. Every refusal comes before the first write.
+  - One audit item per document, `audit/artifact-<date>-<number or title slug>.md`, its frontmatter
+    number, kind, title, url, member, session, date and state (`reserved`, then `published`).
+  - The number is the highest `number:` there plus one, `%03d` (four digits after 999), and is
+    secured before anything is published (`AgentsToolsArtifactClaim`): the reserved record is
+    committed and pushed, under the `team-data-push` lock, which orders writers sharing one checkout.
+    The push is the race between hosts: one rejected because origin moved drops its own commit,
+    resyncs with `cloneSync --no-push` and claims the next number, up to five times; an unreachable
+    origin secures nothing and publishes nothing. The record is completed after the publish, or
+    deleted when nothing was published, then pushed with `AgentsToolsTeamDataPushIfAhead`.
 - **Vault and audit reads**: `--member-vault-item-read` and `--member-audit-item-read` check the caller;
   `--intern-op-vault-item-read` and `--intern-op-audit-item-read` (`AgentsTools.InternOpVaultAudit.include`)
   resolve and read, so a new back end changes only there. There is no vault write op until a skillset
@@ -1060,7 +1119,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `recheck-date` after.** Repeat upserts are last-wins, so a close can set the state but a caller cannot
   pin the lock open. Keep the order.
 - **`-close-state-and-unlock`** writes closing content, finished state and unlock in one
-  `--intern-op-item-upsert` call. Unlock order: GC, lock write, one push, resync.
+  `AgentsToolsItemUpsert` call. Unlock order: GC, lock write, one push, resync.
 - **Advance lock paths** run `myx.common git/cloneSync --no-push` when a remote is set. Acquire: state
   check, resync, state check, head comparison against `FETCH_HEAD:<path>` (never `origin/<branch>`), then
   write. `LOCK_CONFLICT` (merge, marker, local edit), `LOCK_STALE` (local commit is not head),
@@ -1164,12 +1223,12 @@ op's own option arm.
   `--json-body` or `--fetch-url`. Reports `UPLOAD_HTTP_STATUS=` and `UPLOAD_BYTES=` (bytes sent;
   `not-reported` when curl wrote nothing). No content type field: the JSON verdict suffices. The body goes
   to its own file with `-o`.
-- **`--intern-op-url-post-bytes --url <url> --body-file <path> [--context <op>]`** POSTs raw bytes with no
-  credential. Its name avoids the `--intern-op-slack-*` glob so credential resolvers are not even defined
-  in its shell. The URL is a bearer capability: never in diagnostics, curl stderr discarded, body printed
+- **`AgentsToolsUrlPostBytes --url <url> --body-file <path> [--context <op>]`** POSTs raw bytes with no
+  credential. Its own include never sources `AgentsTools.CommsSlack.include`, and its name stays out of
+  the Slack family, so nothing credential-bearing is defined by loading it. The URL is a bearer capability: never in diagnostics, curl stderr discarded, body printed
   only on 2xx. `POST_HTTP_STATUS=`, `POST_BYTES=` (sent). Transport failure writes `000 0`. https only. No
   `EXIT` trap. The URL stays in argv by decision (single-use, short-lived).
-- **`--intern-op-slack-check`** reads one target (`magic-team`, `human-owner`, `event-track`, `event-alert`,
+- **`AgentsToolsSlackCheck`** reads one target (`magic-team`, `human-owner`, `event-track`, `event-alert`,
   a bare id, or `<channel>:<ts>`). `human-owner` merges both DMs: exit 0 both, 3 one, 4 neither, 1 failed
   early. Pretty `ts | user | text` by default; `--raw` for JSON. `--sweep-read-incoming-comms` also
   defaults to pretty via `AgentsSlackMessagesFormat.awk`.
@@ -1231,7 +1290,7 @@ op's own option arm.
   `comms-slack-send.YYYY-MM.log`, in its eight columns (target `socket`, column 6 the event kind
   `connected|reconnect|received|error|stopped`, reason never a body or token, session `-`); `--status` reads
   them from there. Its framing is separate from the presence holder's on purpose.
-- **File share**: three calls (get upload URL, raw POST via `--intern-op-url-post-bytes`, complete).
+- **File share**: three calls (get upload URL, raw POST via `AgentsToolsUrlPostBytes`, complete).
   `files.upload` is retired. Target resolved before step 1; `SLACK_CHANNEL_HUMAN_OWNER` is a user id and
   must be opened as a DM. `thread_ts` must be the parent ts (normalised via `conversations.replies`).
   `blocks` is ignored beside `initial_comment`, so `--comment` is a separate message after the share.
@@ -1295,6 +1354,21 @@ op's own option arm.
   (that would defeat the lock); it is a full `PUT`, so `--title` and `--status` are required; on 409
   re-read, never resubmit. `comment-add` is storage only; a reply's parent on another page is refused.
   Write bodies are assembled by hand with `AgentsMcpJsonEscape.awk`; every field has its own flag.
+  An attachment is `AgentsToolsAtlassianCall`'s seventh argument: one file, multipart under its base
+  name with `X-Atlassian-Token: no-check`, never with a JSON body, and a path holding `;` `,` or `"`
+  is refused (curl `-F` syntax). The v1 `/wiki/rest/api/content/<id>/child/attachment` takes it.
+- **Google publish ops** (`folder-find`, `folder-create`, `file-upload`, `doc-import`, `file-trash` in
+  `AgentsGoogleApiCall.py`) have no stub: tooling calls them in context through `AgentsToolsGoogleCall`
+  (`--intern-artifact-publish` the first four), which is why `AgentsTools.MemberCommsGoogle.include`
+  is dual-use like the Atlassian one. `file-trash` is `files.update` with `trashed=true`, restorable;
+  the worker has no `files.delete` and none is to be added. `permission-domain` makes one
+  `type=domain`, `role=reader` permission for the caller's own account domain (from `about.get`, never
+  configured), never `type=anyone`; it sends no `sendNotificationEmail`, which Drive documents as for
+  users and groups only. The publish applies it to every folder it makes and every file it publishes,
+  not trusting inheritance alone; a published document left unshared is rc 3 and is not announced.
+  The team root is made by people, so sharing it is theirs (or a one-off call of this op). Uploads are one
+  multipart request, at most 5 MB. A folder search spans every drive the account sees (`allDrives`).
+  Whether stored refresh tokens may create Drive files is not confirmed live.
   `page-update`'s all-required refusal still uses `/` for an alternation and should move to `|`.
 
 ## 20. Questions, decisions and review
@@ -1306,7 +1380,14 @@ op's own option arm.
   re-waits without posting, for the asking session only.
 - **The ask's wait is the session's `Wait`**: the item `ask:<pending-id>` joins the stored wait
   (`--wait-add`) and is resolved by `AgentsHarnessAskResolve`, called by both `AskUserQuestion` and
-  `Wait`.
+  `Wait`. **An answered question keeps its thread watched**: every close that answers it (the harness,
+  collect, the escalation read, an escalation answer, a readback) sets `follow-floor` -- the newest
+  message of its own thread already read and kept, else the question -- and its item stays in the Wait set
+  until the session ends. `AgentsWaitProbeAsk` then reads only what follows the floor, with no closed
+  line, so a later message arrives as `ASK-RESULT: CLARIFIED` and is kept with the answer. The floor
+  stays where the close set it: the Wait's own stored baseline tells a new message from one already
+  shown, and the clarify op keeps each message once. Settled, withdrawn and Decisions-closed questions
+  set no floor and leave the Wait set.
 - **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
   conversation the question itself is one new top-level message, with no opener, in the member's DM or
   the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another
@@ -1321,7 +1402,10 @@ op's own option arm.
   share (only one the asker named): a reply starting `Q<n>` answers that one; an unnumbered reply answers
   the latest question above it while open, and none after it is closed (`resolved-epoch`).
   `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
-- **First line, then clarifications.** A reply's first line is its answer or verdict; the rest of that
+- **First line, then clarifications.** A reply's first line is its answer or verdict -- its first line
+  that is no quote of the question: a ``` fenced block and lines starting with `>` or `&gt;` heading the
+  reply are skipped (`firstUnquoted`, the same in the verdict, answer-text and clarification readers);
+  the rest of that
   reply and every later reply from the person in the question's thread are kept as clarifications
   (`AgentsPendingReplyClarifications.awk`, `--intern-op-pending-reply-clarify`): under the record's own
   `## Clarifications`, and as `clarification` lines on its item's `## Decisions`, once each by ts. The
@@ -1334,9 +1418,9 @@ op's own option arm.
   once a decision's reply names no option, its asker may post, in the question's thread under the ask's
   identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
   readback` (on its Decisions line too) and `follow-floor: <readback ts>`; the replies are kept as
-  clarifications. Its `ask:` item stays in the Wait set, and the ask probe then reads only what follows
-  the floor, so a later objection arrives as `ASK-RESULT: CLARIFIED` and is kept. The asker only, never
-  a permission, never before a reply, never over a reply that names an option.
+  clarifications. As for any answered question, a later objection arrives as `ASK-RESULT: CLARIFIED`
+  and is kept. The asker only, never a permission, never before a reply, never over a reply that names
+  an option.
 - **Withdraw** (`--member-pending-reply-settle --withdraw`, AskUserQuestion `pending_id` + `withdraw`): the
   asker discards its own open question of any kind. Status `withdrawn` (a close status of its own, with
   `withdrawn-by` and `withdraw-reason`, never a verdict), so it answers, grants and decides nothing;
@@ -1349,7 +1433,7 @@ op's own option arm.
   than `MDAT_PENDING_COLLECT_STALE_MINUTES` (120), up to `MDAT_PENDING_COLLECT_STALE_MAX` (40), applies
   typed verdicts, and closes asks of still-running sessions quietly (`MDAT_PENDING_CLOSE_QUIET=1`).
   Results in `.local/agents/pending-collect.last`.
-- **Remind** (`--intern-op-pending-reply-remind`, `AgentsTools.PendingReplyRemind.include`), tooling only,
+- **Remind** (`AgentsToolsPendingReplyRemindRun`, `AgentsTools.PendingReplyRemind.include`), tooling only,
   every main-loop iteration: at 30 min, 2 h, and daily after 09:00 local for asks 4 h+ old
   (`.local/agents/pending-remind.daily`). Always a reply in each ask's own thread, never a top-level
   message (`digests=` stays 0 in its summary line). Sent as the ask's owner under `ask-identity`. A failed
@@ -1410,7 +1494,7 @@ op's own option arm.
   standing. Grant-read admits floor and standing as `GRANT: standing`.
 - **No approving what you don't hold.** `grant-open` returns rc 3 with `NOT-HOLDS:` and `HOLDERS:`;
   the escalation verdict path checks first and re-addresses the ask to a holder participant
-  (`--intern-op-permission-holders`), else forwards it to the human-owner; it stays open.
+  (`AgentsToolsPermissionHoldersPrint`), else forwards it to the human-owner; it stays open.
 - **Kind `task`** lives while its item is in an open board state (`<refusal>.task` sidecar or the
   record's `task:`). Passed (`pass-<uuid>.md`) and set (`set-<uuid>.md`) grants are records like a
   refusal's, `owner:` the receiver, kept in the coworking session's store; a session reads its own, its
@@ -1435,8 +1519,10 @@ op's own option arm.
   (`spawned/*/<store id>.md`) closed with a `spawn-*` status other than `spawn-started`
   (`AgentsToolsGrantsSessionEnded`, builtins only). Checked on read (`AgentsToolsPermissionGrantScan`,
   and the matching session row of the session index, since a joined store's end touches nothing);
-  the rebuild drops them. A session with no spawn record (the human-owner's own) never ends this way,
-  and a coworking store ends with the spawn whose id it carries.
+  the rebuild drops them. A session with no spawn record (a root session: the human-owner's own, an
+  interactive native console) ends by its client's `SessionEnd` hook (`client-hooks/root-session-end.sh`,
+  class `native`): `sessions/<id>/ended` plus a store touch, its open asks `--mark-ended`, its transcript's
+  END; a `SessionStart` resume removes the marker. A coworking store ends with the spawn whose id it carries.
 - **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
   `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
   `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
@@ -1517,6 +1603,8 @@ Each instrument states what it proves and its red recipe in its own header. What
   `AgentsHarnessSkillRangeCheck`, `AgentsHarnessSkillReadCheck`, `AgentsRefusedTargetDecodeCheck`,
   `AgentsHarnessMcpIndexCheck`, `AgentsHarnessSetupIndexCheck`, `AgentsHarnessToolCallsReadCheck`,
   `AgentsHarnessArgTableCheck`, and the ask, pending-reply, decisions and review checks.
+  `AgentsArtifactPublishCheck` reaches Google offline by a `sitecustomize.py` on `PYTHONPATH` that
+  replaces `urllib.request.urlopen`, since the Google worker never calls curl.
 - **`sh-test/AgentsSweepTimingInstrument.sh` asserts nothing** and is kept off `.test.sh` so no sweep runs
   it: `MMDAPP=<ws> sh-test/AgentsSweepTimingInstrument.sh [<latency> [<dms> [<clients>]]]`, `INST_KEEP=<dir>`
   keeps output.

@@ -479,7 +479,7 @@ case "$1" in
 				##
 				## Each spec is `identity|target|label|source-key`:
 				##   identity   which token reads it -- `bot` or `user`.
-				##   target     what --intern-op-slack-check is given.
+				##   target     what AgentsToolsSlackCheck is given.
 				##   label      the document's `source:` value, and therefore the key
 				##              the renderer groups by. It carries the persona, so one
 				##              correspondent writing to two personas stays two groups.
@@ -542,7 +542,8 @@ case "$1" in
 				fi
 				local ownSlackId="" ownResolveOutput=""
 				if [ "$slackOwnCredentials" = "true" ] ; then
-					ownResolveOutput="$( DistroAgentsTools --intern-op-comms-slack-resolve-ids "$actingMember" )" || true
+					type AgentsToolsCommsSlackResolveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+					ownResolveOutput="$( AgentsToolsCommsSlackResolveIds "$actingMember" )" || true
 				fi
 				ownSlackId="$( printf '%s\n' "$ownResolveOutput" | LC_ALL=C sed -n 's/^AUTH_USER_ID=//p' | head -1 )" || ownSlackId=""
 				if [ -z "$ownSlackId" ] && [ "$slackOwnCredentials" = "true" ] ; then
@@ -573,7 +574,8 @@ case "$1" in
 				## there may be turned into a DM scope test.)
 				local dmRosterOutput="" dmRosterRc=0
 				if [ "$slackOwnCredentials" = "true" ] ; then
-					dmRosterOutput="$( DistroAgentsTools --intern-op-comms-slack-conversations-roster "$actingMember" $slackRosterIdentityArg \
+					type AgentsToolsCommsSlackResolveIds > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+					dmRosterOutput="$( AgentsToolsCommsSlackConversationsRoster "$actingMember" $slackRosterIdentityArg \
 						"${slackRosterTypesArg[@]+"${slackRosterTypesArg[@]}"}" )" || dmRosterRc=$?
 				else
 					dmRosterRc=4
@@ -917,9 +919,9 @@ case "$1" in
 					## is the persona's own token, which is what a USER_TOKEN persona's
 					## own DMs and the whole client-* path have always needed.
 					if [ "$fetchIdentity" = "bot" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --identity-bot --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
+						AgentsToolsSlackCheck "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --identity-bot --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
 					else
-						DistroAgentsTools --intern-op-slack-check "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
+						AgentsToolsSlackCheck "$actingMember" "$fetchCheckTarget" "${fetchPageUntilArgs[@]+"${fetchPageUntilArgs[@]}"}" --raw > "$sourcePrefetchDir/raw.$1" || fetchRc=$?
 					fi
 					if [ "$fetchRc" = "0" ] || [ "$fetchRc" = "3" ] ; then
 						local parseRaw="" parseJson="" parseRows="" parseBlocks="" parseFound="" parseFail=""
@@ -1020,12 +1022,12 @@ case "$1" in
 					local slackCheckRc=1
 					[ ! -f "$sourcePrefetchDir/rc.$sourceIndex" ] || read -r slackCheckRc < "$sourcePrefetchDir/rc.$sourceIndex" || slackCheckRc=""
 					if [ "$slackCheckRc" != "0" ] && [ "$slackCheckRc" != "3" ] ; then
-						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, --intern-op-slack-check failed"$'\n'
+						imPartial="$imPartial**NOTE:** partial -- $slackName not scanned, AgentsToolsSlackCheck failed"$'\n'
 						imAnySourceFailed="true"
 						continue
 					fi
 					if [ "$slackCheckRc" = "3" ] ; then
-						imPartial="$imPartial**NOTE:** partial -- $slackName partially scanned, one of the human-owner's two DMs could not be read (--intern-op-slack-check rc=3); the other DM's content below is real, not the missing half"$'\n'
+						imPartial="$imPartial**NOTE:** partial -- $slackName partially scanned, one of the human-owner's two DMs could not be read (AgentsToolsSlackCheck rc=3); the other DM's content below is real, not the missing half"$'\n'
 						imAnySourceFailed="true"
 					fi
 					[ ! -s "$sourcePrefetchDir/idmap.$sourceIndex" ] || dmIdentityMap="$dmIdentityMap$( cat "$sourcePrefetchDir/idmap.$sourceIndex" )"$'\n'
@@ -1116,17 +1118,17 @@ case "$1" in
 						dtPageUntilArgs=( --page-until "$cutoffEpoch" )
 					fi
 					fetchRaw="$( if [ "$memberScopeOnly" = "true" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
+						AgentsToolsSlackCheck "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
 					elif [ "$dtIdentity" = "bot" ] ; then
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
+						AgentsToolsSlackCheck "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
 					elif [ "$dtIdentity" != "" ] ; then
 						## A non-bot, non-empty mapped identity ("user"): omitting
 						## --identity-bot resolves to the token memberName holds.
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
+						AgentsToolsSlackCheck "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --raw
 					else
-						DistroAgentsTools --intern-op-slack-check "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
+						AgentsToolsSlackCheck "$memberName" "$dt" "${dtPageUntilArgs[@]+"${dtPageUntilArgs[@]}"}" --identity-bot --raw
 					fi )" || {
-						printf 'FAIL:--intern-op-slack-check failed\n' > "$statusFile"
+						printf 'FAIL:AgentsToolsSlackCheck failed\n' > "$statusFile"
 						return 0
 					}
 					fetchJson="$( printf '%s\n' "$fetchRaw" | sed '1d' )"
@@ -1453,7 +1455,8 @@ case "$1" in
 				fi
 				local trelloWhoami="" trelloUser="" trelloId=""
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					trelloWhoami="$( DistroAgentsTools --intern-op-comms-trello-whoami "$actingMember" )" || trelloWhoami=""
+					type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsTrello.include"
+					trelloWhoami="$( AgentsToolsCommsTrelloWhoami "$actingMember" )" || trelloWhoami=""
 					trelloUser="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USERNAME=//p' | head -1 )" || trelloUser=""
 					trelloId="$( printf '%s\n' "$trelloWhoami" | LC_ALL=C sed -n 's/^TRELLO_USER_ID=//p' | head -1 )" || trelloId=""
 				fi
@@ -1463,7 +1466,8 @@ case "$1" in
 				local trelloJson
 				## The ACTING MEMBER, same reason as the email check above.
 				if [ "$trelloNotConfigured" = "false" ] ; then
-					trelloJson="$( DistroAgentsTools --intern-op-comms-trello-check "$actingMember" )" || trelloFailed="true"
+					type AgentsToolsCommsTrelloCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsTrello.include"
+					trelloJson="$( AgentsToolsCommsTrelloCheck "$actingMember" )" || trelloFailed="true"
 				fi
 				if [ "$trelloNotConfigured" = "false" ] && [ "$trelloFailed" = "false" ] ; then
 					trelloBlocks="$( printf '%s\n' "$trelloJson" | LC_ALL=C awk -v kind=trello -f "$commsItemsAwk" )" || {

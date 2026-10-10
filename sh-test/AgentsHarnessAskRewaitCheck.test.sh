@@ -133,7 +133,7 @@ rigStart own-wait
 rigReplies "$rigAnswer"
 rigAsk rig-session-d 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "control: the ask's own wait takes the answer" "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' )" yes
-rigAssert "control: and leaves nothing in the Wait set" "$( rigWaitSet "$rigScenarioDir" rig-session-d )" ""
+rigAssert "control: and the answered item stays in the Wait set" "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "ask:$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 ) "
 rigStart posted-wait
 rigReplies ""
 rigAsk rig-session-d 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"wait\":false}"
@@ -154,9 +154,21 @@ rigAssert "it carries the answer text"                 "$( rigHolds "$rigScenari
 rigAssert "and takes it as the asking call would"      "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' )" yes
 rigAssert "the record closed as received"              "$( rigRecordStatus )" reply-received
 rigAssert "the record is the one the ask's own wait leaves" "$( rigRecordShape "$rigScenarioDir" )" "$( rigRecordShape "$rigTmp/own-wait" )"
-rigAssert "the answered item left the Wait set"        "$( rigWaitSet "$rigScenarioDir" rig-session-d )" ""
+rigAssert "the answered item stays in the Wait set"    "$( rigWaitSet "$rigScenarioDir" rig-session-d )" "ask:$rigRewaitId "
+rigAssert "its thread watched from the answer"         "$( LC_ALL=C awk -F': ' '$1 == "follow-floor" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" "1700000001.000200"
 rigAsk rig-session-d 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "control: the pending_id re-wait sees it closed" "$( rigHolds "$rigScenarioDir/out" 'is closed' )" yes
+
+echo "-- a direct answer: a later message in its thread arrives on Wait and is kept --"
+rigReplies "$rigAnswer"',{"ts":"1700000001.000500","user":"URIGOWNER","text":"correction: keep a copy too","thread_ts":"1700000001.000101"}'
+rigAsk rig-session-d 30 '{"mode":"continue"}' Wait
+rigAssert "the later message arrives"                  "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
+rigAssert "as a clarification on the answer"           "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: CLARIFIED' )$( rigHolds "$rigScenarioDir/out" 'correction: keep a copy too' )" yesyes
+rigAssert "kept on the record"                         "$( rigHolds "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" '- 1700000001.000500 URIGOWNER: correction: keep a copy too' )" yes
+rigAssert "the answer itself is left as it was"        "$( LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" "RIG-ANSWER-MARKER"
+rigAssert "the follow floor stays at the answer"       "$( LC_ALL=C awk -F': ' '$1 == "follow-floor" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" "1700000001.000200"
+rigAsk rig-session-d 30 '{"mode":"continue"}' Wait
+rigAssert "nothing new: the next Wait times out"       "$( LC_ALL=C head -1 "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 
 echo "-- a typed ask left UNCLASSIFIED: a new Wait on its WAIT-ID takes the verdict --"
 rigStart typed-wait
@@ -176,6 +188,96 @@ rigAssert "the Wait posted nothing"                    "$(( $( rigCalls chat.pos
 rigAssert "the record closed as received"              "$( rigRecordStatus )" reply-received
 rigAssert "and carries the verdict"                    "$( LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" deny
 rigAssert "the record is the one the pending_id re-wait leaves" "$( rigRecordShape "$rigScenarioDir" )" "$( rigRecordShape "$rigTmp/resumed" )"
+
+rigRecordFile(){ ## pending id
+	printf '%s' "$rigScenarioDir/ws/.local/agents/pending/$1.md"
+}
+rigRecordField(){ ## pending id, field
+	LC_ALL=C awk -v key="$2" '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, key ": " ) == 1 { print substr( $0, length( key ) + 3 ) ; exit ; }' "$( rigRecordFile "$1" )" 2>/dev/null
+}
+rigRecordHolds(){ ## pending id, text
+	rigHolds "$( rigRecordFile "$1" )" "$2"
+}
+
+echo "-- a plain question: the first line is the answer, the rest and later replies are kept --"
+rigStart plain-multiline
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it\nbut rename it first","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"to report-final","thread_ts":"1700000001.000101"}'
+rigAsk rig-session-k 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
+rigRewaitId="$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 )"
+rigAssert "it is answered"                            "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
+rigAssert "with the first line as the answer"         "$( rigRecordField "$rigRewaitId" verdict )" "yes, keep it"
+rigAssert "the rest of the reply is kept"             "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000200 URIGOWNER: but rename it first' )" yes
+rigAssert "and so is the later reply"                 "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000300 URIGOWNER: to report-final' )" yes
+
+echo "-- a decision with a recommended option: a plain ok picks it, and the rest is kept --"
+rigStart recommended
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Ok, go\nbecause it ships today","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"and tell ops first","thread_ts":"1700000001.000101"}'
+rigAsk rig-session-f 60 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write (recommended)\\ndeny -- keep it refused\"}"
+rigRewaitId="$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 )"
+rigAssert "the post says ok takes the recommended one" "$( rigHolds "$rigScenarioDir/post.1" 'to take the recommended option' )" yes
+rigAssert "a plain ok is the recommended option"      "$( rigVerdictLine )" "VERDICT: allow-once"
+rigAssert "the record closed with it"                 "$( rigRecordStatus )/$( rigRecordField "$rigRewaitId" verdict )" "reply-received/allow-once"
+rigAssert "the rest of the reply is a clarification"  "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000200 URIGOWNER: because it ships today' )" yes
+rigAssert "and so is the later reply"                 "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000300 URIGOWNER: and tell ops first' )" yes
+rigStart recommended-twice
+rigReplies ""
+rigAsk rig-session-f 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write (recommended)\\ndeny -- keep it refused (Recommended)\"}"
+rigAssert "two recommended options are refused"       "$( rigHolds "$rigScenarioDir/out" 'at most one option marked (recommended)' )" yes
+rigAssert "and nothing is posted"                     "$( rigCalls chat.postMessage )" 0
+
+echo "-- the asker reads an unclear reply back as one option, and a later objection arrives on Wait --"
+rigStart readback
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"hmm, the first one I guess","thread_ts":"1700000001.000101"}'
+rigAsk rig-session-g 60 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
+rigAssert "the unclear reply is UNCLASSIFIED"         "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "the result offers the readback"            "$( rigHolds "$rigScenarioDir/out" 'readback=<option word>' )" yes
+rigRewaitId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
+[ -n "$rigRewaitId" ] || rigRefuse "no WAIT-ID line came back, so the readback below would not be measured"
+rigAsk rig-session-g 30 "{\"pending_id\":\"$rigRewaitId\",\"readback\":\"maybe\"}"
+rigAssert "a readback naming no option is refused"    "$( rigHolds "$rigScenarioDir/out" 'is not an option of' )" yes
+rigAssert "and the record stays open"                 "$( rigRecordStatus )" reply-pending
+rigAsk rig-session-g 30 "{\"pending_id\":\"$rigRewaitId\",\"readback\":\"allow-once\",\"understood\":\"the first one is allow-once\"}"
+rigAssert "the readback closes it"                    "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
+rigAssert "with that option"                          "$( rigVerdictLine )" "VERDICT: allow-once"
+rigAssert "marked as closed by readback"              "$( rigHolds "$rigScenarioDir/out" 'CLOSED-BY: readback' )" yes
+rigAssert "on the record too"                         "$( rigRecordStatus )/$( rigRecordField "$rigRewaitId" closed-by )/$( rigRecordField "$rigRewaitId" answered-by )" "reply-received/readback/magic-tester (readback)"
+rigAssert "the readback is posted in the thread"      "$( rigHolds "$rigScenarioDir/post.2" '"thread_ts":"1700000001.000101"' )$( rigHolds "$rigScenarioDir/post.2" 'Readback by magic-tester' )" yesyes
+rigAssert "its ts is the follow floor"                "$( rigRecordField "$rigRewaitId" follow-floor )" "1700000001.000102"
+rigAssert "the reply read back is kept"               "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000200 URIGOWNER: hmm, the first one I guess' )" yes
+rigAssert "the item stays in the Wait set"            "$( rigWaitSet "$rigScenarioDir" rig-session-g )" "ask:$rigRewaitId "
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"hmm, the first one I guess","thread_ts":"1700000001.000101"},{"ts":"1700000001.000102","user":"URIGSELF1","text":"readback","thread_ts":"1700000001.000101"},{"ts":"1700000001.000400","user":"URIGOWNER","text":"no, I meant deny","thread_ts":"1700000001.000101"}'
+rigAsk rig-session-g 30 "{\"sources\":\"ask:$rigRewaitId\"}" Wait
+rigAssert "the objection arrives on Wait"             "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
+rigAssert "as a clarification on the closed decision" "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: CLARIFIED' )$( rigHolds "$rigScenarioDir/out" 'no, I meant deny' )" yesyes
+rigAssert "kept on the record"                        "$( rigRecordHolds "$rigRewaitId" '- 1700000001.000400 URIGOWNER: no, I meant deny' )" yes
+rigAssert "the verdict itself is left as it was"      "$( rigRecordField "$rigRewaitId" verdict )" allow-once
+rigStart readback-early
+rigReplies ""
+rigAsk rig-session-h 8 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
+rigRewaitId="$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 )"
+rigAsk rig-session-h 30 "{\"pending_id\":\"$rigRewaitId\",\"readback\":\"deny\"}"
+rigAssert "no readback before any reply"              "$( rigHolds "$rigScenarioDir/out" 'nobody has replied' )" yes
+rigAssert "and the record stays open"                 "$( rigRecordStatus )" reply-pending
+
+echo "-- the asker withdraws its own question: no verdict, a note in its thread --"
+rigStart withdraw
+rigReplies ""
+rigAsk rig-session-i 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"wait\":false}"
+rigRewaitId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
+rigAsk rig-session-i 30 "{\"pending_id\":\"$rigRewaitId\",\"withdraw\":\"the task was cancelled\"}"
+rigAssert "it is withdrawn"                           "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "ASK-RESULT: WITHDRAWN"
+rigAssert "closed as withdrawn, with the reason"      "$( rigRecordStatus )/$( rigRecordField "$rigRewaitId" withdraw-reason )/$( rigRecordField "$rigRewaitId" withdrawn-by )" "withdrawn/the task was cancelled/magic-tester"
+rigAssert "and no verdict"                            "$( rigRecordField "$rigRewaitId" verdict )" ""
+rigAssert "a note in its own thread"                  "$( rigHolds "$rigScenarioDir/post.2" '"thread_ts":"1700000001.000101"' )$( rigHolds "$rigScenarioDir/post.2" 'no longer needs an answer' )" yesyes
+rigAssert "it left the Wait set"                      "$( rigWaitSet "$rigScenarioDir" rig-session-i )" ""
+rigAsk rig-session-i 30 "{\"pending_id\":\"$rigRewaitId\"}"
+rigAssert "a re-wait finds it closed"                 "$( rigHolds "$rigScenarioDir/out" 'is closed (status withdrawn)' )" yes
+rigStart withdraw-decision
+rigReplies ""
+rigAsk rig-session-j 8 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
+rigRewaitId="$( ls "$rigScenarioDir/ws/.local/agents/pending" 2>/dev/null | LC_ALL=C sed -n 's/\.md$//p' | head -1 )"
+rigAsk rig-session-j 30 "{\"pending_id\":\"$rigRewaitId\",\"withdraw\":\"asked the wrong person\"}"
+rigAssert "an open decision is withdrawn too"         "$( LC_ALL=C head -1 "$rigScenarioDir/out" )/$( rigRecordStatus )" "ASK-RESULT: WITHDRAWN/withdrawn"
 
 rigAssert "no request went anywhere but a Slack method" "$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )" 0
 

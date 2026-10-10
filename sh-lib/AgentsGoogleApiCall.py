@@ -47,10 +47,19 @@
 ##   AGENTS_GOOGLE_APPEND          sheet-write, optional -- "true" appends rows
 ##   AGENTS_GOOGLE_USER_ENTERED    sheet-write, optional -- "true" parses formulas
 ##   AGENTS_GOOGLE_DOC_ID          doc-read, doc-write
-##   AGENTS_GOOGLE_FILE_ID         comment-read, comment-post
+##   AGENTS_GOOGLE_FILE_ID         comment-read, comment-post, file-trash, permission-domain
+##   AGENTS_GOOGLE_NAME            folder-find, folder-create, file-upload (optional), doc-import
+##   AGENTS_GOOGLE_PARENT_ID       folder-find (optional), folder-create, file-upload, doc-import
+##   AGENTS_GOOGLE_UPLOAD_PATH     file-upload -- the local file sent as it is
+## folder-find, folder-create, file-upload, doc-import, file-trash and permission-domain have no
+## stub: tooling calls them in context, as the caller, through AgentsToolsGoogleCall -- all but
+## file-trash for --intern-artifact-publish (AgentsTools.InternArtifact.include). file-trash
+## moves to the trash only; nothing here deletes for good. permission-domain shares with the
+## caller's own organisation only, never with anyone holding the link.
 ##
 ## CONTENT FOR A WRITE ARRIVES ON STDIN, never in the environment and never in
-## argv: TSV rows for sheet-write, plain text for doc-write and comment-post.
+## argv: TSV rows for sheet-write, plain text for doc-write and comment-post, HTML for
+## doc-import.
 ## Credentials go the other way -- environment only, never stdin -- so the two
 ## channels never carry the same kind of thing and cannot be confused.
 ##
@@ -63,15 +72,23 @@
 ##
 
 import json
+import mimetypes
+import os
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 DRIVE_ABOUT = "https://www.googleapis.com/drive/v3/about"
 DRIVE_FILES = "https://www.googleapis.com/drive/v3/files"
+DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3/files"
 SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
+FOLDER_MIME = "application/vnd.google-apps.folder"
+DOC_MIME = "application/vnd.google-apps.document"
+## A multipart upload carries at most 5 MB; past that Drive wants a resumable upload.
+UPLOAD_LIMIT = 5 * 1024 * 1024
 
 CONNECT_TIMEOUT = 120
 
@@ -474,16 +491,16 @@ def stdin_tsv_values():
     return [[tsv_unescape(cell) for cell in line.split("\t")] for line in lines]
 
 
-def api_send(access_token, url, payload, question, method="POST"):
-    """One authenticated write. Same failure doctrine as api_get."""
-    body = json.dumps(payload).encode("utf-8")
+def api_send(access_token, url, payload, question, method="POST", raw_body=None, content_type="application/json"):
+    """One authenticated write. Same failure doctrine as api_get. A raw body is sent as given."""
+    body = raw_body if raw_body is not None else json.dumps(payload).encode("utf-8")
     try:
         return http_json(
             url,
             data=body,
             headers={
                 "Authorization": "Bearer " + access_token,
-                "Content-Type": "application/json",
+                "Content-Type": content_type,
             },
             method=method,
         )
@@ -690,6 +707,154 @@ def op_comment_post(access_token, args):
     sys.stdout.write("COMMENT_CREATED=%s\n" % payload.get("createdTime", ""))
 
 
+def drive_id(value, what):
+    """An id goes into a Drive query, so only the characters Drive ids are made of pass."""
+    if not value or any(not (c.isascii() and (c.isalnum() or c in "-_")) for c in value):
+        fail(1, "%s is not a Drive id: %s" % (what, value))
+    return value
+
+
+def report_file(payload, question):
+    """The id and the link of a file just made, or a failure: a 2xx with no id proves nothing."""
+    if not payload.get("id"):
+        fail(3, "%s -- the call returned no id, so whether the file exists is UNKNOWN." % question)
+    sys.stdout.write("FILE_ID=%s\n" % payload.get("id", ""))
+    sys.stdout.write("FILE_URL=%s\n" % payload.get("webViewLink", ""))
+
+
+def op_folder_find(access_token, args):
+    """Folders named exactly <name> this account can see, under <parent> when given.
+
+    TSV rows of id, name and link. None found prints nothing and exits 0, a complete
+    answer: the caller decides whether none, one or several is what it wanted.
+    """
+    name = args.get("name")
+    if not name:
+        fail(1, "folder-find requires name")
+    query = "mimeType = '%s' and trashed = false and name = '%s'" % (FOLDER_MIME, drive_quote(name))
+    if args.get("parent_id"):
+        query += " and '%s' in parents" % drive_id(args["parent_id"], "parent_id")
+    url = DRIVE_FILES + "?" + urllib.parse.urlencode({
+        "q": query,
+        "fields": "files(id,name,webViewLink)",
+        "pageSize": 100,
+        "corpora": "allDrives",
+        "supportsAllDrives": "true",
+        "includeItemsFromAllDrives": "true",
+    })
+    payload = api_get(access_token, url, "could not list the folders named %s" % name)
+    files = payload.get("files")
+    if files is None:
+        fail(3, "the Drive files.list call returned no files field, so the folder list is "
+                "UNKNOWN rather than empty.")
+    for entry in files:
+        emit_tsv_row([entry.get("id", ""), entry.get("name", ""), entry.get("webViewLink", "")])
+
+
+def op_folder_create(access_token, args):
+    """One folder named <name> inside <parent>."""
+    name = args.get("name")
+    parent = drive_id(args.get("parent_id"), "parent_id")
+    if not name:
+        fail(1, "folder-create requires name")
+    url = DRIVE_FILES + "?" + urllib.parse.urlencode({"supportsAllDrives": "true", "fields": "id,webViewLink"})
+    question = "could not create the folder %s" % name
+    report_file(api_send(access_token, url, {"name": name, "mimeType": FOLDER_MIME, "parents": [parent]}, question), question)
+
+
+def upload_multipart(access_token, metadata, media, media_type, question):
+    """One multipart upload: the metadata part, then the bytes as given."""
+    if len(media) > UPLOAD_LIMIT:
+        fail(1, "%s -- it is %d bytes, over the %d a single upload carries. Nothing was sent."
+                % (question, len(media), UPLOAD_LIMIT))
+    boundary = "agents-artifact-%s" % uuid.uuid4().hex
+    body = b"".join([
+        ("--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" % boundary).encode("ascii"),
+        json.dumps(metadata).encode("utf-8"),
+        ("\r\n--%s\r\nContent-Type: %s\r\n\r\n" % (boundary, media_type)).encode("ascii"),
+        media,
+        ("\r\n--%s--\r\n" % boundary).encode("ascii"),
+    ])
+    url = DRIVE_UPLOAD + "?" + urllib.parse.urlencode({
+        "uploadType": "multipart",
+        "supportsAllDrives": "true",
+        "fields": "id,webViewLink",
+    })
+    report_file(api_send(access_token, url, None, question, raw_body=body,
+                         content_type="multipart/related; boundary=%s" % boundary), question)
+
+
+def op_file_upload(access_token, args):
+    """One local file into <parent>, as it is, under <name> or its own base name."""
+    parent = drive_id(args.get("parent_id"), "parent_id")
+    path = args.get("upload_path")
+    if not path:
+        fail(1, "file-upload requires upload_path")
+    name = args.get("name") or os.path.basename(path)
+    try:
+        with open(path, "rb") as handle:
+            media = handle.read()
+    except OSError as error:
+        fail(1, "file-upload cannot read %s: %s -- nothing was sent" % (path, error))
+    upload_multipart(access_token, {"name": name, "parents": [parent]}, media,
+                     mimetypes.guess_type(path)[0] or "application/octet-stream", "could not upload %s" % name)
+
+
+def op_doc_import(access_token, args):
+    """The HTML on stdin, converted by Drive into a Google Doc named <name> inside <parent>."""
+    parent = drive_id(args.get("parent_id"), "parent_id")
+    name = args.get("name")
+    if not name:
+        fail(1, "doc-import requires name")
+    media = sys.stdin.buffer.read()
+    if not media:
+        fail(1, "no HTML supplied on stdin -- nothing was written")
+    upload_multipart(access_token, {"name": name, "mimeType": DOC_MIME, "parents": [parent]}, media,
+                     "text/html; charset=UTF-8", "could not create the document %s" % name)
+
+
+def op_file_trash(access_token, args):
+    """One Drive file or folder moved to the trash, from where it can be restored.
+
+    TRASH ONLY: files.update with trashed=true. Never files.delete, which removes a file for
+    good -- this worker has no permanent delete, and none is to be added beside this one.
+    """
+    file_id = drive_id(args.get("file_id"), "file_id")
+    url = "%s/%s?%s" % (DRIVE_FILES, urllib.parse.quote(file_id, safe=""),
+                        urllib.parse.urlencode({"supportsAllDrives": "true", "fields": "id,trashed"}))
+    payload = api_send(access_token, url, {"trashed": True}, "could not move %s to the trash" % file_id, method="PATCH")
+    if payload.get("trashed") is not True:
+        fail(3, "the trash call for %s answered without trashed=true, so whether it is in the trash is "
+                "UNKNOWN." % file_id)
+    sys.stdout.write("FILE_ID=%s\nFILE_TRASHED=true\n" % payload.get("id", file_id))
+
+
+def op_permission_domain(access_token, args):
+    """Everyone in the caller's own Google organisation may read one file or folder.
+
+    The domain is the caller's account domain, read from about.get, never configured.
+    type=domain, role=reader, and never type=anyone, which would open it to the internet.
+    No notification email: Drive sends one for users and groups only, and its
+    sendNotificationEmail flag is documented as not allowed on other types, so it is not sent.
+    """
+    file_id = drive_id(args.get("file_id"), "file_id")
+    about = api_get(access_token, DRIVE_ABOUT + "?" + urllib.parse.urlencode({"fields": "user"}),
+                    "could not read which account this credential belongs to")
+    email = (about.get("user") or {}).get("emailAddress", "")
+    domain = email.rsplit("@", 1)[1] if "@" in email else ""
+    if not domain:
+        fail(3, "about.get named no account email, so the organisation domain is UNKNOWN; %s was "
+                "not shared." % file_id)
+    url = "%s/%s/permissions?%s" % (DRIVE_FILES, urllib.parse.quote(file_id, safe=""),
+                                    urllib.parse.urlencode({"supportsAllDrives": "true", "fields": "id,type,role,domain"}))
+    question = "could not share %s with the organisation %s" % (file_id, domain)
+    payload = api_send(access_token, url, {"type": "domain", "role": "reader", "domain": domain}, question)
+    if not payload.get("id") or payload.get("type") != "domain" or payload.get("domain") != domain:
+        fail(3, "%s -- the answer is not a reader permission for %s, so whether it is shared is "
+                "UNKNOWN." % (question, domain))
+    sys.stdout.write("PERMISSION_ID=%s\nPERMISSION_DOMAIN=%s\n" % (payload["id"], domain))
+
+
 OPERATIONS = {
     "whoami": op_whoami,
     "file-find": op_file_find,
@@ -701,6 +866,12 @@ OPERATIONS = {
     "doc-write": op_doc_write,
     "comment-read": op_comment_read,
     "comment-post": op_comment_post,
+    "folder-find": op_folder_find,
+    "folder-create": op_folder_create,
+    "file-upload": op_file_upload,
+    "doc-import": op_doc_import,
+    "file-trash": op_file_trash,
+    "permission-domain": op_permission_domain,
 }
 
 
@@ -738,6 +909,9 @@ def main():
         "file_id": os.environ.get("AGENTS_GOOGLE_FILE_ID", "").strip(),
         "append": os.environ.get("AGENTS_GOOGLE_APPEND", "").strip() == "true",
         "user_entered": os.environ.get("AGENTS_GOOGLE_USER_ENTERED", "").strip() == "true",
+        "name": os.environ.get("AGENTS_GOOGLE_NAME", "").strip(),
+        "parent_id": os.environ.get("AGENTS_GOOGLE_PARENT_ID", "").strip(),
+        "upload_path": os.environ.get("AGENTS_GOOGLE_UPLOAD_PATH", "").strip(),
     }
 
     access_token = exchange_refresh_token(client_id, client_secret, refresh_token)

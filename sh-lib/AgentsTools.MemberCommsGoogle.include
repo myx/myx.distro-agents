@@ -84,6 +84,9 @@ AgentsToolsGoogleCall() {
 	AGENTS_GOOGLE_FILE_ID="${googleFileId:-}" \
 	AGENTS_GOOGLE_APPEND="${googleAppend:-}" \
 	AGENTS_GOOGLE_USER_ENTERED="${googleUserEntered:-}" \
+	AGENTS_GOOGLE_NAME="${googleName:-}" \
+	AGENTS_GOOGLE_PARENT_ID="${googleParentId:-}" \
+	AGENTS_GOOGLE_UPLOAD_PATH="${googleUploadPath:-}" \
 	python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsGoogleApiCall.py"
 }
 
@@ -482,9 +485,15 @@ case "$1" in
 			return 0
 		;;
 
-		*)
+		--member-comms-google-*|--intern-op-comms-google-*)
 			echo "⛔ ERROR: $MDSC_CMD: unknown --member-comms-google-* operation: $1 -- the supported operations are --member-comms-google-whoami, --member-comms-google-file-find, --member-comms-google-sheet-read, --member-comms-google-sheet-info, --member-comms-google-sheet-write, --member-comms-google-sheet-clear, --member-comms-google-doc-read, --member-comms-google-doc-write, --member-comms-google-comment-read and --member-comms-google-comment-post" >&2
 			set +e ; return 1
+		;;
+
+		## DEFINITIONS-ONLY SOURCE, as AgentsTools.InternOpAtlassianCall.include: a caller in a
+		## set-up context sources this file for AgentsToolsGoogleResolveMember and AgentsToolsGoogleCall.
+		*)
+			:
 		;;
 
 esac

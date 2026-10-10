@@ -88,6 +88,8 @@ AgentsToolsHeartbeatBoardActiveItems(){
 	return 0
 }
 
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
+
 case "$1" in
 
 	--magic-heartbeat-input-scan)
@@ -275,7 +277,7 @@ case "$1" in
 		fi
 		DistroAgentsTools --intern-op-slack-check-scopes magic-coordinator \
 			--scope-source --member-comms-slack-send-message \
-			--scope-source --intern-op-slack-check \
+			--scope-source AgentsToolsSlackCheck \
 			--scope-source --member-comms-slack-read \
 			--scope-source --member-comms-slack-react \
 			--scope-source --magic-comms-slack-resolve-ids \
@@ -322,7 +324,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 15 )"
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:heartbeat-running \
@@ -344,7 +346,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 15 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--update-lock \
 			--header:upsert:state:heartbeat-running \
@@ -364,7 +366,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-close-state-and-unlock: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--unlock-lock \
 			--header:upsert:state:heartbeat-finished \
@@ -391,7 +393,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--context --magic-heartbeat-lock-status
 		return $?
@@ -608,7 +610,7 @@ case "$1" in
 		## session-id (it is the same document), so the stale/stolen-lock
 		## check this primitive already does applies to this write too,
 		## which it never could when this was a separate, lock-blind file.
-		printf '%s\n' "$mergedContent" | DistroAgentsTools --intern-op-item-upsert magic-coordinator \
+		printf '%s\n' "$mergedContent" | AgentsToolsItemUpsert magic-coordinator \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--upsert-from-stdin \
 			--commit-message "* main-loop, heartbeat-state, $( date -u +%Y-%m-%dT%H:%M:%SZ )" \
@@ -715,7 +717,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-test-report-send: the send failed, so last-test-email-sent is not stamped" >&2
 			set +e ; return 1
 		}
-		DistroAgentsTools --intern-op-item-upsert magic-coordinator \
+		AgentsToolsItemUpsert magic-coordinator \
 			note-20260809T155000Z-heartbeat-state-and-lock.md \
 			--header:upsert:last-test-email-sent:"$reportStamp" \
 			--commit-message "* main-loop, heartbeat test report, $reportStamp" \

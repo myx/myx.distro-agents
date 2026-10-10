@@ -3,19 +3,20 @@
 
 ## Snapshots a resource's full current content before a write below that could
 ## lose it -- read, then save byte for byte through the existing generic item
-## store (--intern-op-item-upsert --from-audit), never a new read or write
+## store (AgentsToolsItemUpsert --from-audit), never a new read or write
 ## primitive. Either the read or the save failing refuses the whole write: it
 ## returns 1 and the caller must not reach its live write call. On success it
 ## prints SNAPSHOT_ID=<name> to stderr before that live call runs. No secret
 ## or credential value is ever in scope here -- the read op's own output
-## carries none.
-AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, resourceType, resourceId, read-op-args...
+## carries none. The read is an in-context Atlassian read helper, named with its arguments.
+AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, resourceType, resourceId, read-helper-and-args...
 	local snapMember="$1" snapWriteOp="$2" snapSystem="$3" snapResourceType="$4" snapResourceId="$5"
 	shift 5
 	local snapTime snapName snapBody snapRc=0 snapTmp
 	snapTime="$( date -u +%Y%m%dT%H%M%SZ )"
 	snapName="snapshot-$snapTime-$snapSystem-$snapResourceType-$snapResourceId.md"
-	snapBody="$( DistroAgentsTools "$@" --context "$snapWriteOp-snapshot" 2>/dev/null )" || snapRc=$?
+	type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+	snapBody="$( "$@" --context "$snapWriteOp-snapshot" 2>/dev/null )" || snapRc=$?
 	if [ "$snapRc" -ne 0 ] ; then
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not read the current $snapResourceType to snapshot it -- refusing the write" >&2
 		return 1
@@ -29,7 +30,7 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 		printf '%s\n' "---" "type: snapshot" "system: $snapSystem" "resource-type: $snapResourceType" "resource-id: $snapResourceId" "write-op: $snapWriteOp" "captured-by: $snapMember" "captured-at: $snapTime" "---" ""
 		printf '%s\n' "$snapBody"
 	} > "$snapTmp"
-	DistroAgentsTools --intern-op-item-upsert "$snapMember" --from-audit "$snapName" --from-file "$snapTmp" --context "$snapWriteOp-snapshot" --commit-message "audit snapshot: $snapName"
+	AgentsToolsItemUpsert "$snapMember" --from-audit "$snapName" --from-file "$snapTmp" --context "$snapWriteOp-snapshot" --commit-message "audit snapshot: $snapName"
 	snapRc=$?
 	rm -f "$snapTmp"
 	if [ "$snapRc" -ne 0 ] ; then
@@ -39,6 +40,8 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 	printf '%s\n' "SNAPSHOT_ID=$snapName" >&2
 	return 0
 }
+
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
 
 case "$1" in
 
@@ -210,7 +213,8 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
-		DistroAgentsTools --intern-op-atlassian-jira-issue-read --member "$actingMember" --context client-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
+		type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+		AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --context client-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
 	;;
@@ -310,7 +314,7 @@ case "$1" in
 			esac
 		done
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-update jira issue "$issueKey" \
-			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
+			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-update --member "$actingMember" --context client-comms-jira-issue-update --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -353,7 +357,7 @@ case "$1" in
 			esac
 		done
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-transition jira issue "$issueKey" \
-			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
+			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-transition --member "$actingMember" --context client-comms-jira-issue-transition --issue-key "$issueKey" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -421,7 +425,7 @@ case "$1" in
 			;;
 		esac
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-jira-issue-delete jira issue "$issueKey" \
-			--intern-op-atlassian-jira-issue-read --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
+			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --issue-key "$issueKey" --format raw || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-jira-issue-delete --member "$actingMember" --context client-comms-jira-issue-delete --issue-key "$issueKey" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -471,7 +475,8 @@ case "$1" in
 			;;
 		esac
 		local opRc=0
-		DistroAgentsTools --intern-op-atlassian-confluence-page-read --member "$actingMember" --context client-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
+		type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+		AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --context client-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 		return 0
 	;;
@@ -596,7 +601,7 @@ case "$1" in
 			esac
 		done
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-update confluence page "$pageId" \
-			--intern-op-atlassian-confluence-page-read --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
+			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$actingMember" --context client-comms-confluence-page-update --page-id "$pageId" "$@" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
@@ -664,7 +669,7 @@ case "$1" in
 			;;
 		esac
 		AgentsToolsClientCommsSnapshotBeforeWrite "$actingMember" client-comms-confluence-page-delete confluence page "$pageId" \
-			--intern-op-atlassian-confluence-page-read --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
+			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --page-id "$pageId" || { set +e ; return 1 ; }
 		local opRc=0
 		DistroAgentsTools --intern-op-atlassian-confluence-page-delete --member "$actingMember" --context client-comms-confluence-page-delete --page-id "$pageId" || opRc=$?
 		if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi

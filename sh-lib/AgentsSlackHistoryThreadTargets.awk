@@ -34,7 +34,7 @@
 # search:read (not currently confirmed available) and is out of this file's
 # reach regardless of the vaneId widening above.
 #
-# MULTI-DOCUMENT INPUT: a human-owner fan-out read (--intern-op-slack-check's
+# MULTI-DOCUMENT INPUT: a human-owner fan-out read (AgentsToolsSlackCheck's
 # own two-DM merge, --raw mode) concatenates TWO separate conversations.history
 # responses on stdin, each preceded by its own "## dm=<id> identity=<name> ..."
 # marker line -- one already present in that data, not added by this script.
@@ -249,7 +249,7 @@ function parseArray(path,   idx, c) {
 # and opens the new one.
 #
 # MATCHES MORE THAN THE ONE MARKER PER DOCUMENT, ON PURPOSE, NOT BY ACCIDENT:
-# --intern-op-slack-check's own --raw fan-out output actually carries FOUR
+# AgentsToolsSlackCheck's own --raw fan-out output actually carries FOUR
 # "## dm=" lines for a two-leg read, not two -- a provenance summary line
 # per leg ("## dm=<id> ... status=ok"), printed before ANY blob content,
 # followed by the inline marker immediately before each leg's own raw JSON

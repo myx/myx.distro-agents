@@ -1,103 +1,111 @@
 
 ##
-## AgentsTools.InternOpUrlPostBytes.include -- --intern-op-url-post-bytes.
-## Sourced lazily via the standard $MDLT_ORIGIN path; relies on being
-## dot-sourced for $1/$@/$MDSC_CMD. No --help entry: internal plumbing.
+## AgentsTools.InternOpUrlPostBytes.include -- AgentsToolsUrlPostBytes, an in-context helper
+## with no operation of its own (MAGIC.md, section 1). Sourced for its function only:
+##   type AgentsToolsUrlPostBytes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
+## NOT A SLACK HELPER: this file never sources AgentsTools.CommsSlack.include, and the function
+## is never named into the Slack family. See MAGIC.md.
 ##
 
-case "$1" in
-
-	--intern-op-url-post-bytes)
-		shift
-		local postUrl="" postBodyFile=""
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--url)
-					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url: value required" >&2
-						set +e ; return 1
-					fi
-					postUrl="$2" ; shift 2
-				;;
-				--body-file)
-					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file: value required (the path whose bytes become the request body)" >&2
-						set +e ; return 1
-					fi
-					postBodyFile="$2" ; shift 2
-				;;
-				--context)
-					if [ -z "${2:-}" ] ; then
-						echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --context: value required" >&2
-						set +e ; return 1
-					fi
-					shift 2
-				;;
-				*)
-					## The offending argument is NOT quoted, unlike every sibling arm:
-					## a bearer URL passed as a bare positional would land in the log.
-					echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: unrecognised argument. This op takes --url <url>, --body-file <path> and an optional --context <caller-op>, and nothing positional. The argument is not quoted back: a URL passed here is a bearer capability, and this op never writes one into a message or a log." >&2
+## POSTs a file's raw bytes to an https URL, with no credential. The response body on stdout;
+## POST_HTTP_STATUS= and POST_BYTES= on stderr. rc 0 on a 2xx, else 1.
+AgentsToolsUrlPostBytes(){ ## --url <url> --body-file <path> [--context <caller-op>]
+	local postUrl="" postBodyFile=""
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--url)
+				if [ -z "${2:-}" ] ; then
+					echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url: value required" >&2
 					set +e ; return 1
-				;;
-			esac
-		done
-
-		if [ -z "$postUrl" ] ; then
-			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url is required -- this call names nowhere to post to." >&2
-			set +e ; return 1
-		fi
-		if [ -z "$postBodyFile" ] ; then
-			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file is required -- this call names no bytes to post." >&2
-			set +e ; return 1
-		fi
-		if [ ! -f "$postBodyFile" ] ; then
-			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file: no such file: $postBodyFile" >&2
-			set +e ; return 1
-		fi
-
-		## https only: the request body is the file's own bytes and this op attaches
-		## nothing else that would protect them in transit.
-		case "$postUrl" in
-			https://*) ;;
+				fi
+				postUrl="$2" ; shift 2
+			;;
+			--body-file)
+				if [ -z "${2:-}" ] ; then
+					echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file: value required (the path whose bytes become the request body)" >&2
+					set +e ; return 1
+				fi
+				postBodyFile="$2" ; shift 2
+			;;
+			--context)
+				if [ -z "${2:-}" ] ; then
+					echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --context: value required" >&2
+					set +e ; return 1
+				fi
+				shift 2
+			;;
 			*)
-				echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url refused: not an https URL. Nothing was sent. The value is not quoted back: a pre-signed upload URL is a bearer capability, possession of it is authorisation, and this op never writes one into a message or a log." >&2
+				## The offending argument is NOT quoted, unlike every sibling arm:
+				## a bearer URL passed as a bare positional would land in the log.
+				echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: unrecognised argument. This op takes --url <url>, --body-file <path> and an optional --context <caller-op>, and nothing positional. The argument is not quoted back: a URL passed here is a bearer capability, and this op never writes one into a message or a log." >&2
 				set +e ; return 1
 			;;
 		esac
+	done
 
-		## Body on stdout, the -w line last on its own -- no response file. Same
-		## shape as the multipart upload in AgentsTools.CommsSlack.include.
-		local postOut="" postRc=0
-		postOut="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$postUrl" \
-			--data-binary "@$postBodyFile" \
-			-w '\n%{http_code} %{size_upload}' 2>/dev/null )" || postRc=$?
+	if [ -z "$postUrl" ] ; then
+		echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url is required -- this call names nowhere to post to." >&2
+		set +e ; return 1
+	fi
+	if [ -z "$postBodyFile" ] ; then
+		echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file is required -- this call names no bytes to post." >&2
+		set +e ; return 1
+	fi
+	if [ ! -f "$postBodyFile" ] ; then
+		echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --body-file: no such file: $postBodyFile" >&2
+		set +e ; return 1
+	fi
 
-		local postStatus="not-reported" postBytes="not-reported"
-		local postLine=""
-		postLine="$( printf '%s\n' "$postOut" | tail -1 )"
-		## Digits enumerated, never a bracket range -- see MAGIC.md.
-		case "$postLine" in
-			[0123456789]*" "[0123456789]*)
-				read -r postStatus postBytes <<< "$postLine"
-			;;
-		esac
-		printf 'POST_HTTP_STATUS=%s\n' "$postStatus" >&2
-		printf 'POST_BYTES=%s\n' "$postBytes" >&2
-
-		if [ "$postRc" -ne 0 ] ; then
-			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST transport failure, curl exit status $postRc. Neither the URL nor curl's own message is quoted: the URL is a bearer capability and curl's message can carry it." >&2
+	## https only: the request body is the file's own bytes and this op attaches
+	## nothing else that would protect them in transit.
+	case "$postUrl" in
+		https://*) ;;
+		*)
+			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: --url refused: not an https URL. Nothing was sent. The value is not quoted back: a pre-signed upload URL is a bearer capability, possession of it is authorisation, and this op never writes one into a message or a log." >&2
 			set +e ; return 1
-		fi
-		case "$postStatus" in
-			2??) ;;
-			*)
-				echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST returned HTTP $postStatus, not a 2xx -- the bytes were not accepted. The response body is discarded rather than shown: a server's error page echoes the request URL back, and that URL is a bearer capability. POST_BYTES above is what was sent." >&2
-				set +e ; return 1
-			;;
-		esac
-		## Everything but that last -w line is the response body.
-		printf '%s\n' "$postOut" | sed '$d'
-		return 0
+		;;
+	esac
+
+	## Body on stdout, the -w line last on its own -- no response file. Same
+	## shape as the multipart upload in AgentsTools.CommsSlack.include.
+	local postOut="" postRc=0
+	postOut="$( curl -sS --connect-timeout 10 --max-time 120 -X POST "$postUrl" \
+		--data-binary "@$postBodyFile" \
+		-w '\n%{http_code} %{size_upload}' 2>/dev/null )" || postRc=$?
+
+	local postStatus="not-reported" postBytes="not-reported"
+	local postLine=""
+	postLine="$( printf '%s\n' "$postOut" | tail -1 )"
+	## Digits enumerated, never a bracket range -- see MAGIC.md.
+	case "$postLine" in
+		[0123456789]*" "[0123456789]*)
+			read -r postStatus postBytes <<< "$postLine"
+		;;
+	esac
+	printf 'POST_HTTP_STATUS=%s\n' "$postStatus" >&2
+	printf 'POST_BYTES=%s\n' "$postBytes" >&2
+
+	if [ "$postRc" -ne 0 ] ; then
+		echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST transport failure, curl exit status $postRc. Neither the URL nor curl's own message is quoted: the URL is a bearer capability and curl's message can carry it." >&2
+		set +e ; return 1
+	fi
+	case "$postStatus" in
+		2??) ;;
+		*)
+			echo "$MDSC_CMD: url-post-bytes: ⛔ ERROR: POST returned HTTP $postStatus, not a 2xx -- the bytes were not accepted. The response body is discarded rather than shown: a server's error page echoes the request URL back, and that URL is a bearer capability. POST_BYTES above is what was sent." >&2
+			set +e ; return 1
+		;;
+	esac
+	## Everything but that last -w line is the response body.
+	printf '%s\n' "$postOut" | sed '$d'
+	return 0
+}
+
+## The retired operation name, still routed by a process that loaded the dispatcher before
+## the change, is refused rather than run as a silent no-op. Sourced for the function: nothing.
+case "${1:-}" in
+	--intern-op-url-post-bytes)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- no longer an operation: in-context code calls AgentsToolsUrlPostBytes" >&2
+		set +e ; return 1
 	;;
-
 esac

@@ -500,7 +500,9 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 		accept)
 			opPath="$( AgentsReviewVerdictPath "$opItem" "review running" )" || return 1
 			opState="$( AgentsReviewStateOfPath "$opPath" )"
-			opOut="$( AgentsReviewTools --intern-op-board-to-processed "$opWho" "$opItem" --from-state:"$opState" 2>&1 )" || {
+			## In this context, never the reviewer's workspace: the item is on the spawner's board.
+			type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.MagicBoard.include"
+			opOut="$( AgentsToolsBoardToProcessed "$opWho" "$opItem" --from-state:"$opState" 2>&1 )" || {
 				printf '%s\n' "$opOut" >&2
 				echo "$MDSC_CMD: ⛔ ERROR: the move of ${opItem%.md} to processed failed, so nothing was accepted" >&2
 				return 1

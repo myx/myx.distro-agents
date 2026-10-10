@@ -225,7 +225,7 @@ rigAssert "the brief's own sections are all in the packet"       "$( for rigSec 
 rigStubRun "$rigStubRoot" --intern-root-harness --routine heartbeat
 rigExpect "$rigModeInt" "$rigRoutineLine"
 rigAssert "interactive with a routine: the packet carries the routine line too" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different )" identical
-rigAssert "and the proxy is told the magic-team thread, without --wait"       "$( cat "$rigTmp/stub.args" )" "--magic-heartbeat-spawn-proxy magic-coordinator --session-thread:magic-team --routine heartbeat"
+rigAssert "and the proxy is told the magic-team thread, and --wait though none was given: interactive is a terminal start" "$( cat "$rigTmp/stub.args" )" "--magic-heartbeat-spawn-proxy magic-coordinator --session-thread:magic-team --routine heartbeat --wait"
 rigStubRun "$rigStubRoot" --intern-root-harness --wait
 rigExpect "$rigModeInt" ""
 rigAssert "interactive without a routine: no routine line, the packet is mode line, blank line, brief" "$( cmp -s "$rigTmp/stub.stdin" "$rigTmp/stub.expect" && echo identical || echo different ) $( LC_ALL=C grep -c "^$rigRoutineLabel" "$rigTmp/stub.stdin" || : )" "identical 0"

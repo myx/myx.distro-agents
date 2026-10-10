@@ -3,10 +3,62 @@
 
 ##
 ## AgentsTools.MemberCommsEmail.include -- the raw per-member email comms
-## operations (IMAP check, read, mark-seen and SMTP send).
+## operations (IMAP check, read and SMTP send), and the in-context helper
+## AgentsToolsCommsEmailMarkSeen, which has no operation of its own (MAGIC.md, section 1).
+## DUAL USE: a name not its own runs nothing, so a caller sources it for the helper:
+##   type AgentsToolsCommsEmailMarkSeen > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsEmail.include"
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+
+AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
+	local MDSC_CMD='DistroAgentsTools'
+	local memberName="$1"
+	shift || true
+	if [ -z "$memberName" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <team-member> missing" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
+	case "$memberName" in
+		routine-*)
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				set +e ; return 1
+			fi
+		;;
+	esac
+	local uid="$1"
+	shift || true
+	if [ -z "$uid" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <uid> missing" >&2
+		set +e ; return 1
+	fi
+
+	local imapHost imapUser imapPass
+	imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
+	imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
+	imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
+	if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
+		set +e ; return 1
+	fi
+
+	echo "# $MDSC_CMD --member-comms-email-mark-seen: marking UID=$uid as \\Seen in ${memberName}'s INBOX" >&2
+	## Password on curl's stdin, never argv and never the disk.
+	local netrcLine=""
+	printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
+	local storeRc=0
+	curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
+		--request "UID STORE ${uid} +FLAGS (\Seen)" <<< "$netrcLine" || storeRc=$?
+	if [ "$storeRc" -ne 0 ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: IMAP UID STORE +FLAGS (\\Seen) failed for UID=$uid against imaps://${imapHost}/INBOX as $memberName (curl rc=$storeRc) -- the message is NOT marked seen; curl's own error is on the line above" >&2
+		set +e ; return "$storeRc"
+	fi
+	return 0
+}
 
 case "$1" in
 
@@ -15,6 +67,10 @@ case "$1" in
 		## --intern-op-comms-email-* implementation below directly.
 		--member-comms-email-check|--member-comms-email-read|--member-comms-email-mark-seen|--member-comms-email-send)
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--member-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
+			esac
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
 			return $?
 		;;
@@ -134,59 +190,10 @@ case "$1" in
 			## Mutation strictly after a successful read, never before: a
 			## failed read must leave the message exactly as it was found.
 			if [ "$markSeen" = "true" ] ; then
-				DistroAgentsTools --intern-op-comms-email-mark-seen "$memberName" "$uid" || {
+				AgentsToolsCommsEmailMarkSeen "$memberName" "$uid" || {
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-email-read: message was read, but --seen failed to mark UID=$uid -- the read output above is still valid" >&2
 					set +e ; return 1
 				}
-			fi
-			return 0
-		;;
-
-		--intern-op-comms-email-mark-seen)
-			shift
-			local memberName="$1"
-			shift || true
-			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <team-member> missing" >&2
-				set +e ; return 1
-			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-email-mark-seen || { set +e ; return 1 ; }
-			case "$memberName" in
-				routine-*)
-				;;
-				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
-				;;
-			esac
-			local uid="$1"
-			shift || true
-			if [ -z "$uid" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: <uid> missing" >&2
-				set +e ; return 1
-			fi
-
-			local imapHost imapUser imapPass
-			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
-			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
-			imapPass="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_APP_PASSWORD )"
-			if [ -z "$imapHost" ] || [ -z "$imapUser" ] || [ -z "$imapPass" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD not fully set in ${memberName}'s own scope in .local/.agents" >&2
-				set +e ; return 1
-			fi
-
-			echo "# $MDSC_CMD --member-comms-email-mark-seen: marking UID=$uid as \\Seen in ${memberName}'s INBOX" >&2
-			## Password on curl's stdin, never argv and never the disk.
-			local netrcLine=""
-			printf -v netrcLine 'machine %s login %s password %s' "$imapHost" "$imapUser" "$imapPass"
-			local storeRc=0
-			curl -sS --connect-timeout 10 --max-time 120 --url "imaps://${imapHost}/INBOX" --netrc-file /dev/fd/0 \
-				--request "UID STORE ${uid} +FLAGS (\Seen)" <<< "$netrcLine" || storeRc=$?
-			if [ "$storeRc" -ne 0 ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-email-mark-seen: IMAP UID STORE +FLAGS (\\Seen) failed for UID=$uid against imaps://${imapHost}/INBOX as $memberName (curl rc=$storeRc) -- the message is NOT marked seen; curl's own error is on the line above" >&2
-				set +e ; return "$storeRc"
 			fi
 			return 0
 		;;
@@ -360,8 +367,9 @@ case "$1" in
 			## conversation concept the way Slack does, so every recipient
 			## address is checked, with no $presentExternal-style exemption.
 			local gateAddr
+			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"
 			for gateAddr in $recipients ; do
-				DistroAgentsTools --intern-op-contact-assert-known "$memberName" \
+				AgentsToolsContactAssertKnown "$memberName" \
 					--tool member-comms-email-send --target "$gateAddr" \
 					--message "$subject"$'\n'"$bodyLines" || { set +e ; return 1 ; }
 			done
@@ -465,8 +473,15 @@ case "$1" in
 			return "$rc"
 		;;
 
-		*)
+		## An email operation this file does not implement -- the retired
+		## --intern-op-comms-email-mark-seen among them -- is reported, never swallowed.
+		--member-comms-email-*|--intern-op-comms-email-*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
+		;;
+
+		## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helper. Nothing to dispatch.
+		*)
+			:
 		;;
 esac

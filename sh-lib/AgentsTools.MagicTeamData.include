@@ -10,7 +10,7 @@
 ##
 ## Every other team-data op commits only the paths it writes itself. This one
 ## commits whatever is pending under $MDAT_DATA_ROOT -- additions, edits and
-## deletions -- in one commit, then pushes it the way --intern-op-item-upsert
+## deletions -- in one commit, then pushes it the way AgentsToolsItemUpsert
 ## does. It exists for work left uncommitted, and it is magic-coordinator's only.
 ##
 
@@ -144,7 +144,7 @@ case "$1" in
 			return 0
 		fi
 
-		## The push and its one network retry are --intern-op-item-upsert's.
+		## The push and its one network retry are AgentsToolsItemUpsert's.
 		local pushAttempt=1 pushOut="" pushRc=0
 		while : ; do
 			set +e

@@ -4,7 +4,7 @@
 ## member, into its session thread -- the message AgentsDismissalMatch.awk recognises, so
 ## the child's Wait returns WAIT-RESULT: DISMISSED. Every case where nothing can be sent
 ## still moves the item and says why. The stub is the coordinator's; the review flow calls its
-## implementation, --intern-op-board-to-processed, for a member reviewer. A fake `curl` first on PATH logs each Slack call and
+## implementation, the in-context helper AgentsToolsBoardToProcessed, for a member reviewer. A fake `curl` first on PATH logs each Slack call and
 ## opens no socket; the board, sandboxes and workspace are this rig's own temp tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -56,6 +56,23 @@ rigAccept(){ ## result file, item filename, from state
 			[ "$( command -v curl )" = "$RIG_TMP/bin/curl" ] || exit 98
 			cd "$MMDAPP" && exec bash "$RIG_FN" "$@"
 		' rig "${RIG_ACCEPT_OP:---magic-board-to-processed}" "${RIG_ACCEPT_WHO:-magic-coordinator}" "$2" --from-state:"$3" > "$1" 2>&1
+	printf '%s' "$?" > "$1.rc"
+}
+## The review flow's own call: the in-context helper, run inside the tool's set-up context
+## (--intern-mcp-execute), by <member> from a session acting as RIG_AGENT when set.
+rigAcceptHelper(){ ## result file, item filename, from state, member
+	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
+	printf '%s\n' 'type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"' \
+		'AgentsToolsBoardToProcessed "$RIG_A_WHO" "$RIG_A_ITEM" --from-state:"$RIG_A_STATE"' \
+	| env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_FN="$rigFn" RIG_SCENARIO="$rigTmp" ${RIG_AGENT:+MDAT_SPAWN_AGENT="$RIG_AGENT"} \
+		RIG_A_WHO="$4" RIG_A_ITEM="$2" RIG_A_STATE="$3" \
+		bash -c '
+			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+			[ "$( command -v curl )" = "$RIG_TMP/bin/curl" ] || exit 98
+			cd "$MMDAPP" && exec bash "$RIG_FN" --intern-mcp-execute
+		' rig > "$1" 2>&1
 	printf '%s' "$?" > "$1.rc"
 }
 rigItem(){ ## state, item filename, spawn-id or empty
@@ -140,8 +157,8 @@ echo "-- who accepts: the coordinator's stub, or the review flow's own implement
 rigItem review dispatch-rig-who.md ""
 RIG_AGENT=keeper-myx rigAccept "$rigTmp/o8" dispatch-rig-who.md review
 rigAssert "the coordinator's stub from another member's session is refused, the item stays" "$( cat "$rigTmp/o8.rc" ):$( [ -f "$rigData/board/review/dispatch-rig-who.md" ] && echo stays ):$( LC_ALL=C grep -c "magic-board-to-processed is magic-coordinator's only" "$rigTmp/o8" )" 1:stays:1
-RIG_AGENT=keeper-myx RIG_ACCEPT_OP=--intern-op-board-to-processed RIG_ACCEPT_WHO=keeper-myx rigAccept "$rigTmp/o9" dispatch-rig-who.md review
-rigAssert "the review flow's implementation op accepts it for that member's own review" "$( cat "$rigTmp/o9.rc" ):$( [ -f "$rigData/board/processed/dispatch-rig-who.md" ] && echo processed )" 0:processed
+RIG_AGENT=keeper-myx rigAcceptHelper "$rigTmp/o9" dispatch-rig-who.md review keeper-myx
+rigAssert "the review flow's implementation helper accepts it for that member's own review" "$( cat "$rigTmp/o9.rc" ):$( [ -f "$rigData/board/processed/dispatch-rig-who.md" ] && echo processed )" 0:processed
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ BOARD ACCEPT DISMISS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

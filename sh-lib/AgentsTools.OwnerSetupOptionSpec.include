@@ -26,6 +26,11 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WEB_DENY_PREFIXES)
 			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|URL prefixes WebFetch never fetches, even under an allowed or built-in prefix. Space-separated, matched as WEB_ALLOW_PREFIXES is. A WebSearch result under one of them is no longer kept outside allowed_domains.'
 		;;
+		## The team place in Confluence: a general team key, not the publish step alone. Its
+		## Google counterpart is found by listing, never configured: the folder named magic-team.
+		CONFLUENCE_SPACE)
+			printf '%s\n' 'magic-team|<space-key>|plain|the key of the Confluence space the team keeps as its own place, as in its URL after /spaces/. Each member reaches it with its own CONFLUENCE_SITE, CONFLUENCE_USER and CONFLUENCE_API_TOKEN. A value set in a member scope wins for that member alone.'
+		;;
 		TEAM_DATA_DIRECTORY)
 			printf '%s\n' 'magic-coordinator|<abs-path>|plain|the directory holding the board and the inboxes. Left unset it is .local/agents/team-data-root inside this workspace; set it only to share team data between workspaces. Any path this account can write to; it is created on first use.'
 		;;

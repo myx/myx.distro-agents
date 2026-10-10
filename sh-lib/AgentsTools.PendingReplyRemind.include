@@ -3,9 +3,10 @@
 
 ##
 ## AgentsTools.PendingReplyRemind.include -- reminders for asks still waiting on a
-## person. Definitions only, sourced by the --intern-op-pending-reply-remind arm
-## (AgentsTools.InternOpPendingReply.include), which the main loop runs every
-## iteration right after its pending-reply collect.
+## person. Definitions only: AgentsToolsPendingReplyRemindRun is an in-context helper with no
+## operation of its own (MAGIC.md, section 1), which the main loop (AgentsTools.InternMainLoop.include)
+## runs every iteration right after its pending-reply collect, with this file and
+## AgentsTools.PendingReplyCollect.include sourced.
 ##
 ## Pure tooling: no model is called, no skillset text drives it. It reads every
 ## record in .local/agents/pending/ still `status: reply-pending`, of a live session or

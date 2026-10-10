@@ -11,6 +11,8 @@
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
 
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
+
 case "$1" in
 
 	## HEADER ORDER IS LOAD-BEARING.
@@ -41,7 +43,7 @@ case "$1" in
 		done
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--header:upsert:state:retro-running \
 			"${passthrough[@]}" \
@@ -64,7 +66,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:retro-running \
@@ -86,7 +88,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--update-lock \
 			--header:upsert:state:retro-running \
@@ -119,7 +121,7 @@ case "$1" in
 				;;
 			esac
 		done
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			"${passthrough[@]}" \
 			--unlock-lock \
@@ -139,7 +141,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-retro-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260811T120000Z-retro-state-and-lock.md \
 			--context --magic-retro-lock-status
 		return $?

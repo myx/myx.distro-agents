@@ -425,10 +425,11 @@ rigVerdict "readback -- correct carries its text"
 
 ## ---------------------------------------------------------------------------
 ## 12. A bare reaction on a typed kind is not its answer: it returns UNCLASSIFIED to
-##     the agent and the record stays open. The reaction the kind declares is the control.
+##     the agent and the record stays open. The reaction the kind declares is the control,
+##     and so is a thumbs up, a plain affirmation, which is yes for a readback.
 ## ---------------------------------------------------------------------------
 rigStart readback-bare-reaction
-rigReplies ',"reactions":[{"name":"thumbsup","count":1,"users":["URIGOWNER"]}]' ""
+rigReplies ',"reactions":[{"name":"eyes","count":1,"users":["URIGOWNER"]}]' ""
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",$rigReadbackArgs}" from-read
 rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "the bare reaction is UNCLASSIFIED"             "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
@@ -440,6 +441,12 @@ rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\
 rigAssert "it ran to completion"                          "$rigKilled" no
 rigAssert "control: the declared reaction is yes"         "$( rigVerdictLine )" "VERDICT: yes"
 rigAssert "control: the record closes"                    "$( rigRecordStatus )" reply-received
+rigStart readback-thumbsup
+rigReplies ',"reactions":[{"name":"+1","count":1,"users":["URIGOWNER"]}]' ""
+rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",$rigReadbackArgs}" from-read
+rigAssert "it ran to completion"                          "$rigKilled" no
+rigAssert "control: a thumbs up is a plain yes"           "$( rigVerdictLine )" "VERDICT: yes"
+rigAssert "control: and the record closes"                "$( rigRecordStatus )" reply-received
 rigStart question-reaction
 rigReplies ',"reactions":[{"name":"thumbsup","count":1,"users":["URIGOWNER"]}]' ""
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}" from-read

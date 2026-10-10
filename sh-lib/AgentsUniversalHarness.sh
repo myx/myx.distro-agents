@@ -2813,15 +2813,18 @@ AgentsHarnessToolPushNotification(){
 	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody"
 }
 
-## Announces a document; it publishes nothing and creates nothing. The URL is gated the
-## way WebFetch gates its own, because announcing a link nobody can open is worse than
-## not announcing it: a reader cannot tell a wrong URL from a document they lack access to.
+## Announces a document. With url it announces one that already exists, and publishes
+## nothing; announcing a link nobody can open is worse than not announcing it, so the URL is
+## checked first. With file the tooling publishes it first (AgentsHarnessArtifactPublish).
 AgentsHarnessToolArtifact(){
-	local toolTo="$1" toolUrl="$2" toolTitle="$3" toolKind="$4" toolSummary="$5" toolAsBot="$6" toolBody
+	local toolTo="$1" toolUrl="$2" toolTitle="$3" toolKind="$4" toolSummary="$5" toolAsBot="$6" toolFile="${7:-}" toolArgsRaw="${8:-}" toolBody
+	if [ -n "$toolFile" ] ; then
+		AgentsHarnessArtifactPublish || return 0
+	fi
 	case "$toolUrl" in
 		http://*|https://*) ;;
 		*)
-			printf 'ERROR: Artifact: url must be the absolute http:// or https:// URL of a document that already exists, got: %s. Nothing was sent, and nothing was published -- this tool only announces a document other tooling created.\n' "${toolUrl:-<none>}" ; return 0
+			printf 'ERROR: Artifact: url must be the absolute http:// or https:// URL of a document that already exists, got: %s. Nothing was sent, and nothing was published -- give file instead to publish a document first.\n' "${toolUrl:-<none>}" ; return 0
 		;;
 	esac
 	toolBody="$( {
@@ -2831,6 +2834,57 @@ AgentsHarnessToolArtifact(){
 		AgentsHarnessFormalField 'Summary:' "$toolSummary"
 	} )"
 	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody"
+}
+
+## The publish half of Artifact, outside the AgentsHarnessTool* family (no tool of its own).
+## It reads and sets the caller toolUrl, toolTitle and toolKind, and returns 1 having said
+## why when nothing is to be posted. A publish is outward-facing, so it is the one gated
+## Artifact call: the session Artifact permission on the target `publish`, then a read of
+## every file, since publishing sends it out. The tooling does the rest as this member
+## (--intern-artifact-publish, AgentsTools.InternArtifact.include).
+AgentsHarnessArtifactPublish(){
+	local pubTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" pubSession pubArgs=() pubPath pubCount pubIndex=0 pubRc=0
+	if [ -n "$toolUrl" ] ; then
+		printf 'ERROR: Artifact: give url to announce a document that exists, or file to publish one, not both. Nothing was sent, and nothing was published.\n' ; return 1
+	fi
+	if [ -z "$toolTo" ] || [ -z "$toolTitle" ] ; then
+		printf 'ERROR: Artifact: to and title are both required to publish, and one was empty. Nothing was published.\n' ; return 1
+	fi
+	if [ -z "$harnessAgent" ] || [ ! -x "$pubTools" ] ; then
+		printf 'ERROR: Artifact: this run has no team identity or no tooling, so it cannot publish. Nothing was published.\n' ; return 1
+	fi
+	if ! AgentsHarnessGranted Artifact publish ; then
+		AgentsHarnessRefusal Artifact publish "ERROR: Artifact: publishing needs the Artifact permission, which this member does not hold in this session. Nothing was published."
+		return 1
+	fi
+	AgentsHarnessReadGate Read "$toolFile" || return 1
+	pubArgs+=( --document "$harnessResolvedPath" )
+	pubCount="$( AgentsHarnessArgValue "$toolArgsRaw" files.__count )"
+	if [ -z "$pubCount" ] && [ -n "$( AgentsHarnessArgValue "$toolArgsRaw" files )" ] ; then
+		printf 'ERROR: Artifact: files must be an array of absolute paths, got a single value. Nothing was published.\n' ; return 1
+	fi
+	case "$pubCount" in ''|*[!0123456789]*) pubCount=0 ;; esac
+	while [ "$pubIndex" -lt "$pubCount" ] ; do
+		pubPath="$( AgentsHarnessArgValue "$toolArgsRaw" "files.$pubIndex" )"
+		AgentsHarnessReadGate Read "$pubPath" || return 1
+		pubArgs+=( --file "$harnessResolvedPath" )
+		pubIndex=$(( pubIndex + 1 ))
+	done
+	[ -z "$toolKind" ] || pubArgs+=( --kind "$toolKind" )
+	pubSession="$( AgentsHarnessSessionKey )"
+	[ -z "$pubSession" ] || pubArgs+=( --session-id "$pubSession" )
+	"$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" "${pubArgs[@]}" \
+		> "$harnessScratch/artifact.out" 2> "$harnessScratch/artifact.err" < /dev/null || pubRc=$?
+	toolUrl="$( LC_ALL=C sed -n 's/^ARTIFACT_URL=//p' "$harnessScratch/artifact.out" | head -1 )"
+	if [ "$pubRc" != 0 ] ; then
+		printf 'ERROR: Artifact: the publish did not complete (rc=%s), so nothing was posted.%s What the tooling said:\n' "$pubRc" "${toolUrl:+ The document exists at $toolUrl: once it is complete, announce it with url, never publish it again.}"
+		LC_ALL=C grep -v '^# ' "$harnessScratch/artifact.err" 2>/dev/null | head -20
+		return 1
+	fi
+	toolTitle="$( LC_ALL=C sed -n 's/^ARTIFACT_TITLE=//p' "$harnessScratch/artifact.out" | head -1 )"
+	toolKind="$( LC_ALL=C sed -n 's/^ARTIFACT_KIND=//p' "$harnessScratch/artifact.out" | head -1 )"
+	printf 'PUBLISHED: %s at %s -- if the post below failed, announce it with url, never publish it again.\n' "$toolTitle" "$toolUrl"
+	return 0
 }
 
 ## Composed from the two tools it is built on and nothing else: the question goes out
@@ -2940,6 +2994,27 @@ AgentsHarnessAskAnswerBody(){ ## wait output
 		;;
 		*) printf '%s\n' "$1" | LC_ALL=C grep -v -E '^(# |WAIT-|NEXT: |ASK-RESULT: )' || : ;;
 	esac
+}
+
+## Keeps clarification lines ("<ts>\t<author>\t<text>") on a question's record and its item's
+## Decisions. At the close (a floor given, "close" as the fourth argument) it also sets its
+## follow floor to the newest message read, or to the question when none was: its thread stays
+## watched from there, so only what comes later arrives. After the close the floor stays put,
+## and the Wait's own baseline tells new from seen. Prints how many lines were new.
+AgentsHarnessAskKeepClarifications(){ ## pending id, clarification lines, newest message ts read (may be empty), close|empty
+	[ -n "$1" ] || { printf '0\n' ; return 0 ; }
+	local keepFloor="" keepOut=""
+	if [ "${4:-}" = "close" ] ; then
+		keepFloor="${3:-}"
+		[ -n "$keepFloor" ] || keepFloor="$( AgentsHarnessAskRecordField "$1" question-ts )"
+	fi
+	[ -n "$2" ] || [ -n "$keepFloor" ] || { printf '0\n' ; return 0 ; }
+	keepOut="$( printf '%s\n' "$2" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$1" --from-stdin \
+		${keepFloor:+--follow-floor "$keepFloor"} 2>/dev/null )" \
+		|| printf 'WARNING: AskUserQuestion: the clarifications on pending reply %s were not kept on its record.\n' "$1" >&2
+	keepOut="$( printf '%s\n' "$keepOut" | LC_ALL=C sed -n 's/^CLARIFIED [^ ]* \([0-9][0-9]*\)$/\1/p' | head -1 )"
+	printf '%s\n' "${keepOut:-0}"
+	return 0
 }
 
 ## The asker acting on its own question already asked, by pending id: withdraw it with a
@@ -3517,9 +3592,8 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 			esac
 			[ -z "$askAnswerTs" ] || askClarify="$( printf '%s\n' "$askAnswerBody" | LC_ALL=C awk -v answerTs="$askAnswerTs" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || askClarify=""
-			[ -z "$askClarify" ] || [ -z "$askPendingId" ] || printf '%s\n' "$askClarify" \
-				| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$askPendingId" --from-stdin > /dev/null 2>&1 \
-				|| printf 'WARNING: AskUserQuestion: the clarifications on pending reply %s were not kept on its record.\n' "$askPendingId" >&2
+			## The thread stays watched from the newest message read here, so a later one is new.
+			AgentsHarnessAskKeepClarifications "$askPendingId" "$askClarify" "$( printf '%s\n' "$askAnswerBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )" close > /dev/null
 		;;
 	esac
 	printf 'ASK-RESULT: %s\n' "$askOutcome"
@@ -3537,11 +3611,16 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 		fi
 	fi
 	[ -z "$askShown" ] || printf '%s\n' "$askShown"
-	## Answered, the item leaves the session's wait; still pending, it stays for the next Wait.
-	## Closed by the asker's readback, it stays too: a later reply there is an objection.
-	if [ -n "$askPendingId" ] && [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" != "reply-pending" ] \
-		&& [ "$( AgentsHarnessAskRecordField "$askPendingId" closed-by )" != "readback" ] ; then
-		AgentsHarnessAskWaitItem drop "$askPendingId" || :
+	## Still pending, the item stays for the next Wait. Answered, it stays too while its thread
+	## is watched (a follow floor): a later message there is a clarification or correction kept
+	## with the answer, until the session ends. Closed any other way, it leaves the Wait set.
+	if [ -n "$askPendingId" ] && [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" != "reply-pending" ] ; then
+		if [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$askPendingId" follow-floor )" ] ; then
+			AgentsHarnessAskWaitItem add "$askPendingId" || :
+			printf 'Pending reply %s stays in your Wait set, and its thread stays watched: a later message there arrives on Wait as ASK-RESULT: CLARIFIED, kept with the answer.\n' "$askPendingId"
+		else
+			AgentsHarnessAskWaitItem drop "$askPendingId" || :
+		fi
 	fi
 	[ "$askCaller" = "ask" ] && [ "$askVerdict" = "UNCLASSIFIED" ] && [ -n "$askPendingId" ] || return 0
 	AgentsHarnessAskWaitNext "$askPendingId"
@@ -3568,21 +3647,22 @@ AgentsHarnessWaitAskResolve(){ ## wait output file
 			AgentsHarnessAskWaitItem drop "$resolveId" || :
 			continue
 		fi
-		## Closed by the asker's readback: what arrives is what the person wrote after it, kept
-		## on the decision as clarifications, and shown, since it may object to the readback.
-		if [ "$resolveStatus" != "reply-pending" ] && [ "$( AgentsHarnessAskRecordField "$resolveId" closed-by )" = "readback" ] ; then
-			local resolveClarify=""
+		## Answered, and its thread still watched from its follow floor: what arrives is what the
+		## person wrote there since, kept with the answer as clarifications or corrections, and
+		## shown, since it may correct the answer -- or object to the asker's readback.
+		## With nothing new kept, it is read as before: the answer the record carries.
+		local resolveClarify="" resolveReadback=""
+		if [ "$resolveStatus" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$resolveId" follow-floor )" ] ; then
 			resolveClarify="$( printf '%s\n' "$resolveSection" | LC_ALL=C awk -v answerTs="$( AgentsHarnessAskRecordField "$resolveId" follow-floor )" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || resolveClarify=""
-			if [ -z "$resolveClarify" ] ; then
-				printf 'NOTE: pending reply %s, closed by your readback, holds nothing new from the person since then. It stays in your Wait set.\n' "$resolveId"
-				continue
-			fi
-			printf '%s\n' "$resolveClarify" \
-				| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$resolveId" --from-stdin > /dev/null 2>&1 \
-				|| printf 'WARNING: AskUserQuestion: the clarifications on pending reply %s were not kept on its record.\n' "$resolveId" >&2
-			printf 'ASK-RESULT: CLARIFIED\nVERDICT: %s\nCLOSED-BY: readback\n' "$( AgentsHarnessAskRecordField "$resolveId" verdict )"
-			printf 'Pending reply %s was closed by your readback. The person wrote in its thread after it, and that is kept on the decision as clarifications. Read it: it may object to your readback, and the decision may then need correcting. It stays in your Wait set for anything more.\n' "$resolveId"
+			[ -z "$resolveClarify" ] || [ "$( AgentsHarnessAskKeepClarifications "$resolveId" "$resolveClarify" )" != "0" ] || resolveClarify=""
+		fi
+		if [ -n "$resolveClarify" ] ; then
+			[ "$( AgentsHarnessAskRecordField "$resolveId" closed-by )" != "readback" ] || resolveReadback=1
+			printf 'ASK-RESULT: CLARIFIED\nVERDICT: %s\n' "$( AgentsHarnessAskRecordField "$resolveId" verdict )"
+			[ -z "$resolveReadback" ] || printf 'CLOSED-BY: readback\n'
+			printf 'Pending reply %s is answered%s. The person wrote in its thread after that, and it is kept with the answer as clarifications, on its record and its item Decisions. Read it: it may correct the answer%s, which may then need changing. It stays in your Wait set for anything more.\n' \
+				"$resolveId" "${resolveReadback:+ by your readback}" "${resolveReadback:+, or object to your readback}"
 			printf '%s\n' "$resolveSection"
 			continue
 		fi
@@ -4324,7 +4404,7 @@ AgentsHarnessAnnounceTool(){
 		;;
 		Artifact)
 			announceIcon="🔗"
-			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url}" )$harnessOff"
+			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_url:-${harnessArgV_file}}" )$harnessOff"
 		;;
 		## The question, then the conversation on its own line: a question and a target
 		## on one line push each other off the terminal, and this call may hold the run
@@ -4487,7 +4567,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" )" ;;
-		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" )" ;;
+		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" "${harnessArgV_file}" "$harnessFuncArgsRaw" )" ;;
 		AskUserQuestion) harnessResult="$( AgentsHarnessToolAskUserQuestion "${harnessArgV_to}" "${harnessArgV_question}" "${harnessArgV_options}" "${harnessArgV_context}" "${harnessArgV_wait}" "${harnessArgV_timeout}" "${harnessArgV_wait_source}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "${harnessArgV_kind}" "${harnessArgV_understood}" "${harnessArgV_source}" "${harnessArgV_will_do}" "${harnessArgV_refusal_id}" "${harnessArgV_reason}" "${harnessArgV_task_ref}" "${harnessArgV_pending_id}" "${harnessArgV_readback}" "${harnessArgV_withdraw}" )" ;;
 		ListMcpResourcesTool) harnessResult="$( AgentsHarnessToolListMcpResourcesTool "${harnessArgV_server}" )" ;;
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;

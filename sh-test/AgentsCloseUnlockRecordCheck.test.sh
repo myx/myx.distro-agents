@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check that a routine close (--magic-*-close-state-and-unlock, through
-## --intern-op-item-upsert --unlock-lock) prints RELEASED only once its own close is on
+## AgentsToolsItemUpsert --unlock-lock) prints RELEASED only once its own close is on
 ## disk -- state finished, last-close-date stamped -- and committed/pushed as configured;
 ## and that every way the close cannot be recorded keeps the lock: no RELEASED, rc 1, a
 ## CLOSE_NOT_RECORDED error, and the note not left finished. Covers a plain store, a git

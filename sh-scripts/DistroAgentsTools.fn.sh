@@ -68,12 +68,6 @@ DistroAgentsTools(){
 			esac
 		;;
 
-		## The coordinator's two Slack helpers: implementation and stubs both in MagicComms.include.
-		--intern-op-comms-slack-resolve-ids|--intern-op-comms-slack-conversations-roster)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
-			return $?
-		;;
-
 		## Each comms family: the --member-* stubs and their --intern-op-comms-* implementation.
 		--member-comms-slack-*|--intern-op-comms-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
@@ -264,11 +258,6 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--intern-op-item-*)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
-			return $?
-		;;
-
 		--intern-op-contact-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"
 			return $?
@@ -281,11 +270,6 @@ DistroAgentsTools(){
 
 		--intern-op-owner-setup)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpOwnerSetup.include"
-			return $?
-		;;
-
-		--intern-op-data-read)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 			return $?
 		;;
 
@@ -325,14 +309,6 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		## THE NAME IS LOAD-BEARING: this op is not a Slack op, so its include never
-		## sources AgentsTools.CommsSlack.include and no credential resolver enters
-		## its shell. Renaming it toward the Slack family undoes that. See MAGIC.md.
-		--intern-op-url-post-bytes)
-			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
-			return $?
-		;;
-
 		--intern-mcp-server)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMcpServer.include"
 			return $?
@@ -365,6 +341,12 @@ DistroAgentsTools(){
 		## instance, interactive or not, with an optional payload routine to run meanwhile.
 		--intern-root-harness)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include"
+			return $?
+		;;
+
+		## A document published to the team own place, numbered per type: the harness Artifact tool calls it.
+		--intern-artifact-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternArtifact.include"
 			return $?
 		;;
 
@@ -471,7 +453,7 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--magic-board-*|--intern-op-board-to-processed)
+		--magic-board-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"
 			return $?
 		;;

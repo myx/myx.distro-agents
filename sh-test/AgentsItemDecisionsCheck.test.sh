@@ -158,6 +158,22 @@ rigOp scan1 --intern-op-session-context-scan "$rigMember" --state blocked --all-
 rigAssert "the named-item scan shows them"        "$( rigHolds "$rigTmp/scan1" "### Decisions (from $rigTask)" )" yes
 rigAssert "right under the item heading"          "$( LC_ALL=C awk -v want="## blocked/$rigTask.md" '$0 == want { getline ; print ; exit }' "$rigTmp/scan1" | cut -c1-24 )" "### Decisions (from task"
 
+echo "-- clarifications on an answer, and a withdrawn ask, reach the item --"
+printf '1700000009.000200\tURIGOWNER\tonly the clause in section 4\n1700000009.000300\tURIGOWNER\tand keep the signature page\n' | rigOp clar1 --intern-op-pending-reply-clarify "$rigId1" --from-stdin
+rigAssert "two are kept"                          "$( head -1 "$rigTmp/clar1" )" "CLARIFIED $rigId1 2"
+rigAssert "on the record"                         "$( rigHolds "$rigStore/$rigId1.md" '- 1700000009.000200 URIGOWNER: only the clause in section 4' )" yes
+rigAssert "as clarification lines on the item"    "$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c "URIGOWNER clarification: on $rigId1 (Q1): " )" 2
+rigAssert "the record stays answered as it was"   "$( rigField "$rigStore/$rigId1.md" verdict )" "keep it, signed off"
+printf '1700000009.000300\tURIGOWNER\tand keep the signature page\n' | rigOp clar2 --intern-op-pending-reply-clarify "$rigId1" --from-stdin
+rigAssert "a message kept once is not kept twice" "$( head -1 "$rigTmp/clar2" ):$( rigSection "$rigBoard/blocked/$rigTask.md" | LC_ALL=C grep -c "clarification: on $rigId1 " )" "CLARIFIED $rigId1 0:2"
+printf 'Should the rig also sign the side letter?\n' | rigOp open6 --intern-op-pending-reply-open "$rigMember" --to human-owner \
+	--session-id rig-session-a --kind decision --address-to human-owner --item "$rigTask"
+rigId6="$( head -1 "$rigTmp/open6" )"
+rigOp close6 --intern-op-pending-reply-close "$rigId6" --if-open --status withdrawn --withdrawn-by "$rigMember" --withdraw-reason "the side letter was dropped"
+rigAssert "a withdrawn ask is dismissed on the item, with no answer" "$( rigSection "$rigBoard/blocked/$rigTask.md" | tail -1 | LC_ALL=C sed -E 's/^- [^ ]+ //' )" "$rigMember dismissed: Should the rig also sign the side letter? -> withdrawn by its asker, no answer taken: the side letter was dropped ($rigId6)"
+rigOp close6v --intern-op-pending-reply-close "$rigId6" --status withdrawn --withdrawn-by "$rigMember" --withdraw-reason "x" --verdict "yes"
+rigAssert "withdrawn never carries a verdict"     "$( [ "$rigRc" -ne 0 ] && echo refused || echo taken ):$( rigField "$rigStore/$rigId6.md" verdict )" "refused:"
+
 echo "-- tracks: a dispatch item's decision is on its task too, one level --"
 rigTracked="task-20261008T1400Z-rig-tracked"
 rigBeyond="task-20261008T1401Z-rig-beyond"

@@ -818,8 +818,11 @@ mkdir -p "$rigScenarioDir/ws/.local/agents"
 printf 'keeper-myx\t%s\t%s\tsource-symlink\n' "$rigScenarioDir/ws/keeper-myx" "$rigScenarioDir/ws" > "$rigScenarioDir/ws/.local/agents/members.index"
 rigGateCall(){ ## recipient; prints the exit status
 	local gateRc=0
-	RIG_OP_SESSION=rig-session rigOp --intern-op-contact-assert-known magic-coordinator \
-		--tool member-comms-email-send --target "$1" --message "rig message" || gateRc=$?
+	## The gate is an in-context helper with no operation: it runs inside the tool's own set-up context.
+	export RIG_GATE_TARGET="$1"
+	printf '%s\n' 'type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"' \
+		'AgentsToolsContactAssertKnown magic-coordinator --tool member-comms-email-send --target "$RIG_GATE_TARGET" --message "rig message"' \
+		| RIG_OP_SESSION=rig-session rigOp --intern-mcp-execute || gateRc=$?
 	printf '%s' "$gateRc"
 }
 rigAssert "the human-owner's own address passes"           "$( rigGateCall 'Owner@Rig.Example' )" 0

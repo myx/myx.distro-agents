@@ -161,6 +161,169 @@ AgentsToolsCommsSlackMentionUserId(){
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
 
+## One Slack file's metadata, read as the acting member: the in-context helper behind
+## --member-comms-slack-file-info and the file fetch, no operation of its own (MAGIC.md, section 1).
+AgentsToolsCommsSlackFileInfo(){ ## <team-member> <file-id> [--identity-bot] | --print-required-scopes
+	local MDSC_CMD='DistroAgentsTools'
+	if [ "$1" = "--print-required-scopes" ] ; then
+		printf '%s\n' files:read
+		return 0
+	fi
+	local memberName="$1"
+	shift || true
+	if [ -z "$memberName" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <team-member> missing" >&2
+		set +e ; return 1
+	fi
+	AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-info || { set +e ; return 1 ; }
+	case "$memberName" in
+		routine-*)
+			## Same routine-* carve-out as the sibling arms.
+		;;
+		*)
+			if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
+				set +e ; return 1
+			fi
+		;;
+	esac
+	local fileId="$1"
+	shift || true
+
+	if [ -z "$fileId" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <file-id> missing" >&2
+		set +e ; return 1
+	fi
+
+	if ! printf '%s\n' "$fileId" | LC_ALL=C grep -qE '^F[A-Z0-9][A-Z0-9]*$' ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: '$fileId' is not a Slack file id -- expected F followed by uppercase letters and digits (e.g. FXXXXXXXXXX). Nothing was called. If this came out of a message payload, take the file object's own \`id\` field; a permalink, a filename or a <channel>:<ts> pair is not it." >&2
+		set +e ; return 1
+	fi
+
+	local identityAsBot="false" rawOutput="false"
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--identity-bot)
+				identityAsBot="true" ; shift
+			;;
+			--raw)
+				rawOutput="true" ; shift
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+
+	local opArgs=( "$memberName" --api files.info --form "file=$fileId" )
+	if [ "$identityAsBot" = "true" ] ; then
+		opArgs+=( --identity bot )
+	fi
+	opArgs+=( --context "--member-comms-slack-file-info" )
+
+	## BOTH the response and the diagnostic are needed as values here -- the
+	## response is parsed field by field, and RESPONSE_BODY= in the diagnostic
+	## is what maps file_not_found/file_deleted to rc 3/4 -- and a substitution
+	## yields one capture, so the second stream needs a real sink.
+	local diagFile="$MMDAPP/.local/temp/mdat-slack-file-info-diag.$$"
+	mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
+	chmod 600 "$diagFile"
+
+	echo "# $MDSC_CMD --member-comms-slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
+	local response callRc=0
+	response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
+
+	local diag
+	## Tested, so nothing between the file's creation and its removal can
+	## abort under `set -e` and leave it behind.
+	diag="$( cat "$diagFile" )" || diag=""
+	rm -f "$diagFile"
+	[ -z "$diag" ] || printf '%s\n' "$diag" >&2
+
+	if [ "$callRc" != "0" ] ; then
+		local actingIdentity=""
+		actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
+		local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
+		case "$actingIdentity" in
+			bot|user)
+				actingIdentityText="the $actingIdentity identity"
+			;;
+			not-yet-selected)
+				actingIdentityText="no identity at all -- the call failed before one was selected"
+			;;
+		esac
+
+		local rawResponseState="" failBody="" failError="" failErrorRc=0
+		rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
+		if [ "$rawResponseState" = "in-diagnostic" ] ; then
+			failBody="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
+			failError="$( printf '%s\n' "$failBody" | LC_ALL=C awk -v path=error -v optional=1 \
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || failErrorRc=$?
+		fi
+
+		if [ "$failErrorRc" = "0" ] ; then
+			case "$failError" in
+				file_not_found)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: NO METADATA FOR $fileId -- Slack answered file_not_found under $actingIdentityText. Slack returns this one code for two different situations and does not tell them apart: either no file has that id at all, or a file does and this identity cannot see it (it lives in a conversation this identity is not in). The other identity may well see it -- ask for it explicitly with --identity-bot; this op deliberately does not retry under it by itself. Nothing was fetched and nothing about the file's content is known." >&2
+					set +e ; return 3
+				;;
+				file_deleted)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: FILE DELETED -- $fileId existed and has been deleted, reported by Slack as file_deleted under $actingIdentityText. This is NOT a visibility problem and NOT a wrong id: no identity can read this file's metadata or content, and retrying under --identity-bot would change nothing." >&2
+					set +e ; return 4
+				;;
+			esac
+		fi
+
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT READ METADATA FOR $fileId -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This is NOT an absence result: nothing is known from this call about whether that file exists, whether it is deleted, or whether this identity can see it." >&2
+		set +e ; return 1
+	fi
+
+	if [ "$rawOutput" = "true" ] ; then
+		printf '%s\n' "$response"
+		return 0
+	fi
+
+	local parseProbeRc=0
+	printf '%s\n' "$response" | LC_ALL=C awk -v path=ok \
+		-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" >/dev/null || parseProbeRc=$?
+	if [ "$parseProbeRc" != "0" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT PARSE THE files.info RESPONSE for $fileId (field reader rc=$parseProbeRc; its own one-line reason is above). Slack reported this call as successful, so this is a malformed, truncated or non-JSON body rather than an API refusal. NO metadata was emitted -- nothing at all was printed on stdout -- and nothing is known from this call about the file. Use --raw to see the body as it arrived." >&2
+		set +e ; return 1
+	fi
+
+	printf '%s\n' FILE_INFO_STATE=found
+	local fieldSpec fieldRc=0
+	for fieldSpec in \
+		"FILE_ID file.id" \
+		"NAME file.name" \
+		"TITLE file.title" \
+		"MIMETYPE file.mimetype" \
+		"FILETYPE file.filetype" \
+		"SIZE file.size" \
+		"TIMESTAMP file.timestamp" \
+		"AUTHOR_USER_ID file.user" \
+		"URL_PRIVATE file.url_private" \
+		"URL_PRIVATE_DOWNLOAD file.url_private_download" \
+		"THUMB_64 file.thumb_64" \
+		"THUMB_80 file.thumb_80" \
+		"THUMB_160 file.thumb_160" \
+		"THUMB_360 file.thumb_360" \
+		"THUMB_480 file.thumb_480" \
+		"THUMB_720 file.thumb_720" \
+		"THUMB_800 file.thumb_800" \
+		"THUMB_960 file.thumb_960" \
+		"THUMB_1024 file.thumb_1024" \
+	; do
+		AgentsToolsCommsSlackFileInfoEmitField $fieldSpec "$response" || { fieldRc=$? ; break ; }
+	done
+	if [ "$fieldRc" != "0" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: the field set above for $fileId is INCOMPLETE -- a field could not be read out of the files.info response (see the emitter's own error above) and the remaining fields were not attempted. Do not treat the lines already printed as a full metadata set." >&2
+		set +e ; return 1
+	fi
+	return 0
+}
+
 case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
@@ -170,6 +333,10 @@ case "$1" in
 			case "${2:-}" in
 				''|--print-required-scopes) ;;
 				*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--member-comms-slack-file-info) AgentsToolsCommsSlackFileInfo "${@:2}" ; return $? ;;
 			esac
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
 			return $?
@@ -264,7 +431,7 @@ case "$1" in
 			esac
 			## No <ts>: the target names a conversation, not a message. Read the
 			## conversation itself -- the case a caller is in when it wants the ts
-			## of something just posted and so cannot supply one. --intern-op-slack-check
+			## of something just posted and so cannot supply one. AgentsToolsSlackCheck
 			## already reads a whole conversation through the paged reader; this is
 			## that read, reached under the member-facing name.
 			if [ -z "$threadTs" ] ; then
@@ -276,7 +443,7 @@ case "$1" in
 				local conversationArgs=( "$memberName" "$channel" )
 				[ "$identityAsBot" = "false" ] || conversationArgs+=( --identity-bot )
 				[ -z "$readOldest" ] || conversationArgs+=( --oldest "$readOldest" )
-				DistroAgentsTools --intern-op-slack-check "${conversationArgs[@]}" || { set +e ; return 1 ; }
+				AgentsToolsSlackCheck "${conversationArgs[@]}" || { set +e ; return 1 ; }
 				return 0
 			fi
 			if [ -n "$readOldest" ] ; then
@@ -998,167 +1165,6 @@ case "$1" in
 			return 0
 		;;
 
-		--intern-op-comms-slack-file-info)
-			shift
-			if [ "$1" = "--print-required-scopes" ] ; then
-				printf '%s\n' files:read
-				return 0
-			fi
-			local memberName="$1"
-			shift || true
-			if [ -z "$memberName" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <team-member> missing" >&2
-				set +e ; return 1
-			fi
-			AgentsToolsAssertBareName "$memberName" "<team-member>" member-comms-slack-file-info || { set +e ; return 1 ; }
-			case "$memberName" in
-				routine-*)
-					## Same routine-* carve-out as the sibling arms.
-				;;
-				*)
-					if [ ! -d "$MDAT_SKILLSET_ROOT/$memberName" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: no such member skill directory: $MDAT_SKILLSET_ROOT/$memberName" >&2
-						set +e ; return 1
-					fi
-				;;
-			esac
-			local fileId="$1"
-			shift || true
-
-			if [ -z "$fileId" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: <file-id> missing" >&2
-				set +e ; return 1
-			fi
-
-			if ! printf '%s\n' "$fileId" | LC_ALL=C grep -qE '^F[A-Z0-9][A-Z0-9]*$' ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: '$fileId' is not a Slack file id -- expected F followed by uppercase letters and digits (e.g. FXXXXXXXXXX). Nothing was called. If this came out of a message payload, take the file object's own \`id\` field; a permalink, a filename or a <channel>:<ts> pair is not it." >&2
-				set +e ; return 1
-			fi
-
-			local identityAsBot="false" rawOutput="false"
-			while [ $# -gt 0 ] ; do
-				case "$1" in
-					--identity-bot)
-						identityAsBot="true" ; shift
-					;;
-					--raw)
-						rawOutput="true" ; shift
-					;;
-					*)
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: invalid option: $1" >&2
-						set +e ; return 1
-					;;
-				esac
-			done
-
-			local opArgs=( "$memberName" --api files.info --form "file=$fileId" )
-			if [ "$identityAsBot" = "true" ] ; then
-				opArgs+=( --identity bot )
-			fi
-			opArgs+=( --context "--member-comms-slack-file-info" )
-
-			## BOTH the response and the diagnostic are needed as values here -- the
-			## response is parsed field by field, and RESPONSE_BODY= in the diagnostic
-			## is what maps file_not_found/file_deleted to rc 3/4 -- and a substitution
-			## yields one capture, so the second stream needs a real sink.
-			local diagFile="$MMDAPP/.local/temp/mdat-slack-file-info-diag.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
-			chmod 600 "$diagFile"
-
-			echo "# $MDSC_CMD --member-comms-slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
-			local response callRc=0
-			response="$( DistroAgentsTools --intern-op-slack-call "${opArgs[@]}" 2>"$diagFile" )" || callRc=$?
-
-			local diag
-			## Tested, so nothing between the file's creation and its removal can
-			## abort under `set -e` and leave it behind.
-			diag="$( cat "$diagFile" )" || diag=""
-			rm -f "$diagFile"
-			[ -z "$diag" ] || printf '%s\n' "$diag" >&2
-
-			if [ "$callRc" != "0" ] ; then
-				local actingIdentity=""
-				actingIdentity="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^ACTING_IDENTITY=//p' | head -1 )"
-				local actingIdentityText="the identity this call ran under (named in the op's own diagnostic above)"
-				case "$actingIdentity" in
-					bot|user)
-						actingIdentityText="the $actingIdentity identity"
-					;;
-					not-yet-selected)
-						actingIdentityText="no identity at all -- the call failed before one was selected"
-					;;
-				esac
-
-				local rawResponseState="" failBody="" failError="" failErrorRc=0
-				rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
-				if [ "$rawResponseState" = "in-diagnostic" ] ; then
-					failBody="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY=//p' | head -1 )"
-					failError="$( printf '%s\n' "$failBody" | LC_ALL=C awk -v path=error -v optional=1 \
-						-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || failErrorRc=$?
-				fi
-
-				if [ "$failErrorRc" = "0" ] ; then
-					case "$failError" in
-						file_not_found)
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: NO METADATA FOR $fileId -- Slack answered file_not_found under $actingIdentityText. Slack returns this one code for two different situations and does not tell them apart: either no file has that id at all, or a file does and this identity cannot see it (it lives in a conversation this identity is not in). The other identity may well see it -- ask for it explicitly with --identity-bot; this op deliberately does not retry under it by itself. Nothing was fetched and nothing about the file's content is known." >&2
-							set +e ; return 3
-						;;
-						file_deleted)
-							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: FILE DELETED -- $fileId existed and has been deleted, reported by Slack as file_deleted under $actingIdentityText. This is NOT a visibility problem and NOT a wrong id: no identity can read this file's metadata or content, and retrying under --identity-bot would change nothing." >&2
-							set +e ; return 4
-						;;
-					esac
-				fi
-
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT READ METADATA FOR $fileId -- the call did not complete under $actingIdentityText (see the op's own diagnostic above, which carries Slack's own error code). This is NOT an absence result: nothing is known from this call about whether that file exists, whether it is deleted, or whether this identity can see it." >&2
-				set +e ; return 1
-			fi
-
-			if [ "$rawOutput" = "true" ] ; then
-				printf '%s\n' "$response"
-				return 0
-			fi
-
-			local parseProbeRc=0
-			printf '%s\n' "$response" | LC_ALL=C awk -v path=ok \
-				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" >/dev/null || parseProbeRc=$?
-			if [ "$parseProbeRc" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: COULD NOT PARSE THE files.info RESPONSE for $fileId (field reader rc=$parseProbeRc; its own one-line reason is above). Slack reported this call as successful, so this is a malformed, truncated or non-JSON body rather than an API refusal. NO metadata was emitted -- nothing at all was printed on stdout -- and nothing is known from this call about the file. Use --raw to see the body as it arrived." >&2
-				set +e ; return 1
-			fi
-
-			printf '%s\n' FILE_INFO_STATE=found
-			local fieldSpec fieldRc=0
-			for fieldSpec in \
-				"FILE_ID file.id" \
-				"NAME file.name" \
-				"TITLE file.title" \
-				"MIMETYPE file.mimetype" \
-				"FILETYPE file.filetype" \
-				"SIZE file.size" \
-				"TIMESTAMP file.timestamp" \
-				"AUTHOR_USER_ID file.user" \
-				"URL_PRIVATE file.url_private" \
-				"URL_PRIVATE_DOWNLOAD file.url_private_download" \
-				"THUMB_64 file.thumb_64" \
-				"THUMB_80 file.thumb_80" \
-				"THUMB_160 file.thumb_160" \
-				"THUMB_360 file.thumb_360" \
-				"THUMB_480 file.thumb_480" \
-				"THUMB_720 file.thumb_720" \
-				"THUMB_800 file.thumb_800" \
-				"THUMB_960 file.thumb_960" \
-				"THUMB_1024 file.thumb_1024" \
-			; do
-				AgentsToolsCommsSlackFileInfoEmitField $fieldSpec "$response" || { fieldRc=$? ; break ; }
-			done
-			if [ "$fieldRc" != "0" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-info: the field set above for $fileId is INCOMPLETE -- a field could not be read out of the files.info response (see the emitter's own error above) and the remaining fields were not attempted. Do not treat the lines already printed as a full metadata set." >&2
-				set +e ; return 1
-			fi
-			return 0
-		;;
-
 		--intern-op-comms-slack-file-fetch)
 			shift
 			if [ "$1" = "--print-required-scopes" ] ; then
@@ -1255,7 +1261,7 @@ case "$1" in
 			echo "# $MDSC_CMD --member-comms-slack-file-fetch: reading metadata for $fetchFileId before fetching (expected size and type come from there)" >&2
 			## The metadata op's own diagnostic goes straight to stderr rather than
 			## through a capture: it was only ever re-emitted there.
-			infoOut="$( DistroAgentsTools --intern-op-comms-slack-file-info "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
+			infoOut="$( AgentsToolsCommsSlackFileInfo "$memberName" "$fetchFileId" "${infoIdentityArgs[@]}" )" || infoRc=$?
 
 			case "$infoRc" in
 				0) ;;
@@ -1589,7 +1595,8 @@ case "$1" in
 			fi
 
 			local shareStep2Rc=0
-			DistroAgentsTools --intern-op-url-post-bytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null || shareStep2Rc=$?
+			type AgentsToolsUrlPostBytes > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpUrlPostBytes.include"
+			AgentsToolsUrlPostBytes --url "$shareUploadUrl" --body-file "$shareBodyFile" --context "--member-comms-slack-file-share" >/dev/null || shareStep2Rc=$?
 			if [ "$shareStep2Rc" != "0" ] ; then
 				[ -z "$shareStdinFile" ] || rm -f "$shareStdinFile"
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: STEP 2 OF 3 FAILED (sending the bytes) -- see the op's own POST_HTTP_STATUS and POST_BYTES above. The upload was begun and not completed; Slack abandons an uncompleted upload, so there is nothing to clean up and nothing was shared." >&2
@@ -2294,7 +2301,8 @@ blocks|verbatim|caller|stdin file"
 		## event-track, a member's own DM, the human-owner's own channel)
 		## never sets it, so this never touches the team's own traffic.
 		if [ "$presentExternal" = "true" ] ; then
-			DistroAgentsTools --intern-op-contact-assert-known "$memberName" \
+			type AgentsToolsContactAssertKnown > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternContact.include"
+			AgentsToolsContactAssertKnown "$memberName" \
 				--tool member-comms-slack-send-message --target "$channel" \
 				--message "$rawText" || { set +e ; return 1 ; }
 		fi

@@ -6,12 +6,14 @@
 ## --intern-op-audit-* families: the implementation behind the member stubs
 ## --member-vault-item-read and --member-audit-item-read (AgentsTools.Member.include).
 ## The stubs check who is asking; these resolve and read. Both stores are read through
-## --intern-op-data-read today, and a later back end of the vault (a Confluence or Google
+## AgentsToolsDataRead today, and a later back end of the vault (a Confluence or Google
 ## Docs one, for example) is a change here, never in a stub or a caller.
 ##
 ## Sourced lazily from DistroAgentsTools.fn.sh's `--intern-op-vault-*|--intern-op-audit-*`
 ## arm. Not standalone: relies on being dot-sourced for $1/$@/$MDSC_CMD.
 ##
+
+type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 
 ## The optional line range both reads take, as a complete pair. Sets rangeArgs.
 AgentsToolsVaultAuditRange(){ ## op name, arguments...
@@ -59,7 +61,7 @@ case "$1" in
 		fi
 		AgentsToolsAssertBareName "$itemName" "<item-name>" intern-op-vault-item-read || { set +e ; return 1 ; }
 		AgentsToolsVaultAuditRange --intern-op-vault-item-read "$@" || { set +e ; return 1 ; }
-		DistroAgentsTools --intern-op-data-read "$itemName" --context --intern-op-vault-item-read --lookup-folder "$MDAT_DATA_ROOT/vault" ${rangeArgs[@]+"${rangeArgs[@]}"}
+		AgentsToolsDataRead "$itemName" --context --intern-op-vault-item-read --lookup-folder "$MDAT_DATA_ROOT/vault" ${rangeArgs[@]+"${rangeArgs[@]}"}
 		return $?
 	;;
 
@@ -83,7 +85,7 @@ case "$1" in
 		esac
 		AgentsToolsVaultAuditRange --intern-op-audit-item-read "$@" || { set +e ; return 1 ; }
 		auditRoot="$MDAT_DATA_ROOT/audit"
-		readArgs=( --intern-op-data-read "$documentName" --context --intern-op-audit-item-read )
+		readArgs=( "$documentName" --context --intern-op-audit-item-read )
 		case "$documentName" in
 			transcript-[0123456789][0123456789][0123456789][0123456789]-[0123456789][0123456789]-*)
 				yearMonth="$( printf '%s' "$documentName" | LC_ALL=C sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
@@ -91,7 +93,7 @@ case "$1" in
 			;;
 		esac
 		readArgs+=( --lookup-folder "$auditRoot" )
-		DistroAgentsTools "${readArgs[@]}" ${rangeArgs[@]+"${rangeArgs[@]}"}
+		AgentsToolsDataRead "${readArgs[@]}" ${rangeArgs[@]+"${rangeArgs[@]}"}
 		return $?
 	;;
 

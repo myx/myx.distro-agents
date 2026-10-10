@@ -11,7 +11,9 @@
 # grant, and no negation parsing is attempted in its place. Any other reply is
 # UNCLASSIFIED and goes back to the asker. The first answer that classifies wins. A
 # readback "correct" prints "correct -- <the rest of the reply>". Only the reply's first
-# line is read: the rest of it is a clarification, kept by the caller.
+# line is read -- its first line that is no quote of the question, a ``` fenced block or a
+# line starting with ">" or "&gt;" being skipped -- and the rest of it is a clarification,
+# kept by the caller.
 # A PLAIN AFFIRMATION -- a first word ok, okay, yes, agree, agreed, confirm or confirmed,
 # also after a leading "I", in any case, or a +1, thumbsup, ok_hand or white_check_mark
 # reaction on the question -- is yes for a readback, and for a decision the option whose
@@ -77,6 +79,8 @@ BEGIN {
 verdict != "" { next ; }
 
 index( $0, "reaction on the question: [reactions: " ) == 1 {
+	judgeMessage() ;
+	if ( verdict != "" ) { next ; }
 	reactionName = substr( $0, length( "reaction on the question: [reactions: " ) + 1 ) ;
 	sub( / .*$/, "", reactionName ) ;
 	reactionUsers = $0 ;
@@ -100,14 +104,62 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 	next ;
 }
 
+## A reply is judged once all of its lines are read: its verdict line is the first one that
+## is no quote of the question -- not blank, not in a ``` fenced block, not starting with ">"
+## or "&gt;" (firstUnquoted). Only that line gives the answer.
 /^[0123456789]+\.[0123456789]+ \| [^|]* \| / {
-	replyAuthor = $0 ;
-	sub( /^[^|]*\| /, "", replyAuthor ) ;
-	sub( / \|.*$/, "", replyAuthor ) ;
-	replyText = $0 ;
-	sub( /^[^|]*\| [^|]*\| /, "", replyText ) ;
+	judgeMessage() ;
+	messageTs = $1 ;
+	messageAuthor = $0 ;
+	sub( /^[^|]*\| /, "", messageAuthor ) ;
+	sub( / \|.*$/, "", messageAuthor ) ;
+	messageText = $0 ;
+	sub( /^[^|]*\| [^|]*\| /, "", messageText ) ;
 	## Leading mentions and annotation blocks are not the answer.
-	while ( replyText ~ /^( |<@[^>]*>|\[[^]]*\])/ ) { sub( /^( |<@[^>]*>|\[[^]]*\])/, "", replyText ) ; }
+	while ( messageText ~ /^( |<@[^>]*>|\[[^]]*\])/ ) { sub( /^( |<@[^>]*>|\[[^]]*\])/, "", messageText ) ; }
+	messageCount = 1 ;
+	messageLine[1] = messageText ;
+	next ;
+}
+
+## Any other line belongs to the reply above it.
+messageCount > 0 { messageLine[++messageCount] = $0 ; next ; }
+
+## The first line of line[1..n] that is no quote heading the reply: blank lines, lines
+## starting with ">" or "&gt;", and a ``` fenced block are skipped. Returns its index (0
+## when every line is a quote) and leaves its text in firstText -- what follows a fence
+## closed on the same line, when one is.
+function firstUnquoted( line, n,    i, text, inFence, rest, closeAt ) {
+	inFence = 0 ; firstText = "" ;
+	for ( i = 1 ; i <= n ; i++ ) {
+		text = line[i] ;
+		if ( inFence ) {
+			closeAt = index( text, "```" ) ;
+			if ( closeAt == 0 ) { continue ; }
+			inFence = 0 ;
+			text = substr( text, closeAt + 3 ) ;
+		} else {
+			sub( /^[ \t]+/, "", text ) ;
+			if ( substr( text, 1, 3 ) == "```" ) {
+				rest = substr( text, 4 ) ;
+				closeAt = index( rest, "```" ) ;
+				if ( closeAt == 0 ) { inFence = 1 ; continue ; }
+				text = substr( rest, closeAt + 3 ) ;
+			}
+		}
+		sub( /^[ \t]+/, "", text ) ;
+		if ( text == "" || text ~ /^(>|&gt;)/ ) { continue ; }
+		firstText = text ;
+		return i ;
+	}
+	return 0 ;
+}
+
+function judgeMessage(    replyText, replyWord, replyRest ) {
+	if ( messageCount == 0 ) { return ; }
+	messageCount_ = messageCount ; messageCount = 0 ;
+	if ( verdict != "" || firstUnquoted( messageLine, messageCount_ ) == 0 ) { return ; }
+	replyText = firstText ;
 	replyWord = replyText ;
 	sub( /[ \t].*$/, "", replyWord ) ;
 	replyRest = substr( replyText, length( replyWord ) + 1 ) ;
@@ -128,10 +180,10 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 		if ( replyWord in optionSet ) { verdict = replyWord ; }
 		else if ( recommendedWord != "" && affirmed( replyText ) ) { verdict = recommendedWord ; }
 	}
-	if ( verdict != "" ) { author = replyAuthor ; verdictTs = $1 ; }
-	next ;
+	if ( verdict != "" ) { author = messageAuthor ; verdictTs = messageTs ; }
 }
 
 END {
+	judgeMessage() ;
 	printf "%s\t%s\t%s\n", ( verdict != "" ? verdict : "UNCLASSIFIED" ), author, verdictTs ;
 }

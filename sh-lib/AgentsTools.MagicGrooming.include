@@ -11,6 +11,8 @@
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.RecheckDate.include"
 
+type AgentsToolsItemUpsert > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpItem.include"
+
 case "$1" in
 
 	--magic-grooming-to-backlog)
@@ -941,7 +943,7 @@ case "$1" in
 		done
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--header:upsert:state:grooming-running \
 			"${passthrough[@]}" \
@@ -965,7 +967,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--acquire-lock "$ownerLabel" \
 			--header:upsert:state:grooming-running \
@@ -987,7 +989,7 @@ case "$1" in
 		fi
 		local recheckDate
 		recheckDate="$( AgentsToolsRecheckDate 30 )"
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--update-lock \
 			--header:upsert:state:grooming-running \
@@ -1020,7 +1022,7 @@ case "$1" in
 				;;
 			esac
 		done
-		DistroAgentsTools --intern-op-item-upsert "$callingMember" \
+		AgentsToolsItemUpsert "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			"${passthrough[@]}" \
 			--unlock-lock \
@@ -1041,7 +1043,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-grooming-lock-status: invalid option: $1" >&2
 			set +e ; return 1
 		fi
-		DistroAgentsTools --intern-op-item-read "$callingMember" \
+		AgentsToolsItemRead "$callingMember" \
 			note-20260809T154332Z-grooming-state-and-lock.md \
 			--context --magic-grooming-lock-status
 		return $?

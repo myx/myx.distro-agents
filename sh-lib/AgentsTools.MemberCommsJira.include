@@ -107,7 +107,8 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-jira-issue-read: not accepted: $actingMember $issueKey $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			DistroAgentsTools --intern-op-atlassian-jira-issue-read --member "$actingMember" --context member-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
+			type AgentsToolsAtlassianJiraIssueRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+			AgentsToolsAtlassianJiraIssueRead --member "$actingMember" --context member-comms-jira-issue-read --issue-key "$issueKey" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;

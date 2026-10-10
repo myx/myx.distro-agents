@@ -16,7 +16,7 @@
 #
 # Lives here (myx.distro-agents/sh-lib, not myx.common) because it's
 # Slack/DistroAgentsTools-specific. Consumers, by call site: the two
-# `--intern-op-slack-check` reads in sh-lib/AgentsTools.CommsSlack.include
+# `AgentsToolsSlackCheck` reads in sh-lib/AgentsTools.CommsSlack.include
 # (per-DM fan-out leg, single-conversation path), the escalation-thread
 # read in sh-lib/AgentsTools.MemberEscalation.include, and the Wait thread
 # probe in sh-lib/AgentsTools.MemberWait.include. NOT --magic-sweep-input-scan,

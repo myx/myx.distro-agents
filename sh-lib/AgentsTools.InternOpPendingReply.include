@@ -415,15 +415,19 @@ case "$1" in
 	## the question belongs to an item, as a `clarification` line on its Decisions. A message
 	## already kept, by its ts, is never kept twice. Open or closed records alike. Prints
 	## `CLARIFIED <id> <how many were new>`.
+	## --follow-floor <ts> also moves the record's `follow-floor` up to <ts>, never down: the
+	## last message of its thread already kept, from which a closed question's thread is still
+	## watched (AgentsWaitProbeAsk), so nothing kept comes back as new.
 	--intern-op-pending-reply-clarify)
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-clarify"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local clarId="${1:-}" clarFile clarIn clarTs clarBy clarText clarNew="" clarCount=0 clarLock=""
+		local clarId="${1:-}" clarFile clarIn clarTs clarBy clarText clarNew="" clarCount=0 clarLock="" clarFloor="" clarFloorNow clarBody
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--from-stdin) shift ;;
+				--follow-floor) clarFloor="${2:-}" ; shift 2 ;;
 				--context) shift 2 ;;
 				*)
 					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- syntax is <pending-reply-id> --from-stdin" >&2
@@ -449,6 +453,25 @@ case "$1" in
 		if [ -n "$clarNew" ] ; then
 			{ LC_ALL=C grep -q -x -F '## Clarifications' "$clarFile" || printf '\n## Clarifications\n\n' ; printf '%s' "$clarNew" ; } >> "$clarFile" \
 				|| { AgentsToolsLocalLockGive "$clarLock" ; echo "$MDSC_CMD: ⛔ ERROR: the clarifications could not be written to $clarFile" >&2 ; set +e ; return 1 ; }
+		fi
+		if [ -n "$clarFloor" ] ; then
+			clarFloorNow="$( LC_ALL=C awk '$0 == "---" { if ( ++fm == 2 ) exit ; next ; } fm == 1 && index( $0, "follow-floor: " ) == 1 { print substr( $0, 15 ) ; exit ; }' "$clarFile" )"
+			if [ -z "$clarFloorNow" ] || LC_ALL=C awk -v a="$clarFloor" -v b="$clarFloorNow" 'BEGIN {
+				sa = a ; sub( /\..*$/, "", sa ) ; sb = b ; sub( /\..*$/, "", sb ) ;
+				fa = a ; sub( /^[^.]*\.?/, "", fa ) ; fb = b ; sub( /^[^.]*\.?/, "", fb ) ;
+				fa = substr( fa "000000", 1, 6 ) ; fb = substr( fb "000000", 1, 6 ) ;
+				exit ( ( sa + 0 > sb + 0 || ( sa + 0 == sb + 0 && fa > fb ) ) ? 0 : 1 ) ; }' ; then
+				local clarOps="$MMDAPP/.local/temp/mdat-pending-reply-clarify-ops.$$.$RANDOM"
+				clarBody=""
+				mkdir -p "$MMDAPP/.local/temp" && printf 'upsert\tfollow-floor\t%s\n' "$clarFloor" > "$clarOps" \
+					&& clarBody="$( LC_ALL=C awk -v opsFile="$clarOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$clarFile" )" || clarBody=""
+				rm -f "$clarOps"
+				if [ -n "$clarBody" ] ; then
+					{ printf '%s\n' "$clarBody" > "$clarFile.$$" && mv -f "$clarFile.$$" "$clarFile" ; } || rm -f "$clarFile.$$"
+				else
+					echo "$MDSC_CMD: ⚠️ WARNING: the follow floor of $clarId was not moved" >&2
+				fi
+			fi
 		fi
 		AgentsToolsLocalLockGive "$clarLock"
 		if [ -n "$clarNew" ] ; then
@@ -667,28 +690,6 @@ case "$1" in
 		## The item's own Decisions, then those of the task it `tracks:`, which a new dispatch shares.
 		earlyLine="$( AgentsToolsDecisionsEarlierTracked "$earlyPath" "$earlyQuestion" )" || return 0
 		printf 'EARLIER-DECISION %s\n' "$earlyLine"
-		return 0
-	;;
-
-	## Reminds the addressee of every ask still waiting, on the 30m / 2h / daily schedule
-	## (AgentsTools.PendingReplyRemind.include). Run by the main loop after its collect.
-	## It only stamps the records it reminded about: it never closes, expires or deletes one.
-	--intern-op-pending-reply-remind)
-		shift
-		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-remind"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--context) shift 2 ;;
-				*)
-					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1 -- syntax is [--context <op>]" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"
-		AgentsToolsPendingReplyRemindRun || { set +e ; return 1 ; }
 		return 0
 	;;
 

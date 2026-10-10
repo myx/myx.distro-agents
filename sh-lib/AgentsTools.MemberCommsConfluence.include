@@ -39,7 +39,8 @@ case "$1" in
 				*) printf '%s\n' "⛔ ERROR: $MDSC_CMD --member-comms-confluence-page-read: not accepted: $actingMember $pageId $*" >&2 ; set +e ; return 1 ;;
 			esac
 			local opRc=0
-			DistroAgentsTools --intern-op-atlassian-confluence-page-read --member "$actingMember" --context member-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
+			type AgentsToolsAtlassianConfluencePageRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+			AgentsToolsAtlassianConfluencePageRead --member "$actingMember" --context member-comms-confluence-page-read --page-id "$pageId" "$@" || opRc=$?
 			if [ "$opRc" -ne 0 ] ; then set +e ; return "$opRc" ; fi
 			return 0
 		;;

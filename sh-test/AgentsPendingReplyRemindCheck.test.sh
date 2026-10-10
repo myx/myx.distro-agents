@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on --intern-op-pending-reply-remind, the main loop's reminders for
+## Behavioural check on AgentsToolsPendingReplyRemindRun, the main loop's reminders for
 ## asks still waiting: a stage is due at 30 minutes and at 2 hours, once each; the daily
 ## reminder only in the first run after 09:00 local, only for an ask 4+ hours old, and
 ## once a day; a repeat run sends nothing; 10 due asks to one person are 10 thread
@@ -83,9 +83,13 @@ rigRecord(){ ## id, age seconds, address-to, extra header lines (each "key: valu
 	} > "$rigScenarioDir/ws/.local/agents/pending/$1.md"
 }
 rigRemind(){ ## output name [TZ]
-	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
+	## The reminders are an in-context helper with no operation: run inside the tool's own set-up context.
+	printf '%s\n' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"' \
+		'. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"' \
+		'AgentsToolsPendingReplyRemindRun || exit 1' \
+	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
 		TZ="${2:-$rigTz}" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_DATA_ROOT="$rigScenarioDir/data" bash "$rigTool" --intern-op-pending-reply-remind --context rig ) \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" bash "$rigTool" --intern-mcp-execute ) \
 		> "$rigScenarioDir/$1" 2> "$rigScenarioDir/$1.err"
 	rigRc=$?
 	rigHolds "$rigScenarioDir/$1" 'REMIND: ' | grep -q yes || rigRefuse "the reminder run never finished: $( grep -m1 ERROR "$rigScenarioDir/$1.err" )"

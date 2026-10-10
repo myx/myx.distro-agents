@@ -36,7 +36,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
 ( sleep 900 ; kill -TERM $$ 2> /dev/null ) > /dev/null 2>&1 &
 rigDog=$!
-trap 'pkill -P "$rigDog" 2> /dev/null ; kill "$rigDog" 2> /dev/null ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+## The watchdog itself is stopped before its sleep: a sleep ended first would let it signal a check that finished.
+trap 'rigDogSleep="$( pgrep -P "$rigDog" 2> /dev/null )" ; kill "$rigDog" 2> /dev/null ; [ -z "$rigDogSleep" ] || kill $rigDogSleep 2> /dev/null ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWork="$rigTmp/work" ; rigHome="$rigTmp/home" ; rigSkills="$rigHome/.claude/skills"
 rigIndexFile="$rigHome/.agents/magic-team/members.registry"
 rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"
@@ -133,7 +134,7 @@ rigWorld(){ ## -- a fresh machine: workspaces, members, scopes, registries, the 
 	printf '%s\n' 'client-ndm 🐭 Rig Persona rigalias' > "$rigWork/ws-rig/.local/agents/team-members-names.registry"
 	rigConsole ws-here HERE ; rigConsole ws-there THERE ; rigConsole ws-third THIRD ; rigConsole ws-rig RIG
 	## client-ndm's own contacts note in each workspace that holds it: a send presenting into
-	## a client workspace passes the outbound contact gate (--intern-op-contact-assert-known)
+	## a client workspace passes the outbound contact gate (AgentsToolsContactAssertKnown)
 	## only for a listed recipient, and these are the rig's own channels and owners there.
 	for wsName in ws-there ws-rig ; do
 		mkdir -p "$rigWork/$wsName/.local/agents/team-data-root/inboxes/client-ndm"
@@ -470,6 +471,61 @@ rigAssert "the retry gets the launch's own workspace, session id, session thread
 rigAssert "which are the member's workspace and the asked-for CLI, never the caller's" "$( LC_ALL=C cut -d'|' -f1,4 "$rigTmp/start.true" 2> /dev/null | LC_ALL=C sed "s|$rigWork/||" )" "ws-there|--cli rig-service --non-interactive"
 rigAssert "with a session id and a session thread carried, not empty"   "$( LC_ALL=C awk -F'|' '{ print ( $2 != "" && $3 != "" ) ? "carried" : "empty" }' "$rigTmp/start.true" 2> /dev/null )" carried
 rm -f "$rigTmp"/start.*
+rigConsole ws-there THERE
+
+echo "-- 8c. the handback retry never resumes a closed session: it runs before the close, and not at all once the session is closed --"
+## A console that records, at each start, the status its own spawn record had then, and hands back only when
+## resumed. RIG_CLOSE closes the session on its launch the ways the tooling does: the record closed by another
+## closer (as the advance pass closes a dead spawn), a Wait that returned DISMISSED, an ordered ENDING (TaskStop).
+cat > "$rigWork/ws-there/DistroAgentsConsole.sh" <<'RIGCONSOLE'
+#!/usr/bin/env bash
+## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli) stand-in: records each start with its record status, hands back only when resumed.
+rigRecord="$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md"
+rigStatus="$( sed -n 's/^status: //p' "$rigRecord" 2> /dev/null | head -1 )"
+printf '%s\n' "${rigStatus:-none}" > "$RIG_SCENARIO/start.${MDAT_SPAWN_RESUME:-launch}"
+cat > /dev/null
+printf 'rig-cli\n' > "$MDAT_SPAWN_LAUNCH_MARKER"
+if [ "${MDAT_SPAWN_RESUME:-}" = true ] ; then printf '📦 SubagentHandback\n' ; exit 0 ; fi
+printf '%s\n' "$rigRecord" > "$RIG_SCENARIO/record.path"
+rigTranscript=""
+[ ! -s "${MDAT_SPAWN_LAUNCH_MARKER%/launch}/transcript" ] || IFS= read -r rigTranscript < "${MDAT_SPAWN_LAUNCH_MARKER%/launch}/transcript"
+[ -n "$rigTranscript" ] && [ -f "$rigTranscript" ] && printf 'yes\n' > "$RIG_SCENARIO/transcript.seen"
+case "${RIG_CLOSE:-open}" in
+	record) sed 's/^status: spawn-started$/status: spawn-ended-without-close/' "$rigRecord" > "$rigRecord.rig" && mv -f "$rigRecord.rig" "$rigRecord" ;;
+	dismissed) printf '%s DISMISSED\n> WAIT-RESULT: DISMISSED\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" >> "$rigTranscript" ;;
+	ending) printf '%s ENDING item=rig-item kind=dismissed by=rig text=taskstop\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" >> "$rigTranscript" ;;
+esac
+exit 0
+RIGCONSOLE
+chmod +x "$rigWork/ws-there/DistroAgentsConsole.sh"
+rigRetrySpawn(){ ## close mode -- one async spawn of keeper-there, then up to 30 s for its own close to stamp the record
+	rm -f "$rigTmp"/start.* "$rigTmp/record.path" "$rigTmp/transcript.seen" ; : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
+	rigRc=0
+	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" RIG_SCENARIO="$rigTmp" RIG_CLOSE="$1" \
+		bash "$rigTool" --intern-op-agent-spawn-proxy keeper-there --spawn-cli-service rig-service --dispatch-doc:none --context rig-ws-switch ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
+	rigRetryLeft=30
+	while [ "$rigRetryLeft" -gt 0 ] && ! { [ -s "$rigTmp/record.path" ] && LC_ALL=C grep -q '^resolved-at: ' "$( cat "$rigTmp/record.path" )" 2> /dev/null ; } ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
+	rigRecordStatus="$( [ ! -s "$rigTmp/record.path" ] || LC_ALL=C sed -n 's/^status: //p' "$( cat "$rigTmp/record.path" )" 2> /dev/null | head -1 )"
+	rigSessionLog="$( LC_ALL=C sed -n 's/^OUTPUT_FILE=//p' "$rigTmp/out" | head -1 )"
+}
+rigStarts(){ ## -- each start seen, with the record status at that start: launch=<status> true=<status>
+	printf 'launch=%s true=%s' "$( cat "$rigTmp/start.launch" 2> /dev/null || printf none )" "$( cat "$rigTmp/start.true" 2> /dev/null || printf none )"
+}
+rigRetrySpawn open
+rigAssert "control: an open session with no handback is retried once, and the retry runs while its record still says started" "$rigRc $( rigStarts )" "0 launch=spawn-started true=spawn-started"
+rigAssert "control: the close comes after the retry, which handed back, so no handback-missing notice is posted" "$rigRecordStatus $( rigN "$rigTmp/bodies" 'none posted' )" "spawn-succeeded 0"
+for rigCloseMode in record dismissed ending ; do
+	rigRetrySpawn "$rigCloseMode"
+	case "$rigCloseMode" in
+		record) rigCloseWhat="its record closed by another closer" ;;
+		dismissed) rigCloseWhat="its Wait returned DISMISSED" ;;
+		ending) rigCloseWhat="an ordered ENDING recorded" ;;
+	esac
+	[ "$rigCloseMode" = record ] || rigAssert "control ($rigCloseMode): the session had a transcript to record its ending in" "$( cat "$rigTmp/transcript.seen" 2> /dev/null || printf no )" yes
+	rigAssert "a closed session ($rigCloseWhat) is not resumed: launched once, never retried" "$rigRc $( rigStarts )" "0 launch=spawn-started true=none"
+	rigAssert "instead ($rigCloseMode): the handback-missing notice is posted, the reason is logged, and the close still runs" "$( [ "$( rigN "$rigTmp/bodies" 'none posted' )" -gt 0 ] && printf notice || printf silent ) $( rigN "$rigSessionLog" 'no handback retry for spawn' ) $rigRecordStatus" "notice 1 spawn-succeeded"
+done
+rm -f "$rigTmp"/start.* "$rigTmp/record.path" "$rigTmp/transcript.seen"
 rigConsole ws-there THERE
 
 echo "-- 9. --magic-spawn-session, --magic-heartbeat-* and the root harness --"

@@ -1,0 +1,43 @@
+<h1>ADR-007: Render team documents as HTML pages</h1>
+<ul>
+<li><strong>Status:</strong> Accepted</li>
+<li><strong>Date:</strong> 2026-10-10</li>
+<li><strong>Deciders:</strong> magic-architect, magic-frontender</li>
+</ul>
+<h2>Context</h2>
+<p>Team documents are written in Markdown. The email converter covers only
+paragraphs, emphasis, code and links, so a heading or a table arrives as raw
+text. See <a href="sh-lib/AgentsEmailHtmlBuild.awk">the email converter</a> for what it
+already does.</p>
+<blockquote>
+<p>Every document a reader opens should look like a document,
+not like its <em>source</em>.</p>
+</blockquote>
+<h2>Decision</h2>
+<p>Add a document mode, <code>AgentsMarkdownHtmlDocument.awk</code>, beside the email mode:</p>
+<ol>
+<li>Keep the email converter byte-for-byte unchanged.</li>
+<li>Convert headings, lists, tables, quotes and images.
+<ul>
+<li>Nested lists follow indentation.</li>
+<li>Image sources stay as written.</li>
+</ul>
+</li>
+<li>Escape every <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code> and <code>&quot;</code> in text, so R&amp;D &lt;notes&gt; stay text.</li>
+</ol>
+<h3>Options considered</h3>
+<table>
+<thead>
+<tr><th style="text-align:left">Option</th><th style="text-align:center">Cost</th><th style="text-align:right">Risk</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:left">Extend the email converter</td><td style="text-align:center">Low</td><td style="text-align:right"><strong>High</strong></td></tr>
+<tr><td style="text-align:left">A separate document converter</td><td style="text-align:center">Medium</td><td style="text-align:right">Low</td></tr>
+<tr><td style="text-align:left">A Python renderer</td><td style="text-align:center">Low</td><td style="text-align:right">New dependency</td></tr>
+</tbody>
+</table>
+<h2>Consequences</h2>
+<p>The publish step rewrites image sources, so
+<img src="images/context.svg" alt="Context diagram" title="Context"> stays as given here.</p>
+<hr>
+<p><em>Superseded by:</em> none.</p>

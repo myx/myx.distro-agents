@@ -1,0 +1,584 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternArtifact.include -- --intern-artifact-publish: one document published
+## to the team own place, numbered per type and recorded in team data. The harness Artifact
+## tool calls it, then posts the link. The caller acts as itself, with its own Google
+## credentials (AgentsTools.MemberCommsGoogle.include) or its own Confluence ones
+## (AgentsTools.InternOpAtlassianCall.include), both reached in context. The one gate is the
+## session Artifact permission, which the harness checks before it calls.
+##
+## A number is secured before anything is published: its record, one audit item per document,
+## is committed and pushed first, and a push that loses to another writer takes the next
+## number (AgentsToolsArtifactClaim). The record is completed once the document exists.
+##
+## Exit: 0 published; 1 contract error, nothing published; 6 not set up, naming the setting;
+## any other code is the backend transport code (MAGIC.md, section 19).
+##
+
+## THE TYPES: one row per numbered type, <code> TAB <name>. A new type is one more row.
+AgentsToolsArtifactTypes(){
+	printf '%s\t%s\n' \
+		IVR "investigation report" \
+		ADR "architecture decision record" \
+		APR "architecture proposal" \
+		SDD "solution design document" \
+		PRO "proposal" \
+		PLN "plan"
+}
+## The place of a document of no numbered type, and the name of the Google team root folder.
+agentsArtifactUntyped="Documents"
+agentsArtifactGoogleRoot="magic-team"
+
+## The row of a kind given as its code or its name, in any case, or nothing.
+AgentsToolsArtifactType(){ ## kind
+	[ -n "$1" ] || return 0
+	AgentsToolsArtifactTypes | LC_ALL=C awk -F'\t' -v want="$1" 'tolower($1) == tolower(want) || tolower($2) == tolower(want) { print ; exit ; }'
+}
+
+## One value of a scope, or empty.
+AgentsToolsArtifactOption(){ ## scope, key
+	DistroAgentsTools --agents-config-option "$1" --select "$2" 2>/dev/null || :
+}
+
+## Whether a member scope holds every key of a set, each with a value.
+AgentsToolsArtifactKeysSet(){ ## member, key...
+	local setMember="$1" setKey
+	shift
+	for setKey in "$@" ; do
+		[ -n "$( AgentsToolsArtifactOption "$setMember" "$setKey" )" ] || return 1
+	done
+	return 0
+}
+
+## A team key from the scope the option catalogue names for it.
+AgentsToolsArtifactTeamOption(){ ## key
+	local teamSpec
+	type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OwnerSetupOptionSpec.include"
+	teamSpec="$( AgentsToolsOwnerSetupOptionSpec "$1" )"
+	AgentsToolsArtifactOption "${teamSpec%%|*}" "$1"
+}
+
+## One field of a JSON file, or empty.
+AgentsToolsArtifactJson(){ ## path, file
+	LC_ALL=C awk -v path="$1" -v optional=1 -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" < "$2" 2>/dev/null || :
+}
+
+## The highest number a type has been given, over the number: field of every record so far.
+AgentsToolsArtifactLastNumber(){ ## code
+	local lastFiles=( "$MDAT_DATA_ROOT/audit"/artifact-*.md )
+	[ -f "${lastFiles[0]}" ] || { printf '0' ; return 0 ; }
+	LC_ALL=C awk -v code="$1" '
+		FNR == 1 { front = 0 ; }
+		$0 == "---" { front++ ; next ; }
+		front == 1 && index( $0, "number: " code "-" ) == 1 { n = substr( $0, length( code ) + 10 ) ; if ( n ~ /^[0-9]+$/ && n + 0 > top ) { top = n + 0 ; } ; }
+		END { printf "%d", top ; }
+	' "${lastFiles[@]}"
+}
+
+## The record of this document, one audit item: artRecord, rewritten whole at each state.
+AgentsToolsArtifactRecordWrite(){ ## state, url
+	printf -- '---\ntype: artifact\nnumber: %s\nkind: %s\ntitle: %s\nurl: %s\nmember: %s\nsession: %s\ndate: %s\nstate: %s\n---\n\n# %s\n' \
+		"${artNumber:--}" "${artCode:-${artKind:--}}" "$artTitle" "$2" "$artMember" "${artSession:--}" "$( date +"%Y-%m-%d %H:%M %z" )" "$1" "$artFullTitle" > "$artRecord" || {
+		echo "⛔ ERROR: $artCmd: the record $artRecord could not be written" >&2
+		return 1
+	}
+}
+
+## The store repository and, when the store is a clone of TEAM_DATA_GIT_REMOTE at its root,
+## its origin and branch -- the same test AgentsToolsTeamDataPushIfAheadLocked makes.
+AgentsToolsArtifactStore(){
+	local storeRemote="" storeReal=""
+	artRepo="" artOrigin="" artBranch=""
+	artRepo="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || artRepo=""
+	[ -n "$artRepo" ] || return 0
+	storeRemote="$( AgentsToolsArtifactOption magic-team TEAM_DATA_GIT_REMOTE )"
+	storeReal="$( cd "$MDAT_DATA_ROOT" && pwd -P )" || storeReal=""
+	[ -n "$storeRemote" ] && [ -n "$storeReal" ] && [ "$storeReal" = "$( cd "$artRepo" && pwd -P )" ] || return 0
+	[ "$( git -C "$artRepo" remote get-url origin 2>/dev/null )" = "$storeRemote" ] || return 0
+	artBranch="$( git -C "$artRepo" rev-parse --abbrev-ref HEAD 2>/dev/null )" || artBranch=""
+	case "$artBranch" in ''|HEAD) artBranch="" ; return 0 ;; esac
+	artOrigin="$storeRemote"
+}
+
+## Takes this claim commit back out of the checkout, and its record off the disk.
+AgentsToolsArtifactClaimDrop(){ ## commit subject
+	if [ "$( git -C "$artRepo" log -1 --format=%s 2>/dev/null )" = "* $1" ] ; then
+		git -C "$artRepo" reset -q --soft HEAD~1 > /dev/null 2>&1
+		git -C "$artRepo" reset -q -- "${artRecord#"$artRepo"/}" > /dev/null 2>&1
+	fi
+	rm -f "$artRecord"
+}
+
+## The next number of the type, secured before anything is published: its record is written
+## and committed, and pushed where the store has an origin. The push is the race: one that
+## loses because origin moved drops this commit, resyncs, and takes the next number again.
+## Under the team-data-push lock, which every push from this checkout takes, since processes
+## sharing one checkout share one HEAD and git cannot order them. Sets artNumber, artRecord.
+AgentsToolsArtifactClaim(){
+	local claimTry=0 claimSubject="" claimOut="" claimRc=0 claimSync=""
+	if ! AgentsToolsLocalLockTake team-data-push 300 "the team-data push" ; then
+		echo "⛔ ERROR: $artCmd: the team-data push lock stayed held for 5 minutes, so no number could be secured. Nothing was published" >&2
+		return 1
+	fi
+	artLock="$agentsLocalLockPath"
+	AgentsToolsArtifactStore
+	while [ "$claimTry" -lt 5 ] ; do
+		claimTry=$(( claimTry + 1 ))
+		artNumber="$( printf '%s-%03d' "$artCode" $(( $( AgentsToolsArtifactLastNumber "$artCode" ) + 1 )) )"
+		artFullTitle="$artNumber: $artTitle"
+		artRecord="$MDAT_DATA_ROOT/audit/artifact-$( date -u +%Y%m%dT%H%MZ )-$( printf '%s' "$artNumber" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' ).md"
+		AgentsToolsArtifactRecordWrite reserved - || break
+		if [ -n "$artRepo" ] ; then
+			claimSubject="intern-artifact-publish: $artNumber claimed by $artMember, ${artSession:-no session} $$"
+			AgentsToolsTeamDataCommitPaths "$claimSubject" "$artRecord"
+			if [ "$( git -C "$artRepo" log -1 --format=%s 2>/dev/null )" != "* $claimSubject" ] ; then
+				echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be committed to the team data, so the number is not secured. Nothing was published" >&2
+				rm -f "$artRecord"
+				break
+			fi
+		fi
+		if [ -z "$artOrigin" ] ; then
+			AgentsToolsLocalLockGive "$artLock" ; artLock=""
+			return 0
+		fi
+		claimRc=0
+		claimOut="$( LC_ALL=C git -C "$artRepo" push origin HEAD 2>&1 )" || claimRc=$?
+		if [ "$claimRc" = 0 ] ; then
+			AgentsToolsLocalLockGive "$artLock" ; artLock=""
+			return 0
+		fi
+		## Lost or unreachable, this claim leaves the checkout: only a moved origin is retried.
+		AgentsToolsArtifactClaimDrop "$claimSubject"
+		if ! LC_ALL=C git -C "$artRepo" fetch -q origin "$artBranch" > /dev/null 2>&1 \
+			|| git -C "$artRepo" merge-base --is-ancestor "refs/remotes/origin/$artBranch" HEAD 2>/dev/null ; then
+			echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be pushed, and origin was not seen to move, so the number is not secured. Nothing was published: $claimOut" >&2
+			break
+		fi
+		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and myx.common git/cloneSync is unreachable to resync, so no number is secured. Nothing was published" >&2
+			break
+		fi
+		claimSync="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
+			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$artRepo" "$artOrigin" "$artBranch" 2>&1 )" || {
+			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and the team data could not be resynced, so no number is secured. Nothing was published: $claimSync" >&2
+			break
+		}
+		echo "# $artCmd: $artNumber was taken by another writer first; taking the next number" >&2
+	done
+	[ "$claimTry" -lt 5 ] || echo "⛔ ERROR: $artCmd: five claims in a row lost to other writers, so no number is secured. Nothing was published" >&2
+	AgentsToolsLocalLockGive "$artLock" ; artLock=""
+	artNumber=""
+	return 1
+}
+
+## The record completed, or released when nothing was published, then committed and pushed.
+AgentsToolsArtifactRecordClose(){ ## published|released
+	if [ "$1" = released ] ; then
+		rm -f "$artRecord"
+		AgentsToolsTeamDataCommitPaths "intern-artifact-publish: $artNumber released, nothing was published, $artMember" "$artRecord"
+	else
+		AgentsToolsArtifactRecordWrite published "$artUrl" || return 1
+		AgentsToolsTeamDataCommitPaths "intern-artifact-publish: ${artNumber:-$artTitle} published, $artMember" "$artRecord"
+	fi
+	AgentsToolsTeamDataPushIfAhead intern-artifact-publish
+}
+
+## Confluence, as the caller: one request, the body into a file.
+AgentsToolsArtifactConfluence(){ ## output file, method, path, json body, attachment
+	AgentsToolsAtlassianCall "$artMember" confluence "$2" "$3" intern-artifact-publish "${4:-}" "${5:-}" > "$1"
+}
+
+## The ids of the current pages of the space titled exactly so, one per line.
+AgentsToolsArtifactConfluenceTitled(){ ## title
+	AgentsToolsArtifactConfluence "$artWork/titled.json" GET "/wiki/api/v2/pages?space-id=$artSpaceId&status=current&limit=25&title=$( AgentsToolsAtlassianUrlEncode "$1" )" || return $?
+	LC_ALL=C awk -v array=results -v want='id,title' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" < "$artWork/titled.json" 2>/dev/null \
+		| LC_ALL=C awk -F'\t' -v want="$1" '$2 == want { print $1 ; }'
+}
+
+## A page created through the create path, as the caller; its id into artCreatedId.
+AgentsToolsArtifactConfluenceCreate(){ ## title, body file, parent id (empty for the space top)
+	local createRc=0
+	artCreatedId=""
+	DistroAgentsTools --intern-op-atlassian-confluence-page-create --member "$artMember" --space-id "$artSpaceId" \
+		--title "$1" --body-storage-from-file "$2" ${3:+--parent-id "$3"} --context intern-artifact-publish > "$artWork/created.json" || createRc=$?
+	[ "$createRc" = 0 ] || return "$createRc"
+	artCreatedId="$( AgentsToolsArtifactJson id "$artWork/created.json" )"
+	case "$artCreatedId" in
+		''|*[!0123456789]*)
+			echo "⛔ ERROR: $artCmd: Confluence answered the create of $1 with no page id, so whether it exists is unknown" >&2
+			return 3
+		;;
+	esac
+	return 0
+}
+
+## The document, published to Confluence under its type index page.
+AgentsToolsArtifactConfluencePublish(){
+	local indexTitle="$artPlace index" indexId titledIds titledCount callRc=0 attachPath attachFailed="" listTry=0 listVersion
+	titledIds="$( AgentsToolsArtifactConfluenceTitled "$indexTitle" )" || return $?
+	titledCount="$( printf '%s' "$titledIds" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
+	if [ "$titledCount" -gt 1 ] ; then
+		echo "🙋 WARNING: $artCmd: the space $artSpace holds $titledCount pages titled $indexTitle ($( printf '%s' "$titledIds" | LC_ALL=C tr '\n' ' ' )), so it is not known which one is the index -- keep one. Nothing was published" >&2
+		return 6
+	fi
+	indexId="$titledIds"
+	if [ -z "$indexId" ] ; then
+		printf '<p>The %s documents of the team, each a child page of this one. The tooling lists each one here as it is published.</p>' "$artPlaceName" > "$artWork/index.xhtml"
+		AgentsToolsArtifactConfluenceCreate "$indexTitle" "$artWork/index.xhtml" "" || return $?
+		indexId="$artCreatedId"
+		echo "# $artCmd: created the index page $indexTitle ($indexId) in $artSpace" >&2
+	fi
+	titledIds="$( AgentsToolsArtifactConfluenceTitled "$artFullTitle" )" || return $?
+	if [ -n "$titledIds" ] ; then
+		echo "🙋 WARNING: $artCmd: the space $artSpace already holds a page titled $artFullTitle, and Confluence takes one page per title -- choose another title. Nothing was published" >&2
+		return 9
+	fi
+	AgentsToolsArtifactConfluenceCreate "$artFullTitle" "$artWork/body.xhtml" "$indexId" || return $?
+	artPageId="$artCreatedId"
+	artDocId="$artCreatedId"
+	artUrl="$( AgentsToolsArtifactJson _links.base "$artWork/created.json" )$( AgentsToolsArtifactJson _links.webui "$artWork/created.json" )"
+	case "$artUrl" in
+		https://*/*) ;;
+		*) artUrl="https://$( AgentsToolsArtifactOption "$artMember" CONFLUENCE_SITE )/wiki/spaces/$artSpace/pages/$artPageId" ;;
+	esac
+	## From here the page exists: a later failure is said with its URL, never as nothing done.
+	while IFS= read -r attachPath ; do
+		[ -n "$attachPath" ] || continue
+		callRc=0
+		AgentsToolsArtifactConfluence "$artWork/attached.json" POST "/wiki/rest/api/content/$artPageId/child/attachment" "" "$attachPath" || callRc=$?
+		[ "$callRc" = 0 ] || attachFailed="$attachFailed ${attachPath##*/}"
+	done <<< "$artAttach"
+	if [ -n "$attachFailed" ] ; then
+		echo "⛔ ERROR: $artCmd: the page $artFullTitle exists at $artUrl, but these files were not attached:$attachFailed" >&2
+		artPartial=3
+	fi
+	## Listed on its index page; a version conflict is read again, never resubmitted.
+	while [ "$listTry" -lt 3 ] ; do
+		listTry=$(( listTry + 1 ))
+		AgentsToolsArtifactConfluence "$artWork/index.json" GET "/wiki/api/v2/pages/$indexId?body-format=storage" || { callRc=$? ; break ; }
+		listVersion="$( AgentsToolsArtifactJson version.number "$artWork/index.json" )"
+		AgentsToolsArtifactJson body.storage.value "$artWork/index.json" | python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsArtifactHtml.py" confluence-index "$artFullTitle" > "$artWork/index.xhtml" || { callRc=1 ; break ; }
+		callRc=0
+		DistroAgentsTools --intern-op-atlassian-confluence-page-update --member "$artMember" --page-id "$indexId" --version "$listVersion" \
+			--title "$indexTitle" --status current --body-storage-from-file "$artWork/index.xhtml" --context intern-artifact-publish > /dev/null || callRc=$?
+		[ "$callRc" = 5 ] || break
+	done
+	[ "$callRc" = 0 ] || echo "🙋 WARNING: $artCmd: $artFullTitle is published as a child page of $indexTitle, but listing it on that page failed (rc=$callRc); add the link there by hand" >&2
+	return 0
+}
+
+## The Google worker, as the caller: one op, its output into a file.
+AgentsToolsArtifactGoogle(){ ## output file, op
+	AgentsToolsGoogleCall "$2" > "$1"
+}
+
+## The ids and links of the folders named so, under a parent when given, one TSV row each.
+AgentsToolsArtifactGoogleFolders(){ ## name, parent id (empty: anywhere visible)
+	googleName="$1" googleParentId="$2" googleUploadPath=""
+	AgentsToolsArtifactGoogle "$artWork/folders.tsv" folder-find || return $?
+	cat "$artWork/folders.tsv"
+}
+
+## One local file uploaded into a folder; its link into artUploadedUrl.
+AgentsToolsArtifactGoogleUpload(){ ## path, name, folder id
+	googleUploadPath="$1" googleName="$2" googleParentId="$3"
+	AgentsToolsArtifactGoogle "$artWork/uploaded.out" file-upload || return $?
+	artUploadedUrl="$( LC_ALL=C sed -n 's/^FILE_URL=//p' "$artWork/uploaded.out" | head -1 )"
+	artUploadedId="$( LC_ALL=C sed -n 's/^FILE_ID=//p' "$artWork/uploaded.out" | head -1 )"
+}
+
+## Readable by everyone in the caller own organisation, never by anyone with the link: each
+## folder the tooling makes and each file it publishes, so access never rests on inheritance.
+## A file left unshared is named in artUnshared.
+AgentsToolsArtifactGoogleShare(){ ## file id, its name for the report
+	googleFileId="$1"
+	AgentsToolsArtifactGoogle "$artWork/shared.out" permission-domain && return 0
+	artUnshared="$artUnshared $2"
+	return 1
+}
+
+## The document, published to Google Drive in its type folder under the team root folder.
+AgentsToolsArtifactGooglePublish(){
+	local folderRows folderCount folderId callRc=0 linkPath linkUse linkName links="" artUnshared=""
+	folderRows="$( AgentsToolsArtifactGoogleFolders "$artPlace" "$artGoogleRoot" )" || return $?
+	folderCount="$( printf '%s' "$folderRows" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
+	if [ "$folderCount" -gt 1 ] ; then
+		echo "🙋 WARNING: $artCmd: the team folder $agentsArtifactGoogleRoot holds $folderCount folders named $artPlace, so it is not known which one to use -- keep one. Nothing was published:" >&2
+		printf '%s\n' "$folderRows" >&2
+		return 6
+	fi
+	folderId="${folderRows%%$'\t'*}"
+	if [ -z "$folderId" ] ; then
+		googleName="$artPlace" googleParentId="$artGoogleRoot" googleUploadPath=""
+		AgentsToolsArtifactGoogle "$artWork/folder.out" folder-create || return $?
+		folderId="$( LC_ALL=C sed -n 's/^FILE_ID=//p' "$artWork/folder.out" | head -1 )"
+		echo "# $artCmd: created the folder $artPlace in $agentsArtifactGoogleRoot" >&2
+		AgentsToolsArtifactGoogleShare "$folderId" "the folder $artPlace" \
+			|| echo "🙋 WARNING: $artCmd: the folder $artPlace was made, but not shared with the organisation; each document in it is shared on its own" >&2
+		artUnshared=""
+	fi
+	## Images go inline; every other given file is uploaded beside the document and linked.
+	while IFS=$'\t' read -r linkName linkUse ; do
+		[ -n "$linkName" ] && [ "$linkUse" != img ] || continue
+		linkPath="$( printf '%s\n' "$artFiles" | LC_ALL=C awk -v want="$linkName" 'NF { n = $0 ; sub( /.*\//, "", n ) ; if ( n == want ) { print ; exit ; } }' )"
+		AgentsToolsArtifactGoogleUpload "$linkPath" "$artFilePrefix - $linkName" "$folderId" || return $?
+		AgentsToolsArtifactGoogleShare "$artUploadedId" "$linkName" || :
+		links="$links$linkName"$'\t'"$artUploadedUrl"$'\n'
+	done <<< "$artUses"
+	if [ -n "$artHtml" ] ; then
+		ARTIFACT_FILES="$artFiles" ARTIFACT_LINKS="$links" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsArtifactHtml.py" google "$artHtml" > "$artWork/document.google.html" || return 1
+		googleName="$artFullTitle" googleParentId="$folderId" googleUploadPath=""
+		AgentsToolsGoogleCall doc-import < "$artWork/document.google.html" > "$artWork/document.out" || return $?
+		artUrl="$( LC_ALL=C sed -n 's/^FILE_URL=//p' "$artWork/document.out" | head -1 )"
+		artDocId="$( LC_ALL=C sed -n 's/^FILE_ID=//p' "$artWork/document.out" | head -1 )"
+	else
+		AgentsToolsArtifactGoogleUpload "$artDocument" "$artFullTitle${artExtension:+.$artExtension}" "$folderId" || return $?
+		artUrl="$artUploadedUrl"
+		artDocId="$artUploadedId"
+	fi
+	if [ -z "$artUrl" ] ; then
+		echo "⛔ ERROR: $artCmd: Google answered with no link to $artFullTitle, so whether it exists is unknown" >&2
+		return 3
+	fi
+	## From here the document exists: one nobody else can open is not announced.
+	AgentsToolsArtifactGoogleShare "$artDocId" "the document" || :
+	if [ -n "$artUnshared" ] ; then
+		echo "⛔ ERROR: $artCmd: $artFullTitle exists at $artUrl, but these are not shared with the organisation, so a reader cannot open them:$artUnshared" >&2
+		artPartial=3
+	fi
+	return 0
+}
+
+## The whole publish, in a subshell of its own: its work folder and the team-data push lock
+## are given back on every way out, so those two are the subshell globals the EXIT trap sees.
+AgentsToolsArtifactPublish(){
+	artWork="" artLock=""
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
+	local artBackend="" artSpace="" artSpaceId="" artGoogleRoot="" artHtml="" artUses="" artAttach=""
+	local artNumber="" artFullTitle="" artFilePrefix="" artUrl="" artPageId="" artPartial=0 artCreatedId="" artUploadedUrl=""
+	local artRecord="" artRepo="" artOrigin="" artBranch="" recordSlug="" artDocId="" artUploadedId=""
+	local artPlace artPlaceName artExtension="" artFormat callRc=0 rootRows rootCount
+	local googleClientId="" googleClientSecret="" googleRefreshToken="" googleName="" googleParentId="" googleUploadPath="" googleFileId=""
+	trap 'rm -rf "$artWork" ; AgentsToolsLocalLockGive "$artLock"' EXIT
+	mkdir -p "$MMDAPP/.local/temp" && artWork="$( mktemp -d "$MMDAPP/.local/temp/mdat-artifact.XXXXXX" )" || {
+		echo "⛔ ERROR: $artCmd: no work folder could be made under $MMDAPP/.local/temp. Nothing was published" >&2
+		return 1
+	}
+
+	## The team place: the Confluence space CONFLUENCE_SPACE names -- the caller own value first,
+	## then the team one -- else Google, whose root is the magic-team folder found by listing.
+	## Either way with the caller own credentials.
+	artSpace="$( AgentsToolsArtifactOption "$artMember" CONFLUENCE_SPACE )"
+	[ -n "$artSpace" ] || artSpace="$( AgentsToolsArtifactTeamOption CONFLUENCE_SPACE )"
+	if [ -n "$artSpace" ] ; then
+		artBackend=confluence
+		if ! AgentsToolsArtifactKeysSet "$artMember" CONFLUENCE_SITE CONFLUENCE_USER CONFLUENCE_API_TOKEN ; then
+			echo "🙋 WARNING: $artCmd: CONFLUENCE_SPACE names the team space $artSpace, and $artMember holds no CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope -- set them there. Nothing was published" >&2
+			return 6
+		fi
+		type AgentsToolsAtlassianCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpAtlassianCall.include"
+	elif ! AgentsToolsArtifactKeysSet "$artMember" GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN ; then
+		echo "🙋 WARNING: $artCmd: no team place is set up for $artMember -- set CONFLUENCE_SPACE (its own scope or magic-team) and CONFLUENCE_SITE/CONFLUENCE_USER/CONFLUENCE_API_TOKEN in its own scope, or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN in its own scope with a Google folder named $agentsArtifactGoogleRoot shared with it. Nothing was published" >&2
+		return 6
+	else
+		artBackend=google
+		type AgentsToolsGoogleCall > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include"
+		AgentsToolsGoogleResolveMember intern-artifact-publish "$artMember" || return 1
+	fi
+
+	## The document as HTML: Markdown through the document converter, HTML as it is; any other
+	## file is published as it is.
+	artFormat=file
+	case "$artDocument" in
+		*.[mM][dD]|*.[mM][aA][rR][kK][dD][oO][wW][nN]) artFormat=markdown ;;
+		*.[hH][tT][mM]|*.[hH][tT][mM][lL]) artFormat=html ;;
+	esac
+	case "${artDocument##*/}" in
+		*.*) artExtension="${artDocument##*.}" ;;
+	esac
+	case "$artFormat" in
+		markdown)
+			artHtml="$artWork/document.html"
+			if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMarkdownHtmlDocument.awk" < "$artDocument" > "$artHtml" ; then
+				echo "⛔ ERROR: $artCmd: the Markdown document converter failed on $artDocument. Nothing was published" >&2
+				return 1
+			fi
+		;;
+		html) artHtml="$artDocument" ;;
+	esac
+	if [ -n "$artHtml" ] ; then
+		artUses="$( ARTIFACT_FILES="$artFiles" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsArtifactHtml.py" scan "$artBackend" "$artHtml" )" || return 1
+	else
+		artUses="$( printf '%s\n' "$artFiles" | LC_ALL=C awk 'NF { sub( /.*\//, "" ) ; print $0 "\tnone" ; }' )"
+	fi
+
+	## The team place, read only, before a number is taken.
+	if [ "$artBackend" = confluence ] ; then
+		AgentsToolsArtifactConfluence "$artWork/space.json" GET "/wiki/api/v2/spaces?keys=$( AgentsToolsAtlassianUrlEncode "$artSpace" )" || return $?
+		artSpaceId="$( LC_ALL=C awk -v array=results -v want='id,key' -v mode=records -v dialect=atlassian -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" < "$artWork/space.json" 2>/dev/null \
+			| LC_ALL=C awk -F'\t' -v want="$artSpace" '$2 == want { print $1 ; }' )"
+		case "$artSpaceId" in
+			''|*[!0123456789]*)
+				echo "🙋 WARNING: $artCmd: the space $artSpace (CONFLUENCE_SPACE) is not one space $artMember can see -- check the key, and that its account may add pages there. Nothing was published" >&2
+				return 6
+			;;
+		esac
+	else
+		rootRows="$( AgentsToolsArtifactGoogleFolders "$agentsArtifactGoogleRoot" "" )" || return $?
+		rootCount="$( printf '%s' "$rootRows" | LC_ALL=C awk 'NF { n++ ; } END { print n + 0 ; }' )"
+		if [ "$rootCount" = 0 ] ; then
+			echo "🙋 WARNING: $artCmd: $artMember sees no Google folder named $agentsArtifactGoogleRoot -- create the team folder with that name and share it with every team account. Nothing was published" >&2
+			return 6
+		fi
+		if [ "$rootCount" -gt 1 ] ; then
+			echo "🙋 WARNING: $artCmd: $artMember sees $rootCount Google folders named $agentsArtifactGoogleRoot, so the team folder is ambiguous -- keep one, or rename the others. Nothing was published:" >&2
+			printf '%s\n' "$rootRows" >&2
+			return 6
+		fi
+		artGoogleRoot="${rootRows%%$'\t'*}"
+	fi
+
+	## A numbered type: its number secured in team data before anything is published.
+	artFullTitle="$artTitle"
+	artFilePrefix="$artTitle"
+	if [ -n "$artCode" ] ; then
+		AgentsToolsArtifactClaim || return 1
+		artFilePrefix="$artNumber"
+	fi
+	artPlace="${artCode:-$agentsArtifactUntyped}"
+	artPlaceName="${artTypeName:-untyped}"
+	artAttach="$artFiles"
+	[ -n "$artHtml" ] || artAttach="$artDocument"$'\n'"$artFiles"
+	if [ "$artBackend" = confluence ] ; then
+		if [ -n "$artHtml" ] ; then
+			ARTIFACT_FILES="$artFiles" python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsArtifactHtml.py" confluence "$artHtml" > "$artWork/body.xhtml" || return 1
+		else
+			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsArtifactHtml.py" confluence-file "$artDocument" > "$artWork/body.xhtml" || return 1
+		fi
+		AgentsToolsArtifactConfluencePublish || callRc=$?
+	else
+		AgentsToolsArtifactGooglePublish || callRc=$?
+	fi
+	if [ -z "$artUrl" ] ; then
+		[ "$callRc" != 0 ] || callRc=3
+		[ -z "$artNumber" ] || AgentsToolsArtifactRecordClose released
+		echo "⛔ ERROR: $artCmd: $artFullTitle was not published (rc=$callRc)${artNumber:+, and $artNumber is released}" >&2
+		return "$callRc"
+	fi
+
+	## The record completed: an untyped document gets its own, named by its title.
+	if [ -z "$artNumber" ] ; then
+		recordSlug="$( printf '%s' "$artTitle" | LC_ALL=C tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | LC_ALL=C tr -c 'abcdefghijklmnopqrstuvwxyz0123456789' '-' | LC_ALL=C tr -s '-' | cut -c1-40 | LC_ALL=C sed 's/^-//;s/-$//' )"
+		artRecord="$MDAT_DATA_ROOT/audit/artifact-$( date -u +%Y%m%dT%H%MZ )-${recordSlug:-document}"
+		[ ! -e "$artRecord.md" ] || artRecord="$artRecord-$$"
+		artRecord="$artRecord.md"
+	fi
+	AgentsToolsArtifactRecordClose published || echo "⛔ ERROR: $artCmd: $artFullTitle is published at $artUrl, but its record could not be completed in $artRecord" >&2
+
+	printf 'ARTIFACT_URL=%s\nARTIFACT_TITLE=%s\nARTIFACT_NUMBER=%s\nARTIFACT_KIND=%s\nARTIFACT_PLACE=%s\nARTIFACT_ID=%s\n' \
+		"$artUrl" "$artFullTitle" "$artNumber" "${artTypeName:-$artKind}" "$artBackend" "$artDocId"
+	return "$artPartial"
+}
+
+case "$1" in
+
+	## <team-member> --title <text> --document <path> [--kind <kind>] [--file <path>]... [--session-id <id>]
+	--intern-artifact-publish)
+		shift
+		local artCmd="$MDSC_CMD --intern-artifact-publish" artMember="${1:-}" artTitle="" artDocument="" artKind="" artSession="" artFiles="" artFile artName artNames=" " artType artCode="" artTypeName=""
+		shift || :
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--title|--document|--kind|--file|--session-id)
+					if [ $# -lt 2 ] ; then
+						echo "⛔ ERROR: $artCmd: $1 value missing" >&2
+						set +e ; return 1
+					fi
+					case "$1" in
+						--title) artTitle="$2" ;;
+						--document) artDocument="$2" ;;
+						--kind) artKind="$2" ;;
+						--file) artFiles="$artFiles$2"$'\n' ;;
+						--session-id) artSession="$2" ;;
+					esac
+					shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $artCmd: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$artMember" ] || [ -z "$artDocument" ] ; then
+			echo "⛔ ERROR: $artCmd: syntax is <team-member> --title <text> --document <path> [--kind <kind>] [--file <path>]... [--session-id <id>]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$artMember" "<team-member>" intern-artifact-publish || { set +e ; return 1 ; }
+		[ -z "$artSession" ] || AgentsToolsAssertBareName "$artSession" "--session-id" intern-artifact-publish || { set +e ; return 1 ; }
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$artMember" ] ; then
+			echo "⛔ ERROR: $artCmd: no such member skill directory: $MDAT_SKILLSET_ROOT/$artMember" >&2
+			set +e ; return 1
+		fi
+		## One line each: a title and a kind are a page name and a record field.
+		artTitle="$( printf '%s' "$artTitle" | LC_ALL=C tr '\t\r\n' '   ' )"
+		artKind="$( printf '%s' "$artKind" | LC_ALL=C tr '\t\r\n' '   ' )"
+		if [ -z "${artTitle// /}" ] ; then
+			echo "⛔ ERROR: $artCmd: --title is required: a published document needs a name. Nothing was published" >&2
+			set +e ; return 1
+		fi
+		artType="$( AgentsToolsArtifactType "$artKind" )"
+		if [ -n "$artType" ] ; then
+			artCode="${artType%%$'\t'*}" ; artTypeName="${artType#*$'\t'}"
+			case "$artTitle" in
+				"$artCode"-[0123456789]*|"$artCode "[0123456789]*)
+					echo "⛔ ERROR: $artCmd: the title starts with a number of its own, and the tooling gives $artCode its number -- leave it out: $artTitle. Nothing was published" >&2
+					set +e ; return 1
+				;;
+			esac
+		fi
+		## Absolute paths of readable files, each name once: a name is how the document refers to
+		## a file, and how it is stored beside the document.
+		while IFS= read -r artFile ; do
+			[ -n "$artFile" ] || continue
+			case "$artFile" in
+				/*) ;;
+				*) echo "⛔ ERROR: $artCmd: not an absolute path: $artFile. Nothing was published" >&2 ; set +e ; return 1 ;;
+			esac
+			if [ ! -f "$artFile" ] || [ ! -r "$artFile" ] || [ ! -s "$artFile" ] ; then
+				echo "⛔ ERROR: $artCmd: not a readable, non-empty file: $artFile. Nothing was published" >&2
+				set +e ; return 1
+			fi
+			artName="${artFile##*/}"
+			case "$artName" in
+				*';'*|*','*|*'"'*|*$'\t'*|.*)
+					echo "⛔ ERROR: $artCmd: a file name may not hold ; , a double quote or a tab, nor start with a dot: $artName. Nothing was published" >&2
+					set +e ; return 1
+				;;
+			esac
+			case "$artNames" in
+				*" $artName "*)
+					echo "⛔ ERROR: $artCmd: two files are named $artName, and a name is how the document refers to its file. Nothing was published" >&2
+					set +e ; return 1
+				;;
+			esac
+			artNames="$artNames$artName "
+		done <<< "$artDocument"$'\n'"$artFiles"
+		if [ -z "${MDAT_DATA_ROOT:-}" ] || ! mkdir -p "$MDAT_DATA_ROOT/audit" 2>/dev/null ; then
+			echo "⛔ ERROR: $artCmd: the team-data store is not resolved, so no number can be given and no record kept. Nothing was published" >&2
+			set +e ; return 1
+		fi
+		local artRc=0
+		( AgentsToolsArtifactPublish ) || artRc=$?
+		[ "$artRc" = 0 ] || { set +e ; return "$artRc" ; }
+		return 0
+	;;
+
+	*)
+		printf '%s\n' "⛔ ERROR: $MDSC_CMD: unknown --intern-artifact-* operation: $1 -- the supported operation is --intern-artifact-publish" >&2
+		set +e ; return 1
+	;;
+
+esac

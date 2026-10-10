@@ -90,6 +90,33 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 	return 0
 }
 
+## Whether a spawn session is closed, so the handback retry must not resume it. Closed is
+## what the rest of the tooling reads as ended: its record no longer says spawn-started (the
+## rule of AgentsToolsGrantsSessionEnded; another closer, such as the advance pass for a dead
+## spawn, got there first), or its transcript records its ending -- a Wait that returned
+## DISMISSED, or an ordered ENDING (taskstop, shutdown, archived, trashed, review-wait-expired),
+## which AgentsTools.ReviewFlow.include records before it stops anything. rc 0 closed, the
+## reason printed; rc 1 open, or nothing to tell it by.
+AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may be empty)
+	local closedStatus="" closedPart
+	if [ -n "$1" ] && [ -f "$1" ] ; then
+		closedStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
+		case "$closedStatus" in
+			''|spawn-started) ;;
+			*) printf 'its record is already closed (status %s)' "$closedStatus" ; return 0 ;;
+		esac
+	fi
+	[ -n "$2" ] && type AgentsTranscriptParts > /dev/null 2>&1 || return 1
+	while IFS= read -r closedPart ; do
+		[ -n "$closedPart" ] && [ -f "$closedPart" ] || continue
+		if LC_ALL=C grep -q -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z (DISMISSED|ENDING)( |$)' "$closedPart" 2>/dev/null ; then
+			printf 'its transcript records its ending (a DISMISSED, or an ordered ENDING)'
+			return 0
+		fi
+	done <<< "$( AgentsTranscriptParts "$2" 2>/dev/null || : )"
+	return 1
+}
+
 ## A question, a finding needing confirmation or a refusal is never only left in a log --
 ## the member hands back instead. A spawn whose process ended with no SubagentHandback call
 ## at all leaves nothing in the session thread, so the tooling posts one line there itself.
@@ -101,13 +128,19 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 ##   $1 = session thread, $2 = member, $3 = output file, $4 = workspace to retry the spawn in,
 ##   $5 = session id, $6... = the launch's own console CLI args (spawnCliArgs) -- the retry
 ##   gets exactly the launch's env prefix and CLI selection, never the caller's own
+## Called before any close step, while the record still says spawn-started: the retry resumes
+## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
 AgentsToolsSpawnProxyHandbackWarn(){
-	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4" warnSessionId="$5"
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4" warnSessionId="$5" warnClosed=""
 	shift 5 2>/dev/null || shift $#
 	local warnCliArgs=( "$@" )
 	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
 	[ -n "$warnThread" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
 	LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
+	## A closed session is never resumed, as a closed child is never messaged (AgentsToolsBoardAcceptDismissChild,
+	## AgentsReviewChildLive): no retry, the handback-missing notice below, and the close takes its item to review.
+	warnClosed="$( AgentsToolsSpawnProxyRetryClosed "${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.md}" "${MDAT_SPAWN_SESSION_ID:-}" )" || warnClosed=""
+	[ -z "$warnClosed" ] || echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: no handback retry for spawn ${MDAT_SPAWN_SESSION_ID:-}: $warnClosed -- the handback-missing notice is posted instead" >&2
 	## One bounded retry, mechanical rather than a reminder: the run ended
 	## without calling SubagentHandback, so it is resumed once, in its own
 	## transcript, and told to call it now. No `timeout`/`gtimeout` dependency --
@@ -116,7 +149,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	## uses. MDAT_SPAWN_RESUME on a CLI with no real --resume refuses itself in
 	## the console (AgentsConsoleShellScript.template.sh), so a resume that
 	## cannot really happen is never silently reported as one.
-	if [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
+	if [ -z "$warnClosed" ] && [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
 		local warnRetryPid warnWatchPid
 		( exec env MMDAPP="$warnWorkspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$warnWorkspace" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
@@ -587,6 +620,7 @@ case "$1" in
 
 		local trackedMode="false" trackedItemName=""
 		local auditReadYearMonth=""
+		type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
 		case "$sourceMode" in
 			file)
 				spawnContext="$( cat "$fromFilePath" )"
@@ -605,24 +639,24 @@ case "$1" in
 				if [ ${#boardStates[@]} -eq 0 ] ; then
 					boardStates=( backlog pending running review blocked parked processed archived retained )
 				fi
-				local readArgs=( --intern-op-data-read "$fromBoardName" --context "$opContext" ) boardState
+				local readArgs=( "$fromBoardName" --context "$opContext" ) boardState
 				for boardState in "${boardStates[@]}" ; do
 					readArgs+=( --lookup-folder "$MDAT_DATA_ROOT/board/$boardState" )
 				done
-				spawnContext="$( DistroAgentsTools "${readArgs[@]}" )" || { set +e ; return 1 ; }
+				spawnContext="$( AgentsToolsDataRead "${readArgs[@]}" )" || { set +e ; return 1 ; }
 			;;
 			vault)
 				trackedMode="true"
 				trackedItemName="$fromVaultName"
 				AgentsToolsAssertBareName "$fromVaultName" "<vault-item-name>" agent-spawn-proxy || { set +e ; return 1 ; }
-				spawnContext="$( DistroAgentsTools --intern-op-data-read "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" --context "$opContext" )" || { set +e ; return 1 ; }
+				spawnContext="$( AgentsToolsDataRead "$fromVaultName" --lookup-folder "$MDAT_DATA_ROOT/vault" --context "$opContext" )" || { set +e ; return 1 ; }
 			;;
 			audit)
 				trackedMode="true"
 				trackedItemName="$fromAuditName"
 				AgentsToolsAssertBareName "$fromAuditName" "<audit-item-name>" agent-spawn-proxy || { set +e ; return 1 ; }
 				## Propagates $opContext for the same reason as the board branch above.
-				local auditReadArgs=( --intern-op-data-read "$fromAuditName" --context "$opContext" )
+				local auditReadArgs=( "$fromAuditName" --context "$opContext" )
 				case "$fromAuditName" in
 					transcript-[0-9][0-9][0-9][0-9]-[0-9][0-9]-*)
 						auditReadYearMonth="$( printf '%s' "$fromAuditName" | sed -E 's/^transcript-([0-9]{4})-([0-9]{2})-.*/\1-\2/' )"
@@ -630,7 +664,7 @@ case "$1" in
 					;;
 				esac
 				auditReadArgs+=( --lookup-folder "$MDAT_DATA_ROOT/audit" )
-				spawnContext="$( DistroAgentsTools "${auditReadArgs[@]}" )" || { set +e ; return 1 ; }
+				spawnContext="$( AgentsToolsDataRead "${auditReadArgs[@]}" )" || { set +e ; return 1 ; }
 			;;
 			*)
 				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: internal source mode error: $sourceMode" >&2
@@ -1369,11 +1403,13 @@ case "$1" in
 			local spawnOutcome
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			## The handback retry first, before any close step: it resumes this very session, so it
+			## runs while the record still says started, and its tokens and posts precede the end.
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			## The session's tokens onto its item first, so the closing post sums what is there now.
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
@@ -1460,10 +1496,11 @@ case "$1" in
 			## Measured once, so the event-track close, the sandbox record and the board item
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+			## The handback retry before any close step, as in the waiting branch: the record still says started.
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""

@@ -5,7 +5,84 @@
 ## AgentsTools.MagicBoard.include -- check-process-board's own --magic-board-*
 ## operation group. Sourced lazily from DistroAgentsTools.fn.sh; relies on being
 ## dot-sourced for $1/$@/$MDSC_CMD. Rationale: myx.distro-agents/MAGIC.md.
+## Also the in-context helper AgentsToolsBoardToProcessed, which has no operation of its
+## own (MAGIC.md, section 1). DUAL USE: a name not its own runs nothing, so a caller sources it:
+##   type AgentsToolsBoardToProcessed > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicBoard.include"
 ##
+
+## Moves one board item to processed with its receipt and processed-at stamps, then releases
+## its spawned child. Acts on the board of the context it is called in: the caller's own
+## workspace, never the member's -- the review accept moves the spawner's item.
+AgentsToolsBoardToProcessed(){ ## <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <v>] [--upsert-from-stdin|--edit-script-from-stdin:<x>|--edit-patch-from-stdin]
+	local MDSC_CMD='DistroAgentsTools'
+	local callingMember="$1"
+	shift || true
+	local itemName="$1"
+	shift || true
+	if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
+		set +e ; return 1
+	fi
+	local fromStateArg=""
+	local passthrough=()
+	while [ $# -gt 0 ] ; do
+		case "$1" in
+			--from-state:*) fromStateArg="$1" ; shift ;;
+			--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
+			--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
+				passthrough+=( "$1" ) ; shift
+			;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: invalid option: $1" >&2
+				set +e ; return 1
+			;;
+		esac
+	done
+	if [ -z "$fromStateArg" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: --from-state:<state> is required" >&2
+		set +e ; return 1
+	fi
+	local hasExecutionReceipt="false" passthroughEntry
+	for passthroughEntry in "${passthrough[@]}" ; do
+		case "$passthroughEntry" in
+			--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
+				hasExecutionReceipt="true"
+			;;
+		esac
+	done
+	if [ "$hasExecutionReceipt" = "false" ] ; then
+		local receiptAt ; receiptAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		passthrough+=( "--header:upsert:execution-receipt:processed:$receiptAt" )
+	fi
+	## fromStateArg is read here for this one policy decision; validation stays the primitive's.
+	local moveStamps=()
+	if [ "${fromStateArg#--from-state:}" != "processed" ] ; then
+		local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
+		moveStamps=( "--header:upsert:processed-at:$processedAt" )
+	fi
+	## moveStamps stays before passthrough -- header ops are last-wins, so this order is the whole caller-override contract.
+	mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
+		echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
+		set +e ; return 1
+	}
+	local processedRc=0
+	DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
+		"$fromStateArg" \
+		"${moveStamps[@]}" \
+		--context --magic-board-to-processed \
+		"${passthrough[@]}" || processedRc=$?
+	## An accept releases the item's own spawned child (AgentsToolsBoardAcceptDismissChild):
+	## only on a real move into processed, never a same-state edit, and never failing the move.
+	if [ "$processedRc" = "0" ] && [ "${fromStateArg#--from-state:}" != "processed" ] && [ -f "$MDAT_DATA_ROOT/board/processed/$itemName" ] ; then
+		type AgentsToolsBoardAcceptDismissChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		AgentsToolsBoardAcceptDismissChild "$callingMember" "$MDAT_DATA_ROOT/board/processed/$itemName" || :
+	fi
+	## The closed item's token totals, summed now over its sessions and sub-items, for the closing message.
+	if [ "$processedRc" = "0" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
+		AgentsSessionTokensLine "$itemName" "" 2>/dev/null || :
+	fi
+	return $processedRc
+}
 
 case "$1" in
 
@@ -185,82 +262,11 @@ case "$1" in
 		return $?
 	;;
 
-	## The coordinator's stub. The implementation is --intern-op-board-to-processed, which the
+	## The coordinator's stub. The implementation is AgentsToolsBoardToProcessed, which the
 	## review accept (AgentsTools.ReviewFlow.include) also calls for an item's own reviewer.
 	--magic-board-to-processed)
-		DistroAgentsTools --intern-op-board-to-processed "${@:2}"
+		AgentsToolsBoardToProcessed "${@:2}"
 		return $?
-	;;
-
-	--intern-op-board-to-processed)
-		shift
-		local callingMember="$1"
-		shift || true
-		local itemName="$1"
-		shift || true
-		if [ -z "$callingMember" ] || [ -z "$itemName" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: syntax is <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
-			set +e ; return 1
-		fi
-		local fromStateArg=""
-		local passthrough=()
-		while [ $# -gt 0 ] ; do
-			case "$1" in
-				--from-state:*) fromStateArg="$1" ; shift ;;
-				--recheck-in) passthrough+=( "$1" "${2:-}" ) ; shift ; shift || true ;;
-				--header:*|--upsert-from-stdin|--edit-script-from-stdin:*|--edit-patch-from-stdin)
-					passthrough+=( "$1" ) ; shift
-				;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: invalid option: $1" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-		if [ -z "$fromStateArg" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: --from-state:<state> is required" >&2
-			set +e ; return 1
-		fi
-		local hasExecutionReceipt="false" passthroughEntry
-		for passthroughEntry in "${passthrough[@]}" ; do
-			case "$passthroughEntry" in
-				--header:upsert:execution-receipt:*|--header:append:execution-receipt:*)
-					hasExecutionReceipt="true"
-				;;
-			esac
-		done
-		if [ "$hasExecutionReceipt" = "false" ] ; then
-			local receiptAt ; receiptAt="$( date +"%Y-%m-%d %H:%M %z" )"
-			passthrough+=( "--header:upsert:execution-receipt:processed:$receiptAt" )
-		fi
-		## fromStateArg is read here for this one policy decision; validation stays the primitive's.
-		local moveStamps=()
-		if [ "${fromStateArg#--from-state:}" != "processed" ] ; then
-			local processedAt ; processedAt="$( date +"%Y-%m-%d %H:%M %z" )"
-			moveStamps=( "--header:upsert:processed-at:$processedAt" )
-		fi
-		## moveStamps stays before passthrough -- header ops are last-wins, so this order is the whole caller-override contract.
-		mkdir -p "$MDAT_DATA_ROOT/board/processed" || {
-			echo "⛔ ERROR: $MDSC_CMD --magic-board-to-processed: can't create board state directory: $MDAT_DATA_ROOT/board/processed" >&2
-			set +e ; return 1
-		}
-		local processedRc=0
-		DistroAgentsTools --intern-op-board-upsert-move-edit processed "$itemName" \
-			"$fromStateArg" \
-			"${moveStamps[@]}" \
-			--context --magic-board-to-processed \
-			"${passthrough[@]}" || processedRc=$?
-		## An accept releases the item's own spawned child (AgentsToolsBoardAcceptDismissChild):
-		## only on a real move into processed, never a same-state edit, and never failing the move.
-		if [ "$processedRc" = "0" ] && [ "${fromStateArg#--from-state:}" != "processed" ] && [ -f "$MDAT_DATA_ROOT/board/processed/$itemName" ] ; then
-			type AgentsToolsBoardAcceptDismissChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
-			AgentsToolsBoardAcceptDismissChild "$callingMember" "$MDAT_DATA_ROOT/board/processed/$itemName" || :
-		fi
-		## The closed item's token totals, summed now over its sessions and sub-items, for the closing message.
-		if [ "$processedRc" = "0" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2>/dev/null ; then
-			AgentsSessionTokensLine "$itemName" "" 2>/dev/null || :
-		fi
-		return $processedRc
 	;;
 
 	--magic-board-create-running)
@@ -311,8 +317,15 @@ case "$1" in
 		return $?
 	;;
 
-	*)
+	## A board operation this file does not implement -- the retired
+	## --intern-op-board-to-processed among them -- is reported, never swallowed.
+	--magic-board-*|--intern-op-board-to-processed)
 		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 		set +e ; return 1
+	;;
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helper. Nothing to dispatch.
+	*)
+		:
 	;;
 esac

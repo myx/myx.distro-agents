@@ -202,6 +202,12 @@ AgentsToolsClientToolPolicyHookRecords(){
 	## in a read-only place, and leave anything else to the client and the PermissionRequest hook.
 	recordOut="${recordOut}PreToolUse	native	.claude/hooks/allow-granted-native-tool.sh	Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob	allow-granted-native-tool.sh	"$'\n'
 	recordOut="${recordOut}PermissionRequest	native	.claude/hooks/permission-request-escalation.sh		permission-request-escalation.sh	"$'\n'
+	## A root session, one the tooling did not spawn: its end, and its resume under the same id
+	## (AgentsToolsGrantsSessionEnded reads the marker). A spawned one is closed by its proxy.
+	## The end carries its own timeout, 5 s: the client gives SessionEnd hooks 1.5 s in all by
+	## default, and the marker and store touch must never be cut; the rest runs detached.
+	recordOut="${recordOut}SessionEnd	native	.claude/hooks/root-session-end.sh end		root-session-end.sh	end	5"$'\n'
+	recordOut="${recordOut}SessionStart	native	.claude/hooks/root-session-end.sh resume	resume	root-session-end.sh	resume"$'\n'
 	while IFS= read -r recordTool ; do
 		[ -n "$recordTool" ] || continue
 		recordOut="${recordOut}PreToolUse	reroute	$recordScript $recordTool	$recordTool	${recordScript##*/}	$recordTool"$'\n'

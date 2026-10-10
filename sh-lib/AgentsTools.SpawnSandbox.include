@@ -268,7 +268,7 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 }
 
 ## Which board state folder actually holds an item, or empty when none does.
-## --intern-op-data-read searches several lookup folders and does not report which
+## AgentsToolsDataRead searches several lookup folders and does not report which
 ## one matched, and the board upsert has to be told the state -- so it is
 ## established here rather than assumed to be `running`, which is true only of a
 ## document this op created itself. A reused tracking document belongs to a caller
@@ -317,7 +317,8 @@ AgentsToolsSpawnProxyCloseDispatch(){
 	fi
 	[ "$itemState" != running ] || [ "$itemTargetState" != review ] \
 		|| reviewHeaders=( --header:upsert:review-since-epoch:"$( date +%s )" --header:upsert:review-reason:"$reviewReason" )
-	currentBody="$( DistroAgentsTools --intern-op-data-read "$itemName" \
+	type AgentsToolsDataRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpDataRead.include"
+	currentBody="$( AgentsToolsDataRead "$itemName" \
 		--lookup-folder "$MDAT_DATA_ROOT/board/$itemState" \
 		--context --intern-op-agent-spawn-proxy )" || currentBody="$briefBody"
 	resultBody="$( printf '%s\n' \
