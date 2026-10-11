@@ -202,8 +202,8 @@ Text a member emits is governed by `magic-team/magic-team.shared.md`'s "The outp
 
 The floor is `magic-team/magic-team.shared.md`'s. This section states which clauses a measurement may apply. A clause is measured only where the measurement cannot fire on correct text.
 
-- **Measured**: clause 3 at the 25-word cap, applied to every sentence, which never refuses correct text.
-- **Reported, never refusing**: clause 5's sentence count. A count joins consecutive lines into one paragraph, so it misreads a one-fact-per-line post — the very form clauses 2 and 6 ask for.
+- **Measured**: clause 3 at the 25-word cap, applied to every sentence, with no correction ever fired on correct text.
+- **Reported, never a correction**: clause 5's sentence count. A count joins consecutive lines into one paragraph, so it misreads a one-fact-per-line post — the very form clauses 2 and 6 ask for.
 - **Reader-judged**, every other clause — by the writer, then by `magic-librarian` at `magic-librarian.conventions-check.routine`. Notably:
   - clause 3's 20-word instructing cap, since telling instructing from describing needs a reader;
   - clause 6, since a count cannot tell distinct points from one point developed;

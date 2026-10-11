@@ -622,6 +622,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The spawn proxy does not run a CLI.** It pipes its context into
   `DistroAgentsConsole.sh --cli-configured --non-interactive`. Both its waiting and background branches
   inherit the exports.
+- **A detached spawn closes every descriptor it inherited** (`4>&-` on each backgrounded launch, its
+  output tail and its event-track feed loop): the fourth descriptor a caller holds open to learn when a
+  whole process tree has exited is never left open by a child meant to outlive that caller, so a review
+  reading for that close gets its verdict back at once instead of waiting on a descriptor nothing will
+  ever close.
 - **Spawn environment**: `MDAT_SPAWN_AGENT` (acting member), `MDAT_SPAWN_LAUNCH_MARKER`,
   `MDAT_SPAWN_SESSION_ID`, `MDAT_SPAWN_SANDBOX_ROOT(_REAL)`, and once a coworking session exists
   `MDAT_SESSION_ID`/`MDAT_SESSION_THREAD`, which nested spawns inherit, so a child joins its parent's
@@ -630,10 +635,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `session-id`; it is the only join between the dispatch record and hook reports. Lowercase it.
   No uuid, no spawn. The caller's previous value, else `CLAUDE_CODE_SESSION_ID`, becomes
   `parent-session-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`).
-- **`--description`** (agent-spawn-proxy): the spawner's own words for what the spawn is for, redacted
-  and bounded (`AgentsToolsTaskTextKept`). Kept as `description:` on both the dispatch item it creates
-  and its own spawn record, only when given; `--session-name-or-comment` is kept the same way, as
-  `session-comment:` on both. Shown on the first line of the start post (`AgentsToolsTaskTextLine`).
+- **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-heartbeat-spawn-proxy`): the
+  spawner's own words for what the spawn is for, redacted and bounded (`AgentsToolsTaskTextKept`). On
+  agent-spawn-proxy, kept as `description:` on both the dispatch item it creates and its own spawn
+  record, only when given; `--session-name-or-comment` is kept the same way, as `session-comment:` on
+  both. Shown on the first line of the start post (`AgentsToolsTaskTextLine`).
 - **`MDAT_SPAWN_AGENT`.** For claude-native the console builds an inline `--agents` document and selects
   it with `--agent`, so hooks report the member as `agent_type`. The name is checked against a bare-token
   set before it enters JSON. No standing agent file: a member must not exist twice. Legs take both
@@ -1265,6 +1271,17 @@ op's own option arm.
   `thread_ts`, `reply_broadcast` or `metadata`, which only a new post takes. Slack's answer to an edit is
   a verdict, not a transport outcome: only a rate limit is retried, and every other refusal is final --
   no bot-join, no identity swap, since those recover a post, never an edit.
+- **The output-style floor holds a message back, never refuses it.** A text over a limit this caller
+  gates on is not sent: the outcome starts with the fixed word `CORRECTION`, rc 6, one line naming each
+  fault, then a `NEXT:` line telling the sender to rewrite and resend -- never worded as a refusal or a
+  denial, with no cap on attempts (`AgentsTools.OutputStyle.include`). Only the member's own Slack send
+  (and only when `MDAT_SEND_FLOOR=hold`) and the member's own email gate on anything; every other caller
+  -- the tooling's own sends, a board/inbox write, a spawn brief, a Trello comment, the team roster, the
+  heartbeat state, the sweep state -- passes gating predicates of `none`: measured and recorded, never
+  holding a send back.
+- **The checker measures only the writer's own prose** (`AgentsOutputStyleCheck.awk`): a fenced code
+  block, an inline code span, a quoted line (`>`/`&gt;`), and a list item that is one bare path, name or
+  identifier with no space in it are all left out, since nothing in them can be rewritten by the sender.
 - **Mention cache** `.local/.agents/slack-mention-ids.cache`, keyed by `cksum` of the advance and
   heartbeat lock notes (so it resets each lock cycle). Rows `member=id=handle=real=display=domain`; the
   id stays field 2; `-` for none. Writes are `|| true`. `AgentsToolsCommsSlackMentionFindByName` searches it.
@@ -1452,6 +1469,14 @@ op's own option arm.
   or confirmed (also after "I", any case), or a +1, ok_hand or white_check_mark reaction, is yes for a
   readback and, for a decision, the option whose line holds `(recommended)` -- at most one may, refused
   at ask time otherwise; with none marked it is RETURNED. Never for a permission.
+- **The verdict reader skips the member send header** (`AgentsEscalationVerdict.awk`'s `sendHeaderLength`):
+  a member's own reply starts with the team send's own header line, no part of the reply, so the first
+  word judged is the first one after it. A `many` selection is sent by clicking its numbers then the `ok`
+  mark, never the check mark: `white_check_mark` is the mark the tooling puts on a question once it is
+  answered, so it is not also read as the mark that sends one (a question posted before this rule,
+  naming the check mark in its own text, still takes it as the send mark, for that one case only). A
+  permission set answers as a permission does: `x` denies, `unlock` allows the set, both by click, deny
+  first where both are held; `edit` carries its change in words and is never a click.
 - **The asker's readback** (`--member-escalation-readback`, EscalateDecision `pending_id` + `readback`):
   once a decision's reply names no option, its asker may post, in the question's thread under the ask's
   identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
@@ -1595,6 +1620,9 @@ op's own option arm.
   `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
   lines without the trailing ref, the form set-apply writes) also leave its item's `allows:` through
   the board edit primitive, and a `verdict` line goes on the item's Decisions; best effort.
+- **A request rerouted up the chain gives no verdict in its own thread.** Reading it prints
+  `VERDICT: RETURNED` with a reason naming why it was re-addressed and who it is addressed to now, so a
+  reader never mistakes "nobody has answered yet" for "the reply named none of the answers."
 - **An ask addressed to a routine** (`to: <name>.routine`, typed kinds only) posts nothing: the
   harness records it with `address-to` the routine and waits on the record, as for a member with no
   Slack account. `AgentsToolsRoutineFile` (TeamRegistry) is the one routine lookup;
@@ -1629,6 +1657,12 @@ op's own option arm.
   number while the record is still open; a holder still alive is respected, and so is one on another host,
   which cannot be seen from here. `mkdir`-ing the claim directory only marks who made it first; the real
   arbitration is the holder chain.
+- **An answer applies in a fixed order**: the verdict is noted, the grant an allow carries is written,
+  then the record closes carrying the verdict and who gave it (`AgentsToolsEscalationApply`/
+  `AgentsToolsEscalationApplyFinish`). A read that finds an apply stopped partway completes it from
+  where it stands, rather than redoing it. An allow whose grant cannot be written is not applied at
+  all: the note and the claim are given back, and the request stays open, read as `VERDICT: RETURNED`
+  with the reason.
 - **Attended only for an interactive Claude Code client**: `CLAUDE_CODE_ENTRYPOINT` `cli` or
   `claude-vscode`, no `MDAT_SESSION_UNATTENDED=true`, no spawn id. To admit a new surface, add it to the
   `case` in `AgentsHarnessUnattended` and in `client-hooks/permission-request-escalation.sh`. An
