@@ -79,6 +79,24 @@ function stlJsonScalar(jsonText, keyName,   restText) {
 	return stlJsonStr(jsonText, keyName)
 }
 
+# How many items the array value of a key holds, as text; "" when absent or not an array.
+# Read token by token, a string whole, so a bracket or a comma inside one never counts.
+function stlJsonListCount(jsonText, keyName,   restText, tokenChar, nestDepth, itemCount) {
+	if (!match(jsonText, "\"" keyName "\"[ \t\r\n]*:[ \t\r\n]*\\[")) return ""
+	restText = substr(jsonText, RSTART + RLENGTH)
+	if (restText ~ /^[ \t\r\n]*\]/) return "0"
+	nestDepth = 1
+	itemCount = 1
+	while (nestDepth > 0 && match(restText, /"([^"\\]|\\.)*"|[][{},]/)) {
+		tokenChar = substr(restText, RSTART, 1)
+		restText = substr(restText, RSTART + RLENGTH)
+		if (tokenChar == "[" || tokenChar == "{") nestDepth++
+		else if (tokenChar == "]" || tokenChar == "}") nestDepth--
+		else if (tokenChar == "," && nestDepth == 1) itemCount++
+	}
+	return itemCount ""
+}
+
 function stlFirstLine(textValue,   lineEnd) {
 	lineEnd = index(textValue, "\n")
 	if (lineEnd > 0) return substr(textValue, 1, lineEnd - 1)
@@ -183,6 +201,18 @@ function stlBaseTool(toolName,   restName, cutAt) {
 	return substr(restName, cutAt + 2)
 }
 
+## The tool a name asks with, "" for a name that asks nothing: one of the four tools that
+## ask, as it is; their second name AskUserQuestion, which older lines carry, as the tool of
+## its kind, AskQuestion when the kind is not known.
+function stlAskTool(baseName, kindText) {
+	if (baseName == "AskQuestion" || baseName == "ConfirmReadback" || baseName == "EscalateDecision" || baseName == "RequestPermission") return baseName
+	if (baseName != "AskUserQuestion") return ""
+	if (kindText == "readback") return "ConfirmReadback"
+	if (kindText == "decision") return "EscalateDecision"
+	if (kindText == "permission") return "RequestPermission"
+	return "AskQuestion"
+}
+
 function stlPathArg(jsonText,   pathValue) {
 	pathValue = stlJsonStr(jsonText, "file_path")
 	if (pathValue == "") pathValue = stlJsonStr(jsonText, "notebook_path")
@@ -191,7 +221,7 @@ function stlPathArg(jsonText,   pathValue) {
 }
 
 # The key request arguments of one call, per tool. Never content, never a file list.
-function stlToolArgs(toolName, jsonText,   baseName, outText) {
+function stlToolArgs(toolName, jsonText,   baseName, outText, listCount) {
 	baseName = stlBaseTool(toolName)
 	outText = ""
 	if (baseName == "Read") {
@@ -199,7 +229,9 @@ function stlToolArgs(toolName, jsonText,   baseName, outText) {
 	} else if (baseName == "Write" || baseName == "NotebookEdit") {
 		outText = stlKv("path", stlPathArg(jsonText), 300)
 	} else if (baseName == "Edit") {
-		outText = stlKv("path", stlPathArg(jsonText), 300) stlKv("replace_all", stlJsonScalar(jsonText, "replace_all"))
+		## A list of edits is named by how many it holds: a replace_all inside it is one edit's, not the call's.
+		listCount = stlJsonListCount(jsonText, "edits")
+		outText = stlKv("path", stlPathArg(jsonText), 300) (listCount != "" ? stlKv("edits", listCount) : stlKv("replace_all", stlJsonScalar(jsonText, "replace_all")))
 	} else if (baseName == "Grep") {
 		outText = stlKv("pattern", stlJsonStr(jsonText, "pattern"), 200) stlKv("path", stlJsonStr(jsonText, "path"), 300) stlKv("glob", stlJsonStr(jsonText, "glob")) stlKv("type", stlJsonStr(jsonText, "type")) stlKv("mode", stlJsonStr(jsonText, "output_mode")) stlKv("head_limit", stlJsonScalar(jsonText, "head_limit"))
 	} else if (baseName == "Glob") {
@@ -219,8 +251,8 @@ function stlToolArgs(toolName, jsonText,   baseName, outText) {
 		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("url", stlJsonStr(jsonText, "url"), 300)
 	} else if (baseName == "Wait") {
 		outText = stlKv("sources", stlJsonStr(jsonText, "sources"), 200) stlKv("mode", stlJsonStr(jsonText, "mode")) stlKv("timeout", stlJsonScalar(jsonText, "timeout")) stlKv("since", stlJsonScalar(jsonText, "since_utime")) stlKv("addressee", stlJsonStr(jsonText, "addressee"), 120)
-	} else if (baseName == "AskUserQuestion") {
-		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("kind", stlJsonStr(jsonText, "kind")) stlKv("address_to", stlJsonStr(jsonText, "address_to"), 120) stlKv("wait", stlJsonScalar(jsonText, "wait")) stlKv("pending_id", stlJsonStr(jsonText, "pending_id"))
+	} else if (stlAskTool(baseName, "") != "") {
+		outText = stlKv("to", stlJsonStr(jsonText, "to"), 120) stlKv("kind", stlJsonStr(jsonText, "kind")) stlKv("select", stlJsonStr(jsonText, "select")) stlKv("address_to", stlJsonStr(jsonText, "address_to"), 120) stlKv("wait", stlJsonScalar(jsonText, "wait")) stlKv("pending_id", stlJsonStr(jsonText, "pending_id"))
 	} else if (baseName == "Agent" || baseName == "Task") {
 		outText = stlKv("agent", stlJsonStr(jsonText, "agent"), 120) stlKv("subagent_type", stlJsonStr(jsonText, "subagent_type"), 120) stlKv("session_id", stlJsonStr(jsonText, "session_id")) stlKv("cli_service", stlJsonStr(jsonText, "cli_service"))
 	} else if (baseName == "Skill") {

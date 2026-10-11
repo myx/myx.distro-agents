@@ -1,11 +1,11 @@
 ---
 maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
 ---
-# escalation ask — `AskUserQuestion` `kind` format
+# escalation ask — `ConfirmReadback`, `EscalateDecision` and `RequestPermission` format
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the shape of one escalation ask: an `AskUserQuestion` call whose `kind` is `readback`, `decision` or `permission`. The member passes the fields, and the tooling composes the message.
+Not a member/routine contract — this is the shape of one escalation ask: a `ConfirmReadback`, `EscalateDecision` or `RequestPermission` call. The member passes the fields, and the tooling composes the message.
 
 ## Contents
 
@@ -28,7 +28,7 @@ One ask, to one addressee, about one thing a member needs before one part of its
 ## Scope
 
 - Does: fix the fields and verdicts of the `readback`, `decision` and `permission` kinds.
-- Doesn't: shape an ordinary open question. That is `kind` `question`, the default, with no fixed fields.
+- Doesn't: shape an ordinary open question. That is `AskQuestion`, with `select` (`yes-no`, `one`, `many`) and no fixed fields.
 
 # Skeleton
 
@@ -57,7 +57,7 @@ verdicts: deny | allow-once | allow-session | allow-task
 ```
 
 ```
-kind: permission-set                <- asked by tooling (--magic-permission-set-request), never by AskUserQuestion
+kind: permission-set                <- asked by tooling (--magic-permission-set-request), never by RequestPermission
 item: <the task's board item>
 scope: task | session
 entries: <tool:target, one per extra no participant holds>
@@ -68,8 +68,8 @@ verdicts: allow-set | deny | edit   <- edit also returns the change
 
 - rule: Every field the kind names is filled. A missing field, or an unknown kind, posts nothing.
 - rule: The result's first line is `ASK-RESULT:`. A typed kind adds `VERDICT: <value>`. A `correct` readback adds `VERDICT-TEXT:` with the correction.
-- rule: An answer outside the kind's verdicts reads `UNCLASSIFIED`, and the ask stays open. The member never guesses a verdict from the answer text.
-- rule: After `UNCLASSIFIED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
+- rule: An answer outside the kind's verdicts reads `RETURNED`, and the ask stays open. The member never guesses a verdict from the answer text.
+- rule: After `RETURNED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
 - rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.
@@ -78,5 +78,5 @@ verdicts: allow-set | deny | edit   <- edit also returns the change
 - rule: A `permission-set` ask carries the extras of a task's or session's permission set as ONE ask to the human-owner. `allow-set` grants them to every participant for that scope and records the set on the item's `## Decisions`; a `task` set also becomes the item's `allows`.
 - rule: `deny` is a verdict. That part of the task is reported as denied and still open.
 - rule: No answer is not a verdict. The ask stays open.
-- rule: The member asks with the wait on and reads the verdict from `AskUserQuestion` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.
+- rule: The member asks with the wait on and reads the verdict from `ConfirmReadback`, `EscalateDecision` or `RequestPermission` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.
 - rule: `magic-coordinator`, as the addressee, may forward the ask to the human-owner with `--magic-escalation-forward <coordinator> <request-id>`. His reply is the verdict for the original ask, and the record stays the same one.

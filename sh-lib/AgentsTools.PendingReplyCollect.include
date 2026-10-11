@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.PendingReplyCollect.include -- collects the answers to AskUserQuestion
+## AgentsTools.PendingReplyCollect.include -- collects the answers to AskQuestion
 ## questions nobody is waiting on. Definitions only, sourced by the
 ## --intern-op-pending-reply-collect arm (AgentsTools.InternOpPendingReply.include).
 ##
@@ -94,7 +94,7 @@ AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
 ## for the caller. The record is closed here only when it is answered.
 AgentsToolsPendingReplyCollectOne(){ ## record file
 	local oneFile="$1" oneId oneLine oneKey oneValue oneWork oneRc=0 oneBody oneHead oneClose
-	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst="" oneItem=""
+	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst="" oneItem="" oneSelect=""
 	collectOutcome="" ; collectAnswer=""
 	oneId="${oneFile##*/}" ; oneId="${oneId%.md}"
 	while IFS=$'\t' read -r oneKey oneValue ; do
@@ -108,6 +108,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			addressees) oneAddr="$oneValue" ;;
 			question-tag) oneTag="$oneValue" ;;
 			item) oneItem="$oneValue" ;;
+			select) oneSelect="$oneValue" ;;
 			first) oneFirst="$oneValue" ;;
 		esac
 	done < <( AgentsToolsPendingReplyCollectFields "$oneFile" )
@@ -115,10 +116,13 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 	## A readback, decision or permission is read only for a session that is gone (collectTyped,
 	## set by the main loop's pass): its verdict is read and applied by the escalation op, the one
 	## place that does it, exactly as the asking session's own wait would have.
-	case "$oneKind" in
-		''|question) ;;
+	## A plain question with an answer form (select) takes its verdict by the same op, in any
+	## collect: it is a question, read whenever one is.
+	case "$oneKind:$oneSelect" in
+		:|question:) ;;
 		*)
-			[ -n "${collectTyped:-}" ] && [ -n "$oneOwner" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+			case "$oneKind" in ''|question) ;; *) [ -n "${collectTyped:-}" ] || { collectOutcome="SKIPPED" ; return 0 ; } ;; esac
+			[ -n "$oneOwner" ] || { collectOutcome="SKIPPED" ; return 0 ; }
 			local oneRead oneVerdict
 			oneRead="$( MDAT_PENDING_CLOSE_QUIET="${collectQuiet:-}" DistroAgentsTools --intern-op-escalation-read "$oneOwner" "$oneId" 2>/dev/null )" || oneRead=""
 			oneVerdict="$( printf '%s\n' "$oneRead" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"

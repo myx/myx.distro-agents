@@ -2,11 +2,11 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.AskThread.include -- how one AskUserQuestion stands in a thread that
+## AgentsTools.AskThread.include -- how one AskQuestion stands in a thread that
 ## several questions share. Definitions only, sourced by the two readers that judge an
 ## answer: the wait over a thread (AgentsTools.MemberWait.include) and the escalation
 ## read (AgentsTools.MemberEscalation.include). Both hand the result to
-## AgentsSlackThreadAnswers.awk as -v tag / -v threadCount / -v others (MAGIC.md, "AskUserQuestion").
+## AgentsSlackThreadAnswers.awk as -v tag / -v threadCount / -v others (MAGIC.md, "AskQuestion").
 ##
 
 ## Prints "<tag>\t<questions the thread has held>" for the question posted at
@@ -33,7 +33,8 @@ AgentsToolsAskThreadStanding(){ ## channel, question ts
 		if [ "$standFileChannel" = "$standChannel" ] ; then
 			standTag="$standFileTag" ; standThread="$standFileThread" ; break
 		fi
-	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "question-ts: $standTs" "$standStore" 2>/dev/null )
+	## By its first post, or by its live version once it was asked again, changed (`revision-ts`).
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' -e "question-ts: $standTs" -e "revision-ts: $standTs" "$standStore" 2>/dev/null )
 	[ -n "$standThread" ] || { printf '%s\t0\n' "$standTag" ; return 0 ; }
 	while IFS= read -r standFile ; do
 		[ -f "$standFile" ] || continue
@@ -50,7 +51,7 @@ AgentsToolsAskThreadStanding(){ ## channel, question ts
 ## still open. Prints nothing for a thread that has held one question.
 AgentsToolsAskThreadOthers(){ ## channel, question ts
 	local othChannel="$1" othTs="$2" othStore="$MMDAPP/.local/agents/pending"
-	local othFile othLine othThread="" othFileChannel othFileThread othFileTs othFileStatus othFileEpoch othList=""
+	local othFile othLine othThread="" othFileChannel othFileThread othFileTs othFileStatus othFileEpoch othFileSelf othList=""
 	[ -n "$othChannel" ] && [ -n "$othTs" ] && [ -d "$othStore" ] || return 0
 	while IFS= read -r othFile ; do
 		[ -f "$othFile" ] || continue
@@ -65,21 +66,23 @@ AgentsToolsAskThreadOthers(){ ## channel, question ts
 		if [ "$othFileChannel" = "$othChannel" ] ; then
 			othThread="$othFileThread" ; break
 		fi
-	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "question-ts: $othTs" "$othStore" 2>/dev/null )
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' -e "question-ts: $othTs" -e "revision-ts: $othTs" "$othStore" 2>/dev/null )
 	[ -n "$othThread" ] || return 0
 	while IFS= read -r othFile ; do
 		[ -f "$othFile" ] || continue
-		othFileChannel="" othFileTs="" othFileStatus="" othFileEpoch=""
+		othFileChannel="" othFileTs="" othFileStatus="" othFileEpoch="" othFileSelf=""
 		while IFS= read -r othLine ; do
 			case "$othLine" in
 				'channel: '*) othFileChannel="${othLine#channel: }" ;;
-				'question-ts: '*) othFileTs="${othLine#question-ts: }" ;;
+				'question-ts: '*) othFileTs="${othLine#question-ts: }" ; [ "$othFileTs" != "$othTs" ] || othFileSelf=1 ;;
+				## A question asked again, changed, stands where its live version is posted.
+				'revision-ts: '*) othFileTs="${othLine#revision-ts: }" ; [ "$othFileTs" != "$othTs" ] || othFileSelf=1 ;;
 				'status: '*) othFileStatus="${othLine#status: }" ;;
 				'resolved-epoch: '*) othFileEpoch="${othLine#resolved-epoch: }" ;;
 				'# '*) break ;;
 			esac
 		done < "$othFile"
-		[ "$othFileChannel" = "$othChannel" ] && [ -n "$othFileTs" ] && [ "$othFileTs" != "$othTs" ] || continue
+		[ "$othFileChannel" = "$othChannel" ] && [ -n "$othFileTs" ] && [ -z "$othFileSelf" ] || continue
 		if [ "$othFileStatus" = "reply-pending" ] ; then
 			othList="$othList $othFileTs/open"
 		else

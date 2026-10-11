@@ -360,8 +360,8 @@ case "$1" in
 			## a name here refuses, a name absent reports beside it. sentence-cap
 			## is absent because it cannot tell a prose paragraph from a block
 			## written one fact per line -- see MAGIC.md.
-			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
-			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
+			printf '%s' "$subject" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients (subject)" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
+			printf '%s' "$bodyLines" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$recipients" "" "word-cap semicolon paragraph-gate" || { local mailFloorRc=$? ; set +e ; return "$mailFloorRc" ; }
 
 			## Outbound-to-unlisted-people gate: email has no internal/team
 			## conversation concept the way Slack does, so every recipient

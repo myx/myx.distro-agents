@@ -71,7 +71,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
       - Slack: react per `slack-reaction-tracking`'s act stage.
    4. **reply-if-warranted**: Acknowledge every message not ignored, by each platform's own rules:
       - Slack: reply to `<channel>:<ts>` of this message, never a bare channel. `--format blocks`, always.
-      - Email, and any reply into an external party's conversation: the human-owner's go first (`AskUserQuestion`; running unattended, `wait: false`, and the reply waits for it).
+      - Email, and any reply into an external party's conversation: the human-owner's go first (`AskQuestion`; running unattended, `wait: false`, and the reply waits for it).
       - In the coordinator's own Slack or Trello threads, lead the dialogue directly, but pause before anything reading as a commitment or decision on the human-owner's behalf.
       - Never impersonate: nobody passes off words that are not their own. The source settles who sends: team sources send as the coordinator, a member's source as that member.
       - A reply the addressee must act on tags them (`magic-team.conversations.md`'s **address-messages-clearly**).

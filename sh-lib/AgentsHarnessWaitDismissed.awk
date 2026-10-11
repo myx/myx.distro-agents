@@ -6,7 +6,9 @@
 ## loaded first: `awk -v agent=<member> -f AgentsDismissalMatch.awk -f <this>`.
 ##
 ## A message is one `<ts> | <user> |...` line plus the lines under it (a Slack text
-## keeps its newlines), up to the next message or a `WAIT-` line. Whether it dismisses
+## keeps its newlines), up to the next message, a `WAIT-` line, or one of the lines the wait
+## itself puts around what arrived (`# --- what that source holds now follows ---`,
+## `# --- end ---`), which are never part of a message. Whether it dismisses
 ## <agent> is AgentsDismissalMatch.awk's dismissalOf: tagged to <agent> (the send
 ## header's addressees, or `DISMISSED <agent>` typed), whichever account posted it;
 ## only one authored by <agent> itself is ignored. A DISMISSED addressed to someone
@@ -27,6 +29,7 @@ function flush() {
 	next ;
 } ;
 /^WAIT-/ { flush() ; next ; } ;
+$0 == "# --- what that source holds now follows ---" || $0 == "# --- end ---" { flush() ; next ; } ;
 cur != "" { cur = cur "\n" $0 ; } ;
 END {
 	if (!found) { flush() ; } ;

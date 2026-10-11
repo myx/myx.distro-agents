@@ -338,6 +338,13 @@ case "$1" in
 			case "$1" in
 				--member-comms-slack-file-info) AgentsToolsCommsSlackFileInfo "${@:2}" ; return $? ;;
 			esac
+			## A member's own message is one a person reads: over the plain-language floor it is
+			## held back, for its sender to correct and send again (MDAT_SEND_FLOOR, read where
+			## the send measures). Tooling's own sends call the implementation below directly,
+			## and stay measured and reported only: nobody can rewrite those.
+			case "$1" in
+				--member-comms-slack-send-message) MDAT_SEND_FLOOR=hold DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}" ; return $? ;;
+			esac
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
 			return $?
 		;;
@@ -776,15 +783,20 @@ case "$1" in
 			shift || true
 
 			if [ -z "$target" ] || [ -z "$emoji" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot]" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: syntax is <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]" >&2
 				set +e ; return 1
 			fi
 
-			local identityAsBot="false"
+			local identityAsBot="false" reactApi="reactions.add"
 			while [ $# -gt 0 ] ; do
 				case "$1" in
 					--identity-bot)
 						identityAsBot="true" ; shift
+					;;
+					## Takes the acting identity's own reaction off again (reactions.remove). One
+					## that is not there (`no_reaction`) is the end state asked for, so a success.
+					--remove)
+						reactApi="reactions.remove" ; shift
 					;;
 					*)
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: invalid option: $1" >&2
@@ -812,14 +824,14 @@ case "$1" in
 				set +e ; return 1
 			fi
 
-			local opArgs=( "$memberName" --api reactions.add --resolve-target "$channel" \
+			local opArgs=( "$memberName" --api "$reactApi" --resolve-target "$channel" \
 				--form "timestamp=$threadTs" --form "name=$emoji" )
 			if [ "$identityAsBot" = "true" ] ; then
 				opArgs+=( --identity bot )
 			fi
 			opArgs+=( --context "--member-comms-slack-react" )
 
-			echo "# $MDSC_CMD --member-comms-slack-react: POST reactions.add channel=$channel timestamp=$threadTs name=$emoji (acting member $memberName)" >&2
+			echo "# $MDSC_CMD --member-comms-slack-react: POST $reactApi channel=$channel timestamp=$threadTs name=$emoji (acting member $memberName)" >&2
 			## The response goes straight out on stdout and the DIAGNOSTIC is what is
 			## captured -- a substitution yields one capture, and only the diagnostic
 			## is read back here. The op writes nothing to stdout when it fails.
@@ -839,7 +851,11 @@ case "$1" in
 						actingIdentityText="no identity at all -- the call failed before one was selected"
 					;;
 				esac
-				case "$diag" in
+				case "$reactApi:$diag" in
+					reactions.remove:*no_reaction*)
+						echo "# $MDSC_CMD --member-comms-slack-react: ALREADY ABSENT on $channel:$threadTs -- $actingIdentityText holds no :$emoji: on this message, so the end state asked for HOLDS and nothing was removed by this call. Reactions are per identity: this says nothing about any other identity's reaction." >&2
+						return 0
+					;;
 					*already_reacted*)
 						local rawResponseState="" rawResponse=""
 						rawResponseState="$( printf '%s\n' "$diag" | LC_ALL=C sed -n 's/^RESPONSE_BODY_STATE=//p' | head -1 )"
@@ -1104,7 +1120,8 @@ case "$1" in
 			## a name here refuses, a name absent reports beside it. sentence-cap
 			## is absent because it cannot tell a prose paragraph from a block
 			## written one fact per line -- see MAGIC.md.
-			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { set +e ; return 1 ; }
+			## Over a limit it is a correction for the sender to make (rc 6), as for the send.
+			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { local editFloorRc=$? ; set +e ; return "$editFloorRc" ; }
 
 			local resolved rc channel threadTs
 			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
@@ -1751,7 +1768,7 @@ case "$1" in
 		local addressToList=""
 		## A reply into a thread also shown in the conversation itself (Slack's
 		## reply_broadcast), so it is seen where it would otherwise sit buried.
-		local replyBroadcast="false"
+		local replyBroadcast="false" updateTs=""
 		## Slack's own chat.postMessage `metadata` object. Every send carries
 		## one identifying its own acting member, read back by
 		## AgentsSlackMessagesFormat.awk's `[sender: X]` annotation -- this is
@@ -1779,6 +1796,18 @@ case "$1" in
 				;;
 				--reply-broadcast)
 					replyBroadcast="true" ; shift
+				;;
+				## Edits one message the acting identity posted, in place, instead of posting a new
+				## one (chat.update): the same text and blocks this send would post, with the same
+				## author line and under the same floor, so an edit shows what a send would.
+				--update-ts)
+					case "${2:-}" in
+						''|*[!0123456789.]*)
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --update-ts needs the ts of the message to edit, got: ${2:-<none>}" >&2
+							set +e ; return 1
+						;;
+					esac
+					updateTs="$2" ; shift 2
 				;;
 				--message-from-stdin|--from-stdin)
 					fromStdin="true" ; bodySourceKind="stdin" ; shift
@@ -2321,10 +2350,18 @@ blocks|verbatim|caller|stdin file"
 		escapedText="$( printf '%s' "$rawText" | LC_ALL=C awk -f "$MYXROOT/include/data/agentMcpJsonEscape.awk" )"
 
 		local payload="{\"channel\":\"$channel\",\"text\":\"$escapedText\""
-		[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
-		[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
+		## A new post goes to chat.postMessage. An update (--update-ts) names the message it
+		## edits and goes to chat.update, with none of what only a new post takes.
+		local sendApi="chat.postMessage"
+		if [ -n "$updateTs" ] ; then
+			sendApi="chat.update"
+			payload="$payload,\"ts\":\"$updateTs\""
+		else
+			[ -z "$threadTs" ] || payload="$payload,\"thread_ts\":\"$threadTs\""
+			[ -z "$threadTs" ] || [ "$replyBroadcast" != "true" ] || payload="$payload,\"reply_broadcast\":true"
+		fi
 		[ -z "$blocksJson" ] || payload="$payload,\"blocks\":$blocksJson"
-		[ -z "$sendMetadata" ] || payload="$payload,\"metadata\":$sendMetadata"
+		[ -z "$sendMetadata" ] || [ -n "$updateTs" ] || payload="$payload,\"metadata\":$sendMetadata"
 		payload="$payload}"
 
 		local tokenLabel
@@ -2334,7 +2371,7 @@ blocks|verbatim|caller|stdin file"
 			tokenLabel='SLACK_BOT_TOKEN'
 		fi
 
-		echo "# $MDSC_CMD --member-comms-slack-send-message: POST https://slack.com/api/chat.postMessage using ${sendIdentity} token for $memberName -H 'Authorization: Bearer \$$tokenLabel' -H 'Content-type: application/json' -d '$payload'" >&2
+		echo "# $MDSC_CMD --member-comms-slack-send-message: POST https://slack.com/api/$sendApi using ${sendIdentity} token for $memberName -H 'Authorization: Bearer \$$tokenLabel' -H 'Content-type: application/json' -d '$payload'" >&2
 
 		local token botTokenSource=""
 		if [ "$sendIdentity" = "user" ] ; then
@@ -2358,14 +2395,19 @@ blocks|verbatim|caller|stdin file"
 		## the token because the shared-identity rule needs the account this posts
 		## under, which nothing earlier knows. A blocks payload is JSON, not prose.
 		if [ "$format" != "blocks" ] ; then
-			## Measured, never refused: a live member's own message into its own
-			## session landing nowhere is worse than one the floor would have
-			## flagged. Same posture as the spawn-brief call in
-			## AgentsTools.InternOpAgentSpawnProxy.include. A style fault is still
-			## recorded (rowKind=report) and still named on stderr; it no longer
-			## blocks delivery at this one site. sentence-cap stays an instrument
-			## everywhere regardless -- see MAGIC.md.
-			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" none || { set +e ; return 1 ; }
+			## A member's own message (MDAT_SEND_FLOOR=hold, set by the member stub) is held back
+			## when it is over a limit: not sent, and returned as a CORRECTION for its sender to
+			## make and send again, rc 6, with no limit on attempts and no way through on a later
+			## one. The limits it is held on are those of the edit and the email; sentence-cap
+			## stays an instrument everywhere -- see MAGIC.md. A send of the tooling's own is
+			## measured and reported only, as the spawn brief is: nobody can rewrite it.
+			## Only the sender's own words are measured. A tool that builds the message around
+			## them names them in MDAT_SEND_PROSE_FILE, and they are measured in place of the
+			## whole body, whose other lines are the tool's.
+			local floorGating="none" floorText="$sourceText" floorRc=0
+			[ "${MDAT_SEND_FLOOR:-}" != "hold" ] || floorGating="word-cap semicolon paragraph-gate"
+			[ -z "${MDAT_SEND_PROSE_FILE:-}" ] || [ ! -f "$MDAT_SEND_PROSE_FILE" ] || floorText="$( cat "$MDAT_SEND_PROSE_FILE" )"
+			printf '%s' "$floorText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "$floorGating" || { floorRc=$? ; set +e ; return "$floorRc" ; }
 		fi
 
 		## Token on curl's stdin, never argv -- keeps it out of ps. Reassigned
@@ -2436,7 +2478,7 @@ blocks|verbatim|caller|stdin file"
 			response="$( mkdir -p "$MMDAPP/.local/temp" && bodyFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-send.XXXXXX" )" || exit 200
 				trap 'rm -f "$bodyFile"' EXIT
 				printf '%s' "$payload" > "$bodyFile" || exit 200
-				curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/chat.postMessage" \
+				curl -sS --connect-timeout 10 --max-time 120 -X POST "https://slack.com/api/$sendApi" \
 				-H @- \
 				-H "Content-type: application/json" \
 				--data-binary "@$bodyFile" <<< "$authHeader" 2>&1 )" || sendRc=$?
@@ -2460,6 +2502,19 @@ blocks|verbatim|caller|stdin file"
 					break
 				;;
 			esac
+			## An edit (--update-ts) changes one message that is already there, so what Slack
+			## answers to it is a verdict: only a rate limit is tried again, and no recovery
+			## below applies, since each of them would act under another identity or elsewhere.
+			if [ -n "$updateTs" ] ; then
+				case "$response" in
+					*'"error":"ratelimited"'*|*'"error":"rate_limited"'*) ;;
+					*'"ok":false'*)
+						permanentVerdict="Slack answered and did not edit it"
+						echo "# $MDSC_CMD --member-comms-slack-send-message: $permanentVerdict -- not retried, its answer to an edit is a verdict -- $response" >&2
+						break
+					;;
+				esac
+			fi
 			if [ "$sendIdentity" = "bot" ] && [ "$joinAttempted" = "false" ] && [ -z "$threadTs" ] && printf '%s' "$response" | grep -q '"error":"not_in_channel"' ; then
 				joinAttempted="true"
 				local joinResponse
@@ -2561,9 +2616,22 @@ blocks|verbatim|caller|stdin file"
 			## of their own. Empty is a stated value: a wait cannot qualify an answer
 			## without it, and must say so rather than accept whatever arrives.
 			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
-			AgentsToolsSlackSendLogLine ok "posted ts=$sentTs"
+			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"
 			printf '%s\n' "$response"
 			return 0
+		fi
+
+		## An edit that did not happen is said as that. The message it would have changed stands
+		## as it was, so nothing is queued for it, and no email says comms are stuck.
+		if [ -n "$updateTs" ] ; then
+			if [ -n "$sendUnknown" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: WHETHER $channel:$updateTs WAS EDITED IS UNKNOWN -- $sendUnknown. The same edit sent again changes nothing more." >&2
+				AgentsToolsSlackSendLogLine failed "unknown whether edited: $sendUnknown"
+			else
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: the message $channel:$updateTs was NOT edited -- ${permanentVerdict:-Slack did not confirm after $maxAttempts attempts}. It stands as it was: an edit is not queued, and no email is sent." >&2
+				AgentsToolsSlackSendLogLine failed "not edited: ${permanentVerdict:-no ok:true after $maxAttempts attempts} error=$( AgentsToolsSlackSendErrorCode )"
+			fi
+			set +e ; return 1
 		fi
 
 		if [ -n "$sendUnknown" ] ; then

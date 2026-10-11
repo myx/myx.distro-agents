@@ -630,6 +630,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `session-id`; it is the only join between the dispatch record and hook reports. Lowercase it.
   No uuid, no spawn. The caller's previous value, else `CLAUDE_CODE_SESSION_ID`, becomes
   `parent-session-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`).
+- **`--description`** (agent-spawn-proxy): the spawner's own words for what the spawn is for, redacted
+  and bounded (`AgentsToolsTaskTextKept`). Kept as `description:` on both the dispatch item it creates
+  and its own spawn record, only when given; `--session-name-or-comment` is kept the same way, as
+  `session-comment:` on both. Shown on the first line of the start post (`AgentsToolsTaskTextLine`).
 - **`MDAT_SPAWN_AGENT`.** For claude-native the console builds an inline `--agents` document and selects
   it with `--agent`, so hooks report the member as `agent_type`. The name is checked against a bare-token
   set before it enters JSON. No standing agent file: a member must not exist twice. Legs take both
@@ -638,7 +642,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **A harness session that never armed is recorded as failed**, whatever its exit code
   (`AgentsToolsSpawnProxyOutcome`): a `<session>.harness` marker and no `<session>.armed`. Native
   sessions keep the exit-code rule.
-- **Arm before acting.** In a spawned harness loop, Write, Edit, Bash, SendMessage, AskUserQuestion, Agent
+- **Arm before acting.** In a spawned harness loop, Write, Edit, Bash, SendMessage, AskQuestion,
+  ConfirmReadback, EscalateDecision, RequestPermission, Agent
   and any `mcp__*__execute` are redirected until the session has read its own `<member>.armed.md` to the
   end through Skill (no truncation footer; a ranged read must reach the last line). Read-only tools,
   served `--intern-tool` calls and non-spawned sessions are never gated. The first redirect posts once to
@@ -937,7 +942,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 
 - **The set** (`harnessToolsJson` in `AgentsOpenAiChatWire.sh`): `Read`, `Write`, `Glob`, `Edit`, `Grep`,
   `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`,
-  `ReportFindings`, `PushNotification`, `Artifact`, `AskUserQuestion`, `ListMcpResourcesTool`,
+  `ReportFindings`, `PushNotification`, `Artifact`, `AskQuestion`, `ConfirmReadback`,
+  `EscalateDecision`, `RequestPermission`, `ListMcpResourcesTool`,
   `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`,
   `ToolSearch`, `SessionTranscriptAppend`, `Monitor`. Each has four sites: the declaration, and in the
   core the announce arm, the dispatch arm and the function.
@@ -945,22 +951,32 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes
   `bash -n` and the site check and fails only at the endpoint as a 400; `HARNESS_TOOLS_JSON` catches it by
   comparing text and parsed counts. Run it after any declaration change.
-- **Addressing.** `SendMessage`, `SubagentHandback`, `PushNotification`, `ReportFindings`, `Artifact` and
-  `AskUserQuestion` share one `to` resolver: named conversations, a bare id, `<channel>:<ts>`,
+- **Addressing.** `SendMessage`, `SubagentHandback`, `PushNotification`, `ReportFindings`, `Artifact`,
+  `AskQuestion`, `ConfirmReadback`, `EscalateDecision` and `RequestPermission` share one `to` resolver:
+  named conversations, a bare id, `<channel>:<ts>`,
   `session-parent` (the parent sandbox's `session.thread`; no parent is an error, never another thread),
   or a member name (its DM via `AgentsToolsCommsSlackMentionUserId`; no Slack account means an
-  `inquiry-*` in its inbox, which `AskUserQuestion` refuses). An empty `to` is the session thread
+  `inquiry-*` in its inbox, which `AskQuestion` refuses). An empty `to` is the session thread
   (`AgentsToolsSessionThreadFind`), resolved inside `--member-comms-slack-send-message` so MCP gets it
   too; `SubagentHandback` defaults to `session-parent`.
+- **The four ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`) each
+  render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`). `select` gives the
+  answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` -- `one`/`many` need
+  `options`, `yes-no` takes none. `revise` re-asks a question still open, changed, in that question's own
+  thread, by the pending id the first ask returned.
 - **Identity on a served call**: `MDAT_SPAWN_AGENT`, else `magic-coordinator` for a root session, kept only
   if that `.basic.md` is readable; otherwise sending tools refuse. A model run without `--agent` refuses
   to send. Text goes on stdin; no credential in argv.
 - **`NEXT:` lines.** A result the model must act on ends with one `NEXT:` line naming the call, added after
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
-  posted, `SubagentHandback` from a non-blocked spawn, `AskUserQuestion` left open with `WAIT-ID:`).
+  posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`).
 - **`Wait` tool** calls `--member-wait-for-input` and adds only: `mode` (`default`/`continue`/`close`),
   reaction id sets, `slack:session-parent` rewriting, and `DISMISSED` detection
-  (`AgentsHarnessWaitDismissed.awk`). Session id from `AgentsHarnessSessionKey`. A call with six or fewer
+  (`AgentsHarnessWaitDismissed.awk`, matched by `AgentsDismissalMatch.awk`'s one shared rule: a body
+  that is exactly `DISMISSED`, addressed to this member by the team send header naming it, or typed
+  plain as `DISMISSED <member>` with no header -- recognised by that tag, never by the Slack account,
+  since several members post under one team bot; never a dismissal of its own author). Session id from
+  `AgentsHarnessSessionKey`. A call with six or fewer
   arguments stays stateless. A send records `sessions/<id>/last-own-post` for the floor fallback.
 - **`ToolSearch`** reads the catalogue rendered by `AgentsHarnessMcpMirror.sh` (cached in
   `toolsearch.floor`, since the call runs in `$( )`) plus `$harnessMcpToolsJson`; `AgentsHarnessToolSearch.awk`
@@ -981,10 +997,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `Base directory for this skill:` prepended, `$ARGUMENTS` placeholders filled,
   `disable-model-invocation: true` refused.
 - **`Edit`** replaces an exact literal that occurs exactly once, counted with the same `index()` that
-  substitutes (never `grep -c`). Text through `ENVIRON`; output with `printf "%s"` so no newline is
-  added. **Write and Edit replace by rename under a per-target lock** (a symlink in
-  `.local/agents/locks/<cksum>` naming the pid; dead holders broken; 30 busy polls then error). Known
-  limits: hard links break; a kill mid-way leaves `.<name>.mdat-write.<pid>`; ownership changes to the
+  substitutes (never `grep -c`). One call carries one edit, or a list of them in `edits`, each read
+  as the top level is and applied in order, each to the text the edit before it left; uniqueness is
+  required per edit, unless that edit's own `replace_all` lifts it. All or nothing: every edit in the
+  list applies to a scratch text before anything reaches the file, and a failing edit is named by its
+  position (`edit N of M failed, none was applied`). Text through `ENVIRON`; output with
+  `printf "%s"` so no newline is added. **Write and Edit replace by rename under a per-target lock**
+  (a symlink in `.local/agents/locks/<cksum>` naming the pid; dead holders broken; 30 busy polls then
+  error), taken once for the whole call, list or single. Known limits: hard links break; a kill
+  mid-way leaves `.<name>.mdat-write.<pid>`/`.<name>.mdat-edit.<pid>`; ownership changes to the
   writer; two breakers can both win; a pid reuse keeps a lock looking held.
 - **`Grep`** runs `grep -E` with `\d \s \w` (and negations) translated; a negated escape inside `[...]` and
   `multiline` are refused. `type` uses `AgentsHarnessGrepTypeGlobs`. **A search with no hits says so in
@@ -1239,6 +1260,11 @@ op's own option arm.
   `AgentsToolsCommsSlackMentionUserId`: a member by `auth.test` on its own user token, the human-owner by
   `SLACK_CHANNEL_HUMAN_OWNER` (a user id). Anything else degrades to `@alias` text. `users.list` resolves
   nobody.
+- **`--update-ts <ts>`** edits that message in place (`chat.update`) instead of posting a new one: the
+  same text, blocks and author line this send would post, under the same floor; it carries none of
+  `thread_ts`, `reply_broadcast` or `metadata`, which only a new post takes. Slack's answer to an edit is
+  a verdict, not a transport outcome: only a rate limit is retried, and every other refusal is final --
+  no bot-join, no identity swap, since those recover a post, never an edit.
 - **Mention cache** `.local/.agents/slack-mention-ids.cache`, keyed by `cksum` of the advance and
   heartbeat lock notes (so it resets each lock cycle). Rows `member=id=handle=real=display=domain`; the
   id stays field 2; `-` for none. Writes are `|| true`. `AgentsToolsCommsSlackMentionFindByName` searches it.
@@ -1382,13 +1408,16 @@ op's own option arm.
 
 ## 20. Questions, decisions and review
 
-- **The `AskUserQuestion` wait** takes only the addressee's replies and judges every reply since
-  `question-ts`. A typed verdict is the reply's first word, or a declared reaction
-  (`AgentsEscalationVerdict.awk`); no negation parsing. An unclassified reply returns
-  `VERDICT: UNCLASSIFIED` with `WAIT-ID:` and `NEXT:`; re-waiting is the agent's choice; `pending_id`
+- **The `AskQuestion` wait** takes only the addressee's replies and judges every reply since
+  `question-ts`. Its own outcome, `ASK-RESULT:`, is one of `RECEIVED`, `TIMEOUT`, `DISMISSED`, `CLOSED`
+  or `ERROR` -- never `UNCLASSIFIED`, which is only ever an internal placeholder; where a verdict read
+  still carries it, it is folded into `RETURNED` before anything is printed. A typed verdict is the
+  reply's first word, or a declared reaction
+  (`AgentsEscalationVerdict.awk`); no negation parsing. A reply that names none of the answers returns
+  `VERDICT: RETURNED` with `WAIT-ID:` and `NEXT:`; re-waiting is the agent's choice; `pending_id`
   re-waits without posting, for the asking session only.
 - **The ask's wait is the session's `Wait`**: the item `ask:<pending-id>` joins the stored wait
-  (`--wait-add`) and is resolved by `AgentsHarnessAskResolve`, called by both `AskUserQuestion` and
+  (`--wait-add`) and is resolved by `AgentsHarnessAskResolve`, called by both `AskQuestion` and
   `Wait`. **An answered question keeps its thread watched**: every close that answers it (the harness,
   collect, the escalation read, an escalation answer, a readback) sets `follow-floor` -- the newest
   message of its own thread already read and kept, else the question -- and its item stays in the Wait set
@@ -1422,15 +1451,15 @@ op's own option arm.
 - **Plain affirmations** (`AgentsEscalationVerdict.awk`): a first word ok, okay, yes, agree, agreed, confirm
   or confirmed (also after "I", any case), or a +1, ok_hand or white_check_mark reaction, is yes for a
   readback and, for a decision, the option whose line holds `(recommended)` -- at most one may, refused
-  at ask time otherwise; with none marked it stays UNCLASSIFIED. Never for a permission.
-- **The asker's readback** (`--member-escalation-readback`, AskUserQuestion `pending_id` + `readback`):
+  at ask time otherwise; with none marked it is RETURNED. Never for a permission.
+- **The asker's readback** (`--member-escalation-readback`, EscalateDecision `pending_id` + `readback`):
   once a decision's reply names no option, its asker may post, in the question's thread under the ask's
   identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
   readback` (on its Decisions line too) and `follow-floor: <readback ts>`; the replies are kept as
   clarifications. As for any answered question, a later objection arrives as `ASK-RESULT: CLARIFIED`
   and is kept. The asker only, never a permission, never before a reply, never over a reply that names
   an option.
-- **Withdraw** (`--member-pending-reply-settle --withdraw`, AskUserQuestion `pending_id` + `withdraw`): the
+- **Withdraw** (`--member-pending-reply-settle --withdraw`, AskQuestion `pending_id` + `withdraw`): the
   asker discards its own open question of any kind. Status `withdrawn` (a close status of its own, with
   `withdrawn-by` and `withdraw-reason`, never a verdict), so it answers, grants and decides nothing;
   reminders stop, its Decisions line is `dismissed`, a note goes into its thread, and its `ask:` item
@@ -1473,10 +1502,30 @@ op's own option arm.
   header; rollups are summed when shown, never written up the chain.
 - **The event-track thread is the session's debug feed** (`AgentsTools.EventTrackFeed.include`): one open
   post, sent 5 s after its first line or right after an error, refusal or session event joins it, the feed
-  polled every 4 s (under 10 s from a line to its send; fixed in code, no knobs), cut at 4000 characters
-  (Slack's `text` limit); blocks by subject, one templated line per operation, never a raw line. Its root,
-  the spawn's `start` post, is posted once, after the CLI and the rest it names are resolved; no post is
-  ever edited, and a later fact (a different CLI launched, the end) is a reply in its thread.
+  polled every 4 s (under 10 s from a line to its send; fixed in code, no knobs), rendered as Slack
+  `container` blocks by subject — a title, a subtitle with the time of its first line, its lines in section
+  children, secondary details in a context child — one templated line per operation, never a raw line, a
+  section capped at 3000 characters, a box at 10 children, a post at 50 blocks. A post whose blocks Slack
+  refuses goes once more as plain text, cut at 4000 characters (Slack's `text` limit), with a warning. Its
+  root, the spawn's `start` post, is posted once, after the CLI and the rest it names are resolved; no post
+  is ever edited, and a later fact (a different CLI launched, the end) is a reply in its thread.
+- **One event-track thread per coworking session, one record**: `sessions/<session-id>/event-track.thread`
+  (`AgentsTools.EventTrackThread.include`), the only reader or writer of it; the first post to open it
+  wins, the first record stands. A poster resolves the thread for the id it was given, a spawn's own or a
+  session's: its own store's thread where that store already holds one by itself (kept from before this
+  rule); else the session's record, found through that spawn's own record (`spawned/<sandbox>/<id>.md`,
+  its `session-id`); else, a spawn that had no feed before this rule, its own spawn record's
+  `agent-log-thread` alone. The sandbox pointer this replaces, `spawned/<sandbox>/event-track.thread`, no
+  longer exists: housekeeping reads the one session record instead.
+- **The feed is one poster per participant**, its own buffer `sessions/<own id>/feed` and switch
+  `sessions/<own id>/feed.open`; only what starts a poster switches the feed on, so a thread recorded for
+  a session with no poster buffers nothing. It posts into the session's thread, never one of its own.
+- **Event-track subjects are `session` and `run`.** The thread's root post is the session's start, the
+  starting spawn's own run start inside it; a spawn that joins an already-running session posts its own
+  start as a reply, never a root; a run's end is that one participant's own end, never the session's.
+- **Task text has one reader, `AgentsTools.TaskText.include`** (`AgentsTaskText.awk`): a board item's
+  title and a few-sentence text, cut at a sentence end, both redacted. The event-track start post and the
+  Permission set post each fill their own text through it, never their own reading of the item.
 
 ## 21. Permission refusals and grants
 
@@ -1486,6 +1535,15 @@ op's own option arm.
   writes `.local/agents/sessions/<id>/refusal-<uuid>.md` first
   (`--intern-op-permission-refusal-log`), then posts to event-track. The result adds `REFUSAL-ID:`
   (`none` without a session or record).
+- **Grant and denial posts exist in event-track, beside the refusal post.** Whichever way an escalation's
+  answer came, a `grant` where an allow is written and a `denial` where a deny is applied post once each,
+  into the same session thread the refusal opened.
+- **A permission post shows its target as `<place>:<relative path>`** where it lies in a registered place
+  (`AgentsToolsPermissionPlaceHint`/`AgentsToolsPermissionShownTarget`), and otherwise as given -- never
+  the absolute path beside it. One resolver, shared by every permission post, the Permission set post
+  included (`sh-lib/templates/permission-set.post.format.md`, which groups its asks by place and takes an
+  optional `--purpose` per place). The record behind the post always keeps the exact, absolute target:
+  only what is posted is shortened.
 - **Grants are keyed by session, member, tool and target** (resolved path, or exact command bytes), taken
   from the record, never the ask's text. Allow-once is spent by one `mkdir consumed/<id>` when the gate
   admits the call, and an unused one lapses `MDAT_PERMISSION_ONCE_TTL` seconds (default 300) after its
@@ -1565,7 +1623,12 @@ op's own option arm.
   layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
   roots, and never a write set or `Edit`. No grant is written into the Claude settings.
 - **Escalation kinds** readback, decision and permission always wait. `AgentsTools.MemberEscalation.include`
-  applies a verdict once, under a `mkdir` lock.
+  applies a verdict once, under a claim: `<record>.answered/holder.<n>`, a symlink naming the process that
+  applies it as `<host>:<pid>:<start>`, the holder in charge the one of the highest `<n>`. A holder found
+  gone -- no such process on this host, or one that started at another time -- is taken over by the next
+  number while the record is still open; a holder still alive is respected, and so is one on another host,
+  which cannot be seen from here. `mkdir`-ing the claim directory only marks who made it first; the real
+  arbitration is the holder chain.
 - **Attended only for an interactive Claude Code client**: `CLAUDE_CODE_ENTRYPOINT` `cli` or
   `claude-vscode`, no `MDAT_SESSION_UNATTENDED=true`, no spawn id. To admit a new surface, add it to the
   `case` in `AgentsHarnessUnattended` and in `client-hooks/permission-request-escalation.sh`. An

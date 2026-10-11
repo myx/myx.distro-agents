@@ -14,7 +14,7 @@ case "$1" in
 
 	--magic-spawn-session)
 		shift
-		local routineSelector="" routineDefault="false" sessionNameOrComment=""
+		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
 		local spawnMembers=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -38,8 +38,18 @@ case "$1" in
 					sessionNameOrComment="$2"
 					shift 2
 				;;
+				## What the spawn is for, in the caller's words: passed to every spawn of this call
+				## unchanged, as --intern-op-agent-spawn-proxy takes it.
+				--description)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --description requires <text>" >&2
+						set +e ; return 1
+					fi
+					sessionDescription="$2"
+					shift 2
+				;;
 				--*)
-					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]" >&2
+					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -147,6 +157,7 @@ case "$1" in
 				spawnArgs+=( --routine "$routineSelector" )
 			fi
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
+			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			if [ "$spawnFirst" = "true" ] ; then
 				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --magic-spawn-session )" || { set +e ; return 1 ; }
 				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"

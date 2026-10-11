@@ -5,13 +5,13 @@
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin
@@ -24,7 +24,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen <team-member> <uid>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-check <team-member>
@@ -149,7 +149,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
@@ -214,8 +214,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]
-📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--wait]
-📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]
+📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
+📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
@@ -327,7 +327,7 @@
 			--member-config-option: a scope holds credentials, so settings
 			are the tooling's and the console's, never a member op.
 
-		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
+		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
 			event-alert, a <channel>:<ts> thread, a bare
 			conversation id, or a team member name, attributed to
@@ -370,20 +370,40 @@
 			header limit, and each block's required fields are not
 			checked here and can still fail a validated send.
 
-			A markdown body (not blocks) is checked against the
-			team's plain-language floor first: refused, nothing
-			sent, for a sentence over 25 words, a semicolon, or a
-			listless paragraph over 150 words -- the error names the
-			finding and the sentence. Any other finding goes to
-			stderr and the send still goes through. Code
-			fences/spans and `>` quoted lines are exempt.
+			A markdown body (not blocks) is measured against the
+			team's plain-language floor first. A member's own
+			message over a limit -- a sentence over 25 words, a
+			semicolon, or a listless paragraph over 150 words -- is
+			NOT sent, and the result is a CORRECTION, rc 6: its
+			first line starts with that word, then one line names
+			each limit and the sentence or paragraph it fired on,
+			then a NEXT line. It is a correction for the sender to
+			make, never a refusal or a denial: rewrite what is
+			named and send again, as many times as it takes. Every
+			attempt is measured the same way, and none gets
+			through on a later try. Any other finding goes to
+			stderr and the send still goes through. Only the
+			sender's own words are measured: code fences/spans,
+			quoted lines (`>`), a list item that is one bare path,
+			name or identifier, and the lines a tool adds around
+			the sender's words are left out. The tooling's own
+			sends, and a brief written for another agent, are
+			measured and reported only, never held back.
 			--text-group report|brief|relay narrows what's measured
 			(ignored for blocks): report/brief drop the paragraph
 			check, relay skips measurement; refused if the value is
 			unknown or the post is under the shared bot account.
 
 			--reply-broadcast also surfaces a threaded reply in the
-			channel; no effect on a top-level post. Default metadata
+			channel; no effect on a top-level post. --update-ts <ts>
+			edits that message of the acting identity in place
+			instead of posting a new one: the same text, blocks and
+			author line a send would post, under the same floor, with
+			no thread, broadcast or metadata of its own. What Slack
+			answers to an edit is final: only a rate limit is tried
+			again, an edit that did not happen is an error that leaves
+			the message as it was, and nothing is queued or emailed
+			for it. Default metadata
 			marks <team-member> as sender, read back by
 			--member-wait-for-input's peer: source; --metadata
 			<json> replaces it, caller then owns keeping peer:
@@ -491,13 +511,16 @@
 			use --from-stdin/--from-file for literal `--`-leading
 			text.
 
-			**The team's plain-language floor can refuse the
-			send** -- subject and body are each measured; refused,
-			nothing sent, for a sentence over 25 words, a
-			semicolon, or a paragraph over 150 words with no list.
-			The error names the finding and the sentence. Any
-			other finding goes to stderr only. Code fences/spans
-			and `>` quoted lines aren't measured.
+			**The team's plain-language floor can hold the send
+			back** -- subject and body are each measured. Over a
+			limit -- a sentence over 25 words, a semicolon, or a
+			paragraph over 150 words with no list -- nothing is
+			sent and the result is a CORRECTION, rc 6, naming each
+			limit and the sentence it fired on, then a NEXT line:
+			correct it and send again, as often as it takes. It is
+			never a refusal or a denial. Any other finding goes to
+			stderr only. Code fences/spans and `>` quoted lines
+			aren't measured.
 
 			`--text-group report|brief|relay`: without it, subject
 			and body are measured as an ordinary message.
@@ -621,7 +644,7 @@
 
 		--magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
 		--magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
-		--magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+		--magic-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
 		--magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)
 		--magic-comms-email-mark-seen <team-member> <uid>
 			The coordinator acting as <team-member>, under that member's
@@ -632,7 +655,7 @@
 			the console, may call them: a --member-comms-* call from a
 			spawned session acts only as that session's own member.
 
-		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot]
+		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
 			<team-member> is the acting identity -- a bare, existing
 			member directory (routine-* exempt). Identity rule for
 			this whole family: member's own user token when it has
@@ -644,7 +667,9 @@
 			`name` field, e.g. `white_check_mark`). A direct
 			conversation belongs to one identity, so --identity-bot
 			also decides which conversation the reaction can reach;
-			channels are unaffected.
+			channels are unaffected. --remove takes the acting
+			identity's own reaction off again instead of adding it;
+			one that is not there is a success.
 
 			Three distinct outcomes. **Added**: posted by this call,
 			raw response printed, returns 0. **Already present**: the
@@ -700,8 +725,9 @@
 
 			**Measured against the same plain-language floor as
 			--member-comms-slack-send-message, same --text-group
-			values.** A refused edit changes nothing, naming each
-			finding and sentence.
+			values.** An edit over a limit changes nothing and
+			returns the same CORRECTION, rc 6, naming each limit
+			and sentence: correct the text and edit again.
 
 			**Slack permits editing only a message the acting
 			identity itself authored** -- an authorship refusal names
@@ -2658,7 +2684,7 @@
 			board state (backlog, pending, running, review,
 			blocked, parked, processed, archived or retained);
 			`ask:<pending-id>` on the answer to a question
-			AskUserQuestion asked: its thread, floor and addressees
+			AskQuestion asked: its thread, floor and addressees
 			come from its pending record, read as that question's
 			own wait reads them, plus a `# pending reply <id> is
 			closed: <status>` line once the record is no longer
@@ -2809,8 +2835,9 @@
 			member=<name> session=<id>`.
 
 		--member-escalation-read <team-member> <request-id>
-			The verdict of one escalation: an AskUserQuestion of kind
-			readback, decision or permission. <request-id> is the
+			The verdict of one escalation: a ConfirmReadback,
+			EscalateDecision or RequestPermission, or an AskQuestion
+			with an answer form (`select`). <request-id> is the
 			pending-reply id the question printed ("recorded as
 			pending reply <id>"). Answered: prints
 			`ESCALATION: <id> answered`, then `VERDICT:`,
@@ -2819,7 +2846,7 @@
 			from the question's own thread, then a forward's thread;
 			an answer from an addressee there applies exactly as a
 			waiting question applies it. With none:
-			`ESCALATION: <id> open` + `VERDICT: UNCLASSIFIED`, with
+			`ESCALATION: <id> open` + `VERDICT: RETURNED`, with
 			`VERDICT-REASON:` when an answer was seen and not taken.
 			An answer from the account that asked is never taken. A
 			question withdrawn by its asker prints `ESCALATION: <id>
@@ -2849,14 +2876,14 @@
 			addressee ends the wait, judged against every reply since
 			the question (the asker's own posts never count). A
 			reply naming no valid answer returns
-			`VERDICT: UNCLASSIFIED` to the asking agent with its
+			`VERDICT: RETURNED` to the asking agent with its
 			reason and the reply text; the record stays open, nothing
 			is posted automatically, and its `WAIT-ID:
 			ask:<request-id>` stays in the session's stored wait, so
 			the harness Wait (mode continue, or sources=
 			ask:<request-id>) takes the next reply exactly as the
 			question would. The result's last line is still the
-			compatible re-wait call, `AskUserQuestion pending_id=
+			compatible re-wait call, `AskQuestion pending_id=
 			<request-id>` -- posts nothing, waits on the same thread
 			again, and only the session that asked may make it. An
 			older record with no session id can be re-waited from any
@@ -2912,11 +2939,16 @@
 			person there, such as an objection, arrives on the asking
 			session's Wait (its `ask:<request-id>` stays in the stored
 			wait) and is kept the same way. Refused for anything but a
-			decision, never for a permission, for any member but the
+			decision or a question with an answer form (`select`),
+			never for a permission, for any member but the
 			asker, with no reply yet, and when a reply already names an
-			option. AskUserQuestion pending_id=<id> readback=<option
-			word> calls it. A spawned session reads back only as its
-			own member.
+			option. For a question with an answer form, <option word>
+			is the answer as a reply would give it: `yes` or `no`, an
+			option's number or first word, or several of them for
+			`many`. EscalateDecision pending_id=<id> readback=<option
+			word> calls it, and AskQuestion pending_id=<id>
+			readback=<answer> for a question. A spawned session reads
+			back only as its own member.
 
 		--magic-escalation-forward <coordinator> <request-id>
 			Forwards one open escalation addressed to <coordinator> to
@@ -2951,7 +2983,7 @@
 			it: how a keeper invited into a session widens the access
 			of the others there.
 
-		--magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]...
+		--magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 			Asks for a task's or session's permission set at spawn or
 			brief time. Prints `PARTICIPANTS:`, then `HELD: <entry> by
 			<member> <layer>` for each entry a participant already
@@ -2964,8 +2996,20 @@
 			every participant for the scope, writes a task set as the
 			item's `allows:` too, and records the set on the item's
 			`## Decisions`; the grants end when the task closes or the
-			session ends. deny and edit grant nothing. --scope defaults
+			session ends. deny and edit grant nothing. He answers by
+			click, :x: to deny or :unlock: to allow the set, which the
+			tooling places under the post, or by a reply whose first
+			word is allow-set, deny or edit; edit is a reply only, as
+			it carries the change. Only his own click counts, and a
+			thumbs up or `ok` grants nothing. --scope defaults
 			to task; the session is the caller's own unless named.
+			After the entries of a place, --purpose <text> may say what
+			that access will be used for: it is shown under that place
+			in the post and kept with it on the record, and it helps
+			the person decide. The post groups what is asked by place,
+			each place once by its `<place>:<relative path>` with its
+			tools, and says the task in words, the session, the
+			participants with their hosts, who asks and the scope.
 			A target may name a registered place:
 			`<tool>:@<name>[:<glob>]`, the glob a path, ** or <path>/**
 			under it (default **), never with a .. segment; it is asked
@@ -3018,7 +3062,7 @@
 			magic-coordinator, or the console, may call it.
 
 		--member-pending-reply-read <team-member> [<pending-id>] [--all] [--any-owner]
-			Reads the records AskUserQuestion leaves, of any kind. With
+			Reads the records AskQuestion leaves, of any kind. With
 			<pending-id>, prints that one record. Without it, lists the
 			member's own open records, then `PENDING-REPLIES: <count>`.
 			`--all` adds closed ones, and `--any-owner` lists every
@@ -3053,8 +3097,12 @@
 			grants and decides nothing, and is reminded no more. Its
 			item's `## Decisions` gets a `dismissed` line. A short note
 			in the question's own thread tells the person it is no
-			longer needed. Prints `WITHDRAWN <id>`. AskUserQuestion
-			pending_id=<id> withdraw=<reason> calls it.
+			longer needed. The question's post gets the cancelled mark
+			of its template, loses the answer emoji the tooling placed,
+			and is edited to drop its How to answer part: the root of a
+			question with its own thread, else the live version of one
+			asked inside another thread. Prints `WITHDRAWN <id>`.
+			AskQuestion pending_id=<id> withdraw=<reason> calls it.
 
 		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
 			The coordinator settles another member's open plain question
@@ -3096,9 +3144,9 @@
 			whose `spawns`/`spawned-by` names it. A spawned session
 			records as its own member only.
 			An answer or a verdict is recorded by the tooling itself,
-			when an AskUserQuestion closes, on the item its pending
+			when an AskQuestion closes, on the item its pending
 			record names in `item:` (task_ref, else the session's
-			`spawns:` dispatch item); an AskUserQuestion that Decisions
+			`spawns:` dispatch item); an AskQuestion that Decisions
 			or an earlier closed ask of the same session already answer
 			is not posted again, and returns that answer.
 
@@ -3360,7 +3408,8 @@
 			closed with the ended-without-close outcome and moves to
 			board-review. Nothing about this is written
 			into the scan's output: the actions go as one post into the
-			calling spawn's own event-track thread, when it has one. A
+			event-track thread of the calling spawn's coworking
+			session, when it has one. A
 			second scan changes nothing more.
 
 			It also hands a board-review item whose `review-by` names a
@@ -3638,7 +3687,7 @@
 			trashed items only in its history, no tooling op restores
 			from it, and the coordinator is the one to ask.
 
-		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]
+		--magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]
 			Heartbeat/advance spawn relay: executes a spawn prompt via
 			DistroAgentsConsole.sh. Body is stdin (default),
 			--from-file, --from-board, --from-vault, or
@@ -3692,11 +3741,14 @@
 			`LAUNCHED=true|false` is --wait-only, so a real
 			failure and a silent no-launch aren't confused.
 
-			Every spawn opens a tooling-maintained thread in
-			event-track (when `SLACK_CHANNEL_EVENT_TRACK` and a
-			bot token are set, else skipped silently), closed with
-			the result on exit -- never reaches stdout, and a
-			failed post never fails the spawn.
+			Every coworking session has one tooling-maintained
+			thread in event-track (when `SLACK_CHANNEL_EVENT_TRACK`
+			and a bot token are set, else skipped silently). The
+			spawn that starts a session opens it with its start
+			post; one that joins posts its start as a reply
+			there. Each participant's lines and its own end post
+			go into it -- never reaches stdout, and a failed post
+			never fails the spawn.
 
 			Every spawn also belongs to a coworking session:
 			inheriting one from its parent joins it with no new
@@ -3707,6 +3759,10 @@
 			--session-thread:event-track pins it to the agent-log
 			thread instead and skips the magic-team post -- used
 			by the main loop's own solitary spawns.
+			--description <text> says in the caller's words what
+			the spawn is for. It is passed on unchanged, kept on
+			the dispatch item and the spawn record, and shown on
+			the spawn's start post in event-track.
 
 			The brief ends with a "## Your session thread" section
 			carrying `session_thread_ts: <channel>:<ts>` -- the
@@ -3715,7 +3771,7 @@
 			--thread. If the opening post failed, it says so and
 			asks the session to post its own thread.
 
-		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]
+		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -3723,6 +3779,10 @@
 			one, resolved once so every spawned member carries the
 			same routine file; that spawn's own spawn-prepare-brief
 			block is then automatic ahead of the task text.
+			`--description <text>` says in the caller's words what the
+			session is for. Every spawn of the call gets it unchanged:
+			it is kept on each dispatch item and spawn record, and
+			shown on each start post in event-track.
 
 			Given no `<team-member>...` names, the spawned members
 			come from the resolved routine's own `executors`

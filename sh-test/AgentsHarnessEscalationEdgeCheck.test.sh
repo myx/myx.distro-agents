@@ -195,17 +195,154 @@ rigAssert "and no grant is written"                    "$( rigGrantCount "$( rig
 rmdir "${rigPendingFile%.md}.answered"
 rigAskStop
 
-## Two answers at once: one applies, one grant.
-rigAsk "$rigScenarioDir/ws/OUT/r"
-rigRaceRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
-rigOp rig-coordinator "$rigScenarioDir/op.x" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
-rigAnswerX=$!
-rigOp rig-coordinator "$rigScenarioDir/op.y" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
-rigAnswerY=$!
-wait "$rigAnswerX" "$rigAnswerY" 2>/dev/null
-rigAssert "of two answers at once, exactly one is applied" "$( cat "$rigScenarioDir/op.x" "$rigScenarioDir/op.y" | LC_ALL=C grep -c "^ESCALATION: $rigPending answered" )" 1
-rigAssert "and exactly one grant is written"           "$( rigGrantCount "$rigRaceRefusal" )" 1
+## The claim names its holder -- host, pid, when that process started -- and is recoverable:
+## a holder that is gone is taken over and the answer applied, once; a live one is respected.
+rigClaimHost="$( hostname -s 2>/dev/null || echo unknown )"
+rigClaimStart(){ ## pid -> when it started, as a claim writes it
+	LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
+}
+rigClaimSet(){ ## holder text, or empty for a claim that names none
+	rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
+	rigClaimDir="${rigPendingFile%.md}.answered"
+	mkdir "$rigClaimDir" || rigRefuse "the rig could not make the claim it tests"
+	[ -z "$1" ] || ln -s "$1" "$rigClaimDir/holder.1" || rigRefuse "the rig could not name the claim's holder"
+}
+rigClaimAnswer(){ ## -> "<answered lines>:<being-answered lines>:<grants for this ask>:<holders in the claim>"
+	rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+	printf '%s:%s:%s:%s' "$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" )" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending being-answered$" "$rigScenarioDir/op" )" \
+		"$( rigGrantCount "$( rigRefusalId "$rigScenarioDir/refused" )" )" "$( ls "$rigClaimDir" 2>/dev/null | LC_ALL=C grep -c '^holder\.[0-9]*$' )"
+}
+## A holder that is gone: a process that ran and ended, named exactly as it was.
+rigAsk "$rigScenarioDir/ws/OUT/claim-gone"
+sleep 120 &
+rigGonePid=$!
+rigGoneHolder="$rigClaimHost:$rigGonePid:$( rigClaimStart "$rigGonePid" )"
+{ kill "$rigGonePid" ; wait "$rigGonePid" ; } 2>/dev/null
+rigClaimSet "$rigGoneHolder"
+## Parenthesised patterns keep bash 3.2 from closing this substitution early.
+rigAssert "control: the rig read that process's start before it ended" "$( case "$rigGoneHolder" in (*:*:?*) printf yes ;; (*) printf no ;; esac )" yes
+rigAssert "a claim whose holder is gone is taken over: the answer is applied, one grant, a second holder beside the first" "$( rigClaimAnswer )" "1:0:1:2"
+rigAssert "the takeover removed and renamed nothing: the holder that is gone is still named as it was" "$( readlink "$rigClaimDir/holder.1" 2>/dev/null )" "$rigGoneHolder"
+rigAssert "and it is said, naming who was gone"        "$( LC_ALL=C grep -c -F "is taken over: $rigGoneHolder is gone" "$rigScenarioDir/op.err" )" 1
+rigAssert "the answer after it finds the record answered, and applies nothing more" "$( rigClaimAnswer | cut -d: -f1-3 ):$( LC_ALL=C grep -c "$rigPending is not open, so it takes no answer" "$rigScenarioDir/op.err" )" "0:0:1:1"
 rigAskStop
+## A live holder is respected; once it is gone, the same answer is applied.
+rigAsk "$rigScenarioDir/ws/OUT/claim-live"
+sleep 120 &
+rigLivePid=$!
+rigClaimSet "$rigClaimHost:$rigLivePid:$( rigClaimStart "$rigLivePid" )"
+rigAssert "a claim held by a live applier is not taken: nothing applied, no grant, no second holder" "$( rigClaimAnswer )" "0:1:0:1"
+rigAssert "and the record stays open"                  "$( LC_ALL=C grep -c '^status: reply-pending$' "$rigPendingFile" )" 1
+{ kill "$rigLivePid" ; wait "$rigLivePid" ; } 2>/dev/null
+rigAssert "once that holder is gone, the answer is applied, once" "$( rigClaimAnswer )" "1:0:1:2"
+rigAskStop
+## The same pid started at another time is another process: its holder is gone.
+rigAsk "$rigScenarioDir/ws/OUT/claim-reused"
+rigClaimSet "$rigClaimHost:$$:Mon_Jan_1_00:00:00_2001"
+rigAssert "a holder's pid now given to another process does not keep the claim" "$( rigClaimAnswer )" "1:0:1:2"
+rigAskStop
+## A holder on another host cannot be seen from here: respected, never taken.
+rigAsk "$rigScenarioDir/ws/OUT/claim-far"
+rigClaimSet "rig-other-host:1:Mon_Jan_1_00:00:00_2001"
+rigAssert "a claim held on another host is not taken" "$( rigClaimAnswer )" "0:1:0:1"
+rigAskStop
+## A claim that names no holder, left long ago: the stuck claim from before holders were named.
+rigAsk "$rigScenarioDir/ws/OUT/claim-old"
+rigClaimSet ""
+touch -t 202001010000 "$rigClaimDir"
+rigAssert "a claim naming no holder, long left, is taken over and the answer applied" "$( rigClaimAnswer )" "1:0:1:1"
+rigAskStop
+
+## An apply that stopped half way is completed by the next holder of the claim, from the note
+## it left there: the answer it noted and no other, its grant once, its record closed once.
+## Each state is the one a process that went at that step leaves; the later ones are made
+## from a whole apply, put back to that step.
+rigGoneHolderNew(){ ## -> rigGoneHolder, naming a process that ran and ended
+	sleep 120 &
+	rigGonePid=$!
+	rigGoneHolder="$rigClaimHost:$rigGonePid:$( rigClaimStart "$rigGonePid" )"
+	{ kill "$rigGonePid" ; wait "$rigGonePid" ; } 2>/dev/null
+}
+rigRead(){ ## the read of the pending record, as its asker's wait makes it
+	rigOp rig-asker "$rigScenarioDir/op" --intern-op-escalation-read "$rigMember" "$rigPending"
+}
+rigNoteState(){ ## -> applied | noted | none
+	if [ -f "$rigClaimDir/verdict" ] ; then printf noted ; elif [ -f "$rigClaimDir/verdict.applied" ] ; then printf applied ; else printf none ; fi
+}
+## Stopped after the note, before the grant.
+rigAsk "$rigScenarioDir/ws/OUT/crash-noted"
+rigCrashRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
+rigGoneHolderNew
+rigClaimSet "$rigGoneHolder"
+printf 'verdict: allow-once\nby: magic-coordinator\ntext: \nsession: rig-coordinator\nclosed-by: \nfloor: \n' > "$rigClaimDir/verdict"
+rigRead
+rigAssert "stopped after the note, before the grant: the next read completes the noted answer, with one grant" \
+	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x 'VERDICT: allow-once' "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x 'ANSWERED-BY: magic-coordinator' "$rigScenarioDir/op" ):$( rigGrantCount "$rigCrashRefusal" )" "1:1:1:1"
+rigAssert "the note is marked applied, and names the stamp and the grant it wrote" \
+	"$( rigNoteState ):$( LC_ALL=C grep -c -e '^grant-stamp: [0-9T]*Z$' -e "^grant: once $rigCrashRefusal\$" "$rigClaimDir/verdict.applied" 2>/dev/null )" "applied:2"
+rigAskStop
+## Stopped after the grant, before the close.
+rigAsk "$rigScenarioDir/ws/OUT/crash-granted"
+rigCrashRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
+rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
+rigClaimDir="${rigPendingFile%.md}.answered"
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "control: a whole apply leaves its note applied, and one grant" \
+	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" )" "1:applied:1"
+rigCrashPosts="$( rigPostsWith 'permission granted' )"
+mv "$rigClaimDir/verdict.applied" "$rigClaimDir/verdict"
+LC_ALL=C awk '$0 == "status: reply-received" && ! reopened { print "status: reply-pending" ; reopened = 1 ; next ; } { print ; }' "$rigPendingFile" > "$rigPendingFile.new" && mv "$rigPendingFile.new" "$rigPendingFile"
+rigRead
+rigAssert "stopped after the grant, before the close: completed and closed, with no second grant line and no second post" \
+	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x 'status: reply-received' "$rigPendingFile" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" ):$(( $( rigPostsWith 'permission granted' ) - rigCrashPosts ))" "1:1:applied:1:0"
+## Stopped after the close, before the rest of it was kept.
+mv "$rigClaimDir/verdict.applied" "$rigClaimDir/verdict"
+LC_ALL=C awk 'index( $0, "grant: " ) != 1 { print ; }' "$rigPendingFile" > "$rigPendingFile.new" && mv "$rigPendingFile.new" "$rigPendingFile"
+rigRead
+rigAssert "stopped after the close, before the rest: the read finishes it, the grant line back on the record, nothing granted twice" \
+	"$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x "GRANT: once $rigCrashRefusal" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c '^grant: once ' "$rigPendingFile" ):$( rigNoteState ):$( rigGrantCount "$rigCrashRefusal" )" "1:1:1:applied:1"
+rigAskStop
+## Another answer that finds a stopped apply completes the noted one, and is itself not applied.
+rigAsk "$rigScenarioDir/ws/OUT/crash-other"
+rigCrashRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
+rigGoneHolderNew
+rigClaimSet "$rigGoneHolder"
+printf 'verdict: allow-once\nby: magic-coordinator\ntext: \nsession: rig-coordinator\nclosed-by: \nfloor: \n' > "$rigClaimDir/verdict"
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" deny
+rigAssert "a deny that finds a stopped allow completes the allow that was noted, and is itself not applied" \
+	"$( LC_ALL=C grep -c -x 'verdict: allow-once' "$rigPendingFile" ):$( rigGrantCount "$rigCrashRefusal" ):$( LC_ALL=C grep -c 'was answered first by magic-coordinator, with allow-once, so this answer is not applied' "$rigScenarioDir/op.err" ):$( LC_ALL=C grep -c "the answer deny for $rigPending was not applied" "$rigScenarioDir/op.err" )" "1:1:1:1"
+rigAskStop
+## An allow whose grant cannot be written is not recorded: the request stays open.
+rigAsk "$rigScenarioDir/ws/OUT/no-grant"
+rigCrashRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
+rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
+mv "$rigScenarioDir/ws/.local/agents/sessions/rig-asker/$rigCrashRefusal.md" "$rigScenarioDir/refusal.away"
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "an allow whose grant cannot be written is not recorded: still open, said as returned with the reason, no claim left" \
+	"$( LC_ALL=C grep -c -x 'status: reply-pending' "$rigPendingFile" ):$( LC_ALL=C grep -c -x "ESCALATION: $rigPending open" "$rigScenarioDir/op" ):$( LC_ALL=C grep -c -x 'VERDICT: RETURNED' "$rigScenarioDir/op" ):$( LC_ALL=C grep -c 'but its grant could not be written' "$rigScenarioDir/op" ):$( [ -e "${rigPendingFile%.md}.answered" ] && printf claim-left || printf no-claim ):$( rigGrantCount "$rigCrashRefusal" )" "1:1:1:1:no-claim:0"
+mv "$rigScenarioDir/refusal.away" "$rigScenarioDir/ws/.local/agents/sessions/rig-asker/$rigCrashRefusal.md"
+rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+rigAssert "and once it can be written, the same answer is applied, with one grant" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( rigGrantCount "$rigCrashRefusal" )" "1:1"
+rigAskStop
+
+## Two answers at once: one applies, one grant, one note in the thread -- whichever of the
+## two is a moment ahead, so the race is run several times over.
+for rigRaceRound in 1 2 3 4 5 ; do
+	rigAsk "$rigScenarioDir/ws/OUT/r$rigRaceRound"
+	rigRaceRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
+	rigRaceNotes="$( rigPostsWith 'Answered by magic-coordinator: allow-once' )"
+	rigOp rig-coordinator "$rigScenarioDir/op.x" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
+	rigAnswerX=$!
+	rigOp rig-coordinator "$rigScenarioDir/op.y" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
+	rigAnswerY=$!
+	wait "$rigAnswerX" "$rigAnswerY" 2>/dev/null
+	rigAssert "round $rigRaceRound: of two answers at once, exactly one is applied" "$( cat "$rigScenarioDir/op.x" "$rigScenarioDir/op.y" | LC_ALL=C grep -c "^ESCALATION: $rigPending answered" )" 1
+	rigAssert "round $rigRaceRound: the other one is refused, not reported as an answer" \
+		"$( cat "$rigScenarioDir/op.x.err" "$rigScenarioDir/op.y.err" | LC_ALL=C grep -c -e "the answer allow-once for $rigPending was not applied" -e "$rigPending is not open, so it takes no answer" )" 1
+	rigAssert "round $rigRaceRound: and exactly one grant is written" "$( rigGrantCount "$rigRaceRefusal" )" 1
+	rigAssert "round $rigRaceRound: and it is said in the thread once" "$(( $( rigPostsWith 'Answered by magic-coordinator: allow-once' ) - rigRaceNotes ))" 1
+	rigAskStop
+done
 
 ## Who answers: the coordinator's own session, as itself or with its own form; never another member's.
 rigAsk "$rigScenarioDir/ws/OUT/s"
@@ -229,45 +366,62 @@ rigVerdictOf(){ ## kind, options, reply text
 rigDecisionOptions="- alpha the first way"$'\n'"- beta the second way"
 rigAssert "control: a first-word answer is classified"   "$( rigVerdictOf permission '' 'allow-once' )" "allow-once|URIGOWNER"
 rigAssert "control: a first-word answer still wins"      "$( rigVerdictOf readback '' 'YES, SURE allow' )" "yes|URIGOWNER"
-rigAssert "permission: an answer after other words is not taken" "$( rigVerdictOf permission '' 'YES, SURE allow-once' )" "UNCLASSIFIED|"
-rigAssert "permission: an answer mid-sentence is not taken" "$( rigVerdictOf permission '' 'sure, allow-session please' )" "UNCLASSIFIED|"
-rigAssert "readback: an answer after other words is not taken" "$( rigVerdictOf readback '' 'sure yes' )" "UNCLASSIFIED|"
-rigAssert "readback: \"not correct\" is not a correction" "$( rigVerdictOf readback '' 'not correct, the host is rig-host' )" "UNCLASSIFIED|"
-rigAssert "decision: an option after other words is not taken" "$( rigVerdictOf decision "$rigDecisionOptions" 'I pick beta' )" "UNCLASSIFIED|"
-rigAssert "\"do not deny\" is not deny"                   "$( rigVerdictOf permission '' 'do not deny' )" "UNCLASSIFIED|"
-rigAssert "\"don't allow-session\" grants nothing"        "$( rigVerdictOf permission '' "don't allow-session" )" "UNCLASSIFIED|"
-rigAssert "\"not allow-once\" grants nothing"             "$( rigVerdictOf permission '' 'not allow-once' )" "UNCLASSIFIED|"
+rigAssert "permission: an answer after other words is not taken" "$( rigVerdictOf permission '' 'YES, SURE allow-once' )" "RETURNED|"
+rigAssert "permission: an answer mid-sentence is not taken" "$( rigVerdictOf permission '' 'sure, allow-session please' )" "RETURNED|"
+rigAssert "readback: an answer after other words is not taken" "$( rigVerdictOf readback '' 'sure yes' )" "RETURNED|"
+rigAssert "readback: \"not correct\" is not a correction" "$( rigVerdictOf readback '' 'not correct, the host is rig-host' )" "RETURNED|"
+rigAssert "decision: an option after other words is not taken" "$( rigVerdictOf decision "$rigDecisionOptions" 'I pick beta' )" "RETURNED|"
+rigAssert "\"do not deny\" is not deny"                   "$( rigVerdictOf permission '' 'do not deny' )" "RETURNED|"
+rigAssert "\"don't allow-session\" grants nothing"        "$( rigVerdictOf permission '' "don't allow-session" )" "RETURNED|"
+rigAssert "\"not allow-once\" grants nothing"             "$( rigVerdictOf permission '' 'not allow-once' )" "RETURNED|"
 rigAssert "\"allow-once please\" is allow-once"           "$( rigVerdictOf permission '' 'allow-once please' )" "allow-once|URIGOWNER"
 rigAssert "\"deny\" is deny"                              "$( rigVerdictOf permission '' 'deny' )" "deny|URIGOWNER"
 rigAssert "decision: the option's first word answers"    "$( rigVerdictOf decision "$rigDecisionOptions" 'beta, the second way' )" "beta|URIGOWNER"
-rigAssert "a reply naming no answer stays unclassified"  "$( rigVerdictOf permission '' 'YES, SURE allow' )" "UNCLASSIFIED|"
-rigAssert "a reply naming two answers stays unclassified" "$( rigVerdictOf decision "$rigDecisionOptions" 'I pick alpha or beta' )" "UNCLASSIFIED|"
-rigAssert "an answer inside a longer word is not named"  "$( rigVerdictOf permission '' 'reallow-once-ish' )" "UNCLASSIFIED|"
+rigAssert "a reply naming no answer stays unclassified"  "$( rigVerdictOf permission '' 'YES, SURE allow' )" "RETURNED|"
+rigAssert "a reply naming two answers stays unclassified" "$( rigVerdictOf decision "$rigDecisionOptions" 'I pick alpha or beta' )" "RETURNED|"
+rigAssert "an answer inside a longer word is not named"  "$( rigVerdictOf permission '' 'reallow-once-ish' )" "RETURNED|"
 
 echo "-- a plain affirmation: yes for a readback, the recommended option for a decision, never a permission --"
 rigRecommendedOptions="- alpha the first way"$'\n'"- beta the second way (Recommended)"
 rigAssert "readback: \"I confirm this Q\" is yes"         "$( rigVerdictOf readback '' 'I confirm this Q' )" "yes|URIGOWNER"
 rigAssert "readback: \"Ok.\" is yes"                       "$( rigVerdictOf readback '' 'Ok.' )" "yes|URIGOWNER"
-rigAssert "readback: \"I do not confirm\" is not"          "$( rigVerdictOf readback '' 'I do not confirm' )" "UNCLASSIFIED|"
+rigAssert "readback: \"I do not confirm\" is not"          "$( rigVerdictOf readback '' 'I do not confirm' )" "RETURNED|"
 rigAssert "decision: \"Agreed\" takes the recommended one" "$( rigVerdictOf decision "$rigRecommendedOptions" 'Agreed, go' )" "beta|URIGOWNER"
 rigAssert "decision: an option word still wins over it"   "$( rigVerdictOf decision "$rigRecommendedOptions" 'alpha' )" "alpha|URIGOWNER"
-rigAssert "decision: with none marked, ok answers nothing" "$( rigVerdictOf decision "$rigDecisionOptions" 'ok' )" "UNCLASSIFIED|"
-rigAssert "permission: ok answers nothing"                "$( rigVerdictOf permission '' 'ok' )" "UNCLASSIFIED|"
-rigAssert "permission: yes answers nothing"               "$( rigVerdictOf permission '' 'yes' )" "UNCLASSIFIED|"
+rigAssert "decision: with none marked, ok answers nothing" "$( rigVerdictOf decision "$rigDecisionOptions" 'ok' )" "RETURNED|"
+rigAssert "permission: ok answers nothing"                "$( rigVerdictOf permission '' 'ok' )" "RETURNED|"
+rigAssert "permission: yes answers nothing"               "$( rigVerdictOf permission '' 'yes' )" "RETURNED|"
+## A member's reply starts with the send header every member message carries: it is no part
+## of the reply, so the first word after it is the answer.
+rigHeader=':mouse: *_magic-coordinator_* @dispatchr → <@URIGASKER>.'
+rigAssert "a member's reply: the first word after its send header is the answer" "$( rigVerdictOf permission '' "$rigHeader allow-once  The owner decided." )" "allow-once|URIGOWNER"
+rigAssert "the header on a line of its own, the answer on the next" "$( rigVerdictOf permission '' "$rigHeader"$'\n''deny' )" "deny|URIGOWNER"
+rigAssert "a member's reply that names no answer after its header is returned" "$( rigVerdictOf permission '' "$rigHeader this is not decided yet." )" "RETURNED|"
+rigAssert "a header with no mark and two addressees is a header too" "$( rigVerdictOf decision "$rigDecisionOptions" '*_keeper-myx_* @keeper → *_magic-tester_* @tester; *_magic-developer_* <@URIGDEV>. beta' )" "beta|URIGOWNER"
+rigAssert "an arrow in a person's own words is no header" "$( rigVerdictOf permission '' 'see a → b. allow-once' )" "RETURNED|"
+rigAssert "permission set: edit is a reply, carrying the change" "$( rigVerdictOf permission-set '' 'edit drop the cred entry' )" "edit -- drop the cred entry|URIGOWNER"
+rigAssert "permission set: a typed ok grants nothing"     "$( rigVerdictOf permission-set '' 'ok' )" "RETURNED|"
 rigReactionOf(){ ## kind, options, reaction name
 	printf 'reaction on the question: [reactions: %s x1 (URIGOWNER)]\n' "$3" \
 		| MDAT_VERDICT_KIND="$1" MDAT_VERDICT_OPTIONS="$2" MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2
 }
 rigAssert "decision: a +1 reaction takes the recommended one" "$( rigReactionOf decision "$rigRecommendedOptions" '+1::skin-tone-2' )" "beta|URIGOWNER"
 rigAssert "readback: an ok_hand reaction is yes"          "$( rigReactionOf readback '' 'ok_hand' )" "yes|URIGOWNER"
-rigAssert "permission: a +1 reaction answers nothing"     "$( rigReactionOf permission '' '+1' )" "UNCLASSIFIED|"
+rigAssert "permission: a +1 reaction answers nothing"     "$( rigReactionOf permission '' '+1' )" "RETURNED|"
+rigAssert "permission set: the unlock click allows the set" "$( rigReactionOf permission-set '' 'unlock' )" "allow-set|URIGOWNER"
+rigAssert "permission set: the cross denies"              "$( rigReactionOf permission-set '' 'x' )" "deny|URIGOWNER"
+rigAssert "permission set: a thumbs up or an ok click grants nothing" "$( rigReactionOf permission-set '' '+1' ):$( rigReactionOf permission-set '' 'ok' )" "RETURNED|:RETURNED|"
+rigAssert "permission set: the cross beside the unlock denies" \
+	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGOWNER)]\nreaction on the question: [reactions: x x1 (URIGOWNER)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS=URIGOWNER LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "deny|URIGOWNER"
+rigAssert "permission set: a click by the account that asked never counts" \
+	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGBOT)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS='URIGOWNER URIGBOT' MDAT_VERDICT_ASKING=URIGBOT LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "RETURNED|"
 
 echo "-- a reply opening with a quote of the question: its first unquoted line is the verdict --"
 rigAssert "a fenced quote, then I confirm, is yes"        "$( rigVerdictOf readback '' $'```Did I read your intent right?```\nI confirm this Q, go ahead' )" "yes|URIGOWNER"
 rigAssert "a fence over several lines is skipped"         "$( rigVerdictOf readback '' $'```\nDid I read\nyour intent right?\n```\nyes' )" "yes|URIGOWNER"
 rigAssert "&gt; quoted lines are skipped"                 "$( rigVerdictOf decision "$rigDecisionOptions" $'&gt; Which way?\n&gt; alpha or beta\n\nbeta' )" "beta|URIGOWNER"
 rigAssert "> quoted lines are skipped"                    "$( rigVerdictOf permission '' $'> May the rig write it?\nallow-once' )" "allow-once|URIGOWNER"
-rigAssert "an unquoted first line still decides alone"    "$( rigVerdictOf readback '' $'hmm\nyes' )" "UNCLASSIFIED|"
+rigAssert "an unquoted first line still decides alone"    "$( rigVerdictOf readback '' $'hmm\nyes' )" "RETURNED|"
 rigAssert "the plain answer text skips the quote too"     "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -f "$rigHere/AgentsPendingReplyAnswerText.awk" )" "keep it, signed off"
 rigAssert "and the clarifications start after it"         "$( printf '1700000001.000200 | URIGOWNER | %s\n' $'```Did I read it?```\nkeep it, signed off\nmore' | LC_ALL=C awk -v answerTs=1700000001.000200 -f "$rigHere/AgentsPendingReplyClarifications.awk" | cut -f3 )" "more"
 

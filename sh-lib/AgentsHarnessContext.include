@@ -78,7 +78,9 @@ AgentsHarnessContextInit(){
 	agentsTranscriptFromLog=1
 	if initDir="$( AgentsTranscriptSessionDir "$MDAT_SPAWN_SESSION_ID" 2>/dev/null )" && mkdir -p "$initDir" 2>/dev/null ; then
 		printf '%s\n' "$harnessContextFile" > "$initDir/context" 2>/dev/null || :
-		[ ! -s "$initDir/event-track" ] || harnessContextFeed="$initDir/feed"
+		## Its feed, while that is switched on (AgentsTools.EventTrackThread.include).
+		type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include" 2> /dev/null || :
+		! type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || ! AgentsToolsEventTrackFeedOn "$initDir" || harnessContextFeed="$initDir/feed"
 	fi
 	return 0
 }

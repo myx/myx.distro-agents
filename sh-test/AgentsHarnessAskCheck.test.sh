@@ -245,7 +245,7 @@ rigStart send-refused
 : > "$rigScenarioDir/post-refuse"
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\"}"
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The send measures the plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) and never refuses on it, so this is not a style refusal -- clear what the send reported and ask it again. What the send reported follows:"
+rigAssert "the result opens with ERROR"                   "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: AskUserQuestion: the question could NOT be posted, so nobody was asked and no answer is pending anywhere. THE QUESTION DOES NOT EXIST: this is not a question that went unanswered, and it will not be answered later. The plain-language floor (${MDAT_SKILLSET_ROOT:-}/magic-team/magic-team.shared.md) is not what stopped it: a question over the floor comes back as CORRECTION, never as this error -- clear what the send reported and ask it again. What the send reported follows:"
 rigAssert "it is not dressed as POSTED"                   "$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT' )" no
 rigAssert "no record was written"                         "$( rigRecords )" 0
 rigAssert "no wait was performed"                         "$( rigCalls conversations.replies )" 0
@@ -265,20 +265,26 @@ rigAssert "no record was written"                         "$( rigRecords )" 0
 rigVerdict "to=<channel>:<ts> with no address_to -- refused before any request"
 
 ## ---------------------------------------------------------------------------
-## 7. Below the team's own plain-language floor: the Slack send measures it and
-##    never refuses (AgentsTools.MemberCommsSlack.include), so the question is
-##    POSTED and recorded, and the fired predicate is named in what the send reported.
+## 7. Below the team's own plain-language floor: the question is NOT posted, and what
+##    comes back is a correction for the asker to make, never a refusal or a denial
+##    (AgentsTools.MemberCommsSlack.include, AgentsTools.OutputStyle.include): its first
+##    word is CORRECTION, the fault is named with its sentence, and a NEXT line says what
+##    to do. Corrected, the same question is posted and recorded.
 ## ---------------------------------------------------------------------------
 rigStart floor-measured
 rigAsk 30 '{"to":"magic-team","question":"Should the rig proceed now; or wait for the second scenario?","address_to":"URIGOWNER","wait":"false"}'
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the result opens with POSTED"                  "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: POSTED"
-rigAssert "the send's floor warning is carried"           "$( rigHolds "$rigScenarioDir/out" 'IT WAS WRITTEN ANYWAY' )" yes
-rigAssert "the warning names the predicate"               "$( rigHolds "$rigScenarioDir/out" 'a semicolon, which this floor does not allow' )" yes
-rigAssert "it is not dressed as a refusal"                "$( rigHolds "$rigScenarioDir/out" 'THE QUESTION DOES NOT EXIST' )" no
+rigAssert "the result opens with the word CORRECTION"     "$( rigFirstLine "$rigScenarioDir/out" | cut -c1-12 )" "CORRECTION: "
+rigAssert "the fault is named with its sentence"          "$( rigHolds "$rigScenarioDir/out" '- semicolon: a semicolon, which this floor does not allow: Should the rig proceed now; or wait for the second scenario' )" yes
+rigAssert "its last line says what to do"                 "$( LC_ALL=C awk 'END { print ; }' "$rigScenarioDir/out" )" "NEXT: rewrite these and send again"
+rigAssert "it is worded as no refusal, denial or error"   "$( LC_ALL=C grep -c -i -e '^ERROR' -e 'refused' -e 'denied' -e 'THE QUESTION DOES NOT EXIST' "$rigScenarioDir/out" )" 0
+rigAssert "nothing was posted"                            "$( rigCalls chat.postMessage )" 0
+rigAssert "and no pending record"                         "$( rigRecords )" 0
+rigAsk 30 '{"to":"magic-team","question":"Should the rig proceed now, or wait for the second scenario?","address_to":"URIGOWNER","wait":"false"}'
+rigAssert "corrected, the result opens with POSTED"       "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: POSTED"
 rigAssert "one post: the question, no opener"             "$( rigCalls chat.postMessage )" 1
 rigAssert "one pending record"                            "$( rigRecords )" 1
-rigVerdict "below the plain-language floor -- measured, never refused: POSTED, and the predicate named"
+rigVerdict "below the plain-language floor -- not posted, a correction naming the fault; corrected, it is posted"
 
 ## ---------------------------------------------------------------------------
 ## 7a. The senders' NEXT: line. SendMessage names the Wait for a reply in the
@@ -424,7 +430,7 @@ rigAssert "and carries the correction"                    "$( rigHolds "$rigScen
 rigVerdict "readback -- correct carries its text"
 
 ## ---------------------------------------------------------------------------
-## 12. A bare reaction on a typed kind is not its answer: it returns UNCLASSIFIED to
+## 12. A bare reaction on a typed kind is not its answer: it is RETURNED to
 ##     the agent and the record stays open. The reaction the kind declares is the control,
 ##     and so is a thumbs up, a plain affirmation, which is yes for a readback.
 ## ---------------------------------------------------------------------------
@@ -432,7 +438,7 @@ rigStart readback-bare-reaction
 rigReplies ',"reactions":[{"name":"eyes","count":1,"users":["URIGOWNER"]}]' ""
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",$rigReadbackArgs}" from-read
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the bare reaction is UNCLASSIFIED"             "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "the bare reaction is RETURNED"                 "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigAssert "the record stays open"                         "$( rigRecordStatus )" reply-pending
 rigAssert "the last line is the re-wait call"             "$( LC_ALL=C awk 'END { sub( /[0-9a-f-]+$/, "<id>" ) ; print ; }' "$rigScenarioDir/out" )" "AskUserQuestion pending_id=<id>"
 rigStart readback-declared-reaction
@@ -457,7 +463,7 @@ rigVerdict "a bare reaction on a typed kind is not its answer, and a declared on
 
 ## ---------------------------------------------------------------------------
 ## 13. A decision: the first word of the reply names the option; any other word is
-##     UNCLASSIFIED, returned to the agent with the record open.
+##     RETURNED, handed back to the agent with the record open.
 ## ---------------------------------------------------------------------------
 rigStart decision-beta
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Beta, please","thread_ts":"1700000001.000101"}'
@@ -468,21 +474,21 @@ rigStart decision-other
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"gamma","thread_ts":"1700000001.000101"}'
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"alpha -- keep the old tag\\nbeta -- cut a new tag\"}" from-read
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "any other word is UNCLASSIFIED"                "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "any other word is RETURNED"                    "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigAssert "the reply text is returned"                    "$( rigHolds "$rigScenarioDir/out" 'gamma' )" yes
 rigAssert "the record stays open"                         "$( rigRecordStatus )" reply-pending
 rigAssert "nothing is posted for it"                      "$( rigCalls chat.postMessage )" 1
-rigVerdict "decision -- the option's word is the verdict, anything else returns UNCLASSIFIED"
+rigVerdict "decision -- the option's word is the verdict, anything else is RETURNED"
 
 ## ---------------------------------------------------------------------------
-## 14. A reply naming no option returns UNCLASSIFIED; the agent re-waits on the same
+## 14. A reply naming no option is RETURNED; the agent re-waits on the same
 ##     pending id, posting nothing, and the later reply's option is the verdict.
 ## ---------------------------------------------------------------------------
 rigStart decision-unclassified-then-option
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"YES, SURE","thread_ts":"1700000001.000101"}'
 rigAsk 30 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow -- let it run\\ndeny -- stop it\"}"
 rigAssert "it ran to completion"                          "$rigKilled" no
-rigAssert "the unrecognised reply is UNCLASSIFIED"        "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "the unrecognised reply is RETURNED"            "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigAssert "the record stays open"                         "$( rigRecordStatus )" reply-pending
 rigRewaitId="$( LC_ALL=C sed -n 's/^AskUserQuestion pending_id=//p' "$rigScenarioDir/out" | tail -1 )"
 rigAssert "the last line names the record to re-wait on"  "$( [ -n "$rigRewaitId" ] && [ -f "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" ] && printf yes || printf no )" yes
@@ -498,7 +504,7 @@ rigAsk 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "a closed record is refused"                    "$( rigHolds "$rigScenarioDir/out" 'is closed' )" yes
 rigAsk 30 '{"pending_id":"no-such-record"}'
 rigAssert "an unknown id is refused"                      "$( rigHolds "$rigScenarioDir/out" 'names no pending reply' )" yes
-rigVerdict "decision -- a reply naming no option returns UNCLASSIFIED, and a re-wait on its id finds the later answer"
+rigVerdict "decision -- a reply naming no option is RETURNED, and a re-wait on its id finds the later answer"
 
 ## ---------------------------------------------------------------------------
 ## Offline, asserted: every request any scenario made went to the fake, and the

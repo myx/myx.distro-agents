@@ -152,6 +152,9 @@ agentsWaitKindEmptyBaseline="ask"
 ## only throw away.
 AgentsWaitProbeSlack(){
 	local probeMember="$1" probeTarget="$2" probeSince="$3" probeOut="$4" probeAddressee="$5" probeIncludeOwn="$6" probeRc=0
+	## Given by the ask probe only: the accounts that asked, whose reaction never answers, and
+	## the first post of a question asked again in its own thread, where a click still answers.
+	local probeAsking="${7:-}" probeAlso="${8:-}"
 	local probeArgs probeThread="false" probeMode=""
 	probeArgs=( "$probeMember" )
 	case "$probeTarget" in
@@ -216,7 +219,7 @@ AgentsWaitProbeSlack(){
 		## the awk guard below reads it as the strnum truth value it already is.
 		local probeIncludeOwnFlag=0
 		[ "$probeIncludeOwn" != "true" ] || probeIncludeOwnFlag=1
-		LC_ALL=C awk -v rootTs="$probeSince" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" -v includeOwn="$probeIncludeOwnFlag" \
+		LC_ALL=C awk -v rootTs="$probeSince" -v alsoTs="$probeAlso" -v askingUsers="$probeAsking" -v fromUsers="$probeAddressee" -v tag="${probeStanding%%$'\t'*}" -v threadCount="${probeStanding#*$'\t'}" -v others="$probeOthers" -v mode="$probeMode" -v callerName="$probeMember" -v includeOwn="$probeIncludeOwnFlag" \
 			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswers.awk" \
 			< "$probeOut.rendered" > "$probeOut" 2>> "$probeOut.err" || probeRc=$?
 	fi
@@ -270,10 +273,10 @@ AgentsWaitProbeBoard(){
 	AgentsWaitProbeFile "$1" "$MDAT_DATA_ROOT/board/$2" "$3" "$4"
 }
 
-## A question asked with AskUserQuestion, named by its pending reply id: the wait item the ask
+## A question asked with AskQuestion, named by its pending reply id: the wait item the ask
 ## adds to its session's wait. What it is judged against comes from its record -- the thread,
 ## our own question's ts as the floor, the accounts whose answer counts -- and the thread is read
-## through the slack probe above, so this is exactly the read AskUserQuestion's own wait makes.
+## through the slack probe above, so this is exactly the read AskQuestion's own wait makes.
 ## An escalation to a member with no Slack account is answered by the team operation closing
 ## the record, so there the record's status is the arrival; on a thread a closed record adds its
 ## status line too, which is how an answer taken elsewhere is seen. Arrivals only, so its
@@ -285,6 +288,7 @@ AgentsWaitProbeBoard(){
 AgentsWaitProbeAsk(){
 	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
 	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
+	local probeAsking="" probeRevision="" probeKind="" probeSelect=""
 	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
 	[ -f "$probeRecord" ] || return 2
 	while IFS= read -r probeLine ; do
@@ -295,12 +299,33 @@ AgentsWaitProbeAsk(){
 			'thread-ts: '*) probeThreadTs="${probeLine#thread-ts: }" ;;
 			'addressees: '*) probeAddressees="${probeLine#addressees: }" ;;
 			'follow-floor: '*) probeFollow="${probeLine#follow-floor: }" ;;
+			'asking-accounts: '*) probeAsking="${probeLine#asking-accounts: }" ;;
+			'revision-ts: '*) probeRevision="${probeLine#revision-ts: }" ;;
+			'kind: '*) probeKind="${probeLine#kind: }" ;;
+			'select: '*) probeSelect="${probeLine#select: }" ;;
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
 	[ "$probeStatus" != "reply-pending" ] || probeFollow=""
+	## A question asked again, changed, is answered on its live version: the replies after it
+	## and the clicks under it -- and, where the question has its own thread, the clicks under
+	## its first post too, which stays the place to answer.
+	local probeAlso=""
+	[ -z "$probeRevision" ] || [ "$probeThreadTs" != "$probeTs" ] || [ -n "$probeFollow" ] || probeAlso="$probeTs"
 	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
-		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-$probeTs}" "$probeOut" "$probeAddressees" "false" || return 2
+		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" || return 2
+		## Several options are sent by the send mark: until the clicks give a verdict
+		## (AgentsEscalationVerdict.awk, the one reader), a number clicked is no arrival yet.
+		if [ "$probeSelect" = "many" ] && [ "$probeStatus" = "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then
+			case "$( LC_ALL=C grep '^reaction on the question: ' "$probeOut" | MDAT_VERDICT_KIND="${probeKind:-question}" MDAT_VERDICT_SELECT="$probeSelect" \
+				MDAT_VERDICT_OPTIONS="$( cat "${probeRecord%.md}.options" 2>/dev/null )" MDAT_VERDICT_AUTHORS="$probeAddressees" MDAT_VERDICT_ASKING="$probeAsking" \
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEscalationVerdict.awk" 2>/dev/null )" in
+				RETURNED*|'')
+					LC_ALL=C grep -v '^reaction on the question: ' "$probeOut" > "$probeOut.kept" 2>/dev/null || :
+					mv -f "$probeOut.kept" "$probeOut" || return 2
+				;;
+			esac
+		fi
 	else
 		## No thread is read here, so a record's status is all there is to watch: closed, it says so.
 		probeFollow=""
@@ -725,7 +750,7 @@ case "$1" in
 					set +e ; return 1
 				;;
 				## An asked question's record must exist, and only the session that asked may wait on it,
-				## the rule AskUserQuestion's own pending_id re-wait keeps. Not checked on a drop, which
+				## the rule AskQuestion's own pending_id re-wait keeps. Not checked on a drop, which
 				## must still take out an item whose record was since removed.
 				ask:*)
 					[ "$waitMode" != "drop" ] || continue

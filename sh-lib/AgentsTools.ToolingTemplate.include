@@ -5,8 +5,14 @@
 ## AgentsTools.ToolingTemplate.include -- the one rule for where the template of a message
 ## the tooling produces automatically lives: this package's own sh-lib/templates/, never the
 ## skillset, so a template and the code that fills it are always the same version. Sourced
-## by AgentsTools.InternOpEventTrackPost.include and AgentsTools.InternOpSpawnPrepareBrief.include.
-## Function-only.
+## by AgentsTools.InternOpEventTrackPost.include, AgentsTools.InternOpSpawnPrepareBrief.include
+## and AgentsTools.AskPost.include. Function-only.
+## It also carries the one way a template is filled by its marks, `{{slot}}` and
+## `[[ kept only when every slot in it has a value ]]`: AgentsToolsToolingTemplateFill, over
+## AgentsToolingTemplateFill.awk. That filling exists once: the posts of the tools that ask
+## (AgentsAskPostFill.awk), the tracking posts (AgentsEventTrackPostFill.awk) and the spawn
+## brief (AgentsSpawnPrepareBriefFill.awk) each load it ahead of their own program, which
+## only says what a slot's value is.
 ##
 
 if ! type AgentsToolsToolingTemplate > /dev/null 2>&1 ; then
@@ -14,6 +20,15 @@ if ! type AgentsToolsToolingTemplate > /dev/null 2>&1 ; then
 	## The path of one tooling template, by its file name, under the current MDLT_ORIGIN.
 	AgentsToolsToolingTemplate(){ ## template file name
 		printf '%s' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/templates/$1"
+	}
+
+	## One tooling template filled by the program that composes its message: the shared slot
+	## and group filling (AgentsToolingTemplateFill.awk, `{{slot}}` and `[[ … ]]`) is loaded
+	## ahead of that program, which is given the template's path. What it fills with travels
+	## in the caller's environment, never -v, which would decode backslashes in a value.
+	AgentsToolsToolingTemplateFill(){ ## template file name, composing program (an .awk file name in sh-lib)
+		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolingTemplateFill.awk" \
+			-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/$2" "$( AgentsToolsToolingTemplate "$1" )"
 	}
 
 fi

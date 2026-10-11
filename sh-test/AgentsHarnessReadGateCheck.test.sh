@@ -181,7 +181,7 @@ rigAssert "it carries the tool"                            "$( rigRecordField ri
 rigAssert "it carries the resolved path"                   "$( rigRecordField rig-session "$rigId" target )" "$rigTarget"
 rigAssert "it carries the asking member"                   "$( rigRecordField rig-session "$rigId" owner )" magic-tester
 rigAssert "the result says it is not a verdict"            "$( rigHas "$rigTmp/out" 'This is a refusal, not a verdict' )" yes
-rigAssert "the result names how to ask"                    "$( rigHas "$rigTmp/out" "kind=permission, refusal_id=$rigId" )" yes
+rigAssert "the result names how to ask"                    "$( rigHas "$rigTmp/out" "RequestPermission refusal_id=$rigId" )" yes
 rigAssert "nothing of the file came back"                  "$( rigHas "$rigTmp/out" 'rig-seed OUT' )" no
 ## The escalation, answered allow-once by the human-owner's account in the question's thread.
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigTmp/replies.json"

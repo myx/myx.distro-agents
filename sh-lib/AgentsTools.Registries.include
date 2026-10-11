@@ -8,7 +8,7 @@
 ##   team-members        <- this workspace's own member registry, .local/agents/members.registry
 ##   team-members-names  <- those members' names, alias and mark
 ##   spawned-sessions    <- the spawn sandbox roots in this workspace
-##   pending-replies     <- the questions AskUserQuestion posted, and the board items
+##   pending-replies     <- the questions AskQuestion posted, and the board items
 ##                          that some of them became
 
 type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
@@ -443,7 +443,7 @@ $3
 ## reply can resume the work and an unanswered one can be asked again.
 ## Columns: key source session-id owner status blocked-on communication-channel-id
 ##
-## TWO stores feed it, and the first is by far the larger. `AskUserQuestion` -- our
+## TWO stores feed it, and the first is by far the larger. `AskQuestion` -- our
 ## universal harness tool, its stub in the myx.distro MCP, and a `*-native` client's
 ## own AskUserQuestion that the hook reroutes into it -- is where nearly every pending
 ## reply comes from, and each posted question writes a record of its own. Only SOME of

@@ -99,7 +99,7 @@ AgentsToolsSpawnSandboxCleanInput(){ ## sandbox root
 }
 
 ## This caller's own coworking-session thread, from the one-line pointer file the
-## spawn proxy writes beside event-track.thread in the sandbox root -- prints
+## spawn proxy writes in the sandbox root (session.thread) -- prints
 ## "channel:ts" and returns 0 when it exists and holds a value, prints nothing and
 ## returns 1 otherwise (no coworking session, or the file is not written yet).
 ## Falls back to a key on $MDAT_SPAWN_SESSION_ID, the sandbox root's own name, only
@@ -452,16 +452,16 @@ AgentsToolsDaemonLine(){ ## text...
 	( printf '%s\n' "$*" ) 2> /dev/null >&4 || printf '%s\n' "$*" >&2
 }
 
-## Reports housekeeping lines to the daemon output and as one message into this spawn's own event-track thread; nothing goes to stdout or stderr. No thread, no post.
+## Reports housekeeping lines to the daemon output and as one message into the event-track thread of this spawn's coworking session; nothing goes to stdout or stderr. No thread, no post.
+## The thread is found through the session's one record, by this spawn's own id (AgentsTools.EventTrackThread.include), never through a file of the sandbox, which spawns may share.
 AgentsToolsHousekeepingReport(){ ## member, lines
-	local reportThread="" reportRoot="${MDAT_SPAWN_SANDBOX_ROOT:-}" reportLine
+	local reportThread="" reportLine
 	[ -n "$2" ] || return 0
 	while IFS= read -r reportLine ; do
 		AgentsToolsDaemonLine "$reportLine"
 	done <<< "$2"
-	[ -n "$reportRoot" ] || [ -z "${MDAT_SPAWN_SESSION_ID:-}" ] || reportRoot="$MMDAPP/.local/agents/spawned/$MDAT_SPAWN_SESSION_ID"
-	[ -s "$reportRoot/event-track.thread" ] || return 0
-	IFS= read -r reportThread < "$reportRoot/event-track.thread" || :
+	type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
+	reportThread="$( AgentsToolsEventTrackThreadRead "$( AgentsToolsEventTrackThreadOwnDir )" )"
 	[ -n "$reportThread" ] || return 0
 	printf '%s\n' "$2" | DistroAgentsTools --intern-op-event-track-post "$1" "$reportThread" --kind activity --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="board housekeeping" --from-stdin > /dev/null 2>&1 || :

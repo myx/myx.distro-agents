@@ -87,7 +87,7 @@ echo "-- a resumed session may re-wait; another session may not --"
 rigStart resumed
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"let me think","thread_ts":"1700000001.000101"}'
 rigAsk rig-session-a 60 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
-rigAssert "the first reply is UNCLASSIFIED"            "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "the first reply is RETURNED"                "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigRewaitId="$( LC_ALL=C sed -n 's/^AskUserQuestion pending_id=//p' "$rigScenarioDir/out" | tail -1 )"
 [ -n "$rigRewaitId" ] || rigRefuse "no re-wait line came back, so nothing below would be measured"
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"let me think","thread_ts":"1700000001.000101"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"deny","thread_ts":"1700000001.000101"}'
@@ -170,11 +170,11 @@ rigAssert "the follow floor stays at the answer"       "$( LC_ALL=C awk -F': ' '
 rigAsk rig-session-d 30 '{"mode":"continue"}' Wait
 rigAssert "nothing new: the next Wait times out"       "$( LC_ALL=C head -1 "$rigScenarioDir/out" | LC_ALL=C sed 's/ (.*//' )" "WAIT-RESULT: TIMEOUT"
 
-echo "-- a typed ask left UNCLASSIFIED: a new Wait on its WAIT-ID takes the verdict --"
+echo "-- a typed ask left RETURNED: a new Wait on its WAIT-ID takes the verdict --"
 rigStart typed-wait
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"let me think","thread_ts":"1700000001.000101"}'
 rigAsk rig-session-e 60 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
-rigAssert "the first reply is UNCLASSIFIED"            "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
+rigAssert "the first reply is RETURNED"                "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigRewaitId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
 rigAssert "it names its wait item"                     "$( [ -n "$rigRewaitId" ] && printf yes || printf no )" yes
 rigAssert "the compatible re-wait line is still last"  "$( LC_ALL=C awk 'END { print ; }' "$rigScenarioDir/out" )" "AskUserQuestion pending_id=$rigRewaitId"
@@ -229,8 +229,8 @@ echo "-- the asker reads an unclear reply back as one option, and a later object
 rigStart readback
 rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"hmm, the first one I guess","thread_ts":"1700000001.000101"}'
 rigAsk rig-session-g 60 "{\"to\":\"magic-team\",\"question\":\"$rigQuestion\",\"address_to\":\"URIGOWNER\",\"kind\":\"decision\",\"options\":\"allow-once -- let it write\\ndeny -- keep it refused\"}"
-rigAssert "the unclear reply is UNCLASSIFIED"         "$( rigVerdictLine )" "VERDICT: UNCLASSIFIED"
-rigAssert "the result offers the readback"            "$( rigHolds "$rigScenarioDir/out" 'readback=<option word>' )" yes
+rigAssert "the unclear reply is RETURNED"             "$( rigVerdictLine )" "VERDICT: RETURNED"
+rigAssert "the result offers the readback"            "$( rigHolds "$rigScenarioDir/out" 'readback=<the answer you take the reply to mean> understood=<why>. The person may still object there.' )" yes
 rigRewaitId="$( LC_ALL=C sed -n 's/^WAIT-ID: ask://p' "$rigScenarioDir/out" | tail -1 )"
 [ -n "$rigRewaitId" ] || rigRefuse "no WAIT-ID line came back, so the readback below would not be measured"
 rigAsk rig-session-g 30 "{\"pending_id\":\"$rigRewaitId\",\"readback\":\"maybe\"}"

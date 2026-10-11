@@ -368,12 +368,17 @@ rigPosts(){ ## scenario dir -- how many chat.postMessage calls reached the fake 
 	[ -f "$1/argv.log" ] || { printf 0 ; return 0 ; }
 	LC_ALL=C grep -c 'chat.postMessage' "$1/argv.log" || :
 }
-rigPostSetup(){ ## rig name, thread file yes|no -- one rig with a dead local dispatch, a fake curl first on PATH and a spawn sandbox root
+## The scan runs as the spawn rig-advance: its housekeeping goes into its session's event-track
+## thread, found through that session's one record by the spawn's own id
+## (AgentsTools.EventTrackThread.include), never through a file of its sandbox.
+rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local dispatch, a fake curl first on PATH and a spawn sandbox root
 	rigNew "$1"
 	mkdir -p "$rigW/.local/.agents" "$rigW/.local/temp" "$rigTmp/$1/scenario" "$rigTmp/$1/sandbox"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-token-%s\n' "$$" > "$rigW/.local/.agents/magic-team.agent.env"
-	[ "$2" != yes ] || printf 'CRIG00001:1.000001\n' > "$rigTmp/$1/sandbox/event-track.thread"
-	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" TMPDIR="$rigW/.local/temp" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" )
+	[ "$2" != yes ] || { mkdir -p "$rigW/.local/agents/sessions/rig-advance" && printf 'CRIG00001:1.000001\n' > "$rigW/.local/agents/sessions/rig-advance/event-track.thread" ; }
+	## A thread file in the sandbox, as spawns shared it before, is read by nothing: never 9.000009.
+	printf 'CRIG00001:9.000009\n' > "$rigTmp/$1/sandbox/event-track.thread"
+	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" TMPDIR="$rigW/.local/temp" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
 	rigSandbox rig-d1 "$rigHost" spawn-started ; rigDispatch rig-d1 dispatch-started ; rigAgeMin "$rigW/.local/agents/spawned/rig-d1" 120
 	rigSandbox rig-r1 "$rigHost" spawn-succeeded "exit-code: 0" ; rigItem review task-rig-r1.md task none rig-r1 none
 }
@@ -388,15 +393,16 @@ rigPostText(){ ## scenario dir -- the lines of the posted box, Slack's escapes d
 rigCheck "the post's text names the closed item"                          "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'dispatch-rig-d1.md' | LC_ALL=C awk 'END { print NR ; }' )" 1
 rigCheck "one line per action, each opening with 'housekeeping: ' (the record, the item, the review-by)" "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -o 'housekeeping: ' | LC_ALL=C awk 'END { print NR ; }' )" 3
 rigCheck "the review-by action is one of those lines"                     "$( rigPostText "$rigTmp/b5/scenario" | LC_ALL=C grep -c 'housekeeping: task-rig-r1.md review-by -> magic-coordinator' || : )" 1
-rigCheck "the post went to the thread named in event-track.thread"        "$( LC_ALL=C grep -c '1.000001' "$rigTmp/b5/scenario/bodies.log" 2> /dev/null || : )" 1
+rigCheck "the post went to the thread its session's record names"        "$( LC_ALL=C grep -c '1.000001' "$rigTmp/b5/scenario/bodies.log" 2> /dev/null || : )" 1
+rigCheck "and never to one a file of the sandbox names"                   "$( LC_ALL=C grep -c '9.000009' "$rigTmp/b5/scenario/bodies.log" 2> /dev/null || : )" 0
 rigCheck "stdout carries none of the post's text"                         "$( LC_ALL=C grep -c -i -E 'housekeeping|closed the record' "$rigTmp/b5.s1" || : )" 0
 rigCheck "with fd 4 closed, stderr carries the post's lines (the daemon line), the same set" "$( rigHk "$rigTmp/b5.s1.err" | cmp -s - <( rigLines "$rigTmp/b5/scenario" ) && printf same || printf different )" same
 rigScan "$rigTmp/b5.s2"
 rigCheck "the second pass posts nothing more"                             "$( rigPosts "$rigTmp/b5/scenario" )" 1
 rigPostSetup b6 no
 rigScan "$rigTmp/b6.s1"
-rigCheck "no thread file: the scan still succeeds and closes the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
-rigCheck "no thread file: nothing is posted"                              "$( rigPosts "$rigTmp/b6/scenario" )" 0
+rigCheck "no thread record: the scan still succeeds and closes the dispatch" "$( rigLoc dispatch-rig-d1.md )" review
+rigCheck "no thread record: nothing is posted, the sandbox file notwithstanding"                              "$( rigPosts "$rigTmp/b6/scenario" )" 0
 rigCheck "no thread file: apart from the daemon lines stderr is that of a scan with nothing to do, so no error" "$( rigSameNoHk "$rigTmp/b6.s1.err" "$rigTmp/b1e.s1.err" )" same
 rigCheck "no thread file: the daemon lines are still on stderr"          "$( rigHk "$rigTmp/b6.s1.err" | LC_ALL=C awk 'END { print NR }' )" 3
 rigExtraEnv=()

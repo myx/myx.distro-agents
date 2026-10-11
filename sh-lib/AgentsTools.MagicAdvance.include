@@ -224,7 +224,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'
 		fi
 	done
-	## What was done never enters the scan's output; it goes to this spawn's own event-track thread.
+	## What was done never enters the scan's output; it goes to the event-track thread of this spawn's coworking session.
 	AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 	return 0
 }

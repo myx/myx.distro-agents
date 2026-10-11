@@ -2,18 +2,22 @@
 
 # Reads one rendering of the answers to a typed question -- AgentsSlackThreadAnswers.awk's
 # shape: "<ts> | <user> | <text>" per reply, and "reaction on the question: [reactions:
-# NAME xN (USERS)]" -- and prints "<verdict>\t<author>\t<ts>", or "UNCLASSIFIED\t\t".
+# NAME xN (USERS)]" -- and prints "<verdict>\t<author>\t<ts>", or "RETURNED\t\t".
 # <ts> is the reply the verdict was read from, empty for a reaction.
 #
 # Only a reply's FIRST word, or a reaction the kind declares, gives an answer -- exactly
 # what the post asks for ("reply with the first word"). An answer word anywhere else in a
 # reply is never taken: "do not deny" would read as deny, and "don't allow-session" as a
 # grant, and no negation parsing is attempted in its place. Any other reply is
-# UNCLASSIFIED and goes back to the asker. The first answer that classifies wins. A
+# RETURNED and goes back to the asker. The first answer that classifies wins. A
 # readback "correct" prints "correct -- <the rest of the reply>". Only the reply's first
 # line is read -- its first line that is no quote of the question, a ``` fenced block or a
 # line starting with ">" or "&gt;" being skipped -- and the rest of it is a clarification,
 # kept by the caller.
+# A MEMBER'S REPLY starts with the send header the team's own send writes ahead of every
+# message, `[<mark> ]*_<from>_* @<alias> → <addressees>.`: it is no part of the reply, so the
+# first word is the first one after it (sendHeaderLength). Read as the reply's first word, the
+# header's mark made every answer a member gave by reply name none of the answers.
 # A PLAIN AFFIRMATION -- a first word ok, okay, yes, agree, agreed, confirm or confirmed,
 # also after a leading "I", in any case, or a +1, thumbsup, ok_hand or white_check_mark
 # reaction on the question -- is yes for a readback, and for a decision the option whose
@@ -22,11 +26,31 @@
 # The author is the account that wrote the classified answer; for a reaction, the first
 # of its users that is one of the accepted authors.
 #
-# ENVIRON["MDAT_VERDICT_KIND"]    readback | decision | permission | permission-set
-# ENVIRON["MDAT_VERDICT_OPTIONS"] decision only: the options, one per line; each line's
-#                                 first word is the word that answers it, and the line
+# BY NUMBER: the post numbers its options, so an option is also answered by its number as the
+# reply's first word, or by a click on its number emoji (one to keycap_ten). An option's own
+# first word wins over a number. Two numbers clicked by one account on a one-option form name
+# none. A permission is also answered by click: x is deny, one is allow-once, repeat is
+# allow-session, deny first and then the narrower grant when several are held. So is a
+# permission set: x is deny and unlock is allow-set, deny first; edit only by reply, since it
+# carries the change in words.
+# A PLAIN QUESTION takes a verdict only by its answer form (MDAT_VERDICT_SELECT): yes-no reads
+# as a readback does, without correct; one reads as a decision does, without the recommended
+# option; many is every option named, in option order, space-separated -- by reply when every
+# word of its first line is a number or an option's first word, and by click only once the
+# account holds ok, the mark that sends, the options being every number it holds then. The
+# send mark with no number is no answer. white_check_mark, the send mark before ok, is still
+# taken as one, so a question posted with it can be answered as its own text says; it is no
+# longer placed or named, being the mark the tooling puts on an answered question.
+# A reaction by an asking account never counts (MDAT_VERDICT_ASKING): the tooling places the
+# answer emoji under the question as the account that posted it.
+#
+# ENVIRON["MDAT_VERDICT_KIND"]    question | readback | decision | permission | permission-set
+# ENVIRON["MDAT_VERDICT_SELECT"]  question only: yes-no | one | many.
+# ENVIRON["MDAT_VERDICT_OPTIONS"] decision, one and many: the options, one per line; each
+#                                 line's first word is the word that answers it, and the line
 #                                 holding "(recommended)" names the recommended option.
 # ENVIRON["MDAT_VERDICT_AUTHORS"] the accounts whose answer counts, space-separated.
+# ENVIRON["MDAT_VERDICT_ASKING"]  the accounts that asked, space-separated; may be empty.
 
 function lowered( text,    upperSet, lowerSet, outText, charIndex, oneChar, charAt ) {
 	upperSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" ;
@@ -38,6 +62,21 @@ function lowered( text,    upperSet, lowerSet, outText, charIndex, oneChar, char
 		outText = outText ( charAt > 0 ? substr( lowerSet, charAt, 1 ) : oneChar ) ;
 	}
 	return outText ;
+}
+
+## The length of the send header a message starts with, its closing `. ` or line end included;
+## 0 where it starts with none. The header is exactly what the member send writes ahead of the
+## body (AgentsTools.MemberCommsSlack.include; AgentsSessionContextCommsItems.awk reads who it
+## names): before the arrow nothing but an optional mark, the sender and its alias.
+function sendHeaderLength( text,    arrowAt, fromPart, toPart, endAt ) {
+	arrowAt = index( text, " → " ) ;
+	if ( arrowAt == 0 ) { return 0 ; }
+	fromPart = substr( text, 1, arrowAt - 1 ) ;
+	if ( fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+$/ ) { return 0 ; }
+	toPart = substr( text, arrowAt + length( " → " ) ) ;
+	endAt = index( toPart, ". " ) ;
+	if ( endAt > 0 ) { return arrowAt + length( " → " ) + endAt ; }
+	return ( substr( toPart, length( toPart ), 1 ) == "." ) ? length( text ) : 0 ;
 }
 
 ## Whether a reply's first line is a plain affirmation (the words of the header).
@@ -72,8 +111,122 @@ BEGIN {
 	else if ( kind == "permission-set" ) { optionSet["deny"] = 1 ; optionSet["allow-set"] = 1 ; optionSet["edit"] = 1 ; }
 	authorTotal = split( ENVIRON["MDAT_VERDICT_AUTHORS"], authorList, " " ) ;
 	for ( authorIndex = 1 ; authorIndex <= authorTotal ; authorIndex++ ) { authorSet[authorList[authorIndex]] = 1 ; }
+	askingTotal = split( ENVIRON["MDAT_VERDICT_ASKING"], askingList, " " ) ;
+	for ( askingIndex = 1 ; askingIndex <= askingTotal ; askingIndex++ ) { askingSet[askingList[askingIndex]] = 1 ; }
+	## A plain question takes a verdict only by its answer form.
+	form = ( kind == "question" ) ? ENVIRON["MDAT_VERDICT_SELECT"] : "" ;
+	## The options by number, as the post numbers them: an empty line is none.
+	numberTotal = 0 ;
+	for ( optionIndex = 1 ; optionIndex <= optionTotal ; optionIndex++ ) {
+		if ( optionLines[optionIndex] == "" ) { continue ; }
+		optionWord = optionLines[optionIndex] ;
+		sub( /^- /, "", optionWord ) ;
+		sub( /[ \t].*$/, "", optionWord ) ;
+		sub( /:$/, "", optionWord ) ;
+		numberWord[++numberTotal] = lowered( optionWord ) ;
+	}
+	split( "one two three four five six seven eight nine keycap_ten", numberNames, " " ) ;
 	verdict = "" ;
 	author = "" ;
+}
+
+## The option a number names, 1 to the last option; 0 for anything else. A number may carry
+## a `#` before it and a mark after it.
+function numberOf( word ) {
+	sub( /^#/, "", word ) ;
+	sub( /[.,!;:)]+$/, "", word ) ;
+	if ( word !~ /^[0-9]+$/ || length( word ) > 4 ) { return 0 ; }
+	return ( word + 0 >= 1 && word + 0 <= numberTotal && numberWord[word + 0] != "" ) ? word + 0 : 0 ;
+}
+
+## The first accepted account that holds one reaction on the question, or "".
+function holderOf( name,    heldIndex ) {
+	for ( heldIndex = 1 ; heldIndex <= heldTotal ; heldIndex++ ) {
+		if ( ( heldOrder[heldIndex], name ) in held ) { return heldOrder[heldIndex] ; }
+	}
+	return "" ;
+}
+
+## The options one account holds by number click, as their words in option order; sets
+## pickedCount. Only the ten numbers that have an emoji.
+function pickedBy( who,    numberIndex, picked ) {
+	picked = "" ; pickedCount = 0 ;
+	for ( numberIndex = 1 ; numberIndex <= numberTotal && numberIndex <= 10 ; numberIndex++ ) {
+		if ( ( ( who, numberNames[numberIndex] ) in held ) && numberWord[numberIndex] != "" ) {
+			picked = picked ( pickedCount++ ? " " : "" ) numberWord[numberIndex] ;
+		}
+	}
+	return picked ;
+}
+
+## The options a reply to a many question names: every word of its line a number or an
+## option's first word, separated by spaces or commas. "" when any word is neither.
+function manyOf( text,    words, wordTotal, wordIndex, oneWord, numberIndex, taken, picked, pickedAny ) {
+	wordTotal = split( lowered( text ), words, /[ \t,]+/ ) ;
+	for ( wordIndex = 1 ; wordIndex <= wordTotal ; wordIndex++ ) {
+		oneWord = words[wordIndex] ;
+		if ( oneWord == "" ) { continue ; }
+		sub( /[.!;:]+$/, "", oneWord ) ;
+		numberIndex = 0 ;
+		if ( oneWord in optionSet ) {
+			for ( numberIndex = 1 ; numberIndex <= numberTotal ; numberIndex++ ) { if ( numberWord[numberIndex] == oneWord ) { break ; } }
+		}
+		if ( numberIndex < 1 || numberIndex > numberTotal ) { numberIndex = numberOf( oneWord ) ; }
+		if ( numberIndex == 0 ) { return "" ; }
+		taken[numberIndex] = 1 ;
+	}
+	picked = "" ; pickedAny = 0 ;
+	for ( numberIndex = 1 ; numberIndex <= numberTotal ; numberIndex++ ) {
+		if ( numberIndex in taken ) { picked = picked ( pickedAny++ ? " " : "" ) numberWord[numberIndex] ; }
+	}
+	return picked ;
+}
+
+## The reactions on the question, judged once they are all read. Only an accepted account
+## that is no asking account counts, so an emoji the tooling placed is never an answer.
+function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
+	if ( reactionsJudged ) { return ; }
+	reactionsJudged = 1 ;
+	if ( verdict != "" || reactionTotal == 0 ) { return ; }
+	if ( kind == "permission" ) {
+		## Deny first, then the narrower grant: two clicks never widen what one gives.
+		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "deny" ; }
+		else if ( ( who = holderOf( "one" ) ) != "" ) { verdict = "allow-once" ; }
+		else if ( ( who = holderOf( "repeat" ) ) != "" ) { verdict = "allow-session" ; }
+		if ( verdict != "" ) { author = who ; }
+		return ;
+	}
+	if ( kind == "permission-set" ) {
+		## Deny first: two clicks never give what one of them withholds.
+		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "deny" ; author = who ; }
+		else if ( ( who = holderOf( "unlock" ) ) != "" ) { verdict = "allow-set" ; author = who ; }
+		return ;
+	}
+	if ( form == "many" ) {
+		## Sent only by its send mark, and only with a number held beside it.
+		for ( heldIndex = 1 ; heldIndex <= heldTotal ; heldIndex++ ) {
+			who = heldOrder[heldIndex] ;
+			if ( ! ( ( who, "ok" ) in held ) && ! ( ( who, "white_check_mark" ) in held ) ) { continue ; }
+			picked = pickedBy( who ) ;
+			if ( pickedCount > 0 ) { verdict = picked ; author = who ; return ; }
+		}
+		return ;
+	}
+	if ( kind == "decision" || form == "one" ) {
+		## One number is the choice. Two held by one account name none.
+		for ( heldIndex = 1 ; heldIndex <= heldTotal ; heldIndex++ ) {
+			who = heldOrder[heldIndex] ;
+			picked = pickedBy( who ) ;
+			if ( pickedCount == 1 ) { verdict = picked ; author = who ; return ; }
+		}
+	}
+	for ( lineIndex = 1 ; lineIndex <= reactionTotal ; lineIndex++ ) {
+		name = reactionNames[lineIndex] ;
+		if ( ( kind == "readback" || form == "yes-no" ) && ( name in affirmReactionSet ) ) { verdict = "yes" ; }
+		else if ( ( kind == "readback" || form == "yes-no" ) && name == "x" ) { verdict = "no" ; }
+		else if ( kind == "decision" && ( name in affirmReactionSet ) && recommendedWord != "" ) { verdict = recommendedWord ; }
+		if ( verdict != "" ) { author = reactionFirst[lineIndex] ; return ; }
+	}
 }
 
 verdict != "" { next ; }
@@ -87,20 +240,19 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 	sub( /^.*\(/, "", reactionUsers ) ;
 	sub( /\)\]$/, "", reactionUsers ) ;
 	reactionAuthor = "" ;
-	reactionTotal = split( reactionUsers, reactionList, "," ) ;
-	for ( reactionIndex = 1 ; reactionIndex <= reactionTotal ; reactionIndex++ ) {
-		if ( reactionList[reactionIndex] in authorSet ) {
-			reactionAuthor = reactionList[reactionIndex] ;
-			break ;
-		}
+	sub( /::skin-tone-[0-9]+$/, "", reactionName ) ;
+	reactionUserTotal = split( reactionUsers, reactionList, "," ) ;
+	for ( reactionIndex = 1 ; reactionIndex <= reactionUserTotal ; reactionIndex++ ) {
+		reactionUser = reactionList[reactionIndex] ;
+		if ( ! ( reactionUser in authorSet ) || ( reactionUser in askingSet ) ) { continue ; }
+		if ( reactionAuthor == "" ) { reactionAuthor = reactionUser ; }
+		held[reactionUser, reactionName] = 1 ;
+		if ( ! ( reactionUser in heldSeen ) ) { heldSeen[reactionUser] = 1 ; heldOrder[++heldTotal] = reactionUser ; }
 	}
 	if ( reactionAuthor == "" ) { next ; }
-	sub( /::skin-tone-[0-9]+$/, "", reactionName ) ;
-	if ( kind == "readback" && ( reactionName in affirmReactionSet ) ) { verdict = "yes" ; }
-	else if ( kind == "readback" && reactionName == "x" ) { verdict = "no" ; }
-	else if ( kind == "decision" && ( reactionName in affirmReactionSet ) && recommendedWord != "" ) { verdict = recommendedWord ; }
-	else if ( ( kind == "permission" || kind == "permission-set" ) && reactionName == "x" ) { verdict = "deny" ; }
-	if ( verdict != "" ) { author = reactionAuthor ; }
+	## Kept until every reaction is read: several of them may be one answer.
+	reactionNames[++reactionTotal] = reactionName ;
+	reactionFirst[reactionTotal] = reactionAuthor ;
 	next ;
 }
 
@@ -108,6 +260,7 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 ## is no quote of the question -- not blank, not in a ``` fenced block, not starting with ">"
 ## or "&gt;" (firstUnquoted). Only that line gives the answer.
 /^[0123456789]+\.[0123456789]+ \| [^|]* \| / {
+	judgeReactions() ;
 	judgeMessage() ;
 	messageTs = $1 ;
 	messageAuthor = $0 ;
@@ -117,6 +270,8 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 	sub( /^[^|]*\| [^|]*\| /, "", messageText ) ;
 	## Leading mentions and annotation blocks are not the answer.
 	while ( messageText ~ /^( |<@[^>]*>|\[[^]]*\])/ ) { sub( /^( |<@[^>]*>|\[[^]]*\])/, "", messageText ) ; }
+	## Nor is a member's send header: where it is the whole line, the reply starts on the next.
+	messageText = substr( messageText, sendHeaderLength( messageText ) + 1 ) ;
 	messageCount = 1 ;
 	messageLine[1] = messageText ;
 	next ;
@@ -178,12 +333,22 @@ function judgeMessage(    replyText, replyWord, replyRest ) {
 		else if ( replyWord == "edit" || replyWord == "edit:" ) { verdict = "edit" ( replyRest != "" ? " -- " replyRest : "" ) ; }
 	} else if ( kind == "decision" ) {
 		if ( replyWord in optionSet ) { verdict = replyWord ; }
+		else if ( numberOf( replyWord ) > 0 ) { verdict = numberWord[numberOf( replyWord )] ; }
 		else if ( recommendedWord != "" && affirmed( replyText ) ) { verdict = recommendedWord ; }
+	} else if ( form == "yes-no" ) {
+		if ( replyWord == "yes" || replyWord == "no" ) { verdict = replyWord ; }
+		else if ( affirmed( replyText ) ) { verdict = "yes" ; }
+	} else if ( form == "one" ) {
+		if ( replyWord in optionSet ) { verdict = replyWord ; }
+		else if ( numberOf( replyWord ) > 0 ) { verdict = numberWord[numberOf( replyWord )] ; }
+	} else if ( form == "many" ) {
+		verdict = manyOf( replyText ) ;
 	}
 	if ( verdict != "" ) { author = messageAuthor ; verdictTs = messageTs ; }
 }
 
 END {
+	judgeReactions() ;
 	judgeMessage() ;
-	printf "%s\t%s\t%s\n", ( verdict != "" ? verdict : "UNCLASSIFIED" ), author, verdictTs ;
+	printf "%s\t%s\t%s\n", ( verdict != "" ? verdict : "RETURNED" ), author, verdictTs ;
 }

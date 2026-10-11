@@ -5,7 +5,7 @@
 ## open question is not posted again. Where several questions do share a thread -- one the
 ## asker named with to=<channel>:<ts> -- a reaction on Q2 answers Q2 only, a reply "Q1: yes"
 ## answers Q1 only, a plain reply answers the latest question above it (Q2) only, and a
-## plain reply after Q2 was answered is returned UNCLASSIFIED to Q1 with its record left
+## plain reply after Q2 was answered is RETURNED to Q1 with its record left
 ## open; once Q1 is answered, a late reply tagged Q1 still does not answer Q2, since a
 ## thread that has held two questions stays shared. Only a question in a named thread is
 ## numbered: a top-level one carries no number. Two asks at once get distinct numbers,
@@ -261,7 +261,7 @@ rigStrayPosts="$( rigPosts )"
 rigAsk wait1c 20 "{\"pending_id\":\"$rigQ1Id\"}"
 rigAssert "the wait returns rather than keeps waiting"    "$rigKilled" no
 rigAssert "nothing is posted for it"                      "$(( $( rigPosts ) - rigStrayPosts ))" 0
-rigAssert "Q1 gets UNCLASSIFIED"                          "$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigScenarioDir/wait1c" )" "VERDICT: UNCLASSIFIED"
+rigAssert "Q1 gets RETURNED"                              "$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigScenarioDir/wait1c" )" "VERDICT: RETURNED"
 rigAssert "naming the record to re-wait on"               "$( LC_ALL=C grep -c -x -F "AskUserQuestion pending_id=$rigQ1Id" "$rigScenarioDir/wait1c" )" 1
 rigAssert "with a reason naming the plain text Q1"        "$( rigHolds "$rigScenarioDir/wait1c" 'starts with the plain text Q1' )" yes
 rigAssert "and never saying tag"                          "$( LC_ALL=C grep -c -i -E '(^|[^a-z])(un)?tag(ged)?([^a-z]|$)' "$rigScenarioDir/wait1c" )" 0

@@ -157,7 +157,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-input-scan <team-me
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-acquire <team-member> <owner-label>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-lock-status <team-member>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--wait]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--wait]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-read <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-state-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>" >&2
@@ -168,7 +168,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-acquire <team-memb
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-refresh <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-lock-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-retro-state-and-lock-upsert <team-member> [--header:<upsert|append|remove>:name[:value]]... [--from-file <path>|--upsert-from-stdin|--edit-patch-from-stdin]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-advance <team-member> <ts>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-sweep-state-read <team-member>" >&2
@@ -247,7 +247,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-answer <magic-coor
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> --entry <tool:target>... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]" >&2

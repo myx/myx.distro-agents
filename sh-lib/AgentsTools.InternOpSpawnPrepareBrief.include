@@ -134,7 +134,7 @@ case "$1" in
 		## The Skeleton block, verbatim, with each slot filled; a template without one is refused.
 		local briefText
 		## Values travel through the environment, not -v, which would decode backslashes in them.
-		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSpawnPrepareBriefFill.awk" "$briefTemplate" )" || {
+		briefText="$( BRIEF_MEMBER="$targetMember" BRIEF_WARNINGS="${warnLines%$'\n'}" BRIEF_ROUTINE="$routineName" BRIEF_EXECUTORS="$routineExecutors" BRIEF_INVITEES="$routineInvitees" BRIEF_HARNESS="$briefHarness" AgentsToolsToolingTemplateFill spawn-brief.document.format.md AgentsSpawnPrepareBriefFill.awk )" || {
 			echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: the brief template has no complete Skeleton block: $briefTemplate" >&2
 			set +e ; return 1
 		}

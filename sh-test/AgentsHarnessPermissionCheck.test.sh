@@ -133,7 +133,7 @@ rigAssert "it carries the tool"                            "$( rigRecordField "$
 rigAssert "it carries the resolved target"                 "$( rigRecordField "$rigId" target )" "$rigScenarioDir/ws/OUT/x.txt"
 rigAssert "it carries the session"                         "$( rigRecordField "$rigId" session-id )" rig-session
 rigAssert "the result says it is not a verdict"            "$( rigHolds "$rigScenarioDir/out" 'This is a refusal, not a verdict' )" yes
-rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "kind=permission, refusal_id=$rigId" )" yes
+rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "RequestPermission refusal_id=$rigId" )" yes
 ## A Write refused before it named a path (no path key at all)
 ## is still recorded, with an id to escalate by, never "REFUSAL-ID: none".
 rigTool rig-session Write '{"content":"x"}'
@@ -368,7 +368,7 @@ rm -f "$rigScenarioDir/posts"
 ## Worded apart from the denied ask above: the same session asking the same permission
 ## question again gets that deny back unasked (Asked once, in MAGIC.md).
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task now write the refused file after all?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdLater\",\"reason\":\"r\",\"task_ref\":\"t\"}"
-rigAssert "an answer naming no option returns UNCLASSIFIED" "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
+rigAssert "an answer naming no option is RETURNED"         "$( rigLineOf 'VERDICT: ' )" "VERDICT: RETURNED"
 rigAssert "and nothing is posted for it"                   "$( cat "$rigScenarioDir/posts" )" 1
 rigAssert "and no grants file exists"                      "$( [ -e "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ] && printf yes || printf no )" no
 rigRewaitId="$( LC_ALL=C sed -n 's/^AskUserQuestion pending_id=//p' "$rigScenarioDir/out" | tail -1 )"
@@ -406,7 +406,7 @@ rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGSELF1\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
-rigAssert "a self-answer is not a verdict"                 "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
+rigAssert "a self-answer is not a verdict"                 "$( rigLineOf 'VERDICT: ' )" "VERDICT: RETURNED"
 rigAssert "and says why"                                   "$( rigHolds "$rigScenarioDir/out" 'the answer came from the account that asked' )" yes
 rigAssert "no grant is written"                            "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
 rigAssert "the retry is still refused"                     "$( rigWriteCall rig-session "$rigTarget" )" "ERROR: path not in the allowed write-root set -- it may still be readable: $rigTarget"
@@ -419,7 +419,7 @@ rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"},{"ts":"1700000001.000200","user":"URIGSELF1","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGSELF1\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
-rigAssert "a nested user ahead of the sender does not hide the sender" "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
+rigAssert "a nested user ahead of the sender does not hide the sender" "$( rigLineOf 'VERDICT: ' )" "VERDICT: RETURNED"
 rigAssert "no grant is written"                            "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
 rigStart self-unknown no
 : > "$rigScenarioDir/post-nouser"
@@ -428,7 +428,7 @@ rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdW="$( rigRefusalId )"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"allow-once","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdW\",\"reason\":\"r\",\"task_ref\":\"t\"}"
-rigAssert "an unknown asking account takes no answer"      "$( rigLineOf 'VERDICT: ' )" "VERDICT: UNCLASSIFIED"
+rigAssert "an unknown asking account takes no answer"      "$( rigLineOf 'VERDICT: ' )" "VERDICT: RETURNED"
 rigAssert "and says why"                                   "$( rigHolds "$rigScenarioDir/out" 'the asking account could not be established' )" yes
 rigAssert "no grant is written"                            "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
 rigVerdict "the asking account is read from the send itself, and unknown means no verdict"
@@ -705,7 +705,7 @@ rigForwardTs="$( rigPendingField forward-ts )"
 printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"forwarded"},{"ts":"1700000009.000900","user":"URIGOWNER","text":"maybe later","thread_ts":"%s"}],"has_more":false}\n' \
 	"$rigForwardTs" "$rigForwardTs" > "$rigScenarioDir/replies.$rigForwardTs.json"
 rigOp --member-escalation-read magic-tester "$rigPending"
-rigAssert "control: the read is still open and unclassified" "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: UNCLASSIFIED' )" yes
+rigAssert "control: the read is still open and returned"   "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: RETURNED' )" yes
 rigAssert "the reason shown is not the question thread's" "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT-REASON: the answer came from the account that asked' )" no
 rigAskFinish 0 > /dev/null
 rigVerdict "forward -- the reason read out belongs to the forward thread"
@@ -765,7 +765,7 @@ rigAssert "an unattended call with no grant is denied"     "$( rigHookBehavior )
 rigHookIdK="$( rigHookId )"
 rigAssert "with a recorded refusal id"                     "$( rigRecordField "$rigHookIdK" tool )" Write
 rigAssert "keyed to the same resolved target the harness uses" "$( rigRecordField "$rigHookIdK" target )" "$rigTarget"
-rigAssert "the message points to the escalation"           "$( rigHolds "$rigScenarioDir/hook.out" 'AskUserQuestion kind=permission' )" yes
+rigAssert "the message points to the escalation"           "$( rigHolds "$rigScenarioDir/hook.out" "RequestPermission refusal_id=$rigHookIdK" )" yes
 rigGrant magic-coordinator rig-session "$rigHookIdK" once > /dev/null
 rigHookCall true rig-session "$rigHookInput"
 rigAssert "an Allow once is allowed by the hook"           "$( rigHookBehavior )" allow
@@ -861,7 +861,7 @@ rigAssert "a read outside them is refused and recorded"   "$( rigReadCall rig-se
 rigIdRead="$( rigRefusalId )"
 rigAssert "the original ERROR line opens the result"      "$( rigFirstLine "$rigScenarioDir/out" )" "ERROR: path not in the allowed access-root set: $rigScenarioDir/outside/r.txt"
 rigAssert "the record carries the tool and resolved target" "$( rigRecordField "$rigIdRead" status ):$( rigRecordField "$rigIdRead" tool ):$( rigRecordField "$rigIdRead" target )" "refused:Read:$rigScenarioDir/outside/r.txt"
-rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "kind=permission, refusal_id=$rigIdRead" )" yes
+rigAssert "the result names how to ask"                    "$( rigHolds "$rigScenarioDir/out" "RequestPermission refusal_id=$rigIdRead" )" yes
 rigTool rig-session Grep "{\"pattern\":\"rig-read-seed\",\"path\":\"$rigScenarioDir/outside\"}"
 rigIdGrep="$( rigRefusalId )"
 rigAssert "a Grep over that root is refused and recorded" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigRecordField "$rigIdGrep" tool ):$( rigRecordField "$rigIdGrep" target )" "ERROR: path not in the allowed access-root set: $rigScenarioDir/outside:Grep:$rigScenarioDir/outside"

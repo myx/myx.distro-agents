@@ -5,7 +5,7 @@
 ## AgentsTools.InternOpPendingReply.include -- the pending-reply store.
 ##
 ## A question asked of a person is the commonest reason a session is waiting on
-## something, and AskUserQuestion -- a Slack send plus a wait -- is where nearly all
+## something, and AskQuestion -- a Slack send plus a wait -- is where nearly all
 ## of them come from. Only some of those ever become board items. So the store is its
 ## own: one record per question asked, written when the question is posted and closed
 ## when the answer arrives or the wait ends. `pending-replies.registry` is a cache
@@ -16,7 +16,7 @@
 ## is not this op's business.
 ##
 ## THE DISTINCTION THIS STORE EXISTS TO HOLD: a question that was never posted is not
-## a question nobody answered. AskUserQuestion says so in its own words, and it is why
+## a question nobody answered. AskQuestion says so in its own words, and it is why
 ## nothing is recorded until the send has succeeded, and why a wait that could not be
 ## performed leaves the record open rather than closing it as unanswered.
 ##
@@ -49,7 +49,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
-		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason="" pendingSelect="" pendingFields=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## A typed question's own facts, kept so an answer can be classified and applied later.
@@ -62,10 +62,14 @@ case "$1" in
 				--asking-accounts) pendingAsking="${2:-}" ; shift 2 ;;
 				--refusal-id) pendingRefusal="${2:-}" ; shift 2 ;;
 				--options) pendingOptions="${2:-}" ; shift 2 ;;
+				## A plain question's answer form (yes-no, one, many), which its answer is read by.
+				--select) pendingSelect="${2:-}" ; shift 2 ;;
+				## The fields the question was asked with, `<name><TAB><value>` per line, which a revision starts from.
+				--fields) pendingFields="${2:-}" ; shift 2 ;;
 				## Its tag within a thread several questions share, and the key a duplicate is found by.
 				--question-tag) pendingTag="${2:-}" ; shift 2 ;;
 				--question-key) pendingKey="${2:-}" ; shift 2 ;;
-				## The board item the ask belongs to: named directly, or found in AskUserQuestion's task_ref.
+				## The board item the ask belongs to: named directly, or found in RequestPermission's task_ref.
 				--item) pendingItem="${2:-}" ; shift 2 ;;
 				--task-ref) pendingTaskRef="${2:-}" ; shift 2 ;;
 				## Why the task needs it, for a reader of the record that sees no thread (an ask to a routine).
@@ -147,6 +151,7 @@ case "$1" in
 			[ -z "$pendingAddressees" ] || printf 'addressees: %s\n' "${pendingAddressees//$'\n'/ }"
 			[ -z "$pendingAsking" ] || printf 'asking-accounts: %s\n' "${pendingAsking//$'\n'/ }"
 			[ -z "$pendingRefusal" ] || printf 'refusal-id: %s\n' "${pendingRefusal//$'\n'/ }"
+			[ -z "$pendingSelect" ] || printf 'select: %s\n' "${pendingSelect//$'\n'/ }"
 			[ -z "$pendingTag" ] || printf 'question-tag: %s\n' "${pendingTag//$'\n'/ }"
 			[ -z "$pendingKey" ] || printf 'question-key: %s\n' "${pendingKey//$'\n'/ }"
 			[ -z "$pendingIdentity" ] || printf 'ask-identity: %s\n' "$pendingIdentity"
@@ -165,6 +170,7 @@ case "$1" in
 		## A decision's options beside the record, raw, because a verdict is read against them.
 		## Written first, so a record a reader can see already has its options there.
 		[ -z "$pendingOptions" ] || printf '%s\n' "$pendingOptions" > "$pendingRoot/$pendingId.options" || :
+		[ -z "$pendingFields" ] || printf '%s\n' "$pendingFields" > "$pendingRoot/$pendingId.fields" || :
 		## Written aside and moved into place in one rename, so a reader never sees a record
 		## half written: status first, with the thread fields still to come.
 		mv -f "$pendingRoot/.$pendingId.md.$$" "$pendingRoot/$pendingId.md" || {
@@ -483,6 +489,104 @@ case "$1" in
 			done <<< "$clarNew"
 		fi
 		printf 'CLARIFIED %s %s\n' "$clarId" "$clarCount"
+		return 0
+	;;
+
+	## The same question asked again, changed, in its own thread: the same record, id and number.
+	## The revised body, read from stdin, is kept under `## Revision <n>` after the first body,
+	## which stays as asked. The header takes `revision-ts`, the live revision's own message,
+	## which answers are read on from then (AgentsWaitProbeAsk, AgentsToolsEscalationThreadVerdict),
+	## with `revisions` and `revised-at`. --select, --options and --fields replace the answer
+	## form, the options and the fields beside the record, an empty value removing it. Only a
+	## record still open: one closed meanwhile is left as it is, rc 3. Where the question
+	## belongs to an item, its Decisions take one line. Prints `REVISED <id> <n>`.
+	--intern-op-pending-reply-revise)
+		shift
+		MDSC_CMD="$MDSC_CMD --intern-op-pending-reply-revise"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		local revId="${1:-}" revFile revTs="" revSelect="" revSelectSet="" revOptions="" revOptionsSet="" revFields="" revBy="" revSuperseded="" revIn revLock="" revNow revCount revOps revBody
+		shift || true
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--from-stdin) shift ;;
+				--revision-ts) revTs="${2:-}" ; shift 2 ;;
+				--select) revSelect="${2:-}" ; revSelectSet=1 ; shift 2 ;;
+				--options) revOptions="${2:-}" ; revOptionsSet=1 ; shift 2 ;;
+				--fields) revFields="${2:-}" ; shift 2 ;;
+				--revised-by) revBy="${2:-}" ; shift 2 ;;
+				## A version this one replaces that stays in the thread, marked: kept in `superseded`.
+				--superseded) revSuperseded="${2:-}" ; shift 2 ;;
+				--context) shift 2 ;;
+				*)
+					echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$revId" ] || [ -z "$revTs" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: syntax is <pending-reply-id> --revision-ts <ts> [--select <form>] [--options <lines>] [--fields <lines>] [--revised-by <member>] -- the revised body is read from stdin" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$revId" "<pending-reply-id>" pending-reply-revise || { set +e ; return 1 ; }
+		revFile="$MMDAPP/.local/agents/pending/$revId.md"
+		[ -f "$revFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record: $revFile" >&2 ; set +e ; return 1 ; }
+		revIn="$( cat )"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+		AgentsToolsLocalLockTake "pending-reply-$revId" 30 || { echo "$MDSC_CMD: ⛔ ERROR: the lock on $revId could not be taken, so the record was left unchanged" >&2 ; set +e ; return 1 ; }
+		revLock="$agentsLocalLockPath"
+		revNow="$( LC_ALL=C awk -F': ' 'NR > 1 && $0 == "---" { exit ; } $1 == "status" { print substr($0, 9) ; exit ; }' "$revFile" )"
+		if [ "$revNow" != "reply-pending" ] ; then
+			AgentsToolsLocalLockGive "$revLock"
+			printf 'ALREADY-CLOSED %s %s\n' "$revId" "${revNow:-unknown}"
+			set +e ; return 3
+		fi
+		revCount="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "revisions: " ) == 1 { print substr( $0, 12 ) ; exit ; }' "$revFile" )"
+		case "$revCount" in ''|*[!0-9]*) revCount=0 ;; esac
+		revCount=$(( revCount + 1 ))
+		revOps="$MMDAPP/.local/temp/mdat-pending-reply-revise-ops.$$.$RANDOM"
+		mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		{
+			printf 'upsert\trevision-ts\t%s\n' "${revTs//$'\n'/ }"
+			printf 'upsert\trevisions\t%s\n' "$revCount"
+			printf 'upsert\trevised-at\t%s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
+			if [ -n "$revSuperseded" ] ; then
+				revNow="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "superseded: " ) == 1 { print substr( $0, 13 ) ; exit ; }' "$revFile" )"
+				printf 'upsert\tsuperseded\t%s\n' "${revNow:+$revNow, }${revSuperseded//$'\n'/ }"
+			fi
+			## The first time, the answer form of the first post is kept beside the one it changes to.
+			if [ "$revCount" = "1" ] ; then
+				revNow="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "select: " ) == 1 { print substr( $0, 9 ) ; exit ; }' "$revFile" )"
+				[ -z "$revNow" ] || printf 'upsert\tfirst-select\t%s\n' "$revNow"
+			fi
+			if [ -n "$revSelectSet" ] ; then
+				[ -n "$revSelect" ] && printf 'upsert\tselect\t%s\n' "${revSelect//$'\n'/ }" || printf 'remove\tselect\t\n'
+			fi
+		} > "$revOps" || { rm -f "$revOps" ; AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		revBody="$( LC_ALL=C awk -v opsFile="$revOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$revFile" )" || revBody=""
+		rm -f "$revOps"
+		if [ -z "$revBody" ] ; then
+			AgentsToolsLocalLockGive "$revLock"
+			echo "$MDSC_CMD: ⚠️ WARNING: the record was left unchanged: $revFile" >&2
+			set +e ; return 1
+		fi
+		## Aside, then one rename, as every close writes it.
+		{ printf '%s\n\n## Revision %s\n\n%s\n' "$revBody" "$revCount" "$revIn" > "$revFile.$$" && mv -f "$revFile.$$" "$revFile" ; } \
+			|| { rm -f "$revFile.$$" ; AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		## What the first post was filled with is kept aside the first time: that post never
+		## changes with the question, and is filled again from it (AgentsToolsAskPostRecordFill).
+		if [ "$revCount" = "1" ] ; then
+			[ ! -f "${revFile%.md}.fields" ] || cp -f "${revFile%.md}.fields" "${revFile%.md}.first.fields" 2>/dev/null || :
+			[ ! -f "${revFile%.md}.options" ] || cp -f "${revFile%.md}.options" "${revFile%.md}.first.options" 2>/dev/null || :
+		fi
+		if [ -n "$revOptionsSet" ] ; then
+			[ -n "$revOptions" ] && printf '%s\n' "$revOptions" > "${revFile%.md}.options" || rm -f "${revFile%.md}.options"
+		fi
+		[ -z "$revFields" ] || printf '%s\n' "$revFields" > "${revFile%.md}.fields" || :
+		AgentsToolsLocalLockGive "$revLock"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
+		AgentsToolsDecisionsClarification "$revId" "$revFile" "${revBy:-unknown}" \
+			"asked again, changed (revision $revCount): $( printf '%s\n' "$revIn" | LC_ALL=C awk '$0 !~ /^#/ && $0 !~ /^[ \t]*$/ { print ; exit ; }' )" "$revTs"
+		printf 'REVISED %s %s\n' "$revId" "$revCount"
 		return 0
 	;;
 

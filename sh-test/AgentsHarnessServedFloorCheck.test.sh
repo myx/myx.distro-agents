@@ -193,16 +193,21 @@ done < "$rigTmp/executors"
 
 ## A typed ask served without its fields degrades to a plain question: a permission request
 ## would then read as one, and its answer would never be applied as a verdict.
-rigAskSchema="$( LC_ALL=C awk '
-	{
-		askAt = index( $0, "{\"name\":\"AskUserQuestion\"" ) ;
-		if ( askAt == 0 ) { next ; }
-		askRest = substr( $0, askAt ) ;
-		schemaAt = index( askRest, "\"inputSchema\":" ) ;
-		nextAt = index( substr( askRest, 2 ), "{\"name\":\"" ) ;
-		if ( schemaAt > 0 && ( nextAt == 0 || schemaAt < nextAt ) ) { print substr( askRest, schemaAt, ( nextAt == 0 ? length( askRest ) : nextAt ) - schemaAt ) ; }
-	}
-' "$rigTmp/list" )"
+rigAskSchemaOf(){ ## served tool name -- its inputSchema as the catalogue carries it
+	LC_ALL=C awk -v askName="{\"name\":\"$1\"" '
+		{
+			askAt = index( $0, askName ) ;
+			if ( askAt == 0 ) { next ; }
+			askRest = substr( $0, askAt ) ;
+			schemaAt = index( askRest, "\"inputSchema\":" ) ;
+			nextAt = index( substr( askRest, 2 ), "{\"name\":\"" ) ;
+			if ( schemaAt > 0 && ( nextAt == 0 || schemaAt < nextAt ) ) { print substr( askRest, schemaAt, ( nextAt == 0 ? length( askRest ) : nextAt ) - schemaAt ) ; }
+		}
+	' "$rigTmp/list"
+}
+rigAskHolds(){ ## served tool name, field -- yes when its served schema declares the field
+	rigAskSchemaOf "$1" | LC_ALL=C grep -q -F "\"$2\":{" && printf 'yes' || printf 'no'
+}
 ## The read cap the descriptions state is the one the served path applies, filled from the
 ## one constant (AgentsHarnessReadCap.include), never restated by hand.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessReadCap.include"
@@ -212,10 +217,16 @@ rigAssert "no unfilled cap placeholder is served" \
 	"$( LC_ALL=C grep -c -F '{{READ_CAP_BYTES}}' "$rigTmp/list" )" "0"
 rigAssert "a hosted wire's rendering states the wire cap" \
 	"$( MDAT_READ_CAP_BYTES="$agentsReadCapWire" bash "$rigMirror" 2>/dev/null | LC_ALL=C grep -o -F "Content over the ${agentsReadCapWire}-byte cap is cut" | wc -l | tr -d ' ' )" "2"
-for rigAskField in kind refusal_id reason task_ref understood source will_do pending_id ; do
-	rigAssert "the served AskUserQuestion carries '$rigAskField'" \
-		"$( printf '%s' "$rigAskSchema" | LC_ALL=C grep -q -F "\"$rigAskField\":{" && printf 'yes' || printf 'no' )" "yes"
+## Each field on the tool that owns it, and pending_id on all four. The tool name sets the
+## kind, so none of them declares `kind`.
+for rigAskPair in RequestPermission:refusal_id RequestPermission:reason RequestPermission:task_ref \
+	ConfirmReadback:understood ConfirmReadback:source ConfirmReadback:will_do \
+	AskQuestion:pending_id ConfirmReadback:pending_id EscalateDecision:pending_id RequestPermission:pending_id ; do
+	rigAssert "the served ${rigAskPair%%:*} carries '${rigAskPair#*:}'" \
+		"$( rigAskHolds "${rigAskPair%%:*}" "${rigAskPair#*:}" )" "yes"
 done
+rigAssert "no served asking tool carries 'kind'" \
+	"$( for rigAskTool in AskQuestion ConfirmReadback EscalateDecision RequestPermission ; do rigAskHolds "$rigAskTool" kind ; done )" "nononono"
 
 ## Every served tool takes the optional `description`, the call's stated intent, in the same
 ## text, never required, and named in the tool's own description. The Monitor twin is the one

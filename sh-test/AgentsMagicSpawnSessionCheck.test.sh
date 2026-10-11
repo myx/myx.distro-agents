@@ -176,6 +176,21 @@ rigAssert "never falls through to the resolver's own ambiguous-match wording" \
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
 rm -f "$rigSkills/rig-member-a/rig-member-a.coworking.routine.md"
 
+echo "-- --description: passed unchanged to every spawn of the call, kept on each spawn's own record --"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --description "rework the vars loader" rig-member-a rig-member-b )"
+rigAssert "the session is started"                       "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 1
+rigAssert "both spawn records keep the description as it was given" \
+	"$( LC_ALL=C grep -h -c -x -F 'description: rework the vars loader' "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C awk '{ s += $1 ; } END { print s + 0 ; }' )" 2
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --description )"
+rigAssert "a description with no text is refused, and nothing is spawned" \
+	"$( printf '%s\n' "$rigOut" | grep -c -- '--description requires <text>' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:0"
+rigAssert "the syntax line of the operation names it"     "$( rigRun "" --no-such-option 2>&1 | grep -c -F -- '[--description <text>]' )" 1
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MAGIC SPAWN SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

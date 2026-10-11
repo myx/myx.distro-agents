@@ -167,12 +167,14 @@ AgentsTranscriptEvent(){ ## session id, kind, body ('' for none), body cap, then
 }
 
 ## The event-track feed: the same lines, to $MMDAPP/.local/agents/sessions/<sid>/feed, only
-## for a session whose event-track thread is open (sessions/<sid>/event-track, written by the
-## spawn proxy). AgentsTools.EventTrackFeed.include posts it. Never team data.
+## for a session whose feed is switched on (AgentsToolsEventTrackFeedOn,
+## AgentsTools.EventTrackThread.include: the spawn proxy switches it on with its poster).
+## AgentsTools.EventTrackFeed.include posts it. Never team data.
 AgentsTranscriptFeed(){ ## session id, block
 	local feedDir
 	feedDir="$( AgentsTranscriptSessionDir "$1" )" || return 0
-	[ -s "$feedDir/event-track" ] || return 0
+	type AgentsToolsEventTrackFeedOn > /dev/null 2>&1 || . "$agentsTranscriptLib/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
+	AgentsToolsEventTrackFeedOn "$feedDir" || return 0
 	printf '%s\n' "$2" >> "$feedDir/feed" 2>/dev/null || :
 	return 0
 }
@@ -361,7 +363,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	## message events are rendered from that log at the milestones, so only the milestone is here.
 	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
 		case "$doneBase:$doneOutcome" in
-			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
+			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
 			SubagentHandback:ok) AgentsTranscriptMilestone "$doneSession" "handback" ;;
 			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) AgentsTranscriptMilestone "$doneSession" "dismissed" ;; esac ;;
 		esac
@@ -417,9 +419,18 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 				*) AgentsTranscriptEvent "$doneSession" WAIT-RESULT "$doneResult" 4096 ;;
 			esac
 		;;
-		AskUserQuestion)
+		## The tools that ask, and their second name. The kind is the tool's own; only the
+		## second name carries one as an argument.
+		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission)
+			local doneKind=""
+			case "$doneBase" in
+				ConfirmReadback) doneKind="readback" ;;
+				EscalateDecision) doneKind="decision" ;;
+				RequestPermission) doneKind="permission" ;;
+				*) doneKind="$( AgentsTranscriptJsonField "$doneArgs" kind )" ;;
+			esac
 			AgentsTranscriptEvent "$doneSession" ASK "$( AgentsTranscriptJsonField "$doneArgs" question )" 4096 \
-				to "$( AgentsTranscriptJsonField "$doneArgs" to )" kind "$( AgentsTranscriptJsonField "$doneArgs" kind )"
+				to "$( AgentsTranscriptJsonField "$doneArgs" to )" kind "$doneKind"
 			AgentsTranscriptEvent "$doneSession" ANSWER "$doneResult" 4096
 			[ "$doneOutcome" != "ok" ] || AgentsTranscriptMilestone "$doneSession" "message out"
 		;;

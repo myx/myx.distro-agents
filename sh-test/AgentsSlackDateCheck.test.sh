@@ -227,22 +227,28 @@ rigTokens(){ ## files...
 }
 rigStarted="$( rigToken '2030-01-01 00:00 +0000' date-time )"
 rigRender start "$rigTmp/k-start" /dev/null cli=rig-cli host=rig-host workspace=rig-ws started-at="$rigStarted" what='<!here> & co'
-rigAssert "the start time a caller gives as a token is in the post as that token" \
-	"$( cat "$rigTmp/k-start"/* | LC_ALL=C grep -c -F 'started: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' )" 1
+## A post is rendered twice: its boxes (<n>.blocks), and the same lines as plain text
+## (<n>.plain.<part>) for a Slack that refuses the boxes. Each is counted by itself. A box's
+## subtitle carries one date token of its own, the moment of its first line.
+rigAssert "the start time a caller gives as a token is in the post as that token, in its boxes and in its plain text" \
+	"$( cat "$rigTmp/k-start"/*.blocks | LC_ALL=C grep -c -F 'started: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' ):$( cat "$rigTmp/k-start"/*.plain.* | LC_ALL=C grep -c -F 'started: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' )" 1:1
 rigAssert "unescaped, outside a code span, no UTC label after it, and the other values still escaped" \
-	"$( cat "$rigTmp/k-start"/* | LC_ALL=C grep -c -e '&lt;!date' -e '`<!date' -e 'UTC> UTC' ):$( cat "$rigTmp/k-start"/* | LC_ALL=C grep -c -F '&lt;!here&gt; &amp; co' )" 0:1
+	"$( cat "$rigTmp/k-start"/* | LC_ALL=C grep -c -e '&lt;!date' -e '`<!date' -e 'UTC> UTC' ):$( cat "$rigTmp/k-start"/*.blocks | LC_ALL=C grep -c -F '&lt;!here&gt; &amp; co' ):$( cat "$rigTmp/k-start"/*.plain.* | LC_ALL=C grep -c -F '&lt;!here&gt; &amp; co' )" 0:1:1
 rigRender end "$rigTmp/k-end" /dev/null outcome=succeeded armed="yes, at $( rigToken '2026-09-29 10:00 +0300' date-time )" ended-at="$rigStarted"
-rigAssert "the end post's own two: when it armed, and when it ended" \
-	"$( cat "$rigTmp/k-end"/* | LC_ALL=C grep -c -F 'armed: yes, at <!date^1790665200^{date_num} {time}|2026-09-29 07:00 UTC>' ):$( cat "$rigTmp/k-end"/* | LC_ALL=C grep -c -F 'ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' ):$( rigTokens "$rigTmp/k-end"/* )" 1:1:2:2
+rigAssert "the end post's own two, in its plain text: when it armed, and when it ended" \
+	"$( cat "$rigTmp/k-end"/*.plain.* | LC_ALL=C grep -c -F 'armed: yes, at <!date^1790665200^{date_num} {time}|2026-09-29 07:00 UTC>' ):$( cat "$rigTmp/k-end"/*.plain.* | LC_ALL=C grep -c -F 'ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' ):$( rigTokens "$rigTmp/k-end"/*.plain.* )" 1:1:2:2
+rigAssert "and the same two in its boxes, beside the one of the box's own subtitle" \
+	"$( cat "$rigTmp/k-end"/*.blocks | LC_ALL=C grep -c -F 'armed: yes, at <!date^1790665200^{date_num} {time}|2026-09-29 07:00 UTC>' ):$( cat "$rigTmp/k-end"/*.blocks | LC_ALL=C grep -c -F 'ended: <!date^1893456000^{date_num} {time}|2030-01-01 00:00 UTC>' ):$( rigTokens "$rigTmp/k-end"/*.blocks )" 1:1:3:3
 rigRender error "$rigTmp/k-foreign" /dev/null what=x detail='<!date^1893456000^{date_num} {time}^https://example.invalid/x|2030-01-01 00:00 UTC> <!date^1893456000^{date_long}|2030-01-01 00:00 UTC>'
-rigAssert "a value's token with a link, or with another token string, is escaped as any value is" "$( rigTokens "$rigTmp/k-foreign"/* ):$( cat "$rigTmp/k-foreign"/* | LC_ALL=C grep -c -F '&lt;!date^1893456000^{date_long}|2030-01-01 00:00 UTC&gt;' )" 0:0:1
+rigAssert "a value's token with a link, or with another token string, is escaped as any value is" "$( rigTokens "$rigTmp/k-foreign"/*.plain.* ):$( cat "$rigTmp/k-foreign"/*.plain.* | LC_ALL=C grep -c -F '&lt;!date^1893456000^{date_long}|2030-01-01 00:00 UTC&gt;' )" 0:0:1
+rigAssert "in its boxes too, where the one token left is the box's own subtitle date" "$( rigTokens "$rigTmp/k-foreign"/*.blocks ):$( cat "$rigTmp/k-foreign"/*.blocks | LC_ALL=C grep -c -F '&lt;!date^1893456000^{date_long}|2030-01-01 00:00 UTC&gt;' )" 1:1:1
 ## A line too long for one post is cut: the token at its end goes whole or not at all.
 rigLongHost="$( LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 3770 ; n++ ) printf "h" }' )"
 rigRender error "$rigTmp/k-cut" /dev/null what=x host="$rigLongHost" at="$rigStarted"
 rigCutTokens="$( rigTokens "$rigTmp/k-cut"/* )"
 rigAssert "a line cut by length never ends inside a token" "$( [ "${rigCutTokens%%:*}" = "${rigCutTokens##*:}" ] && printf whole || printf "cut $rigCutTokens" )" whole
 rigRender error "$rigTmp/k-fit" /dev/null what=x host=rig-host at="$rigStarted"
-rigAssert "control: the same line, short, keeps its token" "$( rigTokens "$rigTmp/k-fit"/* )" 1:1
+rigAssert "control: the same line, short, keeps its token, in its plain text and, beside the subtitle's, in its boxes" "$( rigTokens "$rigTmp/k-fit"/*.plain.* ):$( rigTokens "$rigTmp/k-fit"/*.blocks )" 1:1:2:2
 ## Many lines, many posts: every token in every part is whole.
 LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 400 ; n++ ) { printf "2030-01-01T00:%02d:%02dZ TOOL Read path=/a/long/enough/path/file-number-%03d.md -> ok 10B/1L 1ms\n", int( n / 60 ), n % 60, n ; if ( n % 7 == 0 ) printf "2030-01-01T00:%02d:%02dZ VERDICT item=rig-item-%03d by=magic-tester text=\"accepted\"\n", int( n / 60 ), n % 60, n } }' > "$rigTmp/lines.long"
 rigRender feed "$rigTmp/k-long" "$rigTmp/lines.long"
@@ -314,7 +320,7 @@ rigOpRc=$?
 rigAfter="$( date +%s )"
 rigAssert "the spawn ran and launched" "$rigOpRc:$( LC_ALL=C grep -c '^LAUNCHED=true$' "$rigTmp/op.out" )" 0:1
 rigStartPost="$( LC_ALL=C grep -l -F '🚀 session start' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | head -1 )"
-rigEndPost="$( LC_ALL=C grep -l -F '🏁 session end' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | head -1 )"
+rigEndPost="$( LC_ALL=C grep -l -F '🏁 run end' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | head -1 )"
 ## One labelled token of a post: `<label><token>`, its epoch within this run, its fallback the helper's.
 rigSiteToken(){ ## post file, label
 	LC_ALL=C grep -o -E "$2<!date\\^[0-9]+\\^\\{date_num\\} \\{time\\}\\|[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC>" "${1:-/dev/null}" 2>/dev/null | head -1 | LC_ALL=C sed "s/^$2//"

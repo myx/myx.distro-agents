@@ -64,11 +64,16 @@ function stjAppend(blockText) {
 	}
 	print blockText >> stjPath
 	fflush(stjPath)
-	## The event-track feed (AgentsTools.EventTrackFeed.include): the same lines, while its thread is open.
+	## The event-track feed (AgentsTools.EventTrackFeed.include): the same lines, while the
+	## session's feed is switched on -- its own marker feed.open, there even when empty, or,
+	## for a session from before that marker, the event-track file that then switched it
+	## (AgentsTools.EventTrackThread.include, AgentsToolsEventTrackFeedOn).
 	if (stjFeedChecked == 0) {
 		stjFeedChecked = 1
 		stjFeed = ""
-		if ((getline stjFeedThread < (stjDir "/event-track")) > 0 && stjFeedThread != "") stjFeed = stjDir "/feed"
+		if ((getline stjFeedThread < (stjDir "/feed.open")) >= 0) stjFeed = stjDir "/feed"
+		close(stjDir "/feed.open")
+		if (stjFeed == "" && (getline stjFeedThread < (stjDir "/event-track")) > 0 && stjFeedThread != "") stjFeed = stjDir "/feed"
 		close(stjDir "/event-track")
 	}
 	## Opened for each write: the poster takes the feed whole by renaming it, and a write

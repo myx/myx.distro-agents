@@ -20,18 +20,22 @@ BEGIN {
 	companionTool["HANDBACK"] = "SubagentHandback" ;
 	companionTool["WAIT-RESULT"] = "Wait" ;
 	companionTool["DISMISSED"] = "Wait" ;
-	companionTool["ASK"] = "AskUserQuestion" ;
-	companionTool["ANSWER"] = "AskUserQuestion" ;
+	companionTool["ASK"] = "AskQuestion" ;
+	companionTool["ANSWER"] = "AskQuestion" ;
 	companionTool["SPAWN"] = "Agent" ;
 	unitCount = 0 ;
 }
 
-## The tool a name means, without an MCP server prefix.
+## The tool a name means, without an MCP server prefix. The tools that ask, and their second
+## name AskUserQuestion, are one tool to a unit, so an ASK or an ANSWER joins the call of any.
 function baseTool( toolName,    restName, cutAt ) {
-	if ( substr( toolName, 1, 5 ) != "mcp__" ) { return toolName ; }
-	restName = substr( toolName, 6 ) ;
-	cutAt = index( restName, "__" ) ;
-	return ( cutAt == 0 ) ? toolName : substr( restName, cutAt + 2 ) ;
+	if ( substr( toolName, 1, 5 ) == "mcp__" ) {
+		restName = substr( toolName, 6 ) ;
+		cutAt = index( restName, "__" ) ;
+		if ( cutAt > 0 ) { toolName = substr( restName, cutAt + 2 ) ; }
+	}
+	if ( toolName == "AskUserQuestion" || toolName == "ConfirmReadback" || toolName == "EscalateDecision" || toolName == "RequestPermission" ) { return "AskQuestion" ; }
+	return toolName ;
 }
 
 function isImmediate( text, word ) {

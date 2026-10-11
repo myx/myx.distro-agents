@@ -7,12 +7,14 @@
 # with the time of its first line, its lines in sections, its context lines small and grey),
 # with the short text that goes beside them, and once more as plain text, each block under
 # its header line, for a Slack that refuses the blocks.
-# Loaded after the transcript formatter, for its redaction and its tool names, and after the
+# Loaded after the transcript formatter, for its redaction and its tool names, after the
 # Slack date helper, for every time a post shows (a subtitle's date; a plain-text header's
-# span; a date token a field gives):
-#   LC_ALL=C awk -f AgentsSessionTranscriptFormat.awk -f AgentsSlackDate.awk -f AgentsEventTrackPostFill.awk <template> <lines>
+# span; a date token a field gives), and after the shared template filler, for its slots and
+# groups:
+#   LC_ALL=C awk -f AgentsSessionTranscriptFormat.awk -f AgentsSlackDate.awk -f AgentsToolingTemplateFill.awk -f AgentsEventTrackPostFill.awk <template> <lines>
 # Environment: ETP_KIND, ETP_MEMBER, ETP_MEMBERS (" <name> ... ", the team's members),
-# ETP_SESSION, ETP_FIELDS (name=value per line, the last of a name wins), ETP_DIR (where each
+# ETP_SESSION (the id of the run the post is about: the participant's own, a spawn's id, never
+# the coworking session's it may have joined), ETP_FIELDS (name=value per line, the last of a name wins), ETP_DIR (where each
 # post's files are written: 000001.blocks, its boxes as a JSON array; 000001.text, its short
 # text for a notification; 000001.plain.001..., the same post as plain text), ETP_USERS
 # (" <slack id>=<name> ...", who a message's author is), ETP_WAIT_STATE (a file holding the
@@ -362,17 +364,24 @@ function targetOf(    keyNo, keyName ) {
 	return "" ;
 }
 
-function takeTool(    toolName, op, pathValue, keyNo, startLine, exitText ) {
+function takeTool(    toolName, op, pathValue, keyNo, startLine, exitText, askName ) {
 	toolName = stlBaseTool( evToolName ) ;
+	## The tools that ask are one call to join, whichever name it came by (stlAskTool): its line
+	## renders by the template of the tool it is, a line of their second name by its kind.
+	askName = stlAskTool( toolName, evField["kind"] ) ;
+	if ( askName != "" ) { toolName = "AskQuestion" ; }
 	op = 0 ;
 	if ( opCount > 0 && opTool[opCount] == toolName && ! opCall[opCount] && sameTo( opCount ) ) { op = opCount ; }
 	if ( op == 0 ) { op = newOp( toolName, toolName, "member", actorOf() ) ; }
+	if ( askName != "" && opName[op] == "AskQuestion" ) { opName[op] = askName ; toolName = askName ; }
 	opCall[op] = 1 ;
 	opLastAt[op] = evAt ;
 	opF[op, "tool"] = cutText( toolName, 60 ) ;
 	opF[op, "outcome"] = cutText( evOutcome, 20 ) ;
 	if ( evOutcome == "error" ) { opName[op] = "tool error" ; }
 	else if ( evOutcome == "refused" ) { opName[op] = "tool refused" ; }
+	## An Edit that carried a list says how many edits it applied, where it came out ok.
+	if ( toolName == "Edit" && evOutcome == "ok" ) { setField( op, "outcome", plural( evField["edits"], "edit", "edits" ) ) ; }
 	pathValue = evField["path"] ;
 	if ( pathValue == "" ) { pathValue = evField["file"] ; }
 	setField( op, "file", shortPath( pathValue ) ) ;
@@ -429,7 +438,7 @@ function takeCompanion( eventKind,    toolName, op, resultLine, resultWords, res
 	}
 	opHas[op, eventKind] = 1 ;
 	opLastAt[op] = evAt ;
-	if ( eventKind in sessionKind ) { opSubject[op] = "session" ; }
+	if ( eventKind in runKind ) { opSubject[op] = "run" ; }
 	setField( op, "to", cutText( evField["to"], 60 ) ) ;
 	if ( eventKind == "MSG-OUT" ) {
 		if ( toolName == "SendMessage" ) { setField( op, "message", cutText( firstBody(), 100 ) ) ; }
@@ -455,7 +464,8 @@ function takeCompanion( eventKind,    toolName, op, resultLine, resultWords, res
 		resultText = resultWords[1] ;
 		if ( resultText == "TIMEOUT" && match( resultLine, /\([0-9]+s\)/ ) ) { resultText = "TIMEOUT " substr( resultLine, RSTART + 1, RLENGTH - 3 ) " s" ; }
 		verdictText = bodyValue( "VERDICT: " ) ;
-		if ( resultText == "RECEIVED" && verdictText != "" && verdictText != "UNCLASSIFIED" ) { resultText = "answered " verdictText ; }
+		## RETURNED, and UNCLASSIFIED before it, is no answer: the question came back to its asker.
+		if ( resultText == "RECEIVED" && verdictText != "" && verdictText != "RETURNED" && verdictText != "UNCLASSIFIED" ) { resultText = "answered " verdictText ; }
 		setField( op, "result", cutText( resultText, 40 ) ) ;
 		waitRead() ;
 		if ( resultText == "DISMISSED" ) {
@@ -484,6 +494,8 @@ function takeCompanion( eventKind,    toolName, op, resultLine, resultWords, res
 		if ( eventKind == "DISMISSED" && opName[op] != "tool error" && opName[op] != "tool refused" ) { opName[op] = "Wait" ; }
 	} else if ( eventKind == "ASK" ) {
 		setField( op, "kind", cutText( evField["kind"], 40 ) ) ;
+		## An ask whose own line named no kind is the tool of the kind its ASK names.
+		if ( opName[op] == "AskQuestion" && evField["kind"] != "" ) { opName[op] = stlAskTool( "AskUserQuestion", evField["kind"] ) ; }
 		setField( op, "question", cutText( firstBody(), 100 ) ) ;
 	} else if ( eventKind == "SPAWN" ) {
 		setField( op, "agent", cutText( evField["agent"], 60 ) ) ;
@@ -496,7 +508,7 @@ function takeOther( eventKind,    name, op, keyNo, text ) {
 	name = eventKind ;
 	if ( eventKind == "ENDING" ) { name = "DISMISSED" ; }
 	if ( eventKind == "RESULT" && evField["outcome"] == "error" ) { name = "ERROR" ; }
-	op = newOp( name, "", ( eventKind in sessionKind ) ? "session" : "member", actorOf() ) ;
+	op = newOp( name, "", ( eventKind in runKind ) ? "run" : "member", actorOf() ) ;
 	opF[op, "event"] = tolower( eventKind ) ;
 	for ( keyNo = 1 ; keyNo <= eventTotal ; keyNo++ ) { setField( op, eventKeys[keyNo], cutText( evField[eventKeys[keyNo]], 60 ) ) ; }
 	if ( eventKind == "ROUND" || eventKind == "RESULT" ) {
@@ -532,52 +544,46 @@ function takeEvent(    eventKind ) {
 
 ## ---- filling ----
 
-## A slot's value: an operation's field while one fills, else the post's. In a title the
-## member and the session are sent as they are, since a title's text is not mrkdwn.
+## A slot's value: an operation's field while one fills, else the post's. In a title a value
+## is sent as it is, since a title's text is not mrkdwn.
 function slotValue( name ) {
 	if ( fillOp > 0 ) { return ( ( fillOp, name ) in opF ) ? cleanValue( opF[fillOp, name] ) : "" ; }
 	if ( name == "member" ) { return ( fillTitle ? titleValue( fillMember != "" ? fillMember : member ) : esc( fillMember != "" ? fillMember : member ) ) ; }
-	if ( name == "session" ) { return ( fillTitle ? titleSession : shortSession ) ; }
+	if ( name == "run" ) { return ( fillTitle ? titleRun : shortRun ) ; }
 	if ( name == "span" ) { return fillSpan ; }
 	if ( name == "date" ) { return fillDate ; }
 	if ( name == "subjects" ) { return fillSubjects ; }
 	if ( name == "line-count" ) { return fillLineCount ; }
-	if ( name in field ) { return field[name] ; }
+	if ( name in field ) { return ( fillTitle ? fieldTitle[name] : field[name] ) ; }
 	return "" ;
 }
 
-## The slots of a text replaced by position, never gsub, so & and \ in a value pass through.
-## Counts slotTotal and slotFilled; sets slotsEmpty for this text. An empty slot reads as
-## nothing, never a placeholder; outside a group it is required, counted in requiredEmpty.
-function fillSlots( text, outside,    done, rest, openAt, closeAt, name, value ) {
-	done = "" ; rest = text ; slotsEmpty = 0 ;
-	while ( ( openAt = index( rest, "{{" ) ) > 0 ) {
-		closeAt = index( substr( rest, openAt + 2 ), "}}" ) ;
-		if ( closeAt == 0 ) { break ; }
-		name = substr( rest, openAt + 2, closeAt - 1 ) ;
-		value = slotValue( name ) ;
-		slotTotal++ ;
-		if ( value != "" ) { slotFilled++ ; }
-		else { slotsEmpty++ ; if ( outside ) { requiredEmpty++ ; } }
-		done = done substr( rest, 1, openAt - 1 ) value ;
-		rest = substr( rest, openAt + closeAt + 3 ) ;
-	}
-	return done rest ;
+## A kind's line `{{subject:<subject>}}` opens a block of that subject, regarding the post's
+## member: the kind's lines after it, up to the next such line, are that block's. Returns 1
+## when the line was one.
+function kindBlockOpened( text ) {
+	if ( substr( text, 1, 10 ) != "{{subject:" || substr( text, length( text ) - 1 ) != "}}" ) { return 0 ; }
+	kindSubject = substr( text, 11, length( text ) - 12 ) ;
+	currentHeader = headerText( kindSubject, member, "", "" ) ;
+	currentKey = kindSubject SUBSEP member ;
+	addHeader( currentHeader, kindSubject, member ) ;
+	return 1 ;
 }
 
-## A template line filled: `[[ … ]]` kept only when every slot in it has a value. A line
-## whose first field was left out opens with the next one, not with its ` · ` or ` / `.
-function fillText( text,    done, rest, openAt, closeAt, inner ) {
-	done = "" ; rest = text ; slotTotal = 0 ; slotFilled = 0 ; requiredEmpty = 0 ;
-	while ( ( openAt = index( rest, "[[" ) ) > 0 ) {
-		closeAt = index( substr( rest, openAt + 2 ), "]]" ) ;
-		if ( closeAt == 0 ) { break ; }
-		done = done fillSlots( substr( rest, 1, openAt - 1 ), 1 ) ;
-		inner = fillSlots( substr( rest, openAt + 2, closeAt - 1 ), 0 ) ;
-		if ( slotsEmpty == 0 ) { done = done inner ; }
-		rest = substr( rest, openAt + closeAt + 3 ) ;
-	}
-	done = done fillSlots( rest, 1 ) ;
+## The value the shared filler asks for: a slot of this post.
+function ttSlot( name ) {
+	return slotValue( name ) ;
+}
+
+## A template line filled, by the one shared filler (AgentsToolingTemplateFill.awk, loaded
+## ahead of this file): each `{{slot}}` replaced by position, never gsub, so & and \ in a
+## value pass through, and `[[ … ]]` kept only when every slot in it has a value. An empty
+## slot reads as nothing, never a placeholder; outside a group it is required, counted in
+## requiredEmpty. A line whose first field was left out opens with the next one, not with
+## its ` · ` or ` / `.
+function fillText( text,    done ) {
+	done = ttFill( text ) ;
+	requiredEmpty = ttRequiredEmpty ;
 	if ( substr( done, 1, 4 ) == " \302\267 " ) { done = substr( done, 5 ) ; }
 	else if ( substr( done, 1, 3 ) == " / " ) { done = substr( done, 4 ) ; }
 	return done ;
@@ -845,14 +851,14 @@ BEGIN {
 	kind = ENVIRON["ETP_KIND"] ;
 	member = ENVIRON["ETP_MEMBER"] ;
 	teamMembers = ENVIRON["ETP_MEMBERS"] ;
-	shortSession = cleanValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
+	shortRun = cleanValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
 	## Characters per post of plain text, never configured: Slack's limit for a message's `text`.
 	cap = 4000 ;
 	## Slack's limits for blocks, never configured: the characters of a section's text, the
 	## children of a box, the blocks of a post with every box's children counted too.
 	sectionCap = 3000 ; childCap = 10 ; blockCap = 50 ;
 	for ( ctlNo = 1 ; ctlNo <= 31 ; ctlNo++ ) { jsonCtl[sprintf( "%c", ctlNo )] = sprintf( "\\u%04x", ctlNo ) ; }
-	titleSession = titleValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
+	titleRun = titleValue( substr( ENVIRON["ETP_SESSION"], 1, 8 ) ) ;
 	## The moment the post is made, epoch seconds: the time of a kind's own lines.
 	nowAt = ( ENVIRON["ETP_NOW"] ~ /^[0-9]+$/ ) ? ENVIRON["ETP_NOW"] : "" ;
 	outDir = ENVIRON["ETP_DIR"] ;
@@ -863,11 +869,13 @@ BEGIN {
 		fieldName = substr( fieldLines[fieldNo], 1, eqAt - 1 ) ;
 		fieldValue = stlRedact( substr( fieldLines[fieldNo], eqAt + 1 ) ) ;
 		## A value given as - is no value: no field is ever shown as a placeholder.
-		if ( fieldValue == "-" ) { delete field[fieldName] ; continue ; }
+		if ( fieldValue == "-" ) { delete field[fieldName] ; delete fieldTitle[fieldName] ; continue ; }
 		if ( fieldName == "tokens" ) { fieldValue = tokensText( fieldValue ) ; }
 		## Escaped as every value is, but for a Slack date token of the helper's own making,
 		## which a caller gives for a date or a time and which works only unescaped (sldKeep).
 		field[fieldName] = sldKeep( cleanValue( fieldValue ) ) ;
+		## The same value for a box's title, whose text is not mrkdwn and so is not escaped.
+		fieldTitle[fieldName] = titleValue( fieldValue ) ;
 	}
 	## Who a Slack account is, by the team's own account cache.
 	userCount = split( ENVIRON["ETP_USERS"], userPairs, " " ) ;
@@ -886,11 +894,13 @@ BEGIN {
 	companionTool["HANDBACK"] = "SubagentHandback" ;
 	companionTool["WAIT-RESULT"] = "Wait" ;
 	companionTool["DISMISSED"] = "Wait" ;
-	companionTool["ASK"] = "AskUserQuestion" ;
-	companionTool["ANSWER"] = "AskUserQuestion" ;
+	## The tools that ask are one call to join, under the name of the first (takeTool).
+	companionTool["ASK"] = "AskQuestion" ;
+	companionTool["ANSWER"] = "AskQuestion" ;
 	companionTool["SPAWN"] = "Agent" ;
-	sessionTotal = split( "START END MODEL RESTART HANDBACK DISMISSED ENDING REVIEW VERDICT", sessionList, " " ) ;
-	for ( sessionNo = 1 ; sessionNo <= sessionTotal ; sessionNo++ ) { sessionKind[sessionList[sessionNo]] = 1 ; }
+	## The events of one participant's own run: their box names its member and its own id.
+	runTotal = split( "START END MODEL RESTART HANDBACK DISMISSED ENDING REVIEW VERDICT", runList, " " ) ;
+	for ( runNo = 1 ; runNo <= runTotal ; runNo++ ) { runKind[runList[runNo]] = 1 ; }
 	simpleTotal = split( "mode job handle kind severity pages view state server task_id shell_id", simpleKeys, " " ) ;
 	targetTotal = split( "pattern cmd to agent subagent_type name skill url query sources job handle task_id", targetKeys, " " ) ;
 	eventTotal = split( "n turns model service host tier item kind by at source exit outcome", eventKeys, " " ) ;
@@ -963,20 +973,15 @@ END {
 		prevWaitSet = waitNow ; waitSeen = 1 ;
 	}
 	if ( waitSeen && waitStateFile != "" ) { printf "%s\n", prevWaitSet > waitStateFile ; close( waitStateFile ) ; }
-	## The kind's own block: its subject's header, then its lines, a line with a required slot
-	## empty, or with nothing left, left out.
-	kindSubject = "" ; currentHeader = "" ; currentKey = "" ; lineNo = 1 ;
-	if ( substr( tmpl[1], 1, 10 ) == "{{subject:" && substr( tmpl[1], length( tmpl[1] ) - 1 ) == "}}" ) {
-		kindSubject = substr( tmpl[1], 11, length( tmpl[1] ) - 12 ) ;
-		currentHeader = headerText( kindSubject, member, "", "" ) ;
-		currentKey = kindSubject SUBSEP member ;
-		addHeader( currentHeader, kindSubject, member ) ;
-		lineNo = 2 ;
-	}
+	## The kind's own blocks: each its subject's header, then its lines, a line with a required
+	## slot empty, or with nothing left, left out. The operations take the subject of the block
+	## they stand in, where they have none of their own.
+	kindSubject = "" ; currentHeader = "" ; currentKey = "" ;
 	## A kind's own line is of the moment the post is made.
 	opsAt = 0 ;
-	for ( ; lineNo <= tmplCount ; lineNo++ ) {
+	for ( lineNo = 1 ; lineNo <= tmplCount ; lineNo++ ) {
 		if ( tmpl[lineNo] == "{{operations}}" ) { opsAt = lineNo ; break ; }
+		if ( kindBlockOpened( tmpl[lineNo] ) ) { continue ; }
 		filled = fillText( tmpl[lineNo] ) ;
 		if ( kindLineGone( filled ) ) { continue ; }
 		addLine( cutBytes( filled, lineCap ), currentHeader, 0, nowAt, ( lineNo in tmplContext ) ) ;
@@ -1013,6 +1018,7 @@ END {
 		fillOp = 0 ;
 	}
 	for ( lineNo = opsAt + 1 ; opsAt > 0 && lineNo <= tmplCount ; lineNo++ ) {
+		if ( kindBlockOpened( tmpl[lineNo] ) ) { continue ; }
 		filled = fillText( tmpl[lineNo] ) ;
 		if ( kindLineGone( filled ) ) { continue ; }
 		addLine( cutBytes( filled, lineCap ), currentHeader, 0, nowAt, ( lineNo in tmplContext ) ) ;

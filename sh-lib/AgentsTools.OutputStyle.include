@@ -13,9 +13,14 @@
 ## names take the team's own audit-item shape, <type>-<date>-<matter>.md.
 ##
 
-## Refuses a send whose text is below the floor. Text on stdin, and it must be
-## the body exactly as the caller gave it. 0 proceeds, 1 refuses, and every
-## refusal names its own reason on stderr.
+## Holds back a send whose text is below the floor. Text on stdin, and it must be
+## the sender's own words exactly as given. 0 proceeds. 6 is the CORRECTION
+## outcome: the text is over a limit this caller holds a message back on, so it
+## was not sent, and the sender is to correct it and send it again -- as many
+## times as it takes, every attempt measured the same way, with no way through
+## on a later one. It is never a refusal or a denial, and is never worded as
+## one: its first line starts with the fixed word CORRECTION, then one line per
+## fault, then a NEXT line. 1 is a failure of another kind, named on stderr.
 ##
 ## The token source is the caller's own, passed through rather than compared at
 ## the call site: only "shared-bot-token" means the post goes out under the
@@ -58,11 +63,19 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 		if [ "$styleRc" = "1" ] && [ -z "$gatingHit" ] ; then
 			echo "# $MDSC_CMD: this text is below the team's plain-language floor. IT WAS WRITTEN ANYWAY: nothing that fired is a predicate this operation refuses on. Each line below names the predicate that fired and the sentence it fired on. Run the checker with textGroup=help for what it does and does not measure." >&2
 		elif [ "$styleRc" = "1" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD: NOTHING WAS SENT. These predicates refuse here and fired: $gatingHit. Each line below names the predicate that fired and the sentence it fired on, and a line naming any OTHER predicate is advisory -- clearing those alone will not let this through. Rewrite the text; do not reach for another send path, because the edit and email operations carry this same floor. Run the checker with textGroup=help for what it does and does not measure." >&2
+			## The correction: what was not sent and why, each fault on its own line, then what
+			## to do. The faults that hold the message back first; any other, said as reported only.
+			echo "CORRECTION: $MDSC_CMD: this message was NOT sent and must be corrected and sent again. It is over the team's plain-language limits. This is a correction for the sender to make, never a refusal or a denial: there is no limit on attempts, and every attempt is measured the same way. Only the sender's own words are measured: a quoted line, code and a line the tooling adds are left out." >&2
+			printf '%s\n' "$styleFaults" | LC_ALL=C awk -F'\t' -v gating=" $gatingPredicates " '
+				NF >= 2 && index( gating, " " $1 " " ) > 0 { printf "- %s: %s\n", $1, $2 ; next ; }
+				NF >= 2 { kept[++keptTotal] = $1 ": " $2 ; }
+				END { for ( keptIndex = 1 ; keptIndex <= keptTotal ; keptIndex++ ) { printf "- reported only, this does not hold the message back: %s\n", kept[keptIndex] ; } }
+			' >&2
+			echo "NEXT: rewrite the sentences or paragraphs named above and send the message again" >&2
 		else
 			echo "⛔ ERROR: $MDSC_CMD: the output-style checker could not measure this text (rc=$styleRc), so NOTHING WAS SENT. This is NOT a clean result and NOT a style refusal: nothing is known from this call about whether the text meets the floor. An rc of 2 means --text-group named no group this checker knows." >&2
 		fi
-		printf '%s\n' "$styleFaults" >&2
+		[ -n "$gatingHit" ] || printf '%s\n' "$styleFaults" >&2
 
 		## Which predicate fired, and on what. A count would say the floor was
 		## hit and not whether it was right to hit it, and a predicate holding
@@ -83,6 +96,8 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataCommitPaths "output-style $rowKind, $styleMember" "$refusalLog"
 		fi
+		## Held back for the sender to correct: its own outcome, apart from every failure.
+		[ -z "$gatingHit" ] || return 6
 		## rc 2 means the checker could not measure at all, which is never a pass.
 		[ "$styleRc" = "1" ] && [ -z "$gatingHit" ] || return 1
 		return 0

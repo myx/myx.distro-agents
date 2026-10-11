@@ -1441,7 +1441,7 @@ rigRun --agent "$rigMember"
 rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "the run ends normally"                              "$rigRunStatus" 0
 rigAssert "two rounds were requested"                          "$rigRoundCount" 2
-## Only the Wait declaration is searched: AskUserQuestion declares a `wait` of its
+## Only the Wait declaration is searched: AskQuestion declares a `wait` of its
 ## own, so a probe over the whole body would hold for that one whatever Wait declared.
 LC_ALL=C awk 'BEGIN { RS = "\001" ; }
 	{
@@ -1461,7 +1461,7 @@ rigAssert "the declaration carries done"                       "$( rigHolds "$ri
 rigAssert "the declaration carries wait"                       "$( rigHolds "$rigScenarioDir/wait-declaration" '"wait":{' )" yes
 rigAssert "poll_interval left the declaration"                 "$( rigHolds "$rigScenarioDir/wait-declaration" 'poll_interval' )" no
 rigAssert "control: the declaration slice is the Wait one"     "$( rigHolds "$rigScenarioDir/wait-declaration" '"since_utime":{' )" yes
-rigAssert "control: and stops before the next tool"            "$( rigHolds "$rigScenarioDir/wait-declaration" '"name":"AskUserQuestion"' )" no
+rigAssert "control: and stops before the next tool"            "$( rigHolds "$rigScenarioDir/wait-declaration" '"name":"AskQuestion"' )" no
 rigAssert "the model is shown TIMEOUT as its opening"          "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: TIMEOUT (' )" yes
 rigAssert "as the one line, without the mode header"           "$( rigHolds "$rigScenarioDir/result" 'WAIT-MODE: default' )" no
 rigAssert "the session state landed in the session store"      "$( ls "$rigScenarioDir"/.local/agents/sessions/*/wait/state 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1

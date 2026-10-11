@@ -3,8 +3,11 @@
 
 ##
 ## AgentsTools.InternOpEventTrackPost.include -- --intern-op-event-track-post, the one path of
-## the tooling's own tracking posts: the posts in a spawn's event-track thread, and the
-## tooling's status notes in a session thread. Never a member's message.
+## the tooling's own tracking posts: the posts in a coworking session's event-track thread,
+## which every participant of it posts into, and the tooling's status notes in a session
+## thread. Never a member's message. --session-id names the run a post is about, the
+## participant's own id; which thread it goes to is the caller's
+## (AgentsTools.EventTrackThread.include).
 ##
 ## The text is the tooling template sh-lib/templates/event-track.post.format.md, read
 ## from this package's own sh-lib, so the template and the code that fills it are always
@@ -76,7 +79,7 @@ AgentsEventTrackPostRender(){ ## kind, member, session id, out dir, lines file, 
 		ETP_DIR="$renderDir" ETP_MEMBERS=" $( [ -z "${MDAT_SKILLSET_ROOT:-}" ] || AgentsToolsTeamMemberDirectoryText 2>/dev/null | cut -f1 | tr '\n' ' ' )" \
 		ETP_USERS="$renderUsers" ETP_WAIT_STATE="$renderWaitState" ETP_NOW="$( date +%s )" \
 		LC_ALL=C awk -f "$agentsEventTrackPostLib/AgentsSessionTranscriptFormat.awk" -f "$agentsEventTrackPostLib/AgentsSlackDate.awk" \
-		-f "$agentsEventTrackPostLib/AgentsEventTrackPostFill.awk" \
+		-f "$agentsEventTrackPostLib/AgentsToolingTemplateFill.awk" -f "$agentsEventTrackPostLib/AgentsEventTrackPostFill.awk" \
 		"$( AgentsEventTrackPostTemplate )" "$renderLines"
 }
 

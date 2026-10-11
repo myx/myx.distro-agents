@@ -1313,7 +1313,8 @@ case "$1" in
 					fi
 
 					## WHO a served call acts as, which the floor check above never asks:
-					## without an identity SendMessage, Wait, Agent and AskUserQuestion
+					## without an identity SendMessage, Wait, Agent, AskQuestion, ConfirmReadback,
+					## EscalateDecision and RequestPermission
 					## refuse on every native-client session. Offline, its own fixtures.
 					local setupServedIdentityOut="" setupServedIdentityRc=0
 					setupServedIdentityOut="$( bash "$setupTestDir/AgentsHarnessServedIdentityCheck.test.sh" 2>&1 )" || setupServedIdentityRc=$?

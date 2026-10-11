@@ -291,6 +291,13 @@ case "$1" in
 						esac
 					;;
 				esac
+				## A tool that asks is known by its table (AgentsTools.AskPost.include): each blocks
+				## on its answer as Wait does, and a second name of them, listed nowhere, is still
+				## taken wherever the floor is served.
+				mcpIsAskTool=''
+				if [ -n "$mcpServedToolsJson" ] && . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include" 2>/dev/null && AgentsToolsAskToolRow "$mcpToolName" ; then
+					mcpIsAskTool=1 ; mcpIsHarnessTool=1
+				fi
 
 				## Bash is absent from tools/list rather than present-and-refusing, so a
 				## caller only reaches this by naming it anyway; it is told where to
@@ -322,7 +329,7 @@ case "$1" in
 					## on stdout, as `ERROR: ...`, so nothing a caller needs is lost.
 					## The bound is this server's cap rather than its default, and no
 					## caller argument sets it: `timeout` belongs to Wait and to
-					## AskUserQuestion themselves. Both block by design and carry their
+					## the tools that ask themselves. They block by design and carry their
 					## own inner bound, every other tool is quick, and each request
 					## already runs in its own job -- so a long call holds its own
 					## handler and never this server. The watchdog exists only so a
@@ -334,10 +341,10 @@ case "$1" in
 					## every MDAT_MCP_PROGRESS_SECONDS (default 60) while it runs, and the bound is
 					## MDAT_MCP_WAIT_BOUND_PROGRESS (default 14400): Claude Code resets its idle
 					## cutoff on each progress frame. No token, no frame, and the safe bound holds.
-					## AskUserQuestion gets the same: it blocks on the answer through the same
+					## A tool that asks gets the same: it blocks on the answer through the same
 					## served wait bound, in rounds that can outlast the cutoff together.
 					mcpProgressToken='' ; mcpWaitBound='' ; mcpToolWatch=3600
-					if [ "Wait" = "$mcpToolName" ] || [ "AskUserQuestion" = "$mcpToolName" ] ; then
+					if [ "Wait" = "$mcpToolName" ] || [ -n "$mcpIsAskTool" ] ; then
 						mcpWaitBound="${MDAT_MCP_WAIT_BOUND:-1700}"
 						case "$mcpWaitBound" in ''|*[!0123456789]*) mcpWaitBound=1700 ;; esac
 						mcpProgressToken="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params._meta.progressToken" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mcpProgressToken=''

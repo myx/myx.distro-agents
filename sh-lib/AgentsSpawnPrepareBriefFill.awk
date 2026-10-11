@@ -1,14 +1,18 @@
 #!/usr/bin/env awk
 # Fills {{member}}/{{routine}}/{{executors}}/{{invitees}}/{{open-warnings}} slots in a
 # brief template's Skeleton block, keeping the [own]/[native] lines of BRIEF_HARNESS only.
-## Slots are replaced by position, never gsub, so & and \ in a value pass through literally.
-function fill( text, slot, value,    slotPos, done ) {
-	done = "" ;
-	while ( ( slotPos = index( text, slot ) ) > 0 ) {
-		done = done substr( text, 1, slotPos - 1 ) value ;
-		text = substr( text, slotPos + length( slot ) ) ;
-	}
-	return done text ;
+## The slots are filled by the one shared filler, loaded ahead of this file
+## (AgentsToolsToolingTemplateFill, AgentsToolingTemplateFill.awk): by position, never gsub,
+## so & and \ in a value pass through literally.
+## The value the shared filler asks for (AgentsToolingTemplateFill.awk): a slot of the brief.
+## Any other `{{name}}` is no slot of it, and stays as written.
+function ttSlot( name ) {
+	if ( name == "member" ) { return member ; }
+	if ( name == "routine" ) { return routine ; }
+	if ( name == "executors" ) { return executors ; }
+	if ( name == "invitees" ) { return invitees ; }
+	if ( name == "open-warnings" ) { return warnings ; }
+	return "{{" name "}}" ;
 }
 BEGIN {
 	member = ENVIRON["BRIEF_MEMBER"] ;
@@ -32,10 +36,6 @@ inBlock {
 	if ( line == "{{open-warnings}}" ) { print warnings ; next ; }
 	if ( ! harnessLine( line ) ) { next ; }
 	sub( /^\[(own|native)\] /, "", line ) ;
-	line = fill( line, "{{member}}", member ) ;
-	line = fill( line, "{{routine}}", routine ) ;
-	line = fill( line, "{{executors}}", executors ) ;
-	line = fill( line, "{{invitees}}", invitees ) ;
-	print line ;
+	print ttFillSlots( line, 1 ) ;
 }
 END { if ( ! done ) { exit 3 ; } ; }

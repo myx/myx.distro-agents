@@ -37,7 +37,7 @@
 # with another question's number is not printed. A reply with no number answers the
 # latest question posted above it: printed when that is this one, not printed when it is
 # another still open, and printed marked `UNMATCHED-REPLY ` when that other one was closed
-# before the reply came, so its reader returns it unclassified rather than any asker
+# before the reply came, so its reader gives it back as RETURNED rather than any asker
 # taking it. A reaction answers the message it is on, as ever. In a thread that has held
 # one question, or with no tag given, nothing here changes. Held, not open: a late reply
 # numbered for an answered question never answers the one still open.
@@ -132,9 +132,22 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 	sub(/\)\]$/, "", userList)
 	userCount = split(userList, reactUser, ",")
 	for ( userIdx = 1 ; userIdx <= userCount ; userIdx++ ) {
+		## Never an asking account (-v askingUsers): the tooling places the answer emoji as it.
+		if ( reactUser[userIdx] != "" && index( " " askingUsers " ", " " reactUser[userIdx] " " ) ) { continue ; }
 		if ( reactUser[userIdx] != "" && index( " " fromUsers " ", " " reactUser[userIdx] " " ) ) { return 1 ; }
 	}
 	return 0
+}
+
+## The reactions of one message head line that an addressee made, each printed as an answer.
+function printReactions(line,   rest, ann) {
+	rest = line
+	sub(/^[^|]*\| [^|]*\|/, "", rest)
+	while ( match(rest, /^ \[[^]]*\]/) ) {
+		ann = substr(rest, RSTART + 1, RLENGTH - 1)
+		rest = substr(rest, RSTART + RLENGTH)
+		if ( ann ~ /^\[reactions: / && reactedByAddressee(ann) ) { print "reaction on the question: " ann ; }
+	}
 }
 
 ## A message HEAD line, in the shape the formatter prints: "<ts> | <user> |<annotations> <text>".
@@ -148,13 +161,15 @@ function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
 		rootSeen = 1
 		inRoot = 1
 		inOlder = 0
-		rest = $0
-		sub(/^[^|]*\| [^|]*\|/, "", rest)
-		while ( match(rest, /^ \[[^]]*\]/) ) {
-			ann = substr(rest, RSTART + 1, RLENGTH - 1)
-			rest = substr(rest, RSTART + RLENGTH)
-			if ( ann ~ /^\[reactions: / && reactedByAddressee(ann) ) { print "reaction on the question: " ann ; }
-		}
+		printReactions($0)
+		next
+	}
+	## A question asked again, changed, in its own thread (-v alsoTs, its first post): a click
+	## there answers as one on the live version does, and its text is dropped the same way.
+	if ( alsoTs != "" && msgTs == alsoTs ) {
+		inRoot = 1
+		inOlder = 0
+		printReactions($0)
 		next
 	}
 	inRoot = 0

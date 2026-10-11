@@ -307,7 +307,9 @@ printf '2030-01-01T00:01:04Z TOOL Glob pattern=* -> ok 1B/1L 1ms\n' >> "$rigFeed
 sleep 5
 kill "$rigFeedPid" 2>/dev/null ; wait "$rigFeedPid" 2>/dev/null
 rigAssert "what is still open is posted when the poster is stopped" "$( rigPosts ):$( tail -2 "$rigSlack" | LC_ALL=C grep -c 'TOOL Glob' )" 4:1
-rigAssert "and no feed buffer is left behind once all of it is posted" "$( ls "$rigWs/.local/agents/sessions/$rigSidF" | LC_ALL=C grep -c '^feed' )" 0
+## The buffer is `feed`, and `feed.posting` while a post of it is out. `feed.open` is the
+## feed's switch (AgentsTools.EventTrackThread.include), which stays, and holds no line.
+rigAssert "and no feed buffer is left behind once all of it is posted" "$( ls "$rigWs/.local/agents/sessions/$rigSidF" | LC_ALL=C grep -c -x -e 'feed' -e 'feed\.posting' ):$( [ -s "$rigWs/.local/agents/sessions/$rigSidF/feed.open" ] && printf lines || printf empty )" "0:empty"
 rigAssert "strict order: every line the feed got was posted once, in the order it came" \
 	"$( LC_ALL=C awk '/^2030|^20[0-9][0-9]-/ { printf "%s ", $2 }' "$rigSlack" )" "VERDICT TOOL TOOL ROUND RESTART TOOL "
 rigAssert "one at a time: each send ended before the next began" "$( LC_ALL=C grep -e '^POST ' -e '^SENT$' "$rigSlack" | LC_ALL=C awk '{ printf "%s ", $1 }' )" "POST SENT POST SENT POST SENT POST SENT "

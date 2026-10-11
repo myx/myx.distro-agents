@@ -162,9 +162,13 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 	} else if (baseName == "Wait") {
 		if (index(firstText, "WAIT-RESULT: DISMISSED") == 1) ctxEvent(tsText, "DISMISSED", resultText, 4096, "", valueList)
 		else ctxEvent(tsText, "WAIT-RESULT", resultText, 4096, "", valueList)
-	} else if (baseName == "AskUserQuestion") {
+	} else if (stlAskTool(baseName, "") != "") {
 		valueList[1] = stlJsonStr(argsText, "to")
+		## The kind a tool that asks presets is its own: only the second name gives one.
 		valueList[2] = stlJsonStr(argsText, "kind")
+		if (valueList[2] == "" && baseName == "ConfirmReadback") valueList[2] = "readback"
+		if (valueList[2] == "" && baseName == "EscalateDecision") valueList[2] = "decision"
+		if (valueList[2] == "" && baseName == "RequestPermission") valueList[2] = "permission"
 		ctxEvent(tsText, "ASK", stlJsonStr(argsText, "question"), 4096, "to kind", valueList)
 		ctxEvent(tsText, "ANSWER", resultText, 4096, "", valueList)
 	} else if (baseName == "Agent") {

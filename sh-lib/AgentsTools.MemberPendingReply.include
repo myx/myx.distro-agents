@@ -3,7 +3,7 @@
 
 ##
 ## AgentsTools.MemberPendingReply.include -- the member-facing ops over the pending-reply
-## records AskUserQuestion leaves in $MMDAPP/.local/agents/pending: read them, and settle
+## records AskQuestion leaves in $MMDAPP/.local/agents/pending: read them, and settle
 ## one's own question once it needs no answer. The records themselves are written and
 ## closed by AgentsTools.InternOpPendingReply.include; nothing here writes a record except
 ## through that close, so its lock and its one-close-only rule hold here too.
@@ -146,6 +146,25 @@ case "$1" in
 				else
 					printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$settleMember" "$settleChannel:$settleThread" --from-stdin > /dev/null 2>&1 \
 						|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
+				fi
+			fi
+			## The question's post takes no answer any more: it gets the cancelled mark of its
+			## template, loses the tooling's own answer emoji, and its How to answer part is
+			## edited away. The post is the root of a question with its own thread, else the
+			## live version of one asked inside another thread. Best effort, each step.
+			local settleQts settleLive
+			settleQts="$( AgentsToolsPendingReplyField "$settleFile" question-ts )"
+			settleLive="$( AgentsToolsPendingReplyField "$settleFile" revision-ts )"
+			if [ -n "$settleChannel" ] && [ -n "$settleQts" ] ; then
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+				if [ "$settleThread" != "$settleQts" ] ; then
+					AgentsToolsAskPostClose "$settleFile" "${settleLive:-$settleQts}" cancelled edit
+				else
+					## Asked again since: the update under the root invites no click either. The root
+					## itself is edited to its own text, as it was first asked.
+					[ -z "$settleLive" ] || AgentsToolsAskPostReact "$settleMember" "$settleChannel:$settleLive" "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" remove \
+						$( AgentsToolsAskPostRecordFill reactions "$settleFile" 2>/dev/null )
+					AgentsToolsAskPostClose "$settleFile" "$settleQts" cancelled edit
 				fi
 			fi
 			printf 'WITHDRAWN %s\n' "$settleId"

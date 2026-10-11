@@ -2,14 +2,22 @@
 # ^^^ for syntax checking in the editor only
 
 ##
-## AgentsTools.EventTrackFeed.include -- a spawn's event-track Slack thread as its live feed:
-## the same lines its session transcript gets, posted as they come, each operation one line
-## by its own template (sh-lib/templates/event-track.post.format.md), never a raw line and
-## never a code block. Sourced, never run; functions only.
+## AgentsTools.EventTrackFeed.include -- a coworking session's event-track Slack thread as
+## the live feed of every participant: the same lines each one's session transcript gets,
+## posted as they come, each operation one line by its own template
+## (sh-lib/templates/event-track.post.format.md), never a raw line and never a code block.
+## Sourced, never run; functions only.
 ##
-## THE FEED: $MMDAPP/.local/agents/sessions/<sid>/feed, written only while
-## sessions/<sid>/event-track names the thread (AgentsEventTrackFeedOpen, from the spawn
-## proxy). Its writers: every transcript event and tool line (AgentsTranscriptFeed: board
+## ONE THREAD PER COWORKING SESSION, one feed and one poster per participant. Each
+## participant has its own buffer and its own poster, which posts that participant's lines,
+## and no other's, into the session's thread (its one record: AgentsTools.EventTrackThread.include).
+## So the rules below hold per poster: one open post, the order of its own lines kept, none
+## lost or delayed by another participant's. Two posters never share a post, so two
+## participants' lines never share a box; their posts interleave in the thread as they go.
+##
+## THE FEED: $MMDAPP/.local/agents/sessions/<its own id>/feed, written only while that
+## participant's feed is switched on (sessions/<its own id>/feed.open,
+## AgentsEventTrackFeedOpen, from the spawn proxy). Its writers: every transcript event and tool line (AgentsTranscriptFeed: board
 ## moves, Decisions, dismissals, MCP calls served to native clients, endings), a native
 ## spawn's stream writer, and a universal-harness session's kept context, rendered live
 ## (AgentsHarnessContextFeed: tool calls, rounds with their tokens). Every writer opens it
@@ -38,14 +46,16 @@
 agentsEventTrackFeedTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 agentsEventTrackFeedLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
-## Opens a session's feed: from now on its lines are kept for the thread.
-AgentsEventTrackFeedOpen(){ ## session id, thread
-	local openDir
+## Opens one participant's feed: from now on its lines are kept for its poster, switched on
+## by its own marker (AgentsTools.EventTrackThread.include). Only with a thread for that
+## poster to post into, the session's, which is recorded by whoever opened it and never
+## here: a participant has no thread record of its own. Called only by what starts a poster.
+AgentsEventTrackFeedOpen(){ ## the participant's own session id, the session's thread
 	[ -n "$2" ] || return 0
 	case "$1" in ''|*/*|.|..|*' '*) return 0 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 0
-	openDir="$MMDAPP/.local/agents/sessions/$1"
-	mkdir -p "$openDir" 2>/dev/null && printf '%s\n' "$2" > "$openDir/event-track" 2>/dev/null || :
+	type AgentsToolsEventTrackFeedSwitchOn > /dev/null 2>&1 || . "$agentsEventTrackFeedLib/AgentsTools.EventTrackThread.include" 2> /dev/null || return 0
+	AgentsToolsEventTrackFeedSwitchOn "$MMDAPP/.local/agents/sessions/$1"
 	return 0
 }
 
@@ -91,7 +101,7 @@ AgentsEventTrackFeedDrop(){ ## taken feed, bytes read from it
 ## just under 6 -- 4 + 6 keeps every line under 10 s from written to sent. Takes the feed
 ## whole, renamed to feed.posting, and removes that at the next poll once every line in it is
 ## read and so held here to post: the file on disk only ever holds what is not yet posted.
-AgentsEventTrackFeedRun(){ ## session id, member, thread
+AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the session's thread
 	local LC_ALL=C
 	local runFeed runTaken runOffset=0 runSize runNew runOpen="" runWas runSince=0 runPoll=4 runNow runCut runNap
 	[ -n "$3" ] && [ -n "${MMDAPP:-}" ] || return 0

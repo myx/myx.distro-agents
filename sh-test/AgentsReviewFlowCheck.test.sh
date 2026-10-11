@@ -558,6 +558,94 @@ rigOp "$rigTmp/vr2" --member-review-accept keeper-myx dispatch-20261008T1500Z-vr
 rigAssert "the routine's executor accepts"                 "$( cat "$rigTmp/vr2.rc" ):$( rigLoc dispatch-20261008T1500Z-vr )" 0:processed
 rm -f "$rigWs/.local/agents/members/keeper-myx/keeper-myx.rigcheck.routine.md"
 
+echo "-- 21. a verdict comes back at once: a child it restarted, which never ends, does not hold its caller --"
+## The caller reads the verdict's output through a pipe, as a tool call does: it sees the end
+## when the operation ends, never when the child ends. Stdin is the file named in rigPipedIn.
+rigPipedIn=/dev/null
+rigPiped(){ ## result file, seconds allowed, DistroAgentsTools.fn.sh args... -> returned | waiting
+	local pipedOut="$1" pipedLeft="$2" pipedPid ; shift 2
+	( env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" "${rigEnv[@]+"${rigEnv[@]}"}" \
+		bash -c 'cd "$MMDAPP" && exec bash "$0" "$@"' "$rigFn" "$@" < "$rigPipedIn" 2>&1 | cat > "$pipedOut" ) &
+	pipedPid=$!
+	while kill -0 "$pipedPid" 2> /dev/null && [ "$pipedLeft" -gt 0 ] ; do sleep 1 ; pipedLeft=$(( pipedLeft - 1 )) ; done
+	if kill -0 "$pipedPid" 2> /dev/null ; then
+		printf 'waiting' ; kill "$pipedPid" 2> /dev/null
+	else
+		printf 'returned'
+	fi
+}
+## The stub claude never ends: it says it started, leaves its pid, and stays.
+printf '%s\n' '#!/bin/sh' \
+	'case "$1" in --version) echo "9.9.9 (rig claude)" ; exit 0 ;; auth) echo "{\"loggedIn\":true}" ; exit 0 ;; esac' \
+	'printf "%s\n" "{\"type\":\"system\",\"subtype\":\"init\"}"' \
+	'echo "$$" > "$RIG_TMP/never.pid"' \
+	'exec sleep 600' > "$rigTmp/bin/claude"
+chmod +x "$rigTmp/bin/claude"
+rigRecord rig-old-nv spawn-succeeded "CRS00001:1700000100.000199" dispatch-20261008T1600Z-nv trk-rs-nv "cli: claude-native
+cli-setting: $rigCliSetting
+"
+rigItem review dispatch-20261008T1600Z-nv rig-old-nv
+mkdir -p "$rigTmp/.claude/projects/-rig-ws" && : > "$rigTmp/.claude/projects/-rig-ws/rig-old-nv.jsonl"
+rm -f "$rigTmp/never.pid"
+## From inside a session, as a coordinator gives a verdict: the child is then detached.
+rigEnv=( RIG_TEMPLATE="$rigTemplate" MDAT_SPAWN_SESSION_ID=rig-parent-nv MDAT_SPAWN_AGENT=magic-coordinator )
+rigAssert "a return that restarts a child which never ends comes back to its caller" \
+	"$( rigPiped "$rigTmp/nv" 40 --member-review-return magic-coordinator dispatch-20261008T1600Z-nv --message "redo the rig step" )" returned
+rigAssert "with what it did"                               "$( LC_ALL=C grep -c '^RETURN: restarted keeper-myx on dispatch-20261008T1600Z-nv, .*, resuming rig-old-nv$' "$rigTmp/nv" )" 1
+rigWaitFor 40 test -s "$rigTmp/never.pid"
+rigNever="$( cat "$rigTmp/never.pid" 2> /dev/null )"
+rigAssert "while the child it restarted is still running"  "$( kill -0 "${rigNever:-0}" 2> /dev/null && printf running || printf gone )" running
+## The other verdicts start no child: each returns at once beside a live one all the same.
+for rigVerb in accept reject follow-up ; do
+	rigLive "rig-live-nv-$rigVerb-$$"
+	rigRecord "rig-live-nv-$rigVerb-$$" spawn-started CNV00001:1700000000.000900 "dispatch-20261008T1600Z-$rigVerb"
+	rigItem review "dispatch-20261008T1600Z-$rigVerb" "rig-live-nv-$rigVerb-$$"
+	rigTranscript "rig-live-nv-$rigVerb-$$"
+done
+sleep 1
+rigAssert "accept comes back at once"                      "$( rigPiped "$rigTmp/nva" 40 --member-review-accept magic-coordinator dispatch-20261008T1600Z-accept --summary "good" ):$( rigLoc dispatch-20261008T1600Z-accept )" returned:processed
+rigAssert "reject comes back at once"                      "$( rigPiped "$rigTmp/nvr" 40 --member-review-reject magic-coordinator dispatch-20261008T1600Z-reject --message "start over" ):$( rigLoc dispatch-20261008T1600Z-reject )" returned:pending
+printf -- '---\ntype: task\n---\n\nthe one thing left\n' > "$rigTmp/nv.follow"
+rigPipedIn="$rigTmp/nv.follow"
+rigAssert "follow-up comes back at once"                   "$( rigPiped "$rigTmp/nvf" 40 --member-review-follow-up magic-coordinator dispatch-20261008T1600Z-follow-up task-20261008T1700Z-rig-nv --from-stdin ):$( rigLoc task-20261008T1700Z-rig-nv )" returned:pending
+rigPipedIn=/dev/null
+rigEnv=()
+## The child is ended now, so its own close steps finish before this check leaves. A claude
+## that ends at once and hands back stands in first: the close retries a child that ended
+## with no handback, and that retry must not be one more child that never ends.
+printf '%s\n' '#!/bin/sh' \
+	'case "$1" in --version) echo "9.9.9 (rig claude)" ; exit 0 ;; auth) echo "{\"loggedIn\":true}" ; exit 0 ;; esac' \
+	'printf "📦 SubagentHandback\n" >&2' \
+	'printf "%s\n" "{\"type\":\"system\",\"subtype\":\"init\"}" "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"rig\"}"' > "$rigTmp/bin/claude"
+[ -z "$rigNever" ] || kill "$rigNever" 2> /dev/null
+rigWaitFor 60 test -f "$rigData/board/review/dispatch-20261008T1600Z-nv.md"
+rigWaitFor 30 test ! -d "$rigSpawned/trk-rs-nv/input"
+## Its sandbox input is read-only while it stands: writable again, so this check's tree can go.
+chmod -R u+w "$rigSpawned/trk-rs-nv" 2> /dev/null || :
+
+echo "-- 22. a brief for another agent over the plain-language floor is written and reported, never held back --"
+rigLongText='one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree twentyfour twentyfive twentysix; with a semicolon.'
+rigLive rig-live-fl-$$
+rigRecord rig-live-fl-$$ spawn-started CFL00001:1700000000.000950 dispatch-20261008T1600Z-fl
+rigItem review dispatch-20261008T1600Z-fl rig-live-fl-$$
+rigTranscript rig-live-fl-$$
+sleep 1
+rigOp "$rigTmp/fl" --member-review-return magic-coordinator dispatch-20261008T1600Z-fl --message "$rigLongText"
+rigAssert "a verdict's text to a child, over the floor, is delivered" "$( cat "$rigTmp/fl.rc" ):$( LC_ALL=C grep -c 'RETURN: delivered to keeper-myx in CFL00001' "$rigTmp/fl" ):$( LC_ALL=C grep -c 'twentysix; with a semicolon' "$rigTmp/bodies" )" 0:1:1
+rigAssert "and its item carries it"                        "$( LC_ALL=C grep -c -x -F "$rigLongText" "$rigData/board/running/dispatch-20261008T1600Z-fl.md" )" 1
+rigAssert "and it is never returned as a correction"       "$( LC_ALL=C grep -c '^CORRECTION' "$rigTmp/fl" )" 0
+## The same text through the tooling's own send, and through a member's own: the first is
+## sent and reported as over the floor, the second is held back for its sender to correct.
+rigOp "$rigTmp/fl2" --intern-op-comms-slack-send-message magic-coordinator CFL00001:1700000000.000950 --identity-bot --address-to keeper-myx "$rigLongText"
+rigAssert "a send of the tooling's own, over the floor, is sent and reported" \
+	"$( cat "$rigTmp/fl2.rc" ):$( LC_ALL=C grep -c 'IT WAS WRITTEN ANYWAY' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^SENT_MESSAGE_TS=' "$rigTmp/fl2" ):$( LC_ALL=C grep -c '^CORRECTION' "$rigTmp/fl2" )" 0:1:1:0
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigOp "$rigTmp/fl3" --member-comms-slack-send-message magic-coordinator CFL00001:1700000000.000950 "$rigLongText"
+rigEnv=()
+rigAssert "a member's own send of the same text is not sent: a correction, with its own code" \
+	"$( cat "$rigTmp/fl3.rc" ):$( LC_ALL=C grep -c '^CORRECTION: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- word-cap: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c '^- semicolon: ' "$rigTmp/fl3" ):$( LC_ALL=C grep -c -x 'NEXT: rewrite the sentences or paragraphs named above and send the message again' "$rigTmp/fl3" ):$( rigPosts )" 6:1:1:1:1:0
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REVIEW FLOW CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi

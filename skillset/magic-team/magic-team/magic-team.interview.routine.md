@@ -70,7 +70,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - prefer small steps gathering exact wording bit by bit over showing the whole draft.
 6. **inherit-check-restart**: on any resume, apply `magic-team.negotiations.md`'s "Check-restart procedure". A nudge restates the current open topic.
 7. **collect-dont-converge**: ask small, minimal-assumption questions, one at a time; never bundle decisions. Once a point is clear and agreed, move on. Rules:
-   - in an interactive chat, small structured questions (`AskUserQuestion`) are the default, one topic each.
+   - in an interactive chat, small structured questions (`AskQuestion`) are the default, one topic each.
    - **open-before-closed**: a design point new to this session opens with one open question in the party's own terms. A closed option list follows in a later round, once that framing is on record. Every option list carries a literal `none of these — my own:` choice.
    - switch from asking to proposing only once a piece is verified settled: a plain one-line restatement the party did not correct.
    - a piece not yet settled stays in full live context, never summarised.

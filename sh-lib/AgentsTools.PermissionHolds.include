@@ -33,7 +33,7 @@
 ##
 
 ## THE TEAM FLOOR'S TOOLS: the one place they are named.
-agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
+agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "

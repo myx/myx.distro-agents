@@ -75,13 +75,13 @@ function flushElement( elementText, isListed,    sentenceList, sentenceTotal, se
 ## One line of the document, after any frontmatter has been settled. Called from
 ## the main rule, and again from END for lines held back by a frontmatter block
 ## that turned out never to close.
-function scanLine( rawLine,    lineText ) {
+function scanLine( rawLine,    lineText, itemText ) {
 	## A three-backtick line toggles the fence, and everything inside it is code.
 	if ( substr( rawLine, 1, 3 ) == "```" ) { inFence = ! inFence ; return ; }
 	if ( inFence ) { return ; }
 	## A quoted span carries text the writer did not write, so its length is the
 	## source's fact rather than the writer's choice.
-	if ( rawLine ~ /^[[:space:]]*>/ ) { return ; }
+	if ( rawLine ~ /^[[:space:]]*(>|&gt;)/ ) { return ; }
 	lineText = rawLine ;
 	gsub( /`[^`]*`/, " ", lineText ) ;
 	if ( lineText ~ /^[[:space:]]*$/ ) {
@@ -92,6 +92,12 @@ function scanLine( rawLine,    lineText ) {
 	if ( lineText ~ /^[[:space:]]*([-*]|[0-9]+[.)])[[:space:]]/ ) {
 		flushElement( paraText, 0 ) ;
 		paraText = "" ;
+		## An item that is one bare path, name or identifier is no sentence of the writer's:
+		## nothing in it can be rewritten, so nothing in it is measured.
+		itemText = lineText ;
+		sub( /^[[:space:]]*([-*]|[0-9]+[.)])[[:space:]]+/, "", itemText ) ;
+		sub( /[[:space:]]+$/, "", itemText ) ;
+		if ( itemText !~ /[[:space:]]/ ) { return ; }
 		flushElement( lineText, 1 ) ;
 		return ;
 	}
@@ -136,7 +142,10 @@ BEGIN {
 		printf "  the distinct-points conversion test -- a count throws away the\n" ;
 		printf "    word 'distinct', and no shell recovers it\n" ;
 		printf "NOT PROSE, and skipped: a leading frontmatter block that actually\n" ;
-		printf "  closes, a fenced code block, an inline code span, a quoted line.\n" ;
+		printf "  closes, a fenced code block, an inline code span, a quoted line\n" ;
+		printf "  (starting with > or &gt;), and a list item that is one bare path,\n" ;
+		printf "  name or identifier. Only the writer's own words are measured: a\n" ;
+		printf "  tool that builds a message around them hands over those words alone.\n" ;
 		printf "KNOWN AND NOT FIXED -- sentence-cap cannot tell a prose paragraph\n" ;
 		printf "  from a block written one fact per line. Consecutive non-blank\n" ;
 		printf "  lines are joined into one paragraph, so a compact status post\n" ;
@@ -149,13 +158,13 @@ BEGIN {
 		printf "KNOWN AND NOT FIXED -- a long sentence quoted from somewhere else is\n" ;
 		printf "  measured as the writer's own unless it is marked as a quote. The\n" ;
 		printf "  carried-text exclusion reads the markup, so an unmarked quotation\n" ;
-		printf "  of an over-long sentence is refused where word-cap gates. Mark it\n" ;
-		printf "  as a quote and it is skipped.\n" ;
-		printf "KNOWN AND NOT FIXED -- a refused send cannot be told from a send\n" ;
-		printf "  that did nothing. The gate refuses on word-cap with no warning\n" ;
-		printf "  and no name for the sentence it refused. A caller not reading\n" ;
-		printf "  the exit path closely takes a refusal for a delivery. Fixing it\n" ;
-		printf "  is a change in the gate, not in this program.\n" ;
+		printf "  of an over-long sentence is held back where word-cap gates. Mark\n" ;
+		printf "  it as a quote and it is skipped.\n" ;
+		printf "A MESSAGE OVER A LIMIT IS A CORRECTION, never a refusal or a denial.\n" ;
+		printf "  The gate does not send it and says so with the word CORRECTION,\n" ;
+		printf "  one line for each fault and a NEXT line. The sender rewrites what\n" ;
+		printf "  is named and sends again, as many times as it takes. Every\n" ;
+		printf "  attempt is measured the same way.\n" ;
 		printf "KNOWN AND NOT FIXED -- a parenthetical that is a whole sentence is\n" ;
 		printf "  not a boundary when it opens a '- ' or '* ' list item. After a\n" ;
 		printf "  '1.' marker it is, but only because that marker's own full stop\n" ;

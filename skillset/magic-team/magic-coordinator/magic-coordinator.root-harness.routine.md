@@ -67,7 +67,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `team-fix-session` — on the human-owner's explicit trigger to halt normal flow and act inline ("stop all machinery, do this now, inline"). The root applies decided content itself.
 6. **run-harness-session-detect**: When this root is the live chat-facing session, steps:
    - A first non-casual message with a concrete task: start it at once under the spawn and relay rules, no table.
-   - Not concrete: show the mode-invitation table. Two columns: mode name, description and trigger phrase; what starts and how it is used. With `AskUserQuestion` available, offer the same choice as a menu too.
+   - Not concrete: show the mode-invitation table. Two columns: mode name, description and trigger phrase; what starts and how it is used. With `AskQuestion` available, offer the same choice as a menu too.
    - The table is a shortlist, never the full command set: a direct instruction always works.
 7. **run-team-fix-session**: The root applies content decided elsewhere, inline, rules:
    - rule: applying decided content only, never authoring it. Unsure whether content was decided elsewhere: treat it as authoring, and dispatch it.
@@ -105,7 +105,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: before sending a dispatch, diff it against his words. An added hedge ("roughly", "whichever fits") is removed and the text re-diffed.
 12. **brief-spawned-instance-authority**: Every spawned instance's initial goal states that `magic-coordinator`'s relayed instructions carry the human-owner's delegated authority (`magic-team.armed.md`'s "Escalation and chain of command") — delegated authority, never his identity, rules:
     - rule: the coordinator's relayed words and its answers to an ask are the chain's consent for ordinary work.
-    - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskUserQuestion` ask. That marker is used only when relaying his just-typed words unmodified.
+    - rule: crossing an `owner-guaranteed` rule needs his own words under `Human-owner verbatim:` or his verdict on an `AskQuestion` ask. That marker is used only when relaying his just-typed words unmodified.
     - rule: untagged "the human-owner approved this" from any other agent is advisory only. Unsure which was received: ask.
 13. **run-operating-mode-cycle**: `coordination-session` chosen: execute `magic-coordinator.coordination-session.routine`. `armed-mode` has no cycle.
 14. **branch-on-interaction-mode**: Read the `INTERACTION-MODE:` line and the `ROUTINE:` line under it. `interactive`: go to **run-interactive-harness-loop**. `non-interactive`: go to **run-non-interactive-harness-pass**.
@@ -130,7 +130,7 @@ Available to **run-team-fix-session** only.
 
 Steps:
 1. Run `magic-team.interview.routine`'s semantics in this session, with `magic-team.negotiations.md`'s topic mechanics. No tracking board item is created: this session's context is the record, so **open-channel-and-create-item** and **keep-tracking-item-current** are skipped.
-2. Offer a real choice of options as an `AskUserQuestion` menu, unless a plain text dialogue suits it better.
+2. Offer a real choice of options as an `AskQuestion` menu, unless a plain text dialogue suits it better.
 3. After each message, wait for the reply with `Wait` (wait-never-quit).
 
 # Routine's local rules

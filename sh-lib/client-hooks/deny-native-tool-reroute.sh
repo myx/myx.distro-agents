@@ -70,7 +70,7 @@ Bash)
 ;;
 
 AskUserQuestion)
-	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__AskUserQuestion -- it asks the person over Slack and records the question as a pending reply, so an answer can resume this work after this session has gone, which a question asked in this terminal cannot"
+	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__AskQuestion (mcp__myx_distro__ConfirmReadback for a readback, mcp__myx_distro__EscalateDecision for a decision, mcp__myx_distro__RequestPermission for a permission) -- it asks the person over Slack and records the question as a pending reply, so an answer can resume this work after this session has gone, which a question asked in this terminal cannot"
 ;;
 
 Read)
