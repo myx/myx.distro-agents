@@ -32,6 +32,7 @@ session: coworking
 ## Goals
 
 - Give genuinely shared work a named shape: members react to each other in real time on the same task, with `magic-coordinator` keeping the shared goal on track.
+- Anchor the session to the workspace it is started in, its default for everything in it (`magic-team.armed.md`'s "Workspace"); every participant talks in its one session thread, and its automatic trace runs in its own tracking-thread in `event-track`.
 - Own the opening group (**session-start**) and closing group (**close-session**) that every session runs, and the session-type taxonomy they key off.
 
 ## Scope

@@ -28,17 +28,28 @@ function ttRead( file,    line, section, heading, inBlock, key, lineCount, got )
 	return ( got == 0 ) ;
 }
 
+## How many backticks a template's own text holds: what opens and closes its code spans.
+function ttTickCount( text ) {
+	return gsub( /`/, "`", text ) ;
+}
+
 ## The slots of a text replaced by position, never gsub, so & and \ in a value pass through.
 ## Sets ttSlotsEmpty for this text. An empty slot reads as nothing, never a placeholder;
 ## outside a group it is required: counted in ttRequiredEmpty, the first one named in
-## ttRequiredName.
+## ttRequiredName. A value is given as it is and is never escaped here: while ttSlot( name )
+## runs, ttInCode says whether that slot stands inside a code span of the template (an odd
+## count of the template's own backticks before it, ttTicks, which ttFill starts at 0), so
+## the program that renders for a medium can escape the value for where it lands.
 function ttFillSlots( text, outside,    done, rest, openAt, closeAt, name, value ) {
 	done = "" ; rest = text ; ttSlotsEmpty = 0 ;
 	while ( ( openAt = index( rest, "{{" ) ) > 0 ) {
 		closeAt = index( substr( rest, openAt + 2 ), "}}" ) ;
 		if ( closeAt == 0 ) { break ; }
 		name = substr( rest, openAt + 2, closeAt - 1 ) ;
+		ttTicks += ttTickCount( substr( rest, 1, openAt - 1 ) ) ;
+		ttInCode = ttTicks % 2 ;
 		value = ttSlot( name ) ;
+		ttInCode = 0 ;
 		if ( value == "" ) {
 			ttSlotsEmpty++ ;
 			if ( outside && ! ttRequiredEmpty++ ) { ttRequiredName = name ; }
@@ -46,19 +57,23 @@ function ttFillSlots( text, outside,    done, rest, openAt, closeAt, name, value
 		done = done substr( rest, 1, openAt - 1 ) value ;
 		rest = substr( rest, openAt + closeAt + 3 ) ;
 	}
+	ttTicks += ttTickCount( rest ) ;
 	return done rest ;
 }
 
 ## A block filled: `[[ … ]]` kept only when every slot in it has a value. A value is never
-## read again for marks, so a `{{` or a `[[` in it passes through as written.
-function ttFill( text,    done, rest, openAt, closeAt, inner ) {
-	done = "" ; rest = text ; ttRequiredEmpty = 0 ; ttRequiredName = "" ;
+## read again for marks, so a `{{` or a `[[` in it passes through as written. The backticks
+## of a group that is left out are not counted: its code spans are not in the text.
+function ttFill( text,    done, rest, openAt, closeAt, inner, ticksBefore ) {
+	done = "" ; rest = text ; ttRequiredEmpty = 0 ; ttRequiredName = "" ; ttTicks = 0 ;
 	while ( ( openAt = index( rest, "[[" ) ) > 0 ) {
 		closeAt = index( substr( rest, openAt + 2 ), "]]" ) ;
 		if ( closeAt == 0 ) { break ; }
 		done = done ttFillSlots( substr( rest, 1, openAt - 1 ), 1 ) ;
+		ticksBefore = ttTicks ;
 		inner = ttFillSlots( substr( rest, openAt + 2, closeAt - 1 ), 0 ) ;
 		if ( ttSlotsEmpty == 0 ) { done = done inner ; }
+		else { ttTicks = ticksBefore ; }
 		rest = substr( rest, openAt + closeAt + 3 ) ;
 	}
 	return done ttFillSlots( rest, 1 ) ;

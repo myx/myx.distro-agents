@@ -236,9 +236,9 @@ Work is done in a coworking session with the members its subject needs. The exce
 
 The tool family has other clients. No caller here is not evidence an operation is unneeded; an incomplete operation family is a defect; parameters are never narrowed to the local caller.
 
-## The team works in one workspace; the others are clients
+## A workspace outside the team's own source tree is edited only under a grant
 
-Rule: `magic-team.armed.md`'s "Workspace". A board item naming files in a client workspace is surfaced and asked about, never edited.
+Rule: `magic-team.armed.md`'s "Workspace". A board item naming files there is surfaced and asked about, never edited.
 
 ## A rule statement stays a rule statement
 

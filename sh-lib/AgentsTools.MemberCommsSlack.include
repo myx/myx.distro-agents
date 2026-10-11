@@ -2556,7 +2556,9 @@ blocks|verbatim|caller|stdin file"
 					break
 				;;
 				*'"error":"not_in_channel"'*|*'"error":"channel_not_found"'*|*'"error":"is_archived"'*)
-					permanentVerdict="the conversation cannot be reached under $sendIdentity identity"
+					## Said with the Slack this send used and the workspace that came from: a
+					## conversation of another Slack is not found here, which is no missing bot.
+					permanentVerdict="the conversation cannot be reached under $sendIdentity identity. This send used $( AgentsToolsSlackWhere "$memberName" ), and a conversation of another Slack does not exist there"
 					echo "# $MDSC_CMD --member-comms-slack-send-message: permanent verdict under $sendIdentity identity and no recovery applies -- not retried -- $response" >&2
 					break
 				;;

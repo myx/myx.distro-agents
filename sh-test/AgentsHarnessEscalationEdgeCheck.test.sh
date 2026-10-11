@@ -132,8 +132,8 @@ rigTickTarget="$rigScenarioDir/ws/OUT/a\`b"
 rigTool rig-tick Write "{\"path\":\"$rigTickTarget\",\"content\":\"x\"}" "$rigScenarioDir/out"
 rigTickId="$( rigRefusalId "$rigScenarioDir/out" )"
 rigAssert "the refusal is posted"                      "$( rigPostsWith "$rigTickId" )" 1
-rigAssert "the post carries the target escaped"        "$( rigPostsWith 'a%60b' )" 1
-rigAssert "and no raw backtick of it"                  "$( rigPostsWith 'a`b' )" 0
+rigAssert "the post carries the target with U+02CB for its backtick, its code span closing right after it, and no %60" "$( rigPostsWith 'aˋb`\nmember: ' ):$( rigPostsWith 'a%60b' )" 1:0
+rigAssert "and on the plain line of its reason the same target reads as written, its backtick a backtick" "$( rigPostsWith 'OUT/a`b"' )" 1
 rigAssert "the stored record keeps the target as requested" \
 	"$( LC_ALL=C sed -n 's/^target: //p' "$rigScenarioDir/ws/.local/agents/sessions/rig-tick/$rigTickId.md" 2>/dev/null )" "$rigTickTarget"
 

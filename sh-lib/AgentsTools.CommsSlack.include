@@ -369,6 +369,16 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 	[ -z "$resolvedDomain" ] || printf '%s\n' "$resolvedDomain"
 }
 
+## Which Slack a call of this member used, and where that came from, in words for an error:
+## the Slack of the workspace the operation runs in, which is the one it was run from (for a
+## client-* member, the workspace that holds the client). Said where a conversation is not
+## found, so that is never read as a bot missing from a channel.
+AgentsToolsSlackWhere(){ ## acting member
+	local whereDomain=""
+	whereDomain="$( AgentsToolsResolveSlackWorkspaceDomain "${1:-}" 2> /dev/null )" || whereDomain=""
+	printf 'the Slack %s, by the settings of the workspace %s (the workspace this operation runs in)' "${whereDomain:-with no domain configured}" "${MMDAPP:-<unknown>}"
+}
+
 ## The one emitter for the X-Request-Detail header, for every Slack call site.
 ## Writes to stderr only, never touches rc. Text form only, never JSON.
 ##   $1  client-member -- the acting member, or <none>
@@ -1303,6 +1313,13 @@ case "$1" in
 				fi
 				responseBodyState="in-diagnostic"
 				failMsg="$apiMethod returned ok:false under $sendIdentity identity: $response"
+				## A conversation that is not found may simply be one of another Slack: said with
+				## the Slack this call used and the workspace that came from.
+				case "$response" in
+					*'"error":"channel_not_found"'*|*'"error":"not_in_channel"'*)
+						failMsg="$failMsg -- THIS CALL USED $( AgentsToolsSlackWhere "$callerMember" ). A conversation of another Slack does not exist there: check which Slack the target belongs to before reading this as a bot that is not in the channel."
+					;;
+				esac
 				break
 			fi
 			break

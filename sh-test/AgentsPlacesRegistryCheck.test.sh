@@ -205,7 +205,7 @@ rigRow main-rig ws-main source-symlink "$rigTmp/copies/main-rig"
 rigRow far-rig ws-three source-symlink "$rigTmp/copies/far-rig"
 rigRow lost-rig ws-nowhere source-symlink "$rigTmp/copies/far-rig"
 rigAssert "the resolver gate reads the new registries: a member of a registered workspace is reached" "$( rigResolve ws-main far-rig )" "T/ws-three rc=0"
-rigAssert "and a member of no known workspace is refused, named" "$( rigResolve ws-main lost-rig )" "⛔ ERROR: RigCmd --rig-op: member 'lost-rig' is in the team members index but is present in no tracked workspace -- nothing was done rc=1"
+rigAssert "and a member of no known workspace is refused, named" "$( rigResolve ws-main lost-rig )" "⛔ ERROR: RigCmd --rig-op: member 'lost-rig' is in the team members index but is present in no tracked workspace -- nothing was done. It was asked for from T/ws-main, where it is not set up, and its own workspace was looked for among the tracked workspaces of this machine (T/home/.agents/magic-team), which hold none of: T/ws-nowhere rc=1"
 rigAssert "the coordinator's list: name, kind, ceiling, path, presence" \
 	"$( printf '%s' "$rigMainList" | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -e '^ws-main:' -e '^gone:' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "gone:directory:read-write:/no/such/rig/path:absent ws-main:workspace:read-write:T/ws-main:present "
 

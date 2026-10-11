@@ -18,6 +18,7 @@ The one copy of this policy. Each `client-*` and `magic-coordinator` cite it.
 - A `client-*` is our team's avatar inside one external organisation: an extension of us, acting with our team's authority inside their systems. Inside the organisation it presents as the persona of Magic Vane, distinct from the human-owner.
 - It is private: never publicly shared, never visible to the organisation as anything but that persona.
 - It is the channel; a `partner-*` is the subject (`magic-team.authority.partner.contract.md`).
+- It reaches its own team through the ordinary operations every member uses, and the organisation's own systems only through its own marked operations. Which side a call touches is always explicit; neither is reached by accident.
 - **Prefix grant**: the `--member-*` and `--client-*` namespaces.
 
 ## The policy

@@ -40,7 +40,43 @@ AgentsToolsWorkspaceSwitch(){ ## workspace path
 	fi
 }
 
-## The workspace a member operation runs in, from the machine-wide member directory, the
+## THE THREE WORKSPACES OF A RUN. EXECUTES: the workspace an operation is run from -- its
+## team data and board, its temp, its sessions and sandboxes, its comms settings. PAYS: the
+## same one -- the CLI services and their credentials a member is spawned with. THE MEMBER'S:
+## the workspace the member is set up in, which it brings two things from, its skillset
+## folder and its default access, the standing access that is its own there. So no
+## operation is carried to another workspace as a whole: a member set up only elsewhere on
+## this machine is invited here, and only its skillset source follows it. (A client-*
+## member is the one exception, kept as it was until it is ruled on: its whole operation
+## still runs in the workspace that holds it, AgentsToolsMemberWorkspaceResolve below.)
+
+## The member's part of one operation: prints `<skillset root><TAB><member's workspace>` for
+## a member set up only in another workspace on this machine, and nothing for one set up
+## here, or unknown to the machine's members index, whose operation reads this workspace's
+## as it always has. rc 1, with one message naming the member, the workspace we run from,
+## what is missing and where it was looked for, only when the member's part cannot be
+## brought: its workspace is not on this machine, or its skillset cannot be read. The
+## invited member works from the member set view of the workspace it is set up in, whole,
+## so that view must hold the team's own folder (magic-team) too: checked here, once, so no
+## later reader of the team's files meets a half view and goes on with an empty result.
+AgentsToolsMemberSkillsetBring(){ ## member, operation
+	local bringWorkspace bringRoot
+	bringWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "$2" )" || return 1
+	[ -n "$bringWorkspace" ] || return 0
+	## a root not set yet reads as this workspace's own view, which is what it is then set to
+	bringRoot="$( MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-${MMDAPP%/}/.local/agents/members}" ; AgentsToolsWorkspaceSkillsetRoot "$bringWorkspace" )"
+	if [ ! -d "$bringRoot/$1" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $2: member '$1' cannot be brought into the workspace this operation runs from, ${MMDAPP%/}: its skillset cannot be read -- nothing was done. Looked for its member directory at $bringRoot/$1, in $bringWorkspace, the workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) says it is set up in." >&2
+		return 1
+	fi
+	if [ ! -d "$bringRoot/magic-team" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD $2: member '$1' cannot be brought into the workspace this operation runs from, ${MMDAPP%/}: the team's own folder cannot be read where its skillset is -- nothing was done. Looked for the team's directory at $bringRoot/magic-team, in $bringWorkspace, the workspace the machine's members index (${HOME:-}/.agents/magic-team/members.registry) says the member is set up in." >&2
+		return 1
+	fi
+	printf '%s\t%s\n' "$bringRoot" "$bringWorkspace"
+}
+
+## The workspace a member is set up in, from the machine-wide member directory, the
 ## member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
 ## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, AgentsTools.Places.include).
 ## Order: the current workspace when the member is there, else the member's home, else the
@@ -96,11 +132,11 @@ AgentsToolsMemberWorkspaceResolve(){ ## member, operation
 		[ -z "$resolvePath" ] || break
 	done
 	if [ -z "$resolvePath" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $resolveOp: member '$resolveMember' is in the team members index but is present in no tracked workspace -- nothing was done" >&2
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: member '$resolveMember' is in the team members index but is present in no tracked workspace -- nothing was done. It was asked for from ${MMDAPP%/}, where it is not set up, and its own workspace was looked for among the tracked workspaces of this machine (${HOME:-}/.agents/magic-team), which hold none of: $( printf '%s\n' "$resolveRows" | LC_ALL=C awk -F'\t' 'NF { printf "%s%s", sep, $1 ; sep = ", " ; }' )" >&2
 		return 1
 	fi
 	if [ ! -d "$resolvePath" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD $resolveOp: the workspace of member '$resolveMember' is not present on this machine: $resolvePath -- nothing was done" >&2
+		echo "⛔ ERROR: $MDSC_CMD $resolveOp: the workspace of member '$resolveMember' is not present on this machine: $resolvePath -- nothing was done. It was asked for from ${MMDAPP%/}, where it is not set up, and the machine's members index says its skillset and its own access are in that workspace, which is missing." >&2
 		return 1
 	fi
 	[ "$( cd "$resolvePath" && pwd -P )" != "$( cd "$MMDAPP" && pwd -P )" ] || return 0

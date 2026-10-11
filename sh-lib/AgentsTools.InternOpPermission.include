@@ -583,7 +583,7 @@ AgentsToolsPermissionSetPost(){ ## asker, item, scope, session id (may be empty)
 ## (AgentsToolsEscalationApply) -- it writes only what is not there yet: a participant keeps
 ## the set record it has, a grant line that stands is not written again, the item's allows
 ## take no entry twice, and its Decisions no second line. A participant's grants are said
-## in the tracking thread only by the run that wrote one of them.
+## in the tracking-thread only by the run that wrote one of them.
 AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 	local MDSC_CMD='DistroAgentsTools permission-set-apply'
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ItemDecisions.include"
@@ -661,7 +661,7 @@ AgentsToolsPermissionSetApply(){ ## <pending-id> <approver>
 					|| { echo "$MDSC_CMD: ⛔ ERROR: can't write the set grants for $applySetPart" >&2 ; set +e ; return 1 ; }
 				applySetWrote=$(( applySetWrote + 1 ))
 			done <<< "$applySetEntries"
-			## The set's grants for this participant, said once in the session's tracking thread.
+			## The set's grants for this participant, said once in the session's tracking-thread.
 			[ "$applySetWrote" -gt 0 ] || continue
 			AgentsToolsPermissionAnswerPost grant "$applySetPart" "$applySetDir" "$applySetSession" "$applySetRef" "" "" "$applySetBy" \
 				"set, $applySetScope$( [ "$applySetScope" != "task" ] || printf ' %s' "$applySetItem" )" "" \
@@ -939,7 +939,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: can't write the grant for $grantRefusal, so nothing is granted" >&2
 			set +e ; return 1
 		}
-		## Said where its refusal was, in the session's tracking thread: one post per grant written.
+		## Said where its refusal was, in the session's tracking-thread: one post per grant written.
 		local grantScope="$grantKind"
 		case "$grantKind" in
 			session) grantScope="this session" ;;
@@ -1311,7 +1311,7 @@ case "$1" in
 		}
 		## Every session index joining this store is rebuilt at its next check.
 		AgentsToolsGrantsStoreTouch "$passDir"
-		## A grant written by passing one on is said in that session's tracking thread too.
+		## A grant written by passing one on is said in that session's tracking-thread too.
 		AgentsToolsPermissionAnswerPost grant "$passTo" "$passDir" "${passDir##*/}" "$passRef" "$passTool" "$passTarget" "$passBy" "$passKind, passed on"
 		printf 'GRANT: %s %s\n' "$passKind" "$passRef"
 		return 0

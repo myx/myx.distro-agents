@@ -75,10 +75,12 @@ A term in `` `backticks` `` carries the meaning below. The list is partial; more
 - `quorum-all-agree` — every member of the named group agrees. The default meaning of "quorum".
 - `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects; silence is "not yet spoken".
 - `routing-origin` — a message's verified first source. `routing-relay` — a hop it passed through. `routing-target` — who it is for.
+- `session-parent` — the send target naming the session that started a member, used instead of its channel id.
 - `session thread` — the `slack-magic-team` thread the tooling opens for a session. Sends, asks and waits default to it.
 - `skillset file` — an instruction-layer team file: rules, contracts, templates. Board, inbox, vault and audit content is data, not skillset.
 - `skillset reader` — the one tool any skillset file is read with: `mcp__myx_distro__Skill` in a native client, `Skill` in the team harness.
 - `slack-magic-team`, `slack-human-owner`, `slack-event-track`, `slack-event-alert` — the team channel, the human-owner's direct conversation, the event-trace channel, the alert channel. Send targets `magic-team`, `human-owner`, `event-track`, `event-alert`.
+- `tracking-thread` — the `event-track` thread the tooling opens for a session, holding its automatic trace. Distinct from the session thread, where participants talk.
 - `vault-item` — a document under `vault/`: verbatim documents and facts, `verbatim-*`.
 - `verbatim-intent` — a fixed statement of purpose a later edit is checked against. `verbatim-benchmark` — a fixed concrete case that tests an intent. Neither is paraphrased once written.
 
@@ -199,6 +201,7 @@ Tools and channels:
 - On becoming armed, a member runs `--member-work-session-input-scan <own-name>` before anything else.
 - **Every state-changing action is announced in the session thread**: one short post per action, one summary at the close. No reply is waited for. Sends default to the session thread; a session with none posts a new `magic-team` thread and carries on.
 - A permission claim names the mechanism it is scoped to. Nothing denies a prescribed tooling call; a claimed block is checked before it is relayed.
+- A member addressing the session that spawned it uses `session-parent`, never that session's raw channel id.
 - Private per-session memory is not team knowledge. Findings go where "Knowledge destinations" says.
 
 # Duties: three kinds, plus reflection
@@ -294,9 +297,13 @@ A board item is cited in prose as `board://<state>/<item-filename>`; a tool take
 
 - A workspace or directory is named, never pathed, in any skillset file. A path comes only from `--member-directory-path <name>[/<relative>]` at the point of use.
 - Each such place has a ceiling, `read-only` or `read-write` (`--member-directory-list`). Registering a place grants nothing, and nothing is written in a read-only place, whatever the grant. A permission target may name a place, `@<name>[:<glob>]`.
-- The team on a machine is the members published by the tracked workspaces. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
+- A machine has several workspaces and one team: the team on it is the members published by its tracked workspaces, whichever one each is set up in. Nothing asks whether two workspaces are the same team; only where a member is set up decides it. A member whose workspace is not mounted is absent, not broken: nothing is repaired or reported.
 - Where that is recorded: the machine-wide directory `~/.agents/magic-team/` -- `members.registry` (each member a workspace publishes, with that workspace's root and the member's folder) and `directories.registry` (each registered place, by name, with the workspace registering it; those workspaces are the tracked ones). A workspace's own data is in its `.local/agents/`: `members.index` lists its own members only. A member of another workspace has no folder there and none is created: it is found through `members.registry`. `~/.claude/skills`, `~/.agents/skills` and `~/.copilot/skills` are link folders generated for the vendor clients and are never a source.
-- The team edits inside the workspace holding its own source tree. Another workspace or directory is a client: read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
+- Three roles fall on a session's workspace. It **executes**: its team data and board, its temp, its sessions and sandboxes, its comms settings, and every outside system — Slack, email, Jira, Confluence, the publishing backend. It **pays**: the CLI service and credentials a member is spawned with; the executing workspace by default. Each participating member brings **its own**: the workspace it is set up in, which supplies its skillset folder and its own standing access.
+- On a single-workspace machine the three roles fall on that one workspace. A member behaves differently on two such machines only because the workspace configured there differs.
+- A member set up only in another workspace on this machine is invited into a session run from this one: it is spawned here like any other member, works on this workspace's team data, Slack and billing, and reads its own skillset from the workspace it is set up in. A `client-*` member is the exception: its whole operation, not only its skillset, runs in the workspace that holds it.
+- Settings come from the workspace the session runs from. A member's own setting missing there is taken from the workspace that member is set up in, on the same machine. Team-wide settings — the team Slack, the spawn settings, the board — are never borrowed from another workspace. A missing setting is said, never papered over.
+- The team edits inside the workspace holding its own source tree. A workspace or directory outside it is read, and edited only under a write grant on it. A member's own skillset files are the exception, at the path its folder resolves to.
 - A member never edits tooling source or `$MMDAPP/.local/` outside `.local/temp/`. A missing capability goes to `magic-coordinator` by `post-inquiry`.
 
 # Domain knowledge: team routines

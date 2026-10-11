@@ -150,6 +150,18 @@ rigAssert "the human-owner's account approves anything"    "$( rigGrantOpen URIG
 rigIdHuman2="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/h2.txt" )"
 rigAssert "and so does human-owner by name"                "$( rigGrantOpen human-owner rig-tester "$rigIdHuman2" once )" "0 GRANT:"
 
+echo "-- allow for this session is that run's own: no other participant of the coworking session is let through --"
+rigIdSession="$( rigRefusal magic-tester rig-tester Write "$rigWs/ELSE/s.txt" )"
+rigAssert "a session grant for one participant's refused call"  "$( rigGrantOpen human-owner rig-tester "$rigIdSession" session )" "0 GRANT:"
+## A second run of the same member in the same coworking session, for this block only.
+rigSpawnRecord rig-tester-2 magic-tester rig-coord
+rigAssert "admits that participant's own call"              "$( rigGrantRead magic-tester rig-tester Write "$rigWs/ELSE/s.txt" )" session
+rigAssert "and not the same call of another participant"    "$( rigGrantRead magic-developer rig-dev Write "$rigWs/ELSE/s.txt" )" ""
+rigAssert "nor of another run of the same member in that session" "$( rigGrantRead magic-tester rig-tester-2 Write "$rigWs/ELSE/s.txt" )" ""
+rigAssert "it is kept in that run's own store, never in the coworking session's" \
+	"$( cat "$rigWs/.local/agents/sessions/rig-tester/grants" 2>/dev/null | LC_ALL=C grep -c -F -- "$rigIdSession" ):$( cat "$rigWs/.local/agents/sessions/rig-cow/grants" 2>/dev/null | LC_ALL=C grep -c -F -- "$rigIdSession" )" "1:0"
+rm -f "$rigWs/.local/agents/spawned/rig-cow/rig-tester-2.md"
+
 echo "-- rule 1 on the escalation answer: routed to a holder participant --"
 rigIdR="$( rigRefusal magic-tester rig-tester Write "$rigWs/DEV/r.txt" )"
 rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdR" )"
@@ -339,7 +351,7 @@ rigAssert "a served call with no member keeps every row"   "$( rigHarnessRead ""
 rigReadRefusal="$( LC_ALL=C grep -l -x -F "target: $rigWs/DEV/r.txt" "$rigWs/.local/agents/sessions/rig-harness"/refusal-*.md 2>/dev/null | head -1 )"
 rigAssert "a refused read is recorded in the session's store, as a write is" "$( rigField "$rigReadRefusal" tool ):$( rigField "$rigReadRefusal" owner )" "Read:magic-tester"
 
-echo "-- what became of a permission is said in the session's tracking thread: a pass, a set applied, a set denied --"
+echo "-- what became of a permission is said in the session's tracking-thread: a pass, a set applied, a set denied --"
 ## Event-track is configured from here on, so nothing above posts to it. The posts since a
 ## mark that hold every text given, counted.
 printf 'SLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\n' >> "$rigWs/.local/.agents/magic-team.agent.env"
@@ -367,7 +379,7 @@ rigAssert "a pass is written"                              "$( LC_ALL=C sed -n '
 rigAssert "and said in one grant post: the call, who passed it, to whom, how far" \
 	"$( rigTrackPosts '✅ permission granted' 'tool: `Write`' "target: \`$rigWs/DEV/track/**\`" 'granted by: magic-developer · member: magic-tester · scope: session, passed on' ):$( rigTrackPosts '✅ permission granted' )" "1:1"
 rigTrackThread="$( cat "$rigWs/.local/agents/sessions/rig-cow/event-track.thread" 2>/dev/null )"
-rigAssert "it opens the tracking thread of the session the grant is written in, recorded once" "${rigTrackThread#*:}:$( LC_ALL=C grep -c -F '"thread_ts"' "$rigTmp/post.$(( rigTrackFrom + 1 ))" )" "1700000001.00010$(( rigTrackFrom + 1 )):0"
+rigAssert "it opens the tracking-thread of the session the grant is written in, recorded once" "${rigTrackThread#*:}:$( LC_ALL=C grep -c -F '"thread_ts"' "$rigTmp/post.$(( rigTrackFrom + 1 ))" )" "1700000001.00010$(( rigTrackFrom + 1 )):0"
 rigTrackMark
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
 rigOp --magic-permission-set-request magic-coordinator task-rig --entry "WebFetch:https://track.rig.example/*" --scope task --session-id rig-cow
@@ -422,7 +434,7 @@ rigTrackMark
 rigRefusal magic-tester rig-tester Write /nowhere/rig-outside/x.txt > /dev/null
 rigAssert "a target in no registered place is shown as given" "$( rigTrackPosts '🚫 refusal' 'target: `/nowhere/rig-outside/x.txt`' )" 1
 rm -f "$rigWs/.local/agents/directories.registry"
-rigAssert "the session still has the one tracking thread"  "$( cat "$rigWs/.local/agents/sessions/rig-cow/event-track.thread" 2>/dev/null )" "$rigTrackThread"
+rigAssert "the session still has the one tracking-thread"  "$( cat "$rigWs/.local/agents/sessions/rig-cow/event-track.thread" 2>/dev/null )" "$rigTrackThread"
 
 echo "-- the permission set post: grouped by place, each place once by its location root, and what it is about --"
 ## A session rig-set of three participants, each spawn on its own host with its own

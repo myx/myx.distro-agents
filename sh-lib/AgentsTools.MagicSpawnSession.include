@@ -159,7 +159,9 @@ case "$1" in
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
 			if [ "$spawnFirst" = "true" ] ; then
-				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --context --magic-spawn-session )" || { set +e ; return 1 ; }
+				## This operation starts a session, so its first spawn asks for one of its own:
+				## otherwise it would be brought into the calling session's.
+				spawnOut="$( printf '%s\n' "$spawnTaskText" | DistroAgentsTools --intern-op-agent-spawn-proxy "${spawnArgs[@]}" --session-new --context --magic-spawn-session )" || { set +e ; return 1 ; }
 				spawnSessionId="$( printf '%s\n' "$spawnOut" | LC_ALL=C awk -F= '$1 == "SESSION_ID" { print $2 ; exit ; }' )"
 				if [ -z "$spawnSessionId" ] ; then
 					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: the first spawn ($spawnMember) reported no SESSION_ID -- refusing to spawn the rest into no session" >&2

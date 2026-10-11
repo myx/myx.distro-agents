@@ -193,6 +193,11 @@ rigAssert "the same root as plain text: each line where the template has it, an 
 	'🧵 session `154edb9e`|🚀 session start — by *magic-tester*|session thread: `CRIG:1.2`||👤 *magic-tester* (run `abcdef01`)|▶️ run start|cli: claude-native · runs: native · tier: max|where: rig-host / rig-ws · started: 2030-01-01 00:00 +0000'
 rigFlat "$rigTmp/k-root/000001.blocks" > "$rigTmp/flat.root"
 rigAssert "its short text names both boxes" "$( cat "$rigTmp/k-root/000001.text" )" 'session 154edb9e, magic-tester (run abcdef01) · 5 lines'
+## The session thread as a link, where the spawn gives one: the link to the thread's root in
+## the team's conversation, and no id beside it.
+rigAssert "a root whose session thread is given as a link shows the link, and no id" \
+	"$( rigRender start "$rigTmp/k-link" /dev/null started-by=magic-tester session-id=154edb9e session-thread=- session-thread-link=https://rig.slack.com/archives/CRIG/p12 ; sed -n 3p "$rigTmp/k-link/000001" )" \
+	'~ <https://rig.slack.com/archives/CRIG/p12|session thread in magic-team>'
 ## A spawn that joins: its own start entry alone, a reply, with the session it joined.
 rigRender start "$rigTmp/k-join" /dev/null cli=grok runs=harness tier=fast started-by=- session-id=- session-thread=- joined-session=154edb9e parent-session-id=3f2488f9 tracking-name=rig-track
 rigAssert "one that joins posts its run block alone: no session block, the session it joined, its own cli and tier" \
@@ -484,9 +489,26 @@ rigAssert "no token is left: in an argument, a message body, a given field" \
 	"$( LC_ALL=C grep -c -e 'ghp_abc' -e 'xoxb-1234' -e 'abc.def.ghi' -e 'sk-abcdef' "$rigPost" )" 0
 rigAssert "each one reads [redacted], the name or scheme before it kept" \
 	"$( rigCount "$rigPost" '💻 execute `export GH_TOKEN=[redacted] &amp;&amp; make` → exit 0 · 1 s' ):$( rigCount "$rigPost" 'reason: curl -H "Authorization: Bearer [redacted]" with [redacted]' )" 1:1
-rigAssert "Slack's control characters are escaped, so nothing mentions anyone" \
-	"$( rigCount "$rigPost" '✉️ SendMessage → *magic-coordinator*: "token [redacted] &lt;!here&gt; &lt;@U123&gt; &amp; %60code%60 here"' )" 1
-rigAssert "a backtick in a value is %60, so no code span breaks" "$( rigCount "$rigPost" '📖 Read `we%60ird&lt;name&gt;.md` → 3 B' )" 1
+rigAssert "Slack's control characters are escaped, so nothing mentions anyone, and a backtick on a plain line stays a backtick" \
+	"$( rigCount "$rigPost" '✉️ SendMessage → *magic-coordinator*: "token [redacted] &lt;!here&gt; &lt;@U123&gt; &amp; `code` here"' )" 1
+rigAssert "a backtick in a value inside a code span of the template is U+02CB there, so the span stays whole and reads as written" "$( rigCount "$rigPost" '📖 Read `weˋird&lt;name&gt;.md` → 3 B' )" 1
+rigAssert "the plain-text rendering holds the same two lines, escaped the same once" \
+	"$( rigCount "$rigPost.plain.001" '✉️ SendMessage → *magic-coordinator*: "token [redacted] &lt;!here&gt; &lt;@U123&gt; &amp; `code` here"' ):$( rigCount "$rigPost.plain.001" '📖 Read `weˋird&lt;name&gt;.md` → 3 B' )" 1:1
+rigAssert "nothing is sent as %60, and nothing is escaped twice: in the boxes, the notification text and the plain text" \
+	"$( cat "$rigPost.blocks" "$rigPost.text" "$rigPost".plain.* | LC_ALL=C grep -c -e '%60' -e '&amp;amp;' -e '&amp;lt;' -e '&amp;gt;' )" 0
+## A start post, with no operation: a task text with backticks reads as written, a value in a
+## code span keeps the span whole, a title holds its value as it is, each escaped once.
+: > "$rigTmp/lines.ticks"
+rigRender start "$rigTmp/k-ticks" "$rigTmp/lines.ticks" started-by=magic-tester 'session-id=ab`c&d' 'what=rig & <what> `w`' 'task-text=No operation lists open `warning-*` items & <none>' 'routine=ro`ut&ine'
+rigTicks="$rigTmp/k-ticks/000001"
+rigAssert "a task text with backticks in a start post reads as written, its control characters escaped once" "$( rigCount "$rigTicks" 'No operation lists open `warning-*` items &amp; &lt;none&gt;' )" 1
+rigAssert "a given value on a plain line keeps its backticks" "$( rigCount "$rigTicks" '▶️ run start — rig &amp; &lt;what&gt; `w`' )" 1
+rigAssert "a given value inside a code span has U+02CB for its backtick, its control characters escaped once" "$( rigCount "$rigTicks" 'routine: `roˋut&amp;ine`' )" 1
+rigAssert "a title is rich text: a value in its code span is sent as it is, backtick and ampersand" "$( LC_ALL=C grep -c -F '{"type":"text","text":"ab`c&d","style":{"code":true}}' "$rigTicks.blocks" )" 1
+rigAssert "the plain-text rendering escapes for its own form: its header's code span whole, the same lines under it" \
+	"$( rigCount "$rigTicks.plain.001" '🧵 session `abˋc&amp;d`' ):$( rigCount "$rigTicks.plain.001" 'No operation lists open `warning-*` items &amp; &lt;none&gt;' ):$( rigCount "$rigTicks.plain.001" 'routine: `roˋut&amp;ine`' )" 1:1:1
+rigAssert "the notification text names the boxes by their titles, a backtick as it is and a control character escaped once" "$( cat "$rigTicks.text" )" 'session ab`c&amp;d, magic-tester (run abcdef01) · 4 lines'
+rigAssert "nothing of the start post is sent as %60, and nothing is escaped twice" "$( cat "$rigTicks.blocks" "$rigTicks.text" "$rigTicks".plain.* | LC_ALL=C grep -c -e '%60' -e '&amp;amp;' -e '&amp;lt;' -e '&amp;gt;' )" 0
 rigAssert "the operations given to a kind follow its own box" "$( rigHeaders "$rigPost" | LC_ALL=C awk '{ print $2 }' | LC_ALL=C tr '\n' ' ' )" "[gear] [bust_in_silhouette] "
 rigAssert "what is sent is JSON all the same: a quote and a backslash in a value are escaped in it" \
 	"$( printf '%s\n' '2030-01-01T00:03:05Z NOTE by=magic-tester' '> say "hi" and c:\dir\new' > "$rigTmp/lines.json" ; rigRender feed "$rigTmp/k-json" "$rigTmp/lines.json" ; sed -n 2p "$rigTmp/k-json/000001" ):$( LC_ALL=C grep -c -F 'say \"hi\" and c:\\dir\\new' "$rigTmp/k-json/000001.blocks" )" \

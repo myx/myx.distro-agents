@@ -429,7 +429,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	}
 	if [ "$applyKind" = "permission" ] ; then
 		case "$applyVerdict" in
-			## A denial is said where the refusal was, in the asking session's tracking thread, as
+			## A denial is said where the refusal was, in the asking session's tracking-thread, as
 			## a grant is where it is written: one post, which never fails the verdict.
 			deny)
 				local applyDenied=""
@@ -446,7 +446,7 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 			;;
 		esac
 	fi
-	## A denied permission set is said in a tracking thread as any deny is: that of the session
+	## A denied permission set is said in a tracking-thread as any deny is: that of the session
 	## it was asked for, in the store an allow-set would have written its grants to
 	## (AgentsToolsPermissionSetApply), so a set's grants and its denial never sit in two threads.
 	if [ "$applyKind" = "permission-set" ] && [ "$applyVerdict" = "deny" ] ; then
@@ -649,7 +649,8 @@ case "$1" in
 		readRerouted="$( AgentsToolsEscalationField "$readFile" rerouted-from )"
 		readOut="$( AgentsToolsEscalationThreadVerdict "$readMember" "$readFile" "$readId" \
 			"$( AgentsToolsEscalationField "$readFile" channel )" "$( AgentsToolsEscalationField "$readFile" question-ts )" \
-			"$( AgentsToolsEscalationField "$readFile" thread-ts )" "$( AgentsToolsEscalationField "$readFile" addressees )" "" "$readRerouted" )"
+			"$( AgentsToolsEscalationField "$readFile" thread-ts )" "$( AgentsToolsEscalationField "$readFile" addressees )" \
+			"$( [ "$( AgentsToolsEscalationField "$readFile" ask-identity )" != "bot" ] || printf 'true' )" "$readRerouted" )"
 		readVerdict="${readOut%%$'\n'*}"
 		local readReason="" readForward=""
 		if [ "${readVerdict%%$'\t'*}" = "RETURNED" ] ; then

@@ -746,7 +746,7 @@ rigPostWith(){ ## fixed text -> the first post file holding it
 	printf '%s' "$rigScenarioDir/no-such-post"
 }
 ## A refused write with event-track configured, then the permission asked for by click:
-## the refusal is the first post and opens the session's tracking thread, the question the second.
+## the refusal is the first post and opens the session's tracking-thread, the question the second.
 rigTracked(){ ## scenario name, the emoji the owner clicks, ...
 	local trackedName="$1"
 	shift
@@ -760,7 +760,7 @@ rigTracked track-allow-once one
 rigAssert "the refusal post names the member whose call it was" "$( rigHolds "$rigScenarioDir/post.1" 'member: magic-tester' )" yes
 rigAssert "allow-once by click"                        "$( rigVerdictLine )" "VERDICT: allow-once"
 rigAssert "exactly one grant post"                     "$( rigPostsWith '✅ permission granted' )" 1
-rigAssert "it sits in the session's tracking thread, where the refusal is" "$( rigHolds "$( rigPostWith '✅ permission granted' )" '"thread_ts":"1700000001.000101"' )" yes
+rigAssert "it sits in the session's tracking-thread, where the refusal is" "$( rigHolds "$( rigPostWith '✅ permission granted' )" '"thread_ts":"1700000001.000101"' )" yes
 rigAssert "it names the call"                          "$( rigHolds "$( rigPostWith '✅ permission granted' )" "target: \`/dev/null/rig-forms/track-allow-once\`" )" yes
 rigAssert "who granted it, by name, whose call it was, and its scope" "$( rigHolds "$( rigPostWith '✅ permission granted' )" 'granted by: human-owner · member: magic-tester · scope: once' )" yes
 rigAssert "nobody is named as asked when the one asked answered" "$( rigHolds "$( rigPostWith '✅ permission granted' )" 'asked:' )" no
@@ -772,7 +772,7 @@ rigAssert "its scope is this session"                  "$( rigHolds "$( rigPostW
 rigTracked track-deny x
 rigAssert "deny by click"                              "$( rigVerdictLine )" "VERDICT: deny"
 rigAssert "exactly one denial post"                    "$( rigPostsWith '❌ permission denied' )" 1
-rigAssert "in the session's tracking thread"           "$( rigHolds "$( rigPostWith '❌ permission denied' )" '"thread_ts":"1700000001.000101"' )" yes
+rigAssert "in the session's tracking-thread"           "$( rigHolds "$( rigPostWith '❌ permission denied' )" '"thread_ts":"1700000001.000101"' )" yes
 rigAssert "who denied it and whose call it was, with no scope" "$( rigHolds "$( rigPostWith '❌ permission denied' )" 'denied by: human-owner · member: magic-tester' ):$( rigHolds "$( rigPostWith '❌ permission denied' )" 'scope:' )" "yes:no"
 rigAssert "and no grant post, and no grant"            "$( rigPostsWith '✅ permission granted' ):$( [ -s "$rigScenarioDir/ws/.local/agents/sessions/rig-forms-track-deny/grants" ] && printf granted || printf none )" "0:none"
 rigStart track-post-fails

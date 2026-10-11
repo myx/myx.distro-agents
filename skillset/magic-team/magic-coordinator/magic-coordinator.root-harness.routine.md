@@ -74,6 +74,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - rule: source code is never edited here; it goes to a spawned coworking session in every mode.
    - rule: confined to this session's granted directories. Another checkout, even a sibling of the same repository, needs its own named go-ahead.
    - rule: assess-to-propose stages still spawn per **apply-harness-session-rules**. "Never spawns" means no nested self-directing `magic-coordinator`, not those bounded dispatches.
+   - rule: every one of those spawns uses the team `Agent` tool, never a client's in-process subagent. That tool's own health is never assumed: `team-fix-session` exists for the moment it may be broken, so each spawn attempt is itself the check.
    - step: the root may read another member's armed file and apply its conventions here, and may run a routine's logic manually.
    - step: the root may run `interview-like-sessions-inline`.
    - rule: session rules stated for this session override a conflicting standing rule — any file of this member, a team convention, a skillset change rule — for this session only. On each actual conflict, stop, name both rules, and get the human-owner's go for that conflict. A general "session rules apply" does not cover it. Without the go, the standing rule holds. This includes the three `owner-guaranteed` rules: the mandated channel, no-agent-consent, and the credential-store boundary. It lapses with the session and never amends the standing rule.
@@ -209,4 +210,4 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ### Conventions
 
-None.
+- Open: run-team-fix-session's spawn-is-a-live-check rule landed under the human-owner's live `team-fix-session` authorization, applied by a spawned `magic-librarian` subagent rather than a full maintainer-quorum `magic-team.coworking.routine` session. It stands pending that quorum's confirmation.

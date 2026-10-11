@@ -34,11 +34,23 @@ function esc( text ) {
 	return text ;
 }
 
-## A value on one line, with no backtick to end a code span.
+## A value on one line, as it was given: nothing in it is escaped. (\001 stands for a value's
+## backtick inside a title while its code spans are read, titleValue, so no value holds one.)
+function lineValue( text ) {
+	gsub( /[\t\r\n\001]/, " ", text ) ;
+	return text ;
+}
+
+## A value where it lands in Slack text, escaped once and only here: a section, a context
+## line, a subtitle, the plain-text rendering and the notification text are all mrkdwn. Its
+## `&`, `<` and `>` are the entities Slack turns back into them. Its backticks stay as they
+## are, but inside a code span of the template (ttInCode, the shared filler's), which cannot
+## hold one: there each is the modifier letter grave accent, U+02CB, so the span stays whole
+## and the text reads as written. Nothing is ever sent as a code the reader sees unturned.
 function cleanValue( text ) {
-	gsub( /[\t\r\n]/, " ", text ) ;
-	gsub( /`/, "%60", text ) ;
-	return esc( text ) ;
+	text = esc( lineValue( text ) ) ;
+	if ( ttInCode ) { gsub( /`/, "\313\213", text ) ; }
+	return text ;
 }
 
 ## The characters of a UTF-8 text: its bytes, less the continuation bytes, and a character
@@ -554,7 +566,10 @@ function slotValue( name ) {
 	if ( name == "date" ) { return fillDate ; }
 	if ( name == "subjects" ) { return fillSubjects ; }
 	if ( name == "line-count" ) { return fillLineCount ; }
-	if ( name in field ) { return ( fillTitle ? fieldTitle[name] : field[name] ) ; }
+	## A caller's field is escaped here, where it lands, but for a Slack date token of the
+	## helper's own making, which a caller gives for a date or a time and which works only
+	## unescaped (sldKeep).
+	if ( name in field ) { return ( fillTitle ? fieldTitle[name] : sldKeep( cleanValue( field[name] ) ) ) ; }
 	return "" ;
 }
 
@@ -628,11 +643,13 @@ function addHeader( text, subject, who ) {
 
 ## ---- the boxes: a post as Slack blocks ----
 
-## A value in a box's title: one line, with no backtick to end a code span, and not escaped,
-## since a title's text is not mrkdwn.
+## A value in a box's title: one line, and not escaped, since a title's text is rich text,
+## not mrkdwn, and holds every character as it is. Its backticks are kept apart, as \001,
+## from the template's own, which mark the title's code spans (titleElements), and are put
+## back where the title's text is written (titleElement) and named (titlePlain).
 function titleValue( text ) {
-	gsub( /[\t\r\n]/, " ", text ) ;
-	gsub( /`/, "%60", text ) ;
+	text = lineValue( text ) ;
+	gsub( /`/, "\001", text ) ;
 	return text ;
 }
 
@@ -675,6 +692,7 @@ function boxJson( titleJson, subtitleText, childrenJson,    outText ) {
 ## One element of a title: a text element, in code style where it was a code span.
 function titleElement( text, isCode ) {
 	if ( text == "" ) { return "" ; }
+	gsub( /\001/, "`", text ) ;
 	return "{\"type\":\"text\",\"text\":\"" jsonText( text ) "\"" ( isCode ? ",\"style\":{\"code\":true}" : "" ) "}" ;
 }
 
@@ -698,6 +716,7 @@ function titleElements( text,    outText, tickAt, endAt ) {
 		text = substr( text, tickAt + endAt + 1 ) ;
 	}
 	sub( /^[ \t]+/, "", titlePlain ) ;
+	gsub( /\001/, "`", titlePlain ) ;
 	return outText ;
 }
 
@@ -871,9 +890,8 @@ BEGIN {
 		## A value given as - is no value: no field is ever shown as a placeholder.
 		if ( fieldValue == "-" ) { delete field[fieldName] ; delete fieldTitle[fieldName] ; continue ; }
 		if ( fieldName == "tokens" ) { fieldValue = tokensText( fieldValue ) ; }
-		## Escaped as every value is, but for a Slack date token of the helper's own making,
-		## which a caller gives for a date or a time and which works only unescaped (sldKeep).
-		field[fieldName] = sldKeep( cleanValue( fieldValue ) ) ;
+		## Kept as it was given: it is escaped where it lands, when its line is filled (slotValue).
+		field[fieldName] = lineValue( fieldValue ) ;
 		## The same value for a box's title, whose text is not mrkdwn and so is not escaped.
 		fieldTitle[fieldName] = titleValue( fieldValue ) ;
 	}

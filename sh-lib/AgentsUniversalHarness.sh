@@ -2315,8 +2315,8 @@ AgentsHarnessSessionPids(){ ## session id
 ## The brief goes in on stdin, never argv, so no shell parses it. Output to a file
 ## rather than a capture: the operation backgrounds a child, and a capture returns on
 ## pipe EOF rather than on the command it ran.
-AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads, description (why this spawn is made)
-	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolDescription="${7:-}" toolConversationThread spawnRc=0
+AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or comment, session id to join, conversation threads, description (why this spawn is made), new session (true: a session of its own)
+	local toolAgentName="$1" toolPrompt="$2" toolCliService="$3" toolSessionNameOrComment="$4" toolSessionId="$5" toolConversation="${6:-}" toolDescription="${7:-}" toolNewSession="${8:-}" toolConversationThread spawnRc=0
 	if [ -z "$harnessAgent" ] ; then
 		printf 'ERROR: this harness was started without --agent, so it has no team identity to spawn under, and one is never guessed here. Nothing was spawned. Report this rather than working around it.%s\n' "${harnessAgentMissing:+ ($harnessAgentMissing)}" ; return 0
 	fi
@@ -2338,11 +2338,16 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
 		--from-stdin --dispatch-doc:create --context Agent
 	[ -z "$toolCliService" ] || set -- "$@" --spawn-cli-service "$toolCliService"
-	## Absent: this spawn joins the caller's own coworking session where one is
-	## inherited, or runs ad-hoc/solo where none is. Present: this spawn starts a
-	## session of its own, titled by this text -- passed as a genuine argv token,
-	## never folded into any format string the proxy builds from it.
+	## The session that spawns is the coworking session, and the proxy decides which: the
+	## one this caller is in, else this caller's own, whose thread the first helper opens
+	## and every later one joins. This text titles that thread for the spawn that opens
+	## it -- passed as a genuine argv token, never folded into any format string the proxy
+	## builds from it.
 	[ -z "$toolSessionNameOrComment" ] || set -- "$@" --session-name-or-comment "$toolSessionNameOrComment"
+	## Asked for plainly: a separate session for this helper, with a thread of its own.
+	case "$toolNewSession" in
+		true|1|yes) set -- "$@" --session-new ;;
+	esac
 	## The caller's own words for what this spawn is for: kept on the spawn's records, and shown
 	## on the first line of its start post. A genuine argv token, as the comment above is.
 	[ -z "$toolDescription" ] || set -- "$@" --description "$toolDescription"
@@ -4956,7 +4961,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ReadMcpResourceTool) harnessResult="$( AgentsHarnessToolReadMcpResourceTool "${harnessArgV_server}" "${harnessArgV_uri}" )" ;;
 		ReadMcpResourceDirTool) harnessResult="$( AgentsHarnessToolReadMcpResourceDirTool "${harnessArgV_server}" "${harnessArgV_uri_prefix}" "${harnessArgV_limit}" )" ;;
 		Skill)     harnessResult="$( AgentsHarnessToolSkill "${harnessArgV_name}" "${harnessArgV_file}" "${harnessArgV_list}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_skill}" "${harnessArgV_args}" "${harnessArgV_section}" )" ;;
-		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" )" ;;
+		Agent)     harnessResult="$( AgentsHarnessToolAgent "${harnessArgV_agent}" "${harnessArgV_prompt}" "${harnessArgV_cli_service}" "${harnessArgV_session_name_or_comment}" "${harnessArgV_session_id}" "${harnessArgV_conversation}" "${harnessArgV_description}" "${harnessArgV_new_session:-}" )" ;;
 		TaskStop)  harnessResult="$( AgentsHarnessToolTaskStop "${harnessArgV_handle}" "${harnessArgV_force}" "${harnessArgV_task_id}" "${harnessArgV_shell_id}" )" ;;
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;

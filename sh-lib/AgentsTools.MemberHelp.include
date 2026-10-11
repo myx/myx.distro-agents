@@ -109,8 +109,16 @@ case "$1" in
 		fi
 		echo >&2
 
+		## The team's own operations, the floor under every member's: a file this operation
+		## needs. Where the member set view cannot give it, the help stops and names it,
+		## never an empty floor with rc 0.
+		local floorFile="$skillRoot/magic-team/magic-team.armed.md"
+		if [ ! -f "$floorFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --member-help: the team's own operations cannot be read for $targetMember: $floorFile not found in the member set view $skillRoot -- the help was not completed" >&2
+			set +e ; return 1
+		fi
 		local floorOpNames
-		floorOpNames="$( ExtractOpNames "$skillRoot/magic-team/magic-team.armed.md" | sort -u )"
+		floorOpNames="$( ExtractOpNames "$floorFile" | sort -u )"
 
 		local allNames
 		allNames="$( { printf '%s\n' "$floorOpNames" ; printf '%s\n' "$ownOpNames" ; printf '%s\n' "${commonPrefixes[@]}" ; } | sort -u )"

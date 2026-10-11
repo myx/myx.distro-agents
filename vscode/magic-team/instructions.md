@@ -1,6 +1,6 @@
 # Working with The Conclave
 
-The Conclave is a crew of specialised AI teammates. They cover architecture, DevOps, frontend, documentation, testing and more, and `magic-coordinator` leads them. Its name is Magic.
+The Conclave is a crew of specialised AI teammates. It is the same crew in every workspace on this machine, not a separate one per folder. They cover architecture, DevOps, frontend, documentation, testing and more, and `magic-coordinator` leads them. Its name is Magic.
 
 # Asking for something
 

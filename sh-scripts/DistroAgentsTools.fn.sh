@@ -18,14 +18,24 @@ export MDLT_ORIGIN
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
-	## An operation naming a team member runs in a workspace where that member is present; the spawn operations resolve their own, since their records stay here.
+	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and it is stopped only when that part cannot be brought. A client-* member is the one exception, kept exactly as it was until it is ruled on: its operation runs in the workspace that holds the client. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
 		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|*:|*:-*) ;;
-		--*:*)
+		--*:client-*)
 			local memberWorkspace
 			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }
 			if [ -n "$memberWorkspace" ] ; then
 				( AgentsToolsWorkspaceSwitch "$memberWorkspace" ; DistroAgentsTools "$@" )
+				return $?
+			fi
+		;;
+		--*:*)
+			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset is read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
+			local memberBrought
+			memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; return 1 ; }
+			memberBrought="${memberBrought%%$'\t'*}"
+			if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
+				( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )
 				return $?
 			fi
 		;;

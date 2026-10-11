@@ -56,6 +56,92 @@ AgentsToolsSpawnProxyAnnounceCli(){
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: 🤖 AI service used: ${announceCli:-none -- no agent CLI was launched}" >&2
 }
 
+## The root post of a coworking session's thread, in the team's own conversation: the
+## session's own line, seeded by the tooling, never a member's message. Its text is its own
+## template's (sh-lib/templates/session-thread.root.format.md, filled by
+## AgentsSessionThreadRootFill.awk): the session by its name, and who started it where that
+## is known. Posted as the bot with no author line and no addressee, under the bot token
+## every opener has used (the member's own where it has one, else the team's); the bot not
+## yet in the conversation joins it once, as the member send does for a top-level post. The
+## thread under it is the participants' own. Prints `<channel>:<ts>`; where nothing was
+## posted it prints nothing and says one warning on stderr, and silently nothing where no
+## bot token resolves. One line in the monthly send log, in the member send's own columns.
+AgentsToolsSpawnProxySessionRootPost(){ ## member whose bot token posts it, the session's name, who started it (may be empty)
+	local rootMember="$1" rootName="$2" rootBy="${3:-}"
+	local rootLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+	local rootText="" rootChannel="" rootPayload="" rootResponse="" rootErrFile="" rootError="" rootRc=0 rootTs="" rootIn="" rootJoined="false"
+	local rootOutcome="failed" rootReason="not posted: session-thread root" rootStamp=""
+	. "$rootLib/AgentsTools.CommsSlack.include"
+	AgentsToolsResolveSlackBotToken "$rootMember" > /dev/null 2>&1 || return 0
+	type AgentsToolsToolingTemplateFill > /dev/null 2>&1 || . "$rootLib/AgentsTools.ToolingTemplate.include"
+	rootText="$( STR_SESSION_NAME="$rootName" STR_STARTED_BY="$rootBy" AgentsToolsToolingTemplateFill session-thread.root.format.md AgentsSessionThreadRootFill.awk 2> /dev/null )" || rootText=""
+	if [ -z "$rootText" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: its root post could not be filled from sh-lib/templates/session-thread.root.format.md" >&2
+		return 0
+	fi
+	rootChannel="$( DistroAgentsToolsResolveTarget magic-team 2> /dev/null | sed -n 's/^CHANNEL=//p' )" || rootChannel=""
+	if [ -z "$rootChannel" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: no conversation is set for magic-team (SLACK_CHANNEL_MAGIC_TEAM)" >&2
+		return 0
+	fi
+	rootErrFile="$( mkdir -p "$MMDAPP/.local/temp" && mktemp "$MMDAPP/.local/temp/mdat-session-root.XXXXXX" )" || rootErrFile=""
+	if [ -z "$rootErrFile" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened: could not create a scratch file under $MMDAPP/.local/temp" >&2
+		return 0
+	fi
+	rootPayload="{\"channel\":\"$rootChannel\",\"text\":\"$( printf '%s' "$rootText" | LC_ALL=C awk -f "$rootLib/AgentsMcpJsonEscape.awk" )\",\"metadata\":{\"event_type\":\"magic_sender\",\"event_payload\":{\"sender\":\"magic-team\",\"tracking\":\"session-root\"}}}"
+	while : ; do
+		rootRc=0
+		rootResponse="$( DistroAgentsTools --intern-op-slack-call "$rootMember" --api chat.postMessage --identity bot --json-body "$rootPayload" \
+			--context --intern-op-agent-spawn-proxy 2> "$rootErrFile" )" || rootRc=$?
+		[ "$rootRc" != "0" ] || break
+		if [ "$rootJoined" = "false" ] && LC_ALL=C grep -q '"error":"not_in_channel"' "$rootErrFile" ; then
+			rootJoined="true"
+			if DistroAgentsTools --intern-op-slack-call "$rootMember" --api conversations.join --identity bot --form "channel=$rootChannel" \
+				--context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
+				continue
+			fi
+		fi
+		break
+	done
+	if [ "$rootRc" = "0" ] ; then
+		rootTs="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=ts -v optional=1 -v dialect=slack -f "$rootLib/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootTs=""
+		rootIn="$( printf '%s\n' "$rootResponse" | LC_ALL=C awk -v path=channel -v optional=1 -v dialect=slack -f "$rootLib/AgentsHarnessJsonField.awk" 2> /dev/null )" || rootIn=""
+	fi
+	rootError="$( LC_ALL=C grep -m1 'ERROR' "$rootErrFile" 2> /dev/null )" || rootError=""
+	rm -f "$rootErrFile"
+	[ -z "$rootTs" ] || { rootOutcome="ok" ; rootReason="session-thread root posted ts=$rootTs" ; }
+	rootStamp="$( date -u +%Y%m%dT%H%M%SZ )"
+	{ mkdir -p "$MMDAPP/.local/agents" && printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rootStamp" "$rootMember" magic-team "$rootChannel" bot "$rootOutcome" "$rootReason" "${MDAT_SPAWN_SESSION_ID:--}" \
+		>> "$MMDAPP/.local/agents/comms-slack-send.${rootStamp:0:4}-${rootStamp:4:2}.log" ; } 2> /dev/null \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: could not append the session thread root's outcome to the send log" >&2
+	if [ -z "$rootTs" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened ${rootError:-the Slack call failed}" >&2
+		return 0
+	fi
+	printf '%s:%s\n' "${rootIn:-$rootChannel}" "$rootTs"
+}
+
+## A Slack link to one post, from its `<channel>:<ts>`:
+## `https://<the workspace's Slack domain>/archives/<channel>/p<ts without its dot>`.
+## The domain is that of the Slack the post was sent to, the one its bot token is of: the
+## member's own where the member's own bot token posted it, else the team's. Prints nothing
+## where that domain is not known or the post is not in that shape.
+AgentsToolsSpawnProxyPostLink(){ ## member whose bot token posted it, <channel>:<ts>
+	local linkDomain="" linkScope="" linkChannel="${2%%:*}" linkTs="${2#*:}"
+	case "$linkChannel" in ''|*[!A-Za-z0-9]*) return 0 ;; esac
+	case "$linkTs" in ''|*[!0-9.]*|*.*.*|.*|*.) return 0 ;; *.*) ;; *) return 0 ;; esac
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+	linkScope="$( AgentsToolsResolveSlackBotToken "$1" 2> /dev/null )" || return 0
+	case "${linkScope%% *}" in
+		member-bot-token) linkScope="$1" ;;
+		*) linkScope="magic-team" ;;
+	esac
+	linkDomain="$( DistroAgentsTools --agents-config-option "$linkScope" --select SLACK_WORKSPACE_DOMAIN 2> /dev/null )" || linkDomain=""
+	case "$linkDomain" in ''|*[!A-Za-z0-9.-]*) return 0 ;; esac
+	printf 'https://%s/archives/%s/p%s\n' "$linkDomain" "$linkChannel" "${linkTs/./}"
+}
+
 ## One reply in the coworking session's event-track thread saying this participant's run
 ## ended: the `end` tracking post (sh-lib/templates/event-track.post.format.md), with its
 ## own outcome, exit code, tokens and CLI. The finish flag goes on this participant's own
@@ -353,13 +439,28 @@ case "$1" in
 		done
 		local callerName="$1"
 		shift || true
-		## The member's session starts in a workspace where that member is present; the spawn records, dispatch items and board stay in this one.
+		## WE RUN FROM HERE: the member's session starts in this workspace, with this workspace's
+		## settings, skillset and access rules for it, as its records, dispatch items and board
+		## are this one's. A member set up only in another workspace on this machine is
+		## invited: it reads its own skillset from there (AgentsToolsMemberSkillsetBring), and
+		## the spawn stops only when that part cannot be brought, with the message that names
+		## what is missing and where it was looked for. A client-* member is the one exception, kept exactly as
+		## it was until it is ruled on: its session starts in the workspace that holds it.
 		type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 		local spawnWorkspace="$MMDAPP"
-		if [ -n "$callerName" ] ; then
-			spawnWorkspace="$( AgentsToolsMemberWorkspaceResolve "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
-			[ -n "$spawnWorkspace" ] || spawnWorkspace="$MMDAPP"
-		fi
+		case "$callerName" in
+			'') ;;
+			client-*)
+				spawnWorkspace="$( AgentsToolsMemberWorkspaceResolve "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
+				[ -n "$spawnWorkspace" ] || spawnWorkspace="$MMDAPP"
+			;;
+			*)
+				## An invited member, set up only in another workspace on this machine: its session starts here, on this workspace's settings, and reads its skillset from the workspace it is set up in. The root holds for the rest of this spawn and for the session it starts.
+				local spawnBrought
+				spawnBrought="$( AgentsToolsMemberSkillsetBring "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
+				[ -z "$spawnBrought" ] || local -x MDAT_SKILLSET_ROOT="${spawnBrought%%$'\t'*}"
+			;;
+		esac
 		## The session reads the member set root of the workspace it starts in, never this one's own view.
 		type AgentsToolsWorkspaceSkillsetRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 		local spawnSkillsetRoot
@@ -400,6 +501,9 @@ case "$1" in
 		## bare name: this reaches a printf argument position, never its format
 		## string, so a caller's apostrophe or '%' cannot corrupt anything.
 		local sessionNameOrComment=""
+		## --session-new: this spawn starts a coworking session of its own, with its own thread,
+		## whatever session its caller has or is in. The plain way to ask for a separate session.
+		local sessionNew=""
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
@@ -555,6 +659,10 @@ case "$1" in
 					trackingName="$2"
 					shift 2
 				;;
+				--session-new)
+					sessionNew="true"
+					shift
+				;;
 				--session-id)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --session-id requires <session-id>" >&2
@@ -590,7 +698,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -622,6 +730,10 @@ case "$1" in
 		## functions AgentsTools.Registries.include defines, and the rebuilt
 		## registry file it writes, stay behind that one fork and never touch a
 		## caller running this op as a sourced function in its own long-lived shell.
+		if [ -n "$joinSessionId" ] && [ -n "$sessionNew" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --session-id <session-id> | --session-new: one joins a session, the other starts one" >&2
+			set +e ; return 1
+		fi
 		local joinSessionThread=""
 		if [ -n "$joinSessionId" ] ; then
 			joinSessionThread="$(
@@ -855,6 +967,11 @@ case "$1" in
 		## a lone spawn already had before session-id and spawn-id were split apart.
 		local inheritedSessionId="${MDAT_SESSION_ID:-}"
 		local inheritedSessionThread="${MDAT_SESSION_THREAD:-}"
+		## The member the calling session acts as, read before the export below names the
+		## spawned one: who starts a session that is the caller's own. Empty for a caller that
+		## is no member's session.
+		local spawnerMember=""
+		spawnerMember="$( AgentsToolsActingMember 2> /dev/null )" || spawnerMember=""
 
 		## The session the agent will actually run under, minted HERE so the same
 		## value reaches both the CLI and the dispatch record below -- that shared
@@ -878,16 +995,28 @@ case "$1" in
 
 		## The coworking session's own id, settled here -- before the dispatch item
 		## below, which needs it too -- rather than only later beside where its own
-		## thread gets opened. --session-thread:event-track pins it to this spawn's
-		## own id, the main loop's own solitary pass. An inherited id, or an
-		## explicit --session-id, means this spawn joins that session. Neither
-		## means this spawn starts one, and its session-id is its own spawn-id,
-		## the same shape a lone spawn already had.
-		local sessionId="$MDAT_SPAWN_SESSION_ID"
+		## thread gets opened. THE SESSION THAT SPAWNS IS THE COWORKING SESSION, and the
+		## tooling decides which that is, never the caller's memory of an id:
+		## - an explicit --session-id joins that session;
+		## - --session-new starts one of this spawn's own, and so does
+		##   --session-thread:event-track, the main loop's own solitary pass: its session-id
+		##   is its own spawn-id, the shape a lone spawn always had;
+		## - an inherited id means the caller is inside a session, and this spawn joins it;
+		## - a caller with a session of its own and no coworking session to hand down -- a
+		##   native client session, never spawned through this proxy -- IS the coworking
+		##   session: its own session id names it, the first member it brings in opens its
+		##   thread, and every later one joins that thread (sessionOfCaller);
+		## - a caller with no session id at all, a bare command line, starts one as before.
+		local sessionId="$MDAT_SPAWN_SESSION_ID" sessionOfCaller=""
 		if [ -n "$joinSessionId" ] ; then
 			sessionId="$joinSessionId"
-		elif [ "$sessionThreadMode" != "event-track" ] && [ -n "$inheritedSessionId" ] ; then
+		elif [ -n "$sessionNew" ] || [ "$sessionThreadMode" = "event-track" ] ; then
+			:
+		elif [ -n "$inheritedSessionId" ] ; then
 			sessionId="$inheritedSessionId"
+		elif [ -n "$parentSessionId" ] && AgentsToolsAssertBareName "$parentSessionId" "the calling session's id" agent-spawn-proxy 2> /dev/null ; then
+			sessionId="$parentSessionId"
+			sessionOfCaller="true"
 		fi
 
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
@@ -1006,6 +1135,11 @@ case "$1" in
 		## A tracking document's name is deliberately NOT consulted: the name is
 		## identified before any such document exists, and a spawn may have none.
 		local sandboxName="$trackingName"
+		## A member brought into its caller's own session keeps a sandbox of its own, named by
+		## its spawn id: the session and its thread are shared, a run's input and output are
+		## not. A spawn that joins a session by its id, or by inheritance, shares that
+		## session's sandbox, as it always did.
+		[ -n "$sandboxName" ] || [ -z "$sessionOfCaller" ] || sandboxName="$MDAT_SPAWN_SESSION_ID"
 		[ -n "$sandboxName" ] || sandboxName="$sessionId"
 		local sandboxRoot="$MMDAPP/.local/agents/spawned/$sandboxName"
 		## An existing sandbox is joined, never refused -- continuing an existing
@@ -1051,46 +1185,65 @@ case "$1" in
 		## the session id.
 		## sessionId itself is already settled, above, before the dispatch item was
 		## created -- only its thread is decided here.
-		local sessionThread=""
+		local sessionThread="" sessionThreadLock="" sessionThreadRecord="$MMDAPP/.local/agents/sessions/$sessionId/session.thread"
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
 			## The agent-log thread itself, set once the start post below has opened it.
 			:
-		elif [ -n "$inheritedSessionId" ] ; then
+		elif [ -n "$inheritedSessionId" ] && [ -z "$sessionNew" ] ; then
 			sessionThread="$inheritedSessionThread"
-		else
+		elif [ -n "$sessionOfCaller" ] ; then
+			## The caller's own session: its thread is the one the first member brought in
+			## opened. Looked for, and opened below where there is none, in one step under the
+			## session's own lock, so two members brought in at once still share one thread.
+			## Its record first (sessions/<session-id>/session.thread, written by the opener at
+			## once), then the spawn records of the members already in the session.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
+			! AgentsToolsLocalLockTake "session-thread-$sessionId" 60 || sessionThreadLock="$agentsLocalLockPath"
+			[ -n "$sessionThreadLock" ] || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the lock on the session thread of $sessionId could not be taken, so two members brought in at once may each open a thread" >&2
+			[ ! -s "$sessionThreadRecord" ] || IFS= read -r sessionThread < "$sessionThreadRecord" || sessionThread=""
+			[ -n "$sessionThread" ] || sessionThread="$(
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+				AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || exit 1
+				LC_ALL=C awk -v want="$sessionId" '
+					$2 == want && $10 != "-" { print $10 ; found = 1 ; exit ; }
+					END { exit ( found ? 0 : 1 ) ; }
+				' "$( AgentsToolsRegistryFile spawned-sessions )"
+			)" || sessionThread=""
+		fi
+		if [ -z "$sessionThread" ] && [ -z "$joinSessionId" ] && [ "$sessionThreadMode" != "event-track" ] && { [ -z "$inheritedSessionId" ] || [ -n "$sessionNew" ] ; } ; then
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
 			## else the session id -- no id block, no host, no timestamps. That detail
 			## lives in the agent-log-thread's own session start post below.
-			## Built with printf's own %s substitution, never string concatenation:
-			## sessionNameOrComment is free text a caller chose, and a stray '%' or
-			## backslash in it must reach Slack as itself, never read as a
-			## conversion or an escape.
-			local sessionOpenBody=""
-			sessionOpenBody="$( printf 'Session started for %s: %s\n' \
-				"$callerName" "${sessionNameOrComment:-$sessionId}" )"
+			## The root is the session's own post, seeded by the tooling, never a member's
+			## message: it names the session, by its name or comment, else its id, and who
+			## started it where that is known -- the member whose session brings the others in.
+			## Its text is its own template's (sh-lib/templates/session-thread.root.format.md),
+			## and the name, free text a caller chose, reaches Slack as itself
+			## (AgentsToolsSpawnProxySessionRootPost). The thread under it is the participants' own.
+			## Posted where this spawn runs, as its other settings are read (spawnWorkspace): this
+			## workspace, but for a member still started in the workspace that holds it, so the
+			## token and the conversation are always one Slack's.
 			sessionThread="$(
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
-				AgentsToolsResolveSlackBotToken "$callerName" > /dev/null 2>&1 || exit 0
-				printf '%s' "$sessionOpenBody" \
-				| DistroAgentsTools --intern-op-comms-slack-send-message "$callerName" magic-team --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
-				| LC_ALL=C awk -F= '
-					$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
-					$1 == "SENT_MESSAGE_TS" { sentTs = $2 ; }
-					index( $0, "⛔" ) == 1 && sendError == "" { sendError = $0 ; }
-					END {
-						if ( sentChannel != "" && sentTs != "" ) { print sentChannel ":" sentTs ; }
-						else { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: session thread not opened " sendError > "/dev/stderr" ; }
-					}'
+				[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
+				AgentsToolsSpawnProxySessionRootPost "$callerName" "${sessionNameOrComment:-$sessionId}" "$spawnerMember"
 			)" || sessionThread=""
+			## Recorded at once as the session's, so the member brought in next finds it.
+			if [ -n "$sessionOfCaller" ] && [ -n "$sessionThread" ] ; then
+				{ mkdir -p "${sessionThreadRecord%/*}" && printf '%s\n' "$sessionThread" > "$sessionThreadRecord.$$.tmp" && mv -f "$sessionThreadRecord.$$.tmp" "$sessionThreadRecord" ; } 2> /dev/null \
+					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the session thread $sessionThread of $sessionId could not be recorded, so a member brought in before this spawn is recorded may open another" >&2
+			fi
 		fi
-		## A joining spawn posts its start line as a reply, and the result is never assigned to sessionThread.
+		[ -z "$sessionThreadLock" ] || AgentsToolsLocalLockGive "$sessionThreadLock"
+		## A member brought into a session says so in its thread, as a reply, with what it was
+		## brought in for: every spawn but the one whose own session the thread is. The result
+		## is never assigned to sessionThread.
 		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] ; then
 			if [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
-			elif [ "$( printf 'Session started for %s: %s' "$callerName" "${sessionNameOrComment:-$sessionId}" \
+			elif [ "$( printf '%s joined%s' "$callerName" "${spawnDescriptionKept:+: $spawnDescriptionKept}" \
 				| DistroAgentsTools --intern-op-comms-slack-send-message "$callerName" "$sessionThread" --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2
@@ -1140,14 +1293,33 @@ case "$1" in
 		[ -z "$parentSessionId" ] || eventTrackParent="${parentSessionId:0:8}"
 		[ "$parentSessionId" != "$sessionId" ] || eventTrackParent="-"
 		[ "$sandboxName" != "$sessionId" ] || eventTrackTracking="-"
+		[ "$sandboxName" != "$MDAT_SPAWN_SESSION_ID" ] || eventTrackTracking="-"
 		## What is the session's -- its id, who started it, its session thread -- is said by the
 		## spawn that starts it, and by no other: one that joins says the session it joined.
+		## A session that is its caller's own has no spawn that starts it: the member whose
+		## start post opens its tracking-thread says what is the session's, and who started it
+		## is the calling session's member, else that session by its id.
 		local eventTrackStartedBy="-" eventTrackSessionId="-" eventTrackJoined="${sessionId:0:8}"
+		type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include"
 		if [ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] ; then
 			eventTrackStartedBy="$callerName" ; eventTrackSessionId="${sessionId:0:8}" ; eventTrackJoined="-"
+		elif [ -n "$sessionOfCaller" ] && [ -z "$( AgentsToolsEventTrackThreadRead "$MMDAPP/.local/agents/sessions/$sessionId" 2> /dev/null )" ] ; then
+			eventTrackStartedBy="${spawnerMember:-session ${parentSessionId:0:8}}" ; eventTrackSessionId="${sessionId:0:8}" ; eventTrackJoined="-"
 		else
 			eventTrackSessionThread="-"
 		fi
+		## The session thread as a link to its root post in the team's conversation, for the
+		## session's box in the tracking thread; where no link can be made, its id as before.
+		local eventTrackSessionLink="-"
+		case "$eventTrackSessionThread" in
+			?*:?*.?*)
+				eventTrackSessionLink="$(
+					[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
+					AgentsToolsSpawnProxyPostLink "$callerName" "$eventTrackSessionThread"
+				)" || eventTrackSessionLink=""
+				if [ -n "$eventTrackSessionLink" ] ; then eventTrackSessionThread="-" ; else eventTrackSessionLink="-" ; fi
+			;;
+		esac
 		## The start time as a Slack date token, so each reader sees it in their own timezone
 		## (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
 		local eventTrackStartedAt=""
@@ -1173,7 +1345,7 @@ case "$1" in
 			--field resume="${resumeFrom:+native session $resumeFrom}${resumeContextFile:+kept harness context}" \
 			--field started-by="$eventTrackStartedBy" --field session-id="$eventTrackSessionId" --field joined-session="$eventTrackJoined" \
 			--field parent-session-id="$eventTrackParent" \
-			--field session-thread="$eventTrackSessionThread" \
+			--field session-thread="$eventTrackSessionThread" --field session-thread-link="$eventTrackSessionLink" \
 			--field tracking-name="$eventTrackTracking" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
 			--field started-at="$eventTrackStartedAt" )
 		## ONE THREAD PER COWORKING SESSION, in one record, keyed by the session's id

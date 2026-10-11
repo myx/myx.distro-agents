@@ -3750,12 +3750,33 @@
 			go into it -- never reaches stdout, and a failed post
 			never fails the spawn.
 
-			Every spawn also belongs to a coworking session:
-			inheriting one from its parent joins it with no new
-			thread. Where that thread is unknown, or the post
-			fails, one stderr warning is printed and the spawn
-			goes on. Otherwise one opens in magic-team, titled by
-			--session-name-or-comment or the session id.
+			Every spawn also belongs to a coworking session, and
+			the session that spawns is that session: a spawn made
+			from inside a session joins it with no new thread, and
+			a caller that is a session of its own, such as a
+			native client session, is the coworking session of
+			every member it brings in. With the first of them
+			the tooling seeds the session's thread in magic-team
+			with the session's own root post, "Session <name>,
+			started by <member>", posted by the bot with no
+			author line: the name is --session-name-or-comment,
+			else the session id, and the member is the one whose
+			session brings the others in, left out where it is
+			not known. The tracking thread's session box links
+			to that root. Each member then says it joined, with
+			its own description. --session-new starts a separate session
+			with a thread of its own, and --session-id <id> joins
+			another one. A caller with no session at all, a bare
+			command line, starts one as before. Where the thread
+			is unknown, or the post fails, one stderr warning is
+			printed and the spawn goes on. The member's session
+			starts in the workspace the spawn is run from, with
+			that workspace's settings, skillset and access rules
+			for it. A member that is not set up there is refused
+			before anything starts, with one message naming the
+			member, that workspace, what is missing and where on
+			this machine the member is set up. A client-* member
+			alone still starts in the workspace that holds it.
 			--session-thread:event-track pins it to the agent-log
 			thread instead and skips the magic-team post -- used
 			by the main loop's own solitary spawns.
