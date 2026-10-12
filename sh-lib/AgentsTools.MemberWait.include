@@ -120,6 +120,10 @@
 ## Not built, one probe away: repo:<name>, returning that repository HEAD through the
 ## team git tooling. inbox:<member> is the own inbox only, board:<state> one board state.
 ##
+## REMINDERS. A wait also reminds: the asks it stands for, still waiting on a person, on
+## their schedule (AgentsWaitRemind below, AgentsTools.PendingReplyRemind.include). It changes
+## nothing a wait returns, and what it did is said on stderr only.
+##
 
 ## The kinds this build carries. One word per adapter, in the order they are
 ## offered to a caller that asks.
@@ -431,6 +435,41 @@ AgentsWaitBackoffNap(){ ## now (epoch), newest activity (epoch)
 	[ "$1" -le "$2" ] || napSeconds=$(( 5 + ( $1 - $2 ) / 20 ))
 	[ "$napSeconds" -le 300 ] || napSeconds=300
 	printf '%s\n' "$napSeconds"
+}
+
+## THE REMINDERS OF A WAIT. An ask still waiting on a person is reminded on its schedule
+## (30 minutes, 2 hours, then daily: AgentsTools.PendingReplyRemind.include) by the wait that
+## stands for it, so it is reminded while a member waits and no main loop runs: the asks the
+## wait watches (its ask:<pending-id> sources) and every open ask of its coworking session,
+## whoever of that session asked it. The record's own stamps make a repeat send nothing, so
+## this and the main loop's run send one reminder for a stage. A wait that reads a thread
+## for a reminder run (agentsPendingReplyRemindRunning, set by that run) starts none itself.
+## In a subshell, and it fails nothing here: what a run did is said on stderr, each line once
+## a call, and a run that could not start is said there too. MDAT_WAIT_REMIND=off switches
+## it off for a call: the test runner sets it for every test (sh-test/AgentsRunTests.sh).
+AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working directory
+	local remindLine
+	[ "${MDAT_WAIT_REMIND:-}" != "off" ] || return 0
+	[ -z "${agentsPendingReplyRemindRunning:-}" ] || return 0
+	[ -n "$1" ] || case " $2" in *" ask:"*) ;; *) return 0 ;; esac
+	(
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyCollect.include"
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include"
+		AgentsToolsPendingReplyRemindWaitRun "$1" "$2"
+	) > "$3/remind.out" 2> /dev/null || {
+		echo "# --member-wait-for-input: the reminders of this wait could not run" >&2
+		return 0
+	}
+	while IFS= read -r remindLine ; do
+		case "$remindLine" in
+			'REMINDED '*|'FAILED '*|'SKIPPED '*|'HELD '*) ;;
+			*) continue ;;
+		esac
+		LC_ALL=C grep -q -x -F -- "$remindLine" "$3/remind.said" 2> /dev/null && continue
+		printf '%s\n' "$remindLine" >> "$3/remind.said"
+		echo "# --member-wait-for-input: $remindLine" >&2
+	done < "$3/remind.out"
+	return 0
 }
 
 case "$1" in
@@ -1120,7 +1159,7 @@ case "$1" in
 		[ "$waitMode" != "default" ] || rm -f "$waitStateDir"/base.* 2>/dev/null || true
 
 		local waitRound=0 waitOutcome="TIMEOUT" waitHits=""
-		local waitProbeFailures="" waitReadSources=""
+		local waitProbeFailures="" waitReadSources="" waitRemindNext=0
 		while : ; do
 			waitRound=$(( waitRound + 1 ))
 			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc roundEvery
@@ -1173,6 +1212,12 @@ case "$1" in
 
 			local waitNow waitRemaining waitNap
 			waitNow="$( date +%s )"
+			## The asks this wait stands for are reminded from here (AgentsWaitRemind): after a
+			## round that brought nothing, and at most once a minute.
+			if [ "$waitNow" -ge "$waitRemindNext" ] ; then
+				waitRemindNext=$(( waitNow + 60 ))
+				AgentsWaitRemind "$waitSessionId" "$waitSources" "$waitDir" || :
+			fi
 			if [ -n "$waitDeadline" ] && [ "$waitNow" -ge "$waitDeadline" ] ; then
 				break
 			fi

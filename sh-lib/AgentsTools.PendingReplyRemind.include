@@ -6,14 +6,17 @@
 ## person. Definitions only: AgentsToolsPendingReplyRemindRun is an in-context helper with no
 ## operation of its own (MAGIC.md, section 1), which the main loop (AgentsTools.InternMainLoop.include)
 ## runs every iteration right after its pending-reply collect, with this file and
-## AgentsTools.PendingReplyCollect.include sourced.
+## AgentsTools.PendingReplyCollect.include sourced. A member's wait runs it too
+## (AgentsToolsPendingReplyRemindWaitRun, called by AgentsTools.MemberWait.include), for the
+## asks that wait stands for, so an ask is reminded while a member waits and no main loop runs.
 ##
 ## Pure tooling: no model is called, no skillset text drives it. It reads every
 ## record in .local/agents/pending/ still `status: reply-pending`, of a live session or
 ## an ended one alike, and NEVER closes, expires or deletes one -- a reminder only
 ## stamps the record it reminded about (owner ruling: asks never expire by age).
 ##
-## Schedule, per ask, the ask's age taken from its question ts:
+## Schedule, per ask, the ask's age taken from its question ts, and for an ask that went on
+## to the human-owner from its forward, which is when he was asked:
 ##   reminder-30m          once, 30 minutes after the ask
 ##   reminder-2h           once, 2 hours after the ask
 ##   last-daily-reminder   at the first main-loop iteration after 09:00 local each day
@@ -22,11 +25,27 @@
 ## Stages due together send ONE reminder and are stamped together. Every send adds to
 ## `reminders: <n>` and sets `last-reminder-at`. The stamps are what makes a repeat
 ## send nothing: a stage stamped is never due again.
+## A run for named asks (a member's wait) has no window of its own: after 09:00 local the
+## ask's own stamps say whether it was reminded that day, and the main loop's window is
+## neither opened nor spent. Such a run acts on 5 asks at most, so it never holds its wait
+## long, and leaves the rest to its next run. One run at a time, whoever runs it (the lock
+## `pending-reply-remind`), so the main loop's run and a wait's send one reminder for a stage.
 ##
 ## Where, within one run: the due asks are grouped by addressee (`address-to`), and every
 ## one is reminded by one reply in that ask's own thread, however many are due for one
 ## person. A reminder is never a new top-level message: the question's thread is where its
 ## whole conversation lives.
+## An ask that went on to the human-owner (a forward: `forward-channel` and `forward-ts` on
+## its record) is reminded where he has it: one reply under the forward, addressed to him,
+## as the team bot, by the member that forwarded it -- the identity the forward was posted with.
+##
+## Never over an answer. Right before a send the place is read once, with the read a wait
+## makes on that ask (for a forward, over the forward's own thread): a reply or a click of
+## its addressee that nobody has taken yet sends nothing, and the stages due are stamped as
+## passed, with `last-reminder-held`, so each stage is decided once. Where the place cannot
+## be read, the reminder is sent as it always was. So is that of an ask that went up to a
+## member with no forward (`rerouted-from`): what its thread holds is the answer of the one
+## it was first addressed to, which was not applied, and says nothing of who has it now.
 ##
 ## Sent through --member-comms-slack-send-message, as the ask's own owner, under the
 ## identity its record names (`ask-identity: bot`), addressed with the same
@@ -36,19 +55,30 @@
 ## One line per ask acted on, first word the outcome:
 ##   REMINDED <id> <person> thread reminder=<n> stages=<stage,...>
 ##   SKIPPED <id> | <why>                  -- unresolvable, nothing sent
-##   FAILED <id> <person> | <why>          -- the send failed; nothing stamped, due again next run
-## then `REMIND: reminded=<n> threads=<n> digests=<n> skipped=<n> failed=<n>`, where digests
-## is always 0 now and stays in the line for the readers that parse it.
+##   FAILED <id> <person> | <why>          -- the send failed; no stage stamped, due again next run
+##                                            (`last-reminder-failed` keeps when: a wait's run
+##                                            tries that ask again half an hour later, since a
+##                                            send that fails can take a minute to say so)
+##   HELD <id> <person> | <why> stages=<stage,...>  -- an answer stands there untaken; nothing sent
+## then `REMIND: reminded=<n> threads=<n> digests=<n> skipped=<n> failed=<n> held=<n>`, where
+## digests is always 0 now and stays in the line for the readers that parse it.
 ##
 
-## The question as it was asked: the posted body's first section after its kind heading,
-## up to the first formal field. At most 40 lines.
+## The question as it stands now: the posted body's first section after its kind heading,
+## up to the first formal field. Of a question asked again, changed, that of its latest
+## revision (`## Revision <n>`, the n its record counts in `revisions`). At most 40 lines.
 AgentsToolsPendingReplyRemindQuestion(){ ## record file
 	LC_ALL=C awk '
-		dashes < 2 { if ( $0 == "---" ) { dashes++ ; } next ; }
+		dashes < 2 {
+			if ( $0 == "---" ) { dashes++ ; }
+			else if ( index( $0, "revisions: " ) == 1 ) { liveHead = "## Revision " substr( $0, 12 ) ; }
+			next ;
+		}
+		liveHead != "" && $0 == liveHead { seenAsked = 1 ; started = 0 ; ended = 0 ; count = 0 ; next ; }
+		ended { next ; }
 		! seenAsked && $0 == "# Question asked" { seenAsked = 1 ; next ; }
 		! started && /^# / { started = 1 ; next ; }
-		/^\*\*/ { exit ; }
+		/^\*\*/ { ended = 1 ; next ; }
 		{
 			if ( ! started && $0 !~ /^[ \t]*$/ ) { started = 1 ; }
 			if ( started ) { lines[++count] = $0 ; }
@@ -63,8 +93,10 @@ AgentsToolsPendingReplyRemindQuestion(){ ## record file
 }
 
 ## Stamps the stages sent, under the record's own lock, the lock every close takes. A
-## record closed meanwhile is left as it is.
-AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma list), reminder number, stamp time, today
+## record closed meanwhile is left as it is. Held: the stages are passed with no send, so
+## the count of reminders and the time of the last one stay as they were. Failed: called
+## with no stage, the record keeps when the send failed, in epoch seconds, and nothing else.
+AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma list), reminder number, stamp time, today, held|failed (empty: the reminder was sent)
 	local stampLock stampOps stampBody stampStage
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
@@ -79,8 +111,14 @@ AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma 
 					daily) printf 'upsert\tlast-daily-reminder\t%s\n' "$6" ;;
 				esac
 			done
-			printf 'upsert\treminders\t%s\n' "$4"
-			printf 'upsert\tlast-reminder-at\t%s\n' "$5"
+			case "${7:-}" in
+				held) printf 'upsert\tlast-reminder-held\t%s %s\n' "$5" "$3" ;;
+				failed) printf 'upsert\tlast-reminder-failed\t%s\n' "$5" ;;
+				*)
+					printf 'upsert\treminders\t%s\n' "$4"
+					printf 'upsert\tlast-reminder-at\t%s\n' "$5"
+				;;
+			esac
 		} > "$stampOps" \
 			&& stampBody="$( LC_ALL=C awk -v opsFile="$stampOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$2" )" \
 			&& [ -n "$stampBody" ] && printf '%s\n' "$stampBody" > "$2.$$" && mv -f "$2.$$" "$2" \
@@ -121,12 +159,39 @@ AgentsToolsPendingReplyRemindSend(){ ## owner, identity, target, address to, tex
 	return 0
 }
 
-## The whole run. Prints the outcome lines and the REMIND summary.
-AgentsToolsPendingReplyRemindRun(){
+## Whether the place a reminder is about to go to holds an answer already: a reply or a
+## click of the ask's addressee that nobody has taken yet. One read, never a wait: the
+## zero-bound round a wait makes on that ask, and for a forward the same round over the
+## forward's own thread, since the forward, as the team bot that posted it, with no settle:
+## that anything stands there is all that is asked. rc 0 only when an answer stands there;
+## rc 1 when none does, and when the place could not be read.
+AgentsToolsPendingReplyRemindAnswered(){ ## acting member, pending id, the place `<channel>:<thread ts>`, the forward's addressees (-: no forward; none: the place is not read)
+	local readOut readRc=0 readSaid=""
+	[ "$4" != "none" ] || return 1
+	readOut="$( mktemp "$MMDAPP/.local/temp/mdat-pending-remind-read.XXXXXX" )" || return 1
+	if [ "$4" != "-" ] ; then
+		MDAT_WAIT_READ_AS_BOT=true MDAT_WAIT_SETTLE_SECONDS=0 DistroAgentsTools --intern-op-wait-for-input "$1" --wait-source "slack:$3" \
+			--wait-timeout 0 --wait-since-utime "${3##*:}" --wait-addressee "$4" > "$readOut" 2> /dev/null || readRc=$?
+	else
+		DistroAgentsTools --intern-op-wait-for-input "$1" --wait-source "ask:$2" --wait-timeout 0 > "$readOut" 2> /dev/null || readRc=$?
+	fi
+	[ "$readRc" != "0" ] || IFS= read -r readSaid < "$readOut" || :
+	rm -f "$readOut"
+	[ "$readRc" = "0" ] && [ "$readSaid" = "WAIT-RESULT: RECEIVED" ]
+}
+
+## The whole run. Prints the outcome lines and the REMIND summary. With pending ids given it
+## is a run for those asks alone (a member's wait); with none, for every open ask (the main loop).
+AgentsToolsPendingReplyRemindRun(){ ## optional: pending ids
 	local remindStore="$MMDAPP/.local/agents/pending" remindDaily="$MMDAPP/.local/agents/pending-remind.daily"
 	local remindNow remindToday remindHhmm remindStamp remindDailyOpen="" remindWork remindLock=""
-	local remindReminded=0 remindThreads=0 remindDigests=0 remindSkipped=0 remindFailed=0
-	[ -d "$remindStore" ] || { printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0\n' ; return 0 ; }
+	local remindReminded=0 remindThreads=0 remindDigests=0 remindSkipped=0 remindFailed=0 remindHeld=0
+	## A wait that reads a place for this run (AgentsToolsPendingReplyRemindAnswered) starts no run of its own.
+	local remindOnly="$*" remindTries=5 remindBound="" agentsPendingReplyRemindRunning=1
+	## A wait's run never holds its wait long: it stands in no line behind another run, and it
+	## acts on 5 asks at most. What is left is due at its next run, a minute away.
+	[ -z "$remindOnly" ] || { remindTries=1 ; remindBound=5 ; }
+	[ -d "$remindStore" ] || { printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0 held=0\n' ; return 0 ; }
 	if [ ! -r "$remindStore" ] || [ ! -x "$remindStore" ] ; then
 		echo "$MDSC_CMD: ⛔ ERROR: the pending-reply store cannot be read: $remindStore" >&2
 		return 1
@@ -134,9 +199,9 @@ AgentsToolsPendingReplyRemindRun(){
 	mkdir -p "$MMDAPP/.local/temp" || return 1
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 	## One run at a time, so two runs never both find a stage due and both send it.
-	if ! AgentsToolsLocalLockTake "pending-reply-remind" 5 ; then
+	if ! AgentsToolsLocalLockTake "pending-reply-remind" "$remindTries" ; then
 		echo "$MDSC_CMD: another reminder run holds the lock; nothing sent this time" >&2
-		printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0 (another run holds the lock)\n'
+		printf 'REMIND: reminded=0 threads=0 digests=0 skipped=0 failed=0 held=0 (another run holds the lock)\n'
 		return 0
 	fi
 	remindLock="$agentsLocalLockPath"
@@ -145,19 +210,32 @@ AgentsToolsPendingReplyRemindRun(){
 	remindToday="$( date +%Y-%m-%d )"
 	remindHhmm="$( date +%H%M )"
 	remindStamp="$( date +"%Y-%m-%d %H:%M %z" )"
-	## The daily window opens once a day, at the first run after 09:00 local.
-	if [ "$(( 10#$remindHhmm ))" -ge 900 ] && [ "$( cat "$remindDaily" 2>/dev/null )" != "$remindToday" ] ; then
+	## The daily window opens once a day, at the first run after 09:00 local. A run for named
+	## asks has none: after 09:00 each ask's own stamps say whether it was reminded that day.
+	if [ "$(( 10#$remindHhmm ))" -ge 900 ] && { [ -n "$remindOnly" ] || [ "$( cat "$remindDaily" 2>/dev/null )" != "$remindToday" ] ; } ; then
 		remindDailyOpen=1
 	fi
 
 	## Which asks are due, one tab-separated row each: person, ask epoch, id, file, stages,
-	## reminder number, owner, identity, channel, question ts, thread ts, asked-at.
+	## reminder number, owner, identity, channel, question ts, thread ts, asked-at, and the
+	## forward's addressees (-: the ask is where it was asked; none: it went up with no forward).
 	local remindFile remindKey remindValue remindId remindEpoch remindAge remindStages
 	local fStatus fOwner fChannel fQts fTts fAddr fAddressees fIdentity fAskedAt f30 f2h fDaily fCount fLastAt
+	local fFwdChannel fFwdTs fFwdAddr fFwdBy fForward fFailedAt fRerouted
 	: > "$remindWork/due"
+	## Which records are looked at: every open one, or those of the ids given.
+	if [ -z "$remindOnly" ] ; then
+		LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$remindStore" > "$remindWork/records" 2>/dev/null || :
+	else
+		for remindId in $remindOnly ; do
+			case "$remindId" in */*|.*) continue ;; esac
+			printf '%s\n' "$remindStore/$remindId.md"
+		done > "$remindWork/records"
+	fi
 	while IFS= read -r remindFile ; do
 		[ -f "$remindFile" ] || continue
 		fStatus="" fOwner="" fChannel="" fQts="" fTts="" fAddr="" fAddressees="" fIdentity="" fAskedAt="" f30="" f2h="" fDaily="" fCount="" fLastAt=""
+		fFwdChannel="" fFwdTs="" fFwdAddr="" fFwdBy="" fForward="-" fFailedAt="" fRerouted=""
 		while IFS=$'\t' read -r remindKey remindValue ; do
 			case "$remindKey" in
 				status) fStatus="$remindValue" ;;
@@ -174,10 +252,29 @@ AgentsToolsPendingReplyRemindRun(){
 				last-daily-reminder) fDaily="$remindValue" ;;
 				reminders) fCount="$remindValue" ;;
 				last-reminder-at) fLastAt="$remindValue" ;;
+				forward-channel) fFwdChannel="$remindValue" ;;
+				forward-ts) fFwdTs="$remindValue" ;;
+				forward-addressees) fFwdAddr="$remindValue" ;;
+				forwarded-by) fFwdBy="$remindValue" ;;
+				last-reminder-failed) fFailedAt="$remindValue" ;;
+				rerouted-from) fRerouted="$remindValue" ;;
 			esac
 		done < <( AgentsToolsPendingReplyCollectFields "$remindFile" )
 		[ "$fStatus" = "reply-pending" ] || continue
 		remindId="${remindFile##*/}" ; remindId="${remindId%.md}"
+		## An ask that went on to the human-owner is his where he has it: the forward's own
+		## thread, a post of the team bot's made by the member that forwarded it, and the
+		## moment of the forward is when he was asked.
+		if [ -n "$fFwdChannel" ] && [ -n "$fFwdTs" ] ; then
+			fChannel="$fFwdChannel" ; fTts="$fFwdTs" ; fQts="$fFwdTs" ; fAskedAt="${fFwdTs%%.*}"
+			fAddr="human-owner" ; fIdentity="bot" ; fForward="${fFwdAddr:--}"
+			[ -z "$fFwdBy" ] || fOwner="$fFwdBy"
+		elif [ -n "$fRerouted" ] ; then
+			fForward="none"
+		fi
+		## A wait's run leaves an ask whose send failed in the last half hour to a later run.
+		case "$fFailedAt" in ''|*[!0-9]*) fFailedAt=0 ;; esac
+		[ -z "$remindOnly" ] || [ "$(( remindNow - fFailedAt ))" -ge 1800 ] || continue
 		remindEpoch="${fQts%%.*}"
 		if [ -z "$fChannel" ] || [ -z "$fTts" ] || [ -z "$fOwner" ] || [ -z "$fAddr" ] ; then
 			printf 'SKIPPED %s | the record names no thread, owner or addressee to remind\n' "$remindId"
@@ -199,20 +296,32 @@ AgentsToolsPendingReplyRemindRun(){
 			remindStages="$remindStages,daily"
 		fi
 		[ -n "$remindStages" ] || continue
-		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fAddr" "$remindEpoch" "$remindId" "$remindFile" "${remindStages#,}" \
-			"$(( fCount + 1 ))" "$fOwner" "${fIdentity:-member}" "$fChannel" "$fQts" "$fTts" "${fAskedAt:--}" >> "$remindWork/due"
-	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' "status: reply-pending" "$remindStore" 2>/dev/null )
+		printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fAddr" "$remindEpoch" "$remindId" "$remindFile" "${remindStages#,}" \
+			"$(( fCount + 1 ))" "$fOwner" "${fIdentity:-member}" "$fChannel" "$fQts" "$fTts" "${fAskedAt:--}" "$fForward" >> "$remindWork/due"
+	done < "$remindWork/records"
 
 	## Grouped by person, oldest ask first.
 	LC_ALL=C sort -t "$( printf '\t' )" -k1,1 -k2,2n "$remindWork/due" > "$remindWork/due.sorted"
 	local remindPerson remindText remindQuote remindAsked remindWhy
-	local rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt
+	local rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt rForward
 	## When an ask was asked is said as a Slack date token, so each reader sees it in their own
 	## timezone (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
 	type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
 	for remindPerson in $( LC_ALL=C cut -f1 "$remindWork/due.sorted" | LC_ALL=C uniq ) ; do
 		LC_ALL=C awk -F'\t' -v p="$remindPerson" '$1 == p' "$remindWork/due.sorted" > "$remindWork/group"
-		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
+		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt rForward ; do
+			if [ -n "$remindBound" ] ; then
+				[ "$remindBound" -gt 0 ] || break
+				remindBound=$(( remindBound - 1 ))
+			fi
+			## Never over an answer: what the place holds is read once, right before the send.
+			if AgentsToolsPendingReplyRemindAnswered "$rOwner" "$rId" "$rChannel:$rTts" "$rForward" < /dev/null ; then
+				AgentsToolsPendingReplyRemindStamp "$rId" "$rFile" "$rStages" "$rN" "$remindStamp" "$remindToday" held < /dev/null \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $rId was not reminded over the answer in its thread, but its record could not be stamped, so its thread is read again next run" >&2
+				printf 'HELD %s %s | a reply or a click of its addressee stands in %s and nobody has taken it yet, so no reminder is sent stages=%s\n' "$rId" "$rPerson" "$rChannel:$rTts" "$rStages"
+				remindHeld=$(( remindHeld + 1 ))
+				continue
+			fi
 			remindQuote="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C sed 's/^/> /' )"
 			if [ "$rAskedAt" = "-" ] ; then remindAsked="$( AgentsToolsPendingReplyRemindNote "Words/asked-earlier" < /dev/null )" || remindAsked=""
 			else remindAsked="$( AgentsToolsSlackDateToken "$rAskedAt" date-time 2> /dev/null )" || remindAsked="${rAskedAt:0:16}" ; fi
@@ -224,15 +333,63 @@ AgentsToolsPendingReplyRemindRun(){
 				printf 'REMINDED %s %s thread reminder=%s stages=%s\n' "$rId" "$rPerson" "$rN" "$rStages"
 				remindReminded=$(( remindReminded + 1 )) ; remindThreads=$(( remindThreads + 1 ))
 			else
+				AgentsToolsPendingReplyRemindStamp "$rId" "$rFile" "" "$rN" "$remindNow" "$remindToday" failed < /dev/null || :
 				printf 'FAILED %s %s | %s\n' "$rId" "$rPerson" "$remindWhy"
 				remindFailed=$(( remindFailed + 1 ))
 			fi
 		done < "$remindWork/group"
 	done
-	## The day's window is spent once it has run, whatever was due in it.
-	[ -z "$remindDailyOpen" ] || printf '%s\n' "$remindToday" > "$remindDaily" || :
+	## The day's window is spent once it has run, whatever was due in it. It is the main loop's:
+	## a run for named asks leaves it as it was.
+	[ -z "$remindDailyOpen" ] || [ -n "$remindOnly" ] || printf '%s\n' "$remindToday" > "$remindDaily" || :
 	rm -rf "$remindWork"
 	AgentsToolsLocalLockGive "$remindLock"
-	printf 'REMIND: reminded=%s threads=%s digests=%s skipped=%s failed=%s\n' "$remindReminded" "$remindThreads" "$remindDigests" "$remindSkipped" "$remindFailed"
+	printf 'REMIND: reminded=%s threads=%s digests=%s skipped=%s failed=%s held=%s\n' "$remindReminded" "$remindThreads" "$remindDigests" "$remindSkipped" "$remindFailed" "$remindHeld"
 	return 0
+}
+
+## The run of a member's wait: the asks that wait stands for, so an ask is reminded while a
+## member waits and no main loop runs. They are the asks the wait itself watches (its
+## ask:<pending-id> sources), and every open ask of the coworking session the waiting session
+## and those asks belong to (AgentsToolsPermissionShareStore), whoever of that session asked
+## it: an ask whose asker is in no wait, a Permission set asked from the session that leads,
+## is reminded by whichever member of its session waits. The same run, the same stamps and
+## the same lock as the main loop's. Prints what the run prints, and nothing at all when the
+## wait stands for no ask.
+AgentsToolsPendingReplyRemindWaitRun(){ ## the waiting session's id (may be empty), the wait's sources
+	local waitStore="$MMDAPP/.local/agents/pending" waitSource waitId waitSession waitCow waitIds="" waitCows=" " waitKnown=" "
+	[ -d "$waitStore" ] || return 0
+	type AgentsToolsPermissionShareStore > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PermissionHolds.include"
+	waitCow="$( AgentsToolsPermissionShareStore "$1" )"
+	[ -z "$waitCow" ] || waitCows=" $waitCow "
+	for waitSource in $2 ; do
+		case "$waitSource" in ask:?*) waitId="${waitSource#ask:}" ;; *) continue ;; esac
+		case "$waitId" in */*|.*) continue ;; esac
+		[ -f "$waitStore/$waitId.md" ] || continue
+		waitIds="$waitIds $waitId"
+		waitCow="$( AgentsToolsPermissionShareStore "$( AgentsToolsPendingReplyCollectFieldOf "$waitStore/$waitId.md" session-id )" )"
+		case "$waitCows" in *" $waitCow "*) ;; *) [ -z "$waitCow" ] || waitCows="$waitCows$waitCow " ;; esac
+	done
+	[ "$waitCows" != " " ] || [ -n "$waitIds" ] || return 0
+	## Every open ask with the session it was asked in, one `<id>\t<session-id>` row each.
+	while IFS=$'\t' read -r waitId waitSession ; do
+		case "$waitSession" in ''|-|*[!A-Za-z0-9._-]*) continue ;; esac
+		case "$waitKnown" in
+			*" $waitSession="*) waitCow="${waitKnown#*" $waitSession="}" ; waitCow="${waitCow%% *}" ;;
+			*) waitCow="$( AgentsToolsPermissionShareStore "$waitSession" )" ; waitKnown="$waitKnown$waitSession=$waitCow " ;;
+		esac
+		case "$waitCows" in *" $waitCow "*) ;; *) continue ;; esac
+		case "$waitIds " in *" $waitId "*) ;; *) waitIds="$waitIds $waitId" ;; esac
+	done < <( LC_ALL=C find "$waitStore" -maxdepth 1 -type f -name '*.md' -exec awk '
+		FNR == 1 { dashes = 0 ; isOpen = 0 ; session = "" ; }
+		$0 == "---" {
+			dashes++ ;
+			if ( dashes == 2 && isOpen && session != "" ) { name = FILENAME ; sub( /^.*\//, "", name ) ; sub( /\.md$/, "", name ) ; printf "%s\t%s\n", name, session ; }
+			next ;
+		}
+		dashes == 1 && $0 == "status: reply-pending" { isOpen = 1 ; }
+		dashes == 1 && index( $0, "session-id: " ) == 1 { session = substr( $0, 13 ) ; }
+	' {} + 2>/dev/null )
+	[ -n "$waitIds" ] || return 0
+	AgentsToolsPendingReplyRemindRun $waitIds
 }

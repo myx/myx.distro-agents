@@ -649,13 +649,15 @@
 			1 the search could not be performed.
 
 			**Pretty-formatted by default**, oldest first, one
-			line per message as `ts | user | text`, threaded
-			messages tagged ` [thread-reply of <parent-ts>]`
+			line per message as `ts | user | text`. A reply in
+			a thread carries a tag ahead of its text:
+			`ts | user | [thread-reply of <parent-ts>] text`
 			(feed that ts to --member-comms-slack-read ...
-			--thread). Line breaks flatten to spaces. --raw
-			returns the full API responses per page. A `##`
-			summary line gives match/thread-reply counts, pages
-			read, and the cut-off.
+			--thread). Text that itself starts with such a tag
+			is printed one space in. Line breaks flatten to
+			spaces. --raw returns the full API responses per
+			page. A `##` summary line gives match/thread-reply
+			counts, pages read, and the cut-off.
 
 			**Hazard: Slack's own index lags live posting by
 			about five minutes, no known upper bound** -- a

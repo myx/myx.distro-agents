@@ -12,15 +12,61 @@ function renderMissing(filePath, readError) {
 }
 
 const RUN_TASK_COMMAND = 'magic-team.runPaletteTask';
+const START_REPORT_WAIT_MS = 10000;
+
+function renderTask(taskName, isStarting) {
+  return isStarting
+    ? `<li><span class="task starting">Starting: ${escapeHtml(taskName)}</span></li>`
+    : `<li><a class="task" href="command:${RUN_TASK_COMMAND}?${encodeURIComponent(JSON.stringify([taskName]))}">${escapeHtml(taskName)}</a></li>`;
+}
 
 function activate(context) {
   const skillsetDir = path.join(context.extensionPath, '..', '..', 'skillset', 'magic-team', 'magic-team');
-  context.subscriptions.push(vscode.commands.registerCommand(RUN_TASK_COMMAND, async (taskName) => {
-    const paletteTasks = await vscode.tasks.fetchTasks();
-    const paletteTask = paletteTasks.find((candidateTask) => candidateTask.source === 'Workspace' && candidateTask.name === taskName);
-    if (paletteTask) {
-      await vscode.tasks.executeTask(paletteTask);
+  const startingTasks = new Set();
+  const startedExecutions = new Set(vscode.tasks.taskExecutions);
+  const startWaits = new Map();
+  let taskProblem = '';
+  let renderView = () => {};
+  const settleStart = (taskExecution) => {
+    const startWait = startWaits.get(taskExecution);
+    if (startWait) {
+      startWaits.delete(taskExecution);
+      clearTimeout(startWait.timer);
+      startWait.resolve();
     }
+  };
+  context.subscriptions.push(vscode.tasks.onDidStartTask((taskEvent) => {
+    startedExecutions.add(taskEvent.execution);
+    settleStart(taskEvent.execution);
+  }));
+  context.subscriptions.push(vscode.tasks.onDidEndTask((taskEvent) => {
+    startedExecutions.delete(taskEvent.execution);
+    settleStart(taskEvent.execution);
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand(RUN_TASK_COMMAND, async (taskName) => {
+    if (startingTasks.has(taskName)) {
+      return;
+    }
+    startingTasks.add(taskName);
+    taskProblem = '';
+    renderView();
+    try {
+      const paletteTasks = await vscode.tasks.fetchTasks();
+      const paletteTask = paletteTasks.find((candidateTask) => candidateTask.source === 'Workspace' && candidateTask.name === taskName);
+      if (!paletteTask) {
+        throw new Error('the workspace has no such task now');
+      }
+      const taskExecution = await vscode.tasks.executeTask(paletteTask);
+      if (!startedExecutions.has(taskExecution)) {
+        await new Promise((resolve) => {
+          startWaits.set(taskExecution, { resolve, timer: setTimeout(() => settleStart(taskExecution), START_REPORT_WAIT_MS) });
+        });
+      }
+    } catch (startError) {
+      taskProblem = `${taskName} did not start: ${String(startError.message || startError)}`;
+    }
+    startingTasks.delete(taskName);
+    renderView();
   }));
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('magic-team.conclave', {
     async resolveWebviewView(webviewView) {
@@ -29,7 +75,7 @@ function activate(context) {
       const markPath = installedLayout ? path.join(context.extensionPath, 'the-conclave.mark.svg') : path.join(skillsetDir, 'resources', 'the-conclave.mark.svg');
       const basicPath = path.join(installedLayout ? context.extensionPath : skillsetDir, 'magic-team.basic.md');
       const instructionsPath = path.join(context.extensionPath, 'instructions.md');
-      webview.options = { enableScripts: false, localResourceRoots: [vscode.Uri.file(path.dirname(markPath))] };
+      webview.options = { enableScripts: false, enableCommandUris: [RUN_TASK_COMMAND], localResourceRoots: [vscode.Uri.file(path.dirname(markPath))] };
 
       let markHtml;
       try {
@@ -89,18 +135,20 @@ function activate(context) {
         instructionsHtml = renderMissing(instructionsPath, readError);
       }
 
-      let tasksHtml = '';
+      let paletteTasks = [];
+      let tasksMissingHtml = '';
       try {
-        const paletteTasks = (await vscode.tasks.fetchTasks()).filter((candidateTask) => candidateTask.source === 'Workspace');
-        if (paletteTasks.length) {
-          tasksHtml = `<p class="tasks-label">Run a task:</p>\n<ul class="tasks">\n${paletteTasks.map((paletteTask) => `<li><a class="task" href="command:${RUN_TASK_COMMAND}?${encodeURIComponent(JSON.stringify([paletteTask.name]))}">${escapeHtml(paletteTask.name)}</a></li>`).join('\n')}\n</ul>\n`;
-        }
+        paletteTasks = (await vscode.tasks.fetchTasks()).filter((candidateTask) => candidateTask.source === 'Workspace');
       } catch (readError) {
-        tasksHtml = `<p class="missing">workspace tasks could not be read: ${escapeHtml(String(readError.message))}</p>`;
+        tasksMissingHtml = `<p class="missing">workspace tasks could not be read: ${escapeHtml(String(readError.message))}</p>`;
       }
 
-      const styleNonce = crypto.randomBytes(16).toString('base64');
-      webview.html = `<!DOCTYPE html>
+      renderView = () => {
+        const tasksHtml = paletteTasks.length
+          ? `<p class="tasks-label">Run a task:</p>\n<ul class="tasks">\n${paletteTasks.map((paletteTask) => renderTask(paletteTask.name, startingTasks.has(paletteTask.name))).join('\n')}\n</ul>\n${taskProblem ? `<p class="missing">${escapeHtml(taskProblem)}</p>\n` : ''}`
+          : tasksMissingHtml;
+        const styleNonce = crypto.randomBytes(16).toString('base64');
+        webview.html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -119,6 +167,7 @@ code { font-family: var(--vscode-editor-font-family); background: var(--vscode-t
 .tasks { margin: 0 0 8px; padding: 0; list-style: none; }
 .task { display: block; margin: 4px 0; padding: 6px 10px; border-radius: 4px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); text-decoration: none; text-align: center; }
 .task:hover { background: var(--vscode-button-hoverBackground); }
+.starting { opacity: 0.6; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -126,6 +175,11 @@ ${markHtml}
 ${identityHtml}
 ${instructionsHtml}${tasksHtml}</body>
 </html>`;
+      };
+      webviewView.onDidDispose(() => {
+        renderView = () => {};
+      });
+      renderView();
     },
   }));
 }

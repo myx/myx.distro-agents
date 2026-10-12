@@ -496,6 +496,10 @@ rigAssert "control: no line of the rig's process list runs as that spawn, or hol
 rigAssert "a run with no session word is stopped: the process its record names, and what it started" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4n" ):$( rigAlive "$rigStandPid" "$rigStandChild" )" 1:0
 rigAssert "and its item records the ending"                "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-nwts.md" 'dismissed: taskstop' )" 1
+rigAssert "its result says what is true of such a run: the process it was started as is no longer running, and nothing of a session id on a process list" \
+	"$( LC_ALL=C grep -c -F 'TERM was sent to pid(s) ' "$rigTmp/e4n" ):$( LC_ALL=C grep -c -F 'and the process this run was started as, which its spawn record names, is no longer running.' "$rigTmp/e4n" ):$( LC_ALL=C grep -c -F 'carries that session id' "$rigTmp/e4n" )" 1:1:0
+rigAssert "control: a run with a session word is told as before" \
+	"$( LC_ALL=C grep -c -F 'and the process list no longer carries that session id.' "$rigTmp/e4" ):$( LC_ALL=C grep -c -F 'the process this run was started as' "$rigTmp/e4" )" 1:0
 rigStandIn
 rigRecord rig-noword-reused-$$ spawn-started "" dispatch-20261008T1200Z-nwru "" "run-process: $rigStandPid Mon_Jan__1_00:00:00_2001
 "

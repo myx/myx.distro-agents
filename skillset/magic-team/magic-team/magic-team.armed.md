@@ -149,6 +149,7 @@ Writing:
 - A generated file is fixed in its generator.
 - State on the human-owner's machine (local config, caches, allowlists) is never the deliverable.
 - A text file ends with a newline. A whole-file write is followed by a check of the last byte.
+- One logical change to a file is planned whole, then made in one `Edit` call. The call takes `edits` when the change touches several places. Never a whole-file rewrite. Never a row of partial edits that leaves the file in a state nobody intended.
 - An exact string is copied character for character, never retyped.
 - Content passed through a shell is composed in single quotes or a quoted heredoc.
 - A new element in an instruction file or report matches the length and detail of its siblings.
@@ -364,6 +365,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 - Every command, `DistroAgentsTools` calls included, runs on the session's own shell tool (`Bash` in the team harness, which already carries the workspace environment). `DistroAgentsTools` is called by its bare name; a shell that does not define it uses `"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"`.
 - A refused native shell names the tool to use instead, such as `mcp__myx_distro__execute`; using it is obedience, not a workaround. Otherwise no MCP execute tool is used by default.
+- **Two MCP execute tools exist, and neither is mandated: a member understands the difference and chooses.** `mcp__myx_distro__execute` runs a tooled command inside the calling workspace's own tooling environment, `Distro`/`Require` already set up -- for example `Require ListDistroProjects ; Distro ListDistroProjects --select-all`. `mcp__myx_common__lib_execShStdin` runs a plain shell snippet, with no tooling environment -- for example `ls -la /tmp`. `myx.common` is part of the tooling and of the standard skillset, the same as `myx.distro`.
 - A one-off call against another workspace goes through `mcp__myx_distro__execute` with that workspace in its `workspace` argument.
 - A session with no shell tool at all escalates, never works around it.
 - **Console sessions are off by default.** A member opens one (`--console-start`, `--console-send`, `--console-stop`) only where its own instructions list those operations: to batch several commands in one workspace, or to work in another workspace. Process-flow routines use direct calls.

@@ -14,6 +14,9 @@
 ##   into each line (default 900).
 ##
 ## Each test gets a test-only session identity, so no test can write into a live session store.
+## And its waits remind no ask (MDAT_WAIT_REMIND=off, AgentsTools.MemberWait.include): the asks of
+## a rig carry the ts its fake Slack gives, years old, so every wait that brings nothing would
+## remind them, one more post than a scenario counts. A test of the reminders unsets it.
 ##
 ## ONE FULL SUITE AT A TIME, MACHINE-WIDE. A run of every test (no name given) waits its turn,
 ## in arrival order, and says in one line that it waits and behind whom; a run of named tests
@@ -159,6 +162,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	(
 		unset MDAT_SPAWN_SESSION_ID MDAT_SPAWN_AGENT harnessSessionId harnessAgent
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
+		export MDAT_WAIT_REMIND=off
 		cd "$testDir" || exit 1
 		exec perl -e 'alarm shift; exec @ARGV' "$oneTimeout" bash "$testDir/$oneName.test.sh"
 	) > "$runDir/$oneName.log" 2>&1 || oneRc=$?

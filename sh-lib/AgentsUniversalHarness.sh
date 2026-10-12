@@ -2328,13 +2328,17 @@ AgentsHarnessDispatchReceipt(){ ## item filename
 ## item records is also an OS handle -- which is what lets a stop reach a helper that
 ## is cooperating in no way. The id travels in the environment, never in argv, so this never matches itself.
 ## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
-## Where no process carries it, the run is the process its spawn's record names (below).
+AgentsHarnessSessionWordPids(){ ## session id
+	export MDAT_HARNESS_WANT_SESSION="$1"
+	ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
+		index($0, ENVIRON["MDAT_HARNESS_WANT_SESSION"]) > 0 { print $1 ; }
+	'
+}
+## The live processes of one spawn: those carrying its id in their own command line, as
+## above. Where no process carries it, the run is the process its spawn's record names (below).
 AgentsHarnessSessionPids(){ ## session id
 	local pidsFound pidsRecord pidsRun
-	export MDAT_HARNESS_WANT_SESSION="$1"
-	pidsFound="$( ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
-		index($0, ENVIRON["MDAT_HARNESS_WANT_SESSION"]) > 0 { print $1 ; }
-	' )"
+	pidsFound="$( AgentsHarnessSessionWordPids "$1" )"
 	if [ -n "$pidsFound" ] ; then
 		printf '%s\n' "$pidsFound"
 		return 0
@@ -2646,6 +2650,10 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 		printf 'ERROR: dispatch item %s carries no session-id, so there is no handle on any process and NOTHING was signalled. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
 	fi
 	stopPids="$( AgentsHarnessSessionPids "$sessionId" )"
+	## What an ended run is said to be, by how it was found: a process that carried the session
+	## id, or, for a CLI that is given no session word, the process the run was started as.
+	local stopGone="the process list no longer carries that session id"
+	[ -z "$stopPids" ] || [ -n "$( AgentsHarnessSessionWordPids "$sessionId" )" ] || stopGone="the process this run was started as, which its spawn record names, is no longer running"
 	if [ -z "$stopPids" ] ; then
 		printf 'STOP-RESULT: NO-PROCESS\nDispatch item %s, session %s, status %s.\nNo running process carries that session id, so nothing was signalled. Where the status above is a closed one this session had already finished; otherwise the record says running and no process matches it, which is UNKNOWN rather than stopped -- the session may have died without its record being closed, or its CLI may not carry the session id on its command line.\n' "$itemName" "$sessionId" "${itemStatus:-<none>}" ; return 0
 	fi
@@ -2659,7 +2667,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	sleep 2
 	survivors="$( AgentsHarnessSessionPids "$sessionId" )"
 	if [ -z "$survivors" ] ; then
-		printf 'STOP-RESULT: STOPPED\nDispatch item %s, session %s.\nTERM was sent to pid(s) %s and the process list no longer carries that session id.\nThe dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment.\n' "$itemName" "$sessionId" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" ; return 0
+		printf 'STOP-RESULT: STOPPED\nDispatch item %s, session %s.\nTERM was sent to pid(s) %s and %s.\nThe dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment.\n' "$itemName" "$sessionId" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$stopGone" ; return 0
 	fi
 	if [ "$forceWanted" != "yes" ] ; then
 		printf 'STOP-RESULT: STILL-RUNNING\nDispatch item %s, session %s.\nTERM was sent to pid(s) %s and pid(s) %s are still running two seconds later. Nothing further was sent: KILL happens only when force is asked for. Call again with force set true to send it.\n' "$itemName" "$sessionId" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$( printf '%s' "$survivors" | tr '\n' ' ' )" ; return 0
@@ -2670,7 +2678,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	sleep 2
 	survivors="$( AgentsHarnessSessionPids "$sessionId" )"
 	if [ -z "$survivors" ] ; then
-		printf 'STOP-RESULT: KILLED\nDispatch item %s, session %s.\nTERM did not end it, KILL was sent because force was asked for, and the process list no longer carries that session id.\nA KILLed CLI reaps none of its own children, so anything it had started may still be running.\n' "$itemName" "$sessionId" ; return 0
+		printf 'STOP-RESULT: KILLED\nDispatch item %s, session %s.\nTERM did not end it, KILL was sent because force was asked for, and %s.\nA KILLed CLI reaps none of its own children, so anything it had started may still be running.\n' "$itemName" "$sessionId" "$stopGone" ; return 0
 	fi
 	printf 'STOP-RESULT: NOT-STOPPED\nDispatch item %s, session %s.\nTERM and then KILL were both sent, and pid(s) %s are STILL present. This session was NOT stopped -- report it rather than working around it.\n' "$itemName" "$sessionId" "$( printf '%s' "$survivors" | tr '\n' ' ' )"
 }

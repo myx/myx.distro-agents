@@ -58,12 +58,19 @@
 #
 # `mode=lines` output, one line per match:
 #     <ts> | <user> | <text>
-# plus, only for a match that is a reply inside a thread:
-#     <ts> | <user> | <text> [thread-reply of <parent-ts>]
-# The three-column shape and the trailing bracket annotation are
+# and, only for a match that is a reply inside a thread, with this reader's own
+# mark AHEAD of the text:
+#     <ts> | <user> | [thread-reply of <parent-ts>] <text>
+# The three-column shape and the bracket annotation ahead of the text are
 # AgentsSlackMessagesFormat.awk's own established output shape, not a new one
-# invented here -- that file appends `[reactions: ...]` and `[thread: ...]` the
+# invented here -- that file prints `[reactions: ...]` and `[thread: ...]` the
 # same way, so a downstream reader splitting on " | " keeps working unchanged.
+# AHEAD AND NOT AFTER, because after the text the mark stood where the text
+# itself ends: a message outside any thread whose text ended with those words
+# read as a reply inside the thread they named -- a pasted search line does
+# that honestly. Ahead of the text, the mark's place holds this reader's word
+# only: text that itself STARTS with `[thread-reply of ` is printed one space
+# in, the way AgentsSlackMessagesFormat.awk prints a head-shaped line of text.
 #
 # A match's text may legitimately contain newlines, and a format whose whole
 # promise is one line per match cannot carry them. INTERIOR newlines are
@@ -402,11 +409,14 @@ END {
 		text = (i in textOf) ? dateFallbacks(textOf[i]) : ""
 		gsub(/\n/, " ", text)
 		gsub(/\r/, " ", text)
-		line = sprintf("%s | %s | %s", tsOf[i], (i in userOf ? userOf[i] : "?"), text)
+		## The mark goes ahead of the text, and text that starts with one goes one
+		## space in: what stands in the mark's place is this reader's word only.
+		annotations = ""
 		if (parentOf[i] != "" && parentOf[i] != tsOf[i]) {
-			line = line sprintf(" [thread-reply of %s]", parentOf[i])
+			annotations = sprintf(" [thread-reply of %s]", parentOf[i])
 		}
-		print line
+		if (index(text, "[thread-reply of ") == 1) text = " " text
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, text)
 	}
 	exit (inRange > 0 ? 0 : 3)
 }
