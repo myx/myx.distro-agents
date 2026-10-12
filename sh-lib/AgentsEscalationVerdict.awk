@@ -33,6 +33,17 @@
 # allow-session, deny first and then the narrower grant when several are held. So is a
 # permission set: x is deny and unlock is allow-set, deny first; edit only by reply, since it
 # carries the change in words.
+# A PROPOSAL (ProposeApprove) is answered by the human-owner's own click on its root:
+# white_check_mark is approved and x is rejected, rejected first when both are held. The
+# reader is given the reactions of the root alone, never those under the proposal reply
+# (AgentsSlackThreadAnswersSince.awk). By reply, a first word approved or approve is approved,
+# and rejected or reject is rejected; the rest of that line is carried, as "approved --
+# <text>" or "rejected -- <text>". No plain affirmation approves: that kind takes only its own
+# words and marks.
+# A REVIEW takes accept, return or reject: as a reply's first word, in any case, a colon after
+# it or not, printed with what follows it as "<word> -- <the rest of the line>"; or by click,
+# +1 (or thumbsup) for accept, leftwards_arrow_with_hook for return, x for reject. Two of them
+# held by one account name none. No plain affirmation in words is taken for one.
 # A PLAIN QUESTION takes a verdict only by its answer form (MDAT_VERDICT_SELECT): yes-no reads
 # as a readback does, without correct; one reads as a decision does, without the recommended
 # option; many is every option named, in option order, space-separated -- by reply when every
@@ -44,7 +55,8 @@
 # A reaction by an asking account never counts (MDAT_VERDICT_ASKING): the tooling places the
 # answer emoji under the question as the account that posted it.
 #
-# ENVIRON["MDAT_VERDICT_KIND"]    question | readback | decision | permission | permission-set
+# ENVIRON["MDAT_VERDICT_KIND"]    question | readback | decision | permission | permission-set | review
+#                                 | proposal
 # ENVIRON["MDAT_VERDICT_SELECT"]  question only: yes-no | one | many.
 # ENVIRON["MDAT_VERDICT_OPTIONS"] decision, one and many: the options, one per line; each
 #                                 line's first word is the word that answers it, and the line
@@ -109,6 +121,7 @@ BEGIN {
 	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["correct"] = 1 ; }
 	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; optionSet["allow-task"] = 1 ; }
 	else if ( kind == "permission-set" ) { optionSet["deny"] = 1 ; optionSet["allow-set"] = 1 ; optionSet["edit"] = 1 ; }
+	else if ( kind == "proposal" ) { optionSet["approved"] = 1 ; optionSet["rejected"] = 1 ; }
 	authorTotal = split( ENVIRON["MDAT_VERDICT_AUTHORS"], authorList, " " ) ;
 	for ( authorIndex = 1 ; authorIndex <= authorTotal ; authorIndex++ ) { authorSet[authorList[authorIndex]] = 1 ; }
 	askingTotal = split( ENVIRON["MDAT_VERDICT_ASKING"], askingList, " " ) ;
@@ -200,6 +213,23 @@ function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
 		## Deny first: two clicks never give what one of them withholds.
 		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "deny" ; author = who ; }
 		else if ( ( who = holderOf( "unlock" ) ) != "" ) { verdict = "allow-set" ; author = who ; }
+		return ;
+	}
+	if ( kind == "proposal" ) {
+		## Rejected first: two clicks never approve what one of them rejects.
+		if ( ( who = holderOf( "x" ) ) != "" ) { verdict = "rejected" ; author = who ; }
+		else if ( ( who = holderOf( "white_check_mark" ) ) != "" ) { verdict = "approved" ; author = who ; }
+		return ;
+	}
+	if ( kind == "review" ) {
+		## One verdict is the answer. Two held by one account name none.
+		for ( heldIndex = 1 ; heldIndex <= heldTotal ; heldIndex++ ) {
+			who = heldOrder[heldIndex] ; picked = "" ; pickedCount = 0 ;
+			if ( ( ( who, "+1" ) in held ) || ( ( who, "thumbsup" ) in held ) ) { picked = "accept" ; pickedCount++ ; }
+			if ( ( who, "leftwards_arrow_with_hook" ) in held ) { picked = "return" ; pickedCount++ ; }
+			if ( ( who, "x" ) in held ) { picked = "reject" ; pickedCount++ ; }
+			if ( pickedCount == 1 ) { verdict = picked ; author = who ; return ; }
+		}
 		return ;
 	}
 	if ( form == "many" ) {
@@ -331,6 +361,16 @@ function judgeMessage(    replyText, replyWord, replyRest ) {
 		## edit carries the change, as a readback correct does.
 		if ( replyWord == "deny" || replyWord == "allow-set" ) { verdict = replyWord ; }
 		else if ( replyWord == "edit" || replyWord == "edit:" ) { verdict = "edit" ( replyRest != "" ? " -- " replyRest : "" ) ; }
+	} else if ( kind == "proposal" ) {
+		## Its own two words only, each carrying the rest of its line, as edit does.
+		sub( /:$/, "", replyWord ) ;
+		sub( /^[-:,]+[ \t]*/, "", replyRest ) ;
+		if ( replyWord == "approved" || replyWord == "approve" ) { verdict = "approved" ( replyRest != "" ? " -- " replyRest : "" ) ; }
+		else if ( replyWord == "rejected" || replyWord == "reject" ) { verdict = "rejected" ( replyRest != "" ? " -- " replyRest : "" ) ; }
+	} else if ( kind == "review" ) {
+		## Each carries what follows its word, as a readback correct does.
+		sub( /:$/, "", replyWord ) ;
+		if ( replyWord == "accept" || replyWord == "return" || replyWord == "reject" ) { verdict = replyWord ( replyRest != "" ? " -- " replyRest : "" ) ; }
 	} else if ( kind == "decision" ) {
 		if ( replyWord in optionSet ) { verdict = replyWord ; }
 		else if ( numberOf( replyWord ) > 0 ) { verdict = numberWord[numberOf( replyWord )] ; }

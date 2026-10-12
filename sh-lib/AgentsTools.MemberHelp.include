@@ -56,9 +56,16 @@ case "$1" in
 					"--member-*"
 				)
 			;;
-			partner-*|client-*)
+			partner-*)
 				commonPrefixes=(
 					"--member-*"
+				)
+			;;
+			## A client-* member works on both sides: our own team by --member-*, the other organisation by --client-*.
+			client-*)
+				commonPrefixes=(
+					"--member-*"
+					"--client-*"
 				)
 			;;
 			keeper-*|warden-*)

@@ -11,10 +11,19 @@ function renderMissing(filePath, readError) {
   return `<p class="missing">${escapeHtml(filePath)} could not be read: ${escapeHtml(String(readError.code || readError.message))}</p>`;
 }
 
+const RUN_TASK_COMMAND = 'magic-team.runPaletteTask';
+
 function activate(context) {
   const skillsetDir = path.join(context.extensionPath, '..', '..', 'skillset', 'magic-team', 'magic-team');
+  context.subscriptions.push(vscode.commands.registerCommand(RUN_TASK_COMMAND, async (taskName) => {
+    const paletteTasks = await vscode.tasks.fetchTasks();
+    const paletteTask = paletteTasks.find((candidateTask) => candidateTask.source === 'Workspace' && candidateTask.name === taskName);
+    if (paletteTask) {
+      await vscode.tasks.executeTask(paletteTask);
+    }
+  }));
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('magic-team.conclave', {
-    resolveWebviewView(webviewView) {
+    async resolveWebviewView(webviewView) {
       const webview = webviewView.webview;
       const installedLayout = fs.existsSync(path.join(context.extensionPath, 'magic-team.basic.md'));
       const markPath = installedLayout ? path.join(context.extensionPath, 'the-conclave.mark.svg') : path.join(skillsetDir, 'resources', 'the-conclave.mark.svg');
@@ -80,6 +89,16 @@ function activate(context) {
         instructionsHtml = renderMissing(instructionsPath, readError);
       }
 
+      let tasksHtml = '';
+      try {
+        const paletteTasks = (await vscode.tasks.fetchTasks()).filter((candidateTask) => candidateTask.source === 'Workspace');
+        if (paletteTasks.length) {
+          tasksHtml = `<p class="tasks-label">Run a task:</p>\n<ul class="tasks">\n${paletteTasks.map((paletteTask) => `<li><a class="task" href="command:${RUN_TASK_COMMAND}?${encodeURIComponent(JSON.stringify([paletteTask.name]))}">${escapeHtml(paletteTask.name)}</a></li>`).join('\n')}\n</ul>\n`;
+        }
+      } catch (readError) {
+        tasksHtml = `<p class="missing">workspace tasks could not be read: ${escapeHtml(String(readError.message))}</p>`;
+      }
+
       const styleNonce = crypto.randomBytes(16).toString('base64');
       webview.html = `<!DOCTYPE html>
 <html lang="en">
@@ -96,12 +115,16 @@ p { margin: 0 0 8px; }
 ul { margin: 0 0 8px; padding-left: 20px; }
 code { font-family: var(--vscode-editor-font-family); background: var(--vscode-textCodeBlock-background); padding: 0 3px; border-radius: 3px; }
 .missing { color: var(--vscode-errorForeground); }
+.tasks-label { margin: 16px 0 4px; font-weight: 600; }
+.tasks { margin: 0 0 8px; padding: 0; list-style: none; }
+.task { display: block; margin: 4px 0; padding: 6px 10px; border-radius: 4px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); text-decoration: none; text-align: center; }
+.task:hover { background: var(--vscode-button-hoverBackground); }
 </style>
 </head>
 <body>
 ${markHtml}
 ${identityHtml}
-${instructionsHtml}</body>
+${instructionsHtml}${tasksHtml}</body>
 </html>`;
     },
   }));

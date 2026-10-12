@@ -11,7 +11,8 @@
 ## tool_name; MultiEdit and NotebookEdit are decided as Edit, Grep and Glob by their search
 ## root (the payload cwd when no path is given). The decision is the one the harness gate
 ## makes: the session permission index of the member (AgentsTools.Grants.include), by
-## builtins only, rebuilt with one awk only when stale, the ceiling first:
+## builtins only, rebuilt only when stale -- one awk, and for a session with a spawn record
+## one more over the spawn records -- the ceiling first:
 ##   granted                     allow
 ##   a write in a read-only place deny, naming where to write instead
 ##   anything else               no answer: the call goes on exactly as before this hook --

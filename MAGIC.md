@@ -649,7 +649,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`AgentsToolsSpawnProxyOutcome`): a `<session>.harness` marker and no `<session>.armed`. Native
   sessions keep the exit-code rule.
 - **Arm before acting.** In a spawned harness loop, Write, Edit, Bash, SendMessage, AskQuestion,
-  ConfirmReadback, EscalateDecision, RequestPermission, Agent
+  ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove, Agent
   and any `mcp__*__execute` are redirected until the session has read its own `<member>.armed.md` to the
   end through Skill (no truncation footer; a ranged read must reach the last line). Read-only tools,
   served `--intern-tool` calls and non-spawned sessions are never gated. The first redirect posts once to
@@ -949,10 +949,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The set** (`harnessToolsJson` in `AgentsOpenAiChatWire.sh`): `Read`, `Write`, `Glob`, `Edit`, `Grep`,
   `Bash`, `WebSearch`, `WebFetch`, `SendMessage`, `ListAgents`, `Wait`, `SubagentHandback`,
   `ReportFindings`, `PushNotification`, `Artifact`, `AskQuestion`, `ConfirmReadback`,
-  `EscalateDecision`, `RequestPermission`, `ListMcpResourcesTool`,
+  `EscalateDecision`, `RequestPermission`, `ProposeApprove`, `ListMcpResourcesTool`,
   `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`,
-  `ToolSearch`, `SessionTranscriptAppend`, `Monitor`. Each has four sites: the declaration, and in the
-  core the announce arm, the dispatch arm and the function.
+  `ToolSearch`, `SessionTranscriptAppend`, `Monitor`. 30 tools. Each has four sites: the declaration,
+  and in the core the announce arm, the dispatch arm and the function.
 - **The tools literal is one bash single-quoted string.** An English possessive closes it
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes
   `bash -n` and the site check and fails only at the endpoint as a 400; `HARNESS_TOOLS_JSON` catches it by
@@ -961,15 +961,27 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `AskQuestion`, `ConfirmReadback`, `EscalateDecision` and `RequestPermission` share one `to` resolver:
   named conversations, a bare id, `<channel>:<ts>`,
   `session-parent` (the parent sandbox's `session.thread`; no parent is an error, never another thread),
+  `session-current` (the session thread of the coworking session the member works in now; both names
+  resolve in the one resolver, for every operation that takes them, not only these),
+  `client:<conversation-id>`, `client:<channel>:<ts>` or `client:<user-id>` (a `client-*` member's own
+  addresses into the other organisation; refused on every other member, and refused back onto our own
+  named conversations and session addresses, each with the one line naming the side),
   or a member name (its DM via `AgentsToolsCommsSlackMentionUserId`; no Slack account means an
   `inquiry-*` in its inbox, which `AskQuestion` refuses). An empty `to` is the session thread
   (`AgentsToolsSessionThreadFind`), resolved inside `--member-comms-slack-send-message` so MCP gets it
-  too; `SubagentHandback` defaults to `session-parent`.
-- **The four ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`) each
-  render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`). `select` gives the
-  answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` -- `one`/`many` need
-  `options`, `yes-no` takes none. `revise` re-asks a question still open, changed, in that question's own
-  thread, by the pending id the first ask returned.
+  too; `SubagentHandback` defaults to `session-parent`. `ProposeApprove` keeps its own `to`: the
+  human-owner by default, or a named conversation -- never a thread, since its first message opens one.
+- **The five ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`,
+  `ProposeApprove`) each render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`).
+  `select` gives the answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` --
+  `one`/`many` need `options`, `yes-no` takes none. `revise` re-asks a question still open, changed, in
+  that question's own thread, by the pending id the first ask returned. `ProposeApprove` alone takes
+  `question`, `proposal`, `document` (an absolute link, required) and `task_ref` in place of a plain
+  question and `select`: it posts `question` once as the root, with no tooling emoji under it, and
+  `proposal` as the reply under it. The owner's own reaction on the root is the verdict; a reply whose
+  first word is `approved` or `rejected` is the same verdict; any other reply is `VERDICT: RETURNED`,
+  kept as a comment. `revise` there deletes the live proposal reply and posts the changed one under the
+  same root -- only magic-coordinator may call it, and only while the root carries no verdict yet.
 - **Identity on a served call**: `MDAT_SPAWN_AGENT`, else `magic-coordinator` for a root session, kept only
   if that `.basic.md` is readable; otherwise sending tools refuse. A model run without `--agent` refuses
   to send. Text goes on stdin; no credential in argv.
@@ -977,7 +989,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
   posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`).
 - **`Wait` tool** calls `--member-wait-for-input` and adds only: `mode` (`default`/`continue`/`close`),
-  reaction id sets, `slack:session-parent` rewriting, and `DISMISSED` detection
+  reaction id sets, `slack:session-parent` and `slack:session-current` rewriting, and `DISMISSED` detection
   (`AgentsHarnessWaitDismissed.awk`, matched by `AgentsDismissalMatch.awk`'s one shared rule: a body
   that is exactly `DISMISSED`, addressed to this member by the team send header naming it, or typed
   plain as `DISMISSED <member>` with no header -- recognised by that tag, never by the Slack account,
@@ -1070,8 +1082,11 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `groomed-from`. `--magic-grooming-to-backlog` clears `approved-by`/`approved-at`. `processed-at`, not
   `groomed-at`, answers how long an item has been processed.
 - **`board-review` is entered only by the spawn proxy** (`AgentsToolsSpawnProxyCloseDispatch` create mode
-  passes `review`, with `review-by` from `parentSessionId` when non-empty). There is no to-review stub. A
-  reviewer's accept moves review → processed; reject moves it to running with comments.
+  passes `review`, with `review-by` from `parentSessionId` when non-empty). Entering it, where `review-by`
+  names `human-owner`, posts him one review prompt, kind `review`: 👍 accepts, ↩️ returns, ❌ rejects, and
+  a reply starting `accept`, `return` or `reject` does the same. A review settled another way closes the
+  open prompt; every other `review-by` still posts none. A reviewer's accept moves review → processed;
+  reject moves it to running with comments.
 - **The approval cascade** (`AgentsToolsApprovalCascade`, `AgentsTools.ApprovalCascade.include`) fires
   when an `approval-*` arrives in `board-processed` carrying `approved-by` and `approved-at`. Each `blocks`
   item takes those values as `default` ops; a stamped `board-blocked` item whose every `blocked-by` is
@@ -1226,6 +1241,23 @@ op's own option arm.
 - **Target grammar has one resolver** (`DistroAgentsToolsResolveTarget`). A bare conversation id (≥ 9
   chars, uppercase letters and digits, first a letter) posts at top level. Its arm comes after `*:*`, so
   the two grammars are disjoint. The id is never trimmed or repaired.
+- **A `client:` marker resolves on the other organisation's side.** The resolver strips it, resolves the
+  rest by the same grammar, and keeps the marker on the result's `CHANNEL=` so whatever reads it next
+  stays on that side. `client:client:*` is refused, rc 2. The marker on a call no `client-*` member is
+  running, or a client-side call naming one of our own aliases, is refused, rc 3, with the one line
+  naming the operation and its `--member-*`/`--client-*` twin (`AgentsToolsSlackOneWayLine`). A
+  `--client-comms-slack-*` operation (send, read, search, react, edit, delete, file-info, file-fetch,
+  file-share, profile) reaches the other organisation this way; `--member-comms-slack-*` reaches our own
+  team instead, posted as the team bot, whichever member is acting. The credential never makes this
+  choice: the operation's own prefix and the address do.
+- **`session-current` and `session-parent` resolve in the same function**, each one thread, no `:<ts>`
+  of its own -- a `:<ts>` suffix on either is refused, rc 3, naming itself and that it takes none.
+  `session-current` names the session thread of the coworking session the member works in
+  (`AgentsToolsSessionCurrentThreadFind`); `session-parent` names the thread of the session that started
+  it (`AgentsToolsSessionParentThreadFind`) and also resolves a parent session id. A name that resolves
+  to no recorded `<channel>:<ts>` is refused the same way, rc 3, with the one line naming why and that
+  `<channel>:<ts>` is the way around it. On success both print `CHANNEL=` and `THREAD_TS=`;
+  `session-parent` adds a third line, `PARENT_SESSION_ID=`, when it has one.
 - **Identity selection is in `--intern-op-slack-call`, once.** No `--identity`: a member with
   `SLACK_USER_TOKEN` acts as itself, otherwise the bot; a `routine-*` author is always the bot. Passing
   `--identity user` turns the fallback into a hard error; use it only where acting as the bot is
@@ -1446,7 +1478,7 @@ op's own option arm.
 - **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
   conversation the question itself is one new top-level message, with no opener, in the member's DM or
   the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another
-  question. Only `to=<channel>:<ts>` or `session-parent` posts inside an existing thread, and only such a
+  question. Only `to=<channel>:<ts>`, `session-parent` or `session-current` posts inside an existing thread, and only such a
   question is numbered, `Q<n>` per addressee under the ask lock; a top-level question carries no number
   (its record has no `question-tag`). An identical open question returns `ALREADY-OPEN`
   and posts nothing. The same question asked again once closed (`SAME`; another session, since the
@@ -1457,6 +1489,10 @@ op's own option arm.
   share (only one the asker named): a reply starting `Q<n>` answers that one; an unnumbered reply answers
   the latest question above it while open, and none after it is closed (`resolved-epoch`).
   `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
+- **`AgentsSlackThreadAnswers.awk` skips a member's own send header first**
+  (`memberSendHeaderLength`, `AgentsDismissalMatch.awk`), on the head line or the first non-empty line
+  under it where the header fills the head line. Without it, the header's own mark read as the reply's
+  first word made every numbered reply from a member read as unnumbered.
 - **First line, then clarifications.** A reply's first line is its answer or verdict -- its first line
   that is no quote of the question: a ``` fenced block and lines starting with `>` or `&gt;` heading the
   reply are skipped (`firstUnquoted`, the same in the verdict, answer-text and clarification readers);
@@ -1468,7 +1504,8 @@ op's own option arm.
 - **Plain affirmations** (`AgentsEscalationVerdict.awk`): a first word ok, okay, yes, agree, agreed, confirm
   or confirmed (also after "I", any case), or a +1, ok_hand or white_check_mark reaction, is yes for a
   readback and, for a decision, the option whose line holds `(recommended)` -- at most one may, refused
-  at ask time otherwise; with none marked it is RETURNED. Never for a permission.
+  at ask time otherwise; with none marked it is RETURNED. Never for a permission or a proposal: there,
+  only the literal first word `approved` or `rejected` is a verdict, and anything else is `RETURNED`.
 - **The verdict reader skips the member send header** (`AgentsEscalationVerdict.awk`'s `sendHeaderLength`):
   a member's own reply starts with the team send's own header line, no part of the reply, so the first
   word judged is the first one after it. A `many` selection is sent by clicking its numbers then the `ok`
@@ -1504,7 +1541,9 @@ op's own option arm.
 - **A pending record never expires by age**, and a reminder never closes one. Every close holds the
   record's lock; `--if-open` makes a second closer get `ALREADY-CLOSED`. A resolved question gets
   reactions (`:eyes:` on the answer, `:white_check_mark:` or `:ballot_box_with_check:` on the question);
-  a failed reaction never undoes a close.
+  a failed reaction never undoes a close. `ProposeApprove` is the exception: it puts no tooling mark on
+  its root at all, in open or resolved state -- the owner's own reaction there is the verdict itself, not
+  a mark read back from one the tooling placed.
 - **Decisions** (`AgentsTools.ItemDecisions.include`): a pending record links its item (`task_ref`, else the
   session's `spawns:` item). Every close appends one line to the item's `## Decisions` (marked
   `<!-- decisions-of: <item> -->`) via `--intern-op-decisions-append` under a per-item lock; a dispatch
@@ -1585,8 +1624,10 @@ op's own option arm.
   grants. No write tool is held in a read-only place, through any layer. `cred` and `spend` skip floor and
   standing. Grant-read admits floor and standing as `GRANT: standing`.
 - **No approving what you don't hold.** `grant-open` returns rc 3 with `NOT-HOLDS:` and `HOLDERS:`;
-  the escalation verdict path checks first and re-addresses the ask to a holder participant
-  (`AgentsToolsPermissionHoldersPrint`), else forwards it to the human-owner; it stays open.
+  the escalation verdict path checks first whether the named addressee holds the call and can be
+  reached, else re-addresses it to a holder running in this coworking session
+  (`AgentsToolsPermissionHoldersPrint`), else forwards it to the human-owner; it stays open. Each
+  re-address adds one `NOTE:` line telling the asker who it went to and why.
 - **Kind `task`** lives while its item is in an open board state (`<refusal>.task` sidecar or the
   record's `task:`). Passed (`pass-<uuid>.md`) and set (`set-<uuid>.md`) grants are records like a
   refusal's, `owner:` the receiver, kept in the coworking session's store; a session reads its own, its
@@ -1615,6 +1656,9 @@ op's own option arm.
   interactive native console) ends by its client's `SessionEnd` hook (`client-hooks/root-session-end.sh`,
   class `native`): `sessions/<id>/ended` plus a store touch, its open asks `--mark-ended`, its transcript's
   END; a `SessionStart` resume removes the marker. A coworking store ends with the spawn whose id it carries.
+- **A restart on the same board item keeps its session and task grants.** `AgentsToolsPermissionItemRunsScan`
+  checks the other runs of the asking member on that item, live or ended, before the holds check gives up:
+  an `allow-session` from an earlier run still holds in the run that replaces it, while the item stays open.
 - **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
   `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
   `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
@@ -1650,7 +1694,7 @@ op's own option arm.
 - **`allow-read` is `allow-write` without the write**: same `<scope>:<selector>:allow-read:<member>:<glob>`
   layout and the same selector resolution; its rows carry `Read(...)`, so they join that member's read
   roots, and never a write set or `Edit`. No grant is written into the Claude settings.
-- **Escalation kinds** readback, decision and permission always wait. `AgentsTools.MemberEscalation.include`
+- **Escalation kinds** readback, decision, permission and proposal always wait. `AgentsTools.MemberEscalation.include`
   applies a verdict once, under a claim: `<record>.answered/holder.<n>`, a symlink naming the process that
   applies it as `<host>:<pid>:<start>`, the holder in charge the one of the highest `<n>`. A holder found
   gone -- no such process on this host, or one that started at another time -- is taken over by the next

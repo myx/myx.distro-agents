@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 ## The registry row builders as they stood before the one-awk-pass rewrite, verbatim but
-## for the Legacy name prefix, kept only as the reference side of
-## AgentsRegistryRowsDiffCheck.test.sh. Never sourced by production code.
+## for the Legacy name prefix and for how a run is recognised, which is the rule of the
+## current render said the per-row way (AgentsToolsRegistryLegacyRunsAs), kept only as the
+## reference side of AgentsRegistryRowsDiffCheck.test.sh. Never sourced by production code.
 
 ## One header value out of already-read frontmatter text. `-` where absent, and a
 ## value's own whitespace collapsed, because a column cannot carry the separator --
@@ -112,6 +113,36 @@ AgentsToolsRegistryLegacyPendingRepliesRows(){
 ## The spawned-sessions render as it stood before its per-row state derivation stopped forking;
 
 ## only its own name changed, so it calls the current rebuild and AgentsToolsRegistryDeriveState.
+## Whether a process of the list runs as one spawn, the per-row way of the rule
+## AgentsToolsRegistryRunningSpawns states: the value of that process's own --session-id word,
+## or of its own --resume word, is the spawn id, matched whole -- the first of the two on its
+## line, a run resumed and forked naming itself by the --session-id after its --fork-session.
+## A command line of the tooling itself (DistroAgentsTools.fn.sh) is no run.
+AgentsToolsRegistryLegacyRunsAs(){ ## process list text (`<pid> <command line>` lines), spawn id
+	local runLine runWords runAt runOwn
+	while IFS= read -r runLine ; do
+		set -f ; runWords=( $runLine ) ; set +f
+		runAt=0
+		case "${runWords[0]:-}" in ''|*[!0123456789]*) ;; *) runAt=1 ;; esac
+		case "${runWords[$runAt]:-}" in DistroAgentsTools.fn.sh|*/DistroAgentsTools.fn.sh) continue ;; esac
+		case "${runWords[$(( runAt + 1 ))]:-}" in DistroAgentsTools.fn.sh|*/DistroAgentsTools.fn.sh) continue ;; esac
+		runOwn=""
+		while [ "$runAt" -lt $(( ${#runWords[@]} - 1 )) ] ; do
+			case "${runWords[$runAt]}" in
+				--session-id) runOwn="${runWords[$(( runAt + 1 ))]}" ; break ;;
+				--resume)
+					runOwn="${runWords[$(( runAt + 1 ))]}"
+					[ "${runWords[$(( runAt + 2 ))]:-}" != "--fork-session" ] || [ "${runWords[$(( runAt + 3 ))]:-}" != "--session-id" ] || runOwn="${runWords[$(( runAt + 4 ))]:-}"
+					break
+				;;
+			esac
+			runAt=$(( runAt + 1 ))
+		done
+		[ -z "$runOwn" ] || [ "$runOwn" != "$2" ] || return 0
+	done <<< "$1"
+	return 1
+}
+
 AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, state filter
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile psText thisHost thisWorkspace
@@ -152,7 +183,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 			rowLive="other-host"
 		else
 			rowLive="no-process"
-			case "$psText" in *"$rowSpawn"*) rowLive="running" ;; esac
+			! AgentsToolsRegistryLegacyRunsAs "$psText" "$rowSpawn" || rowLive="running"
 		fi
 		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" )"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
@@ -164,7 +195,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-session-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live matches spawn-id against this host's own process list, never session-id, which several rows can share. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, and an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"

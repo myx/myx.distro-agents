@@ -122,6 +122,52 @@ AgentsToolsSessionThreadFind(){
 	return 0
 }
 
+## The thread session-current names, and a send or an ask with no target goes to: this
+## caller's own coworking-session thread (AgentsToolsSessionThreadFind), else the thread
+## recorded for a session that is itself the coworking session -- a native client session,
+## never spawned through the proxy, whose thread the first member it brings in opens. That
+## record is one line, sessions/<session-id>/session.thread, written by the spawn proxy,
+## and the session is found as the proxy finds it: the one this caller joined, else this
+## caller's own. Prints "channel:ts" and returns 0; prints nothing and returns 1 for none.
+## A bare Wait takes a spawn's thread by AgentsToolsSessionThreadFind alone
+## (AgentsToolsWaitDefaultSources). With none it watches magic-team and human-owner, as it
+## always has, and beside them the thread recorded here (--member-wait-for-input).
+AgentsToolsSessionCurrentThreadFind(){
+	AgentsToolsSessionThreadFind && return 0
+	local currentSession="${MDAT_SESSION_ID:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}" currentLine=""
+	case "$currentSession" in ''|*/*|.|..) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	[ -f "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" ] && IFS= read -r currentLine < "$MMDAPP/.local/agents/sessions/$currentSession/session.thread" || return 1
+	[ -n "$currentLine" ] || return 1
+	printf '%s\n' "$currentLine"
+	return 0
+}
+
+## The thread of the session that started this one, from this session's own spawn record:
+## prints "<channel>:<ts> <parent id>" and returns 0. Returns 1, nothing printed, when no
+## parent session is recorded, and 2, the parent id printed, when that parent has no
+## recorded thread. The sandbox folder is named by tracking name or session id, so records
+## are found by file name.
+AgentsToolsSessionParentThreadFind(){
+	local parentRecord parentId="" parentThread=""
+	for parentRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+		[ ! -f "$parentRecord" ] || parentId="$( LC_ALL=C awk '/^parent-session-id: /{ sub( /^parent-session-id: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+		## The thread the spawn settled for its parent, magic-coordinator's when the parent had none.
+		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^parent-thread: / { sub( /^parent-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+	done
+	if [ -z "$parentId" ] || [ "$parentId" = "none" ] ; then
+		return 1
+	fi
+	[ -z "$parentThread" ] || { printf '%s %s\n' "$parentThread" "$parentId" ; return 0 ; }
+	for parentRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentId.md" ; do
+		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^session-thread: /{ sub( /^session-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+	done
+	if [ -z "$parentThread" ] ; then
+		printf '%s\n' "$parentId" ; return 2
+	fi
+	printf '%s %s\n' "$parentThread" "$parentId"
+}
+
 ## A conversation thread is `<channel>:<ts>`: an upper-case Slack id and a message ts.
 AgentsToolsSpawnConversationThreadValid(){ ## channel:ts
 	printf '%s\n' "$1" | LC_ALL=C grep -qxE '[A-Z0-9]+:[0-9]+\.[0-9]+'
@@ -359,7 +405,7 @@ AgentsToolsSpawnProxyCloseDispatch(){
 ## the move it follows: prints one ACCEPT-DISMISS line, saying what was sent or why nothing was.
 AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	local sendBy="$1" itemPath="$2" itemSpawn recordPath="" recordCandidate folderName
-	local childStatus childMember childThread="" childHost thisHost psText sendOut
+	local childStatus childMember childThread="" childHost thisHost sendOut
 	itemSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$itemPath" spawn-id )"
 	if [ -n "$itemSpawn" ] && [ "$itemSpawn" != "-" ] ; then
 		for recordCandidate in "$MMDAPP/.local/agents/spawned"/*/"$itemSpawn.md" ; do
@@ -382,11 +428,9 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	childHost="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" host )"
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
 	if [ "$childHost" = "$thisHost" ] ; then
-		psText="$( ps -A -ww -o args= 2>/dev/null )" || psText=""
-		case "$psText" in
-			*"$itemSpawn"*) ;;
-			*) printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ;;
-		esac
+		## Running is a process that runs as the spawn, by the one rule of the spawned-sessions render.
+		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		AgentsToolsRegistrySpawnRuns "$itemSpawn" || { printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
 	fi
 	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
 	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s names no owner member to address\n' "$itemSpawn" ; return 0 ; }

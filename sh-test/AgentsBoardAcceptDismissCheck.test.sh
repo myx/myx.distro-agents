@@ -5,7 +5,7 @@
 ## the child's Wait returns WAIT-RESULT: DISMISSED. Every case where nothing can be sent
 ## still moves the item and says why. The stub is the coordinator's; the review flow calls its
 ## implementation, the in-context helper AgentsToolsBoardToProcessed, for a member reviewer. A fake `curl` first on PATH logs each Slack call and
-## opens no socket; the board, sandboxes and workspace are this rig's own temp tree.
+## opens no socket; a ps beside it lists the rig's own runs only; the board, sandboxes and workspace are this rig's own temp tree.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -19,13 +19,33 @@ rigRefuse(){
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 rigTmp="$( mktemp -d -t AgentsBoardAcceptDismissCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-rigLivePid=""
-trap '[ -z "$rigLivePid" ] || kill "$rigLivePid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
 mkdir -p "$rigData/board/review" "$rigData/board/processed" "$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 ## The sender and the child as members of this rig workspace: a send refuses a member it has no skill directory for.
 for rigMember in magic-coordinator keeper-myx ; do
@@ -89,12 +109,9 @@ rigAcceptLine(){ LC_ALL=C grep -m1 '^ACCEPT-DISMISS: ' "$1" | LC_ALL=C sed -E 's
 
 echo "-- live child on this host: accept sends DISMISSED into its session thread --"
 rigLiveSpawn="rig-live-$$-a1b2"
-bash -c 'sleep 120 ; :' "$rigLiveSpawn" &
-rigLivePid=$!
-## Disowned, so its kill at exit is not reported as a job ending.
-disown "$rigLivePid" 2>/dev/null || :
-sleep 1
-ps -A -ww -o args= | LC_ALL=C grep -q -F "$rigLiveSpawn" || rigRefuse "the stand-in child process is not visible in ps, so liveness would not be measured"
+## The stand-in child: a line of the rig's process list that runs as the spawn, its own --session-id word.
+printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" > "$rigTmp/ps.list"
+[ "$( PATH="$rigTmp/bin:$PATH" ps -A -ww -o args= | LC_ALL=C grep -c -F -- "--session-id $rigLiveSpawn" )" = 1 ] || rigRefuse "the stand-in child is not in the rig's process list, so liveness would not be measured"
 rigRecord "$rigLiveSpawn" spawn-started "$rigHost" CRIGSESS1:1700000000.000100
 rigItem review dispatch-rig-live.md "$rigLiveSpawn"
 rigAccept "$rigTmp/o1" dispatch-rig-live.md review
@@ -135,6 +152,17 @@ rigAccept "$rigTmp/o4" dispatch-rig-gone.md review
 rigAssert "process gone: the move succeeds"                "$( cat "$rigTmp/o4.rc" )" 0
 rigAssert "process gone: nothing posted"                   "$( rigPosts )" 0
 rigAssert "process gone: the op says it is not running"    "$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-gone-a7b8 is not running on this host' "$rigTmp/o4" )" 1
+
+## The same, with its spawn id still standing on another process's command line: inside the
+## path of its folder, and quoted in that process's brief. A run is its own --session-id or
+## --resume word alone (AgentsToolsRegistryRunWords), so that line is no run of this child.
+rigRecord rig-held-e1f2 spawn-started "$rigHost" CRIGSESS6:1700000000.000600
+rigItem review dispatch-rig-held.md rig-held-e1f2
+printf '900002 claude --add-dir %s/rig-held-e1f2/input --session-id rig-other-run-0a1b --agent keeper-myx Readable %s/rig-held-e1f2/input, as said by --session-id rig-held-e1f2\n' "$rigSpawned" "$rigSpawned" >> "$rigTmp/ps.list"
+rigAccept "$rigTmp/o7" dispatch-rig-held.md review
+rigAssert "process gone, its id on another's line: the move succeeds" "$( cat "$rigTmp/o7.rc" )" 0
+rigAssert "process gone, its id on another's line: nothing posted, and the op says it is not running" \
+	"$( rigPosts ):$( LC_ALL=C grep -c '^ACCEPT-DISMISS: not sent: spawn rig-held-e1f2 is not running on this host' "$rigTmp/o7" )" "0:1"
 
 rigRecord rig-nothread-c9d0 spawn-started rig-other-host ""
 rigItem review dispatch-rig-nothread.md rig-nothread-c9d0

@@ -15,6 +15,7 @@ case "$1" in
 	--magic-spawn-session)
 		shift
 		local routineSelector="" routineDefault="false" sessionNameOrComment="" sessionDescription=""
+		local sessionCliService="" sessionSettingsWorkspace=""
 		local spawnMembers=()
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -48,8 +49,28 @@ case "$1" in
 					sessionDescription="$2"
 					shift 2
 				;;
+				## The two spawn settings a task may carry of its own: the agent CLI service every
+				## spawn of this call runs on, and the workspace whose spawn settings it is started
+				## with. Passed to each unchanged, as --intern-op-agent-spawn-proxy takes them, and
+				## checked there: a value it refuses stops the call at its first spawn.
+				--spawn-cli-service)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --spawn-cli-service requires <cli-name>" >&2
+						set +e ; return 1
+					fi
+					sessionCliService="$2"
+					shift 2
+				;;
+				--spawn-settings-workspace)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: --spawn-settings-workspace requires <workspace-name>" >&2
+						set +e ; return 1
+					fi
+					sessionSettingsWorkspace="$2"
+					shift 2
+				;;
 				--*)
-					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]" >&2
+					echo "$MDSC_CMD: magic-spawn-session: ⛔ ERROR: invalid option: $1 -- syntax is (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -158,6 +179,8 @@ case "$1" in
 			fi
 			[ -z "$sessionNameOrComment" ] || spawnArgs+=( --session-name-or-comment "$sessionNameOrComment" )
 			[ -z "$sessionDescription" ] || spawnArgs+=( --description "$sessionDescription" )
+			[ -z "$sessionCliService" ] || spawnArgs+=( --spawn-cli-service "$sessionCliService" )
+			[ -z "$sessionSettingsWorkspace" ] || spawnArgs+=( --spawn-settings-workspace "$sessionSettingsWorkspace" )
 			if [ "$spawnFirst" = "true" ] ; then
 				## This operation starts a session, so its first spawn asks for one of its own:
 				## otherwise it would be brought into the calling session's.

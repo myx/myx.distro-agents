@@ -159,6 +159,9 @@ case "$1" in
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
 				if [ "$settleThread" != "$settleQts" ] ; then
 					AgentsToolsAskPostClose "$settleFile" "${settleLive:-$settleQts}" cancelled edit
+				elif [ "$( AgentsToolsPendingReplyField "$settleFile" kind )" = "proposal" ] ; then
+					## A proposal's own post is the reply under its root. The root is never touched.
+					[ -z "$settleLive" ] || AgentsToolsAskPostClose "$settleFile" "$settleLive" cancelled edit
 				else
 					## Asked again since: the update under the root invites no click either. The root
 					## itself is edited to its own text, as it was first asked.

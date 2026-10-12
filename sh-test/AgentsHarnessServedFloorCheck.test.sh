@@ -217,16 +217,17 @@ rigAssert "no unfilled cap placeholder is served" \
 	"$( LC_ALL=C grep -c -F '{{READ_CAP_BYTES}}' "$rigTmp/list" )" "0"
 rigAssert "a hosted wire's rendering states the wire cap" \
 	"$( MDAT_READ_CAP_BYTES="$agentsReadCapWire" bash "$rigMirror" 2>/dev/null | LC_ALL=C grep -o -F "Content over the ${agentsReadCapWire}-byte cap is cut" | wc -l | tr -d ' ' )" "2"
-## Each field on the tool that owns it, and pending_id on all four. The tool name sets the
-## kind, so none of them declares `kind`.
+## Each field on the tool that owns it, and pending_id on each of them. The tool name sets
+## the kind, so none of them declares `kind`.
 for rigAskPair in RequestPermission:refusal_id RequestPermission:reason RequestPermission:task_ref \
 	ConfirmReadback:understood ConfirmReadback:source ConfirmReadback:will_do \
+	ProposeApprove:proposal ProposeApprove:document ProposeApprove:task_ref ProposeApprove:pending_id \
 	AskQuestion:pending_id ConfirmReadback:pending_id EscalateDecision:pending_id RequestPermission:pending_id ; do
 	rigAssert "the served ${rigAskPair%%:*} carries '${rigAskPair#*:}'" \
 		"$( rigAskHolds "${rigAskPair%%:*}" "${rigAskPair#*:}" )" "yes"
 done
 rigAssert "no served asking tool carries 'kind'" \
-	"$( for rigAskTool in AskQuestion ConfirmReadback EscalateDecision RequestPermission ; do rigAskHolds "$rigAskTool" kind ; done )" "nononono"
+	"$( for rigAskTool in AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ; do rigAskHolds "$rigAskTool" kind ; done )" "nonononono"
 
 ## Every served tool takes the optional `description`, the call's stated intent, in the same
 ## text, never required, and named in the tool's own description. The Monitor twin is the one

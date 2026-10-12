@@ -8,6 +8,7 @@
 ## that must change nothing: the reviewer rewrite on board/review items, dead and live dispatches,
 ## unclosed and live registry rows, nothing about it on stdout or stderr, one report post to the
 ## event-track thread (a fake curl first on PATH), and the processed-item GC taking its sandbox folder.
+## A live session is a line of this rig's own process list: a ps first on PATH lists the rig's runs only.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -21,8 +22,32 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
 rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
-rigHolder=""
-trap '[ -z "$rigHolder" ] || { kill "$rigHolder" ; wait "$rigHolder" ; } 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rm -rf -- "$rigTmp"' EXIT
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+mkdir -p "$rigTmp/ps-bin"
+ln -s "$( command -v ps )" "$rigTmp/ps-bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/ps-bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/ps-bin/ps"
+PATH="$rigTmp/ps-bin:$PATH"
+export PATH
+[ "$( command -v ps )" = "$rigTmp/ps-bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
 mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/magic-coordinator" "$rigTmp/data/inboxes/magic-coordinator"
 printf '# magic-coordinator\n' > "$rigTmp/ws/.local/agents/members/magic-coordinator/SKILL.md"
 for rigState in backlog pending running blocked parked ; do
@@ -176,12 +201,10 @@ rigSum(){ ## file -- its checksum
 	cksum < "$1"
 }
 
-## One process whose arguments carry a session id, started before the first scan below, so that
-## one live session exists for every rig to see. It is the live control of the review, dispatch
-## and registry rows alike.
-( exec -a "rig-holder rig-live" sleep 300 ) &
-rigHolder=$!
-sleep 1
+## One process that runs as a session id, in the rig's process list before the first scan below,
+## so that one live session exists for every rig to see. It is the live control of the review,
+## dispatch and registry rows alike.
+printf '900001 rig-run --session-id rig-live\n' > "$rigTmp/ps.list"
 
 echo "-- board-review: the scan moves no review item, and rewrites review-by only for an ended reviewer session --"
 rigNew b1
@@ -506,7 +529,7 @@ printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/b10/skills/rig
 printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\nif [ -e /dev/fd/4 ] ; then echo open > "%s/b10/fd4.seen" ; else echo closed > "%s/b10/fd4.seen" ; fi\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigTmp" "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
 chmod +x "$rigW/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/b10/home" PATH="/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_FD4="$rigTmp/b10/fd4.parent" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -520,7 +543,7 @@ rigCheck "control: a child started with fd 4 open does list it"          "$( bas
 rigCheck "a console launched by the spawn proxy, with fd 4 open in its caller, does not"  "$( cat "$rigTmp/b10/fd4.seen" )" closed
 rm -f "$rigTmp/b10/fd4.seen"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
-	| env -i HOME="$rigTmp/b10/home" PATH="/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" RIG_FD4="$rigTmp/b10/fd4.parent" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

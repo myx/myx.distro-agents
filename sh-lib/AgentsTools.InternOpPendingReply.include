@@ -21,10 +21,18 @@
 ## performed leaves the record open rather than closing it as unanswered.
 ##
 
-## One resolved mark on one message: under the identity the question was posted with
-## first, then the bot, since which identity may react differs by conversation.
+## One resolved mark on one message: under the identity the question was posted with, the
+## one its record names (`ask-identity`), first, then the other one, since which identity
+## may react differs by conversation. One the bot asked may stand where the member's own
+## account is not, so its mark is the bot's at the first call.
 ## `already_reacted` is a success of the react op. A failure is logged and changes nothing.
-AgentsToolsPendingReplyReact(){ ## member, <channel>:<ts>, emoji, pending id
+AgentsToolsPendingReplyReact(){ ## member, <channel>:<ts>, emoji, pending id, the record's ask-identity (bot|member; empty: member)
+	if [ "${5:-}" = "bot" ] ; then
+		DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
+			|| DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
+			|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
+		return 0
+	fi
 	DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" > /dev/null 2>&1 \
 		|| DistroAgentsTools --intern-op-comms-slack-react "$1" "$2" "$3" --identity-bot > /dev/null 2>&1 \
 		|| echo "$MDSC_CMD: ⚠️ WARNING: $4 is closed, but :$3: was not added on $2" >&2
@@ -49,7 +57,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
-		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason="" pendingSelect="" pendingFields=""
+		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason="" pendingSelect="" pendingFields="" pendingRevisionTs=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				## A typed question's own facts, kept so an answer can be classified and applied later.
@@ -66,6 +74,8 @@ case "$1" in
 				--select) pendingSelect="${2:-}" ; shift 2 ;;
 				## The fields the question was asked with, `<name><TAB><value>` per line, which a revision starts from.
 				--fields) pendingFields="${2:-}" ; shift 2 ;;
+				## The live version where the first post is not it: the reply a proposal is, under its root.
+				--revision-ts) pendingRevisionTs="${2:-}" ; shift 2 ;;
 				## Its tag within a thread several questions share, and the key a duplicate is found by.
 				--question-tag) pendingTag="${2:-}" ; shift 2 ;;
 				--question-key) pendingKey="${2:-}" ; shift 2 ;;
@@ -148,6 +158,7 @@ case "$1" in
 			[ -z "$pendingChannel" ] || printf 'channel: %s\n' "${pendingChannel//$'\n'/ }"
 			[ -z "$pendingQuestionTs" ] || printf 'question-ts: %s\n' "${pendingQuestionTs//$'\n'/ }"
 			[ -z "$pendingThreadTs" ] || printf 'thread-ts: %s\n' "${pendingThreadTs//$'\n'/ }"
+			[ -z "$pendingRevisionTs" ] || printf 'revision-ts: %s\n' "${pendingRevisionTs//$'\n'/ }"
 			[ -z "$pendingAddressees" ] || printf 'addressees: %s\n' "${pendingAddressees//$'\n'/ }"
 			[ -z "$pendingAsking" ] || printf 'asking-accounts: %s\n' "${pendingAsking//$'\n'/ }"
 			[ -z "$pendingRefusal" ] || printf 'refusal-id: %s\n' "${pendingRefusal//$'\n'/ }"
@@ -377,13 +388,15 @@ case "$1" in
 		## record is closed: a reaction that fails is logged and never undoes the close. Never
 		## an answer either: only an addressee's reaction answers.
 		if [ "$pendingStatus" = "reply-received" ] && [ -z "$pendingAmend" ] && [ "$pendingQuiet" != "1" ] ; then
-			local reactOwner="" reactChannel="" reactQuestion="" reactThread="" reactTo="" reactKey reactValue
+			local reactOwner="" reactChannel="" reactQuestion="" reactThread="" reactTo="" reactKind="" reactIdentity="" reactKey reactValue
 			while IFS=$'\t' read -r reactKey reactValue ; do
 				case "$reactKey" in
 					owner) reactOwner="$reactValue" ;;
 					channel) reactChannel="$reactValue" ;;
 					question-ts) reactQuestion="$reactValue" ;;
 					thread-ts) reactThread="$reactValue" ;;
+					kind) reactKind="$reactValue" ;;
+					ask-identity) reactIdentity="$reactValue" ;;
 					communication-channel-id) reactTo="${reactValue#slack:}" ;;
 				esac
 			done < <( LC_ALL=C awk '
@@ -394,8 +407,10 @@ case "$1" in
 				}
 			' "$pendingFile" )
 			if [ -n "$reactOwner" ] && [ -n "$reactChannel" ] ; then
-				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId"
-				[ -z "$reactQuestion" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId"
+				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId" "$reactIdentity"
+				## Never on the root of a proposal: a mark there is the human-owner's own verdict, and
+				## the tooling puts none beside it.
+				[ -z "$reactQuestion" ] || [ "$reactKind" = "proposal" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId" "$reactIdentity"
 				## The opener is ours only where the question opened its own thread; a question
 				## asked inside someone's thread (<channel>:<ts>) leaves that thread's root alone.
 				## A question posted as the root of its own thread has no opener: it is that root,
@@ -405,7 +420,7 @@ case "$1" in
 					*:*) ;;
 					*)
 						if [ -n "$reactThread" ] && [ "$reactThread" != "$reactQuestion" ] && ! AgentsToolsPendingReplyThreadHasOpen "$reactChannel" "$reactThread" ; then
-							AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactThread" white_check_mark "$pendingId"
+							AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactThread" white_check_mark "$pendingId" "$reactIdentity"
 						fi
 					;;
 				esac

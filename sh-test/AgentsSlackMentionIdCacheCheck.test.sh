@@ -5,7 +5,9 @@
 ## resolution writes the full row after exactly auth.test and users.info, with "=" and a backslash stripped from a value;
 ## an old member=id row is read unchanged and completed by exactly one users.info call, once; a member=- row gets no
 ## call; a users.info that answers ok:false leaves a complete row of "-" and is not asked again; the human-owner row is
-## completed under the persona member's token; the old reader, `awk -F= '$1 == who { c = $2 }'`, still gives the id on
+## completed under the persona member's token; a client-* member's row is its account in the other organisation, read
+## and completed on the client side only (MDAT_COMMS_SIDE=client), and on our own side it has no id and makes no call;
+## the old reader, `awk -F= '$1 == who { c = $2 }'`, still gives the id on
 ## every row shape and the file stays mode 600; the find-by-name function reads the cache and nothing else. A fake `curl`
 ## first on PATH answers auth.test and a stubbed users.info. Offline by construction; no real Slack call.
 set -u
@@ -58,9 +60,11 @@ rigCacheWrite(){ ## rows... -- the cache holding the idle lock generation and th
 	{ printf '%s\n' "$rigIdle" ; printf '%s\n' "$@" ; } > "$rigCache"
 	chmod 600 "$rigCache"
 }
+## rigSide adds to a call's environment: the side of the call, where a row is a client-* member's.
+rigSide=()
 rigCall(){ ## function and arguments... -- one cache function in a fresh shell over the real tooling; its stdout in $rigTmp/fn.out
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigData" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigInclude" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_DATA_ROOT="$rigData" RIG_TOOL="$rigTool" RIG_INCLUDE="$rigInclude" ${rigSide[@]+"${rigSide[@]}"} \
 		bash -c '
 			. "$RIG_TOOL"
 			MDSC_CMD=rig
@@ -110,7 +114,11 @@ rigAssert "a member=- row gets no call and no id"                        "id=[$(
 rigCall AgentsToolsCommsSlackMentionUserId keeper-myx
 rigAssert "a second read of the completed row makes no call"             "$( cat "$rigTmp/fn.out" ) $( rigCalls )" "URIGKEEPER "
 rigCall AgentsToolsCommsSlackMentionUserId client-x
-rigAssert "another old row is completed by one call of its own"          "$( cat "$rigTmp/fn.out" ) $( rigCalls )" "URIGOTHERX users.info rig-user-token-OTHER|"
+rigAssert "a client's row is the other organisation's account: on our own side it has no id, makes no call, and its row is left as it was" "id=[$( cat "$rigTmp/fn.out" )] calls=[$( rigCalls )] $( LC_ALL=C grep '^client-x=' "$rigCache" )" "id=[] calls=[] client-x=URIGOTHERX"
+rigSide=( MDAT_COMMS_SIDE=client )
+rigCall AgentsToolsCommsSlackMentionUserId client-x
+rigSide=()
+rigAssert "on the client side that old row is completed by one call of its own" "$( cat "$rigTmp/fn.out" ) $( rigCalls )" "URIGOTHERX users.info rig-user-token-OTHER|"
 
 echo "-- 3. the old reader, byte for byte, and the mode --"
 rigAssert "the old reader gives the id on a completed row"               "$( rigOldReader keeper-myx )" URIGKEEPER

@@ -242,8 +242,19 @@ case "$1" in
 			wsUrl="$( AgentsToolsSlackResolveWorkspaceForScope "$callingMember" )" || wsRc=$?
 			case "$wsRc" in
 				0)
-					DistroAgentsTools --agents-config-option "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
-					echo "$resolveWorkspaceKey: OK (resolved $wsUrl)"
+					## An invited member's settings of a system this workspace holds none of are read,
+					## whole, from the workspace it is set up in (AgentsToolsConfigOptionElsewhere). One
+					## setting persisted here would make that system this workspace's from then on, and
+					## leave it here without its token. So where the scope's settings of the key's system
+					## are read from elsewhere, the resolved value is reported and not persisted.
+					type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+					AgentsToolsConfigOptionElsewhere "$callingMember" "$resolveWorkspaceKey" 2> /dev/null || :
+					if [ -n "$agentsConfigOptionElsewhere" ] ; then
+						echo "$resolveWorkspaceKey: OK (resolved $wsUrl, not persisted here: this scope's settings of that system are read from $agentsConfigOptionElsewhere, the workspace $callingMember is set up in)"
+					else
+						DistroAgentsTools --agents-config-option "$callingMember" --upsert "$resolveWorkspaceKey" "$wsUrl" >/dev/null
+						echo "$resolveWorkspaceKey: OK (resolved $wsUrl)"
+					fi
 				;;
 				2)
 					echo "$resolveWorkspaceKey: WARN"

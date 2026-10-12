@@ -48,7 +48,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 2. **decide-each-ask**: For each ask listed, oldest first, one of:
    - rule: an ask of another workspace is answered there: the `execute` tool's `workspace` argument, set to its `workspace:` line.
    - rule: the narrowest verdict the task needs: `allow-once`, else `allow-session`, else `allow-task`, which needs an `item:`.
-   - **grant**: the task needs it: `--magic-escalation-answer magic-coordinator <id> <verdict> [text]`. Where `holders:` does not name `magic-coordinator`, tooling takes the ask up to a holder, else to the human-owner, whose reply is the verdict.
+   - **grant**: the task needs it: `--magic-escalation-answer magic-coordinator <id> <verdict> [text]`. Where `magic-coordinator` does not hold the refused call, tooling re-addresses it itself: to a holder running in this coworking session, else to the human-owner, each time with a `NOTE:` line saying why. That reply is the verdict.
    - **deny**: the task does not need it, or another route serves it (a listed set-request, the session sandbox `output/`): `--magic-escalation-answer magic-coordinator <id> deny <why, and the route>`.
    - **ask-the-human-owner**: the ruling binds the team, whoever holds it: ask him with `EscalateDecision`, options `allow-once`, `allow-session`, `allow-task` and `deny`, and `Wait` as today. Then answer with his verdict, as in **grant** or **deny**, naming him in the text.
 3. **record-decision**: Each answer records its verdict on its item's `## Decisions` itself. An ask with no `item:`: say the verdict in this session's thread.

@@ -82,10 +82,24 @@ else
 	mkdir -p "$rigTmp/node_modules/vscode"
 	cat > "$rigTmp/node_modules/vscode/index.js" <<'EOF'
 let provider = null;
+let registeredCommands = {};
+let executedTasks = [];
+const RIG_TASKS = [
+  { name: '🤖 Start Agents Console...', source: 'Workspace' },
+  { name: '📦 Update Local Tools', source: 'Workspace' },
+  { name: 'rig-other-provider-task', source: 'npm' },
+];
 module.exports = {
   Uri: { file: (p) => ({ fsPath: p, toString: () => 'file://' + p }) },
   window: { registerWebviewViewProvider: (id, p) => { provider = { id, p }; return { dispose() {} }; } },
+  commands: { registerCommand: (id, fn) => { registeredCommands[id] = fn; return { dispose() {} }; } },
+  tasks: {
+    fetchTasks: async () => RIG_TASKS,
+    executeTask: async (task) => { executedTasks.push(task); },
+  },
   rigProvider: () => provider,
+  rigCommands: () => registeredCommands,
+  rigExecutedTasks: () => executedTasks,
 };
 EOF
 	cat > "$rigTmp/render.js" <<'EOF'
@@ -93,11 +107,28 @@ const vscode = require('vscode');
 const extension = require(process.argv[2]);
 extension.activate({ extensionPath: process.argv[3], subscriptions: [] });
 const webview = { cspSource: 'rig-csp-source', asWebviewUri: (u) => ({ toString: () => 'rig-webview:' + u.fsPath }) };
-vscode.rigProvider().p.resolveWebviewView({ webview });
-process.stdout.write(webview.html);
+(async () => {
+  await vscode.rigProvider().p.resolveWebviewView({ webview });
+  process.stdout.write(webview.html);
+})();
+EOF
+	cat > "$rigTmp/click.js" <<'EOF'
+const vscode = require('vscode');
+const extension = require(process.argv[2]);
+extension.activate({ extensionPath: process.argv[3], subscriptions: [] });
+(async () => {
+  const runCommand = vscode.rigCommands()[process.argv[4]];
+  if (runCommand) {
+    await runCommand(process.argv[5]);
+  }
+  process.stdout.write(JSON.stringify(vscode.rigExecutedTasks().map((executedTask) => executedTask.name)));
+})();
 EOF
 	rigRender(){ ## panel dir, output file
 		env -i PATH="$PATH" NODE_PATH="$rigTmp/node_modules" HOME="$rigTmp" node "$rigTmp/render.js" "$1/extension.js" "$1" > "$2" 2> "$2.err"
+	}
+	rigClick(){ ## panel dir, command id, task name, output file
+		env -i PATH="$PATH" NODE_PATH="$rigTmp/node_modules" HOME="$rigTmp" node "$rigTmp/click.js" "$1/extension.js" "$1" "$2" "$3" > "$4" 2> "$4.err"
 	}
 	rigFull="$( rigTree full )"
 	rigRender "$rigFull" "$rigTmp/full.html" || rigRefuse "the render failed: $( head -3 "$rigTmp/full.html.err" )"
@@ -108,6 +139,22 @@ EOF
 	rigAssert "instructions.md has five sections" "$rigSections" 5
 	rigAssert "each of them is a heading in the view" "$( LC_ALL=C grep -c '^<h2>' "$rigTmp/full.html" )" "$rigSections"
 	rigAssert "the rendered view holds no script" "$( LC_ALL=C grep -c -i '<script' "$rigTmp/full.html" )" 0
+
+	echo "-- buttons: one per workspace-sourced palette task, not a second list (node only) --"
+	rigAssert "each workspace-sourced task becomes a command-link button" \
+		"$( LC_ALL=C grep -c 'href="command:magic-team.runPaletteTask?' "$rigTmp/full.html" )" 2
+	rigAssert "a button names the Agents Console task" \
+		"$( LC_ALL=C grep -c '<a class="task" href="command:magic-team.runPaletteTask?[^"]*">🤖 Start Agents Console...</a>' "$rigTmp/full.html" )" 1
+	rigAssert "a button names the Update Local Tools task" \
+		"$( LC_ALL=C grep -c '<a class="task" href="command:magic-team.runPaletteTask?[^"]*">📦 Update Local Tools</a>' "$rigTmp/full.html" )" 1
+	rigAssert "a task from another source (not the workspace's own tasks array) is not a button" \
+		"$( LC_ALL=C grep -c 'rig-other-provider-task' "$rigTmp/full.html" )" 0
+
+	rigClick "$rigFull" magic-team.runPaletteTask '📦 Update Local Tools' "$rigTmp/click.out"
+	rigAssert "clicking a button's command fetches and runs the same-named task" \
+		"$( cat "$rigTmp/click.out" )" '["📦 Update Local Tools"]'
+	rigClick "$rigFull" magic-team.runPaletteTask 'rig-no-such-task' "$rigTmp/click-miss.out"
+	rigAssert "clicking with an unrecognised task name runs nothing" "$( cat "$rigTmp/click-miss.out" )" '[]'
 
 	rigPlanted="$( rigTree planted )"
 	printf -- '- RIG-PLANT <script>alert(1)</script>\n' >> "$rigPlanted/instructions.md"

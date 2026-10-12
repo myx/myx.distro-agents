@@ -30,7 +30,7 @@ Not a member/routine contract — this is the fixed text of every post the tooli
   - feed
 - Operations
   - Read, Grep, Glob, Edit, Write, NotebookEdit, execute, Bash, Monitor, Skill, WebFetch, WebSearch, ToolSearch, TaskOutput
-  - SendMessage, ReportFindings, PushNotification, Artifact, Wait, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, Agent, SubagentHandback
+  - SendMessage, ReportFindings, PushNotification, Artifact, Wait, AskQuestion, ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove, Agent, SubagentHandback
   - tool, tool error, tool refused
   - ROUND, RESULT, MODEL, START, RESTART, END, FINAL, NOTE, REVIEW, VERDICT, DISMISSED, ERROR
   - event, text
@@ -111,6 +111,7 @@ What a box's lines are regarding. Every post comes from the bot: a title names a
 [[routine: `{{routine}}`]][[ · dispatch: `{{dispatch}}`]][[ · resume: `{{resume}}`]]
 {{context}}[[parent: `{{parent-session-id}}`]][[ · tracking: `{{tracking-name}}`]]
 {{context}}[[where: {{host}}]][[ / {{workspace}}]][[ · started: {{started-at}}]]
+{{context}}[[member's workspace: {{member-workspace}}]][[ · paying workspace: {{paying-workspace}}]]
 ```
 
 ## end
@@ -340,6 +341,12 @@ One line per operation, chosen as `# Contract` says.
 ❔ [[{{comment}} — ]]RequestPermission[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
+## ProposeApprove
+
+```
+❔ [[{{comment}} — ]]ProposeApprove[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+```
+
 ## Agent
 
 ```
@@ -500,6 +507,7 @@ The short text every post carries beside its boxes: what a notification shows, a
 - rule: A post whose blocks Slack refuses is sent once more as plain text, with a warning, so nothing is lost: each block its subject's plain-text header then its lines, a context line where it is written, one empty line before every header but the first. It is cut at line boundaries into posts of at most 4000 characters, Slack's limit for a message's `text`, and a post that starts inside a block repeats its header.
 - rule: A post is never edited. A `start` post is made once, when everything it names is known; a fact learned after it is a new post, a reply in its thread.
 - rule: A `start` post's caller gives each id it names as its first 8 characters, and leaves out a field that only repeats another: the parent and the tracking name where they are the session's own. The run's own id is no field: its block's title has it.
+- rule: A run has three workspaces: the one it runs from, which is its `{{workspace}}`; the one its member is set up in and reads its skillset from (`{{member-workspace}}`); and the one whose CLI service and credentials it is started with (`{{paying-workspace}}`). A `start` post's caller gives each of the last two only where it is not the first, so a run whose three are one says its workspace once. The run's records keep all three, always.
 - rule: A value is passed as it is given all the way to this renderer, and is escaped once, here, for where it lands: no caller, reader or formatter before it escapes anything. In Slack text, which a section, a context line, a subtitle, the plain-text rendering and the notification text all are, `&`, `<` and `>` are sent as the entities Slack turns back into them, so nothing can mention anyone, and a backtick stays a backtick. Only inside a code span of this template, which cannot hold a backtick, each one is sent as `ˋ` (U+02CB, the modifier letter grave accent), so the span stays whole and the text reads as written. In a title, which is rich text and not mrkdwn, a value is sent as it is, its backticks too. Nothing is ever sent as `%60`, or as any other code the reader does not see turned back into its character.
 - rule: A date or a time is a Slack date token, `<!date^<epoch seconds>^<token string>|<the same moment as UTC text>>`, made by the one helper (`AgentsSlackDate.awk`, `AgentsToolsSlackDateToken`): a subtitle's date (`sldTokenAs`, with its subject's `{{date-format}}`), a plain-text header's span, and a field a caller gives as one. It is the one thing in a value sent unescaped, and only in the helper's own shape; a subtitle's date is made where it is sent and is never escaped. It stands outside a code span, and no post is cut inside one.
 - rule: No post names an addressee or a channel-wide mention, and none carries the member send's author line.

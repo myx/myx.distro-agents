@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CommsSide.include -- which organisation a call of a team member reaches.
+## Functions only. Sourced by every include that reads a member's own settings for an
+## outside system: Slack, mail, Google, Trello, Jira, Confluence.
+##
+## ONE TEAM, TWO ORGANISATIONS. A call reaches our own organisation, unless it is on the
+## client side: a --client-* operation, or a client: address, of a client-* member.
+## MDAT_COMMS_SIDE=client says so for that one call, set where the operation is dispatched
+## or where its address is read. A client-* member's own settings for an outside system are
+## the other organisation's: they are read on the client side only, and there nothing of the
+## team's is read in their place. The prefix and the address select the side, never a
+## credential the member happens to hold.
+##
+
+## rc 0 when the named member's own settings are the ones this call reads.
+AgentsToolsCommsOwnSettingsApply(){ ## member
+	case "$1" in
+		client-*) [ "${MDAT_COMMS_SIDE:-}" = "client" ] ;;
+	esac
+}
+
+## rc 0 when this call of the named member is on the client side.
+AgentsToolsCommsClientSide(){ ## acting member
+	case "${MDAT_COMMS_SIDE:-}:$1" in
+		client:client-*) return 0 ;;
+	esac
+	return 1
+}
+
+## The one plain line for a client-* member's operation on our own side, in a system where
+## our side holds no setting for it: says so, and names the --client-* operation that
+## reaches the other organisation. That operation is the twin of the --member-comms-* one
+## given, or the --client-* one a caller names outright; for any other caller the family is
+## named.
+AgentsToolsCommsOwnSideLine(){ ## member, the system in a word, the operation as it was run, with no leading --
+	local sideTwin="a --client-comms-* operation"
+	case "$3" in
+		member-comms-*) sideTwin="--client-${3#member-}" ;;
+		--client-*) sideTwin="$3" ;;
+	esac
+	printf '%s has no %s settings on our own organisation'"'"'s side: what it holds is the other organisation'"'"'s. For the other organisation use %s.\n' "$1" "$2" "$sideTwin"
+}
+
+## rc 0 when the named member's own settings for a system are the ones this call reads.
+## rc 1, with that one plain line said as the operation's error, when they are not.
+AgentsToolsCommsOwnSideCheck(){ ## member, the system in a word, the operation as it was run, with no leading --
+	AgentsToolsCommsOwnSettingsApply "$1" && return 0
+	echo "⛔ ERROR: $MDSC_CMD --$3: $( AgentsToolsCommsOwnSideLine "$1" "$2" "$3" )" >&2
+	return 1
+}

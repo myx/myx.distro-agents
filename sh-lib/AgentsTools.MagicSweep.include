@@ -146,7 +146,7 @@ case "$1" in
 		## A name that fails is held until the team's own document is out, where it has
 		## always been reported, and no client is swept.
 		## Every workspace's clients, from the member directory (AgentsTools.TeamRegistry.include):
-		## each client's own operation then runs in the workspace that holds it.
+		## each is invited here, and its own operation reaches its other organisation from here.
 		local clientMembers="" clientMember clientMemberDir clientNameRefused=""
 		type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 		while IFS=$'\t' read -r clientMember clientMemberDir ; do

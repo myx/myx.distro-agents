@@ -18,6 +18,13 @@
 ##       the member's rows joined with the session's grants (AgentsGrantsSessionIndex.awk),
 ##       what the harness decides a file tool by, with builtins only. A revoked grant (a
 ##       marker in its store's revoked/) and a session grant whose session has ended are out.
+##       A session grant given to the member's run on a board item holds for its other runs on
+##       that item in the same coworking session too, the runs a review return or a resume
+##       starts under a new id, until the item is closed or that session ends
+##       (AgentsToolsGrantsItemRuns): a `runs` row of the index, the item and that session
+##       checked at the call. A task grant given to that run holds for those runs too, while
+##       the item it names is open: a `task` row like any other. A run started since the index
+##       was built is found on the way to a refusal (--intern-op-permission-grant-read).
 ##
 ## The workspace floor, every member's (section 3 of the plan):
 ##   every tooling workspace       write .local/temp/**
@@ -230,6 +237,18 @@ AgentsToolsGrantsCovers(){ ## glob, pattern, wanted target
 	[ "$1" != "$3" ] || return 0
 	case "$3" in */../*|*/..|../*|..) return 1 ;; esac
 	[[ $3 == $2 ]]
+}
+
+## Whether a grant of one tool speaks for a call of another: the same tool, or a grant to Edit
+## or Write a path, which reads what it may change -- Read, Grep and Glob, in the same scope and
+## for as long as that grant holds. Never the other way: a grant to read changes nothing. THE
+## ONE PLACE this is decided, for every session, task, planned and routine grant a call is
+## checked against. An Allow once is one call of its own tool, and a standing write row is
+## every file tool already.
+AgentsToolsGrantsToolCovers(){ ## granted tool, called tool
+	[ "$1" != "$2" ] || return 0
+	case "$1:$2" in Edit:Read|Edit:Grep|Edit:Glob|Write:Read|Write:Grep|Write:Glob) return 0 ;; esac
+	return 1
 }
 
 ## ---- the declared grants: the permissions registry -----------------------------------------
@@ -571,6 +590,71 @@ AgentsToolsGrantsSessionEnded(){ ## session store directory
 	[ -z "$endedSeen" ] && [ -e "$endedStore/ended" ]
 }
 
+## ---- one member's runs on one board item ---------------------------------------------------
+
+## A session grant is given to one run, and a review return or a resume starts that run again
+## under a new id. So it holds for every run of the same member on the same board item in the
+## same coworking session, until the item is closed or that session ends, and never for another
+## member, another item or another session. What one run shares that way, read off the spawn
+## records with one awk (AgentsGrantsItemRuns.awk): agentsGrantsItemRunsItem, the item it works;
+## agentsGrantsItemRunsSession, the store of the coworking session whose end ends it, empty
+## where one of these runs started that session, which then lasts while the item is open; and
+## agentsGrantsItemRunsStores, the stores of the member's other runs there, one directory per
+## line. rc 1, with all three empty, when the run has no record, is another member's, works no
+## item, or is the only one.
+## A task grant given to one run is read from those same stores, and lives as ever while the
+## item it names is open, whatever became of that session.
+AgentsToolsGrantsItemRuns(){ ## workspace, session id, member
+	local runsWs="${1%/}" runsRecord runsFound="" runsKind runsValue runsItem="" runsSession="" runsStores=""
+	agentsGrantsItemRunsItem="" ; agentsGrantsItemRunsSession="" ; agentsGrantsItemRunsStores=""
+	case "$2" in ''|*/*|.|..) return 1 ;; esac
+	[ -n "$runsWs" ] && [ -n "$3" ] || return 1
+	## No record, no awk: a root session has none.
+	for runsRecord in "$runsWs/.local/agents/spawned"/*/"$2.md" ; do
+		[ ! -f "$runsRecord" ] || { runsFound=1 ; break ; }
+	done
+	[ -n "$runsFound" ] || return 1
+	while IFS=$'\t' read -r runsKind runsValue ; do
+		case "$runsKind" in
+			item) runsItem="$runsValue" ;;
+			session) [ "$runsValue" = "-" ] || runsSession="$runsWs/.local/agents/sessions/$runsValue" ;;
+			store) runsStores="$runsStores$runsWs/.local/agents/sessions/$runsValue"$'\n' ;;
+		esac
+	done < <( agentsGrantsItemRunsMember="$3" agentsGrantsItemRunsOwn="$2" LC_ALL=C awk -f "$agentsGrantsHere/AgentsGrantsItemRuns.awk" "$runsWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+	[ -n "$runsItem" ] && [ -n "$runsStores" ] || return 1
+	agentsGrantsItemRunsItem="$runsItem" ; agentsGrantsItemRunsSession="$runsSession" ; agentsGrantsItemRunsStores="${runsStores%$'\n'}"
+	return 0
+}
+
+## Whether what a member's runs on one item share is still live, by builtins only: the item is
+## on the board in an open state, and the coworking session has not ended. Without the team
+## data root the item cannot be read, and nothing is live.
+AgentsToolsGrantsItemRunsLive(){ ## item, coworking session store (may be empty)
+	local liveState
+	[ -n "$1" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || return 1
+	[ -z "$2" ] || ! AgentsToolsGrantsSessionEnded "$2" || return 1
+	for liveState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
+		[ ! -f "$MDAT_DATA_ROOT/board/$liveState/$1.md" ] || return 0
+	done
+	return 1
+}
+
+## The lines AgentsGrantsSessionIndex.awk reads those stores by (ENVIRON
+## agentsGrantsItemRuns), from what AgentsToolsGrantsItemRuns set: one `<store><TAB><item><TAB>
+## <coworking session store, or -><TAB><only, task, or empty>` line each, `only` for a store that
+## is none of the session's own, listed one per line in the first argument. With `task` as the
+## second, what those runs share for the session has ended: such a store is marked `task`, to be
+## read for its task grants alone, and a store of the session's own gets no line.
+AgentsToolsGrantsItemRunsLines(){ ## the session's own stores, one per line; task (optional)
+	local linesStore linesOnly
+	while IFS= read -r linesStore ; do
+		[ -n "$linesStore" ] || continue
+		linesOnly="${2:-only}"
+		case $'\n'"$1"$'\n' in *$'\n'"$linesStore"$'\n'*) [ -z "${2:-}" ] || continue ; linesOnly="" ;; esac
+		printf '%s\t%s\t%s\t%s\n' "$linesStore" "$agentsGrantsItemRunsItem" "${agentsGrantsItemRunsSession:--}" "$linesOnly"
+	done <<< "$agentsGrantsItemRunsStores"
+}
+
 ## The header a session index is built under: its format, the member, and the floor it adds.
 AgentsToolsGrantsSessionHeader(){ ## member, sandbox input, sandbox output, origin skillset -- sets agentsGrantsSessionHeader
 	agentsGrantsSessionHeader="$agentsGrantsSessionVersion"$'\t'"$1"$'\t'"$2"$'\t'"$3"$'\t'"$4"
@@ -593,37 +677,49 @@ AgentsToolsGrantsSessionFresh(){ ## session index file, header, grants index fil
 	return 0
 }
 
-## The session index on stdout, with one awk, from the current grants index. The sandbox
-## folders come resolved; this origin's skillset is resolved here, at the rebuild only.
+## The session index on stdout, with one awk, from the current grants index, and for a session
+## with a spawn record one more over the spawn records first: the stores of the member's other
+## runs on the same board item are joined too, for the session and task grants those runs share
+## (AgentsToolsGrantsItemRuns). The header, the sandbox folders, the origin and the stores go
+## to the awk in the environment: they are text, and -v decodes a backslash in a value and
+## takes no newline in every awk. The sandbox folders come resolved; this origin's skillset is
+## resolved here, at the rebuild only.
 AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input, sandbox output, origin skillset
-	local textStores textStore textFiles=() textOrigin="" agentsGrantsEnded=""
-	[ -z "$6" ] || textOrigin="$( cd "$6" 2> /dev/null && pwd -P )" || textOrigin=""
-	textStores="$( AgentsToolsGrantsSessionStores "$1" "$3" )"
+	local textStore textRest textFiles=() agentsGrantsEnded="" agentsGrantsStores agentsGrantsItemRuns=""
+	local agentsGrantsSessionHeader agentsGrantsSandboxIn="$4" agentsGrantsSandboxOut="$5" agentsGrantsOrigin=""
+	[ -z "$6" ] || agentsGrantsOrigin="$( cd "$6" 2> /dev/null && pwd -P )" || agentsGrantsOrigin=""
+	agentsGrantsStores="$( AgentsToolsGrantsSessionStores "$1" "$3" )"
+	if AgentsToolsGrantsItemRuns "$1" "$3" "$2" ; then
+		agentsGrantsItemRuns="$( AgentsToolsGrantsItemRunsLines "$agentsGrantsStores" )"
+		while IFS=$'\t' read -r textStore textRest ; do
+			case "$textRest" in *$'\t'only) agentsGrantsStores="$agentsGrantsStores"$'\n'"$textStore" ;; esac
+		done <<< "$agentsGrantsItemRuns"
+	fi
 	while IFS= read -r textStore ; do
 		[ -n "$textStore" ] && [ -f "$textStore/grants" ] || continue
 		textFiles+=( "$textStore/grants" )
 		## A store whose session has ended: its session grants are dropped here.
 		! AgentsToolsGrantsSessionEnded "$textStore" || agentsGrantsEnded="$agentsGrantsEnded$textStore"$'\n'
-	done <<< "$textStores"
-	export agentsGrantsEnded
+	done <<< "$agentsGrantsStores"
 	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
+	export agentsGrantsEnded agentsGrantsStores agentsGrantsItemRuns
+	export agentsGrantsSessionHeader agentsGrantsSandboxIn agentsGrantsSandboxOut agentsGrantsOrigin
 	if [ -n "$agentsGrantsIndexFile" ] ; then
-		LC_ALL=C awk -v member="$2" -v header="$agentsGrantsSessionHeader" -v stores="$textStores" \
-			-v sandboxIn="$4" -v sandboxOut="$5" -v origin="$textOrigin" \
+		LC_ALL=C awk -v member="$2" \
 			-f "$agentsGrantsHere/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/AgentsGrantsSessionIndex.awk" \
 			"$agentsGrantsIndexFile" ${textFiles[@]+"${textFiles[@]}"}
 	else
-		printf '%s\n' "$agentsGrantsIndexText" | LC_ALL=C awk -v member="$2" -v header="$agentsGrantsSessionHeader" -v stores="$textStores" \
-			-v sandboxIn="$4" -v sandboxOut="$5" -v origin="$textOrigin" \
+		printf '%s\n' "$agentsGrantsIndexText" | LC_ALL=C awk -v member="$2" \
 			-f "$agentsGrantsHere/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/AgentsGrantsSessionIndex.awk" \
 			- ${textFiles[@]+"${textFiles[@]}"}
 	fi
 }
 
 ## A current session index: agentsGrantsSessionFile names it, or agentsGrantsSessionText holds
-## it, in memory, where there is no session or its store cannot be written. Rebuilt, with one
-## awk, only when the grants index or a joined store's grants are newer, in the sibling way:
-## into <file>.$$.tmp, then mv -f, the old one kept on a failure. rc 1 with neither.
+## it, in memory, where there is no session or its store cannot be written. Rebuilt
+## (AgentsToolsGrantsSessionText) only when the grants index or a joined store's grants are
+## newer, in the sibling way: into <file>.$$.tmp, then mv -f, the old one kept on a failure.
+## rc 1 with neither.
 AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty), sandbox input, sandbox output, origin skillset
 	local ensureWs="${1%/}" ensureDir ensureFile
 	agentsGrantsSessionFile="" ; agentsGrantsSessionText=""
@@ -655,13 +751,15 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 ## ceiling first: a write tool in a read-only place is refused, rc 3, agentsGrantsCheckPlace
 ## its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what, and
 ## for an Allow once agentsGrantsCheckOnce its refusal id, for its caller to use up. A once
-## row's expiry, its use, a task row's open item and a session row's end are checked only on
-## the row that matches; the expiry with one `date`. rc 1 when no row admits the call.
+## row's expiry, its use, a task row's open item, a session row's end, and a runs row's open
+## item and coworking session are checked only on the row that matches; the expiry with one
+## `date`. A session, runs or task row of Edit or Write admits a read of its path too
+## (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
 AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
-	local checkKind checkA checkB checkC checkD checkWrite="" checkCeiling="" checkState checkNow checkTtl
+	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl
 	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace=""
 	case " Edit Write Execute " in *" $1 "*) checkWrite=1 ;; esac
-	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD ; do
+	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD checkE ; do
 		case "$checkKind" in
 			ceiling)
 				[ -n "$checkWrite" ] && [ -z "$checkCeiling" ] || continue
@@ -678,14 +776,22 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 				return 0
 			;;
 			session)
-				[ "$checkA" = "$1" ] && [[ $2 == $checkB ]] || continue
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
 				## Its session may have ended since the rebuild: a joined store's end touches nothing here.
 				[ -z "$checkD" ] || ! AgentsToolsGrantsSessionEnded "$checkD" || continue
 				agentsGrantsCheckLayer="session $checkC"
 				return 0
 			;;
+			runs)
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
+				## Given to another run of the member on the same item: while that item is open and that session runs.
+				[ "$checkE" != "-" ] || checkE=""
+				AgentsToolsGrantsItemRunsLive "$checkD" "$checkE" || continue
+				agentsGrantsCheckLayer="session $checkC"
+				return 0
+			;;
 			task)
-				[ "$checkA" = "$1" ] && [[ $2 == $checkB ]] || continue
+				AgentsToolsGrantsToolCovers "$checkA" "$1" && [[ $2 == $checkB ]] || continue
 				[ -n "${MDAT_DATA_ROOT:-}" ] || continue
 				for checkState in ${agentsPermissionOpenStates:-running review blocked pending backlog parked} ; do
 					[ ! -f "$MDAT_DATA_ROOT/board/$checkState/$checkC.md" ] || { agentsGrantsCheckLayer="task $checkC" ; return 0 ; }
@@ -728,16 +834,36 @@ AgentsToolsGrantsStoreTouch(){ ## session store directory
 ## --intern-op-permission-list's rows (AgentsGrantsSessionIndex.awk, mode list): the member's
 ## floor and standing rows of the grants index, then its live grants in every session store,
 ## or in one session's own, coworking and parent stores. Each store's end and used-up once
-## grants are read here, for the awk.
+## grants are read here, for the awk. So are the session grants that hold for the member's
+## other runs on the same board item, while they are live (AgentsToolsGrantsItemRuns): with a
+## session, those of its other runs, and those runs' task grants, live or not; with none, those
+## of every ended run of the member.
 AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
-	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl
-	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}"
+	local listWs="${1%/}" listStores listStore listUsed listFiles=() listTtl listRest listKind listRun listItem listCow listShared=""
+	local agentsGrantsEnded="" agentsGrantsUsed="" agentsGrantsBoard="${MDAT_DATA_ROOT:+$MDAT_DATA_ROOT/board}" agentsGrantsItemRuns=""
 	local agentsGrantsOpenStates="${agentsPermissionOpenStates:-running review blocked pending backlog parked}"
 	AgentsToolsGrantsIndexEnsure "$listWs" || return 1
 	if [ -n "$3" ] ; then
 		listStores="$( AgentsToolsGrantsSessionStores "$listWs" "$3" )"
+		if AgentsToolsGrantsItemRuns "$listWs" "$3" "$2" ; then
+			AgentsToolsGrantsItemRunsLive "$agentsGrantsItemRunsItem" "$agentsGrantsItemRunsSession" || listShared=task
+			agentsGrantsItemRuns="$( AgentsToolsGrantsItemRunsLines "$listStores" "$listShared" )"
+			while IFS=$'\t' read -r listStore listRest ; do
+				case "$listRest" in *$'\t'only|*$'\t'task) listStores="$listStores"$'\n'"$listStore" ;; esac
+			done <<< "$agentsGrantsItemRuns"
+		fi
 	else
 		listStores="$( for listStore in "$listWs/.local/agents/sessions"/*/grants ; do [ ! -f "$listStore" ] || printf '%s\n' "${listStore%/grants}" ; done )"
+		if [ -d "$listWs/.local/agents/spawned" ] ; then
+			while IFS=$'\t' read -r listKind listRun listItem listCow ; do
+				[ "$listKind" = run ] || continue
+				listStore="$listWs/.local/agents/sessions/$listRun"
+				[ -f "$listStore/grants" ] && AgentsToolsGrantsSessionEnded "$listStore" || continue
+				if [ "$listCow" = "-" ] ; then listCow="" ; else listCow="$listWs/.local/agents/sessions/$listCow" ; fi
+				AgentsToolsGrantsItemRunsLive "$listItem" "$listCow" || continue
+				agentsGrantsItemRuns="$agentsGrantsItemRuns$listStore"$'\t'"$listItem"$'\t'"${listCow:--}"$'\t\n'
+			done < <( agentsGrantsItemRunsMember="$2" agentsGrantsItemRunsOwn="" LC_ALL=C awk -f "$agentsGrantsHere/AgentsGrantsItemRuns.awk" "$listWs/.local/agents/spawned"/*/*.md 2> /dev/null )
+		fi
 	fi
 	while IFS= read -r listStore ; do
 		[ -n "$listStore" ] && [ -f "$listStore/grants" ] || continue
@@ -750,7 +876,7 @@ AgentsToolsGrantsMemberList(){ ## workspace, member, session id (may be empty)
 	listTtl="${MDAT_PERMISSION_ONCE_TTL:-300}"
 	case "$listTtl" in ''|*[!0123456789]*) listTtl=300 ;; esac
 	[ "$listTtl" -gt 0 ] || listTtl=300
-	export agentsGrantsEnded agentsGrantsUsed agentsGrantsBoard agentsGrantsOpenStates
+	export agentsGrantsEnded agentsGrantsUsed agentsGrantsBoard agentsGrantsOpenStates agentsGrantsItemRuns
 	{ if [ -n "$agentsGrantsIndexFile" ] ; then cat "$agentsGrantsIndexFile" ; else printf '%s\n' "$agentsGrantsIndexText" ; fi ; } \
 		| LC_ALL=C awk -v mode=list -v member="$2" -v now="$( date -u +%s )" -v ttl="$listTtl" \
 			-f "$agentsGrantsHere/AgentsGrantsPattern.awk" -f "$agentsGrantsHere/AgentsGrantsSessionIndex.awk" \

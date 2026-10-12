@@ -5,7 +5,7 @@ maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the fixed skeleton of the question a member posts with `AskUserQuestion`, the second name of the four tools that ask. That name takes every field with any `kind`, so its post shows every field it is given, as it always did. The tool fills its slots and sends it as that member's own message, through the member send. It is not an event-track post.
+Not a member/routine contract — this is the fixed skeleton of the question a member posts with `AskUserQuestion`, the second name of the four tools that ask. That name takes every field with any `kind`, so its post shows every field it is given, as it always did. The tool fills its slots and sends it through the member send: as that member's own message, or as the team bot's where the template of the call's kind says so. It is not an event-track post.
 
 ## Contents
 
@@ -68,7 +68,7 @@ One skeleton for every kind: the title of the kind, the question, then each fiel
 
 # Contract
 
-- rule: The post is the one fenced block under `## post`, sent as the asking member's own message through the member send. It names its addressee as every member message does.
+- rule: The post is the one fenced block under `## post`, sent through the member send as the asking member's own message, or as the team bot's where the template of the call's kind says so. It names its addressee as every member message does.
 - rule: `{{kind-title}}` is the title line of the template of the call's kind, filled as that template fills it: its icon and word, the question's number where it shares a thread, and the revised mark on the question asked again, changed.
 - rule: Required: `{{question}}`. Every other field is shown where the call gave it, under its own heading, in this order, whatever the kind. Which fields a kind needs is decided by the tool, as for the tool of that kind.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.

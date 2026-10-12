@@ -29,6 +29,17 @@ Not a member/routine contract — this is the fixed text of the one ask `--magic
   - set
 - Reactions
   - set
+- Marks
+  - cancelled
+- Told
+  - allowed
+  - denied
+- Confirmations
+  - granted
+  - denied
+  - edit
+  - not-applied
+  - sent-up
 - Contract
 
 # Summary
@@ -75,7 +86,7 @@ May the participants have these, {{scope-words}}?
 ]][[**🙋 Asked by**
 {{asked-by}}
 
-]]{{how-to-answer}}
+]][[{{how-to-answer}}]]
 ```
 
 # Lines
@@ -164,10 +175,70 @@ x
 unlock
 ```
 
+# Marks
+
+What the tooling puts on the post once the request is discarded. A reaction is a Slack name.
+
+## cancelled
+
+```
+no_entry_sign
+```
+
+# Told
+
+The one line the tooling posts in the session's thread once the set is answered, for all its participants.
+
+## allowed
+
+```
+🔓 Permission set `{{set-id}}` is allowed by {{by}}: {{count}} permission(s), {{scope-words}}, are granted to {{participants}}. A call refused before can be made again.
+```
+
+## denied
+
+```
+❌ Permission set `{{set-id}}` is denied by {{by}}: nothing is granted to {{participants}}.
+```
+
+# Confirmations
+
+The one reply the tooling posts in the thread an answer was read in: what was read, and what was done with it.
+
+## granted
+
+```
+✅ Read: `{{verdict}}` by {{by}}. Granted: {{count}} permission(s) to {{participants}}, {{scope-words}}.
+```
+
+## denied
+
+```
+❌ Read: `{{verdict}}` by {{by}}. Nothing is granted to {{participants}}.
+```
+
+## edit
+
+```
+✏️ Read: `{{verdict}}` by {{by}}. Nothing is granted: the request goes back to {{member}} to change.[[ {{text}}]]
+```
+
+## not-applied
+
+```
+⚠️ Read: `{{verdict}}` by {{by}}, and it could not be applied: nothing is granted, and the request stays open. {{reason}}
+```
+
+## sent-up
+
+```
+⚠️ Read: `{{verdict}}` by {{by}}, and it is not applied: {{reason}}. Nothing is granted yet. The request now goes to {{holder}}, and stays open.
+```
+
 # Contract
 
 - rule: The post is the one fenced block under `## post`, sent as the team bot through the member send, addressed to the human-owner.
-- rule: Required: `{{scope-words}}`, `{{asked}}` and `{{how-to-answer}}`. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty list. No field is ever shown as a placeholder.
+- rule: Required: `{{scope-words}}` and `{{asked}}`. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer, and a post that takes one is never sent without it. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty list. No field is ever shown as a placeholder.
 - rule: `{{asked}}` is one `## asked` line for each place asked, in the order first asked: `{{place}}` once, then `{{tools}}`, every tool asked for it, separated by commas, in one fixed order: Read, Grep, Glob, Edit, Write, NotebookEdit, Execute, WebFetch, WebSearch, cred, then any other in the order asked. No place and no line is written twice.
 - rule: `{{place}}` is shown by its location root, `<place>:<relative path>`, where the target lies in a registered place, and then no absolute path is shown beside it or anywhere in the post; a target that lies in none is shown as given. One resolver gives it, for every permission post (`AgentsTools.Places.include`). There is no separate list of places.
 - rule: `{{purpose}}` is what the asker said the access to that place will be used for, one `## purpose` line right under its place. It is optional: a place with none has no such line. One place has one purpose.
@@ -179,6 +250,9 @@ unlock
 - rule: `{{scope-words}}` is the block under `# Scope words` named for the request's scope. `{{how-to-answer}}` is the block under `# Answers` named `set`, which says once that an allow gives the extras to every participant listed.
 - rule: The emoji placed under the post are the block under `# Reactions` named `set`, one Slack name each, in that order: `x` denies, `unlock` allows the set. They are placed by the identity that posted, and a reaction by that identity is never an answer: only a click by the one the post is addressed to is. `edit` has no emoji, since it carries the change in words. A thumbs up, an `ok` or any other emoji grants nothing.
 - rule: A name placed here must be one the verdict reader takes for a permission set (`AgentsEscalationVerdict.awk`): `x` to deny, `unlock` to allow the set, deny first where both are held.
+- rule: A post that no longer takes an answer is this same text without its `{{how-to-answer}}` group: the post of a request its asker discarded. The tooling fills it again from the request's own record, edits the post to it, takes its own answer emoji off it, and puts on it the reaction under `# Marks` named `cancelled`.
 - rule: Every value comes from records on disk: the item, the spawn records, the session store, the request itself. Nothing is looked up over the network for this post. Every value is redacted, and a description, a comment or a purpose is cut as a message is: at 120 bytes, at its first line, with an ellipsis.
-- rule: The request's record keeps every entry exactly as asked, with its exact target, and each purpose with its place. Only the post is grouped and shown by place. An allow-set grants what the record holds.
+- rule: The request's record keeps every entry exactly as asked, with its exact target, each purpose with its place, and each entry a participant already held with its holder. Only the post is grouped and shown by place. An allow-set grants the entries asked, never one already held.
+- rule: Once the set is allowed or denied, its participants are told in the session's thread, in one line for all of them, posted by the team bot: the block under `# Told` named `allowed` or `denied`. `{{set-id}}` is the first 8 characters of the request's id, `{{by}}` who answered, as a name, `{{count}}` how many permissions the set holds, `{{participants}}` the participants, separated by commas. It is posted once for a request, and only where the session has a thread.
+- rule: Once an answer is read, the tooling says so with one reply in the thread it was read in, as the team bot: the block under `# Confirmations` named `granted` for an allow-set that is applied, `denied` for a deny, `edit` for an edit, with `{{member}}`, who asked, and the change in words where the answer carried one, `not-applied` for an answer that could not be applied, with `{{reason}}`, and `sent-up` for an allow from someone who does not hold every permission of the set, with `{{reason}}` and `{{holder}}`, who the request goes to now. It is posted once for an answer, never again on a later read.
 - rule: Every text outside the slots is posted exactly as written here.

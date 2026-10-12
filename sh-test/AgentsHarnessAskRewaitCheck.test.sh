@@ -97,7 +97,8 @@ rigAssert "and the record stays open"                  "$( rigRecordStatus )" re
 rigPostsBefore="$( rigCalls chat.postMessage )"
 rigAsk rig-session-a 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "control: the same session in a new process is accepted" "$( rigVerdictLine )" "VERDICT: deny"
-rigAssert "the re-wait posted nothing"                 "$(( $( rigCalls chat.postMessage ) - rigPostsBefore ))" 0
+rigAssert "the re-wait posts nothing itself: its one post is the confirmation reply of the answer it applied" \
+	"$(( $( rigCalls chat.postMessage ) - rigPostsBefore )):$( rigHolds "$rigScenarioDir/post.$( cat "$rigScenarioDir/posts" 2>/dev/null )" '✅ Read: `deny` by' )" "1:yes"
 rigAssert "and the record closed as received"          "$( rigRecordStatus )" reply-received
 
 echo "-- the asker's own post is never the answer --"
@@ -184,7 +185,8 @@ rigPostsBefore="$( rigCalls chat.postMessage )"
 rigAsk rig-session-e 30 "{\"sources\":\"ask:$rigRewaitId\"}" Wait
 rigAssert "a new Wait on the WAIT-ID returns the answer" "$( LC_ALL=C head -1 "$rigScenarioDir/out" )" "WAIT-RESULT: RECEIVED"
 rigAssert "with the verdict the re-wait would take"    "$( rigVerdictLine )" "VERDICT: deny"
-rigAssert "the Wait posted nothing"                    "$(( $( rigCalls chat.postMessage ) - rigPostsBefore ))" 0
+rigAssert "the Wait posts nothing itself: its one post is the confirmation reply of the answer it applied" \
+	"$(( $( rigCalls chat.postMessage ) - rigPostsBefore )):$( rigHolds "$rigScenarioDir/post.$( cat "$rigScenarioDir/posts" 2>/dev/null )" '✅ Read: `deny` by' )" "1:yes"
 rigAssert "the record closed as received"              "$( rigRecordStatus )" reply-received
 rigAssert "and carries the verdict"                    "$( LC_ALL=C awk -F': ' '$1 == "verdict" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigRewaitId.md" )" deny
 rigAssert "the record is the one the pending_id re-wait leaves" "$( rigRecordShape "$rigScenarioDir" )" "$( rigRecordShape "$rigTmp/resumed" )"

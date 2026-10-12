@@ -30,9 +30,18 @@ case "$1" in
 		## Exactly one of --routine/--routine-default is required; --context is the
 		## only other option. Anything else is a malformed call and fails cleanly
 		## rather than being absorbed silently.
-		local routineSelector="" routineDefault="false" briefCliService=""
+		local routineSelector="" routineDefault="false" briefCliService="" briefSettingsWorkspace=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				## The workspace named to pay for the one spawn this brief is for, as its spawn is given it.
+				--settings-workspace)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --settings-workspace requires <workspace-name>" >&2
+						set +e ; return 1
+					fi
+					briefSettingsWorkspace="$2"
+					shift 2
+				;;
 				--cli-service)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: spawn-prepare-brief: ⛔ ERROR: --cli-service requires <service>" >&2
@@ -125,9 +134,15 @@ case "$1" in
 		done
 		[ -n "$warnLines" ] || warnLines="(none open)"$'\n'
 
-		## The harness the spawn runs in: the service it names, else the workspace's configured
-		## one. A *-native client is native; everything else runs in the universal harness.
-		[ -n "$briefCliService" ] || briefCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || briefCliService=""
+		## The harness the spawn runs in: the service it names, else the configured one of the
+		## workspace that pays for it, settled here as the spawn itself settles it
+		## (AgentsToolsSpawnSettingsSettle), never as the calling session's own spawn did. A
+		## *-native client is native; everything else runs in the universal harness.
+		if [ -z "$briefCliService" ] ; then
+			local -x MDAT_SPAWN_SETTINGS_WORKSPACE=""
+			MDAT_SPAWN_SETTINGS_WORKSPACE="$( AgentsToolsSpawnSettingsSettle "$targetMember" "$briefSettingsWorkspace" spawn-prepare-brief )" || { set +e ; return 1 ; }
+			briefCliService="$( DistroAgentsTools --agents-config-option magic-team --select SPAWN_CLI_SERVICE 2>/dev/null )" || briefCliService=""
+		fi
 		local briefHarness="own"
 		case "$briefCliService" in *-native) briefHarness="native" ;; esac
 

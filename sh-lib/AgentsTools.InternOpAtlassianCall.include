@@ -89,7 +89,14 @@ AgentsToolsAtlassianCall() {
 
 	## Strictly the acting member's own scope, no fallback and never the other
 	## product's set: an Atlassian API token IS an identity, and acting under the
-	## wrong one raises no error at all.
+	## wrong one raises no error at all. Read by the side of the call
+	## (AgentsTools.CommsSide.include): on our own side a client-* member holds none,
+	## the expected state below, said in the one plain line that names its --client-* twin.
+	type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSide.include"
+	if ! AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
+		printf '%s\n' "🙋 WARNING: $MDSC_CMD --$callContext: $( AgentsToolsCommsOwnSideLine "$actingMember" "$( [ "$productName" = jira ] && printf Jira || printf Confluence )" "$callContext" )" >&2
+		return 6
+	fi
 	local siteHost="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_SITE" )"
 	local userEmail="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_USER" )"
 	local apiToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select "${keyPrefix}_API_TOKEN" )"

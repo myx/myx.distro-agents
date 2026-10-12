@@ -90,11 +90,18 @@ AgentsToolsPendingReplyCollectFieldOf(){ ## record file, field
 	' "$1" 2>/dev/null
 }
 
+## The answers a read returned, as their writers' own words: the send header a member's reply
+## starts with is taken off (AgentsPendingReplyOwnWords.awk) on the way to the readers that
+## keep what a reply says, so it is never kept as an answer or as a clarification.
+AgentsToolsPendingReplyCollectOwnWords(){ ## stdin: the answers
+	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsDismissalMatch.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyOwnWords.awk" 2>/dev/null
+}
+
 ## Collects one record. Prints its outcome line; sets collectOutcome and collectAnswer
 ## for the caller. The record is closed here only when it is answered.
 AgentsToolsPendingReplyCollectOne(){ ## record file
 	local oneFile="$1" oneId oneLine oneKey oneValue oneWork oneRc=0 oneBody oneHead oneClose
-	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst="" oneItem="" oneSelect=""
+	local oneStatus="" oneKind="" oneOwner="" oneChannel="" oneQts="" oneTts="" oneAddr="" oneTag="" oneFirst="" oneItem="" oneSelect="" oneIdentity=""
 	collectOutcome="" ; collectAnswer=""
 	oneId="${oneFile##*/}" ; oneId="${oneId%.md}"
 	while IFS=$'\t' read -r oneKey oneValue ; do
@@ -109,6 +116,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			question-tag) oneTag="$oneValue" ;;
 			item) oneItem="$oneValue" ;;
 			select) oneSelect="$oneValue" ;;
+			ask-identity) oneIdentity="$oneValue" ;;
 			first) oneFirst="$oneValue" ;;
 		esac
 	done < <( AgentsToolsPendingReplyCollectFields "$oneFile" )
@@ -124,7 +132,8 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			case "$oneKind" in ''|question) ;; *) [ -n "${collectTyped:-}" ] || { collectOutcome="SKIPPED" ; return 0 ; } ;; esac
 			[ -n "$oneOwner" ] || { collectOutcome="SKIPPED" ; return 0 ; }
 			local oneRead oneVerdict
-			oneRead="$( MDAT_PENDING_CLOSE_QUIET="${collectQuiet:-}" DistroAgentsTools --intern-op-escalation-read "$oneOwner" "$oneId" 2>/dev/null )" || oneRead=""
+			## Its output is kept where the read failed too: an unreadable thread says why there.
+			oneRead="$( MDAT_PENDING_CLOSE_QUIET="${collectQuiet:-}" DistroAgentsTools --intern-op-escalation-read "$oneOwner" "$oneId" 2>/dev/null )" || :
 			oneVerdict="$( printf '%s\n' "$oneRead" | LC_ALL=C sed -n 's/^VERDICT: //p' | head -1 )"
 			case "$oneRead" in
 				*"ESCALATION: $oneId answered"*)
@@ -137,7 +146,8 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 				;;
 				*)
 					collectOutcome="UNREADABLE"
-					printf 'UNREADABLE %s %s | the escalation read gave no verdict and no open state\n' "$oneId" "${oneTag:--}"
+					oneVerdict="$( printf '%s\n' "$oneRead" | LC_ALL=C sed -n 's/^UNREADABLE-REASON: //p' | head -1 )"
+					printf 'UNREADABLE %s %s | %s\n' "$oneId" "${oneTag:--}" "${oneVerdict:-the escalation read gave no verdict and no open state}"
 				;;
 			esac
 			return 0
@@ -167,11 +177,18 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		return 0
 	fi
 	oneWork="$( mktemp "$MMDAPP/.local/temp/mdat-pending-collect.XXXXXX" )" || { collectOutcome="UNREADABLE" ; printf 'UNREADABLE %s %s | no work file\n' "$oneId" "${oneTag:--}" ; return 0 ; }
+	## Read with the identity the question was asked with: one the bot posted may stand where
+	## the member's own account is not (AgentsWaitProbeSlack, MDAT_WAIT_READ_AS_BOT).
+	MDAT_WAIT_READ_AS_BOT="$( [ "$oneIdentity" = "bot" ] && printf 'true' || printf 'false' )" \
 	DistroAgentsTools --intern-op-wait-for-input "$oneOwner" --wait-source "slack:$oneChannel:$oneTts" \
 		--wait-timeout 0 --wait-since-utime "$oneQts" --wait-addressee "$oneAddr" > "$oneWork" 2> "$oneWork.err" || oneRc=$?
 	if [ "$oneRc" != "0" ] || LC_ALL=C grep -q '^WAIT-NEVER-READ: ' "$oneWork" || ! LC_ALL=C grep -q -E '^WAIT-RESULT: (RECEIVED|TIMEOUT)$' "$oneWork" ; then
 		collectOutcome="UNREADABLE"
-		printf 'UNREADABLE %s %s | the thread could not be read, so nothing is known about it\n' "$oneId" "${oneTag:--}"
+		## Named: the conversation, the identity it was read with, and Slack's own error where the read gave one.
+		local oneWhy=""
+		oneWhy="$( LC_ALL=C sed -n 's/^.*"error":"\([^"]*\)".*$/\1/p' "$oneWork.err" "$oneWork" 2> /dev/null | head -1 )"
+		printf 'UNREADABLE %s %s | the thread %s could not be read as %s%s, so nothing is known about it\n' "$oneId" "${oneTag:--}" "$oneChannel:$oneTts" \
+			"$( [ "$oneIdentity" = "bot" ] && printf 'the team bot' || printf 'member %s' "$oneOwner" )" "${oneWhy:+: $oneWhy}"
 		rm -f "$oneWork" "$oneWork.err"
 		return 0
 	fi
@@ -202,7 +219,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		*)
 			oneAnswerTs="${oneHead%% *}"
 			oneBy="${oneHead#* | }" ; oneBy="${oneBy%% |*}"
-			collectAnswer="$( printf '%s\n' "$oneBody" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyAnswerText.awk" )"
+			collectAnswer="$( printf '%s\n' "$oneBody" | AgentsToolsPendingReplyCollectOwnWords | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyAnswerText.awk" )"
 		;;
 	esac
 	oneRc=0
@@ -216,7 +233,7 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			## clarifications, kept on the record and the item's Decisions.
 			## Its thread stays watched from the newest message read here (AgentsWaitProbeAsk).
 			local oneClarify="" oneFloor=""
-			oneClarify="$( printf '%s\n' "$oneBody" | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
+			oneClarify="$( printf '%s\n' "$oneBody" | AgentsToolsPendingReplyCollectOwnWords | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || oneClarify=""
 			oneFloor="$( printf '%s\n' "$oneBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )"
 			printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --follow-floor "${oneFloor:-$oneQts}" --context collect > /dev/null 2>&1 \

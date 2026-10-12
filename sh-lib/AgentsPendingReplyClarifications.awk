@@ -5,9 +5,18 @@
 # the rest of the message the answer was taken from (-v answerTs=<its ts>), after its answer
 # line -- its first line that is no quote of the question (firstUnquoted, the rule
 # AgentsEscalationVerdict.awk reads the verdict by) -- then every later message whole. A
-# message's lines are folded with " / ". Messages at or before answerTs, reaction lines, "# "
-# lines and replies marked UNMATCHED-REPLY are not printed. With the answer a reaction, pass
-# the question's own ts: every reply is then a clarification.
+# message's lines are folded with " / ". Messages at or before answerTs, the lines ahead of
+# the first reply (the question's own reactions) and replies marked UNMATCHED-REPLY are not
+# printed. With the answer a reaction, pass the question's own ts: every reply is then a
+# clarification.
+# EVERY LINE IS JUDGED BY THE REPLY IT BELONGS TO, never by what the line itself starts with
+# (the rule of AgentsSlackThreadAnswersSince.awk). A reply is its head and every line under
+# it up to the next head. A reply set aside has `UNMATCHED-REPLY ` ahead of its head and of
+# each line under it, and its head is still a head: it ends the reply above it, and its lines
+# go with it. So a line under a reply's head is that reply's whatever it starts with -- `# `,
+# `reaction on the question: `, `UNMATCHED-REPLY ` -- since a person writes such lines. Ended
+# at the first such line, a comment was kept only up to it. What is read here is the answers
+# alone: a line of the wait's own is left out by the caller, by where it stands.
 
 function secOf( v ) { sub( /\..*$/, "", v ) ; return ( v == "" ? 0 : v + 0 ) ; }
 function fracOf( v ) { if ( v !~ /\./ ) { return "000000" ; } sub( /^[^.]*\./, "", v ) ; return substr( v "000000", 1, 6 ) ; }
@@ -70,6 +79,7 @@ function flush(    from, i, text ) {
 	}
 	next ;
 }
-/^(reaction on the question: |UNMATCHED-REPLY |# )/ { flush() ; next ; }
+## The head of a reply set aside: it ends the reply above it, and is itself not printed.
+/^UNMATCHED-REPLY [0-9]+\.[0-9]+ \| / { flush() ; next ; }
 inMessage { curLine[++curCount] = $0 ; }
 END { flush() ; }

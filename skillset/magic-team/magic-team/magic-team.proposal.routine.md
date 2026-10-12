@@ -47,10 +47,9 @@ session: coworking
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
 1. **process-own-inbox**: run `magic-team.process-inbox.routine magic-coordinator`.
-2. **open-thread-on-invariant-question**: post the root per the root clause, to the human-owner. Record the root's `<channel>:<ts>` as the tracking item's `communication-channel-id`; every later post targets that thread.
-3. **post-the-proposal-reply**: post the proposed form as an in-thread reply, per the in-thread-proposal clause. One proposal reply is live at a time.
-4. **work-out-across-his-comments**: wait for his comments per **wait-never-quit** and work the proposal out against them. Each revision lands by the revision clause: delete the superseded reply, post the fresh one. Repeat until he closes it.
-5. **close-on-root-reaction**: read the root after each wait; his reaction on it is the terminal verdict, per the root-reaction clause. Only a successful read showing no reaction means none is there.
+2. **put-the-proposal**: call `ProposeApprove` with `question` per the root clause, `proposal` per the in-thread-proposal clause, the proposal document's link as `document`, and `task_ref` naming the tracking item, if any. It posts the root once, the proposal as its reply, and waits for the verdict.
+3. **work-out-across-his-comments**: a `VERDICT: RETURNED` result is his comment, kept as a clarification. Work the proposal out against it, then call `ProposeApprove` again with `pending_id` and `revise: true`, per the revision clause. Repeat until a verdict lands.
+4. **close-on-root-reaction**: `VERDICT: approved` or `VERDICT: rejected` on that call is the terminal verdict, per the root-reaction clause, already recorded on the tracking item's Decisions by the tool.
 
 # Closure steps
 
@@ -86,11 +85,10 @@ All statements apply at the same time, always. These rules override a participan
 
 Every `magic-tooling` operation this routine uses. Behaviour is read with `--member-help`. Steps use its name only.
 
+`ProposeApprove` runs the whole proposal thread itself — the root, the proposal reply, its revise and the wait for a verdict — replacing a by-hand send, delete and read.
+
 ## DistroAgentsTools magic-tooling operations
 
-- `--member-comms-slack-send-message <team-member> <target> (--from-stdin|--from-file <path>)`
-- `--member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...]`
-- `--member-comms-slack-read <team-member> <channel>:<ts> [--thread]`
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:running [--header:<upsert|append|remove>:name[:value]]...`
 - `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]`
 - `--magic-grooming-create-backlog <team-member> <item-filename> --owner-header-value <value> (--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin) [--header:<upsert|append|remove>:name[:value]]...`

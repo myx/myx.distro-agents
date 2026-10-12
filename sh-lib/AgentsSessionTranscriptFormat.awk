@@ -202,10 +202,10 @@ function stlBaseTool(toolName,   restName, cutAt) {
 }
 
 ## The tool a name asks with, "" for a name that asks nothing: one of the four tools that
-## ask, as it is; their second name AskUserQuestion, which older lines carry, as the tool of
-## its kind, AskQuestion when the kind is not known.
+## ask, or ProposeApprove, as it is; their second name AskUserQuestion, which older lines
+## carry, as the tool of its kind, AskQuestion when the kind is not known.
 function stlAskTool(baseName, kindText) {
-	if (baseName == "AskQuestion" || baseName == "ConfirmReadback" || baseName == "EscalateDecision" || baseName == "RequestPermission") return baseName
+	if (baseName == "AskQuestion" || baseName == "ConfirmReadback" || baseName == "EscalateDecision" || baseName == "RequestPermission" || baseName == "ProposeApprove") return baseName
 	if (baseName != "AskUserQuestion") return ""
 	if (kindText == "readback") return "ConfirmReadback"
 	if (kindText == "decision") return "EscalateDecision"

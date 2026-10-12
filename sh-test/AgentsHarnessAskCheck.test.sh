@@ -496,7 +496,8 @@ rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"YES, SURE",
 rigPostsBefore="$( rigCalls chat.postMessage )"
 rigAsk 30 "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "the re-wait ran to completion"                 "$rigKilled" no
-rigAssert "the re-wait posted nothing"                    "$(( $( rigCalls chat.postMessage ) - rigPostsBefore ))" 0
+rigAssert "the re-wait posts nothing itself: its one post is the confirmation reply of the answer it applied" \
+	"$(( $( rigCalls chat.postMessage ) - rigPostsBefore )):$( rigHolds "$rigScenarioDir/post.$( cat "$rigScenarioDir/posts" 2>/dev/null )" '✅ Read: `allow` by' )" "1:yes"
 rigAssert "the later reply's option is the verdict"       "$( rigVerdictLine )" "VERDICT: allow"
 rigAssert "the record closed as received"                 "$( rigRecordStatus )" reply-received
 rigAssert "and carries the verdict"                       "$( rigRecordVerdict )" allow

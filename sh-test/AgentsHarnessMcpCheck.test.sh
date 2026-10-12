@@ -315,7 +315,7 @@ rigToolResult(){ ## request file, tool call id -- that call's result content as 
 }
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
-rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 29
+rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 30
 rigAssert "the server's own tool is declared as it sent it, no description added" \
 	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
 rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"

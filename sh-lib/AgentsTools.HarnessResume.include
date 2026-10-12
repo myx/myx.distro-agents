@@ -27,7 +27,7 @@ AgentsHarnessContextCheck(){ ## context file
 ## it loads the file, and a mismatch there falls back the same way. rc 0 and the context
 ## file; rc 1 and the reason.
 AgentsReviewContextResumeEligible(){ ## record path (may be empty)
-	local ctxRecord="$1" ctxSpawn ctxCli ctxNow ctxHost thisHost ctxFile ctxWhy ctxSession
+	local ctxRecord="$1" ctxSpawn ctxCli ctxNow ctxNowBoth ctxHost thisHost ctxFile ctxWhy ctxSession
 	[ -n "$ctxRecord" ] && [ -f "$ctxRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
 	ctxSpawn="${ctxRecord##*/}" ; ctxSpawn="${ctxSpawn%.md}"
 	ctxCli="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli )"
@@ -35,9 +35,11 @@ AgentsReviewContextResumeEligible(){ ## record path (may be empty)
 		''|none|-) printf 'the old session recorded no cli' ; return 1 ;;
 		*-native) printf 'the old session ran on %s, a native CLI, not the universal harness' "$ctxCli" ; return 1 ;;
 	esac
-	ctxNow="$( AgentsReviewCliResolved "" )"
+	## As its restart will read them: in the workspace that paid for it, on the service it was started on by name (AgentsReviewRecordCliNow).
+	ctxNowBoth="$( AgentsReviewRecordCliNow "$ctxRecord" )"
+	ctxNow="${ctxNowBoth%%$'\t'*}"
 	[ "$ctxNow" = "$ctxCli" ] || { printf 'the cli is now %s, the old session ran on %s' "$ctxNow" "$ctxCli" ; return 1 ; }
-	[ "$( AgentsReviewCliSetting "$ctxNow" )" = "$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli-setting )" ] \
+	[ "${ctxNowBoth#*$'\t'}" = "$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" cli-setting )" ] \
 		|| { printf 'the cli setting changed since the old session' ; return 1 ; }
 	ctxHost="$( AgentsToolsSpawnSandboxRecordHeader "$ctxRecord" host )"
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"

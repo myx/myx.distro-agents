@@ -2,8 +2,9 @@
 ## Behavioural check on permission refusals and grants in the harness write gate, run
 ## through --intern-tool, the path the myx.distro MCP stub uses. A refusal is a
 ## recorded fact with an id, posted to the session's event-track thread, and never a
-## verdict. Offline: a Slack-shaped fake curl is first on PATH, and every scenario
-## runs in its own workspace under this check's temp tree.
+## verdict. Offline: a Slack-shaped fake curl is first on PATH, a ps that lists the rig's
+## own runs only is beside it, and every scenario runs in its own workspace under this
+## check's temp tree.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -26,9 +27,32 @@ mkdir -p "$rigTmp/bin"
 cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/harness-ask-check.curl.test.sh"
 chmod +x "$rigTmp/bin/curl"
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+mkdir -p "$rigTmp/bin"
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
 PATH="$rigTmp/bin:$PATH"
 export PATH
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check could issue real requests"
+[ "$( command -v ps )" = "$rigTmp/bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
 
 rigPassCount=0
 rigFailCount=0
@@ -376,7 +400,8 @@ printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","tex
 rigTool rig-session AskUserQuestion "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "a re-wait on its id finds the valid answer"     "$( rigLineOf 'VERDICT: ' )" "VERDICT: deny"
 rigAssert "and still no grant"                             "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
-rigAssert "and the re-wait posted nothing"                 "$( cat "$rigScenarioDir/posts" )" 1
+rigAssert "and the re-wait posts nothing itself: its one post is the confirmation reply of the deny it applied" \
+	"$( cat "$rigScenarioDir/posts" ):$( rigHolds "$rigScenarioDir/post.2" '❌ Read: `deny` by' ):$( rigHolds "$rigScenarioDir/post.2" 'How to answer' )" "2:yes:no"
 rigTool other-session AskUserQuestion "{\"pending_id\":\"$rigRewaitId\"}"
 rigAssert "another session may not re-wait on it"          "$( rigHolds "$rigScenarioDir/out" 'belongs to session rig-session' )" yes
 rigVerdict "permission deny, or an unrecognised answer -- nothing is granted, and a re-wait finds the real answer"
@@ -525,8 +550,14 @@ rigVerdict "sync escalation -- waits for the coordinator's answer, resumes the s
 rigStart answer-by-asker no
 rigTarget="$rigScenarioDir/ws/OUT/a.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
-rigAskMember rig-session "$( rigRefusalId )" "$rigMember"
+## A question is never left with its own asker when it is asked: the route sends it to one who
+## holds the refused call. So it is asked of the coordinator, who holds the target, and its
+## record is then addressed to the asker itself, as a record from before the route may be.
+rigAskMember rig-session "$( rigRefusalId )" magic-coordinator
 rigPending="$( rigPendingId )"
+LC_ALL=C sed "s/^address-to: .*\$/address-to: $rigMember/" "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" > "$rigScenarioDir/record.rig" \
+	&& mv -f "$rigScenarioDir/record.rig" "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
+rigAssert "control: the record is addressed to its own asker" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" "$rigMember"
 rigOp --member-escalation-answer "$rigMember" "$rigPending" allow-session
 rigAssert "the asker's own answer is refused"              "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
 rigAssert "the call is still waiting"                      "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
@@ -538,11 +569,21 @@ rigVerdict "no self-answer through the operation"
 ##      behalf, with --magic-escalation-answer; the member form stays the addressee's.
 ## ---------------------------------------------------------------------------
 rigStart answer-on-behalf no
+## The route leaves a question with a member only where it holds the refused call and has a
+## live run in the asker's session: the developer holds the rig workspace by a standing row,
+## and one spawn of the asking session is its run, a line of the rig's process list that runs as its id.
+printf 'magic-developer:ws:workspace:Edit(/%s/**)\n' "$rigScenarioDir/ws" >> "$rigScenarioDir/ws/.local/agents/permissions.registry"
+rigLiveSpawn="rig-live-developer-$$"
+mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/rig-session"
+printf -- '---\nsession-id: rig-session\nspawn-id: %s\nhost: %s\nowner: magic-developer\nstatus: spawn-started\n---\n\n# Spawn session\n' \
+	"$rigLiveSpawn" "$( hostname -s 2>/dev/null || echo unknown )" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/$rigLiveSpawn.md"
+printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" >> "$rigTmp/ps.list"
 rigTarget="$rigScenarioDir/ws/OUT/b.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdB="$( rigRefusalId )"
 rigAskMember rig-session "$rigIdB" magic-developer
 rigPending="$( rigPendingId )"
+rigAssert "control: the question stays with the member named, who holds the call and runs in the session" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-developer
 RIG_OP_AGENT=magic-coordinator
 rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "the coordinator's member form is the addressee's only" "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
@@ -552,6 +593,7 @@ rigAssert "signed by the coordinator, with the grant"      "$( rigHolds "$rigSce
 RIG_OP_AGENT=""
 rigAssert "the waiting call ended on the answer"           "$( rigAskFinish 45 )" yes
 rigAssert "with who gave it"                               "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
+: > "$rigTmp/ps.list"
 rigVerdict "answer on behalf -- the coordinator's own form, never the member form"
 
 ## ---------------------------------------------------------------------------
@@ -564,8 +606,14 @@ mkdir -p "$rigScenarioDir/outside"
 rigTarget="$rigScenarioDir/outside/n.txt"
 rigWriteCall rig-session "$rigTarget" > /dev/null
 rigIdN="$( rigRefusalId )"
+## Asked while the coordinator holds the target, so the question is its to answer: the route
+## asks only one who holds the call. By the time it answers, it holds the target no longer.
+cp "$rigScenarioDir/ws/.local/agents/permissions.registry" "$rigScenarioDir/registry.before"
+printf 'magic-coordinator:ws:workspace:Edit(/%s/outside/**)\n' "$rigScenarioDir" >> "$rigScenarioDir/ws/.local/agents/permissions.registry"
 rigAskMember rig-session "$rigIdN" magic-coordinator
 rigPending="$( rigPendingId )"
+cat "$rigScenarioDir/registry.before" > "$rigScenarioDir/ws/.local/agents/permissions.registry"
+rigAssert "control: it was asked of the coordinator, while the coordinator held the target" "$( LC_ALL=C awk -F': ' '$1 == "address-to" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-coordinator
 RIG_OP_AGENT=magic-coordinator
 rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-session
 RIG_OP_AGENT=""

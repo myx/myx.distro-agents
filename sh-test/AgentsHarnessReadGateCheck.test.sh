@@ -256,7 +256,8 @@ rigAssert "every Grep retry in the session is admitted"    "$( rigGrep magic-tes
 rigAssert "the Grep grant opens no Read beneath it"        "$( rigRead magic-tester rig-session "$rigWs/OUT/seed.txt" )" refused
 
 rigAssert "no request left this box"                       "$( LC_ALL=C awk '/^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 0
-rigAssert "the escalation's one post is the only one"      "$( LC_ALL=C awk '$0 == "chat.postMessage" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" )" 1
+rigAssert "the escalation's own post and the one confirmation reply of its answer are the only posts" \
+	"$( LC_ALL=C awk '$0 == "chat.postMessage" { hitCount++ ; } END { print hitCount + 0 ; }' "$RIG_CURL_LOG" ):$( LC_ALL=C grep -c -F 'Read: `allow-once` by' "$rigTmp/post.2" 2>/dev/null )" "2:1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ READ GATE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

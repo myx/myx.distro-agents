@@ -10,6 +10,8 @@
 ##
 
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
+## A member's own mailbox is read by the side of the call (AgentsToolsCommsOwnSideCheck).
+type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSide.include"
 
 AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
 	local MDSC_CMD='DistroAgentsTools'
@@ -30,6 +32,7 @@ AgentsToolsCommsEmailMarkSeen(){ ## <team-member> <uid>
 			fi
 		;;
 	esac
+	AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-mark-seen || { set +e ; return 1 ; }
 	local uid="$1"
 	shift || true
 	if [ -z "$uid" ] ; then
@@ -64,14 +67,37 @@ case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
 		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
-		## --intern-op-comms-email-* implementation below directly.
+		## --intern-op-comms-email-* implementation below directly. A --member-* operation reaches
+		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
+		## member too: what such a member holds for this system is the other organisation's.
 		--member-comms-email-check|--member-comms-email-read|--member-comms-email-mark-seen|--member-comms-email-send)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			## A stub whose implementation is an in-context helper calls it by name.
 			case "$1" in
 				--member-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
 			esac
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		## The client stubs: the same operations on the side of the other organisation, for a
+		## client-* member alone, under the settings that member itself holds for it. The side is
+		## set where a --client-* operation is dispatched. A spawned session names only itself,
+		## as with the member stubs above.
+		--client-comms-email-check|--client-comms-email-read|--client-comms-email-mark-seen|--client-comms-email-send)
+			case "${2:-}" in
+				client-*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own mail under that member's own settings for it" >&2
+					set +e ; return 1
+				;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--client-comms-email-mark-seen) AgentsToolsCommsEmailMarkSeen "${@:2}" ; return $? ;;
+			esac
+			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
 			return $?
 		;;
 
@@ -94,6 +120,7 @@ case "$1" in
 					fi
 				;;
 			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-check || { set +e ; return 1 ; }
 			local imapHost imapUser imapPass
 			imapHost="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_IMAP_HOST )"
 			imapUser="$( DistroAgentsTools --agents-config-option "$memberName" --select EMAIL_USER )"
@@ -143,6 +170,7 @@ case "$1" in
 					fi
 				;;
 			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-read || { set +e ; return 1 ; }
 			local uid="$1"
 			shift || true
 			if [ -z "$uid" ] ; then
@@ -217,6 +245,7 @@ case "$1" in
 					fi
 				;;
 			esac
+			AgentsToolsCommsOwnSideCheck "$memberName" mail member-comms-email-send || { set +e ; return 1 ; }
 			local recipients subject bodyLines state="recipients" bodyFromStdin="false" bodyFromFile="false" inReplyTo="" textGroup="" format="markdown"
 			while [ $# -gt 0 ] ; do
 				case "$1" in
@@ -475,7 +504,7 @@ case "$1" in
 
 		## An email operation this file does not implement -- the retired
 		## --intern-op-comms-email-mark-seen among them -- is reported, never swallowed.
-		--member-comms-email-*|--intern-op-comms-email-*)
+		--member-comms-email-*|--client-comms-email-*|--intern-op-comms-email-*)
 			echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
 			set +e ; return 1
 		;;

@@ -9,7 +9,8 @@
 ## A routine as review-by, listed by its own input scan and left alone by advance
 ## housekeeping. The endings: archive, trash, shutdown, TaskStop. The coordinator-thread
 ## fallback for a spawn whose parent has no thread.
-## Offline: a fake `curl` first on PATH logs each Slack call and opens no socket; a fake
+## Offline: a fake `curl` first on PATH logs each Slack call and opens no socket; a ps beside
+## it lists the rig's own runs only, the stand-in children under their own pids; a fake
 ## DistroAgentsConsole.sh stands in for the CLI; the board, sandboxes and workspace are this
 ## rig's own temp tree, guarded on every call. Never the live team data or .local/agents.
 set -u
@@ -35,6 +36,32 @@ rigSpawned="$rigWs/.local/agents/spawned"
 mkdir -p "$rigData/board/running" "$rigData/board/review" "$rigData/board/processed" "$rigData/board/pending" \
 	"$rigWs/.local/.agents" "$rigSpawned" "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps. Each line
+## is a stand-in process of this rig under its own pid, and is listed only while that process
+## lives: one that is stopped is gone from the list, as it would be from the host's.
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		while read -r rigPsPid rigPsLine ; do
+			kill -0 "$rigPsPid" 2> /dev/null || continue
+			case "$*" in
+				*pid=*) printf '%s %s\n' "$rigPsPid" "$rigPsLine" ;;
+				*) printf '%s\n' "$rigPsLine" ;;
+			esac
+		done < "${0%/*}/../ps.list"
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 for rigMember in magic-coordinator keeper-myx magic-tester ; do
 	mkdir -p "$rigWs/.local/agents/members/$rigMember"
@@ -91,9 +118,10 @@ rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, f
 }" "${4:+spawns: $4
 }" "${6:-}" > "$rigSpawned/$recFolder/$1.md"
 }
-rigLive(){ ## spawn-id -- a stand-in process carrying the spawn id in its argv
+rigLive(){ ## spawn-id -- a stand-in process, in the rig's process list under its own pid, running as the spawn id
 	bash -c 'sleep 300 ; :' "$1" > /dev/null 2>&1 < /dev/null &
 	rigLivePids="$rigLivePids $!"
+	printf '%s rig-run --session-id %s\n' "$!" "$1" >> "$rigTmp/ps.list"
 	disown "$!" 2> /dev/null || :
 }
 rigTranscript(){ ## spawn-id -- the transcript pointer every writer resolves
@@ -399,21 +427,32 @@ rigAssert "the trashed copy records the ending"            "$( rigDecisions "$ri
 echo "-- 15. shutdown: every live child dismissed, recorded on its item --"
 for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done
 rigLivePids=""
+: > "$rigTmp/ps.list"
 sleep 1
 rigLive rig-live-sd1-$$
 rigLive rig-live-sd2-$$
 rigRecord rig-live-sd1-$$ spawn-started CSDA00001:1700000000.000900 dispatch-20261008T1200Z-sd1
 rigRecord rig-live-sd2-$$ spawn-started CSDB00001:1700000000.001000 ""
+## A third record, still open, whose process is gone: its spawn id only stands on another
+## process's command line, inside the path of its folder and quoted in its brief. A run is its
+## own --session-id or --resume word alone, so it is no live child and is not dismissed.
+rigRecord rig-held-sd3-$$ spawn-started CSDC00001:1700000000.001100 ""
+bash -c 'sleep 300 ; :' rig-other > /dev/null 2>&1 < /dev/null &
+rigLivePids="$rigLivePids $!"
+printf '%s claude --add-dir %s/rig-held-sd3-%s/input --session-id rig-other-run-%s --agent keeper-myx Readable %s/rig-held-sd3-%s/input, as said by --session-id rig-held-sd3-%s\n' "$!" "$rigSpawned" "$$" "$$" "$rigSpawned" "$$" "$$" >> "$rigTmp/ps.list"
+disown "$!" 2> /dev/null || :
 rigItem running dispatch-20261008T1200Z-sd1 rig-live-sd1-$$
 sleep 1
 rigOp "$rigTmp/e3" --magic-review-shutdown magic-coordinator
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/e3.rc" )" 0
 rigAssert "both live children were sent DISMISSED"         "$( LC_ALL=C grep -c -E "^SHUTDOWN: spawn rig-live-sd[12]-$$: sent keeper-myx" "$rigTmp/e3" ):$( LC_ALL=C grep -c -x 'SHUTDOWN: 2 of 2 live spawn(s) dismissed' "$rigTmp/e3" )" 2:1
+rigAssert "a spawn whose id only stands on another process's command line is no live child: nothing is said or sent for it" "$( LC_ALL=C grep -c -F "rig-held-sd3-$$" "$rigTmp/e3" )" 0
 rigAssert "the item records shutdown"                      "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: sent keeper-myx' )" 1
 
 echo "-- 16. TaskStop: the process stopped as before, the ending recorded --"
 for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done
 rigLivePids=""
+: > "$rigTmp/ps.list"
 rigLive rig-live-ts-$$
 rigItem running dispatch-20261008T1200Z-ts rig-live-ts-$$
 sleep 1

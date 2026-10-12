@@ -363,7 +363,7 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 	## message events are rendered from that log at the milestones, so only the milestone is here.
 	if [ "$doneSource" = "loop" ] && [ -n "${agentsTranscriptFromLog:-}" ] ; then
 		case "$doneBase:$doneOutcome" in
-			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
+			SendMessage:ok|ReportFindings:ok|PushNotification:ok|Artifact:ok|AskUserQuestion:ok|AskQuestion:ok|ConfirmReadback:ok|EscalateDecision:ok|RequestPermission:ok|ProposeApprove:ok) AgentsTranscriptMilestone "$doneSession" "message out" ;;
 			SubagentHandback:ok) AgentsTranscriptMilestone "$doneSession" "handback" ;;
 			Wait:*) case "$doneFirst" in 'WAIT-RESULT: DISMISSED'*) AgentsTranscriptMilestone "$doneSession" "dismissed" ;; esac ;;
 		esac
@@ -421,12 +421,13 @@ AgentsTranscriptToolDone(){ ## tool name, arguments JSON, result, source, outcom
 		;;
 		## The tools that ask, and their second name. The kind is the tool's own; only the
 		## second name carries one as an argument.
-		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission)
+		AskUserQuestion|AskQuestion|ConfirmReadback|EscalateDecision|RequestPermission|ProposeApprove)
 			local doneKind=""
 			case "$doneBase" in
 				ConfirmReadback) doneKind="readback" ;;
 				EscalateDecision) doneKind="decision" ;;
 				RequestPermission) doneKind="permission" ;;
+				ProposeApprove) doneKind="proposal" ;;
 				*) doneKind="$( AgentsTranscriptJsonField "$doneArgs" kind )" ;;
 			esac
 			AgentsTranscriptEvent "$doneSession" ASK "$( AgentsTranscriptJsonField "$doneArgs" question )" 4096 \

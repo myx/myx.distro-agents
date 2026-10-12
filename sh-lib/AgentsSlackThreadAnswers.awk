@@ -30,17 +30,27 @@
 # microsecond apart. Same rule and same reason as AgentsToolsSlackTsNewerThan in
 # sh-lib/AgentsTools.CommsSlack.include.
 #
-# A THREAD SEVERAL QUESTIONS SHARE (-v tag=Q<n> -v threadCount=<questions it has held>
+# A NUMBERED QUESTION (-v tag=Q<n>, the number its post carries): a reply starting with
+# this question's number answers it, and the number is dropped from what is printed so
+# the reply reads as it would with none. In a thread that has held this question alone
+# every other reply is printed whole, one starting with another number too. With no tag
+# given, nothing here changes.
+# A THREAD SEVERAL QUESTIONS SHARE (-v threadCount=<questions it has held>
 # -v others="<ts>/<state> ..." from AgentsToolsAskThreadOthers): once it has held more
-# than one, a reply starting with this question's number answers it, and the number is
-# dropped from what is printed so the reply reads as it would alone; a reply starting
-# with another question's number is not printed. A reply with no number answers the
-# latest question posted above it: printed when that is this one, not printed when it is
-# another still open, and printed marked `UNMATCHED-REPLY ` when that other one was closed
-# before the reply came, so its reader gives it back as RETURNED rather than any asker
-# taking it. A reaction answers the message it is on, as ever. In a thread that has held
-# one question, or with no tag given, nothing here changes. Held, not open: a late reply
-# numbered for an answered question never answers the one still open.
+# than one, a reply starting with another question's number is not printed. A reply with
+# no number answers the latest question posted above it: printed when that is this one,
+# not printed when it is another still open, and printed with its every line marked
+# `UNMATCHED-REPLY ` when that other one was closed before the reply came, so its reader
+# gives it back as RETURNED rather than any asker taking it -- the lines under its first
+# too, which unmarked would read as more of the reply printed above them. A reaction
+# answers the message it is on, as ever. Held, not open: a late reply numbered for an
+# answered question never answers the one still open.
+# A MEMBER'S REPLY starts with the send header the team's own send writes ahead of every
+# message, `[<mark> ]*_<from>_* @<alias> → <addressees>.`: it is no part of the reply, so the
+# number is the first word after it (memberSendHeaderLength, AgentsDismissalMatch.awk) -- on
+# the head line, or on the first line under it that is not empty where the header fills the
+# head line -- and the header stays in what is printed. Read as the reply's first word, the
+# header's mark made every numbered reply of a member one with no number.
 
 BEGIN {
 	badUsage = 0
@@ -124,6 +134,50 @@ function releaseHeldOwn() {
 	heldOwn = ""
 }
 
+## One reply to a numbered question, judged where it starts: <replyLead> is all of it ahead
+## of that start, printed as it is, and <replyText> the rest of that line.
+function printNumberedReply(replyLead, replyText, replyTs,   latestTs, latestState, otherIdx) {
+	inOlder = 0
+	if ( match(replyText, /^[Qq][0-9]+/) && substr(replyText, 2, RLENGTH - 1) + 0 == tagNum + 0 ) {
+		replyText = substr(replyText, RLENGTH + 1)
+		sub(/^[ \t]*[:.,)-]?[ \t]*/, "", replyText)
+		print replyLead replyText
+		return
+	}
+	## This question alone in its thread: every other reply is printed whole.
+	if ( ! shared ) { print replyLead replyText ; return ; }
+	if ( replyText ~ /^[Qq][0-9]+/ ) { inOlder = 1 ; return ; }
+	## No number: it answers the latest question posted above it, while that one is open.
+	latestTs = rootTs
+	latestState = "this"
+	for ( otherIdx = 1 ; otherIdx <= otherCount ; otherIdx++ ) {
+		if ( newerThan(replyTs, otherTs[otherIdx]) && newerThan(otherTs[otherIdx], latestTs) ) {
+			latestTs = otherTs[otherIdx]
+			latestState = otherState[otherIdx]
+		}
+	}
+	if ( latestState == "this" ) { print replyLead replyText ; return ; }
+	if ( latestState ~ /^[0-9]+$/ && secOf(replyTs) > latestState + 0 ) {
+		## Set aside whole: its every line is marked, the lines under this one too (inAside).
+		replyText = replyLead replyText
+		gsub(/\n/, "\nUNMATCHED-REPLY ", replyText)
+		print "UNMATCHED-REPLY " replyText
+		inAside = 1
+		return
+	}
+	inOlder = 1
+}
+
+## A member's reply whose send header fills its head line starts on a line under it, so that
+## head is held (with the empty lines under it) until the line the reply starts with is read.
+## With no such line before the next head or the end, it is a reply with no number.
+function releaseHeldHead(   heldLead) {
+	if ( heldHead == "" ) { return ; }
+	heldLead = heldHead
+	heldHead = ""
+	printNumberedReply(heldLead, "", heldHeadTs)
+}
+
 ## A reaction answers only when one of its users is an addressee, the same rule a reply
 ## is held to. The users are the formatter's "(U1,U2)" tail of the annotation.
 function reactedByAddressee(ann,   userList, userCount, userIdx, reactUser) {
@@ -156,6 +210,8 @@ function printReactions(line,   rest, ann) {
 ## line by line.
 /^[0-9]+\.[0-9]+ \| / {
 	releaseHeldOwn()
+	releaseHeldHead()
+	inAside = 0
 	msgTs = $1
 	if ( msgTs == rootTs ) {
 		rootSeen = 1
@@ -177,45 +233,42 @@ function printReactions(line,   rest, ann) {
 	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
 	if ( conversationMode && callerName != "" && ! includeOwn && lineSender($0) == callerName ) { inOlder = 1 ; heldOwn = $0 ; next ; }
 	inOlder = 0
-	if ( shared ) {
+	if ( tag != "" ) {
 		replyText = $0
 		sub(/^[^|]*\| [^|]*\|/, "", replyText)
 		while ( match(replyText, /^ \[[^]]*\]/) ) { replyText = substr(replyText, RSTART + RLENGTH) ; }
 		sub(/^ +/, "", replyText)
-		if ( match(replyText, /^[Qq][0-9]+/) ) {
-			if ( substr(replyText, 2, RLENGTH - 1) + 0 != tagNum + 0 ) { inOlder = 1 ; next ; }
-			replyHead = substr($0, 1, length($0) - length(replyText))
-			replyText = substr(replyText, RLENGTH + 1)
-			sub(/^[ \t]*[:.,)-]?[ \t]*/, "", replyText)
-			print replyHead replyText
-			next
+		## A member's reply: its first word is the first one after its send header.
+		headerLength = memberSendHeaderLength(replyText)
+		if ( headerLength > 0 ) {
+			replyText = substr(replyText, headerLength + 1)
+			sub(/^[ \t]+/, "", replyText)
+			if ( replyText == "" ) { heldHead = $0 ; heldHeadTs = msgTs ; inOlder = 1 ; next ; }
 		}
-		## No number: it answers the latest question posted above it, while that one is open.
-		latestTs = rootTs
-		latestState = "this"
-		for ( otherIdx = 1 ; otherIdx <= otherCount ; otherIdx++ ) {
-			if ( newerThan(msgTs, otherTs[otherIdx]) && newerThan(otherTs[otherIdx], latestTs) ) {
-				latestTs = otherTs[otherIdx]
-				latestState = otherState[otherIdx]
-			}
-		}
-		if ( latestState == "this" ) { print ; next ; }
-		if ( latestState ~ /^[0-9]+$/ && secOf(msgTs) > latestState + 0 ) {
-			print "UNMATCHED-REPLY " $0
-			next
-		}
-		inOlder = 1
+		printNumberedReply(substr($0, 1, length($0) - length(replyText)), replyText, msgTs)
 		next
 	}
 	print
 	next
 }
 
-{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ; }
+## A line under a held head: the first that is not empty is the line the reply starts with.
+heldHead != "" {
+	if ( $0 ~ /^[ \t]*$/ ) { heldHead = heldHead "\n" $0 ; next ; }
+	replyText = $0
+	sub(/^[ \t]+/, "", replyText)
+	replyHead = heldHead "\n" substr($0, 1, length($0) - length(replyText))
+	heldHead = ""
+	printNumberedReply(replyHead, replyText, heldHeadTs)
+	next
+}
+
+{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ( inAside ? "UNMATCHED-REPLY " $0 : $0 ) ; }
 
 END {
 	if ( badUsage ) { exit 2 ; }
 	releaseHeldOwn()
+	releaseHeldHead()
 	## Conversation mode's own floor is often "now", picked with no post of ours to
 	## name -- never a message this thread is required to carry. The read itself
 	## already succeeded by the time this runs, which is all rootSeen ever stood in

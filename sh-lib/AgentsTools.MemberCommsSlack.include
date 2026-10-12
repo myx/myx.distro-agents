@@ -110,6 +110,9 @@ AgentsToolsCommsSlackMentionFindByName(){ ## text
 ## once per advance/heartbeat lock cycle, never per message. See MAGIC.md,
 ## "A member name renders as a real Slack mention".
 AgentsToolsCommsSlackMentionUserId(){
+	## A client-* member's only account is the other organisation's: on our own side it has
+	## none, and nothing is read or cached for it (AgentsToolsSlackOwnSettingsApply).
+	AgentsToolsSlackOwnSettingsApply "$1" || return 0
 	local cacheFile="$MMDAPP/.local/.agents/slack-mention-ids.cache"
 	local lockGen
 	lockGen="$( LC_ALL=C cat \
@@ -328,8 +331,11 @@ case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
 		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
-		## --intern-op-comms-slack-* implementation below directly.
+		## --intern-op-comms-slack-* implementation below directly. A --member-* operation
+		## reaches our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSlack.include), for a
+		## client-* member too, unless its address is a client: one.
 		--member-comms-slack-read|--member-comms-slack-search-messages|--member-comms-slack-react|--member-comms-slack-delete-message|--member-comms-slack-edit-message|--member-comms-slack-file-info|--member-comms-slack-file-fetch|--member-comms-slack-file-share|--member-comms-slack-send-message|--member-comms-slack-presence-keep|--member-comms-slack-presence-status|--member-comms-slack-presence-stop|--member-comms-slack-profile-set|--member-comms-slack-profile-get|--member-comms-slack-socket-start|--member-comms-slack-socket-status|--member-comms-slack-socket-stop)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			case "${2:-}" in
 				''|--print-required-scopes) ;;
 				*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
@@ -346,6 +352,31 @@ case "$1" in
 				--member-comms-slack-send-message) MDAT_SEND_FLOOR=hold DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}" ; return $? ;;
 			esac
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
+			return $?
+		;;
+
+		## The client stubs: the same operations on the side of the other organisation, for a
+		## client-* member alone, under the settings that member itself holds for it. The side is
+		## set where a --client-* operation is dispatched. A spawned session names only itself,
+		## as with the member stubs above.
+		--client-comms-slack-read|--client-comms-slack-search-messages|--client-comms-slack-react|--client-comms-slack-delete-message|--client-comms-slack-edit-message|--client-comms-slack-file-info|--client-comms-slack-file-fetch|--client-comms-slack-file-share|--client-comms-slack-send-message|--client-comms-slack-presence-keep|--client-comms-slack-presence-status|--client-comms-slack-presence-stop|--client-comms-slack-profile-set|--client-comms-slack-profile-get|--client-comms-slack-socket-start|--client-comms-slack-socket-status|--client-comms-slack-socket-stop)
+			case "${2:-}" in
+				--print-required-scopes) ;;
+				client-*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own Slack under that member's own settings for it" >&2
+					set +e ; return 1
+				;;
+			esac
+			## A stub whose implementation is an in-context helper calls it by name.
+			case "$1" in
+				--client-comms-slack-file-info) AgentsToolsCommsSlackFileInfo "${@:2}" ; return $? ;;
+			esac
+			## Held at the plain-language floor as a member's own message is: a person reads it.
+			case "$1" in
+				--client-comms-slack-send-message) MDAT_SEND_FLOOR=hold DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}" ; return $? ;;
+			esac
+			DistroAgentsTools "--intern-op-${1#--client-}" "${@:2}"
 			return $?
 		;;
 
@@ -423,13 +454,18 @@ case "$1" in
 			done
 
 			local resolved rc channel threadTs
-			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)
 					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
 					local targetUserId=""
 					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: $resolved" >&2
+					set +e ; return 1
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-read: could not resolve target '$target' -- pass <channel>:<ts> for one message, or a bare channel/conversation for its own messages" >&2
@@ -611,7 +647,7 @@ case "$1" in
 			fi
 
 			local resolved rc channel threadTs
-			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)
 					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
@@ -619,6 +655,11 @@ case "$1" in
 				;;
 				2)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: unrecognized target: $target" >&2
+					set +e ; return 1
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: $resolved" >&2
 					set +e ; return 1
 				;;
 				*)
@@ -642,6 +683,12 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: target '$target' names one specific message (<channel>:<ts>), and this operation searches a whole conversation over a time window. The <ts> was NOT ignored -- pass the channel alone. To read that one message or its thread, use --member-comms-slack-read <team-member> <channel>:<ts> [--thread] -- note that op takes the acting member as its FIRST argument, ahead of the target." >&2
 				set +e ; return 1
 			fi
+
+			## A client: address: the rest of this search is on the side of the other organisation,
+			## and Slack is given the id alone.
+			case "$channel" in
+				client:*) local -x MDAT_COMMS_SIDE=client ; channel="${channel#client:}" ;;
+			esac
 
 			local inTerm=""
 			case "$channel" in
@@ -806,13 +853,18 @@ case "$1" in
 			done
 
 			local resolved rc channel threadTs
-			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)
 					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
 					local targetUserId=""
 					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: $resolved" >&2
+					set +e ; return 1
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: could not resolve target '$target' -- pass <channel>:<ts>" >&2
@@ -936,11 +988,13 @@ case "$1" in
 			for oneTarget in "${deleteTargets[@]}" ; do
 				local resolved rc channel threadTs
 				rc=0
-				resolved="$( DistroAgentsToolsResolveTarget "$oneTarget" )" || rc=$?
+				resolved="$( DistroAgentsToolsResolveTarget "$oneTarget" "$memberName" )" || rc=$?
 				if [ "$rc" != "0" ] ; then
 					printf 'DELETE_TARGET=%s\n' "$oneTarget"
 					printf '%s\n' DELETE_STATE=unresolvable-target
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: could not resolve target '$oneTarget' -- pass <channel>:<ts>. Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+					[ "$rc" != "3" ] || echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: $resolved Nothing was deleted for this target; the remaining targets are still attempted." >&2
+					[ "$rc" = "3" ] || echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: could not resolve target '$oneTarget' -- pass <channel>:<ts>. Nothing was deleted for this target; the remaining targets are still attempted." >&2
 					deleteFailed=$(( deleteFailed + 1 ))
 					continue
 				fi
@@ -1124,13 +1178,18 @@ case "$1" in
 			printf '%s' "$sourceText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "" "word-cap semicolon paragraph-gate" || { local editFloorRc=$? ; set +e ; return "$editFloorRc" ; }
 
 			local resolved rc channel threadTs
-			resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+			resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 			case "$rc" in
 				0)
 					channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
 					local targetUserId=""
 					targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
 					threadTs="$( printf '%s\n' "$resolved" | sed -n 's/^THREAD_TS=//p' )"
+				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: $resolved" >&2
+					set +e ; return 1
 				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: could not resolve target '$target' -- pass <channel>:<ts>" >&2
@@ -1493,7 +1552,7 @@ case "$1" in
 			## TARGET FIRST, UPLOAD SECOND. An unresolvable target costs no upload,
 			## so a failed target never leaves a file behind.
 			local shareResolved="" shareResolveRc=0 shareChannel="" shareThreadTs=""
-			shareResolved="$( DistroAgentsToolsResolveTarget "$shareTarget" )" || shareResolveRc=$?
+			shareResolved="$( DistroAgentsToolsResolveTarget "$shareTarget" "$memberName" )" || shareResolveRc=$?
 			case "$shareResolveRc" in
 				0)
 					shareChannel="$( printf '%s\n' "$shareResolved" | sed -n 's/^CHANNEL=//p' )"
@@ -1503,10 +1562,20 @@ case "$1" in
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: unrecognized target: $shareTarget -- nothing was uploaded." >&2
 					set +e ; return 1
 				;;
+				## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+				3)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: $shareResolved Nothing was uploaded." >&2
+					set +e ; return 1
+				;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-file-share: could not resolve a channel for target '$shareTarget' -- nothing was uploaded." >&2
 					set +e ; return 1
 				;;
+			esac
+			## A client: address: the rest of this share is on the side of the other organisation,
+			## and Slack is given the id alone.
+			case "$shareChannel" in
+				client:*) local -x MDAT_COMMS_SIDE=client ; shareChannel="${shareChannel#client:}" ;;
 			esac
 
 			local shareStdinFile=""
@@ -1690,25 +1759,48 @@ case "$1" in
 		## operation, harness and MCP twin alike, since the default lives here and
 		## not above it. An ad-hoc/solo spawn holding none keeps today's explicit-
 		## target requirement exactly -- the error just below fires as it always has.
-		if [ -z "$target" ] ; then
-			type AgentsToolsSessionThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
-			target="$( AgentsToolsSessionThreadFind 2>/dev/null )" || target=""
+		## The session thread is our own organisation's, so it is no default on the client side.
+		if [ -z "$target" ] && ! AgentsToolsSlackClientSide "$memberName" ; then
+			## The thread session-current names, so the name and the default are one thing.
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			target="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || target=""
 		fi
 		if [ -z "$target" ] ; then
+			if AgentsToolsSlackClientSide "$memberName" ; then
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: <target> missing${MDAT_COMMS_OP:+ in $MDAT_COMMS_OP} -- on the side of the other organisation a conversation or a person is named by its id. The session thread, the default of --member-comms-slack-send-message, is our own organisation's. Nothing was sent." >&2
+				set +e ; return 1
+			fi
 			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: <target> missing" >&2
 			set +e ; return 1
 		fi
 
+		## A client: address puts this send on the side of the other organisation, for a client-*
+		## member only (MDAT_COMMS_SIDE, AgentsTools.CommsSlack.include): said here, ahead of
+		## everything that reads a setting or names a person.
+		case "$memberName:$target" in
+			client-*:client:*) local -x MDAT_COMMS_SIDE=client ;;
+			*:client:*)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: $( AgentsToolsSlackOneWayLine "$target" "$memberName" ) Nothing was sent." >&2
+				set +e ; return 1
+			;;
+		esac
+
 		## A team-member name, with or without :<ts>, is that member's own Slack DM where it has an account. The named aliases come first.
-		local targetMember="${target%%:*}" targetMemberId=""
+		## It is an address of our own organisation, so on the client side it is refused as one.
+		local targetMember="${target#client:}" targetMemberId=""
+		targetMember="${targetMember%%:*}"
 		case "$targetMember" in
-			event-track|event-alert|magic-team|human-owner|''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) ;;
+			event-track|event-alert|magic-team|human-owner|session-current|session-parent|''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) ;;
 			*)
 				if AgentsToolsTeamMemberDirectory "$targetMember" > /dev/null ; then
+					if AgentsToolsSlackClientSide "$memberName" ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: $( AgentsToolsSlackOneWayLine "$target" "$memberName" ) Nothing was sent." >&2
+						set +e ; return 1
+					fi
 					targetMemberId="$( AgentsToolsCommsSlackMentionUserId "$targetMember" )"
 					if [ -z "$targetMemberId" ] ; then
 						## A member holding a token whose account could not be read is a fault, never a member without a DM.
-						if [ -n "$( DistroAgentsTools --agents-config-option "$targetMember" --select SLACK_USER_TOKEN 2>/dev/null )" ] ; then
+						if AgentsToolsSlackOwnSettingsApply "$targetMember" && [ -n "$( DistroAgentsTools --agents-config-option "$targetMember" --select SLACK_USER_TOKEN 2>/dev/null )" ] ; then
 							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: team member '$targetMember' holds a Slack user token but its account could not be read, so nothing was sent and its inbox was not used" >&2
 							set +e ; return 1
 						fi
@@ -1723,10 +1815,12 @@ case "$1" in
 		AgentsToolsEmitRequestDetailHeader "$memberName" "$target"
 
 		local resolved rc channel="" threadTs="" failoverRouting=""
-		resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+		resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 		case "$rc" in
 			0)
 				channel="$( printf '%s\n' "$resolved" | sed -n 's/^CHANNEL=//p' )"
+				## A client: marker has said its side above; Slack is given the id alone.
+				channel="${channel#client:}"
 				## Unit-2 forward compatibility -- "" until the Unit-3 flip.
 				local targetUserId=""
 				targetUserId="$( printf '%s\n' "$resolved" | sed -n 's/^USER_ID=//p' )" || targetUserId=""
@@ -1738,6 +1832,11 @@ case "$1" in
 			;;
 			2)
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: unrecognized target: $target" >&2
+				set +e ; return 1
+			;;
+			## A session address that names nowhere: the resolver's own line, why and what to pass instead.
+			3)
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: $resolved Nothing was sent." >&2
 				set +e ; return 1
 			;;
 			*)
@@ -1929,8 +2028,9 @@ blocks|verbatim|caller|stdin file"
 			set +e ; return 1
 		fi
 
+		## The member's own token is read by the side of this send (AgentsToolsSlackOwnSettingsApply).
 		local sendIdentity="bot" memberUserToken=""
-		memberUserToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
+		memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null || true )"
 
 		local routineAuthored="false"
 		case "$memberName" in
@@ -1965,11 +2065,11 @@ blocks|verbatim|caller|stdin file"
 		esac
 
 		## A client presents under the names of its own team-members-names row in a workspace that is not ours:
-		## its own user token posts there, and so does its own bot token. The
-		## shared bot token and a relay under another member's token are our
-		## workspace, which keeps the internal identifier. Decided here, before
-		## the header is built; the bot token is resolved once and carried to
-		## the send below.
+		## its own user token posts there, and so does its own bot token, and both are
+		## read on the client side only. The shared bot token and a relay under another
+		## member's token are our workspace, which keeps the internal identifier.
+		## Decided here, before the header is built; the bot token is resolved once
+		## and carried to the send below.
 		local presentExternal="false" earlyBotResolved="false" earlyBotTokenLine=""
 		case "$memberName" in
 			client-*)
@@ -1989,7 +2089,12 @@ blocks|verbatim|caller|stdin file"
 		local externalMark="" externalName="" externalAlias="" externalFirst externalFamily externalPres externalMissing=""
 		if [ "$presentExternal" = "true" ] ; then
 			## The member's own row, and nothing else: the build gives every client the persona's values.
+			## An invited client, set up only in another workspace, has no row here, since this
+			## registry holds this workspace's own members: its row is the persona member's own,
+			## which is what the build would have given it (AgentsTools.Registries.include).
 			externalPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" || externalPres=""
+			type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+			[ -n "$externalPres" ] || ! AgentsToolsMemberInvited "$memberName" || externalPres="$( AgentsToolsCommsSlackMemberPresentation "$registryPersonaMember" )" || externalPres=""
 			externalMark="$( AgentsToolsCommsSlackPresentationField 1 "$externalPres" )"
 			externalFirst="$( AgentsToolsCommsSlackPresentationField 2 "$externalPres" )"
 			externalFamily="$( AgentsToolsCommsSlackPresentationField 3 "$externalPres" )"
@@ -2165,6 +2270,17 @@ blocks|verbatim|caller|stdin file"
 		local addressedIds=""
 		local addrWho addrMarks addrMark addrName addrAlias addrUserId addrHandleText addrHandleElems
 		for addrWho in $addressToList ; do
+			## A client: addressee is a person or a conversation of the other organisation, by id,
+			## and is named in a send on that side only.
+			case "$addrWho" in
+				client:*)
+					if ! AgentsToolsSlackClientSide "$memberName" ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': a client: addressee is of the other organisation, and this send is on our own organisation's side. Address it in a send to a client: target, or in a --client-* operation. Nothing was sent." >&2
+						set +e ; return 1
+					fi
+					addrWho="${addrWho#client:}"
+				;;
+			esac
 			if [ -n "$addressedText" ] ; then
 				addressedText="$addressedText; "
 				addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"; \"},"
@@ -2386,7 +2502,7 @@ blocks|verbatim|caller|stdin file"
 			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no usable Slack token configured for $memberName (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$memberName" )" >&2
 			set +e ; return 1
 		fi
 
@@ -2604,6 +2720,9 @@ blocks|verbatim|caller|stdin file"
 			## the documented shape here and not a failure, so this rc is not read.
 			sentThreadTs="$( printf '%s\n' "$response" | LC_ALL=C awk -v path=message.thread_ts -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || sentThreadTs=""
 			[ -n "$sentThreadTs" ] || sentThreadTs="$sentTs"
+			## A post on the client side is reported under its client: address, so a reply, a
+			## reaction or a wait given this value reaches the same side.
+			! AgentsToolsSlackClientSide "$memberName" || [ -z "$sentChannel" ] || sentChannel="client:$sentChannel"
 			if [ "$sentChannelRc" = "0" ] && [ "$sentTsRc" = "0" ] && [ -n "$sentChannel" ] && [ -n "$sentTs" ] ; then
 				echo "SENT_MESSAGE_CHANNEL=$sentChannel" >&2
 				echo "SENT_MESSAGE_TS=$sentTs" >&2

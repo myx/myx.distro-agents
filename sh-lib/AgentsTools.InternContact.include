@@ -118,7 +118,7 @@ AgentsToolsContactAssertKnown(){ ## <team-member> --tool <bare-op-name, no leadi
 	## from the member directory (AgentsTools.TeamRegistry.include). No member
 	## scope holds a Slack account id of its own (that is resolved from its
 	## token), so a member is matched by its address only. Each read is
-	## --agents-config-option's, so a member is read in the workspace that holds it.
+	## --agents-config-option's, so a member is read in the workspace this runs from.
 	local assertOwn assertOwnName assertOwnRest
 	assertOwn="$( DistroAgentsTools --agents-config-option human-owner --select EMAIL_USER 2>/dev/null )"
 	assertOwn="$assertOwn"$'\n'"$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2>/dev/null )"

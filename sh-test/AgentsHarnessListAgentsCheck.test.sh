@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the ListAgents tool (3329): it lists from the spawn sandbox
 ## registry, not the board. An empty sandbox is a row with no session record; a record
-## on this host is running while a process carries its session id and no-process after;
+## on this host is running while a process runs as it, its own --session-id word, in a process
+## list of this rig's own (a ps first on PATH lists the rig's runs only), and no-process after;
 ## another host's record is other-host; no MMDAPP is a stated ERROR, never an empty list.
 ## Served through --intern-tool; every run goes through one `env -i` whose child refuses
 ## to start outside this rig's mktemp tree.
@@ -15,8 +16,29 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 rigTmp="$( mktemp -d -t AgentsHarnessListAgentsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-rigSleepPid=""
-trap '[ -z "$rigSleepPid" ] || kill "$rigSleepPid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rm -rf -- "$rigTmp"' EXIT
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+mkdir -p "$rigTmp/bin"
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
 
 rigPassCount=0
 rigFailCount=0
@@ -57,7 +79,7 @@ rigRecord rig-finished rig-sess-finished "$rigThisHost" spawn-succeeded
 rigList(){ ## result file, then env assignments for this call -- reads $rigListBody (default {}) as the tool argument JSON
 	local listOut="$1" listBody='{}' ; shift
 	[ -z "${rigListBody:-}" ] || listBody="$rigListBody"
-	printf '%s' "$listBody" | env -i HOME="$rigTmp" PATH="/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigWs/data" \
+	printf '%s' "$listBody" | env -i HOME="$rigTmp" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigWs/data" \
 		HARNESS_PROVIDER_NAME=rig HARNESS_SELF_NAME=rig RIG_TMP="$rigTmp" RIG_HARNESS="$rigHarness" "$@" \
 		bash -c '
 			[ -z "${MMDAPP:-}" ] || case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
@@ -76,10 +98,8 @@ rigHasSession(){ ## result file, session id -- yes or no, for the sessions view
 	LC_ALL=C awk -v wantSession="$2" '$1 == wantSession { found = 1 ; } END { print ( found ? "yes" : "no" ) ; }' "$1"
 }
 
-echo "-- with a live process carrying the session id --"
-( exec -a "rig-holder $rigSession" sleep 60 ) &
-rigSleepPid=$!
-sleep 1
+echo "-- with a live process that runs as the session id --"
+printf '900001 rig-run --session-id %s\n' "$rigSession" > "$rigTmp/ps.list"
 rigList "$rigTmp/l1" MMDAPP="$rigWs"
 ## Full row, all thirteen fields: the empty-sandbox row's own columns, then
 	## live (no-spawn-id, since it carries no spawn-id at all) and state
@@ -127,7 +147,7 @@ rigAssert "sessions finished keeps only the finished one"  "$( rigHasSession "$r
 rigAssert "sessions finished drops the running session"    "$( rigHasSession "$rigTmp/sFinished" "$rigSession" )" no
 
 echo "-- after the process ends --"
-kill "$rigSleepPid" 2>/dev/null ; { wait "$rigSleepPid" ; } 2>/dev/null ; rigSleepPid=""
+: > "$rigTmp/ps.list"
 rigList "$rigTmp/l2" MMDAPP="$rigWs"
 rigAssert "the same record is no-process"              "$( rigRow "$rigTmp/l2" rig-local )" no-process
 

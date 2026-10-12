@@ -9,6 +9,11 @@
 ##     progress strictly increasing, each one whole JSON-RPC line, none after the result,
 ##     and the Wait returns by MDAT_MCP_WAIT_BOUND_PROGRESS instead;
 ##   - the TIMEOUT result is the one line `WAIT-RESULT: TIMEOUT (<s>s) NEXT: Wait mode=continue`.
+## Which bound a Wait returned by is read off the whole seconds that line names. A wait runs its
+## bound, then the rest of the clock second it began in and the work of its last round, so the
+## seconds it reports are the bound or a little more, the more the busier the host: read as
+## equal to the bound they failed under load (a 2s bound came back as 3s, a 5s one as 6s). The
+## two bounds here are 3s apart, so a reading from one bound up to the other is that bound's.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -30,6 +35,10 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 
+## The two bounds of this rig, in seconds: with no progress token, and with one.
+rigBoundSafe=2
+rigBoundRaised=5
+
 ## One server life: initialize, then one Wait (id 2) whose _meta is the second argument.
 rigServe(){ ## scenario name, _meta JSON or empty
 	local rigMeta=""
@@ -40,7 +49,7 @@ rigServe(){ ## scenario name, _meta JSON or empty
 	} | (
 		unset MDAT_MCP_SERVED_MARKER MDAT_SPAWN_AGENT MDAT_HARNESS_WAIT_TIMEOUT MDAT_SPAWN_SESSION_ID
 		cd "$rigTmp/ws" && HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
-			MDAT_MCP_WAIT_BOUND=2 MDAT_MCP_WAIT_BOUND_PROGRESS=5 MDAT_MCP_PROGRESS_SECONDS=1 MDAT_WAIT_POLL_SECONDS=1 \
+			MDAT_MCP_WAIT_BOUND="$rigBoundSafe" MDAT_MCP_WAIT_BOUND_PROGRESS="$rigBoundRaised" MDAT_MCP_PROGRESS_SECONDS=1 MDAT_WAIT_POLL_SECONDS=1 \
 			bash "$rigTool" --intern-mcp-server --run > "$rigTmp/$1.wire" 2> "$rigTmp/$1.err"
 	) || :
 	LC_ALL=C grep -q '"id":2,' "$rigTmp/$1.wire" 2>/dev/null || {
@@ -56,6 +65,21 @@ rigTimeoutLine(){ ## scenario name -- the result text, with its seconds masked
 }
 rigWaited(){ ## scenario name -- the seconds the TIMEOUT line names
 	LC_ALL=C grep '"id":2,' "$rigTmp/$1.wire" | LC_ALL=C sed -n 's/.*WAIT-RESULT: TIMEOUT (\([0-9]*\)s).*/\1/p'
+}
+## The bound a Wait returned by: `safe` for a reading from MDAT_MCP_WAIT_BOUND up to the raised
+## bound, `raised` for one from MDAT_MCP_WAIT_BOUND_PROGRESS up to as far above it again, and the
+## reading itself where it is neither, so a wait that kept no bound, or the other one, is told.
+rigBoundOf(){ ## scenario name
+	local boundWaited
+	boundWaited="$( rigWaited "$1" )"
+	case "$boundWaited" in ''|*[!0123456789]*) printf 'unread:%s' "$boundWaited" ; return 0 ;; esac
+	if [ "$boundWaited" -ge "$rigBoundSafe" ] && [ "$boundWaited" -lt "$rigBoundRaised" ] ; then
+		printf 'safe'
+	elif [ "$boundWaited" -ge "$rigBoundRaised" ] && [ "$boundWaited" -lt $(( rigBoundRaised + rigBoundRaised - rigBoundSafe )) ] ; then
+		printf 'raised'
+	else
+		printf '%ss' "$boundWaited"
+	fi
 }
 ## Every frame on the wire is one whole JSON-RPC line, the progress values strictly rise,
 ## and nothing follows the result.
@@ -75,7 +99,7 @@ echo "-- no progressToken: no frame, the safe bound --"
 rigServe none ""
 rigAssert "no progress frame is sent"                         "$( rigFrames none )" 0
 rigAssert "the TIMEOUT result is one line"                    "$( rigTimeoutLine none )" "WAIT-RESULT: TIMEOUT (Ns) NEXT: Wait mode=continue"
-rigAssert "it returned by MDAT_MCP_WAIT_BOUND (2s)"           "$( rigWaited none )" 2
+rigAssert "it returned by MDAT_MCP_WAIT_BOUND (2s)"           "$( rigBoundOf none )" safe
 rigAssert "and says nothing of a successful wait in prose"    "$( LC_ALL=C grep -c 'COMPLETE, SUCCESSFUL' "$rigTmp/none.wire" | tr -d ' ' )" 0
 
 echo "-- a string progressToken: frames, the raised bound --"
@@ -83,7 +107,7 @@ rigServe str '{"progressToken":"rig-tok"}'
 rigAssert "progress frames are sent while it waits"           "$( [ "$( rigFrames str )" -ge 3 ] && printf yes || printf no )" yes
 rigAssert "each carries the token as sent"                    "$( LC_ALL=C grep -c '"params":{"progressToken":"rig-tok","progress":' "$rigTmp/str.wire" | tr -d ' ' )" "$( rigFrames str )"
 rigAssert "whole lines, rising progress, none after the result" "$( rigWireShape str )" whole
-rigAssert "it returned by MDAT_MCP_WAIT_BOUND_PROGRESS (5s)"  "$( rigWaited str )" 5
+rigAssert "it returned by MDAT_MCP_WAIT_BOUND_PROGRESS (5s)"  "$( rigBoundOf str )" raised
 
 echo "-- a numeric progressToken --"
 rigServe num '{"progressToken":7}'
@@ -93,7 +117,7 @@ rigAssert "whole lines, rising progress, none after the result" "$( rigWireShape
 echo "-- a token that is not a JSON string or integer: treated as none --"
 rigServe obj '{"progressToken":{"x":1}}'
 rigAssert "no progress frame is sent"                         "$( rigFrames obj )" 0
-rigAssert "and the safe bound holds"                          "$( rigWaited obj )" 2
+rigAssert "and the safe bound holds"                          "$( rigBoundOf obj )" safe
 
 echo "-- the client goes away mid-wait: the next frame fails, and the call is ended --"
 ## The wire is closed after three lines (initialize, list_changed, the first frame). With a

@@ -15,6 +15,21 @@
 ##
 ## Each test gets a test-only session identity, so no test can write into a live session store.
 ##
+## ONE FULL SUITE AT A TIME, MACHINE-WIDE. A run of every test (no name given) waits its turn,
+## in arrival order, and says in one line that it waits and behind whom; a run of named tests
+## is never queued. The line is one folder on the machine, $HOME/.agents/magic-team/suite-queue,
+## never a folder of the package: a runner started from any copy of the package (MDLT_ORIGIN)
+## stands in the same line. A ticket is a file named by its arrival time, holding the pid of
+## its runner; one whose runner no longer exists is taken out by whoever waits behind it, so
+## no turn is held by the dead.
+## The hand rule this replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a full suite,
+## is kept by both sides, so a session on the hand rule and a queued run never run at once: a
+## run at its turn takes that lock itself and gives it back when it ends, and waits while
+## another holds it. A lock taken by hand whose note names the folder this run's source root
+## is in, under $MMDAPP/.local/temp, is the caller's own, taken for this very run: it is the
+## turn, and is left for the caller to remove. A lock left by a runner that no longer exists
+## is removed; one taken by hand never is.
+##
 
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -31,6 +46,91 @@ while [ $# -gt 0 ] ; do
 		*) break ;;
 	esac
 done
+
+runQueueDir="${HOME:-}/.agents/magic-team/suite-queue"
+runHandLock="$MMDAPP/.local/temp/suite-run.lock"
+runTicket="" runLockMine=""
+
+AgentsRunRunnerAlive(){ ## pid -- rc 0 while a process of that pid is running this runner
+	case "$1" in ''|*[!0123456789]*) return 1 ;; esac
+	case "$( ps -p "$1" -ww -o args= 2>/dev/null )" in *AgentsRunTests.sh*) return 0 ;; esac
+	return 1
+}
+AgentsRunHandLockNote(){ ## -- what the hand lock's holder wrote in it, on one line
+	local noteText
+	noteText="$( cat "$runHandLock"/* 2>/dev/null | LC_ALL=C tr '\n' ' ' | LC_ALL=C cut -c1-240 )"
+	noteText="${noteText% }"
+	printf '%s' "${noteText:-(no note in it)}"
+}
+AgentsRunHandLockOwn(){ ## -- rc 0 when the lock was taken by hand by this run's own caller, for this run
+	local ownFolder="${MDLT_ORIGIN#"$MMDAPP/.local/temp/"}"
+	[ "$ownFolder" != "$MDLT_ORIGIN" ] || return 1
+	ownFolder="${ownFolder%%/*}"
+	[ -n "$ownFolder" ] || return 1
+	! LC_ALL=C grep -q '^runner-pid: ' "$runHandLock"/* 2>/dev/null || return 1
+	case " $( cat "$runHandLock"/* 2>/dev/null | LC_ALL=C tr -c 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-' ' ' ) " in
+		*" $ownFolder "*) return 0 ;;
+	esac
+	return 1
+}
+AgentsRunQueueLeave(){ ## -- out of the line, and the lock given back where this run took it
+	[ -z "$runTicket" ] || rm -f "$runQueueDir/$runTicket"
+	[ -z "$runLockMine" ] || { rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null ; }
+	runTicket="" ; runLockMine=""
+}
+AgentsRunQueueTurn(){ ## -- stands in the line and returns at this run's turn; says whom it waits behind, each time that changes
+	local turnStamp turnFile turnPid turnWhom turnSaid=""
+	mkdir -p "$runQueueDir" 2>/dev/null || {
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot create the machine's line for full suites: $runQueueDir -- a full suite is not run outside its turn; name the tests to run some without one" >&2 ; exit 1
+	}
+	turnStamp="$( perl -MTime::HiRes=time -e 'printf "%017.6f", time' 2>/dev/null )" || turnStamp=""
+	[ -n "$turnStamp" ] || turnStamp="$( date +%s ).000000"
+	runTicket="$turnStamp.$$.ticket"
+	trap AgentsRunQueueLeave EXIT
+	trap 'exit 130' INT
+	trap 'exit 143' TERM HUP
+	## whole or not at all: a ticket half written would read as one of no runner
+	printf 'pid=%s\norigin=%s\nsince=%s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runQueueDir/.$runTicket" \
+		&& mv -f "$runQueueDir/.$runTicket" "$runQueueDir/$runTicket" || {
+		echo "⛔ ERROR: AgentsRunTests.sh: cannot stand in the machine's line for full suites: $runQueueDir" >&2 ; exit 1
+	}
+	while : ; do
+		## taken by hand by this run's own caller: that is the turn
+		if [ -d "$runHandLock" ] && AgentsRunHandLockOwn ; then
+			return 0
+		fi
+		turnWhom=""
+		for turnFile in "$runQueueDir"/*.ticket ; do
+			[ -f "$turnFile" ] || continue
+			[ "${turnFile##*/}" \< "$runTicket" ] || continue
+			turnPid="$( LC_ALL=C sed -n 's/^pid=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
+			if ! AgentsRunRunnerAlive "$turnPid" ; then
+				rm -f "$turnFile" ; continue
+			fi
+			[ -n "$turnWhom" ] || turnWhom="the run of pid $turnPid from $( LC_ALL=C sed -n 's/^origin=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p ), in line since $( LC_ALL=C sed -n 's/^since=//p' "$turnFile" 2>/dev/null | LC_ALL=C sed -n 1p )"
+		done
+		if [ -z "$turnWhom" ] ; then
+			if mkdir "$runHandLock" 2>/dev/null ; then
+				runLockMine=1
+				printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a full suite from %s\ntaken: %s\n' "$$" "$MDLT_ORIGIN" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runHandLock/holder.txt"
+				return 0
+			fi
+			turnPid="$( LC_ALL=C sed -n 's/^runner-pid: //p' "$runHandLock/holder.txt" 2>/dev/null | LC_ALL=C sed -n 1p )"
+			if [ -n "$turnPid" ] && ! AgentsRunRunnerAlive "$turnPid" ; then
+				rm -f "$runHandLock/holder.txt" ; rmdir "$runHandLock" 2>/dev/null
+				continue
+			fi
+			turnWhom="the lock $runHandLock, taken by hand and held by: $( AgentsRunHandLockNote ) -- where that was done for this very run, remove it: the run takes the turn itself"
+		fi
+		if [ "$turnWhom" != "$turnSaid" ] ; then
+			echo "# AgentsRunTests.sh: one full suite runs on this machine at a time -- this one waits its turn behind $turnWhom" >&2
+			turnSaid="$turnWhom"
+		fi
+		sleep 2
+	done
+}
+## No name given is the whole suite, and that waits its turn.
+[ $# -gt 0 ] || AgentsRunQueueTurn
 
 runRoot="$MMDAPP/.local/temp/mdat-tests"
 runDir="$runRoot/$( date -u +%Y%m%dT%H%M%SZ )"

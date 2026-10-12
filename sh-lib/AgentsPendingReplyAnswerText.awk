@@ -4,6 +4,11 @@
 # AgentsEscalationVerdict.awk reads a verdict by. The rest of that reply, and every later one,
 # are clarifications (AgentsPendingReplyClarifications.awk). A reply that is all quote gives
 # its first line.
+# The reply is its head and every line under it up to the next reply's head, whatever a line
+# starts with (`# `, `reaction on the question: `): the rule that reader keeps the rest of it
+# by, so the two never differ on which line is the answer. A reply set aside
+# (`UNMATCHED-REPLY ` ahead of its head and of each line under it) is no matched reply: ahead
+# of the first one it is passed over, and after it its head ends that reply.
 
 function firstUnquoted( line, n,    i, text, inFence, rest, closeAt ) {
 	inFence = 0 ; firstText = "" ;
@@ -45,6 +50,6 @@ function answer() {
 	count = 1 ; line[1] = text ;
 	next ;
 }
-count > 0 && /^(reaction on the question: |UNMATCHED-REPLY |# |WAIT-)/ { answer() ; exit ; }
+count > 0 && /^UNMATCHED-REPLY [0-9]+\.[0-9]+ \| / { answer() ; exit ; }
 count > 0 { line[++count] = $0 ; }
 END { if ( count > 0 && ! done ) { answer() ; } }

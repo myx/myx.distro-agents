@@ -18,23 +18,18 @@ export MDLT_ORIGIN
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
-	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and it is stopped only when that part cannot be brought. A client-* member is the one exception, kept exactly as it was until it is ruled on: its operation runs in the workspace that holds the client. The spawn operations make the same check themselves, before they start anything.
+	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
 		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|*:|*:-*) ;;
-		--*:client-*)
-			local memberWorkspace
-			memberWorkspace="$( AgentsToolsMemberWorkspaceResolve "$2" "$1" )" || { set +e ; return 1 ; }
-			if [ -n "$memberWorkspace" ] ; then
-				( AgentsToolsWorkspaceSwitch "$memberWorkspace" ; DistroAgentsTools "$@" )
-				return $?
-			fi
-		;;
 		--*:*)
-			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset is read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
-			local memberBrought
+			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset, and those of its own settings this workspace holds none of, are read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
+			local memberBrought memberBroughtFrom
 			memberBrought="$( AgentsToolsMemberSkillsetBring "$2" "$1" )" || { set +e ; return 1 ; }
+			memberBroughtFrom="${memberBrought#*$'\t'}"
 			memberBrought="${memberBrought%%$'\t'*}"
 			if [ -n "$memberBrought" ] && [ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ] ; then
+				## Said here, once for the whole operation, where the member is invited: which of its own settings are read from the workspace it is set up in.
+				AgentsToolsMemberSettingsBorrowedSay "$2" "$1" "$memberBroughtFrom"
 				( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )
 				return $?
 			fi
@@ -49,6 +44,13 @@ DistroAgentsTools(){
 		--magic-*) AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 	esac
 
+	## A --client-* op reaches the other organisation of the client-* member it names. The
+	## prefix says so here, once, for everything the op calls: the side, and the op's own
+	## name for the heading of a refusal (AgentsTools.CommsSlack.include).
+	case "$1" in
+		--client-*) local -x MDAT_COMMS_SIDE=client MDAT_COMMS_OP="$1" ;;
+	esac
+
 	case "$1" in
 		--console-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ConsoleSession.include"
@@ -57,6 +59,16 @@ DistroAgentsTools(){
 
 
 		--agents-config-option)
+			## An option is this workspace's own, with the exceptions the reader below cannot know, being the sibling package's: a read of one names the workspace it comes from where that is another (AgentsToolsConfigOptionElsewhere, AgentsTools.MemberWorkspace.include), and is then made there, by the same reader.
+			case "${3:-}" in
+				--select|--select-default)
+					AgentsToolsConfigOptionElsewhere "$2" "${4:-}" || { set +e ; return 1 ; }
+					if [ -n "$agentsConfigOptionElsewhere" ] ; then
+						( MMDAPP="$agentsConfigOptionElsewhere" ; . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" )
+						return $?
+					fi
+				;;
+			esac
 			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
 			return $?
 		;;
@@ -79,7 +91,9 @@ DistroAgentsTools(){
 		;;
 
 		## Each comms family: the --member-* stubs and their --intern-op-comms-* implementation.
-		--member-comms-slack-*|--intern-op-comms-slack-*)
+		## Slack, mail, Trello and Google carry their --client-* stubs in the same file as their
+		## --member-* ones, ahead of the --client-comms-* arm below, which holds Jira and Confluence.
+		--member-comms-slack-*|--client-comms-slack-*|--intern-op-comms-slack-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsSlack.include"
 			return $?
 		;;
@@ -109,17 +123,17 @@ DistroAgentsTools(){
 			return $?
 		;;
 
-		--member-comms-email-*|--intern-op-comms-email-*)
+		--member-comms-email-*|--client-comms-email-*|--intern-op-comms-email-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsEmail.include"
 			return $?
 		;;
 
-		--member-comms-trello-*|--intern-op-comms-trello-*)
+		--member-comms-trello-*|--client-comms-trello-*|--intern-op-comms-trello-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsTrello.include"
 			return $?
 		;;
 
-		--member-comms-google-*|--intern-op-comms-google-*)
+		--member-comms-google-*|--client-comms-google-*|--intern-op-comms-google-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include"
 			return $?
 		;;

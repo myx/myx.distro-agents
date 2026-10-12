@@ -4,14 +4,14 @@
 📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <entity-id> <operation>
 📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin
@@ -33,7 +33,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>
-📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-email-read <team-member> <uid> [--seen]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-read <team-member> <notification-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-confluence-space-list <team-member> [--cursor <value>]
@@ -86,6 +86,43 @@
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-transition <team-member> <issue-key> --to-status <name> [--fields-json <json>] [--comment-adf <json>|--comment-adf-from-stdin|--comment-adf-from-file <path>]
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-comment-add <team-member> <issue-key> (--body-adf <json>|--body-adf-from-stdin|--body-adf-from-file <path>)
 📘 syntax: DistroAgentsTools.fn.sh --client-comms-jira-issue-delete <team-member> <issue-key>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-send-message <team-member> (<conversation-id>|<channel>:<ts>|<user-id>) [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<conversation-id> [--oldest <ts>]) [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-search-messages <team-member> <conversation-id> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-file-share <team-member> (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-get <team-member> [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-keep <team-member> [--ttl <seconds>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-presence-stop <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-start <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-status <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-stop <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-check <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-read <team-member> <uid> [--seen]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-mark-seen <team-member> <uid>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- <body...> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- --from-stdin [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-email-send <team-member> <email@address>... -- <subject> -- --from-file <path> [--format markdown|text] [--in-reply-to <message-id>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-check <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read <team-member> <notification-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-comment-read <team-member> <file-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-read <team-member> <doc-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-info <team-member> <sheet-id>
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
+📘 syntax: DistroAgentsTools.fn.sh --client-comms-google-whoami <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-self-test
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-verify
 📘 syntax: DistroAgentsTools.fn.sh --owner-credential-store-harden
@@ -149,7 +186,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-readback <team-member> <request-id> <option word> [text]
 📘 syntax: DistroAgentsTools.fn.sh --magic-escalation-forward <coordinator> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-pass <team-member> --to <member> --tool <tool> --target <target> --kind once|session|task [--task <item>] [--session-id <id>]
-📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+📘 syntax: DistroAgentsTools.fn.sh --magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-list --member <member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --member-permission-list <team-member> [--session-id <id>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-permission-revoke <ref> [--session-id <id>]
@@ -215,7 +252,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-test-report-send <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-board-item-trash <team-member> <board-state> <item-name> [--untrash]
 📘 syntax: DistroAgentsTools.fn.sh --magic-heartbeat-spawn-proxy <team-member> [--from-stdin] [--from-file <path>] [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]
-📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]
+📘 syntax: DistroAgentsTools.fn.sh --magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
@@ -320,6 +357,24 @@
 			so a credential is never visible in the process table; trailing
 			newlines are stripped, and empty or multi-line input is an
 			error. Use it for every secret.
+			A read of one key (--select <key>, --select-default) answers
+			from this workspace's own scope, with two exceptions. A spawn
+			setting of the `magic-team` scope (SPAWN_CLI_SERVICE,
+			SPAWN_HARNESS_TIER, a credential a harness leg declares) is read
+			from the workspace named to pay, where one is named:
+			SPAWN_SETTINGS_WORKSPACE=<workspace-name> in the `magic-team`
+			scope names it for every spawn of this workspace, the same key
+			in a member's scope for that member's spawns, and one spawn may
+			name its own. The name is the last path segment of a workspace
+			this machine knows; a name that fits none fails the read.
+			A member's own setting of a system (a key that begins with
+			SLACK_, EMAIL_, JIRA_, CONFLUENCE_, TRELLO_ or GOOGLE_) is read
+			from the workspace the member is set up in, where the member is
+			set up only in another workspace on this machine and this
+			workspace holds no setting of that system for it: system by
+			system, each whole, and an operation naming such a member says
+			so in one line. The `magic-team` scope is never read that way.
+			Writes, listings and every other read are this workspace's own.
 
 		--members --backend <member-name> <operation>
 			Synonym for --agents-config-option <member-name> <operation>
@@ -329,7 +384,8 @@
 
 		--member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (text...|--from-stdin|--from-file <path>) [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]
 			Posts <text> to magic-team, human-owner, event-track,
-			event-alert, a <channel>:<ts> thread, a bare
+			event-alert, session-current, session-parent, a
+			<channel>:<ts> thread, a bare
 			conversation id, or a team member name, attributed to
 			<team-member>. Target is read in that order, and
 			anything else is refused. Content is
@@ -339,14 +395,28 @@
 			Slack account is refused with NO-SLACK-DM and nothing
 			is sent (unrun: read from the code, not from a run).
 
+			session-current and session-parent are the two session
+			addresses, each one thread: session-current is the
+			session thread of the coworking session the caller
+			works in, session-parent the thread of the session that
+			started it. Neither takes a :<ts>. Every operation and
+			tool that takes an address resolves them in the same one
+			place. A name that names nowhere -- no session thread,
+			no recorded parent -- is refused with one line saying
+			why, and nothing is sent: pass the thread as
+			<channel>:<ts> instead.
+
 			--identity-bot posts as the team bot; default is the
 			member's own identity if configured, else the bot -- a
 			send to human-owner always uses a user identity. Refused
 			if neither token is configured. <team-member> must be a
 			real member directory or the send is refused; a
 			routine-* name sends as the bot and skips that check.
-			A client-* member posting from its own token into its
-			own workspace presents under the first name, family
+			A client-* member reaches our own team here, as the
+			team bot: its own token is the other organisation's,
+			and is read only for a `client:` target or in
+			--client-comms-slack-send-message. Posting there, it
+			presents under the first name, family
 			name and alias of its row in team-members-names
 			(--make-agents-indices), which is the persona's, and
 			never as its own identifier;
@@ -655,7 +725,129 @@
 			the console, may call them: a --member-comms-* call from a
 			spawned session acts only as that session's own member.
 
-		--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
+		--client-comms-slack-send-message <team-member> (<conversation-id>|<channel>:<ts>|<user-id>) [--identity-bot] [--reply-broadcast] [--update-ts <ts>] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
+		--client-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<conversation-id> [--oldest <ts>]) [--identity-bot]
+		--client-comms-slack-search-messages <team-member> <conversation-id> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]
+		--client-comms-slack-react <team-member> <channel>:<ts> <emoji-name> [--identity-bot] [--remove]
+		--client-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]
+		--client-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] (<text...>|--from-stdin|--from-file <path>)
+		--client-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]
+		--client-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
+		--client-comms-slack-file-share <team-member> (<conversation-id>|<channel>:<ts>) (--from-file <path>|--from-stdin) [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]
+		--client-comms-slack-profile-get <team-member> [--raw]
+		--client-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents: under the
+			Slack settings the member itself holds for it (its own
+			user token, else its own bot token), never the team's.
+			Any other name is refused. Each takes every argument and
+			option of the --member-comms-slack-* operation of the
+			same name and does what it does. A conversation or a
+			person is named by its id. The team's own addresses --
+			magic-team, human-owner, event-track, event-alert, a
+			team member's name, the session thread -- are our own
+			organisation's and are refused here, naming the
+			--member-* operation they work in. A spawned session
+			names only itself.
+
+			The prefix and the address select the side, never a
+			token the member holds. A --member-comms-slack-*
+			operation of a `client-*` member reaches our own team,
+			as the team bot. There, and in a tool that takes a `to`,
+			`client:<conversation-id>`, `client:<channel>:<ts>` or
+			`client:<user-id>` names this side by its address. A
+			send on this side reports SENT_MESSAGE_CHANNEL with that
+			`client:` marker, so a reply, a reaction or a wait given
+			the value reaches the same conversation.
+
+		--client-comms-slack-presence-keep <team-member> [--ttl <seconds>]
+		--client-comms-slack-presence-status <team-member>
+		--client-comms-slack-presence-stop <team-member>
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents. Presence is
+			held, never set: `keep` starts a holder that shows the
+			member's own account in that organisation's Slack as
+			active, or extends the one already holding it, for
+			--ttl seconds (300 when not given); `status` says
+			whether a holder is alive; `stop` ends it. Under the
+			user token the member itself holds, never the team's --
+			a bot cannot hold presence. One holder per account.
+
+		--client-comms-slack-socket-start <team-member>
+		--client-comms-slack-socket-status <team-member>
+		--client-comms-slack-socket-stop <team-member>
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents. `start`
+			opens the socket-mode receiver of the app the member
+			itself holds a SLACK_APP_TOKEN for, never the team's;
+			`status` says whether one is receiving and names its
+			log; `stop` ends it. One receiver per app. A mention of
+			the app arrives as an inquiry in magic-coordinator's
+			inbox.
+
+		--client-comms-email-check <team-member>
+		--client-comms-email-read <team-member> <uid> [--seen]
+		--client-comms-email-mark-seen <team-member> <uid>
+		--client-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>) [--format markdown|text] [--in-reply-to <message-id>] [--text-group report|brief|relay]
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents: the mailbox
+			of the EMAIL_* settings the member itself holds for it,
+			with no fallback to another scope. Any other name is
+			refused. Each takes every argument and option of the
+			--member-comms-email-* operation of the same name and
+			does what it does. A spawned session names only itself.
+
+			The prefix selects the side, never a setting the member
+			holds. A --member-comms-email-* operation of a
+			`client-*` member is our own organisation's side, where
+			such a member holds no mail settings: it says so in one
+			line and names the operation here.
+
+		--client-comms-trello-check <team-member>
+		--client-comms-trello-read <team-member> <notification-id>
+		--client-comms-trello-whoami <team-member>
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents: the Trello
+			account of the TRELLO_* settings the member itself holds
+			for it, with no fallback to another scope. Any other
+			name is refused. Each takes every argument and option of
+			the --member-comms-trello-* operation of the same name
+			and does what it does. A spawned session names only
+			itself.
+
+			The prefix selects the side, never a setting the member
+			holds. A --member-comms-trello-* operation of a
+			`client-*` member is our own organisation's side, where
+			such a member holds no Trello settings: it says so in
+			one line and names the operation here.
+
+		--client-comms-google-whoami <team-member>
+		--client-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]
+		--client-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]
+		--client-comms-google-sheet-info <team-member> <sheet-id>
+		--client-comms-google-sheet-read <team-member> <sheet-id> <a1-range> [--unformatted]
+		--client-comms-google-sheet-write <team-member> <sheet-id> <a1-range> [--append] [--user-entered] (--from-stdin|--from-file <path>)
+		--client-comms-google-sheet-clear <team-member> <sheet-id> <a1-range>
+		--client-comms-google-doc-read <team-member> <doc-id>
+		--client-comms-google-doc-write <team-member> <doc-id> (<text...>|--from-stdin|--from-file <path>)
+		--client-comms-google-comment-read <team-member> <file-id>
+		--client-comms-google-comment-post <team-member> <file-id> (<text...>|--from-stdin|--from-file <path>)
+			Runs only as a `client-*` member, on the side of the
+			other organisation that member represents: the Google
+			account of the GOOGLE_* settings the member itself holds
+			for it, with no fallback to another scope. Any other
+			name is refused. Each takes every argument and option of
+			the --member-comms-google-* operation of the same name
+			and does what it does. A spawned session names only
+			itself.
+
+			The prefix selects the side, never a setting the member
+			holds. A --member-comms-google-* operation of a
+			`client-*` member is our own organisation's side, where
+			such a member holds no Google settings: it says so in
+			one line and names the operation here.
+
+		--member-comms-slack-react <team-member> <channel>:<ts>|session-current|session-parent <emoji-name> [--identity-bot] [--remove]
 			<team-member> is the acting identity -- a bare, existing
 			member directory (routine-* exempt). Identity rule for
 			this whole family: member's own user token when it has
@@ -670,6 +862,10 @@
 			channels are unaffected. --remove takes the acting
 			identity's own reaction off again instead of adding it;
 			one that is not there is a success.
+
+			session-current or session-parent in place of
+			`<channel>:<ts>` names the opening message of that
+			session's thread (see --member-comms-slack-send-message).
 
 			Three distinct outcomes. **Added**: posted by this call,
 			raw response printed, returns 0. **Already present**: the
@@ -805,7 +1001,8 @@
 			body.
 
 			`<target>` takes the same forms as
-			--member-comms-slack-send-message; a target resolving
+			--member-comms-slack-send-message, session-current and
+			session-parent included; a target resolving
 			to a party opens a direct conversation first. An
 			invalid target is REJECTED before anything uploads --
 			no orphan file.
@@ -914,6 +1111,12 @@
 			fetch. Same EMAIL_* config as
 			--member-comms-email-send.
 
+			As a `client-*` member, this family is our own
+			organisation's side, where such a member holds no mail
+			settings: each operation says so in one line and names
+			the --client-comms-email-* operation of the same name,
+			which reaches the other organisation.
+
 		--member-comms-email-mark-seen <team-member> <uid>
 			`<team-member>` is the member this mark acts as, and it comes
 			first, ahead of the `<uid>`. It is required, and it is strict:
@@ -941,6 +1144,12 @@
 			rejects return 22, with Trello's own error body still printed;
 			credentials not both set return 1 — a rejected credential is
 			never reported as an empty unread list.
+
+			As a `client-*` member, this family is our own
+			organisation's side, where such a member holds no Trello
+			settings: each operation says so in one line and names
+			the --client-comms-trello-* operation of the same name,
+			which reaches the other organisation.
 
 		--member-comms-trello-whoami <team-member>
 			`<team-member>` is the member this lookup acts as, and it is
@@ -972,6 +1181,12 @@
 			`GOOGLE_ACCOUNT_ID=`, one per line, and returns non-zero when the
 			identity could not be established — an unknown identity is never
 			reported as an empty one.
+
+			As a `client-*` member, this family is our own
+			organisation's side, where such a member holds no Google
+			settings: each operation says so in one line and names
+			the --client-comms-google-* operation of the same name,
+			which reaches the other organisation.
 
 		--member-comms-google-file-find <team-member> <search-term> [--full-text] [--include-trashed] [--limit <n>]
 		--member-comms-google-file-find <team-member> <drive-query> --raw-query [--limit <n>]
@@ -1128,6 +1343,12 @@
 			cursor printed on that page's own stderr, verbatim. stderr
 			also reports `more: yes` with the next `--cursor`, or
 			`more: no` on a confirmed-complete last page.
+
+			As a `client-*` member, this family is our own
+			organisation's side, where such a member holds no Confluence
+			settings: each operation says so in one line, with
+			status 6, and names the --client-comms-confluence-* operation
+			of the same name, which reaches the other organisation.
 
 		--member-comms-confluence-page-read <team-member> <page-id> [--format storage|atlas_doc_format] [--version <n>]
 			`<team-member>` is required; a page is readable only by
@@ -1353,6 +1574,12 @@
 			Atlassian endpoint retired; fix needed in this package, not
 			the request). An empty answer at 0 is real; a failed call is
 			never empty.
+
+			As a `client-*` member, this family is our own
+			organisation's side, where such a member holds no Jira
+			settings: each operation says so in one line, with
+			status 6, and names the --client-comms-jira-* operation
+			of the same name, which reaches the other organisation.
 
 		--member-comms-jira-board-read <team-member> <board-id>
 			`<team-member>` required, same scope rule as board-list.
@@ -2672,11 +2899,18 @@
 			repeatable; given none, waits on this session's own
 			thread (as the `:conversation` form below, from the
 			current time) when the session has one, else on
-			`slack:magic-team` and `slack:human-owner`.
+			`slack:magic-team` and `slack:human-owner`. A session
+			that is itself the coworking session, never spawned,
+			waits on those two and, once its thread is on record,
+			on that thread too, in the `:conversation` form.
 			`slack:<conversation>` waits
 			on a conversation; `slack:<channel>:<ts>` on that
 			message's thread; `slack:<channel>:<ts>:conversation`
 			on any new post in that thread not from this member;
+			`slack:session-current` and `slack:session-parent` on
+			that session's thread, in its `:conversation` form (see
+			--member-comms-slack-send-message; a name that names
+			nowhere is an ERROR, by the same line as there);
 			`file:<absolute-path>` on a local path (file or dir)
 			-- an absent path is a state, not a failure;
 			`inbox:<member>` on that member's own inbox, which
@@ -2836,8 +3070,9 @@
 
 		--member-escalation-read <team-member> <request-id>
 			The verdict of one escalation: a ConfirmReadback,
-			EscalateDecision or RequestPermission, or an AskQuestion
-			with an answer form (`select`). <request-id> is the
+			EscalateDecision, RequestPermission or ProposeApprove, or
+			an AskQuestion with an answer form (`select`). <request-id>
+			is the
 			pending-reply id the question printed ("recorded as
 			pending reply <id>"). Answered: prints
 			`ESCALATION: <id> answered`, then `VERDICT:`,
@@ -2845,9 +3080,24 @@
 			and for an allow, `GRANT:`. Not yet answered: read now
 			from the question's own thread, then a forward's thread;
 			an answer from an addressee there applies exactly as a
-			waiting question applies it. With none:
+			waiting question applies it. With nothing there yet from
+			who may answer: `ESCALATION: <id> open` + `WAITING-ON:
+			<who it is addressed to>`, and no verdict line. With a
+			reply or a click there that names none of the answers:
 			`ESCALATION: <id> open` + `VERDICT: RETURNED`, with
 			`VERDICT-REASON:` when an answer was seen and not taken.
+			A thread that cannot be read is neither: an error (rc 1)
+			naming the conversation, the identity it was read with
+			and Slack's own error, with `ESCALATION: <id> unreadable`
+			and `UNREADABLE-REASON:` on stdout, the record left open.
+			Every answer read is confirmed once, by one reply in the
+			thread it was read in, from the template of its kind
+			(`# Confirmations`): what was read and by whom, and what
+			is granted, or that nothing is, or why it could not be
+			applied. An allow from someone who does not hold what it
+			allows goes up: to a holder with a live run in this
+			session, told in the session thread, else to the
+			human-owner, posted by the team bot with its answer emoji.
 			An answer from the account that asked is never taken. A
 			question withdrawn by its asker prints `ESCALATION: <id>
 			closed withdrawn` and takes no verdict.
@@ -2862,6 +3112,15 @@
 			question -- is yes for a readback, and for a decision the
 			option whose line holds `(recommended)`; with none marked
 			it answers nothing. A permission takes only its own words.
+			A proposal (ProposeApprove) takes only the human-owner's
+			own verdict. His white_check_mark on the root of its
+			thread is `approved` and his x there is `rejected`,
+			rejected first when he holds both. A reply whose first
+			word is approved or rejected gives the same, and the rest
+			of that line is printed as `VERDICT-TEXT:`. A reaction
+			under the proposal reply is no verdict, and only the
+			replies after the live proposal reply are read. Its
+			item's `## Decisions` line names the document by its link.
 			Once a verdict is applied, the rest of the reply it came
 			from and every later reply there are kept as
 			clarifications: under the record's `## Clarifications`,
@@ -2983,12 +3242,24 @@
 			it: how a keeper invited into a session widens the access
 			of the others there.
 
-		--magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
+		--magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...
 			Asks for a task's or session's permission set at spawn or
-			brief time. Prints `PARTICIPANTS:`, then `HELD: <entry> by
-			<member> <layer>` for each entry a participant already
-			holds -- those pass on when the holder delegates, never
-			granted to the others -- and `EXTRA: <entry>` for the rest.
+			brief time. One --entry may name several tools for one
+			target, a comma list before the colon
+			(`Read,Grep,Glob:<target>`), taken as one entry a tool; a
+			name the list does not know is a CORRECTION (rc 6) and
+			nothing is asked, and no word means every tool. A task set
+			is for the members named with --participant, and those
+			only; with none named, for the members of that task (the
+			item's owner and `participants:`, the owner of each dispatch
+			tracking it), never for the session's other participants. A
+			session set is for everyone in the session and any member
+			named. Prints `PARTICIPANTS:`, then `HELD: <entry> by
+			<member> <layer>` for each entry a participant with a live
+			run in this session already holds -- those pass on when the
+			holder delegates, never granted to the others -- and
+			`EXTRA: <entry>` for the rest, one held only by a member
+			that is not running among them.
 			With extras, ONE permission-set escalation is posted to the
 			human-owner as the team bot, and `PERMISSION-SET: asked
 			<id>` and `WAIT-ID: ask:<id>` are printed; with none,
@@ -3101,7 +3372,9 @@
 			of its template, loses the answer emoji the tooling placed,
 			and is edited to drop its How to answer part: the root of a
 			question with its own thread, else the live version of one
-			asked inside another thread. Prints `WITHDRAWN <id>`.
+			asked inside another thread. Of a proposal it is the
+			proposal reply, and its root is left as it is. Prints
+			`WITHDRAWN <id>`.
 			AskQuestion pending_id=<id> withdraw=<reason> calls it.
 
 		--magic-pending-reply-settle <magic-coordinator> <pending-id> --reason <text> [--withdraw]
@@ -3776,7 +4049,7 @@
 			before anything starts, with one message naming the
 			member, that workspace, what is missing and where on
 			this machine the member is set up. A client-* member
-			alone still starts in the workspace that holds it.
+			starts there like any other.
 			--session-thread:event-track pins it to the agent-log
 			thread instead and skips the magic-team post -- used
 			by the main loop's own solitary spawns.
@@ -3792,7 +4065,7 @@
 			--thread. If the opening post failed, it says so and
 			asks the session to post its own thread.
 
-		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [<team-member>...]
+		--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--description <text>] [--spawn-cli-service <cli-name>] [--spawn-settings-workspace <workspace-name>] [<team-member>...]
 			Starts a coworking session and spawns its initial members
 			in one call. Task text comes from stdin. Exactly one of
 			`--routine <selector>` | `--routine-default` is required
@@ -3804,6 +4077,14 @@
 			session is for. Every spawn of the call gets it unchanged:
 			it is kept on each dispatch item and spawn record, and
 			shown on each start post in event-track.
+			`--spawn-cli-service <cli-name>` and
+			`--spawn-settings-workspace <workspace-name>` are the two
+			spawn settings a task may carry of its own: the agent CLI
+			service the spawns run on, and the workspace this machine
+			knows whose CLI service and credentials they are started
+			with, in place of this one. Every spawn of the call gets
+			them unchanged, and a value the spawn refuses stops the
+			call at its first spawn.
 
 			Given no `<team-member>...` names, the spawned members
 			come from the resolved routine's own `executors`
@@ -3897,7 +4178,7 @@
 			Read-only. Prints `<team-member>`'s own duty-related tooling
 			help.
 
-		--member-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
+		--member-comms-slack-read <team-member> (<channel>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]
 			`<team-member>` is the member this read acts as -- decides
 			which conversation this call can see at all.
 
@@ -3905,7 +4186,10 @@
 			(--thread): all meta-info, reactions, formatting,
 			files/attachments, raw JSON exactly as Slack returns it,
 			never pretty-formatted. A `<ts>` naming a thread reply reads
-			that reply like any other message.
+			that reply like any other message. session-current or
+			session-parent in place of `<channel>:<ts>` names that
+			session's thread: its opening message, or with --thread the
+			whole thread (see --member-comms-slack-send-message).
 
 			A target with no `:<ts>` names a conversation instead,
 			reading its own messages pretty-formatted, newest first,

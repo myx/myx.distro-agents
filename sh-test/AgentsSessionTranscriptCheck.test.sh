@@ -345,7 +345,7 @@ rigAssert "the loop: a call without one carries the model's text" "$( LC_ALL=C g
 rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL=C grep -F " TOOL Glob pattern=read.txt path=$rigLoop2 -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Look for the rig file"$' )" 1
 rigAssert "the loop: the call with one ran as without, its result back to the model" \
 	"$( LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' "$rigLoop2/req.2" )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
-rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 29
+rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 30
 
 echo "-- a native spawn: model text redacted, a provider or CLI error kept before the first tool --"
 rigErrSid="dddd4444-0000-4000-8000-000000000004"

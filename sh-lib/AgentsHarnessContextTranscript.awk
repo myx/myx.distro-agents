@@ -169,6 +169,7 @@ function ctxRenderTool(headText, tsText, recordText,   toolName, callId, durMs, 
 		if (valueList[2] == "" && baseName == "ConfirmReadback") valueList[2] = "readback"
 		if (valueList[2] == "" && baseName == "EscalateDecision") valueList[2] = "decision"
 		if (valueList[2] == "" && baseName == "RequestPermission") valueList[2] = "permission"
+		if (valueList[2] == "" && baseName == "ProposeApprove") valueList[2] = "proposal"
 		ctxEvent(tsText, "ASK", stlJsonStr(argsText, "question"), 4096, "to kind", valueList)
 		ctxEvent(tsText, "ANSWER", resultText, 4096, "", valueList)
 	} else if (baseName == "Agent") {

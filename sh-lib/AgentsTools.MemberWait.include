@@ -155,9 +155,16 @@ AgentsWaitProbeSlack(){
 	## Given by the ask probe only: the accounts that asked, whose reaction never answers, and
 	## the first post of a question asked again in its own thread, where a click still answers.
 	local probeAsking="${7:-}" probeAlso="${8:-}"
+	## The identity the thread is read with: the member's own, or the team bot's for a question
+	## the bot posted (its record's `ask-identity: bot`), which may stand in a conversation the
+	## member's own account is not in. Given by the ask probe, or by the collector for the one
+	## read it makes of such a question (MDAT_WAIT_READ_AS_BOT).
+	local probeAsBot="${9:-${MDAT_WAIT_READ_AS_BOT:-}}"
 	local probeArgs probeThread="false" probeMode=""
 	probeArgs=( "$probeMember" )
-	case "$probeTarget" in
+	## The shape is read past a client: marker (the other organisation's side of a client-*
+	## member, AgentsTools.CommsSlack.include), which stays on the target the read is given.
+	case "${probeTarget#client:}" in
 		*:*:conversation)
 			probeThread="true"
 			probeMode="conversation"
@@ -173,6 +180,7 @@ AgentsWaitProbeSlack(){
 			[ -z "$probeSince" ] || probeArgs=( "${probeArgs[@]}" --oldest "$probeSince" )
 		;;
 	esac
+	[ "$probeAsBot" != "true" ] || probeArgs=( "${probeArgs[@]}" --identity-bot )
 	## Output to a file, never a capture: the read operation forks curl, and a
 	## capture returns on pipe EOF rather than on the process that holds it.
 	DistroAgentsTools --intern-op-comms-slack-read "${probeArgs[@]}" \
@@ -211,8 +219,8 @@ AgentsWaitProbeSlack(){
 	local probeStanding="" probeOthers=""
 	if [ "$probeMode" != "conversation" ] ; then
 		type AgentsToolsAskThreadStanding > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskThread.include"
-		probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%%:*}" "$probeSince" )"
-		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%%:*}" "$probeSince" )"
+		probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%:*}" "$probeSince" )"
+		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%:*}" "$probeSince" )"
 	fi
 	if [ "$probeRc" = "0" ] ; then
 		## 0|1, never true|false: a bare digit needs no quoting -v could mangle, and
@@ -288,7 +296,7 @@ AgentsWaitProbeBoard(){
 AgentsWaitProbeAsk(){
 	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
 	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
-	local probeAsking="" probeRevision="" probeKind="" probeSelect=""
+	local probeAsking="" probeRevision="" probeKind="" probeSelect="" probeIdentity=""
 	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
 	[ -f "$probeRecord" ] || return 2
 	while IFS= read -r probeLine ; do
@@ -303,6 +311,7 @@ AgentsWaitProbeAsk(){
 			'revision-ts: '*) probeRevision="${probeLine#revision-ts: }" ;;
 			'kind: '*) probeKind="${probeLine#kind: }" ;;
 			'select: '*) probeSelect="${probeLine#select: }" ;;
+			'ask-identity: '*) probeIdentity="${probeLine#ask-identity: }" ;;
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
@@ -313,7 +322,16 @@ AgentsWaitProbeAsk(){
 	local probeAlso=""
 	[ -z "$probeRevision" ] || [ "$probeThreadTs" != "$probeTs" ] || [ -n "$probeFollow" ] || probeAlso="$probeTs"
 	if [ -n "$probeChannel" ] && [ -n "$probeTs" ] && [ -n "$probeThreadTs" ] && [ -n "$probeAddressees" ] ; then
-		AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" || return 2
+		## Read with the identity the question was asked with, as every reader of its answer does.
+		## A proposal is answered on its root alone: the clicks under its root, never those under
+		## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
+		if [ "$probeKind" = "proposal" ] && [ -n "$probeRevision" ] && [ -z "$probeFollow" ] ; then
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || return 2
+			LC_ALL=C awk -v sinceTs="$probeRevision" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswersSince.awk" \
+				< "$probeOut.root" > "$probeOut" 2>/dev/null || return 2
+		else
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || return 2
+		fi
 		## Several options are sent by the send mark: until the clicks give a verdict
 		## (AgentsEscalationVerdict.awk, the one reader), a number clicked is no arrival yet.
 		if [ "$probeSelect" = "many" ] && [ "$probeStatus" = "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then
@@ -374,7 +392,8 @@ AgentsWaitNewestActivity(){ ## call start (epoch), session id, sources, floors u
 		case "$actOwnTs" in ''|*[!0-9]*) actOwnTs="" ;; esac
 	fi
 	for actSource in $3 ; do
-		case "$actSource" in
+		## Here and below, a slack source's shape is read past a client: marker.
+		case "${actSource/#slack:client:/slack:}" in
 			slack:*:*:conversation) actOne="${actSource#slack:}" ; [ "${actOne%:conversation}" != "$actOwnWhere" ] || actOwnSeen=1 ;;
 			slack:*:*) [ "${actSource#slack:}" != "$actOwnWhere" ] || actOwnSeen=1 ;;
 			slack:*) actOwnSeen=1 ;;
@@ -564,6 +583,29 @@ case "$1" in
 			return 0
 		fi
 
+		## slack:session-current and slack:session-parent each name that session's thread, as the Wait tool
+		## takes them: the one address resolver gives the thread, and it is waited on as its :conversation
+		## source, before anything below checks or stores a source. A name that names nowhere is refused
+		## by the resolver's own line.
+		local sessionSource sessionSources="" sessionResolved="" sessionRc=0
+		for sessionSource in $waitSources ; do
+			case "$sessionSource" in
+				slack:session-current|slack:session-current:*|slack:session-parent|slack:session-parent:*)
+					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
+					sessionRc=0
+					sessionResolved="$( DistroAgentsToolsResolveTarget "${sessionSource#slack:}" "$memberName" )" || sessionRc=$?
+					if [ "$sessionRc" != "0" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $sessionResolved Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					sessionSource="slack:$( printf '%s\n' "$sessionResolved" | sed -n 's/^CHANNEL=//p' ):$( printf '%s\n' "$sessionResolved" | sed -n 's/^THREAD_TS=//p' ):conversation"
+				;;
+			esac
+			sessionSources="$sessionSources$sessionSource "
+		done
+		waitSources="$sessionSources"
+
 		## State is per session, never per member, and --wait-continue refuses a source or filter of its own.
 		local waitStateDir="" waitStateLine waitStoredSources="" waitOwnPost="" waitSessionStart=""
 		if [ -n "$waitMode" ] ; then
@@ -589,7 +631,7 @@ case "$1" in
 				fi
 				local editSource
 				for editSource in $waitSources ; do
-					case "$editSource" in
+					case "${editSource/#slack:client:/slack:}" in
 						slack:*:*)
 							echo "WAIT-RESULT: ERROR"
 							echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-$waitMode does not take the thread source '$editSource', which needs a since and an addressee of its own. Nothing was changed: name it in a --wait-default." >&2
@@ -663,6 +705,14 @@ case "$1" in
 				## would skip what arrived since the last wait.
 			else
 				waitSources="slack:magic-team slack:human-owner "
+				## A session that is itself the coworking session -- a native client session, never
+				## spawned -- has no thread of a spawn, so it watches these two as it always has, and
+				## beside them its own session thread once that is on record, as any new post there
+				## but its own (AgentsToolsSessionCurrentThreadFind). With no record, these two alone.
+				local defaultOwnThread=""
+				type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+				defaultOwnThread="$( AgentsToolsSessionCurrentThreadFind 2>/dev/null )" || defaultOwnThread=""
+				[ -z "$defaultOwnThread" ] || ! AgentsToolsSpawnConversationThreadValid "$defaultOwnThread" || waitSources="${waitSources}slack:$defaultOwnThread:conversation "
 			fi
 		fi
 		## An asked question's wait item (ask:<pending-id>) stays in the session's wait through a
@@ -751,7 +801,9 @@ case "$1" in
 				;;
 				## An asked question's record must exist, and only the session that asked may wait on it,
 				## the rule AskQuestion's own pending_id re-wait keeps. Not checked on a drop, which
-				## must still take out an item whose record was since removed.
+				## must still take out an item whose record was since removed. A permission set is
+				## asked once for all its participants, so each of them may wait on its answer too,
+				## whichever session asked: the members its own record names (`<id>.set`, participants).
 				ask:*)
 					[ "$waitMode" != "drop" ] || continue
 					local checkAskLine checkAskSession=""
@@ -766,6 +818,12 @@ case "$1" in
 							'# '*) break ;;
 						esac
 					done < "$MMDAPP/.local/agents/pending/$checkTarget.md"
+					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] \
+						&& [ -f "$MMDAPP/.local/agents/pending/$checkTarget.set" ] \
+						&& LC_ALL=C grep -q -x -F -- 'kind: permission-set' "$MMDAPP/.local/agents/pending/$checkTarget.md" \
+						&& case " $( LC_ALL=C sed -n 's/^participants: //p' "$MMDAPP/.local/agents/pending/$checkTarget.set" | head -1 ) " in *" $memberName "*) true ;; *) false ;; esac ; then
+						checkAskSession=""
+					fi
 					if [ -n "$checkAskSession" ] && [ -n "$waitSessionId" ] && [ "$checkAskSession" != "$waitSessionId" ] ; then
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-source '$checkSource' is a question asked by session $checkAskSession, not $waitSessionId, so this session may not wait on it. Nothing was waited on." >&2
@@ -841,7 +899,7 @@ case "$1" in
 		## no addressee, sibling to today's named `slack:magic-team` etc. targets.
 		local checkThreads=0 checkConversation=0 checkUnfloored=0
 		for checkSource in $waitSources ; do
-			case "$checkSource" in
+			case "${checkSource/#slack:client:/slack:}" in
 				slack:*:*:conversation)
 					checkThreads=$(( checkThreads + 1 ))
 					checkConversation=$(( checkConversation + 1 ))
@@ -897,7 +955,10 @@ case "$1" in
 					slack:*)
 						reactSlack=$(( reactSlack + 1 ))
 						reactChannel="${checkSource#slack:}"
-						reactChannel="${reactChannel%%:*}"
+						case "$reactChannel" in
+							client:*) reactChannel="${reactChannel#client:}" ; reactChannel="client:${reactChannel%%:*}" ;;
+							*) reactChannel="${reactChannel%%:*}" ;;
+						esac
 					;;
 				esac
 			done
@@ -1018,14 +1079,14 @@ case "$1" in
 				if [ -z "$waitSince" ] ; then
 					waitFloorOf[$floorIndex]="$floorStored"
 				else
-					case "$checkSource" in
+					case "${checkSource/#slack:client:/slack:}" in
 						slack:*:*:conversation) ;;
 						slack:*:*) floorStored="" ;;
 					esac
 					[ -z "$floorStored" ] || AgentsWaitTsNewer "$floorStored" "$waitSince" || waitFloorOf[$floorIndex]="$floorStored"
 				fi
 			elif [ -z "$waitSince" ] ; then
-				case "$checkSource" in
+				case "${checkSource/#slack:client:/slack:}" in
 					slack:*:*:conversation)
 						if [ -n "$waitOwnPost" ] && [ "$checkSource" = "slack:${waitOwnPost%% *}:conversation" ] ; then
 							AgentsWaitTsNewer "${waitOwnPost##* }" "$waitStart" || waitFloorOf[$floorIndex]="${waitOwnPost##* }"

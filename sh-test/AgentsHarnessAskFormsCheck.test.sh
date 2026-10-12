@@ -344,7 +344,8 @@ rigThread 000101 "" "$( rigMessage 000200 URIGOWNER 'What does beta cover?' )$( 
 rigPosts="$( rigCalls chat.postMessage )"
 rigCall 60 AskQuestion "{\"pending_id\":\"$rigReturnedId\"}"
 rigAssert "after the explanation, the next reply is the answer" "$( rigVerdictLine )" "VERDICT: beta"
-rigAssert "the re-wait posted nothing"                 "$(( $( rigCalls chat.postMessage ) - rigPosts ))" 0
+rigAssert "the re-wait posts nothing itself: its one post is the confirmation reply of the answer it applied, made once" \
+	"$(( $( rigCalls chat.postMessage ) - rigPosts )):$( rigHolds "$rigScenarioDir/post.$( cat "$rigScenarioDir/posts" 2>/dev/null )" '✅ Read: `beta` by' ):$( LC_ALL=C grep -l -F -- '✅ Read: `beta` by' "$rigScenarioDir"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "1:yes:1"
 rigAssert "the record closes with it"                  "$( rigRecordField status )" reply-received
 
 rigStart returned-readback
@@ -652,6 +653,140 @@ rigCall 60 Write "{\"path\":\"/dev/null/rig-forms/q\",\"content\":\"x\"}"
 rigThread 000101 "$( rigReactions "$rigBoth" one x )" ""
 rigCall 60 RequestPermission "{$rigAsk,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$( rigRefusal "$rigScenarioDir/out" )\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}"
 rigAssert "a cross beside an allow denies"             "$( rigVerdictLine )" "VERDICT: deny"
+
+echo "-- a permission asked of the human-owner: the team bot posts it, in its own conversation with the owner --"
+rigBotToken="rig-bot-token-TEAM"
+rigOwnToken="rig-user-token-TESTER"
+rigCoordinatorToken="rig-user-token-COORD"
+## How many calls of one method went out under one token: the fake curl keeps each call with its token.
+rigCallsAs(){ ## method, token, optional rest of the line (a reaction's "<ts> <name>")
+	LC_ALL=C awk -v wantCall="$1 $2${3:+ $3}" '$0 == wantCall { hitCount++ ; } END { print hitCount + 0 ; }' "$rigScenarioDir/calls" 2>/dev/null || printf 'no-such-log'
+}
+## The three answer emoji of a permission on one post, as placed under one token: "<x>:<one>:<repeat>".
+rigSeededAs(){ ## token, ts suffix
+	printf '%s:%s:%s' "$( rigCallsAs reactions.add "$1" "1700000001.$2 x" )" "$( rigCallsAs reactions.add "$1" "1700000001.$2 one" )" "$( rigCallsAs reactions.add "$1" "1700000001.$2 repeat" )"
+}
+## A refused write, then its permission asked of whoever the fields name; the thread is scripted by the caller.
+rigPermissionAsk(){ ## the path of the refused write, the call's to and its other fields
+	rigCall 60 Write "{\"path\":\"$1\",\"content\":\"x\"}"
+	rigCall 60 RequestPermission "{$2,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$( rigRefusal "$rigScenarioDir/out" )\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}"
+}
+## How many records of the scenario say one identity asked.
+rigRecordsAskedAs(){ ## bot|member
+	LC_ALL=C grep -l -x -F "ask-identity: $1" "$rigScenarioDir/ws/.local/agents/pending"/*.md 2>/dev/null | LC_ALL=C awk 'END { print NR + 0 ; }'
+}
+## The token one post of the scenario went out under: the fake curl keeps it beside the post.
+rigPostedAs(){ ## post number
+	cat "$rigScenarioDir/posted-as.$1" 2>/dev/null || printf 'no-such-post'
+}
+## The number the scenario's next post gets from the fake curl, whose ts is then 1700000001.000<n>01.
+rigNextPost(){
+	printf '%s' "$(( $( cat "$rigScenarioDir/posts" 2>/dev/null || printf 0 ) + 1 ))"
+}
+rigStart owner-permission
+rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
+rigPermissionAsk /dev/null/rig-forms/owner-permission '"to":"human-owner","as_bot":false'
+rigAssert "asked of the human-owner, whatever as_bot says: its post goes out under the team bot's token, and none under the member's own" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigOwnToken" )" "$rigBotToken:0"
+rigAssert "to the human-owner conversation, which under the bot's token is the bot's own with the owner" "$( rigHolds "$rigScenarioDir/post.1" '"channel":"URIGOWNER"' )" yes
+rigAssert "its record says the bot asked, and names the human-owner as asked" "$( rigRecordField ask-identity ):$( rigRecordField address-to )" "bot:human-owner"
+rigAssert "the cross, the one and the repeat sign are placed under the bot's token, none under the member's own" \
+	"$( rigSeededAs "$rigBotToken" 000101 ) $( rigSeededAs "$rigOwnToken" 000101 )" "1:1:1 0:0:0"
+rigAssert "the asking call's own wait reads its thread as the bot, and sees the owner's click" \
+	"$rigKilled:$( rigVerdictLine ):$( [ "$( rigCallsAs conversations.replies "$rigBotToken" )" -gt 0 ] && printf bot-read || printf no-bot-read ):$( rigCallsAs conversations.replies "$rigOwnToken" )" "no:VERDICT: allow-once:bot-read:0"
+rigAssert "and the grant is written"                   "$( LC_ALL=C grep -c '^GRANT: ' "$rigScenarioDir/out" )" 1
+## The live fault: a member with no account of its own. Its permission went to the owner under
+## the coordinator's account, in the coordinator's conversation, where the bot placed no emoji.
+rigStart owner-permission-no-account
+rm -f "$rigScenarioDir/ws/.local/.agents/$rigMember.agent.env"
+printf 'SLACK_USER_TOKEN=%s\n' "$rigCoordinatorToken" > "$rigScenarioDir/ws/.local/.agents/magic-coordinator.agent.env"
+rigThread 000101 "$( rigReactions "$rigBoth" repeat )" ""
+rigPermissionAsk /dev/null/rig-forms/owner-permission-no-account '"to":"human-owner"'
+rigAssert "a member with no account of its own: its post goes out under the bot's token, and none under the coordinator's" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigCoordinatorToken" )" "$rigBotToken:0"
+rigAssert "its record says the bot asked, and its three emoji are placed under the bot's token" "$( rigRecordField ask-identity ) $( rigSeededAs "$rigBotToken" 000101 )" "bot 1:1:1"
+rigAssert "and the owner's click is the answer"        "$rigKilled:$( rigVerdictLine )" "no:VERDICT: allow-session"
+## The accepted siblings stay as they were: a permission asked of a team member who holds
+## the call (the coordinator, by a standing row), one addressed to the owner in another
+## conversation, and a plain question to the owner.
+rigStart member-permission
+printf 'SLACK_USER_TOKEN=%s\n' "$rigCoordinatorToken" > "$rigScenarioDir/ws/.local/.agents/magic-coordinator.agent.env"
+printf 'URIGCOORD' > "$rigScenarioDir/account.$rigCoordinatorToken"
+printf 'magic-coordinator:ws:workspace:Edit(//dev/null/rig-forms/**)\n' > "$rigScenarioDir/ws/.local/agents/permissions.registry"
+rigThread 000101 "$( rigReactions '"URIGSELF1","URIGCOORD"' x )" ""
+rigPermissionAsk /dev/null/rig-forms/member-permission '"to":"magic-coordinator"'
+rigAssert "asked of a team member who holds the call: its post goes out under the member's own token, to that member, as before" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"URIGCOORD"' )" "$rigOwnToken:0:yes"
+rigAssert "it is asked of who was named, so the result carries no NOTE line" "$( LC_ALL=C grep -c '^NOTE: addressed to ' "$rigScenarioDir/out" )" 0
+rigAssert "its record says the member asked, and its emoji are placed under the member's own token" \
+	"$( rigRecordField ask-identity ) $( rigSeededAs "$rigOwnToken" 000101 ) $( rigSeededAs "$rigBotToken" 000101 )" "member 1:1:1 0:0:0"
+rigAssert "and that member's click is the answer"      "$rigKilled:$( rigVerdictLine )" "no:VERDICT: deny"
+rigStart owner-permission-elsewhere
+rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
+rigPermissionAsk /dev/null/rig-forms/owner-permission-elsewhere '"to":"magic-team","address_to":"human-owner"'
+rigAssert "addressed to the owner in another conversation: the member's own post there, as before" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' ):$( rigVerdictLine )" "$rigOwnToken:0:member:yes:VERDICT: allow-once"
+rigStart owner-question
+rigCall 30 AskQuestion '{"to":"human-owner","question":"Should the rig go on?","select":"yes-no","wait":false}'
+rigAssert "a plain question to the human-owner is unchanged: the member's own post, record and emoji" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigCallsAs reactions.add "$rigOwnToken" '1700000001.000101 +1' ):$( rigCallsAs reactions.add "$rigBotToken" '1700000001.000101 +1' )" "$rigOwnToken:0:member:1:0"
+## The same permission asked of the owner again. One the bot asked keeps its own thread. One
+## asked before under a member's own account stands where the bot is not: the bot posts it anew.
+rigStart owner-permission-again
+rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
+rigPermissionAsk /dev/null/rig-forms/owner-permission-again-a '"to":"human-owner"'
+rigAgainPost="$( rigNextPost )"
+rigThread 000101 "$( rigReactions "$rigBoth" one )" "$( rigMessage "000${rigAgainPost}01" URIGSELF1 'asked again' "$( rigReactions "$rigBoth" one )" )"
+rigPermissionAsk /dev/null/rig-forms/owner-permission-again-b '"to":"human-owner"'
+rigAssert "asked again after the bot asked it: the bot's reply in that question's own thread" \
+	"$( rigPostedAs "$rigAgainPost" ):$( rigHolds "$rigScenarioDir/post.$rigAgainPost" '"thread_ts":"1700000001.000101"' ):$( rigSeededAs "$rigBotToken" "000${rigAgainPost}01" ):$( rigRecordsAskedAs bot )" "$rigBotToken:yes:1:1:1:2"
+## As records from before read: asked under the member's own account.
+for rigAgainRecord in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
+	LC_ALL=C sed 's/^ask-identity: bot$/ask-identity: member/' "$rigAgainRecord" > "$rigAgainRecord.rig" && mv -f "$rigAgainRecord.rig" "$rigAgainRecord"
+done
+rigAgainPost="$( rigNextPost )"
+rigThread "000${rigAgainPost}01" "$( rigReactions "$rigBoth" one )" ""
+rigPermissionAsk /dev/null/rig-forms/owner-permission-again-c '"to":"human-owner"'
+rigAssert "asked again after a member's own post of it: a new message of the bot's, never a reply in that thread" \
+	"$( rigPostedAs "$rigAgainPost" ):$( rigCallsAs chat.postMessage "$rigOwnToken" ):$( LC_ALL=C grep -c -F '"thread_ts"' "$rigScenarioDir/post.$rigAgainPost" 2>/dev/null ):$( rigSeededAs "$rigBotToken" "000${rigAgainPost}01" )" "$rigBotToken:0:0:1:1:1"
+rigAssert "and its record says the bot asked"          "$( rigRecordsAskedAs bot ):$( rigRecordsAskedAs member )" "1:2"
+
+echo "-- who a permission goes to is settled as it is asked: a member who does not hold the call is not asked --"
+## Named in a thread, a member that holds nothing of the refused call, and nobody running in the
+## session holds it: the question goes to the human-owner, by the team bot, and the result says so.
+rigStart permission-routed
+rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
+rigPermissionAsk /dev/null/rig-forms/permission-routed '"to":"CRIG00001:1700000001.000001","address_to":"magic-coordinator"'
+rigAssert "the result says who it went to instead of the one named, and why, in one NOTE line" \
+	"$( LC_ALL=C grep -c -x -F 'NOTE: addressed to human-owner, not magic-coordinator: magic-coordinator does not hold Write /dev/null/rig-forms/permission-routed, and nobody running in this session holds it' "$rigScenarioDir/out" ):$( LC_ALL=C grep -c '^NOTE: addressed to ' "$rigScenarioDir/out" )" "1:1"
+rigAssert "it goes to the human-owner as the team bot's post, in the bot's conversation with the owner, not in the thread named" \
+	"$( rigPostedAs 1 ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"URIGOWNER"' ):$( LC_ALL=C grep -c -F '"thread_ts"' "$rigScenarioDir/post.1" 2>/dev/null )" "$rigBotToken:yes:0"
+rigAssert "its record says the bot asked the human-owner, and its emoji are placed under the bot's token" \
+	"$( rigRecordField ask-identity ):$( rigRecordField address-to ) $( rigSeededAs "$rigBotToken" 000101 )" "bot:human-owner 1:1:1"
+rigAssert "and the owner's click is the answer"        "$rigKilled:$( rigVerdictLine )" "no:VERDICT: allow-once"
+
+echo "-- a refusal names an ask already open that would allow the call --"
+## The line of a refusal that follows its REFUSAL-ID line.
+rigAfterRefusalId(){
+	LC_ALL=C awk 'seenId { print ; exit ; } /^REFUSAL-ID: / { seenId = 1 ; }' "$rigScenarioDir/out" 2>/dev/null
+}
+rigStart refusal-open-ask
+rigOpenPath="/dev/null/rig-forms/refusal-open-ask"
+rigCall 60 Write "{\"path\":\"$rigOpenPath\",\"content\":\"x\"}"
+rigOpenRefusal="$( rigRefusal "$rigScenarioDir/out" )"
+[ -n "$rigOpenRefusal" ] || rigRefuse "the rig produced no refusal to ask permission for"
+rigAssert "with no ask open, a refusal names none: the way to ask follows its id, as before" \
+	"$( LC_ALL=C grep -c 'is already open' "$rigScenarioDir/out" ):$( rigAfterRefusalId | cut -c1-33 )" "0:This is a refusal, not a verdict."
+rigThread 000101 "" ""
+rigCall 8 RequestPermission "{$rigAsk,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$rigOpenRefusal\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}" from-read
+rigOpenId="$( rigRecordId )"
+rigAssert "control: its permission is asked, and nobody has answered" "$rigKilled:$( rigRecordField status )" "yes:reply-pending"
+rigCall 60 Write "{\"path\":\"$rigOpenPath\",\"content\":\"x\"}"
+rigAssert "refused again while that ask is open: the refusal names it, right after its id" \
+	"$( rigAfterRefusalId )" "An ask that would allow this call is already open: $rigOpenId (a permission, waiting on URIGOWNER). Do not ask again: wait for its answer with Wait sources=ask:$rigOpenId, then retry the call."
+rigAssert "once, and the way to ask still follows"     "$( LC_ALL=C grep -c 'is already open' "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'This is a refusal, not a verdict.' )" "1:yes"
+rigCall 60 Write "{\"path\":\"$rigOpenPath-other\",\"content\":\"x\"}"
+rigAssert "the refusal of another call names no ask"   "$( LC_ALL=C grep -c 'is already open' "$rigScenarioDir/out" ):$( rigAfterRefusalId | cut -c1-33 )" "0:This is a refusal, not a verdict."
 
 echo "-- returned, then the answer: the next reply or click that names one is the answer --"
 ## A refused write, then its permission asked of the owner; the thread is scripted by the caller.

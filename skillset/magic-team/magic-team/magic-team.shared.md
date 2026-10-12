@@ -108,7 +108,7 @@ Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its ki
 - Oncall / Expert — `templates/oncall-expert.contract.format.md`
 - Human-owner — `templates/human-owner.contract.format.md`
 
-Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision` and `RequestPermission` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/contacts.document.format.md`. The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
+Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/contacts.document.format.md`. The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 
@@ -190,7 +190,7 @@ A conflict or real ambiguity between instructions, or between an instruction and
 ## Readback-confirm and propose-approve, in any process
 
 - **Readback-confirm**: before asserting anything of its own — accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause — a member reads it back to whoever can confirm it, where the exchange already is. One needing an answer goes as a `ConfirmReadback` ask; a choice it cannot make, an `EscalateDecision` ask.
-- **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`. It does not stop the work it arose from.
+- **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`, as a `ProposeApprove` ask. It does not stop the work it arose from.
 - Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, consult the domain owner, then ask what remains.
 
 ## "later" has two gates

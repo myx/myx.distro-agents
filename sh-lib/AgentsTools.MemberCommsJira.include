@@ -5,8 +5,11 @@ case "$1" in
 
 		## The member stubs. Each acts under the named member's own credentials, so a spawned
 		## session names only itself (AgentsToolsActingMemberCheck); tooling calls the
-		## --intern-op-comms-jira-* implementation below directly.
+		## --intern-op-comms-jira-* implementation below directly. A --member-* operation reaches
+		## our own organisation (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include), for a client-*
+		## member too: what such a member holds for this system is the other organisation's.
 		--member-comms-jira-board-list|--member-comms-jira-board-read|--member-comms-jira-board-issue-search|--member-comms-jira-sprint-list|--member-comms-jira-sprint-issue-search|--member-comms-jira-issue-read)
+			local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP=""
 			[ -z "${2:-}" ] || AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; }
 			DistroAgentsTools "--intern-op-${1#--member-}" "${@:2}"
 			return $?

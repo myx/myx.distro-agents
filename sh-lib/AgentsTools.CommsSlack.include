@@ -262,10 +262,88 @@ AgentsToolsSlackFormatPagedConversation(){
 	return 0
 }
 
+## WHICH ORGANISATION A SLACK CALL REACHES is the side of the call, as every outside system
+## reads it (AgentsTools.CommsSide.include): ours, unless the call is a --client-* operation,
+## or has a client: address, of a client-* member. The two questions below are that include's
+## own, under the names the Slack code asks them by.
+type AgentsToolsCommsOwnSideCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSide.include"
+
+## rc 0 when the named member's own Slack settings are the ones this call reads.
+AgentsToolsSlackOwnSettingsApply(){ ## member
+	AgentsToolsCommsOwnSettingsApply "$@"
+}
+
+## rc 0 when this call of the named member is on the client side.
+AgentsToolsSlackClientSide(){ ## acting member
+	AgentsToolsCommsClientSide "$@"
+}
+
+## For an error about a Slack setting that is not there: what the side of the call has to do
+## with it, for a client-* member. Prints nothing for any other member.
+AgentsToolsSlackSideNote(){ ## acting member
+	case "$1" in
+		client-*)
+			if AgentsToolsSlackClientSide "$1" ; then
+				printf ' -- this call is on the side of the other organisation, where only the settings %s itself holds are read, never the team'"'"'s' "$1"
+			else
+				printf ' -- this call is on our own organisation'"'"'s side, where %s has no Slack settings of its own: what it holds is the other organisation'"'"'s, read in a --client-* operation or for a client:<addressee> address' "$1"
+			fi
+		;;
+	esac
+}
+
+## The one line that refuses an address on the side it does not work on, as the resolver below
+## prints it with rc 3. The team's own named conversations, the two session addresses, a team
+## member's name and the session thread are our own organisation's; a client: address is the
+## other organisation's, and only a client-* member has one. Where a --client-* Slack operation
+## was run (MDAT_COMMS_OP, set with the side), the line names it and its --member-* twin.
+AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
+	local wayAlias="${1#client:}" wayRan="" wayOp="a --member-* operation"
+	wayAlias="${wayAlias%%:*}"
+	case "${2:-}:$1" in
+		client-*:*|:*) ;;
+		*:client:*)
+			printf "'%s' is refused: a client: address connects to the other organisation of a client-* member, and %s is not one, so there is no other organisation for it to reach.\n" "$1" "$2"
+			return 0
+		;;
+	esac
+	case "${MDAT_COMMS_OP:-}" in
+		--client-comms-slack-*) wayRan=" in $MDAT_COMMS_OP" ; wayOp="--member-${MDAT_COMMS_OP#--client-} operation" ;;
+	esac
+	case "$1" in
+		client:*) wayOp="$wayOp, with no client: marker," ;;
+	esac
+	printf "'%s' is refused%s: for '%s', this addressee alias is only usable in %s and connects to our own organisation. A --client-* operation and a client: address reach the other organisation, where a conversation or a person is named by its id.\n" "$1" "$wayRan" "$wayAlias" "$wayOp"
+}
+
 ## Resolves alias|<channel>|<channel>:<ts> to CHANNEL= + THREAD_TS=; shared by every op taking a target.
-DistroAgentsToolsResolveTarget(){
+## client:<addressee> names a conversation or a person on the other organisation's side of a
+## client-* member, by id, with or without :<ts>: the marker stays on CHANNEL, so whatever
+## the address is handed to next reaches the same side. On that side, by the marker or for
+## the acting member an operation names as the second argument, the team's own named
+## conversations and the two session addresses name nothing, and the marker names nothing for
+## a member that is no client-* member: refused, rc 3, with the one line that says which side
+## the address works on (AgentsToolsSlackOneWayLine). With no member named the team's own
+## names resolve as they always have, so the tooling's own posts name them from inside any
+## operation.
+DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	local target="$1"
-	local channel threadTs
+	local channel threadTs clientMark=""
+	case "$target" in
+		client:client:*) return 2 ;;
+		client:*) clientMark="client:" ; target="${target#client:}" ;;
+	esac
+	if [ -n "$clientMark" ] ; then
+		case "${2:-client-}" in
+			client-*) ;;
+			*) AgentsToolsSlackOneWayLine "$1" "$2" ; return 3 ;;
+		esac
+	fi
+	if [ -n "$clientMark" ] || AgentsToolsSlackClientSide "${2:-}" ; then
+		case "${target%%:*}" in
+			event-track|event-alert|magic-team|human-owner|session-current|session-parent) AgentsToolsSlackOneWayLine "$1" "${2:-}" ; return 3 ;;
+		esac
+	fi
 	case "$target" in
 		event-track|event-track:*)
 			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK )"
@@ -282,6 +360,43 @@ DistroAgentsToolsResolveTarget(){
 		human-owner|human-owner:*)
 			channel="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER )"
 			case "$target" in *:*) threadTs="${target#*:}" ;; esac
+		;;
+		## The two virtual session addresses, each one thread: session-current is the session thread of the
+		## coworking session the calling member works in, session-parent the thread of the session that
+		## started it. A third line names the parent session. A name that names nowhere is refused, rc 3:
+		## the one line printed says why and what to pass instead, for the caller to show as it is.
+		session-current|session-current:*|session-parent|session-parent:*)
+			local sessionName="${target%%:*}" sessionFound="" sessionRc=0 sessionParent="" sessionWhy=""
+			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			case "$target" in
+				*:*)
+					printf '%s names one thread and takes no :<ts>. Pass %s alone, or <channel>:<ts> for one message.\n' "$sessionName" "$sessionName"
+					return 3
+				;;
+				session-current)
+					sessionFound="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sessionRc=$?
+					sessionWhy="this session has no session thread"
+				;;
+				session-parent)
+					sessionFound="$( AgentsToolsSessionParentThreadFind 2> /dev/null )" || sessionRc=$?
+					case "$sessionRc" in
+						0) sessionParent="${sessionFound#* }" ; sessionFound="${sessionFound%% *}" ; sessionWhy="the parent session $sessionParent has no recorded thread" ;;
+						2) sessionWhy="the parent session $sessionFound has no recorded thread" ;;
+						*) sessionWhy="this session has no recorded parent session" ;;
+					esac
+				;;
+			esac
+			## A recorded value that is no <channel>:<ts> names no thread either.
+			case "$sessionRc:$sessionFound" in
+				0:?*:?*) ;;
+				*)
+					printf '%s, so %s names nowhere. Pass the thread as <channel>:<ts> instead.\n' "$sessionWhy" "$sessionName"
+					return 3
+				;;
+			esac
+			printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "${sessionFound%%:*}" "${sessionFound#*:}"
+			[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
+			return 0
 		;;
 		*:*)
 			channel="${target%%:*}"
@@ -314,24 +429,27 @@ DistroAgentsToolsResolveTarget(){
 	if [ -z "$channel" ] ; then
 		return 1
 	fi
-	printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$channel" "$threadTs"
+	printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$clientMark$channel" "$threadTs"
 	return 0
 }
 
 ## The member's own SLACK_BOT_TOKEN when it has one, magic-team's shared token
-## when it does not. See MAGIC.md.
+## when it does not. See MAGIC.md. By the side of the call (AgentsToolsSlackOwnSettingsApply):
+## a client-* member's own token is the other organisation's, read on the client side only,
+## where the team's shared token never stands in for it.
 ## Prints `<source> <token>`; returns 1 with nothing printed when neither holds one.
 AgentsToolsResolveSlackBotToken(){
 	local memberName="$1"
 	local resolvedToken=""
 	## magic-team's own scope IS the shared scope -- labelling it `member` would lie.
-	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] ; then
+	if [ -n "$memberName" ] && [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
 		resolvedToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
 		if [ -n "$resolvedToken" ] ; then
 			printf 'member-bot-token %s\n' "$resolvedToken"
 			return 0
 		fi
 	fi
+	! AgentsToolsSlackClientSide "$memberName" || return 1
 	resolvedToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_BOT_TOKEN 2>/dev/null )" || resolvedToken=""
 	if [ -z "$resolvedToken" ] ; then
 		return 1
@@ -341,7 +459,7 @@ AgentsToolsResolveSlackBotToken(){
 }
 
 ## The X-Request-Detail header's workspace value -- two-tier fallback, same shape
-## as AgentsToolsResolveSlackBotToken above. See MAGIC.md.
+## as AgentsToolsResolveSlackBotToken above, by the side of the call as it is. See MAGIC.md.
 ## Prints the resolved domain, or nothing when neither scope has one; the caller
 ## is what states `<lookup-failed>`.
 ##
@@ -358,25 +476,31 @@ AgentsToolsResolveSlackWorkspaceDomain(){
 		[ -z "${AgentsToolsSlackDomainCacheValue:-}" ] || printf '%s\n' "$AgentsToolsSlackDomainCacheValue"
 		return 0
 	fi
-	if [ -n "$memberName" ] && [ "$memberName" != "<none>" ] && [ "$memberName" != "magic-team" ] ; then
+	if [ -n "$memberName" ] && [ "$memberName" != "<none>" ] && [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
 		resolvedDomain="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
 		if [ -n "$resolvedDomain" ] ; then
 			printf '%s\n' "$resolvedDomain"
 			return 0
 		fi
 	fi
+	! AgentsToolsSlackClientSide "$memberName" || return 0
 	resolvedDomain="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_WORKSPACE_DOMAIN 2>/dev/null )" || resolvedDomain=""
 	[ -z "$resolvedDomain" ] || printf '%s\n' "$resolvedDomain"
 }
 
 ## Which Slack a call of this member used, and where that came from, in words for an error:
-## the Slack of the workspace the operation runs in, which is the one it was run from (for a
-## client-* member, the workspace that holds the client). Said where a conversation is not
-## found, so that is never read as a bot missing from a channel.
+## the Slack of the workspace the operation runs in, which is the one it was run from. For a
+## client-* member it says the side as well, ours or the other organisation's
+## (AgentsToolsSlackSideNote). Said where a conversation is not found, so that is never read
+## as a bot missing from a channel.
 AgentsToolsSlackWhere(){ ## acting member
-	local whereDomain=""
+	local whereDomain="" whereOwn=""
 	whereDomain="$( AgentsToolsResolveSlackWorkspaceDomain "${1:-}" 2> /dev/null )" || whereDomain=""
-	printf 'the Slack %s, by the settings of the workspace %s (the workspace this operation runs in)' "${whereDomain:-with no domain configured}" "${MMDAPP:-<unknown>}"
+	## An invited member's own Slack settings, where this workspace holds none for it, are those of the workspace it is set up in (AgentsToolsConfigOptionElsewhere): said where the call reads its own at all.
+	if AgentsToolsSlackOwnSettingsApply "${1:-}" && type AgentsToolsConfigOptionElsewhere > /dev/null 2>&1 && AgentsToolsConfigOptionElsewhere "${1:-}" SLACK_USER_TOKEN 2> /dev/null && [ -n "$agentsConfigOptionElsewhere" ] ; then
+		whereOwn=", the member's own Slack settings read from $agentsConfigOptionElsewhere, the workspace it is set up in"
+	fi
+	printf 'the Slack %s, by the settings of the workspace %s (the workspace this operation runs in)%s%s' "${whereDomain:-with no domain configured}" "${MMDAPP:-<unknown>}" "$whereOwn" "$( AgentsToolsSlackSideNote "${1:-}" )"
 }
 
 ## The one emitter for the X-Request-Detail header, for every Slack call site.
@@ -550,7 +674,7 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 	done
 
 	local resolved rc channel threadTs
-	resolved="$( DistroAgentsToolsResolveTarget "$target" )" && rc=0 || rc=$?
+	resolved="$( DistroAgentsToolsResolveTarget "$target" "$memberName" )" && rc=0 || rc=$?
 	case "$rc" in
 		0)
 			## Read in the shell, not by a sed per field: one per call adds up
@@ -566,6 +690,11 @@ AgentsToolsSlackCheck(){ ## <team-member> <magic-team|human-owner|event-track|ev
 		;;
 		2)
 			echo "$MDSC_CMD: slack-check: ⛔ ERROR: unrecognized target: $target" >&2
+			set +e ; return 1
+		;;
+		## An address that is refused: the resolver's own line, why and what to pass instead.
+		3)
+			echo "$MDSC_CMD: slack-check: ⛔ ERROR: $resolved" >&2
 			set +e ; return 1
 		;;
 		*)
@@ -947,6 +1076,29 @@ case "$1" in
 			esac
 		done
 
+		## A client: marker on the conversation or the person this call names puts the call on the
+		## client side, for a client-* member only. It comes off here, before the id is classified
+		## or sent, so no caller has to take it off an address it only passes on.
+		local clientMarked="false" clientIndex
+		case "$resolveTarget" in client:*) resolveTarget="${resolveTarget#client:}" ; clientMarked="true" ;; esac
+		case "$resolveDmUser" in client:*) resolveDmUser="${resolveDmUser#client:}" ; clientMarked="true" ;; esac
+		case "$expectCounterparty" in client:*) expectCounterparty="${expectCounterparty#client:}" ; clientMarked="true" ;; esac
+		for clientIndex in ${formArgs[@]+"${!formArgs[@]}"} ; do
+			case "${formArgs[$clientIndex]}" in
+				channel=client:*) formArgs[$clientIndex]="channel=${formArgs[$clientIndex]#channel=client:}" ; clientMarked="true" ;;
+			esac
+		done
+		if [ "$clientMarked" = "true" ] ; then
+			case "$callerMember" in
+				client-*) local -x MDAT_COMMS_SIDE=client ;;
+				*)
+					echo "$MDSC_CMD: slack-call: ⛔ ERROR: a client: address connects to the other organisation of a client-* member, and $callerMember is not one, so there is no other organisation for this call to reach. Nothing was called." >&2
+					AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
+					set +e ; return 1
+				;;
+			esac
+		fi
+
 		if [ "$printActingIdentity" != "true" ] ; then
 			if [ -n "$apiMethod" ] && [ -n "$fetchUrl" ] ; then
 				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --api and --fetch-url cannot be combined -- they name two different things to call ('$apiMethod' and '$fetchUrl') and there is no rule for which one wins. An API method and a raw authenticated GET are separate modes; pass exactly one." >&2
@@ -1073,16 +1225,17 @@ case "$1" in
 			esac
 		fi
 
-		## Identity selection -- one rule, applied here for every Slack op.
+		## Identity selection -- one rule, applied here for every Slack op. The member's own
+		## token is read by the side of the call (AgentsToolsSlackOwnSettingsApply).
 		local memberUserToken="" sendIdentity="bot"
-		memberUserToken="$( DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
+		memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$callerMember" && DistroAgentsTools --agents-config-option "$callerMember" --select SLACK_USER_TOKEN )" || memberUserToken=""
 		local routineAuthored="false"
 		case "$callerMember" in
 			routine-*) routineAuthored="true" ;;
 		esac
 		if [ -n "$identityOverride" ] ; then
 			if [ "$identityOverride" = "user" ] && [ -z "$memberUserToken" ] ; then
-				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no SLACK_USER_TOKEN is configured for it" >&2
+				echo "$MDSC_CMD: slack-call: ⛔ ERROR: --identity user requested for $callerMember but no SLACK_USER_TOKEN is configured for it$( AgentsToolsSlackSideNote "$callerMember" )" >&2
 				AgentsToolsInternOpSlackCallEmitFields not-yet-selected none
 				set +e ; return 1
 			fi
@@ -1111,7 +1264,7 @@ case "$1" in
 			read -r botTokenSource token <<< "$botTokenLine"
 		fi
 		if [ -z "$token" ] ; then
-			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)" >&2
+			echo "$MDSC_CMD: slack-call: ⛔ ERROR: no usable Slack token for identity '$sendIdentity' (member SLACK_USER_TOKEN, the member's own SLACK_BOT_TOKEN, or the team's own SLACK_BOT_TOKEN in magic-team scope)$( AgentsToolsSlackSideNote "$callerMember" )" >&2
 			AgentsToolsInternOpSlackCallEmitFields "$sendIdentity" none
 			set +e ; return 1
 		fi
@@ -1417,7 +1570,7 @@ case "$1" in
 				scopeTokenLine="$( AgentsToolsResolveSlackBotToken "$callingMember" )" || scopeTokenLine=""
 				read -r scopeTokenSource token <<< "$scopeTokenLine"
 			else
-				token="$( DistroAgentsTools --agents-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
+				token="$( AgentsToolsSlackOwnSettingsApply "$callingMember" && DistroAgentsTools --agents-config-option "$callingMember" --select SLACK_USER_TOKEN 2>/dev/null )" || token=""
 			fi
 
 			if [ -z "$token" ] ; then

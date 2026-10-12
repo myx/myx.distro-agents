@@ -14,6 +14,8 @@
 ## Every entry, verdict and ending is one line in the item's `## Decisions`
 ## (AgentsTools.ItemDecisions.include) and one line in its session transcript
 ## (AgentsTools.SessionTranscript.include): REVIEW, VERDICT or ENDING.
+## A handback whose reviewer is the human-owner also asks him, by a review prompt whose
+## answer is the verdict ("the review prompt", below).
 ##
 
 agentsReviewLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
@@ -110,8 +112,10 @@ AgentsReviewChildRecord(){ ## item path
 	printf '%s\n' "$childFound"
 }
 
-## Whether a spawn record's session still runs: status started and, on this host, its
-## spawn id in the process list. rc 0 live; rc 1 ended, with the reason printed.
+## Whether a spawn record's session still runs: status started and, on this host, a process
+## that runs as its spawn id, by the one rule of the spawned-sessions render
+## (AgentsToolsRegistrySpawnRuns, AgentsTools.Registries.include). rc 0 live; rc 1 ended,
+## with the reason printed.
 AgentsReviewChildLive(){ ## record path
 	local liveSpawn="${1##*/}" liveStatus liveHost thisHost
 	liveSpawn="${liveSpawn%.md}"
@@ -120,9 +124,8 @@ AgentsReviewChildLive(){ ## record path
 	liveHost="$( AgentsToolsSpawnSandboxRecordHeader "$1" host )"
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
 	[ "$liveHost" = "$thisHost" ] || return 0
-	case "$( ps -A -ww -o args= 2> /dev/null )" in
-		*"$liveSpawn"*) return 0 ;;
-	esac
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+	! AgentsToolsRegistrySpawnRuns "$liveSpawn" || return 0
 	printf 'spawn %s is not running on this host, so its session has ended\n' "$liveSpawn"
 	return 1
 }
@@ -194,6 +197,8 @@ AgentsReviewEndChild(){ ## sending member, item path, reason, dismiss (yes|no)
 	fi
 	printf 'END-DISMISS (%s): %s\n' "$endReason" "$endOut"
 	AgentsReviewRecord "$endBy" "${endPath##*/}" dismissed "$endReason: $endOut" ENDING ""
+	## An item archived or trashed takes no verdict any more: its open review prompt closes with it.
+	case "$endReason" in archived|trashed) AgentsReviewPromptSettle "$endBy" "${endPath##*/}" "$endReason" ;; esac
 	return 0
 }
 
@@ -245,10 +250,46 @@ AgentsReviewCliSetting(){ ## resolved cli
 	printf '%s+%s' "${setValue:-none}" "${setHash:--}"
 }
 
+## WHAT A RESTART OF AN ENDED SESSION IS STARTED WITH, of the two spawn settings a task may
+## carry of its own: read from that session's record, never asked for again. The service
+## it was started on by name is its `cli-asked`, which the spawn writes only where one was
+## named for it; a session started on the configured service has none, and its restart
+## follows the configuration as it is now. The workspace that paid for it is its
+## `paying-workspace`, always. A record written before either was kept names none.
+AgentsReviewRecordCliAsked(){ ## record path -- the service that session was started on by name, or nothing
+	local askedCli
+	askedCli="$( AgentsToolsSpawnSandboxRecordHeader "$1" cli-asked )"
+	case "$askedCli" in ''|none|-) return 0 ;; esac
+	printf '%s' "$askedCli"
+}
+AgentsReviewRecordPaying(){ ## record path -- the name of the workspace that paid for that session, or nothing
+	local payingName
+	payingName="$( AgentsToolsSpawnSandboxRecordHeader "$1" paying-workspace )"
+	case "$payingName" in ''|unknown|-) return 0 ;; esac
+	printf '%s' "$payingName"
+}
+## The CLI and the CLI setting a restart of that session gets now, tab-separated, read the
+## way its spawn will read them: in the workspace that paid for the session, on the
+## service it was started on by name. A paying workspace this machine no longer knows
+## reads as none named: the restart's own spawn is what refuses it, by name.
+AgentsReviewRecordCliNow(){ ## record path
+	local nowName nowPaid="" nowCli
+	nowName="$( AgentsReviewRecordPaying "$1" )"
+	if [ -n "$nowName" ] ; then
+		type AgentsToolsWorkspaceByName > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.MemberWorkspace.include"
+		nowPaid="$( AgentsToolsWorkspaceByName "$nowName" 2> /dev/null )" || nowPaid=""
+	fi
+	(
+		export MDAT_SPAWN_SETTINGS_WORKSPACE="$nowPaid"
+		nowCli="$( AgentsReviewCliResolved "$( AgentsReviewRecordCliAsked "$1" )" )"
+		printf '%s\t%s' "$nowCli" "$( AgentsReviewCliSetting "$nowCli" )"
+	)
+}
+
 ## Whether a returned item's ended session can be resumed in its own native transcript
 ## rather than started anew. rc 0 eligible; rc 1 with the reason printed.
 AgentsReviewResumeEligible(){ ## record path (may be empty)
-	local elRecord="$1" elSpawn elCli elNow elHost thisHost elJsonl elFound=""
+	local elRecord="$1" elSpawn elCli elNow elNowBoth elHost thisHost elJsonl elFound=""
 	[ -n "$elRecord" ] && [ -f "$elRecord" ] || { printf 'no spawn record of the old session' ; return 1 ; }
 	elSpawn="${elRecord##*/}" ; elSpawn="${elSpawn%.md}"
 	elCli="$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli )"
@@ -256,9 +297,10 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 		claude|claude-native) ;;
 		*) printf 'the old session ran on %s, not claude or claude-native' "${elCli:-an unrecorded cli}" ; return 1 ;;
 	esac
-	elNow="$( AgentsReviewCliResolved "" )"
+	elNowBoth="$( AgentsReviewRecordCliNow "$elRecord" )"
+	elNow="${elNowBoth%%$'\t'*}"
 	[ "$elNow" = "$elCli" ] || { printf 'the cli is now %s, the old session ran on %s' "$elNow" "$elCli" ; return 1 ; }
-	[ "$( AgentsReviewCliSetting "$elNow" )" = "$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli-setting )" ] \
+	[ "${elNowBoth#*$'\t'}" = "$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" cli-setting )" ] \
 		|| { printf 'the cli setting changed since the old session' ; return 1 ; }
 	elHost="$( AgentsToolsSpawnSandboxRecordHeader "$elRecord" host )"
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
@@ -278,7 +320,7 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## Decisions first. Which path ran is recorded: `restart: resumed` or `restart: new-process (<why>)`.
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
-	local rsFrom="" rsWhy=""
+	local rsFrom="" rsWhy="" rsPaying="" rsAsked=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
 	if rsWhy="$( AgentsReviewResumeEligible "$rsRecord" )" ; then
 		rsFrom="${rsRecord##*/}" ; rsFrom="${rsFrom%.md}"
@@ -303,11 +345,17 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 		rsTracking="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" tracking-name )"
 		rsSession="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-id )"
 		rsThread="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-thread )"
+		rsPaying="$( AgentsReviewRecordPaying "$rsRecord" )"
+		rsAsked="$( AgentsReviewRecordCliAsked "$rsRecord" )"
 	fi
 	[ -n "$rsMember" ] || rsMember="$( AgentsToolsDecisionsField "$rsPath" owner )"
 	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
 	set -- --intern-op-agent-spawn-proxy "$rsMember" --from-board "$rsItem" --board-state running --dispatch-doc:reuse
 	[ -z "$rsTracking" ] || set -- "$@" --tracking-name "$rsTracking"
+	## Paid from the workspace that paid for the run it replaces, and on the service that run
+	## was started on by name: both off its record (above), neither asked for again.
+	[ -z "$rsPaying" ] || set -- "$@" --spawn-settings-workspace "$rsPaying"
+	[ -z "$rsAsked" ] || set -- "$@" --spawn-cli-service "$rsAsked"
 	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
 	## A resumed session keeps the thread it remembers, so it resumes only when joined there.
 	if [ -n "$rsSession" ] && [ -n "$rsThread" ] && [ "$rsThread" != "-" ] ; then
@@ -478,6 +526,193 @@ AgentsReviewShutdown(){ ## sending member
 	return 0
 }
 
+## ---- the review prompt (sh-lib/templates/review-prompt.post.format.md) ----
+## A handback whose reviewer is a person asks him: one post, as the team bot, answered by a
+## click or a reply. Its pending-reply record is of kind review, so its answer is read and
+## applied where every typed answer is (AgentsTools.MemberEscalation.include), and given
+## here, through the same operations a reviewer runs.
+
+## One part of the review prompt filled from its own template, by the filler the ask posts
+## use: the template and the answer form are the ones the table of the asks names for a
+## review (AgentsTools.AskPost.include). The slots travel in the caller's environment, as
+## ASKP_F_<slot>.
+AgentsReviewPromptFill(){ ## want (post|reactions|block), block `<Section>/<heading>` (with block)
+	type AgentsToolsAskKindRow > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
+	AgentsToolsAskKindRow review || return 3
+	ASKP_BLOCK="${2:-}" AgentsToolsAskPostFill "$1" "$agentsAskRowTemplate" "$agentsAskRowForm"
+}
+
+## The review prompt of one handback: posted to the human-owner as the team bot, from its
+## template -- who handed back, the task in words (AgentsTools.TaskText.include), the outcome
+## line of the handback, the session and its thread, how to answer. Only where the item's
+## `review-by` names him: a reviewer that is a member, a session or a routine gets none. Its
+## record is the handing-back member's own, so the verdict, or a comment, comes back on that
+## session's Wait, which the prompt joins as a wait item; its click answers are placed under
+## it. Never fails the handback: prints one REVIEW-PROMPT line, or nothing where none is due.
+AgentsReviewPromptPost(){ ## who handed back, item file name, its spawn id, outcome line (may be empty)
+	local rpWho="$1" rpItem="${2%.md}" rpSpawn="${3:-}" rpOutcome="${4:-}" rpPath rpRecord="" rpCandidate rpTask rpName rpNames="" rpTaskText rpCow rpThread rpSessionText=""
+	local rpBody rpOut rpChannel rpTs rpAddressees rpAsking rpId
+	rpPath="$( AgentsToolsDecisionsItemPath "$rpItem" )" || return 0
+	[ "$( AgentsToolsDecisionsField "$rpPath" review-by )" = "human-owner" ] || return 0
+	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
+	type AgentsToolsTaskText > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.TaskText.include"
+	rpTask="$( AgentsToolsTaskText "$rpPath" )"
+	for rpName in "$( AgentsToolsTaskTextValue "$rpTask" item )" "$( AgentsToolsTaskTextValue "$rpTask" dispatch )" ; do
+		[ -z "$rpName" ] || rpNames="$rpNames${rpNames:+ · }\`$rpName\`"
+	done
+	rpTaskText="$( ASKP_F_task_title="$( AgentsToolsTaskTextValue "$rpTask" title )" ASKP_F_task_names="$rpNames" \
+		ASKP_F_task_text="$( AgentsToolsTaskTextValue "$rpTask" text )" AgentsReviewPromptFill block "Lines/task" 2> /dev/null )" || rpTaskText=""
+	## The session that handed back: its short id, its thread, and what its spawn said it is for.
+	for rpCandidate in "$MMDAPP/.local/agents/spawned"/*/"${rpSpawn:-none}.md" ; do
+		[ ! -f "$rpCandidate" ] || { rpRecord="$rpCandidate" ; break ; }
+	done
+	rpCow="$( [ -z "$rpRecord" ] || AgentsToolsSpawnSandboxRecordHeader "$rpRecord" session-id )"
+	if [ -n "$rpCow" ] ; then
+		rpThread="$( AgentsToolsSpawnSandboxRecordHeader "$rpRecord" session-thread )"
+		if [ -z "$rpThread" ] || [ "$rpThread" = "-" ] ; then
+			rpThread=""
+			[ ! -f "${rpRecord%/*}/session.thread" ] || IFS= read -r rpThread < "${rpRecord%/*}/session.thread" || :
+		fi
+		type AgentsToolsPermissionSetThreadShown > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.InternOpPermission.include"
+		rpSessionText="$( ASKP_F_session_id="${rpCow:0:8}" ASKP_F_session_thread="$( AgentsToolsPermissionSetThreadShown "$rpWho" "$rpThread" )" \
+			ASKP_F_session_description="$( AgentsToolsTaskTextLine "$( AgentsToolsSpawnSandboxRecordHeader "$rpRecord" description )" )" AgentsReviewPromptFill block "Lines/session" 2> /dev/null )" || rpSessionText=""
+	fi
+	rpOutcome="$( AgentsToolsTaskTextKept "$rpOutcome" )"
+	rpBody="$( ASKP_F_member="$rpWho" ASKP_F_task="$rpTaskText" ASKP_F_outcome="$rpOutcome" ASKP_F_session="$rpSessionText" AgentsReviewPromptFill post 2> /dev/null )" || rpBody=""
+	if [ -z "$rpBody" ] ; then
+		printf 'REVIEW-PROMPT: not asked: the prompt for %s could not be filled from its template\n' "$rpItem"
+		return 0
+	fi
+	rpOut="$( printf '%s\n' "$rpBody" | AgentsReviewTools --intern-op-comms-slack-send-message "$rpWho" human-owner --identity-bot --address-to human-owner --from-stdin 2>&1 )" || {
+		printf 'REVIEW-PROMPT: not asked: the prompt for %s could not be posted: %s\n' "$rpItem" "$( printf '%s\n' "$rpOut" | LC_ALL=C grep -m1 'ERROR' )"
+		return 0
+	}
+	rpChannel="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+	rpTs="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	rpAddressees="$( printf '%s\n' "$rpOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 )"
+	rpAsking="$( printf '%s\n' "$rpOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$agentsReviewLib/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || rpAsking=""
+	if [ -z "$rpChannel" ] || [ -z "$rpTs" ] || [ -z "$rpAddressees" ] ; then
+		printf 'REVIEW-PROMPT: posted for %s, but its thread or addressee could not be named, so its answer cannot be read\n' "$rpItem"
+		return 0
+	fi
+	## What the post was filled with is kept beside its record, so it is filled again once it takes no answer.
+	rpId="$( printf '%s\n' "$rpBody" | AgentsReviewTools --intern-op-pending-reply-open "$rpWho" --to "$rpChannel" ${rpSpawn:+--session-id "$rpSpawn"} \
+		--kind review --address-to human-owner --blocked-on "reply from human-owner" --channel "$rpChannel" --question-ts "$rpTs" --thread-ts "$rpTs" \
+		--addressees "$rpAddressees" ${rpAsking:+--asking-accounts " $rpAsking"} --item "$rpItem" --ask-identity bot \
+		--fields "$( AgentsToolsAskPostFieldsPack member "$rpWho" task "$rpTaskText" outcome "$rpOutcome" session "$rpSessionText" )" --context "${MDSC_CMD:-review}" 2> /dev/null )" || rpId=""
+	if [ -z "$rpId" ] ; then
+		printf 'REVIEW-PROMPT: posted for %s at %s:%s but not recorded, so its answer cannot be read\n' "$rpItem" "$rpChannel" "$rpTs"
+		return 0
+	fi
+	## Its click answers, the names its template gives (`# Reactions`), placed as the identity
+	## that posted it. They are never an answer themselves: only his own click is.
+	AgentsToolsAskPostReact "$rpWho" "$rpChannel:$rpTs" bot add $( AgentsReviewPromptFill reactions 2> /dev/null )
+	## The prompt joins the Wait of the session that handed back, where its answer arrives.
+	[ -z "$rpSpawn" ] || AgentsReviewTools --intern-op-wait-for-input "$rpWho" --wait-add --wait-session-id "$rpSpawn" --wait-source "ask:$rpId" > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the review prompt $rpId is asked, but it could not join the Wait of session $rpSpawn" >&2
+	printf 'REVIEW-PROMPT: asked human-owner %s\n' "$rpId"
+	printf 'WAIT-ID: ask:%s\n' "$rpId"
+	return 0
+}
+
+## The text of a review verdict, from the thread verdict it was read with
+## (AgentsToolsEscalationThreadVerdict): what follows the word in its reply, then each
+## clarification on it -- the rest of that reply and every later one; for a click, every
+## reply of the person in the thread. One line, its parts joined by " / ", as the lines of a
+## message are where a clarification is kept (AgentsPendingReplyClarifications.awk).
+AgentsReviewPromptText(){ ## thread verdict output
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '
+		NR == 1 { restAt = index( $1, " -- " ) ; if ( restAt > 0 ) { textAll = substr( $1, restAt + 4 ) ; } next ; }
+		$1 == "CLARIFY" { textOne = $0 ; sub( /^CLARIFY\t[^\t]*\t[^\t]*\t/, "", textOne ) ; textAll = textAll ( textAll == "" ? "" : " / " ) textOne ; }
+		END { if ( textAll != "" ) { print textAll ; } }'
+}
+
+## One open review prompt closed with no verdict of its own: its record withdrawn, with who
+## and why; its thread told (`# Notes` of the template); its post marked, its click answers
+## taken off and its How to answer part edited away (AgentsToolsAskPostClose). Nothing goes
+## on the item's Decisions: what settled the review is there already. Each step after the
+## close is best effort.
+AgentsReviewPromptClose(){ ## record file, pending id, who closes it, why
+	local pcFile="$1" pcId="$2" pcWho="$3" pcWhy="$4" pcOwner pcChannel pcTs pcNote
+	type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.AskPost.include"
+	AgentsReviewTools --intern-op-pending-reply-close "$pcId" --if-open --status withdrawn --withdrawn-by "$pcWho" --withdraw-reason "$pcWhy" \
+		--no-decision --context "${MDSC_CMD:-review}" > /dev/null 2>&1 || return 0
+	pcOwner="$( AgentsToolsDecisionsField "$pcFile" owner )"
+	pcChannel="$( AgentsToolsDecisionsField "$pcFile" channel )"
+	pcTs="$( AgentsToolsDecisionsField "$pcFile" question-ts )"
+	[ -n "$pcOwner" ] && [ -n "$pcChannel" ] && [ -n "$pcTs" ] || return 0
+	pcNote="$( ASKP_F_reason="$pcWhy" AgentsReviewPromptFill block "Notes/settled" 2> /dev/null )" || pcNote=""
+	[ -z "$pcNote" ] || printf '%s\n' "$pcNote" | AgentsReviewTools --intern-op-comms-slack-send-message "$pcOwner" "$pcChannel:$pcTs" --identity-bot --from-stdin > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the review prompt $pcId is closed, but its thread was not told" >&2
+	AgentsToolsAskPostClose "$pcFile" "$pcTs" cancelled edit
+	return 0
+}
+
+## The open review prompts of an item, closed once its review is settled another way: a
+## verdict a reviewer typed, or the item archived or trashed. None then goes on asking, and
+## none is reminded of. The prompt a verdict is being given from is not one of them
+## (MDAT_REVIEW_PROMPT_GIVING, set by AgentsReviewPromptVerdict). Never fails its caller.
+AgentsReviewPromptSettle(){ ## who settled it, item file name, what was done, in a word
+	local psWho="$1" psItem="${2%.md}" psWord="$3" psFile psId
+	[ -d "${MMDAPP:-/nonexistent}/.local/agents/pending" ] || return 0
+	while IFS= read -r psFile ; do
+		[ -f "$psFile" ] || continue
+		psId="${psFile##*/}" ; psId="${psId%.md}"
+		[ "$psId" != "${MDAT_REVIEW_PROMPT_GIVING:-}" ] || continue
+		[ "$( AgentsToolsDecisionsField "$psFile" kind )" = "review" ] && [ "$( AgentsToolsDecisionsField "$psFile" status )" = "reply-pending" ] || continue
+		AgentsReviewPromptClose "$psFile" "$psId" "$psWho" "$psItem was $psWord by $psWho" < /dev/null
+	done < <( LC_ALL=C grep -r -l -x -F --include='*.md' -- "item: $psItem" "$MMDAPP/.local/agents/pending" 2> /dev/null )
+	return 0
+}
+
+## A review prompt's verdict, given through the review flow as the reviewer's own typed
+## operation gives it, signed human-owner: who answered is the person the prompt was
+## addressed to. rc 0: given. rc 1, with the reason printed as one line (`# Returned` of the
+## template): not given -- a return or a reject with no text yet, one the review flow did not
+## take, or a review that is no longer open, whose prompt is then closed.
+AgentsReviewPromptVerdict(){ ## record file, pending id, verdict (accept|return|reject), its text (may be empty), answered by (his account, or his name)
+	local pvFile="$1" pvId="$2" pvVerdict="$3" pvText="${4:-}" pvBy="$5" pvItem pvPath pvState="" pvOut pvRc=0 pvWhy
+	type AgentsToolsPermissionIsHumanOwner > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.PermissionHolds.include"
+	pvItem="$( AgentsToolsDecisionsField "$pvFile" item )"
+	if ! AgentsToolsPermissionIsHumanOwner "$pvBy" ; then
+		ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="only the human-owner gives a verdict by this prompt" AgentsReviewPromptFill block "Returned/not-applied" || :
+		return 1
+	fi
+	pvBy="human-owner"
+	pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && pvState="$( AgentsReviewStateOfPath "$pvPath" )"
+	if [ "$pvState" != "review" ] ; then
+		pvWhy="the item is in ${pvState:-no board state}"
+		AgentsReviewPromptClose "$pvFile" "$pvId" tooling "$pvItem is no longer in review"
+		ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="$pvWhy" AgentsReviewPromptFill block "Returned/closed" || :
+		return 1
+	fi
+	case "$pvVerdict" in
+		accept) ;;
+		return|reject)
+			if [ -z "$pvText" ] ; then
+				ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" AgentsReviewPromptFill block "Returned/no-text" || :
+				return 1
+			fi
+		;;
+		*)
+			ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="it is no verdict of a review" AgentsReviewPromptFill block "Returned/not-applied" || :
+			return 1
+		;;
+	esac
+	pvOut="$( printf '%s' "$pvText" | MDAT_REVIEW_PROMPT_GIVING="$pvId" AgentsReviewTools "--intern-op-review-$pvVerdict" "$pvBy" "$pvItem" ${pvText:+--from-stdin} --context "${MDSC_CMD:-review}" 2>&1 )" || pvRc=$?
+	[ "$pvRc" != 0 ] || return 0
+	pvWhy="$( printf '%s\n' "$pvOut" | LC_ALL=C grep -m1 'ERROR' | LC_ALL=C sed 's/^.*ERROR: //' )" || pvWhy=""
+	[ -n "$pvWhy" ] || pvWhy="$( printf '%s\n' "$pvOut" | LC_ALL=C grep . | tail -1 )" || pvWhy=""
+	## A verdict the flow gave and could not finish -- a return it could not deliver -- has
+	## moved the item: it is given, and what was left undone is said.
+	if pvPath="$( AgentsToolsDecisionsItemPath "$pvItem" )" && [ "$( AgentsReviewStateOfPath "$pvPath" )" != "review" ] ; then
+		echo "⚠️ WARNING: ${MDSC_CMD:-review}: the $pvVerdict of $pvItem by $pvBy is given, but not finished: ${pvWhy:-the review operation failed (rc $pvRc)}" >&2
+		return 0
+	fi
+	ASKP_F_by="$pvBy" ASKP_F_verdict="$pvVerdict" ASKP_F_item="$pvItem" ASKP_F_reason="${pvWhy:-the review operation failed (rc $pvRc)}" AgentsReviewPromptFill block "Returned/not-applied" || :
+	return 1
+}
+
 ## The one entry of the review ops (AgentsTools.InternOpReview.include), by verb.
 AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismiss (yes|no)
 	local opVerb="$1" opWho="$2" opItem="${3%.md}" opNew="${4%.md}" opText="$5" opReason="$6" opSession="$7" opDismiss="${8:-yes}"
@@ -489,7 +724,10 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opSession="${opSession:-${MDAT_SPAWN_SESSION_ID:-}}"
 			[ -n "$opSession" ] || { echo "$MDSC_CMD: ⛔ ERROR: --session-id <spawn-id> is required, and this process has none" >&2 ; return 1 ; }
 			opItem="$( AgentsReviewItemOfSession "$opSession" )" || { printf 'REVIEW: nothing to move: session %s works no board item\n' "$opSession" ; return 0 ; }
-			AgentsReviewToReview "$opWho" "$opItem" handback handback "$opSession" "${opText:-}"
+			opOut="$( AgentsReviewToReview "$opWho" "$opItem" handback handback "$opSession" "${opText:-}" )" || :
+			[ -z "$opOut" ] || printf '%s\n' "$opOut"
+			## Moved into review now: a reviewer that is a person is asked, once, by a review prompt.
+			case "$opOut" in *' running->review '*) AgentsReviewPromptPost "$opWho" "$opItem" "$opSession" "${opText:-}" ;; esac
 			return 0
 		;;
 		request)
@@ -510,6 +748,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			printf '%s\n' "$opOut" | LC_ALL=C grep -v '^# ' || :
 			opWhy="$( printf '%s\n' "$opOut" | LC_ALL=C sed -n 's/^ACCEPT-DISMISS: //p' | head -1 )"
 			AgentsReviewRecord "$opWho" "$opItem" verdict "accepted${opText:+: $opText}${opWhy:+ (child: $opWhy)}" VERDICT ""
+			AgentsReviewPromptSettle "$opWho" "$opItem" accepted
 			printf 'VERDICT: %s accepted -> processed\n' "${opItem%.md}"
 			return 0
 		;;
@@ -522,6 +761,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 				return 1
 			}
 			AgentsReviewRecord "$opWho" "$opItem" verdict "returned: $opText" VERDICT ""
+			AgentsReviewPromptSettle "$opWho" "$opItem" returned
 			opPath="$( AgentsToolsDecisionsItemPath "$opItem" )" || return 1
 			opRecord="$( AgentsReviewChildRecord "$opPath" )" || opRecord=""
 			if [ -n "$opRecord" ] && AgentsReviewChildLive "$opRecord" > /dev/null ; then
@@ -548,6 +788,7 @@ AgentsReviewOp(){ ## verb, who, item, new item, text, reason, session id, dismis
 			opWhy="${opWhy#ACCEPT-DISMISS: }"
 			printf 'REJECT-DISMISS: %s\n' "$opWhy"
 			AgentsReviewRecord "$opWho" "$opItem" verdict "rejected: $opText (child: $opWhy)" VERDICT ""
+			AgentsReviewPromptSettle "$opWho" "$opItem" rejected
 			printf 'VERDICT: %s rejected -> pending\n' "${opItem%.md}"
 			return 0
 		;;

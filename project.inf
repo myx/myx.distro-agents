@@ -15,6 +15,7 @@ Declares: \
 	--magic-team:permissions:workspace:*:allow-tool:*:ConfirmReadback \
 	--magic-team:permissions:workspace:*:allow-tool:*:EscalateDecision \
 	--magic-team:permissions:workspace:*:allow-tool:*:RequestPermission \
+	--magic-team:permissions:workspace:*:allow-tool:*:ProposeApprove \
 	--magic-team:permissions:workspace:*:allow-tool:*:ToolSearch \
 	--magic-team:permissions:workspace:*:allow-tool:*:ListAgents \
 	--magic-team:permissions:workspace:*:allow-tool:*:TaskOutput \

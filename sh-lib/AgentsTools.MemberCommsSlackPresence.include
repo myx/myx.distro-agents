@@ -45,9 +45,9 @@ case "$1" in
 		AgentsToolsEmitRequestDetailHeader "$memberName" "<none>"
 
 		local presenceToken
-		presenceToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
+		presenceToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN 2>/dev/null )" || presenceToken=""
 		if [ -z "$presenceToken" ] ; then
-			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: no SLACK_USER_TOKEN for $memberName -- presence is held by a user identity and the shared bot cannot hold it (rtm.connect answers not_allowed_token_type for a bot token)" >&2
+			echo "$MDSC_CMD: presence-$presenceOp: ⛔ ERROR: no SLACK_USER_TOKEN for $memberName -- presence is held by a user identity and the shared bot cannot hold it (rtm.connect answers not_allowed_token_type for a bot token)$( AgentsToolsSlackSideNote "$memberName" )" >&2
 			set +e ; return 1
 		fi
 

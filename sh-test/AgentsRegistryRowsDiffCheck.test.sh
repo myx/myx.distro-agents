@@ -6,6 +6,9 @@
 ## with --live-copy-from <workspace>, over a copy of that workspace's own stores.
 ## The live stores are only read: each record is copied into this rig up to and
 ## including its closing `---`, all a row reads. Offline; the rig is a mktemp tree.
+## Holds how a run is recognised too (AgentsToolsRegistryRunningSpawns): by the value of its own
+## --session-id or --resume argument alone, matched whole, against a process list of this rig's
+## own -- a ps first on PATH lists the rig's runs only, so no process of the host is ever seen.
 ## Prints the time each side took per store.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -22,8 +25,32 @@ rigRefuse(){
 [ -f "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh" ] || rigRefuse "legacy rows fixture not found"
 rigTmp="$( mktemp -d -t AgentsRegistryRowsDiffCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-rigHolderPid=""
-trap '[ -z "$rigHolderPid" ] || kill "$rigHolderPid" 2>/dev/null ; chmod -R u+rwx "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+rwx "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own holder. So
+## the ps first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+mkdir -p "$rigTmp/bin"
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
+PATH="$rigTmp/bin:$PATH"
+export PATH
+[ "$( command -v ps )" = "$rigTmp/bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
 
 rigPassCount=0
 rigFailCount=0
@@ -177,9 +204,23 @@ rigRData="$rigTmp/render/data"
 rigRSp="$rigRWs/.local/agents/spawned"
 mkdir -p "$rigRSp" "$rigRWs/.local/agents/pending" "$rigRData/board/running" "$rigRData/board/blocked"
 rigRunSpawn="rig-spawn-running-$$"
-( exec -a "rig-holder $rigRunSpawn rig\\bs-$$ rig.star*-$$" sleep 600 ) &
-rigHolderPid=$!
-sleep 1
+## THE RUNS OF THIS STORE, as the command lines of the rig's process list. A run is its own
+## --session-id word, or its own --resume word; nothing else on a line is one.
+rigFounder="rig-founder-$$" ; rigResumed="rig-resumed-$$" ; rigForked="rig-forked-$$" ; rigForkedFrom="rig-forked-from-$$" ; rigQuoted="rig-quoted-$$"
+{
+	## a participant: its own id, with the session folder of the founding spawn in its paths and in its
+	## brief, and another run quoted there by the very words a launcher uses
+	printf '900001 claude --verbose --output-format stream-json --add-dir /rig/.local/agents/spawned/%s/input --session-id %s --agent rig-member Readable /rig/.local/agents/spawned/%s/input, and mind --session-id %s and %s too\n' "$rigFounder" "$rigRunSpawn" "$rigFounder" "$rigQuoted" "$rigFounder"
+	## a run resumed under its own id
+	printf '900002 claude --verbose --resume %s --agent rig-member go on\n' "$rigResumed"
+	## a run resumed from another session and forked under its own id
+	printf '900003 claude --resume %s --fork-session --session-id %s the brief\n' "$rigForkedFrom" "$rigForked"
+	## the spawn proxy of a member that joined the founding spawn's session: an operation of the tooling, no run
+	printf '900004 bash /rig/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --session-id %s\n' "$rigFounder"
+	## ids that hold a backslash and pattern characters, each as a run's own word
+	printf '900005 bash /rig/sh-lib/AgentsRigHarness.sh --session-id %s\n' "rig\\bs-$$"
+	printf '900006 bash /rig/sh-lib/AgentsRigHarness.sh --resume %s\n' "rig.star*-$$"
+} > "$rigTmp/ps.list"
 rigRec(){ ## sandbox, record, session-id, spawn-id, host, status
 	mkdir -p "$rigRSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\n---\n' "$3" "$4" "$5" "$6" > "$rigRSp/$1/$2.md"
@@ -187,31 +228,38 @@ rigRec(){ ## sandbox, record, session-id, spawn-id, host, status
 rigAsk(){ ## file, session-id, status
 	printf -- '---\nsession-id: %s\nstatus: %s\nowner: o\n---\n' "$2" "$3" > "$rigRWs/.local/agents/pending/$1.md"
 }
-rigRec r-finished-1 a s-fin p-fin "$rigHost" spawn-succeeded
-rigRec r-finished-2 a s-fin2 p-fin2 elsewhere spawn-failed
-rigRec r-finished-3 a s-open p-fin3 "$rigHost" spawn-ended-without-close
-rigRec r-foreign a s-open p-foreign elsewhere started
+## A spawn id that must have no process is this rig's own, as the live ones are.
+rigNo="rig-none-$$"
+rigRec r-finished-1 a s-fin "$rigNo-fin" "$rigHost" spawn-succeeded
+rigRec r-finished-2 a s-fin2 "$rigNo-fin2" elsewhere spawn-failed
+rigRec r-finished-3 a s-open "$rigNo-fin3" "$rigHost" spawn-ended-without-close
+rigRec r-foreign a s-open "$rigNo-foreign" elsewhere started
 rigRec r-running a s-run "$rigRunSpawn" "$rigHost" started
 rigRec r-run-prefix a s-x "rig-spawn-running" "$rigHost" started
 rigRec r-run-backslash a s-x "rig\\bs-$$" "$rigHost" started
 rigRec r-run-meta a s-x "rig.star*-$$" "$rigHost" started
 rigRec r-run-meta-miss a s-x "rig.sta?-$$" "$rigHost" started
+rigRec r-founder a "$rigFounder" "$rigFounder" "$rigHost" started
+rigRec r-resumed a s-x "$rigResumed" "$rigHost" started
+rigRec r-forked a s-x "$rigForked" "$rigHost" started
+rigRec r-forked-from a s-x "$rigForkedFrom" "$rigHost" started
+rigRec r-quoted a s-x "$rigQuoted" "$rigHost" started
 rigRec r-nospawn a s-open - "$rigHost" started
-rigRec r-nohost a s-open p-nohost - started
-rigRec r-open-ask a s-open p-open "$rigHost" started
-rigRec r-open-ask b s-open p-open-b "$rigHost" started
-rigRec r-closed-ask a s-closed p-closed "$rigHost" started
-rigRec r-board a s-board p-board "$rigHost" started
-rigRec r-board-cleared a s-board-cleared p-board-cleared "$rigHost" started
-rigRec r-numeric a 100 p-num "$rigHost" started
-rigRec r-hex a 16 p-hex "$rigHost" started
-rigRec r-numeric-miss a 101 p-num-miss "$rigHost" started
-rigRec r-backslash a 'bs\x' p-bs "$rigHost" started
-rigRec r-backslash-n a 'bs\n' p-bsn "$rigHost" started
-rigRec r-dash a - p-dash "$rigHost" started
-rigRec r-nosession a "" p-nosession "$rigHost" started
-rigRec "r space tracking" a s-open p-space "$rigHost" started
-rigRec r-prefix a s-ope p-prefix "$rigHost" started
+rigRec r-nohost a s-open "$rigNo-nohost" - started
+rigRec r-open-ask a s-open "$rigNo-open" "$rigHost" started
+rigRec r-open-ask b s-open "$rigNo-open-b" "$rigHost" started
+rigRec r-closed-ask a s-closed "$rigNo-closed" "$rigHost" started
+rigRec r-board a s-board "$rigNo-board" "$rigHost" started
+rigRec r-board-cleared a s-board-cleared "$rigNo-board-cleared" "$rigHost" started
+rigRec r-numeric a 100 "$rigNo-num" "$rigHost" started
+rigRec r-hex a 16 "$rigNo-hex" "$rigHost" started
+rigRec r-numeric-miss a 101 "$rigNo-num-miss" "$rigHost" started
+rigRec r-backslash a 'bs\x' "$rigNo-bs" "$rigHost" started
+rigRec r-backslash-n a 'bs\n' "$rigNo-bsn" "$rigHost" started
+rigRec r-dash a - "$rigNo-dash" "$rigHost" started
+rigRec r-nosession a "" "$rigNo-nosession" "$rigHost" started
+rigRec "r space tracking" a s-open "$rigNo-space" "$rigHost" started
+rigRec r-prefix a s-ope "$rigNo-prefix" "$rigHost" started
 mkdir -p "$rigRSp/r-empty"
 rigAsk ask-open s-open reply-pending
 rigAsk ask-closed s-closed received
@@ -236,7 +284,13 @@ rigAssert "a live spawn is running" "$( rigStateOf r-running )" running
 rigLiveOf(){ ## tracking name -- the live column of its first row
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking && NF == 13 { print $12 ; exit ; }' "$rigRenderOut"
 }
-rigAssert "a spawn id found inside a longer process argument is running" "$( rigLiveOf r-run-prefix )" running
+rigAssert "a live run is running by its own --session-id word, whatever else is on its line" "$( rigLiveOf r-running )" running
+rigAssert "and by its own --resume word" "$( rigLiveOf r-resumed ):$( rigStateOf r-resumed )" "running:running"
+rigAssert "a run resumed from another session and forked is running under its own id, and the session it forks from is not" "$( rigLiveOf r-forked ):$( rigLiveOf r-forked-from )" "running:no-process"
+rigAssert "a founding spawn whose process is gone is not running, though another participant's command line holds its session folder path, and a joiner's spawn proxy names its session" \
+	"$( rigLiveOf r-founder ):$( rigStateOf r-founder ):$( LC_ALL=C grep -c -F -- "spawned/$rigFounder/input" "$rigTmp/ps.list" ):$( LC_ALL=C grep -c -F -- "--intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --session-id $rigFounder" "$rigTmp/ps.list" )" "no-process:unclosed:1:1"
+rigAssert "an id quoted in another run's brief, even after the words --session-id, is no run" "$( rigLiveOf r-quoted )" no-process
+rigAssert "the value is matched whole: a spawn id that is only the start of a longer one is no run" "$( rigLiveOf r-run-prefix )" no-process
 rigAssert "a spawn id with a backslash is matched literally" "$( rigLiveOf r-run-backslash )" running
 rigAssert "a spawn id with pattern characters is matched literally" "$( rigLiveOf r-run-meta )" running
 rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss )" no-process
@@ -246,7 +300,7 @@ rigAssert "a blocked board item makes waiting" "$( rigStateOf r-board )" waiting
 rigAssert "awk's numeric == holds: 100 against an ask for 1e2" "$( rigStateOf r-numeric )" waiting
 rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$rigHere/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
-{ kill "$rigHolderPid" ; wait "$rigHolderPid" ; } 2>/dev/null ; rigHolderPid=""
+: > "$rigTmp/ps.list"
 
 ## --- a copy of a live workspace's stores ---
 if [ -n "$rigLiveFrom" ] ; then
@@ -280,9 +334,8 @@ if [ -n "$rigLiveFrom" ] ; then
 		done
 	fi
 	rigCompare "live copy of $rigLiveFrom" "$rigLiveWs" "$rigLiveData"
-	## The copy keeps the live hosts, so this host's rows are measured against this
-	## host's own process list: a spawn starting or ending between the two sides of
-	## one shape would show as a difference, and is the one way this can be noisy.
+	## The copy keeps the live hosts, and this host's rows are measured against the rig's
+	## own process list, empty by now: none of them is running, on either side.
 	rigRenderCompare "live copy of $rigLiveFrom" "$rigLiveWs" "$rigLiveData" "$( LC_ALL=C awk 'NF >= 2 && $2 != "-" { print $2 ; exit ; }' "$rigTmp/out.SpawnedSessions.new" 2>/dev/null )"
 fi
 

@@ -25,11 +25,17 @@ if ! type AgentsToolsAskToolRow > /dev/null 2>&1 ; then
 	## parameter, and its template is only the skeleton of its post, which shows every field
 	## whatever the kind -- the title, the options, the answer lines and the emoji are those of
 	## the template of the call's kind. A further tool is one more row here and one more
-	## template beside the others.
+	## template beside the others. A proposal's template also holds the root its thread opens
+	## with (`## root`): its post is the reply under that root.
+	## A row with no name is a kind no tool asks: a post the tooling makes itself -- the review
+	## prompt of a handback (AgentsTools.ReviewFlow.include) -- named here so its record is
+	## filled again as any other is.
 	agentsAskTools="AskQuestion|question|ask-question.post.format.md||question options select readback understood
 ConfirmReadback|readback|confirm-readback.post.format.md|confirm|question understood source will_do
 EscalateDecision|decision|escalate-decision.post.format.md|one|question options readback understood
 RequestPermission|permission|request-permission.post.format.md|grant|question refusal_id reason task_ref
+ProposeApprove|proposal|propose-approve.post.format.md|approve|question proposal document task_ref
+|review|review-prompt.post.format.md|verdict|
 AskUserQuestion||ask-user-question.post.format.md||*"
 	## The parameters every one of them takes.
 	agentsAskCommonArgs="to address_to context wait timeout wait_source as_bot pending_id withdraw revise description"
@@ -117,8 +123,18 @@ AskUserQuestion||ask-user-question.post.format.md||*"
 	## again, changed, what its first post was filled with is kept aside (`<id>.first.fields`,
 	## `<id>.first.options`, `first-select`), since that post never changes with it. rc 3 when
 	## the record keeps no slots (a question asked before they were kept) or names no template.
+	## A permission set request keeps no slots: its post is filled again from its own record,
+	## the `<id>.set` beside it, by its own template (AgentsToolsPermissionSetRecordFill,
+	## AgentsTools.InternOpPermission.include), and is never asked again, changed.
 	AgentsToolsAskPostRecordFill(){ ## want (post|closed|reactions|block), record file, optional block `<Section>/<heading>`, optional revised (1: its title carries the revised mark, 0: never; default: when the record has a revision), optional version (first)
 		local fillBase="${2%.md}" fillSelectField="select"
+		if [ -f "$fillBase.set" ] && [ "$( AgentsToolsAskPostField "$2" kind )" = "permission-set" ] ; then
+			(
+				type AgentsToolsPermissionSetRecordFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include" || exit 3
+				AgentsToolsPermissionSetRecordFill "$1" "$2" "${3:-}"
+			)
+			return
+		fi
 		if [ "${5:-}" = "first" ] && [ -f "$fillBase.first.fields" ] ; then
 			fillBase="$fillBase.first" ; fillSelectField="first-select"
 		fi

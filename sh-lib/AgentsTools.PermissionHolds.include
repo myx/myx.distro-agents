@@ -25,6 +25,9 @@
 ##   set, planned, passed, granted -- (c), (d), (e): grants of a session or a task in the
 ##                session store (AgentsToolsPermissionGrantScan), never `once` ones.
 ##
+## A routine's allow and a session or task grant to Edit or Write a path read it too -- Read,
+## Grep and Glob, never the other way (AgentsToolsGrantsToolCovers, AgentsTools.Grants.include).
+##
 ## cred and spend are held by the human-owner only, unless a session or task grant, or the
 ## allows of a routine the human-owner maintains, names them: no floor or standing layer
 ## ever does.
@@ -33,7 +36,7 @@
 ##
 
 ## THE TEAM FLOOR'S TOOLS: the one place they are named.
-agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
+agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQuestion AskQuestion ConfirmReadback EscalateDecision RequestPermission ProposeApprove ToolSearch ListAgents TaskOutput TaskStop Monitor PushNotification SessionTranscriptAppend ReportFindings ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool "
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "
@@ -220,11 +223,17 @@ AgentsToolsPermissionOnceLive(){ ## grant time
 ## A grant answering a refusal matches its exact target; a passed or set grant matches by
 ## AgentsToolsPermissionCovers. Every grant is the member's own (its record's owner),
 ## signed by someone else; a task grant lives while its item is open, a session grant while
-## its store's session runs, and none once revoked.
-AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, use|hold, store a once is used up in (default: the session dir)
+## its store's session runs, and none once revoked. A session or task grant to Edit or Write
+## speaks for a read of its target too (AgentsToolsGrantsToolCovers); a once for its own tool.
+## item-runs: the store is one of the member's other runs on the same board item, read for its
+## session grants, which end as the caller checked (AgentsToolsPermissionItemRunsScan), not
+## with that run, and for its task grants. item-runs-task: for its task grants alone, what
+## those runs share for the session having ended.
+AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, use|hold|item-runs|item-runs-task, store a once is used up in (default: the session dir)
 	local scanDir="$1" scanMember="$2" scanTool="$3" scanWant="$4" scanMode="$5" scanConsumed="${6:-$1}"
 	local scanEntry scanKind scanRest scanEntryTool scanEntryTarget scanBy scanTime scanRef scanWantEsc scanTask
 	[ -f "$scanDir/grants" ] || return 1
+	type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
 	scanWantEsc="$( AgentsToolsPermissionEscape "$scanWant" )"
 	while IFS= read -r scanEntry ; do
 		scanKind="${scanEntry%%:*}" ; scanRest="${scanEntry#*:}"
@@ -233,7 +242,7 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 		scanBy="${scanRest%%:*}" ; scanRest="${scanRest#*:}"
 		scanTime="${scanRest%%:*}"
 		scanRef="${scanRest#*:}"
-		[ "$scanEntryTool" = "$scanTool" ] || continue
+		AgentsToolsGrantsToolCovers "$scanEntryTool" "$scanTool" || continue
 		[ -n "$scanBy" ] && [ "$scanBy" != "$scanMember" ] || continue
 		case "$scanRef" in
 			''|*/*|.|..) continue ;;
@@ -249,11 +258,14 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 		case "$scanKind" in
 			session)
 				## A session grant ends with the session whose store holds it.
-				type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
-				! AgentsToolsGrantsSessionEnded "$scanDir" || continue
+				[ "$scanMode" != "item-runs-task" ] || continue
+				if [ "$scanMode" != "item-runs" ] ; then
+					type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+					! AgentsToolsGrantsSessionEnded "$scanDir" || continue
+				fi
 			;;
 			once)
-				[ "$scanMode" = "use" ] || continue
+				[ "$scanMode" = "use" ] && [ "$scanEntryTool" = "$scanTool" ] || continue
 				[ ! -d "$scanConsumed/consumed/$scanRef" ] || continue
 				AgentsToolsPermissionOnceLive "$scanTime" || continue
 			;;
@@ -267,6 +279,27 @@ AgentsToolsPermissionGrantScan(){ ## session dir, member, tool, natural target, 
 		printf '%s %s\n' "$scanKind" "$scanRef"
 		return 0
 	done < "$scanDir/grants"
+	return 1
+}
+
+## The first live session or task grant a member holds through another run of its own on the
+## same board item in the same coworking session, printed as "<kind> <ref>": a review return or
+## a resume starts the run again under a new id. What was allowed it for the session holds
+## until the item is closed or that session ends (AgentsToolsGrantsItemRuns); what was allowed
+## it for a task holds while the item that grant names is open, as in the run it was given to.
+## rc 1 for none.
+AgentsToolsPermissionItemRunsScan(){ ## member, tool, natural target, session id
+	local runsDir runsFound runsMode=item-runs
+	[ -n "$1" ] && [ -n "$4" ] && [ -n "${MMDAPP:-}" ] || return 1
+	type AgentsToolsGrantsItemRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+	AgentsToolsGrantsItemRuns "${MMDAPP%/}" "$4" "$1" || return 1
+	AgentsToolsGrantsItemRunsLive "$agentsGrantsItemRunsItem" "$agentsGrantsItemRunsSession" || runsMode=item-runs-task
+	while IFS= read -r runsDir ; do
+		[ -n "$runsDir" ] || continue
+		runsFound="$( AgentsToolsPermissionGrantScan "$runsDir" "$1" "$2" "$3" "$runsMode" )" || continue
+		printf '%s\n' "$runsFound"
+		return 0
+	done <<< "$agentsGrantsItemRunsStores"
 	return 1
 }
 
@@ -318,6 +351,7 @@ AgentsToolsPermissionSessionRoutine(){ ## session id
 ## only with all its maintainers agreeing, so its allows count as approved by them: with
 ## human-owner among them every entry stands; without, a cred or spend entry is ignored and
 ## any other is honoured only when one maintainer holds it, else ignored, said on stderr.
+## An entry to Edit or Write a path reads it too (AgentsToolsGrantsToolCovers).
 ## Prints "routine <routine-name>" and returns 0, or returns 1.
 AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 	local rhMember="$1" rhTool="$2" rhWant="$3" rhSession="$4" rhRoutine rhFile="" rhMember2 rhDir rhLine
@@ -327,6 +361,7 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 	[ -n "$rhRoutine" ] || return 1
 	## The routine file by its exact name, in every member's folder.
 	type AgentsToolsTeamMemberDirectoryText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	type AgentsToolsGrantsToolCovers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
 	while IFS=$'\t' read -r rhMember2 rhDir ; do
 		[ -n "$rhDir" ] && [ -f "$rhDir/$rhRoutine" ] || continue
 		rhFile="$rhDir/$rhRoutine"
@@ -352,7 +387,7 @@ AgentsToolsPermissionRoutineHolds(){ ## member, tool, natural target, session id
 		rhWho="${rhEntry%%:*}" ; rhRest="${rhEntry#*:}"
 		rhEntryTool="${rhRest%%:*}" ; rhEntryTarget=""
 		case "$rhRest" in *:*) rhEntryTarget="$( AgentsToolsPermissionUnescape "${rhRest#*:}" )" ;; esac
-		[ "$rhEntryTool" = "$rhTool" ] || continue
+		AgentsToolsGrantsToolCovers "$rhEntryTool" "$rhTool" || continue
 		## A relative path is the workspace's.
 		case "$agentsPermissionFileTools" in
 			*" $rhEntryTool "*)
@@ -491,6 +526,12 @@ AgentsToolsPermissionHolds(){ ## member, tool, natural target, session id (optio
 		printf ' %s' "$holdFound"
 		return 0
 	done <<< "$( AgentsToolsPermissionRelatedStores "$holdSession" )"
+	## The session and task grants of its other runs on the same board item, which a restart keeps.
+	if holdFound="$( AgentsToolsPermissionItemRunsScan "$holdMember" "$holdTool" "$holdTarget" "$holdSession" )" ; then
+		AgentsToolsPermissionGrantLayer "${holdFound#* }"
+		printf ' %s' "$holdFound"
+		return 0
+	fi
 	return 1
 }
 

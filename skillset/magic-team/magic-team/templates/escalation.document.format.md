@@ -1,11 +1,11 @@
 ---
 maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, human-owner]
 ---
-# escalation ask — `ConfirmReadback`, `EscalateDecision` and `RequestPermission` format
+# escalation ask — `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` format
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the shape of one escalation ask: a `ConfirmReadback`, `EscalateDecision` or `RequestPermission` call. The member passes the fields, and the tooling composes the message.
+Not a member/routine contract — this is the shape of one escalation ask: a `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove` call. The member passes the fields, and the tooling composes the message.
 
 ## Contents
 
@@ -64,6 +64,15 @@ entries: <tool:target, one per extra no participant holds>
 verdicts: allow-set | deny | edit   <- edit also returns the change
 ```
 
+```
+kind: proposal                      <- asked only by magic-coordinator, with ProposeApprove
+question: <the question the proposal answers, posted once as the root, with no tooling emoji>
+proposal: <the proposed form and its tight reasoning, as the thread reply>
+document: <absolute link to the proposal document — required>
+task_ref: <the tracking item, if any>
+verdicts: approved | rejected       <- the owner's own mark on the root, or a reply starting with the word; any other reply returns RETURNED and revise re-posts the changed proposal reply under the same root
+```
+
 # Contract
 
 - rule: Every field the kind names is filled. A missing field, or an unknown kind, posts nothing.
@@ -78,5 +87,5 @@ verdicts: allow-set | deny | edit   <- edit also returns the change
 - rule: A `permission-set` ask carries the extras of a task's or session's permission set as ONE ask to the human-owner. `allow-set` grants them to every participant for that scope and records the set on the item's `## Decisions`; a `task` set also becomes the item's `allows`.
 - rule: `deny` is a verdict. That part of the task is reported as denied and still open.
 - rule: No answer is not a verdict. The ask stays open.
-- rule: The member asks with the wait on and reads the verdict from `ConfirmReadback`, `EscalateDecision` or `RequestPermission` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.
+- rule: The member asks with the wait on and reads the verdict from `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.
 - rule: `magic-coordinator`, as the addressee, may forward the ask to the human-owner with `--magic-escalation-forward <coordinator> <request-id>`. His reply is the verdict for the original ask, and the record stays the same one.

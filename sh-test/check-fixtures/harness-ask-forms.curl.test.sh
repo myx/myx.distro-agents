@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 ## Slack-shaped fake curl for AgentsHarnessAskFormsCheck.test.sh. Logs each method, keeps each
 ## posted body, each reaction placed or taken off, each edit and each delete, and answers
-## from the scenario directory. Opens no socket.
+## from the scenario directory. Keeps each call with the token it was made under. Opens no socket.
 set -u
-cat > /dev/null
+## The token arrives on stdin, as the call's Authorization header.
+rigHeader="$( cat )"
+rigToken="${rigHeader#Authorization: Bearer }"
 rigMethod="no-method"
 rigBody=""
 rigTs=""
@@ -24,9 +26,12 @@ for rigArg in "$@" ; do
 done
 printf '%s\n' "$rigMethod" >> "$RIG_CURL_LOG"
 [ -n "${RIG_SCENARIO:-}" ] || { printf '{"ok":false,"error":"rig_no_scenario"}\n' ; exit 0 ; }
+## Each call as "<method> <token>", a reaction with its post and its name after them.
+printf '%s %s%s\n' "$rigMethod" "$rigToken" "${rigReactName:+ $rigReactTs $rigReactName}" >> "$RIG_SCENARIO/calls"
 case "$rigMethod" in
 	auth.test)
-		printf '{"ok":true,"user_id":"URIGSELF1"}\n'
+		## A scenario can give one token an account of its own: its user id, in account.<token>.
+		printf '{"ok":true,"user_id":"%s"}\n' "$( cat "$RIG_SCENARIO/account.$rigToken" 2>/dev/null || printf 'URIGSELF1' )"
 	;;
 	chat.postMessage)
 		## A scenario can have every post holding one text refused, permanently.
@@ -37,6 +42,8 @@ case "$rigMethod" in
 		rigPost=$(( $( cat "$RIG_SCENARIO/posts" 2>/dev/null || echo 0 ) + 1 ))
 		printf '%s' "$rigPost" > "$RIG_SCENARIO/posts"
 		[ -z "$rigBody" ] || cp "$rigBody" "$RIG_SCENARIO/post.$rigPost"
+		## The token that post went out under, beside it.
+		printf '%s' "$rigToken" > "$RIG_SCENARIO/posted-as.$rigPost"
 		rigThread="$( sed -n 's/.*"thread_ts":"\([0-9.]*\)".*/\1/p' "$rigBody" 2>/dev/null | head -1 )"
 		## The n-th post is 1700000001.000n01, so a scenario can place a reply between two posts.
 		printf '{"ok":true,"channel":"CRIG00001","ts":"1700000001.000%s01","message":{"ts":"1700000001.000%s01","user":"URIGSELF1"%s}}\n' \

@@ -166,7 +166,8 @@ AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
 		printf 'DUPLICATE\t%s\t%s\t%s\n' "$dupId" "$dupOwner" "$dupSession"
 		return 0
 	fi
-	case "$findTo" in
+	## Whether <to> names a thread is read past a client: marker (AgentsTools.CommsSlack.include).
+	case "${findTo#client:}" in
 		*:*|*.routine) ;;
 		*)
 			if [ -n "$sameId" ] ; then
@@ -199,7 +200,7 @@ AgentsToolsAskThreadRootTag(){ ## channel or to, thread ts
 			esac
 		done < "$rootFile"
 		## Only a question that opened this thread: one asked into it names a thread as its <to>.
-		case "$rootTo" in *:*|'') continue ;; esac
+		case "${rootTo#client:}" in *:*|'') continue ;; esac
 		[ "$rootChannel" = "$rootWhere" ] || [ "$rootTo" = "$rootWhere" ] || continue
 		printf '%s\n' "$rootTag"
 		return 0

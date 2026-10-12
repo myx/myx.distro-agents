@@ -35,7 +35,7 @@ Always written `board-<state>`.
   - Clean → `board-processed`; or `board-blocked` awaiting the human-owner's sign-off where the work needs it.
   - Concerns → an investigation `task-*`, `spawned-by` the parent, ending as **escalate** or **solve**; after a fix the round repeats.
 - **`board-review`** — a handback arrived, or the child ended with no verdict; it awaits its reviewer, named in `review-by` (`human-owner`, a member, a session, `<session-id>:<member>`, or a routine such as `grooming.routine`). The reviewer applies `magic-team.handback-review.routine`: accept (→ `board-processed`), return (→ `board-running`, the same session), reject (→ `board-pending`, for a fresh session), follow-up, or a combination. `magic-coordinator` reviews when `review-by` is itself or empty.
-  - Planned, not built: entering this state fires one notice, once, to whoever `review-by` names.
+  - Built for `human-owner`: entering this state posts him one review prompt, once. 👍 accepts, ↩️ returns, ❌ rejects; a reply starting `accept`, `return` or `reject` does the same, a return or a reject carrying his words on what to change. A review settled another way closes the open prompt. Every other `review-by` still posts no prompt.
 - **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item.
 - **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done; a recheck only asks whether the condition has arrived.
 - **`board-processed`** — resolved: completed or denied. The resolution is written into the item. An ignored item is removed instead.

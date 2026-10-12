@@ -490,6 +490,12 @@ case "$1" in
 		shift
 		local artCmd="$MDSC_CMD --intern-artifact-publish" artMember="${1:-}" artTitle="" artDocument="" artKind="" artSession="" artFiles="" artFile artName artNames=" " artType artCode="" artTypeName=""
 		shift || :
+		## A client-* member's document goes to the place its own settings name, which are the
+		## other organisation's: the client side (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include),
+		## as it has always been published. Which side a client's document belongs on is not ruled.
+		case "$artMember" in
+			client-*) local -x MDAT_COMMS_SIDE=client ;;
+		esac
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--title|--document|--kind|--file|--session-id)

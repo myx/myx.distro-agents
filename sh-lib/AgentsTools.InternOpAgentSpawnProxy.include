@@ -444,31 +444,39 @@ case "$1" in
 		## are this one's. A member set up only in another workspace on this machine is
 		## invited: it reads its own skillset from there (AgentsToolsMemberSkillsetBring), and
 		## the spawn stops only when that part cannot be brought, with the message that names
-		## what is missing and where it was looked for. A client-* member is the one exception, kept exactly as
-		## it was until it is ruled on: its session starts in the workspace that holds it.
-		type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
-		local spawnWorkspace="$MMDAPP"
+		## what is missing and where it was looked for. A client-* member is invited like any other.
+		type AgentsToolsMemberSkillsetBring > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 		case "$callerName" in
 			'') ;;
-			client-*)
-				spawnWorkspace="$( AgentsToolsMemberWorkspaceResolve "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
-				[ -n "$spawnWorkspace" ] || spawnWorkspace="$MMDAPP"
-			;;
 			*)
-				## An invited member, set up only in another workspace on this machine: its session starts here, on this workspace's settings, and reads its skillset from the workspace it is set up in. The root holds for the rest of this spawn and for the session it starts.
+				## An invited member, set up only in another workspace on this machine: its session starts here, on this workspace's settings, and reads its skillset from the workspace it is set up in, and those of its own settings this workspace holds none of. The root holds for the rest of this spawn and for the session it starts.
 				local spawnBrought
 				spawnBrought="$( AgentsToolsMemberSkillsetBring "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
 				[ -z "$spawnBrought" ] || local -x MDAT_SKILLSET_ROOT="${spawnBrought%%$'\t'*}"
+				## Said once for this spawn: which of its own settings are read from the workspace it is set up in.
+				[ -z "$spawnBrought" ] || AgentsToolsMemberSettingsBorrowedSay "$callerName" "--intern-op-agent-spawn-proxy" "${spawnBrought#*$'\t'}"
 			;;
+		esac
+		## THE THREE WORKSPACES OF THIS RUN, each kept on its records and said in its start post,
+		## below: which EXECUTES it, where its console starts and its operations run; which PAYS
+		## for it, whose CLI service and credentials it is started with; and the MEMBER'S, where
+		## the member is set up and its skillset is read from.
+		local spawnMemberWorkspace="$MMDAPP" spawnPayingWorkspace="$MMDAPP"
+		case "$callerName" in
+			'') ;;
+			*) [ -z "$spawnBrought" ] || spawnMemberWorkspace="${spawnBrought#*$'\t'}" ;;
 		esac
 		## The session reads the member set root of the workspace it starts in, never this one's own view.
 		type AgentsToolsWorkspaceSkillsetRoot > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 		local spawnSkillsetRoot
-		spawnSkillsetRoot="$( AgentsToolsWorkspaceSkillsetRoot "$spawnWorkspace" )"
+		spawnSkillsetRoot="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )"
 		local contextFromFile="false" waitMode="false" spawnContext=""
 		## Which agent CLI this one spawn runs on. Empty means the workspace setting
 		## decides, which is what every caller got before this option existed.
 		local spawnCliService=""
+		## Which workspace this one spawn's CLI and credentials are read from, by its name. Empty
+		## means the member's own setting, else the workspace's, decides (PAYS, below).
+		local spawnSettingsWorkspace=""
 		local fromBoardName="" fromVaultName="" fromAuditName="" fromFilePath=""
 		local sourceMode="stdin"
 		local boardStates=()
@@ -648,6 +656,16 @@ case "$1" in
 					spawnCliService="$2"
 					shift 2
 				;;
+				## Named as the setting it overrides for this one spawn, SPAWN_SETTINGS_WORKSPACE,
+				## the way --spawn-cli-service is. Looked up below, with the setting.
+				--spawn-settings-workspace)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-settings-workspace requires <workspace-name>" >&2
+						set +e ; return 1
+					fi
+					spawnSettingsWorkspace="$2"
+					shift 2
+				;;
 				--tracking-name)
 					if [ -z "${2:-}" ] ; then
 						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --tracking-name requires <tracking-name>" >&2
@@ -722,6 +740,25 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: MDAT_DATA_ROOT is not set" >&2
 			set +e ; return 1
 		}
+
+		## PAYS. The CLI this spawn starts on and the credentials it is started with are spawn
+		## settings, read from the workspace its console runs in unless another workspace known
+		## on this machine is named to pay (AgentsTools.MemberWorkspace.include, SPAWN SETTINGS):
+		## for this one spawn by --spawn-settings-workspace, else for this member by
+		## SPAWN_SETTINGS_WORKSPACE in its own scope, else for every spawn by the same key in the
+		## magic-team scope, which the option reader follows by itself. Settled here, before
+		## anything is created, and exported for the rest of this spawn, so its brief, its start
+		## post, its console and its handback retry all read one workspace's. Never taken over
+		## from the session this spawn is made from: that session's own spawn settled its own.
+		local -x MDAT_SPAWN_SETTINGS_WORKSPACE=""
+		MDAT_SPAWN_SETTINGS_WORKSPACE="$( AgentsToolsSpawnSettingsSettle "$callerName" "$spawnSettingsWorkspace" agent-spawn-proxy )" || { set +e ; return 1 ; }
+		spawnPayingWorkspace="$(
+			AgentsToolsSpawnSettingsWorkspace
+		)" || {
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: the workspace that pays for this spawn of $callerName could not be settled -- nothing was started" >&2
+			set +e ; return 1
+		}
+		[ -n "$spawnPayingWorkspace" ] || spawnPayingWorkspace="$MMDAPP"
 
 		## Resolved before anything else runs, so a bad --session-id fails before any
 		## dispatch item, sandbox or post is created -- never a silent new session.
@@ -826,6 +863,7 @@ case "$1" in
 				routineBriefArgs+=( --routine "$routineSelector" )
 			fi
 			[ -z "$spawnCliService" ] || routineBriefArgs+=( --cli-service "$spawnCliService" )
+			[ -z "$spawnSettingsWorkspace" ] || routineBriefArgs+=( --settings-workspace "$spawnSettingsWorkspace" )
 			local routineBriefBlock
 			routineBriefBlock="$( DistroAgentsTools "${routineBriefArgs[@]}" --context "$opContext" )" || { set +e ; return 1 ; }
 			spawnContext="$( printf '%s\n\n%s\n' "$routineBriefBlock" "$spawnContext" )"
@@ -887,8 +925,8 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: empty spawn context" >&2
 			set +e ; return 1
 		fi
-		if [ ! -x "$spawnWorkspace/DistroAgentsConsole.sh" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: DistroAgentsConsole.sh is not executable at $spawnWorkspace" >&2
+		if [ ! -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: DistroAgentsConsole.sh is not executable at $MMDAPP" >&2
 			set +e ; return 1
 		fi
 
@@ -903,9 +941,9 @@ case "$1" in
 			## the vintage guard above exists to refuse, reached by a different door.
 			## So the arm this spawn is about to use is checked, not assumed from the
 			## other one being present.
-			if ! grep -q -- '--cli)' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null ; then
+			if ! grep -q -- '--cli)' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
 				echo "SETUP_STATUS=console-stale"
-				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service $spawnCliService was asked for, but $spawnWorkspace/DistroAgentsConsole.sh carries no --cli arm, so the service could not be selected and this spawn would have run the console's own default while reporting success. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+				echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --spawn-cli-service $spawnCliService was asked for, but $MMDAPP/DistroAgentsConsole.sh carries no --cli arm, so the service could not be selected and this spawn would have run the console's own default while reporting success. Regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 				set +e ; return 1
 			fi
 			spawnCliArgs=( --cli "$spawnCliService" )
@@ -937,9 +975,9 @@ case "$1" in
 		## console's VINTAGE, not what selects the mode. Dropping it because the
 		## command line changed would retire the guard silently, which is the shape
 		## of breakage nothing reports.
-		if ! grep -q 'cli-configured' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$spawnWorkspace/DistroAgentsConsole.sh" 2>/dev/null ; then
+		if ! grep -q 'cli-configured' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null || ! grep -q 'MDAT_SPAWN_LAUNCH_MARKER' "$MMDAPP/DistroAgentsConsole.sh" 2>/dev/null ; then
 			echo "SETUP_STATUS=console-stale"
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $spawnWorkspace/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: $MMDAPP/DistroAgentsConsole.sh predates --cli-configured or MDAT_SPAWN_LAUNCH_MARKER, so a configured spawn cannot be started here, or its launch could not be told apart from a silent no-op. Spawn an internal agent instead, or regenerate it with: $MMDAPP/.local/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh --make-console-command" >&2
 			set +e ; return 1
 		fi
 
@@ -1048,6 +1086,18 @@ case "$1" in
 		spawnDescriptionKept="$( AgentsToolsTaskTextKept "$spawnDescription" )"
 		sessionCommentKept="$( AgentsToolsTaskTextKept "$sessionNameOrComment" )"
 
+		## The three workspaces of this run as its records keep them: each by its basename, never
+		## a path, the convention of the record's own `workspace`. ALWAYS written, also where all
+		## three are one: a record then answers each question by itself, a reader needs no rule
+		## for what a missing line means, and a record written before they were kept reads as
+		## not recorded, never as "the same". The start post, read by people at the moment, says
+		## the member's and the paying one only where they are not the one we run from.
+		local executingWorkspaceName="${MMDAPP%/}" payingWorkspaceName="${spawnPayingWorkspace%/}" memberWorkspaceName="${spawnMemberWorkspace%/}"
+		executingWorkspaceName="${executingWorkspaceName##*/}" ; payingWorkspaceName="${payingWorkspaceName##*/}" ; memberWorkspaceName="${memberWorkspaceName##*/}"
+		[ -n "$executingWorkspaceName" ] || executingWorkspaceName="unknown"
+		[ -n "$payingWorkspaceName" ] || payingWorkspaceName="unknown"
+		[ -n "$memberWorkspaceName" ] || memberWorkspaceName="unknown"
+
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
 			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$.md"
@@ -1077,6 +1127,9 @@ case "$1" in
 				--header:upsert:status:dispatch-started \
 				--header:upsert:session-id:"$sessionId" \
 				--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+				--header:upsert:executing-workspace:"$executingWorkspaceName" \
+				--header:upsert:paying-workspace:"$payingWorkspaceName" \
+				--header:upsert:member-workspace:"$memberWorkspaceName" \
 				${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 				${trackedItemName:+--header:upsert:tracks:"${trackedItemName%.md}"} \
 				${parentSessionId:+--header:upsert:review-by:"$parentSessionId"} \
@@ -1111,6 +1164,9 @@ case "$1" in
 							--context "$opContext" \
 							--header:upsert:session-id:"$sessionId" \
 							--header:upsert:spawn-id:"$MDAT_SPAWN_SESSION_ID" \
+							--header:upsert:executing-workspace:"$executingWorkspaceName" \
+							--header:upsert:paying-workspace:"$payingWorkspaceName" \
+							--header:upsert:member-workspace:"$memberWorkspaceName" \
 							${transcriptRel:+--header:upsert:transcript:"$transcriptRel"} \
 							--header:upsert:status:dispatch-started \
 							--log-verb:updated \
@@ -1223,11 +1279,9 @@ case "$1" in
 			## Its text is its own template's (sh-lib/templates/session-thread.root.format.md),
 			## and the name, free text a caller chose, reaches Slack as itself
 			## (AgentsToolsSpawnProxySessionRootPost). The thread under it is the participants' own.
-			## Posted where this spawn runs, as its other settings are read (spawnWorkspace): this
-			## workspace, but for a member still started in the workspace that holds it, so the
+			## Posted where this spawn runs, as its other settings are read: this workspace, so the
 			## token and the conversation are always one Slack's.
 			sessionThread="$(
-				[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
 				AgentsToolsSpawnProxySessionRootPost "$callerName" "${sessionNameOrComment:-$sessionId}" "$spawnerMember"
 			)" || sessionThread=""
 			## Recorded at once as the session's, so the member brought in next finds it.
@@ -1259,7 +1313,6 @@ case "$1" in
 		local spawnCliResolved="none" spawnCliSetting="none+-" spawnCliKind="none" spawnCliTier=""
 		type AgentsReviewCliResolved > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
 		! type AgentsReviewCliResolved > /dev/null 2>&1 || spawnCliResolved="$(
-			[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
 			AgentsReviewCliResolved "$spawnCliService"
 		)" || spawnCliResolved="none"
 		## Its setting, which a later resume compares (AgentsReviewResumeEligible).
@@ -1267,7 +1320,6 @@ case "$1" in
 		spawnCliKind="$( AgentsToolsSpawnProxyCliKind "$spawnCliResolved" )"
 		if [ "$spawnCliKind" = "harness" ] ; then
 			spawnCliTier="$(
-				[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
 				DistroAgentsTools --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null
 			)" || spawnCliTier=""
 			## Unset passes no --tier, and the harness keeps its own default.
@@ -1314,7 +1366,6 @@ case "$1" in
 		case "$eventTrackSessionThread" in
 			?*:?*.?*)
 				eventTrackSessionLink="$(
-					[ "$spawnWorkspace" = "$MMDAPP" ] || AgentsToolsWorkspaceSwitch "$spawnWorkspace" > /dev/null
 					AgentsToolsSpawnProxyPostLink "$callerName" "$eventTrackSessionThread"
 				)" || eventTrackSessionLink=""
 				if [ -n "$eventTrackSessionLink" ] ; then eventTrackSessionThread="-" ; else eventTrackSessionLink="-" ; fi
@@ -1335,6 +1386,10 @@ case "$1" in
 			eventTrackTaskFile="$MDAT_DATA_ROOT/board/$trackedItemState/$trackedItemName"
 		fi
 		[ -z "$eventTrackTaskFile" ] || eventTrackTask="$( AgentsToolsTaskText "$eventTrackTaskFile" )"
+		## The member's and the paying workspace, said only where they are not the one we run from.
+		local eventTrackMemberWorkspace="-" eventTrackPayingWorkspace="-"
+		[ "${spawnMemberWorkspace%/}" = "${MMDAPP%/}" ] || eventTrackMemberWorkspace="$memberWorkspaceName"
+		[ "${spawnPayingWorkspace%/}" = "${MMDAPP%/}" ] || eventTrackPayingWorkspace="$payingWorkspaceName"
 		local eventTrackFields=( --kind start --session-id "$MDAT_SPAWN_SESSION_ID" \
 			--field what="$( AgentsToolsTaskTextLine "$spawnDescriptionKept" )" \
 			--field task-title="$( AgentsToolsTaskTextValue "$eventTrackTask" title )" --field task-item="$( AgentsToolsTaskTextValue "$eventTrackTask" item )" \
@@ -1347,6 +1402,7 @@ case "$1" in
 			--field parent-session-id="$eventTrackParent" \
 			--field session-thread="$eventTrackSessionThread" --field session-thread-link="$eventTrackSessionLink" \
 			--field tracking-name="$eventTrackTracking" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
+			--field member-workspace="$eventTrackMemberWorkspace" --field paying-workspace="$eventTrackPayingWorkspace" \
 			--field started-at="$eventTrackStartedAt" )
 		## ONE THREAD PER COWORKING SESSION, in one record, keyed by the session's id
 		## (AgentsTools.EventTrackThread.include). Where the session has a thread -- this spawn
@@ -1416,8 +1472,16 @@ case "$1" in
 			## host glob is matched against.
 			printf 'host: %s\n' "$( hostname -s 2>/dev/null || echo unknown )"
 			printf 'workspace: %s\n' "$workspaceName"
+			## The three workspaces of this run, always: which executes it, which pays for it,
+			## which is the member's. `workspace` above stays the one this record is kept in.
+			printf 'executing-workspace: %s\n' "$executingWorkspaceName"
+			printf 'paying-workspace: %s\n' "$payingWorkspaceName"
+			printf 'member-workspace: %s\n' "$memberWorkspaceName"
 			printf 'cli: %s\n' "$spawnCliResolved"
 			printf 'cli-setting: %s\n' "$spawnCliSetting"
+			## The service this one spawn was started on by name, only where one was named for it:
+			## what a restart of this session is started on again (AgentsReviewRecordCliAsked).
+			[ -z "$spawnCliService" ] || printf 'cli-asked: %s\n' "$spawnCliService"
 			printf 'owner: %s\n' "$callerName"
 			## The routine this session runs, whose allows hold for it.
 			[ -z "$routineRecorded" ] || printf 'routine: %s\n' "$routineRecorded"
@@ -1565,17 +1629,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env MMDAPP="$spawnWorkspace" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$spawnWorkspace/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## Nothing to read until the child is actually running: started right
@@ -1654,7 +1718,7 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			## The handback retry first, before any close step: it resumes this very session, so it
 			## runs while the record still says started, and its tokens and posts precede the end.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$MMDAPP" "$sessionId" "${spawnCliArgs[@]}"
 			## The session's tokens onto its item first, so the closing post sums what is there now.
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart"
@@ -1740,10 +1804,10 @@ case "$1" in
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
-				AgentsToolsSpawnProxyHarnessResumeRun "$spawnWorkspace" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+				AgentsToolsSpawnProxyHarnessResumeRun "$MMDAPP" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
 					"$resumeContextFile" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
 			else
-			AgentsToolsSpawnProxyConsoleRun "$spawnWorkspace" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+			AgentsToolsSpawnProxyConsoleRun "$MMDAPP" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
 				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
 			fi
 			bgExitCode=$?
@@ -1757,7 +1821,7 @@ case "$1" in
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 			## The handback retry before any close step, as in the waiting branch: the record still says started.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$spawnWorkspace" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$MMDAPP" "$sessionId" "${spawnCliArgs[@]}"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"

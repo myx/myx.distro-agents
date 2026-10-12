@@ -51,3 +51,24 @@ function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, 
 	if (index(toPart, "*_" member "_*") == 0) { return 0 ; } ;
 	return (body ~ /^DISMISSED[.!]?$/) ;
 } ;
+##
+## memberSendHeaderLength(text) -- the length of the send header <text> starts with, its
+## closing `. ` or line end included; 0 where it starts with none. The header is exactly
+## what the member send writes ahead of the body (AgentsTools.MemberCommsSlack.include):
+## before the arrow nothing but an optional mark, the sender and its alias. Here for
+## AgentsSlackThreadAnswers.awk, which reads a question's number as the first word after
+## that header: every caller of that reader loads this file ahead of it, a Wait started
+## before this function was written included. AgentsEscalationVerdict.awk's
+## sendHeaderLength is the same rule, kept there because that reader is run with no
+## library loaded.
+##
+function memberSendHeaderLength(text,   arrowAt, fromPart, toPart, endAt) {
+	arrowAt = index(text, " → ") ;
+	if (arrowAt == 0) { return 0 ; } ;
+	fromPart = substr(text, 1, arrowAt - 1) ;
+	if (fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+$/) { return 0 ; } ;
+	toPart = substr(text, arrowAt + length(" → ")) ;
+	endAt = index(toPart, ". ") ;
+	if (endAt > 0) { return arrowAt + length(" → ") + endAt ; } ;
+	return (substr(toPart, length(toPart), 1) == ".") ? length(text) : 0 ;
+} ;

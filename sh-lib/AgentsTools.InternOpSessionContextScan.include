@@ -219,6 +219,14 @@ case "$1" in
 			echo "$MDSC_CMD: session-context-scan: ⛔ ERROR: --member-scope-only restricts a requested comms scan and needs one -- pass it alongside --do-all, --do-slack, --do-email or --do-trello" >&2
 			set +e ; return 1
 		fi
+		## A member-scope scan reads the acting member's own sources. For a client-* member those
+		## are the other organisation's, so the whole scan is on the client side, whoever started
+		## it (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include): its Slack, its mail and its Trello.
+		if [ "$commsMemberScopeOnly" = "true" ] ; then
+			case "$actingMember" in
+				client-*) local -x MDAT_COMMS_SIDE=client ;;
+			esac
+		fi
 		## --do-all is the whole set, not a shorthand to combine with
 		## part of it -- same fixed-wrapper discipline as --all-types.
 		if [ "$commsDoAll" = "true" ] && { [ "$commsDoSlack" = "true" ] || [ "$commsDoEmail" = "true" ] || [ "$commsDoTrello" = "true" ] ; } ; then
@@ -695,7 +703,7 @@ case "$1" in
 				if [ "$commsDoSlackTags" = "true" ] ; then
 					imSourcesTotal=$(( imSourcesTotal + 1 ))
 					local mentionUserToken=""
-					mentionUserToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
+					mentionUserToken="$( AgentsToolsSlackOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select SLACK_USER_TOKEN )" || mentionUserToken=""
 					local mentionHasToken="false"
 					[ -z "$mentionUserToken" ] || mentionHasToken="true"
 					mentionUserToken=""
@@ -1353,10 +1361,10 @@ case "$1" in
 				## The mailbox this scan reads as, from the acting member's own
 				## scope. A member with no EMAIL_USER keeps the stated default.
 				local emailUser="" emailHost="" emailPass=""
-				emailUser="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
+				emailUser="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_USER )" || emailUser=""
 				[ -z "$emailUser" ] || emailIdentity="$emailUser"
-				emailHost="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_IMAP_HOST )" || emailHost=""
-				emailPass="$( DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_APP_PASSWORD )" || emailPass=""
+				emailHost="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_IMAP_HOST )" || emailHost=""
+				emailPass="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select EMAIL_APP_PASSWORD )" || emailPass=""
 				## Mirrors --member-comms-email-check's own gate exactly: an optional
 				## source nothing is configured for must not read as one that failed.
 				if [ -z "$emailHost" ] || [ -z "$emailUser" ] || [ -z "$emailPass" ] ; then
@@ -1446,8 +1454,8 @@ case "$1" in
 			if [ "$wantTrello" = "true" ] ; then
 				trelloInstrument="unread-semantics (Trello read_filter=unread)"
 				local trelloKey="" trelloToken=""
-				trelloKey="$( DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_KEY )" || trelloKey=""
-				trelloToken="$( DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_TOKEN )" || trelloToken=""
+				trelloKey="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_KEY )" || trelloKey=""
+				trelloToken="$( AgentsToolsCommsOwnSettingsApply "$actingMember" && DistroAgentsTools --agents-config-option "$actingMember" --select TRELLO_TOKEN )" || trelloToken=""
 				## Mirrors --member-comms-trello-check's own gate, same reason as the email
 				## gate above: that op gives "no credentials" and "no answer" one status.
 				if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
@@ -1569,7 +1577,13 @@ case "$1" in
 				## denominator to be a fraction of.
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
-				printf '**NOTE:** no scan was made -- EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD are not all set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
+				## A client-* member on our own side holds none: what it holds is the other
+				## organisation's, read by its own sweep.
+				if AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
+					printf '**NOTE:** no scan was made -- EMAIL_IMAP_HOST/EMAIL_USER/EMAIL_APP_PASSWORD are not all set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
+				else
+					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" mail --client-sweep-input-scan )"
+				fi
 			elif [ "$emailFailed" = "true" ] ; then
 				printf 'identity: email %s (config: %s)\n' "$emailIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$emailInstrument"
@@ -1603,7 +1617,13 @@ case "$1" in
 				## No sources-scanned: line, same reason as the email section.
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"
-				printf '**NOTE:** no scan was made -- TRELLO_KEY/TRELLO_TOKEN are not both set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
+				## A client-* member on our own side holds none: what it holds is the other
+				## organisation's, read by its own sweep.
+				if AgentsToolsCommsOwnSettingsApply "$actingMember" ; then
+					printf '**NOTE:** no scan was made -- TRELLO_KEY/TRELLO_TOKEN are not both set in this member'"'"'s own scope; this source is optional, is counted in no source total, and does not make the scan partial\n\n'
+				else
+					printf '**NOTE:** no scan was made -- %s This source is optional, is counted in no source total, and does not make the scan partial\n\n' "$( AgentsToolsCommsOwnSideLine "$actingMember" Trello --client-sweep-input-scan )"
+				fi
 			elif [ "$trelloFailed" = "true" ] ; then
 				printf 'identity: trello %s (config: %s)\n' "$trelloIdentity" "$actingMember"
 				printf 'instrument: %s\n' "$trelloInstrument"

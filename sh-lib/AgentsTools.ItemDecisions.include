@@ -359,7 +359,7 @@ AgentsToolsItemIsParty(){ ## item path, member
 AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 or empty), answer ts
 	local decId="$1" decFile="$2" decStatus="$3" decAmend="$4" decAnswerTs="$5" decKey decValue
 	local decItem="" decKind="" decTag="" decVerdict="" decVerdictText="" decBy="" decTo="" decQts="" decTts="" decChannel="" decAmendBy="" decFirst="" decWithdrawnBy="" decWithdrawReason="" decClosedBy=""
-	local decLineKind decWho decText decMentions=""
+	local decLineKind decWho decText decMentions="" decDocument=""
 	[ -f "$decFile" ] || return 0
 	while IFS=$'\t' read -r decKey decValue ; do
 		case "$decKey" in
@@ -398,6 +398,11 @@ AgentsToolsDecisionsFromPending(){ ## pending id, record file, status, amend (1 
 	esac
 	[ -z "$decVerdictText" ] || decVerdict="$decVerdict -- $decVerdictText"
 	[ "$decClosedBy" != "readback" ] || decVerdict="$decVerdict (closed by the asker's readback)"
+	## A proposal's verdict is given to its document, so the line names it by its link.
+	if [ "${decKind:-question}:$decStatus" = "proposal:reply-received" ] ; then
+		decDocument="$( LC_ALL=C awk -F'\t' '$1 == "document" { print $2 ; exit ; }' "${decFile%.md}.fields" 2> /dev/null )"
+		[ -z "$decDocument" ] || decVerdict="$decVerdict (document: $decDocument)"
+	fi
 	if [ -n "$decAmend" ] ; then
 		decLineKind="answer" ; decWho="${decAmendBy:-$decWho}" ; decVerdict="amended: $decVerdict"
 	fi

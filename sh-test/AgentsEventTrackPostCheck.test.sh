@@ -198,6 +198,20 @@ rigAssert "its short text names both boxes" "$( cat "$rigTmp/k-root/000001.text"
 rigAssert "a root whose session thread is given as a link shows the link, and no id" \
 	"$( rigRender start "$rigTmp/k-link" /dev/null started-by=magic-tester session-id=154edb9e session-thread=- session-thread-link=https://rig.slack.com/archives/CRIG/p12 ; sed -n 3p "$rigTmp/k-link/000001" )" \
 	'~ <https://rig.slack.com/archives/CRIG/p12|session thread in magic-team>'
+## The three workspaces of a run: the one it runs in is its `workspace`, and the member's and the
+## paying one are context of their own, given by the caller only where they are another.
+rigAssert "a start whose member is set up elsewhere and which is paid from elsewhere says both workspaces, after where it runs" \
+	"$( rigRender start "$rigTmp/k-ws-both" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=rig-ws-member paying-workspace=rig-ws-paying ; LC_ALL=C grep '^~ ' "$rigTmp/k-ws-both/000001" | LC_ALL=C tr '\n' '|' )" \
+	"~ where: rig-host / rig-ws · member's workspace: rig-ws-member · paying workspace: rig-ws-paying|"
+rigAssert "the same as plain text: a line of their own" \
+	"$( LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-both/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"where: rig-host / rig-ws|member's workspace: rig-ws-member · paying workspace: rig-ws-paying|"
+rigAssert "one given as - is not shown, and the other opens the line without its separator" \
+	"$( rigRender start "$rigTmp/k-ws-paying" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=rig-ws-paying ; LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-paying/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"where: rig-host / rig-ws|paying workspace: rig-ws-paying|"
+rigAssert "both given as -, the three being one: the run says its workspace once, and no line of theirs is left" \
+	"$( rigRender start "$rigTmp/k-ws-one" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=- ; LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-one/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
+	"where: rig-host / rig-ws|"
 ## A spawn that joins: its own start entry alone, a reply, with the session it joined.
 rigRender start "$rigTmp/k-join" /dev/null cli=grok runs=harness tier=fast started-by=- session-id=- session-thread=- joined-session=154edb9e parent-session-id=3f2488f9 tracking-name=rig-track
 rigAssert "one that joins posts its run block alone: no session block, the session it joined, its own cli and tier" \
@@ -358,6 +372,11 @@ cat > "$rigOps" <<'RIG_OPS_EOF'
 > Which README goes first?
 2030-01-01T00:01:11Z ANSWER
 > VERDICT: alpha
+2030-01-01T00:01:11Z TOOL mcp__myx_distro__ProposeApprove to=human-owner -> ok 700B/12L 3m05s
+2030-01-01T00:01:11Z ASK to=human-owner kind=proposal
+> Do we retire the old sync?
+2030-01-01T00:01:11Z ANSWER
+> VERDICT: approved
 2030-01-01T00:01:12Z ROUND n=12 in=48000 cache-read=300000 cache-write=10000 out=1200
 > Checking the template next.
 2030-01-01T00:01:13Z TOOL WebFetch url=https://example.invalid/page -> ok 10B/1L 1.0s
@@ -418,6 +437,7 @@ done <<'RIG_WANT_EOF'
 🚀 Agent spawn → *keeper-myx* (session 7f12abcd…) · started
 ❔ RequestPermission → *human-owner* · permission: "May I write MAGIC.md in lib.tukaani-xz-java?"
 ❔ EscalateDecision → *human-owner* · decision: "Which README goes first?"
+❔ ProposeApprove → *human-owner* · proposal: "Do we retire the old sync?"
 🧠 round 12 · in 48K · cache 310K · out 1.2K
 🌐 WebFetch `https://example.invalid/page` → 10 B
 🗒️ note by *magic-tester*: "a note to the transcript"

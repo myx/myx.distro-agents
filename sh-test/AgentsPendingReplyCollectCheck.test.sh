@@ -9,8 +9,8 @@
 ## readback is never collected; a collect racing a settle closes the record once; a
 ## refused reaction leaves the close intact; a handback carries what was collected; and
 ## no model is called anywhere. Offline: the Slack-shaped fake curl is first on PATH,
-## model CLIs on PATH only log, and each scenario has its own workspace under the
-## workspace's .local/temp.
+## a ps that lists the rig's own runs only is beside it, model CLIs on PATH only log, and
+## each scenario has its own workspace under the workspace's .local/temp.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -33,9 +33,31 @@ for rigModel in claude codex ; do
 	printf '#!/bin/sh\necho "%s $*" >> "%s/model-calls"\nexit 1\n' "$rigModel" "$rigTmp" > "$rigTmp/bin/$rigModel"
 done
 chmod +x "$rigTmp/bin/"*
+## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
+## (ps -A). A rig that read the real one would take whatever command line of this host holds
+## one of its ids for a run of its own, and another copy of this check for its own. So the ps
+## first on PATH answers the whole-host listing from the rig's own list, beside it, one
+## `<pid> <command line>` line a process, and hands every other call to the real ps.
+ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
+: > "$rigTmp/ps.list"
+cat > "$rigTmp/bin/ps" <<'RIGPS'
+#!/bin/sh
+case " $* " in
+	*" -A "*)
+		case "$*" in
+			*pid=*) cat "${0%/*}/../ps.list" 2> /dev/null ;;
+			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
+		esac
+		exit 0
+	;;
+esac
+exec "${0%/*}/ps.real" "$@"
+RIGPS
+chmod +x "$rigTmp/bin/ps"
 PATH="$rigTmp/bin:/usr/bin:/bin"
 export PATH
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH"
+[ "$( command -v ps )" = "$rigTmp/bin/ps" ] || rigRefuse "the rig's own ps is not first on PATH, so this check would read the host's process list"
 
 rigPassCount=0
 rigFailCount=0
@@ -368,7 +390,7 @@ rigCall PushNotification '{"to":"human-owner","severity":"bogus","headline":"h"}
 rigAssert "control: a bad severity is refused, no post"   "$( rigPosts )$( rigFirstIs 'ERROR: PushNotification: severity must be' )" 0yes
 
 ## A stale ask linked to a board item whose condition names it; its session's spawn record
-## says running (a live process carries its spawn id) or succeeded.
+## says running (a line of the rig's process list runs as its spawn id) or succeeded.
 rigLiveItem="task-20261008T1500Z-rig-live"
 rigLinked(){ ## id, question ts, tag, session
 	rigRecord "$1" "$2" "$3" "$4" ""
@@ -389,9 +411,7 @@ rigNotes(){
 	ls "$rigScenarioDir/data/inboxes/$rigMember/" 2>/dev/null | LC_ALL=C grep -c -E '^note-.*-answer-' || :
 }
 rigLiveSpawn="rig-live-spawn-$$-$RANDOM"
-bash -c 'sleep 300 ; :' "$rigLiveSpawn" &
-rigLivePid=$!
-trap 'kill "$rigLivePid" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+printf '900001 rig-run --session-id %s\n' "$rigLiveSpawn" > "$rigTmp/ps.list"
 
 echo "-- the stale pass, session still running: closed silently --"
 rigStart staleLive
@@ -429,7 +449,7 @@ rigRecord 22222222-0000-0000-0000-000000000003 1700000001.000104 Q3 rig-cap-sess
 MDAT_PENDING_COLLECT_STALE_MAX=2 rigCollect out --ended
 rigAssert "at most MDAT_PENDING_COLLECT_STALE_MAX examined" "$( LC_ALL=C grep -c -E '^(ANSWERED|UNMATCHED|OPEN|UNREADABLE) ' "$rigScenarioDir/out" )" 2
 rigAssert "oldest first: the newest is left"              "$( rigHolds "$rigScenarioDir/out" 22222222-0000-0000-0000-000000000003 )" no
-kill "$rigLivePid" 2>/dev/null
+: > "$rigTmp/ps.list"
 
 echo "-- no model was called anywhere --"
 rigAssert "no claude or codex call"                       "$( cat "$rigTmp/model-calls" 2>/dev/null | wc -l | tr -d ' ' )" 0

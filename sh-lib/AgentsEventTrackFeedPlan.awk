@@ -34,7 +34,7 @@ function baseTool( toolName,    restName, cutAt ) {
 		cutAt = index( restName, "__" ) ;
 		if ( cutAt > 0 ) { toolName = substr( restName, cutAt + 2 ) ; }
 	}
-	if ( toolName == "AskUserQuestion" || toolName == "ConfirmReadback" || toolName == "EscalateDecision" || toolName == "RequestPermission" ) { return "AskQuestion" ; }
+	if ( toolName == "AskUserQuestion" || toolName == "ConfirmReadback" || toolName == "EscalateDecision" || toolName == "RequestPermission" || toolName == "ProposeApprove" ) { return "AskQuestion" ; }
 	return toolName ;
 }
 

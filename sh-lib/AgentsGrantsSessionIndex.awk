@@ -5,27 +5,45 @@
 ## AgentsGrantsPattern.awk loaded first. The first file is the grants index; every further
 ## one is the `grants` file of one session store, read as AgentsToolsPermissionGrantScan
 ## reads it: a grant of this member's own (its record's owner), signed by someone else.
-##   -v member=<name> -v header=<this index's header line> -v stores=<store dirs, one per line>
-##   -v sandboxIn=<dir> -v sandboxOut=<dir> -v origin=<this origin's skillset, resolved>
+##   -v member=<name>
+##   ENVIRON agentsGrantsSessionHeader: this index's header line
+##   ENVIRON agentsGrantsSandboxIn, agentsGrantsSandboxOut: the session's sandbox folders
+##   ENVIRON agentsGrantsOrigin: this origin's skillset, resolved
+##   ENVIRON agentsGrantsStores: the store dirs the session reads, one per line
+##       These five are text: -v decodes a backslash in a value, and takes no newline in every
+##       awk. -v header, sandboxIn, sandboxOut, origin and stores=<store dir> are each read
+##       where the environment names none: a harness started before they went there holds the
+##       caller that passes them so.
 ##   ENVIRON agentsGrantsEnded: the store dirs whose session has ended, one per line
+##   ENVIRON agentsGrantsItemRuns: the stores of the member's other runs on the same board item
+##       (AgentsToolsGrantsItemRuns), one `<store dir><TAB><item><TAB><coworking session store,
+##       or -><TAB><only, task, or empty>` line each: a session grant there holds while that
+##       item is open and that session runs, whatever became of the run it was given to, and a
+##       task grant there while the item it names is open. A store marked `only` is read for
+##       those two alone; one marked `task` for its task grants alone, the rest having ended.
 ## Prints, TAB-separated, and nothing at all when the grants index is not one:
 ##   <header>
 ##   store   <dir>                                   each store, for the freshness test
 ##   ceiling <pattern> <read-only|read-write> <place> <path>   deepest first
 ##   allow   " <tools> " <pattern> <floor|standing>
 ##   session <tool> <pattern> <ref> <store>
+##   runs    <tool> <pattern> <ref> <item> <coworking session store, or ->
 ##   task    <tool> <pattern> <item>
 ##   once    <tool> <pattern> <stamp epoch> <ref>
 ##   end
 ## A target a refusal names matches exactly; a passed or set one as AgentsToolsPermissionCovers
 ## reads it. A revoked grant (<store>/revoked/<ref>) is left out, and so is a session grant of a
 ## store whose session has ended. A once row's expiry, a once row's use, a task's item and a
-## session row's end are checked at the call.
+## session row's end are checked at the call. A runs row is a session grant of one of the
+## member's other runs on the same item: its item and that session's end are checked there too.
 ##
 ## -v mode=list (--intern-op-permission-list): the member's effective grants instead, one row
 ## each, TAB-separated: kind, read|write|<tool>, target, place (name:relative, or -), origin,
 ## expiry -- with -v now=<epoch> -v ttl=<once TTL> and ENVIRON agentsGrantsUsed (used-up once
 ## markers, <store>/consumed/<ref>, one per line), agentsGrantsBoard and agentsGrantsOpenStates.
+## In this mode a session grant of a store agentsGrantsItemRuns names is listed as held while
+## that item is open and that session runs: its caller names the store only while that is so,
+## or marks it `task`.
 
 BEGIN {
 	FS = "\t" ; OFS = "\t" ; ok = 0 ; rowCount = 0
@@ -33,10 +51,23 @@ BEGIN {
 	fileTools = writeTools
 	n = split( ENVIRON["agentsGrantsEnded"], endedList, "\n" )
 	for ( i = 1 ; i <= n ; i++ ) if ( endedList[i] != "" ) endedStore[endedList[i]] = 1
+	n = split( ENVIRON["agentsGrantsItemRuns"], runsList, "\n" )
+	for ( i = 1 ; i <= n ; i++ ) {
+		if ( split( runsList[i], runsPart, "\t" ) < 3 || runsPart[1] == "" || runsPart[2] == "" ) continue
+		runsItem[runsPart[1]] = runsPart[2] ; runsSession[runsPart[1]] = runsPart[3]
+		runsOnly[runsPart[1]] = ( runsPart[4] != "" ) ; runsEnded[runsPart[1]] = ( runsPart[4] == "task" )
+	}
 	if ( mode == "list" ) {
 		n = split( ENVIRON["agentsGrantsUsed"], usedList, "\n" )
 		for ( i = 1 ; i <= n ; i++ ) if ( usedList[i] != "" ) usedOnce[usedList[i]] = 1
 		boardRoot = ENVIRON["agentsGrantsBoard"] ; openStates = ENVIRON["agentsGrantsOpenStates"]
+	}
+	else {
+		if ( header == "" ) header = ENVIRON["agentsGrantsSessionHeader"]
+		if ( sandboxIn == "" ) sandboxIn = ENVIRON["agentsGrantsSandboxIn"]
+		if ( sandboxOut == "" ) sandboxOut = ENVIRON["agentsGrantsSandboxOut"]
+		if ( origin == "" ) origin = ENVIRON["agentsGrantsOrigin"]
+		if ( stores == "" ) stores = ENVIRON["agentsGrantsStores"]
 	}
 }
 
@@ -65,6 +96,18 @@ NR == FNR {
 	if ( kind != "session" && kind != "task" && kind != "once" ) next
 	if ( recordField( store "/" ref ".md", "owner" ) != member ) next
 	if ( fileExists( store "/revoked/" ref ) ) next
+	## A store of the member's other runs on the same item, whose session grants hold: listed so in
+	## mode list, else a runs row; one the session reads as its own gives its session row below too.
+	## Its task grants are read below as any other store's; nothing else of a marked store is.
+	if ( store in runsItem ) {
+		if ( kind == "session" && !runsEnded[store] ) {
+			natural = grantsFieldDecode( target )
+			if ( mode == "list" ) { item = runsItem[store] ; at = "" ; listHeld() ; next ; }
+			pattern = ( index( ref, "refusal-" ) == 1 ) ? grantsLiteral( natural ) : grantsCoversPattern( natural )
+			heldRow[++heldCount] = "runs" OFS tool OFS pattern OFS ref OFS runsItem[store] OFS runsSession[store]
+		}
+		if ( runsOnly[store] && kind != "task" ) next
+	}
 	if ( kind == "session" && ( store in endedStore ) ) next
 	natural = grantsFieldDecode( target )
 	item = ""
@@ -168,7 +211,11 @@ function listHeld(    shown, hint, ends, storeId ) {
 	hint = recordedHint( store "/" ref ".places", natural )
 	if ( hint == "" ) hint = placeHint( natural )
 	storeId = store ; sub( /^.*\//, "", storeId )
-	if ( kind == "session" ) ends = "until session " storeId " ends"
+	if ( kind == "session" && ( store in runsItem ) ) {
+		ends = "while item " item " is open"
+		if ( runsSession[store] != "-" ) { storeId = runsSession[store] ; sub( /^.*\//, "", storeId ) ; ends = ends " and session " storeId " runs" ; }
+	}
+	else if ( kind == "session" ) ends = "until session " storeId " ends"
 	else if ( kind == "task" ) { if ( !itemOpen( item ) ) return ; ends = "while item " item " is open" ; }
 	else {
 		if ( ( store "/consumed/" ref ) in usedOnce ) return

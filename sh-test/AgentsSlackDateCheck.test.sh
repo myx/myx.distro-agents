@@ -120,7 +120,7 @@ rigOwn='<!date^1791525750^{date_num} {time}|2026-10-09 06:02 UTC>'
 rigEsc(){ printf '%s' "$1" | LC_ALL=C sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' ; }
 rigAssert "an escaped value's own token is the control sequence again, the rest stays escaped" \
 	"$( rigCall keep "$( rigEsc "at $rigOwn by <!here> & <@U1>" )" )" "at $rigOwn by &lt;!here&gt; &amp; &lt;@U1&gt;"
-rigAssert "two of them, a range, both" "$( rigCall keep "$( rigEsc "$rigOwn–$rigOwn" )" )" "$rigOwn–$rigOwn"
+rigAssert "two of them, a range, both" "$( rigCall keep "$( rigEsc "${rigOwn}–${rigOwn}" )" )" "${rigOwn}–${rigOwn}"
 rigForeign=""
 for rigText in '<!date^1791525750^{date_num} {time}^https://example.invalid/x|2026-10-09 06:02 UTC>' '<!date^1791525750^{date_long}|2026-10-09 06:02 UTC>' \
 	'<!date^1791525750^{date_num} {time}|click here>' '<!date^abc^{time}|06:02 UTC>' '<!subteam^S1|06:02 UTC>' ; do
@@ -166,7 +166,7 @@ fi
 echo "-- reading back: a token shows as its fallback, and the readers still work --"
 ## ---------------------------------------------------------------------------
 rigAssert "the helper's own rule: each token its fallback, a link in it too, the rest untouched" \
-	"$( rigCall fallbacks "a $rigOwn–$rigOwn b <!date^5^{date}^https://example.invalid/x|five> <!here> <@U1> <!date^x^y|z>" )" \
+	"$( rigCall fallbacks "a ${rigOwn}–${rigOwn} b <!date^5^{date}^https://example.invalid/x|five> <!here> <@U1> <!date^x^y|z>" )" \
 	'a 2026-10-09 06:02 UTC–2026-10-09 06:02 UTC b five <!here> <@U1> <!date^x^y|z>'
 rigAssert "as a command" "$( printf '%s\n' "x $rigOwn y" | LC_ALL=C awk -v sldStandalone=fallback -f "$rigDate" )" 'x 2026-10-09 06:02 UTC y'
 ## A thread as Slack returns it: the tooling's own reminder (a token in it, sent by the team's
@@ -197,7 +197,7 @@ rigAssert "a search's lines: the fallback" \
 	"$( LC_ALL=C awk -v cutoff=5 -f "$rigLib/AgentsSlackSearchMatches.awk" < "$rigTmp/search.json" )" '1791525810.000100 | U0OWNER | yes, since 2026-10-09 06:02 UTC'
 ## The three readers carry the rule as a copy, each running with no other file loaded: on one
 ## text, each must say what the helper says.
-rigReaderText="mixed $rigOwn–$rigOwn and <!date^5^{date}^https://example.invalid/x|five> and <!date^x^y|z> end"
+rigReaderText="mixed ${rigOwn}–${rigOwn} and <!date^5^{date}^https://example.invalid/x|five> and <!date^x^y|z> end"
 rigWant="$( rigCall fallbacks "$rigReaderText" )"
 printf '{"ok":true,"messages":[{"ts":"1.000001","user":"U1","text":"%s"}]}\n' "$rigReaderText" > "$rigTmp/one.json"
 printf '{"ok":true,"messages":{"total":1,"paging":{"count":20,"total":1,"page":1,"pages":1},"matches":[{"ts":"9.000001","user":"U1","text":"%s","permalink":"https://rig.slack.com/archives/C1/p9000001"}]}}\n' "$rigReaderText" > "$rigTmp/one.search.json"

@@ -40,16 +40,19 @@ case "$1" in
 		## The scope holding the app-level token IS the app, one to one, so it is
 		## the receiver's identity key: two members falling back to the shared
 		## scope must not open two connections onto one app and split its events.
+		## By the side of the call (AgentsToolsSlackOwnSettingsApply): a client-* member's own
+		## app is the other organisation's, opened on the client side only, where the team's
+		## never stands in for it.
 		local socketScope="magic-team" socketToken=""
-		if [ "$memberName" != "magic-team" ] ; then
+		if [ "$memberName" != "magic-team" ] && AgentsToolsSlackOwnSettingsApply "$memberName" ; then
 			socketToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
 			[ -z "$socketToken" ] || socketScope="$memberName"
 		fi
-		if [ -z "$socketToken" ] ; then
+		if [ -z "$socketToken" ] && ! AgentsToolsSlackClientSide "$memberName" ; then
 			socketToken="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_APP_TOKEN 2>/dev/null )" || socketToken=""
 		fi
 		if [ -z "$socketToken" ] ; then
-			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no SLACK_APP_TOKEN for $memberName -- read from that member's own scope first and magic-team's after it; socket mode is opened by an app-level token and neither a bot nor a user token can stand in for it" >&2
+			echo "$MDSC_CMD: socket-$socketOp: ⛔ ERROR: no SLACK_APP_TOKEN for $memberName -- read from that member's own scope first and magic-team's after it; socket mode is opened by an app-level token and neither a bot nor a user token can stand in for it$( AgentsToolsSlackSideNote "$memberName" )" >&2
 			set +e ; return 1
 		fi
 

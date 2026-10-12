@@ -126,8 +126,8 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 		esac
 	done
 
-	local token tokenSource
-	token="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )"
+	local token="" tokenSource
+	! AgentsToolsSlackOwnSettingsApply "$memberName" || token="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )"
 	if [ -n "$token" ] ; then
 		tokenSource="member-user-token"
 	else
@@ -373,7 +373,7 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 	## member with no user token has no user persona at all -- that is a
 	## configuration fact, reported as `no-token`, and it is NOT a failure.
 	local memberUserToken=""
-	memberUserToken="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
+	memberUserToken="$( AgentsToolsSlackOwnSettingsApply "$memberName" && DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )" || memberUserToken=""
 	local memberHasUserToken="false"
 	[ -z "$memberUserToken" ] || memberHasUserToken="true"
 	memberUserToken=""
@@ -508,6 +508,13 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 	echo "ROSTER_STATUS=none"
 	set +e ; return 4
 }
+
+## The coordinator acting as a client-* member acts in that member's own sources, which are the
+## other organisation's: the client side (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include),
+## as it has always reached them, in Slack, by mail and in Trello alike.
+case "$1:${2:-}" in
+	--magic-comms-*:client-*) local -x MDAT_COMMS_SIDE=client ;;
+esac
 
 case "$1" in
 
