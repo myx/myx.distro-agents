@@ -1644,7 +1644,12 @@ op's own option arm.
   answered, so it is not also read as the mark that sends one (a question posted before this rule,
   naming the check mark in its own text, still takes it as the send mark, for that one case only). A
   permission set answers as a permission does: `x` denies, `unlock` allows the set, both by click, deny
-  first where both are held; `edit` carries its change in words and is never a click.
+  first where both are held; `edit` carries its change in words and is never a click. A single
+  permission ask offers one more click, `file_folder` (`allow-folder`), only for a file tool on a real
+  path with no `..` segment: it grants that tool on every file in the refused file's own folder, until
+  the session ends, and is never offered for a write in a read-only place, nor for a folder that is a
+  whole workspace or HOME. The grant it writes is a set of that one entry, beside a record that stays of
+  kind `permission`.
 - **A click is read only ahead of the addressee's first reply.** Once a reply stands in the thread, a
   later click is never read as a verdict, even where the kind declares that reaction a verdict (see
   "18. Slack").
