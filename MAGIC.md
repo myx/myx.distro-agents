@@ -331,7 +331,10 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   under that workspace's root (a `.` in their grants unrolls to it; nothing is installed there; their
   operations run where they are asked). It then picks each multi-workspace member's home: a copy a
   workspace with agents registered, then the most `magic-team:` lines naming it, then a source link,
-  then the first row; one warning when the copies differ. The machine `members.registry` keeps every row.
+  then the first row; a member with no source copy, whose copies are all under a workspace's `.local`,
+  has the newest of them as its home instead, whatever their content, and nothing is warned. A warning
+  prints only for two or more source copies, or for a copy of neither kind; one source copy with any
+  number of `.local` copies says nothing. The machine `members.registry` keeps every row.
 - **The member index** `$MMDAPP/.local/agents/members.index` and its `members/` view hold this
   workspace's own members only. Built by `--install-skillset-symlinks` and `--make-agents-indices`; a
   rewrite drops any link to another workspace's member. A member of another workspace is never

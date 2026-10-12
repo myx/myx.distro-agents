@@ -11,9 +11,13 @@
 ##   2. then the most complete declaration: the most magic-team: lines naming the member (or
 ##      `*`) in that workspace's projects, grants included;
 ##   3. then any one: a source link first, else the first row.
+## A member with no source copy, whose copies all lie under workspaces' .local, has the newest
+## of them as its home, whatever their content; the three rules choose among copies of one age.
 ## The choice is written to $HOME/.agents/magic-team/member-homes.registry (member, workspace
 ## root), read by AgentsToolsMemberWorkspaceResolve and AgentsToolsTeamMemberDirectoryText.
-## One short warning for each member whose copies differ: the locations and the copy chosen.
+## One short warning for each member whose copies can conflict: the locations and the copy
+## chosen. One source copy with any number of copies under workspaces' .local is in order, and
+## so are copies under .local with no source copy: nothing is said of either.
 ##
 ## A registered workspace without agents may still declare members: the main workspace's
 ## install scans it and registers what it finds as rows of kind `source-declared` under that
@@ -110,12 +114,97 @@ AgentsToolsMemberHomesDeclaredRows(){ ## workspace
 	'
 }
 
+## What the copies of one member are, from its candidate rows on stdin (workspace, link
+## kind, member directory). A copy is one folder, compared physically, however many rows
+## name it: a source copy where a source-symlink or source-declared row names it, else a
+## copy under a workspace's .local where a .local-symlink row does, else neither. Prints:
+##   one            every row names the one folder;
+##   source-local   one source copy, and every other copy under a workspace's .local;
+##   all-local      no source copy, and every copy under a workspace's .local;
+##   differ         anything else, the one state warned of: two source copies, or a copy
+##                  of neither kind.
+## Told by the rows alone: no content is read.
+AgentsToolsMemberHomesCopies(){
+	local copiesRoot copiesKind copiesDir copiesReal copiesRows=""
+	while IFS=$'\t' read -r copiesRoot copiesKind copiesDir ; do
+		[ -n "$copiesDir" ] || continue
+		copiesReal="$( cd -P "$copiesDir" 2> /dev/null && pwd -P )" || copiesReal="$copiesDir"
+		copiesRows="$copiesRows$copiesKind"$'\t'"$copiesReal"$'\n'
+	done
+	printf '%s' "$copiesRows" | LC_ALL=C awk -F'\t' '
+		!( $2 in rank ) { rank[$2] = 0 ; n++ ; }
+		$1 == "source-symlink" || $1 == "source-declared" { rank[$2] = 2 ; next ; }
+		$1 == ".local-symlink" && rank[$2] < 1 { rank[$2] = 1 ; }
+		END {
+			for ( copy in rank ) count[rank[copy]]++
+			if ( n < 2 ) print "one"
+			else if ( count[0] || count[2] > 1 ) print "differ"
+			else if ( count[2] ) print "source-local"
+			else print "all-local"
+		}
+	'
+}
+
+## The modification time, in seconds, and the path of every folder and file in the folders
+## given, one a line. The greatest of a member's folder is when that copy was last changed:
+## the folder's own time moves only when an entry comes or goes, so the whole tree is read,
+## and no content is. One find and one stat(1) run for all the folders. Prints nothing where
+## stat(1) of the flavour named cannot read them.
+AgentsToolsMemberHomesChanged(){ ## stat flavour (bsd, gnu), folder...
+	local changedStat="$1"
+	shift
+	case "$changedStat" in
+		bsd) find "$@" -exec stat -f '%m %N' {} + 2> /dev/null ;;
+		gnu) find "$@" -exec stat -c '%Y %n' {} + 2> /dev/null ;;
+	esac
+}
+
+## Of the candidate rows given, those of the copy changed last
+## (AgentsToolsMemberHomesChanged, each folder read physically): several rows where copies
+## are of one age, and every row where a copy cannot be dated, so that the rules of the home
+## choose among them as they always have. stat(1) differs by platform, and its flavour is
+## probed once, against `/`.
+AgentsToolsMemberHomesNewest(){ ## candidate rows
+	local newestStat="" newestRoot newestKind newestDir newestDirs
+	if stat -f '%m' / > /dev/null 2>&1 ; then
+		newestStat="bsd"
+	elif stat -c '%Y' / > /dev/null 2>&1 ; then
+		newestStat="gnu"
+	fi
+	{
+		newestDirs=()
+		while IFS=$'\t' read -r newestRoot newestKind newestDir ; do
+			[ -n "$newestDir" ] || continue
+			printf 'row\t%s\t%s\t%s\n' "$newestRoot" "$newestKind" "$newestDir"
+			newestDirs[${#newestDirs[@]}]="$newestDir/."
+		done <<< "$1"
+		[ "${#newestDirs[@]}" -eq 0 ] || AgentsToolsMemberHomesChanged "$newestStat" "${newestDirs[@]}"
+	} | LC_ALL=C awk -F'\t' '
+		$1 == "row" { n++ ; row[n] = $2 "\t" $3 "\t" $4 ; dir[n] = $4 ; known[$4] = 1 ; next ; }
+		{
+			## a time and a path: the path belongs to the longest folder that begins it
+			gap = index( $0, " " ) ; when = substr( $0, 1, gap - 1 ) ; path = substr( $0, gap + 1 )
+			if ( when !~ /^[0-9]+$/ ) next
+			found = 0
+			for ( d in known ) if ( substr( path, 1, length( d ) + 2 ) == d "/." && ( !found || length( d ) > length( hit ) ) ) { hit = d ; found = 1 ; }
+			if ( found && ( !( hit in last ) || when + 0 > last[hit] ) ) last[hit] = when + 0
+		}
+		END {
+			for ( i = 1 ; i <= n ; i++ ) {
+				if ( !( dir[i] in last ) ) undated = 1
+				else if ( last[dir[i]] > newest ) newest = last[dir[i]]
+			}
+			for ( i = 1 ; i <= n ; i++ ) if ( undated || last[dir[i]] == newest ) print row[i]
+		}
+	'
+}
+
 ## Chooses the home of every member found in more than one workspace and rewrites the homes
 ## file under its lock. A workspace's declares are read only where the first rule leaves a
-## tie, and once. One warning per member whose copies differ.
+## tie, and once. One warning per member whose copies can conflict.
 AgentsToolsMemberHomesWrite(){
 	local homesRegistry homesFile homesRows homesMembers homesMember homesCands homesTied homesRoot homesDone=$'\n'
-	local homesWeights="" homesChoice homesOut="" homesCopies homesKind homesDir homesReal homesTry=0 homesRc=0
+	local homesWeights="" homesChoice homesOut="" homesState homesTry=0 homesRc=0
 	homesRegistry="$( AgentsToolsTeamSharedMembers )"
 	homesFile="$( AgentsToolsMemberHomesFile )"
 	[ -f "$homesRegistry" ] || return 0
@@ -124,6 +213,9 @@ AgentsToolsMemberHomesWrite(){
 	while IFS= read -r homesMember ; do
 		[ -n "$homesMember" ] || continue
 		homesCands="$( printf '%s\n' "$homesRows" | LC_ALL=C awk -F'\t' -v m="$homesMember" '$1 == m { print $2 "\t" $3 "\t" $4 ; }' )"
+		## what its copies are; of copies under .local with no source copy, only the newest are candidates
+		homesState="$( AgentsToolsMemberHomesCopies <<< "$homesCands" )"
+		[ "$homesState" != "all-local" ] || homesCands="$( AgentsToolsMemberHomesNewest "$homesCands" )"
 		## the workspaces left tied after rule 1, whose declares rule 2 reads
 		homesTied="$( printf '%s\n' "$homesCands" | LC_ALL=C awk -F'\t' '
 			NF >= 3 { n++ ; ws[n] = $1 ; kind[n] = $2 ; if ( $2 != "source-declared" ) inst++ ; }
@@ -152,14 +244,8 @@ AgentsToolsMemberHomesWrite(){
 		' <( printf '%s' "$homesWeights" ) - <<< "$homesCands" )"
 		[ -n "$homesChoice" ] || continue
 		homesOut="$homesOut$homesMember"$'\t'"${homesChoice%%$'\t'*}"$'\n'
-		## copies differ when their folders do, compared physically
-		homesCopies=$'\n'
-		while IFS=$'\t' read -r homesRoot homesKind homesDir ; do
-			[ -n "$homesDir" ] || continue
-			homesReal="$( cd -P "$homesDir" 2> /dev/null && pwd -P )" || homesReal="$homesDir"
-			case "$homesCopies" in *$'\n'"$homesReal"$'\n'*) ;; *) homesCopies="$homesCopies$homesReal"$'\n' ;; esac
-		done <<< "$homesCands"
-		if [ "$( printf '%s' "$homesCopies" | LC_ALL=C grep -c . )" -gt 1 ] ; then
+		## said only of copies that can conflict (AgentsToolsMemberHomesCopies)
+		if [ "$homesState" = "differ" ] ; then
 			echo "🙋 WARNING: member $homesMember has copies in $( printf '%s\n' "$homesCands" | LC_ALL=C awk -F'\t' 'NF >= 3 { printf( "%s%s", sep, $1 ) ; sep = ", " ; }' ) -- its home is the copy in ${homesChoice%%$'\t'*}: ${homesChoice#*$'\t'}" >&2
 		fi
 	done <<< "$homesMembers"

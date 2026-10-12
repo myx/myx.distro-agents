@@ -15,7 +15,9 @@
 ##      the merged list marking absent paths; --owner-workspace-current is gone;
 ##   6. the tooling resolvers --intern-directory-resolve and --intern-directory-of;
 ##   7. member homes: agents installed first, then the most complete declaration, then a source
-##      link; one warning naming the copies and the home; every row kept; the resolver and the
+##      link; one warning naming the copies and the home, and none for one source copy with
+##      copies under workspaces' .local, nor for copies under .local with no source copy, of one
+##      content or of several, the newest of them the home; every row kept; the resolver and the
 ##      member directory follow the home;
 ##   8. a registered workspace without agents: its declared members registered under its own
 ##      root, nothing installed there, the resolver never switching to it;
@@ -275,6 +277,32 @@ rigRow keeper-tie ws-three source-symlink "$rigTmp/copies/tie-three"
 rigRow keeper-same ws-two source-symlink "$rigTmp/copies/same"
 rigRow keeper-same ws-three origin-symlink "$rigTmp/copies/same"
 rigRow keeper-inst ws-two .local-symlink "$rigTmp/copies/inst-two"
+## Copies under workspaces' .local, the installed tooling. keeper-srcloc: one source copy, of
+## another content, which one more workspace reaches as its origin; keeper-twosrc: two source
+## copies; keeper-locsame: no source copy and one content, ws-three's the newest by one file
+## in a sub-folder; keeper-loctie: the same, of one age; keeper-locdiff: no source copy and
+## two contents, ws-three's the newer.
+rigCopy(){ ## workspace name, source|.local, member, content, touch stamp of its sub-folder file -- one copy of a member, dated, and its row
+	local copyDir="$rigTmp/$1/$2/rig/rig-proj/skillset/$3" copyKind=".local-symlink"
+	[ "$2" != source ] || copyKind="source-symlink"
+	mkdir -p "$copyDir/reference" && printf '%s\n' "$4" > "$copyDir/SKILL.md" && printf '%s\n' "$4" > "$copyDir/reference/notes.md" || rigRefuse "the rig copy could not be written: $copyDir"
+	touch -t 202001010000 "$copyDir/SKILL.md" "$copyDir/reference" "$copyDir" && touch -t "$5" "$copyDir/reference/notes.md" || rigRefuse "the rig copy could not be dated: $copyDir"
+	rigRow "$3" "$1" "$copyKind" "$copyDir"
+}
+rigCopy ws-two .local keeper-srcloc "installed text" 202001010000
+rigCopy ws-main source keeper-srcloc "source text" 202101010000
+rigCopy ws-three .local keeper-srcloc "installed text" 202001010000
+rigRow keeper-srcloc ws-far origin-symlink "$rigTmp/ws-main/source/rig/rig-proj/skillset/keeper-srcloc"
+rigCopy ws-two source keeper-twosrc "one text" 202001010000
+rigCopy ws-three source keeper-twosrc "another text" 202001010000
+rigCopy ws-main .local keeper-twosrc "one text" 202001010000
+rigCopy ws-two .local keeper-locsame "one text" 202001010000
+rigCopy ws-three .local keeper-locsame "one text" 202101010000
+rigCopy ws-main .local keeper-locsame "one text" 202001010000
+rigCopy ws-three .local keeper-loctie "one text" 202001010000
+rigCopy ws-two .local keeper-loctie "one text" 202001010000
+rigCopy ws-two .local keeper-locdiff "one text" 202001010000
+rigCopy ws-three .local keeper-locdiff "another text" 202101010000
 rigDirectory(){ ## member -- AgentsToolsTeamMemberDirectory from ws-main
 	env -i HOME="$rigHome" PATH=/usr/bin:/bin MMDAPP="$rigTmp/ws-main" MDAT_SKILLSET_ROOT="$rigTmp/ws-main/.local/agents/members" bash -c '. "$1/AgentsTools.TeamRegistry.include" ; AgentsToolsTeamMemberDirectory "$2"' rig "$rigHere" "$1" | rigCut
 }
@@ -295,6 +323,17 @@ rigAssert "and none for one copy registered twice" "$( rigN "$rigTmp/err" 'membe
 rigAssert "the machine registry keeps every row, the declared ones added" "$( LC_ALL=C grep -c . "$rigReg" )" "$(( rigRowsBefore + 2 ))"
 rigAssert "the resolver follows the home" "$( rigResolve ws-main keeper-home )" "T/ws-three rc=0"
 rigAssert "and so does the member directory" "$( rigDirectory keeper-home )" "T/copies/home-three"
+rigAssert "one source copy and copies under workspaces' .local, of whatever content: nothing is said, and the home is chosen as before" \
+	"$( rigN "$rigTmp/err" 'member keeper-srcloc has copies' ) $( rigHomeOf keeper-srcloc )" "0 ws-main"
+rigAssert "two source copies are still warned of, a copy under .local beside them" \
+	"$( LC_ALL=C grep 'member keeper-twosrc has copies' "$rigTmp/err" | rigCut )" "🙋 WARNING: member keeper-twosrc has copies in T/ws-two, T/ws-three, T/ws-main -- its home is the copy in T/ws-two: T/ws-two/source/rig/rig-proj/skillset/keeper-twosrc"
+rigAssert "no source copy and copies under .local of one content: nothing is said, and the newest is the home" \
+	"$( rigN "$rigTmp/err" 'member keeper-locsame has copies' ) $( rigHomeOf keeper-locsame )" "0 ws-three"
+rigAssert "of one age, the home is chosen among them as before: the first row" \
+	"$( rigN "$rigTmp/err" 'member keeper-loctie has copies' ) $( rigHomeOf keeper-loctie )" "0 ws-three"
+rigAssert "no source copy and copies under .local of two contents: nothing is said either, and the newest is the home" \
+	"$( rigN "$rigTmp/err" 'member keeper-locdiff has copies' ) $( rigHomeOf keeper-locdiff )" "0 ws-three"
+rigHomesKept="$( LC_ALL=C grep -e '^keeper-srcloc' -e '^keeper-loc' "$rigHomes" )"
 
 echo "-- 8. a workspace without agents --"
 rigAssert "its declared members are registered under its own root, as source-declared" \
@@ -307,6 +346,8 @@ rigAssert "the member directory still finds it" "$( rigDirectory keeper-side )" 
 mkdir -p "$rigTmp/ws-side/.local/agents" ; : > "$rigTmp/ws-side/.local/agents/members.registry"
 rigRun ws-main --intern-member-home-register
 rigAssert "once it has agents installed its own install registers it, and the declared rows go" "$rigRc $( LC_ALL=C awk -F'\t' '$3 == "source-declared"' "$rigReg" | LC_ALL=C grep -c . )" "0 0"
+rigAssert "a second run names the same homes for the members with copies under .local, and still says nothing of them" \
+	"$( LC_ALL=C grep -e '^keeper-srcloc' -e '^keeper-loc' "$rigHomes" ) $( LC_ALL=C grep -c -e 'member keeper-srcloc has copies' -e 'member keeper-locsame has copies' -e 'member keeper-loctie has copies' -e 'member keeper-locdiff has copies' "$rigTmp/err" )" "$rigHomesKept 0"
 
 echo "-- 9. help --"
 rigRun ws-main --help-syntax
