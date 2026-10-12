@@ -139,12 +139,16 @@ case "$1" in
 			settleChannel="$( AgentsToolsPendingReplyField "$settleFile" channel )"
 			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
 			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
-				settleNote="Withdrawn by $settleMember: $settleReason"$'\n'"This question no longer needs an answer."
 				## It carries the addressee of the question it withdraws, as the question named it.
 				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
 				[ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
 				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
 				[ -z "$settleTo" ] || settleArgs=( "${settleArgs[@]}" --address-to "$settleTo" )
+				## Its text is the note template's (sh-lib/templates/tooling-note.post.format.md, `# Ask`, withdrawn).
+				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+				settleNote="$( ASKP_BLOCK="Ask/withdrawn" ASKP_F_member="$settleMember" ASKP_F_reason="$settleReason" ASKP_F_address_to="$settleTo" \
+					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
+				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
 				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \
 					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
 			fi

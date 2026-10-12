@@ -15,7 +15,9 @@ Not a member/routine contract — this is the fixed text of the permission reque
 - Skeleton
   - post
 - Parts
+  - question
   - refused-call
+  - reason
 - Answers
   - grant
 - Reactions
@@ -39,11 +41,12 @@ Not a member/routine contract — this is the fixed text of the permission reque
 
 # Summary
 
-A permission request asks for one refused call: the question, the refused call as its record holds it, why the task needs it, the task, the context where one is given, and how to answer.
+A permission request asks for one refused call: what an allow would grant, said from that call, the refused call as its record holds it, why the task needs it in the asker's own words, the task, the context where one is given, and how to answer.
 
 ## Goals
 
 - The person sees exactly which call was refused, and denies or allows it with one click or one word.
+- The person sees from the post exactly what a click grants: its first line is made from the refused call, never from the asker's words.
 - A grant always takes its own answer. A plain agreement grants nothing.
 - Changing the wording, an icon or a hint is an edit to this file, not to the tool that fills it.
 
@@ -79,7 +82,13 @@ A permission request asks for one refused call: the question, the refused call a
 
 # Parts
 
-A block of the post that has a name. It is filled, and stands where the slot of its name is: in the post above, and in the post of a call under the second name `AskUserQuestion`, which shows it for a permission only because only this template has it.
+A block of the post that has a name. It is filled, and stands where the slot of its name is: in the post above, and in the post of a call under the second name `AskUserQuestion`, which shows it for a permission only because only this template has it. A part that carries the name of a field stands wherever a post shows that field. Every part is filled from the fields as the call gave them.
+
+## question
+
+```
+Allow **{{refused-tool}}**[[ on `{{refused-target}}`]][[ for **{{refused-for}}**]]? An allow grants exactly that, and nothing wider.
+```
 
 ## refused-call
 
@@ -89,6 +98,13 @@ A block of the post that has a name. It is filled, and stands where the slot of 
 - target: [[{{refused-target}}]]
 - refused for: [[{{refused-for}}]]
 - refusal: {{refusal-id}}
+```
+
+## reason
+
+```
+[[{{question}}
+]]{{reason}}
 ```
 
 # Answers
@@ -204,7 +220,9 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 
 - rule: The post is the one fenced block under `## post`, sent through the member send. Asked of a team member, it is the asking member's own message. Asked of the human-owner (`to` is `human-owner`), it is the team bot's message, whatever `as_bot` says: it stands in the bot's own conversation with the owner, as a Permission set does, and its record then says `ask-identity: bot`, so its answer emoji and every later read, edit and reminder are the bot's too. It names its addressee as every member message does.
 - rule: Who it is addressed to is settled when it is asked: the party named, where it holds the refused call and can be reached (the human-owner always, magic-coordinator, any other member only with a live run in the session); else a holder running in the session; else the human-owner. Where that is not the party named, the asker is told in a `NOTE` line of the result. A conversation, an account id or a routine given as the addressee is asked as given.
-- rule: Required: `{{question}}`, `{{refusal-id}}`, `{{reason}}` and `{{task}}`. Optional: `{{tag}}`, the question's number where it shares a thread, and `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: Required: `{{refused-tool}}`, `{{refusal-id}}`, `{{reason}}` and `{{task}}`. Optional: `{{tag}}`, the question's number where it shares a thread, and `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
+- rule: The first line of the post, under its title, is the block under `# Parts` named `question`, which stands wherever a post shows `{{question}}`: the refused tool, its target and who the call was refused for, as the refusal record holds them, and the sentence that an allow grants exactly that. It is never the asker's words, so the post never asks for more than its answer grants.
+- rule: The asker's words are the reason only. `{{reason}}` in a post is the block under `# Parts` named `reason`: the question as the asker worded it, where the call gave one, then the reason the call gave. They are shown under `Why this task needs it`, and nowhere else.
 - rule: `{{refused-call}}` is the block under `# Parts` named for it, filled: the refused call, always shown. `{{refused-tool}}`, `{{refused-target}}` and `{{refused-for}}` are the refused call as the refusal record holds it, never as the asker words it. The target is shown by its location root, `<place>:<relative path>`, where it lies in a registered place, and then no absolute path is shown beside it; where it lies in none it is shown as the record holds it. One the record leaves empty shows as an empty value under its label.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: The answer form is `grant`. `{{how-to-answer}}` is the block under `# Answers` named for it.

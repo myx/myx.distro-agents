@@ -91,6 +91,17 @@ AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma 
 	return 0
 }
 
+## One block of the note template, filled (sh-lib/templates/tooling-note.post.format.md):
+## `<Section>/<heading>`, its slots in the caller's environment as ASKP_F_<slot>. The line a
+## reminder says, and the words it takes for a time its record does not name, are that
+## template's own. Nothing printed, rc not 0, where the template has no such block.
+AgentsToolsPendingReplyRemindNote(){ ## block `<Section>/<heading>`
+	(
+		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+		ASKP_BLOCK="$1" AgentsToolsAskPostFill block tooling-note.post.format.md ""
+	) 2> /dev/null
+}
+
 ## One send through the team's send op, as the ask's owner and identity. The text goes
 ## in on stdin. Prints the send's first error line on failure.
 AgentsToolsPendingReplyRemindSend(){ ## owner, identity, target, address to, text
@@ -203,10 +214,10 @@ AgentsToolsPendingReplyRemindRun(){
 		LC_ALL=C awk -F'\t' -v p="$remindPerson" '$1 == p' "$remindWork/due.sorted" > "$remindWork/group"
 		while IFS=$'\t' read -r rPerson rEpoch rId rFile rStages rN rOwner rIdentity rChannel rQts rTts rAskedAt ; do
 			remindQuote="$( AgentsToolsPendingReplyRemindQuestion "$rFile" | LC_ALL=C sed 's/^/> /' )"
-			if [ "$rAskedAt" = "-" ] ; then remindAsked="an earlier date"
+			if [ "$rAskedAt" = "-" ] ; then remindAsked="$( AgentsToolsPendingReplyRemindNote "Words/asked-earlier" < /dev/null )" || remindAsked=""
 			else remindAsked="$( AgentsToolsSlackDateToken "$rAskedAt" date-time 2> /dev/null )" || remindAsked="${rAskedAt:0:16}" ; fi
-			remindText="⏰ Still waiting for your answer (asked $remindAsked, reminder $rN):"
-			[ -z "$remindQuote" ] || remindText="$remindText"$'\n'"$remindQuote"
+			## A line that could not be filled is empty, and the send refuses an empty one: FAILED, due again.
+			remindText="$( ASKP_F_asked="$remindAsked" ASKP_F_number="$rN" ASKP_F_question="$remindQuote" ASKP_F_address_to="$rPerson" AgentsToolsPendingReplyRemindNote "Ask/reminder" < /dev/null )" || remindText=""
 			if remindWhy="$( AgentsToolsPendingReplyRemindSend "$rOwner" "$rIdentity" "$rChannel:$rTts" "$rPerson" "$remindText" < /dev/null )" ; then
 				AgentsToolsPendingReplyRemindStamp "$rId" "$rFile" "$rStages" "$rN" "$remindStamp" "$remindToday" < /dev/null \
 					|| echo "⚠️ WARNING: $MDSC_CMD: $rId was reminded, but its record could not be stamped, so it may be reminded again" >&2

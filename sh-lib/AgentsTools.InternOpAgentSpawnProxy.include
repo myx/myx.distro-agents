@@ -1310,19 +1310,24 @@ case "$1" in
 		[ -z "$sessionThreadLock" ] || AgentsToolsLocalLockGive "$sessionThreadLock"
 		## A member brought into a session says so in its thread, as a reply, with what it was
 		## brought in for: every spawn but the one whose own session the thread is. The result
-		## is never assigned to sessionThread.
+		## is never assigned to sessionThread. Its text is the note template's
+		## (sh-lib/templates/tooling-note.post.format.md, `# Session`, joined).
 		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] ; then
 			## It is said to the member whose session brings this one in, where the send can
 			## address it, and to nobody where there is none: never to the member that joined.
-			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot )
+			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
 			type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 			if [ -n "$spawnerMember" ] && [ "$spawnerMember" != "$callerName" ] && AgentsToolsAssertBareName "$spawnerMember" "the spawning member" agent-spawn-proxy 2> /dev/null \
 				&& AgentsToolsTeamMemberDirectory "$spawnerMember" > /dev/null 2>&1 ; then
-				joinedArgs=( "${joinedArgs[@]}" --address-to "$spawnerMember" )
+				joinedTo="$spawnerMember"
+				joinedArgs=( "${joinedArgs[@]}" --address-to "$joinedTo" )
 			fi
+			type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+			joinedLine="$( ASKP_BLOCK="Session/joined" ASKP_F_member="$callerName" ASKP_F_description="$spawnDescriptionKept" ASKP_F_address_to="$joinedTo" \
+				AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || joinedLine=""
 			if [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
-			elif [ "$( printf '%s joined%s' "$callerName" "${spawnDescriptionKept:+: $spawnDescriptionKept}" \
+			elif [ "$( printf '%s' "$joinedLine" \
 				| DistroAgentsTools --intern-op-comms-slack-send-message "${joinedArgs[@]}" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2

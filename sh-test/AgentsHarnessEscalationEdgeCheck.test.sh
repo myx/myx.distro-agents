@@ -325,12 +325,13 @@ rigOp rig-coordinator "$rigScenarioDir/op" --magic-escalation-answer magic-coord
 rigAssert "and once it can be written, the same answer is applied, with one grant" "$( LC_ALL=C grep -c "^ESCALATION: $rigPending answered" "$rigScenarioDir/op" ):$( rigGrantCount "$rigCrashRefusal" )" "1:1"
 rigAskStop
 
-## Two answers at once: one applies, one grant, one note in the thread -- whichever of the
-## two is a moment ahead, so the race is run several times over.
+## Two answers at once: one applies, one grant, one reply in the thread -- the confirmation
+## of the answer that was applied, and no other line -- whichever of the two is a moment
+## ahead, so the race is run several times over.
 for rigRaceRound in 1 2 3 4 5 ; do
 	rigAsk "$rigScenarioDir/ws/OUT/r$rigRaceRound"
 	rigRaceRefusal="$( rigRefusalId "$rigScenarioDir/refused" )"
-	rigRaceNotes="$( rigPostsWith 'Answered by magic-coordinator: allow-once' )"
+	rigRaceNotes="$( rigPostsWith 'Read: `allow-once` by magic-coordinator. Granted: Write on ' )"
 	rigOp rig-coordinator "$rigScenarioDir/op.x" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
 	rigAnswerX=$!
 	rigOp rig-coordinator "$rigScenarioDir/op.y" --magic-escalation-answer magic-coordinator "$rigPending" allow-once &
@@ -340,7 +341,8 @@ for rigRaceRound in 1 2 3 4 5 ; do
 	rigAssert "round $rigRaceRound: the other one is refused, not reported as an answer" \
 		"$( cat "$rigScenarioDir/op.x.err" "$rigScenarioDir/op.y.err" | LC_ALL=C grep -c -e "the answer allow-once for $rigPending was not applied" -e "$rigPending is not open, so it takes no answer" )" 1
 	rigAssert "round $rigRaceRound: and exactly one grant is written" "$( rigGrantCount "$rigRaceRefusal" )" 1
-	rigAssert "round $rigRaceRound: and it is said in the thread once" "$(( $( rigPostsWith 'Answered by magic-coordinator: allow-once' ) - rigRaceNotes ))" 1
+	rigAssert "round $rigRaceRound: and it is said in the thread once, by the confirmation of the answer that was applied, and by no second line" \
+		"$(( $( rigPostsWith 'Read: `allow-once` by magic-coordinator. Granted: Write on ' ) - rigRaceNotes )):$( rigPostsWith 'Answered by' )" "1:0"
 	rigAskStop
 done
 

@@ -219,8 +219,8 @@ rigPend="$( rigPermissionAsk magic-tester rig-tester "$rigIdR" )"
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord rigOp --magic-escalation-answer magic-coordinator "$rigPend" allow-session
 rigAssert "the coordinator's allow is not applied"         "$( rigHas "$rigTmp/op.out" "ESCALATION: $rigPend rerouted" )" yes
 rigAssert "it is re-addressed to the holder, who runs in this session" "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" address-to )" magic-developer
-rigAssert "the holder is told in the session's thread, by name, with the request and why it is theirs" \
-	"$( rigSaid "Permission request $rigPend, asked by magic-tester, is now yours to answer, magic-developer. magic-coordinator does not hold Write" '"thread_ts":"1700000000.000900"' )" 1
+rigAssert "the holder is told in the session's thread, by name, with why it is theirs and the request to name, its id at the end and never at the head of the line" \
+	"$( rigSaid 'A permission request asked by magic-tester is now yours to answer, magic-developer. magic-coordinator does not hold Write on `' "naming request \`$rigPend\`." '"thread_ts":"1700000000.000900"' ):$( rigSaid "Permission request $rigPend" )" "1:0"
 rigAssert "its record says who it waits on now"             "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" blocked-on )" "reply from magic-developer"
 rigAssert "and the thread it was answered in is told the answer is not applied, and who it goes to" \
 	"$( rigSaid 'Read: `allow-session` by magic-coordinator, and it is not applied: magic-coordinator does not hold Write' 'The question now goes to magic-developer, and stays open.' '"thread_ts":"1700000000.000001"' )" 1
@@ -240,7 +240,9 @@ rigAssert "through the existing forward"                   "$( [ -n "$( rigField
 rigAssert "one post was made for it"                       "$(( $( rigCalls chat.postMessage ) - rigPosts >= 1 ))" 1
 rigForwardTs="$( rigField "$rigWs/.local/agents/pending/$rigPend.md" forward-ts )"
 rigAssert "the request is posted to the human-owner with why it came up, and its three answer emoji are placed under it" \
-	"$( LC_ALL=C grep -l -F "The answer in this thread is the verdict for request $rigPend. magic-coordinator does not hold Write" "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C awk -v want="$rigForwardTs" '$1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "1:x one repeat "
+	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict for this request. magic-coordinator does not hold Write on `' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C awk -v want="$rigForwardTs" '$1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "1:x one repeat "
+rigAssert "and it shows the human-owner no request id" \
+	"$( LC_ALL=C grep -l -F 'The answer in this thread is the verdict' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C xargs grep -l -F -- "$rigPend" 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" 0
 rigAssert "its record says it waits on the human-owner"    "$( rigField "$rigWs/.local/agents/pending/$rigPend.md" blocked-on )" "reply from human-owner"
 ## A holder that is not running in this session is never chosen: nobody there would see the request.
 rigDead rig-dev

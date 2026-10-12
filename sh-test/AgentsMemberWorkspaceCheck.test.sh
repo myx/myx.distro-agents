@@ -568,13 +568,13 @@ rigAssert "a send, whose stub reaches its implementation and the Slack call unde
 
 echo "-- 7. an invited member talks in the Slack of the workspace it was called from, under its own identity --"
 ## Two workspaces, each with its own team settings. keeper-there is set up only in ws-there, where it has an identity of
-## its own and a row in the names registry; ws-here holds no setting and no row for it. The conversation, the team's
-## bot and the names are the calling workspace's; its own identity, a Slack setting ws-here holds none of for it, is
-## read from the workspace it is set up in.
+## its own and a row in the names registry; ws-here holds no setting and no row for it. The conversation and the
+## team's bot are the calling workspace's; its own identity, a Slack setting ws-here holds none of for it, is read
+## from the workspace it is set up in, and so are its mark and alias, its row of that workspace's names registry.
 rigWorld
 rigRunIn ws-here --member-comms-slack-send-message keeper-there magic-team RIG-BODY
 rigAssert "its send goes to the team's channel of the workspace it was called from, under its own identity, which that workspace holds none of and its own does" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-KTHERE CHERE0001"
-rigAssert "under its own name, as that workspace's names registry has it: no row there, so the plain name" "$( rigText )" '*_keeper-there_* @keeper-there → @here.\nRIG-BODY'
+rigAssert "under its own name, with the mark and alias of its row in the names registry of the workspace it is set up in: the calling workspace's registry holds no row for it" "$( rigText )" '🔧 *_keeper-there_* @therekeep → @here.\nRIG-BODY'
 rigAssert "nothing of the team of the workspace it is set up in is used: not its bot, not its channel" "$( rigN "$rigTmp/calls" 'bot-token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0"
 rigRunIn ws-here --member-comms-slack-read keeper-there magic-team
 rigAssert "its read is made under the same identity"                       "$rigRc $( rigHistoryToken )" "0 rig-user-token-KTHERE "
@@ -634,7 +634,7 @@ rigAssert "the environment its call ran in is, field for field, the one a member
 rigPre=()
 rigRunIn ws-here --member-comms-slack-send-message client-ndm magic-team RIG-BODY
 rigAssert "a --member- send of a client reaches our own team: the bot and the channel of the workspace it was called from" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
-rigAssert "under its own name, as that workspace's names registry has it: no row there, so the plain name, and its metadata" "$( rigText ) $( rigN "$rigTmp/bodies" '"metadata"' )" '*_client-ndm_* @client-ndm → @here.\nRIG-BODY 1'
+rigAssert "under its own name, with the mark and alias of its row in the names registry of the workspace it is set up in, and its metadata" "$( rigText ) $( rigN "$rigTmp/bodies" '"metadata"' )" '🐭 *_client-ndm_* @dispatchr → @here.\nRIG-BODY 1'
 rigAssert "no token the client holds was used, in either workspace, and nothing of the workspace it is set up in" "$( rigN "$rigTmp/calls" 'NDMHERE' ) $( rigN "$rigTmp/calls" 'NDMTHERE' ) $( rigN "$rigTmp/calls" 'token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0 0 0"
 rigRunIn ws-here --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
 rigAssert "a --client- send of the same client reaches the other organisation: the token this workspace holds for the client, the conversation named by its id" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-NDMHERE CNDM00001"
@@ -1234,7 +1234,7 @@ rigAssert "the entry's one exclusion line: the spawn proxy, the two operations t
 rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|//' )"
 rigAssert "an invited member's call is re-run whole in a subshell under its member set root, and only where that is not the root it already reads" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '[ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ]' || : )" "1 1"
 rigAssert "no call is carried to another workspace: the entry switches to none"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigSwitchFn " || : )" 0
-rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "
+rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "
 rigAssert "the bring is called from the dispatcher entry and the spawn proxy, and nowhere else" "$( LC_ALL=C grep -l "$rigBringFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.InternOpAgentSpawnProxy.include DistroAgentsTools.fn.sh "
 rigAssert "the spawn proxy launches the console of the workspace it runs in, with MMDAPP set to it, and names no other workspace to start a spawn in" "$( [ "$( LC_ALL=C grep -c 'MMDAPP="\$MMDAPP".*"\$MMDAPP/DistroAgentsConsole.sh"' "$rigSpawnInclude" || : )" -gt 0 ] && printf launches-here || printf blind ) $( LC_ALL=C grep -c 'spawnWorkspace' "$rigSpawnInclude" || : )" "launches-here 0"
 rigAssert "which is the workspace it was called from for every member, a client-* member too: MMDAPP is never set in the file, only handed to what it starts" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -v 'env MMDAPP=' | LC_ALL=C grep -c -E '(^|[^A-Za-z_"$])MMDAPP=' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigSpawnInclude" | LC_ALL=C grep -c -F -e 'client-*)' || : )" "0 0"

@@ -28,7 +28,7 @@ One ask, to one addressee, about one thing a member needs before one part of its
 ## Scope
 
 - Does: fix the fields and verdicts of the `readback`, `decision` and `permission` kinds.
-- Doesn't: shape an ordinary open question. That is `AskQuestion`, with `select` (`yes-no`, `one`, `many`) and no fixed fields.
+- Doesn't: shape an ordinary open question. That is `AskQuestion`, with `select` (`yes-no`, `one`, `many`) and no fixed fields; `options` given with no `select` returns a correction, posting nothing.
 
 # Skeleton
 
@@ -51,7 +51,8 @@ verdicts: <the chosen option's word>
 ```
 kind: permission
 refusal_id: <the REFUSAL-ID: the refusal printed>
-reason: <why this task needs the refused thing>
+reason: <why this task needs the refused thing -- the post's own lead line, written by the tooling from
+  the refused call, already names the tool, the place and the member; this field supplies only the why>
 task_ref: <the board item or dispatch the task is tracked in>
 verdicts: deny | allow-once | allow-session | allow-task
 ```
@@ -80,7 +81,7 @@ verdicts: approved | rejected       <- the owner's own mark on the root, or a re
 - rule: An answer outside the kind's verdicts reads `RETURNED`, and the ask stays open. The member never guesses a verdict from the answer text.
 - rule: After `RETURNED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
-- rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask. A reaction counts only ahead of the addressee's first reply; once it has replied, a later click is not read.
+- rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask. A reaction counts only ahead of the addressee's first reply; once it has replied, a later click is not read. An answer given through `--member-escalation-answer` gets one reply, its confirmation; no separate `Answered by` line is posted.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.
 - rule: `allow-once` covers one run of the operation the ask named. `allow-session` covers the same tool and target until the session ends. `allow-task` covers them while the ask's task item is open, and no longer than the session. None outlives the session.
 - rule: An allow is applied only from an approver who holds what it allows, or the human-owner. Anyone else's allow is not applied: tooling re-addresses the ask to a holder among the session's or task's participants, else forwards it to the human-owner, and it stays open.

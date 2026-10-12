@@ -86,6 +86,17 @@ AgentsToolsMemberInvited(){ ## member
 	[ -n "$invitedWorkspace" ]
 }
 
+## The workspace an invited member is set up in, as a path, for a reader of that member's
+## own facts there: its mark and alias, which are its row of that workspace's names registry
+## (AgentsToolsCommsSlackMemberPresentation). Nothing printed, rc 1, for a member that is
+## not invited. Silent, as AgentsToolsMemberInvited is.
+AgentsToolsMemberInvitedWorkspace(){ ## member
+	local invitedWorkspace
+	invitedWorkspace="$( AgentsToolsMemberWorkspaceResolve "$1" "" 2> /dev/null )" || return 1
+	[ -n "$invitedWorkspace" ] || return 1
+	printf '%s\n' "$invitedWorkspace"
+}
+
 ## The workspace a member is set up in, from the machine-wide member directory, the
 ## member homes and the workspaces this machine knows, all in $HOME/.agents/magic-team
 ## (AgentsTools.TeamRegistry.include, AgentsTools.MemberHomes.include, AgentsTools.Places.include).

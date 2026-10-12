@@ -4,9 +4,9 @@
 ## the member send gives a named addressee, whatever conversation it stands in: the
 ## confirmation of an answer, read from Slack or given through the team operation; the note
 ## that a question is withdrawn; the note that a review is settled another way. In the
-## thread of a forward it is the human-owner, whom the forward was addressed to. The line an
-## answering member posts, `Answered by`, is addressed to the member that asked, never to
-## the member posting it. The line that tells a Permission set is answered is addressed to
+## thread of a forward it is the human-owner, whom the forward was addressed to. An answer
+## given through the team operation gets that one confirmation, and the answering member
+## posts no line of its own beside it. The line that tells a Permission set is answered is addressed to
 ## the participants of the set, each one the send can address. A record that names nobody
 ## leaves the post as it always was, and no follow-up is lost over a name.
 ## Offline: the Slack-shaped fake curl is first on PATH, the skillset is a fixture, and
@@ -140,21 +140,21 @@ rigId="$( rigAsk question "" 1700000001.000301 )"
 RIG_AGENT="$rigAsker" rigOp --member-pending-reply-settle "$rigAsker" "$rigId" --reason "no longer needed" --withdraw
 rigAssert "a record that names nobody: the note is posted as it always was" "$( rigCount 'Withdrawn by' ):$( rigHeader 'Withdrawn by' )" "1:$( rigTo "$rigAsker" '@here' )"
 
-echo "-- an answer given through the team operation: its confirmation, and the line the answering member posts --"
+echo "-- an answer given through the team operation: its confirmation, and no line of the answering member's own --"
 rigStart answerMember
 rigId="$( rigAsk readback "$rigAnswerer" 1700000002.000101 )"
 RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --member-escalation-answer "$rigAnswerer" "$rigId" yes
-[ "$( rigCount 'Answered by' )" != 0 ] || rigRefuse "the answer was not said in the thread at all, so there is no header to read: $( LC_ALL=C grep -m1 ERROR "$RIG_SCENARIO/op.err" )"
+[ "$( rigCount 'Read: `yes`' )" != 0 ] || rigRefuse "the answer was not said in the thread at all, so there is no header to read: $( LC_ALL=C grep -m1 ERROR "$RIG_SCENARIO/op.err" )"
 rigAssert "the confirmation, the asker's: addressed to the member asked, as the question was" \
 	"$( rigCount 'Read: `yes` by '"$rigAnswerer" ):$( rigThreadOf 'Read: `yes`' ):$( rigHeader 'Read: `yes`' )" "1:1700000002.000101:$( rigTo "$rigAsker" "$( rigNamed "$rigAnswerer" )" )"
-rigAssert "the line of the member that answered: addressed to the member that asked, never to itself" \
-	"$( rigCount "Answered by $rigAnswerer: yes" ):$( rigThreadOf 'Answered by' ):$( rigHeader 'Answered by' )" "1:1700000002.000101:$( rigTo "$rigAnswerer" "$( rigNamed "$rigAsker" )" )"
+rigAssert "one answer, one reply: the member that answered posts no line of its own beside the confirmation" \
+	"$( rigCount 'Answered by' ):$( LC_ALL=C grep -c '^chat.postMessage$' "$RIG_CURL_LOG" 2>/dev/null )" "0:1"
 rigStart answerGhost
 rigId="$( rigAsk readback "$rigAnswerer" 1700000002.000201 )"
 LC_ALL=C sed "s/^owner: $rigAsker\$/owner: $rigGhost/" "$rigStore/$rigId.md" > "$rigStore/$rigId.md.new" && mv "$rigStore/$rigId.md.new" "$rigStore/$rigId.md"
 RIG_AGENT="$rigAnswerer" RIG_SESSION=rig-answer-run rigOp --member-escalation-answer "$rigAnswerer" "$rigId" yes
-rigAssert "an asker the send cannot address: the line is posted all the same, naming nobody" \
-	"$( rigCount "Answered by $rigAnswerer: yes" ):$( rigHeader 'Answered by' )" "1:$( rigTo "$rigAnswerer" '@here' )"
+rigAssert "an asker that is no member the send can post as: the answer is applied all the same, and no line is posted in the answering member's name" \
+	"$( LC_ALL=C grep -c -x -F "ESCALATION: $rigId answered" "$RIG_SCENARIO/op.out" ):$( rigCount 'Answered by' )" "1:0"
 
 echo "-- an answer read from Slack: its confirmation carries the addressee of the ask, in one shape --"
 rigStart readOwner

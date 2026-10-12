@@ -131,7 +131,7 @@ Available to **run-team-fix-session** only.
 
 Steps:
 1. Run `magic-team.interview.routine`'s semantics in this session, with `magic-team.negotiations.md`'s topic mechanics. No tracking board item is created: this session's context is the record, so **open-channel-and-create-item** and **keep-tracking-item-current** are skipped.
-2. Offer a real choice of options as an `AskQuestion` menu, unless a plain text dialogue suits it better.
+2. Offer a real choice of options as an `AskQuestion` menu, with its matching `select` -- `options` with no `select` returns a correction, posting nothing -- unless a plain text dialogue suits it better.
 3. After each message, wait for the reply with `Wait` (wait-never-quit).
 
 # Routine's local rules

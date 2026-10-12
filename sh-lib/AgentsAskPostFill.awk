@@ -18,7 +18,10 @@
 # written `_`.
 # A template may name parts of its post: each block under `# Parts` is filled, and is the
 # value of the slot of its heading -- in the template's own post, and in a skeleton around it,
-# which so shows a part only for a template that has it.
+# which so shows a part only for a template that has it. A part is filled from the fields as
+# the call gave them, never from another part, so a part may carry the name of a field: the
+# post then shows the part wherever it shows that field, and another part can still show the
+# field as it was given.
 # Nothing here knows which templates exist: a template is whatever file is named, and a form
 # whatever heading it carries.
 # The number marks are fixed here, with the names the verdict reader takes a click by
@@ -133,13 +136,15 @@ BEGIN {
 		if ( askSlot["how-to-answer"] == "" ) { askFail( 3, "the `## " form "` block under `# Answers` is empty: " template ) ; }
 	}
 
-	## The parts of the template's post, each the value of the slot of its name.
+	## The parts of the template's post, each the value of the slot of its name. All of them
+	## are filled before any is set, so none is filled from another, in whatever order they come.
 	for ( partKey in ttHas ) {
 		if ( index( partKey, "Parts" SUBSEP ) != 1 ) { continue ; }
 		partText = ttFill( ttBlock[partKey] ) ;
 		if ( ttRequiredEmpty > 0 ) { askFail( 4, "the slot {{" ttRequiredName "}} is required and has no value" ) ; }
-		askSlot[substr( partKey, length( "Parts" SUBSEP ) + 1 )] = partText ;
+		partFilled[substr( partKey, length( "Parts" SUBSEP ) + 1 )] = partText ;
 	}
+	for ( partName in partFilled ) { askSlot[partName] = partFilled[partName] ; }
 
 	## Under a skeleton of its own, the title is the first line of the template's own post.
 	if ( skeletonPost != "" ) {

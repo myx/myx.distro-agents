@@ -107,6 +107,17 @@ AgentsToolsEscalationTemplateBlock(){ ## kind, block `<Section>/<heading>`
 	) 2> /dev/null
 }
 
+## One of the tooling's own lines about an ask, filled: a block of the note template
+## (sh-lib/templates/tooling-note.post.format.md), `<Section>/<heading>`, its slots in the
+## caller's environment as ASKP_F_<slot>. Nothing printed, rc not 0, where the template has
+## no such block.
+AgentsToolsEscalationNote(){ ## block `<Section>/<heading>`
+	(
+		type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+		ASKP_BLOCK="$1" AgentsToolsAskPostFill block tooling-note.post.format.md ""
+	) 2> /dev/null
+}
+
 ## THE CONFIRMATION. Once an answer is read, the tooling says so with one reply in the thread
 ## the answer was read in, as the identity that posted there: what was read (the verdict and
 ## who gave it) and what was done with it -- what is now granted, to whom and how far; that
@@ -168,10 +179,16 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 ## The forward's own work: the request posted by the team bot to who it goes up to, its answer
 ## emoji placed under it so it is answered by a click as well as by a reply, and its thread
 ## kept on the record as a place its answer is read from (forward-channel, forward-ts,
-## forward-addressees). Prints FORWARDED-TO; rc 1, said on stderr, when it was not posted or
-## could not be kept.
-AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, the line it opens with
-	local fpFile="$1" fpId="$2" fpBy="$3" fpLead="$4" fpOut fpChannel fpTs fpAddressees fpEmoji
+## forward-addressees). The line it opens with is the note template's (`# Ask`, forwarded):
+## who forwards it, and why the answer before it was not applied where that is why it goes
+## up. Prints FORWARDED-TO; rc 1, said on stderr, when it was not posted or could not be kept.
+AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, why the answer before it was not applied, as a post says it (may be empty)
+	local fpFile="$1" fpId="$2" fpBy="$3" fpLead="" fpOut fpChannel fpTs fpAddressees fpEmoji
+	fpLead="$( ASKP_F_by="$fpBy" ASKP_F_reason="${4:-}" ASKP_F_address_to=human-owner AgentsToolsEscalationNote "Ask/forwarded" )" || fpLead=""
+	if [ -z "$fpLead" ] ; then
+		echo "$MDSC_CMD: ⛔ ERROR: the forward could not be posted, so $fpId is still answered only where it was asked: the line it opens with could not be filled from its template (tooling-note.post.format.md, Ask/forwarded)" >&2
+		return 1
+	fi
 	fpOut="$( {
 		printf '%s\n\n' "$fpLead"
 		LC_ALL=C awk 'seenBody { print ; next } /^# Question asked$/ { seenBody = 1 }' "$fpFile"
@@ -211,13 +228,16 @@ AgentsToolsEscalationForwardPost(){ ## record file, request id, forwarded by, th
 ## is never silent: where the request cannot be posted to who it goes up to, it is not
 ## re-addressed at all, and the answer says so. Prints the result lines.
 AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is not held, the verdict that is not applied, read in the forward's thread (non-empty|empty)
-	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrVerdict="${5:-}" rrFromForward="${6:-}" rrTool rrTarget rrHolder="" rrTo rrOut="" rrSession rrRunning rrOne rrThread="" rrWhy rrOwner
+	local rrFile="$1" rrId="$2" rrBy="$3" rrWhat="$4" rrVerdict="${5:-}" rrFromForward="${6:-}" rrTool rrTarget rrHolder="" rrTo rrOut="" rrSession rrRunning rrOne rrThread="" rrWhy rrOwner rrSaid="" rrNote=""
 	rrTool="${rrWhat%%$'\t'*}" ; rrTarget="${rrWhat#*$'\t'}"
 	rrTo="$( AgentsToolsEscalationField "$rrFile" address-to )"
 	rrOwner="$( AgentsToolsEscalationField "$rrFile" owner )"
 	rrSession="$( AgentsToolsEscalationField "$rrFile" session-id )"
 	rrWhy="$rrBy does not hold $rrTool ${rrTarget:-(any target)}"
 	type AgentsToolsPermissionSessionRunning > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+	## The same reason as a post says it (`# Reasons`, not-held): who by name, the target by its
+	## place. The record and the result lines keep the exact target.
+	rrSaid="$( ASKP_F_by="$( AgentsToolsPermissionPartyName "$rrBy" )" ASKP_F_tool="$rrTool" ASKP_F_target="$( AgentsToolsPermissionShownTarget "$rrTarget" )" AgentsToolsEscalationNote "Reasons/not-held" )" || rrSaid=""
 	rrRunning="$( AgentsToolsPermissionSessionRunning "$rrSession" )"
 	while IFS= read -r rrOne ; do
 		[ -n "$rrOne" ] && [ "$rrOne" != "human-owner" ] || continue
@@ -229,7 +249,8 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 	[ -z "$rrHolder" ] || rrThread="$( AgentsToolsPermissionSessionThread "$rrSession" )"
 	[ -n "$rrThread" ] || rrHolder=""
 	if [ -n "$rrHolder" ] ; then
-		printf '%s\n' "Permission request $rrId, asked by $rrOwner, is now yours to answer, $rrHolder. $rrWhy, so that answer is not applied. Answer it with the escalation answer operation, naming this request." \
+		rrNote="$( ASKP_F_member="$rrOwner" ASKP_F_address_to="$rrHolder" ASKP_F_reason="$rrSaid" ASKP_F_request_id="$rrId" AgentsToolsEscalationNote "Ask/now-yours" )" || rrNote=""
+		[ -n "$rrNote" ] && [ -n "$rrSaid" ] && printf '%s\n' "$rrNote" \
 			| DistroAgentsTools --intern-op-comms-slack-send-message "$rrOwner" "$rrThread" --identity-bot --address-to "$rrHolder" --from-stdin > /dev/null 2>&1 || {
 			echo "⚠️ WARNING: $MDSC_CMD: $rrHolder holds $rrTool ${rrTarget:-(any target)} and runs in this session, but could not be told of $rrId in the session thread $rrThread, so the request goes to the human-owner instead" >&2
 			rrHolder=""
@@ -241,9 +262,9 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 		if [ "$rrTo" != "human-owner" ] && [ -z "$( AgentsToolsEscalationField "$rrFile" forward-ts )" ] ; then
 			local rrForwardBy="$rrTo"
 			case "$rrTo" in *.routine) rrForwardBy="$rrBy" ;; esac
-			rrOut="$( AgentsToolsEscalationForwardPost "$rrFile" "$rrId" "$rrForwardBy" "Forwarded by $rrForwardBy. The answer in this thread is the verdict for request $rrId. $rrWhy, so that answer is not applied." 2>&1 )" || {
+			rrOut="$( AgentsToolsEscalationForwardPost "$rrFile" "$rrId" "$rrForwardBy" "${rrSaid:-$rrWhy}" 2>&1 )" || {
 				echo "$MDSC_CMD: ⛔ ERROR: $rrWhy, so its answer is not applied, and $rrId could not be posted to the human-owner either, so it is NOT re-addressed: it stays addressed to $rrTo, open -- $( LC_ALL=C grep -m1 '⛔' <<< "$rrOut" )" >&2
-				AgentsToolsEscalationConfirm "$rrFile" "$rrId" not-applied "$rrVerdict" "$rrBy" "$rrFromForward" "$rrWhy, and the request could not be posted to the human-owner."
+				AgentsToolsEscalationConfirm "$rrFile" "$rrId" not-applied "$rrVerdict" "$rrBy" "$rrFromForward" "${rrSaid:-$rrWhy}, and the request could not be posted to the human-owner."
 				printf 'ESCALATION: %s open\n' "$rrId"
 				printf 'VERDICT: RETURNED\n'
 				printf 'VERDICT-REASON: %s, so that answer is not applied, and the request could not be posted to the human-owner; it stays addressed to %s and open\n' "$rrWhy" "$rrTo"
@@ -257,7 +278,7 @@ AgentsToolsEscalationReroute(){ ## record file, request id, approver, what is no
 		return 1
 	}
 	## Said in the thread the answer was read in, so the one who answered and the people there see it.
-	AgentsToolsEscalationConfirm "$rrFile" "$rrId" sent-up "$rrVerdict" "$rrBy" "$rrFromForward" "$rrWhy" "$rrHolder"
+	AgentsToolsEscalationConfirm "$rrFile" "$rrId" sent-up "$rrVerdict" "$rrBy" "$rrFromForward" "${rrSaid:-$rrWhy}" "$rrHolder"
 	echo "⚠️ WARNING: $MDSC_CMD: $rrBy does not hold $rrTool ${rrTarget:-(any target)}, so its answer is not applied; $rrId is re-addressed to $rrHolder" >&2
 	printf 'ESCALATION: %s rerouted\n' "$rrId"
 	printf 'ADDRESS-TO: %s\n' "$rrHolder"
@@ -1080,7 +1101,12 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: nobody has replied to $rbId yet, so there is no reply to read back -- wait for it" >&2
 			set +e ; return 1
 		fi
-		rbNote="🔁 Readback by $rbMember: I take your reply to mean \`$rbOption\`${rbText:+ -- $rbText}"$'\n'"If that is wrong, reply here. Your reply is kept on this decision."
+		## Its text is the note template's (`# Ask`, readback).
+		rbNote="$( ASKP_F_member="$rbMember" ASKP_F_option="$rbOption" ASKP_F_text="$rbText" ASKP_F_address_to="$( AgentsToolsEscalationField "$rbFile" address-to )" AgentsToolsEscalationNote "Ask/readback" )" || rbNote=""
+		if [ -z "$rbNote" ] ; then
+			echo "$MDSC_CMD: ⛔ ERROR: the readback could not be filled from its template (tooling-note.post.format.md, Ask/readback), so it was not posted in the thread of $rbId, which stays open" >&2
+			set +e ; return 1
+		fi
 		if [ "$( AgentsToolsEscalationField "$rbFile" ask-identity )" = "bot" ] ; then
 			rbSent="$( printf '%s\n' "$rbNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$rbMember" "$rbChannel:$rbThread" --identity-bot \
 				--address-to "$( AgentsToolsEscalationField "$rbFile" address-to )" --from-stdin 2>&1 )" || rbSent=""
@@ -1175,20 +1201,14 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## An answer that lost the claim to another one is not applied, and is not said in the thread.
+		## One answer, one reply: what became of this one is said in the question's thread by the
+		## apply itself, once, as the confirmation of its kind (AgentsToolsEscalationConfirm) --
+		## what is granted, that nothing is, or that the answer is not applied and who the
+		## request goes to now. It carries the addressee of the ask. Nothing is added to it here.
 		AgentsToolsEscalationApply "$answerFile" "$answerId" "$answerVerdict" "$answerText" "$answerMember" "$answerSession" || {
 			echo "$MDSC_CMD: ⛔ ERROR: the answer $answerVerdict for $answerId was not applied" >&2
 			set +e ; return 1
 		}
-		## Said in the question's thread too, so the people there see it was answered and by whom.
-		## The line is the answering member's own, and the addressee of the ask is that member:
-		## it is addressed to the member that asked, where the send can address it.
-		local answerArgs=( "$answerMember" "$( AgentsToolsEscalationField "$answerFile" channel ):$( AgentsToolsEscalationField "$answerFile" thread-ts )" --from-stdin )
-		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
-		! AgentsToolsAssertBareName "$answerOwner" "the asking member" escalation-answer 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$answerOwner" > /dev/null 2>&1 \
-			|| answerArgs=( "${answerArgs[@]}" --address-to "$answerOwner" )
-		[ -z "$( AgentsToolsEscalationField "$answerFile" channel )" ] || printf '%s\n' "Answered by $answerMember: $answerVerdict${answerText:+ -- $answerText}" \
-			| DistroAgentsTools --intern-op-comms-slack-send-message "${answerArgs[@]}" > /dev/null 2>&1 \
-			|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but it was not said in the question's thread" >&2
 		return 0
 	;;
 
@@ -1241,7 +1261,7 @@ case "$1" in
 			return 0
 		fi
 		## Posted by the team bot, its answer emoji under it, its thread kept on the record.
-		forwardOut="$( AgentsToolsEscalationForwardPost "$forwardFile" "$forwardId" "$forwardBy" "Forwarded by $forwardBy. The answer in this thread is the verdict for request $forwardId." )" || { set +e ; return 1 ; }
+		forwardOut="$( AgentsToolsEscalationForwardPost "$forwardFile" "$forwardId" "$forwardBy" "" )" || { set +e ; return 1 ; }
 		## One that went up to a member who never answered is the human-owner's from here on.
 		[ "$forwardBy" != "$( AgentsToolsEscalationField "$forwardFile" rerouted-from )" ] \
 			|| AgentsToolsEscalationUpsert "$forwardFile" address-to human-owner blocked-on "reply from human-owner" \

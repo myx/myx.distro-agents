@@ -1009,6 +1009,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   too, the same in a native session that is itself the coworking session; the ask tools follow the same
   rule. `SubagentHandback` defaults to `session-parent`. `ProposeApprove` keeps its own `to`: the
   human-owner by default, or a named conversation -- never a thread, since its first message opens one.
+  The bodies of `SendMessage`, `SubagentHandback`, `ReportFindings` and `PushNotification`, and the
+  joined, readback, withdrawn, reminder, forward and holder lines, are template blocks now, the same
+  as the five ask tools below.
 - **`address_to` names who a post is for, apart from `to`'s target.** `SendMessage`, `SubagentHandback`,
   `ReportFindings`, `PushNotification` and `Artifact` take it, as the ask tools already did (`--address-to`
   at the CLI). The tool tags the real mention itself (see "Send header"); nothing is typed into the body.
@@ -1019,7 +1022,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The five ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`,
   `ProposeApprove`) each render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`).
   `select` gives the answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` --
-  `one`/`many` need `options`, `yes-no` takes none. `revise` re-asks a question still open, changed, in
+  `one`/`many` need `options`, `yes-no` takes none; `options` given with no `select` returns a
+  correction, posting nothing. `revise` re-asks a question still open, changed, in
   that question's own thread, by the pending id the first ask returned. `ProposeApprove` alone takes
   `question`, `proposal`, `document` (an absolute link, required) and `task_ref` in place of a plain
   question and `select`: it posts `question` once as the root, with no tooling emoji under it, and
@@ -1375,7 +1379,8 @@ op's own option arm.
   token) shows the persona row's names and refuses if they are missing. Other gaps degrade quietly.
   External sends carry no default `magic_sender` metadata; client addressees stay plain text (their ids
   are in another workspace); the bot swap after `channel_not_found` is skipped unless the bot is the
-  member's own. Email shows only the address.
+  member's own. Email shows only the address. An invited member is shown with the mark and alias of the
+  workspace it is set up in, not the running session's own.
 - **`AgentsSlackDate.awk` is the one helper for every date or time the tooling writes into Slack
   text** (`AgentsToolsSlackDateToken`, `AgentsTools.SlackDate.include`). `sldToken` renders a fixed
   style (`time`, `time-secs`, `date-time`, `date-time-secs`, `date`); `sldTokenAs` takes any
@@ -1690,7 +1695,8 @@ op's own option arm.
   included (`sh-lib/templates/permission-set.post.format.md`, which groups its asks by place and takes an
   optional `--purpose` per place). The record behind the post always keeps the exact, absolute target:
   only what is posted is shortened. `.skillset-shared` and `.skillset-.local` are two such places, built
-  in, needing no registration (see "Places", section 6).
+  in, needing no registration (see "Places", section 6). The post leads with a line the tooling writes
+  from the refused call, naming the tool, the place and the member; the member's own words say only why.
 - **Grants are keyed by session, member, tool and target** (resolved path, or exact command bytes), taken
   from the record, never the ask's text. Allow-once is spent by one `mkdir consumed/<id>` when the gate
   admits the call, and an unused one lapses `MDAT_PERMISSION_ONCE_TTL` seconds (default 300) after its

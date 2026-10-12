@@ -2851,12 +2851,22 @@ AgentsHarnessMonitorSpool(){
 	done
 }
 
-## ONE optional labelled field, appended only where it carries a value. A label printed
-## over an empty value is worse than its absence: it asserts the writer considered that
-## field and had nothing, which is exactly what an omission must never be read as.
-AgentsHarnessFormalField(){ ## label, value
-	[ -n "$2" ] || return 0
-	printf '%s\n%s\n\n' "$1" "$2"
+## The body of one report tool: the block of its own name in the report template
+## (sh-lib/templates/report.post.format.md), filled by the filler the ask posts use. The
+## fields travel in the caller's environment, as ASKP_F_<slot>, and are placed by position,
+## never read as a pattern or a format. A field with no value leaves its label out, as the
+## template's `[[ … ]]` says: a label printed over an empty value is worse than its absence,
+## since it asserts the writer considered that field and had nothing, which is exactly what
+## an omission must never be read as. Prints the body; non-zero, with the reason in
+## report-post.err, when the template could not fill it.
+AgentsHarnessFormalBody(){ ## block `<Section>/<heading>`
+	AgentsHarnessAskPost || return 3
+	ASKP_BLOCK="$1" AgentsToolsAskPostFill block report.post.format.md "" 2> "$harnessScratch/report-post.err"
+}
+
+## What a report tool returns when its body could not be filled: nothing was sent.
+AgentsHarnessFormalUnfilled(){ ## tool name
+	printf 'ERROR: %s: the post could not be filled from its template, so nothing was sent. What the fill reported follows:\n%s\n' "$1" "$( cat "$harnessScratch/report-post.err" 2>/dev/null )"
 }
 
 ## The exact inverse of AgentsTools.InternOpPermission.include's
@@ -2881,7 +2891,8 @@ AgentsHarnessRefusedTargetDecode(){ ## value
 ## delivery path -- one mechanism, four stubs over it, which is the shape the
 ## specification asks for. This is the one place that shape is applied: the target
 ## check, the identity rule and the send itself are written once rather than four
-## times, and each stub owns only its own field validation and body. Deliberately NOT
+## times, and each stub owns only its own field validation: its body is the block of its
+## own name in the report template (AgentsHarnessFormalBody). Deliberately NOT
 ## named AgentsHarnessTool*: that family is the static tool class
 ## AgentsHarnessSelfCheck.test.awk matches site by site, and a helper with no tool behind it
 ## is reported there as an orphan.
@@ -2932,14 +2943,8 @@ AgentsHarnessToolSubagentHandback(){
 		toolCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 			--session-id "$toolCollectSession" --context SubagentHandback 2>/dev/null | LC_ALL=C grep -v '^COLLECT: ' )" || toolCollected=""
 	fi
-	toolBody="$( {
-		printf 'Handback\n\n'
-		AgentsHarnessFormalField 'Task as given:' "$toolTask"
-		AgentsHarnessFormalField 'Outcome:' "$toolOutcome"
-		AgentsHarnessFormalField 'Findings:' "$toolFindings"
-		AgentsHarnessFormalField 'Unfinished, and what was not checked:' "$toolUnfinished"
-		AgentsHarnessFormalField 'Answers collected, and questions still open:' "$toolCollected"
-	} )"
+	toolBody="$( ASKP_F_task="$toolTask" ASKP_F_outcome="$toolOutcome" ASKP_F_findings="$toolFindings" ASKP_F_unfinished="$toolUnfinished" ASKP_F_collected="$toolCollected" ASKP_F_address_to="$toolAddressTo" \
+		AgentsHarnessFormalBody "Skeleton/SubagentHandback" )" || { AgentsHarnessFormalUnfilled SubagentHandback ; return 0 ; }
 	rm -f "$harnessScratch/send.out" "$harnessScratch/send.delivered"
 	## Its own words are the outcome, the findings and what is unfinished: the task as given is
 	## carried, and the answers collected are the tooling's.
@@ -2959,14 +2964,8 @@ AgentsHarnessToolReportFindings(){
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
 		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
-	## Caller text never lands in a format string: a % in a subject would otherwise be
-	## read as a conversion specifier and corrupt the line it sits on.
-	toolBody="$( {
-		printf 'Findings: %s\n\n' "$toolSubject"
-		AgentsHarnessFormalField 'What was established:' "$toolFindings"
-		AgentsHarnessFormalField 'Evidence:' "$toolEvidence"
-		AgentsHarnessFormalField 'Confidence, and what was not checked:' "$toolConfidence"
-	} )"
+	toolBody="$( ASKP_F_subject="$toolSubject" ASKP_F_findings="$toolFindings" ASKP_F_evidence="$toolEvidence" ASKP_F_confidence="$toolConfidence" ASKP_F_address_to="$toolAddressTo" \
+		AgentsHarnessFormalBody "Skeleton/ReportFindings" )" || { AgentsHarnessFormalUnfilled ReportFindings ; return 0 ; }
 	harnessSendProse="$( AgentsHarnessSendProse "$toolSubject" "$toolFindings" "$toolEvidence" "$toolConfidence" )" \
 	AgentsHarnessFormalSend ReportFindings "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
@@ -2979,18 +2978,16 @@ AgentsHarnessToolPushNotification(){
 	## Enumerated, never defaulted: an unrecognised severity quietly rendered as info is
 	## a real alert delivered as a note, which is the one failure this field prevents.
 	case "$toolSeverity" in
-		info)  toolMark="INFO" ;;
-		warn)  toolMark="WARN" ;;
-		alert) toolMark="ALERT" ;;
+		info|warn|alert) ;;
 		*)
 			printf 'ERROR: PushNotification: severity must be info, warn or alert, got: %s. Nothing was sent, because guessing it would deliver an alert as a note.\n' "${toolSeverity:-<none>}" ; return 0
 		;;
 	esac
-	toolBody="$( {
-		printf '%s -- %s\n\n' "$toolMark" "$toolHeadline"
-		AgentsHarnessFormalField 'Detail:' "$toolDetail"
-		AgentsHarnessFormalField 'Action required:' "$toolAction"
-	} )"
+	## The word it opens with is the template's own, by its severity (`# Severity`).
+	toolMark="$( AgentsHarnessFormalBody "Severity/$toolSeverity" )" || toolMark=""
+	toolBody="$( ASKP_F_severity="$toolMark" ASKP_F_headline="$toolHeadline" ASKP_F_detail="$toolDetail" ASKP_F_action_required="$toolAction" ASKP_F_address_to="$toolAddressTo" \
+		AgentsHarnessFormalBody "Skeleton/PushNotification" )" || toolBody=""
+	[ -n "$toolMark" ] && [ -n "$toolBody" ] || { AgentsHarnessFormalUnfilled PushNotification ; return 0 ; }
 	harnessSendProse="$( AgentsHarnessSendProse "$toolHeadline" "$toolDetail" "$toolAction" )" \
 	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
@@ -3009,12 +3006,11 @@ AgentsHarnessToolArtifact(){
 			printf 'ERROR: Artifact: url must be the absolute http:// or https:// URL of a document that already exists, got: %s. Nothing was sent, and nothing was published -- give file instead to publish a document first.\n' "${toolUrl:-<none>}" ; return 0
 		;;
 	esac
-	toolBody="$( {
-		printf '%s\n\n' "${toolTitle:-Document}"
-		AgentsHarnessFormalField 'Kind:' "$toolKind"
-		AgentsHarnessFormalField 'Link:' "$toolUrl"
-		AgentsHarnessFormalField 'Summary:' "$toolSummary"
-	} )"
+	## A document announced with no title takes the template's own word for one (`# Words`, untitled).
+	[ -n "$toolTitle" ] || toolTitle="$( AgentsHarnessFormalBody "Words/untitled" )" || toolTitle=""
+	toolBody="$( ASKP_F_title="$toolTitle" ASKP_F_kind="$toolKind" ASKP_F_url="$toolUrl" ASKP_F_summary="$toolSummary" ASKP_F_address_to="$toolAddressTo" \
+		AgentsHarnessFormalBody "Skeleton/Artifact" )" || toolBody=""
+	[ -n "$toolTitle" ] && [ -n "$toolBody" ] || { AgentsHarnessFormalUnfilled Artifact ; return 0 ; }
 	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
 
@@ -3283,7 +3279,8 @@ AgentsHarnessAskForm(){
 ## A question is refused before anything is sent when its kind or its answer form lacks a
 ## field it needs. Prints the ERROR line and returns 1. For a permission the refused call is
 ## read from its record into the caller's askRefused*, never taken from the asker's words.
-## What a proposal lacks is a correction its caller makes, so its line starts with CORRECTION.
+## What a proposal lacks is a correction its caller makes, so its line starts with CORRECTION,
+## and so does the line for options given with no answer form.
 AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 	case "$toolSelect" in
 		''|yes-no|one|many) ;;
@@ -3292,6 +3289,12 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 	case "$toolKind" in
 		question)
 			case "$toolSelect" in
+				'')
+					## Free text takes no options: a list under it would look like answers and take no click.
+					[ -z "$toolOptions" ] || {
+						printf 'CORRECTION: %s: options are given with no select, so the post would list answers nobody can click. Pass select one to take one of them, or select many to take any number of them. Nothing was sent.\n' "$harnessAskName" ; return 1
+					}
+				;;
 				yes-no)
 					[ -z "$toolOptions" ] || {
 						printf 'ERROR: %s: select yes-no takes no options, since its answers are yes and no. Use select one to offer your own answers. Nothing was sent.\n' "$harnessAskName" ; return 1
@@ -3481,6 +3484,8 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	[ -z "$revOptions" ] || toolOptions="$revOptions"
 	## Yes or no takes no options, so those of the form before it go.
 	[ "$toolKind:$toolSelect" != "question:yes-no" ] || [ -n "$revOptions" ] || toolOptions=""
+	## Free text takes none either, so a question taken back to it leaves them too.
+	[ "$toolKind:$revSelect" != "question:text" ] || [ -n "$revOptions" ] || toolOptions=""
 	AgentsHarnessAskCheck || return 1
 	[ "$toolKind" = "question" ] || toolSelect=""
 	## The emoji the question had, before its record changes.

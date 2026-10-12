@@ -47,15 +47,12 @@ AgentsToolsCommsSlackPresentationField(){ ## number, line
 	printf '%s\n' "$2" | LC_ALL=C awk -F'\t' -v wanted="$1" '{ print $wanted ; }'
 }
 
-## A member's presentation, as "<mark> TAB <first> TAB <family> TAB <alias>", an
-## absent value empty. It reads the team-members-names registry and nothing else:
-## no member file, no config, no check that the registry is current. A member with
-## no row, or no registry at all, returns 1. The registry holds a name's spaces as
-## underscores, so they are turned back here for the two name fields.
-AgentsToolsCommsSlackMemberPresentation(){ ## member
-	local presentationFile
-	presentationFile="$( AgentsToolsRegistryFile team-members-names )"
-	[ -f "$presentationFile" ] || return 1
+## One member's row of one team-members-names registry, as "<mark> TAB <first> TAB
+## <family> TAB <alias>", an absent value empty. A registry that is not there, or holds
+## no row for the member, returns 1. The registry holds a name's spaces as underscores,
+## so they are turned back here for the two name fields.
+AgentsToolsCommsSlackMemberPresentationRow(){ ## member, registry file
+	[ -f "$2" ] || return 1
 	LC_ALL=C awk -v who="$1" '
 		$1 == who {
 			for ( fieldIndex = 2 ; fieldIndex <= 5 ; fieldIndex++ ) { if ( $fieldIndex == "-" ) { $fieldIndex = "" ; } }
@@ -66,7 +63,25 @@ AgentsToolsCommsSlackMemberPresentation(){ ## member
 			exit ;
 		}
 		END { exit found ? 0 : 1 ; }
-	' "$presentationFile"
+	' "$2"
+}
+
+## A member's presentation, in that form. It reads a team-members-names registry and
+## nothing else: no member file, no config, no check that the registry is current. Its
+## mark and alias come from the workspace the member is set up in: the registry of the
+## workspace this runs from holds that workspace's own members, so a member invited here,
+## set up only in another workspace on this machine, is read from that workspace's registry
+## (AgentsToolsMemberInvitedWorkspace, AgentsTools.MemberWorkspace.include). A member with
+## no row in either, or no registry at all, returns 1.
+AgentsToolsCommsSlackMemberPresentation(){ ## member
+	local presentationRoot="$MMDAPP"
+	while : ; do
+		! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( MMDAPP="$presentationRoot" ; AgentsToolsRegistryFile team-members-names )" || return 0
+		## No row in the workspace this runs from: an invited member's is where it is set up.
+		[ "$presentationRoot" = "$MMDAPP" ] || return 1
+		type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+		presentationRoot="$( AgentsToolsMemberInvitedWorkspace "$1" )" || return 1
+	done
 }
 
 ## The account columns of one cache row: "handle=real name=display name=workspace
@@ -2089,9 +2104,10 @@ blocks|verbatim|caller|stdin file"
 		local externalMark="" externalName="" externalAlias="" externalFirst externalFamily externalPres externalMissing=""
 		if [ "$presentExternal" = "true" ] ; then
 			## The member's own row, and nothing else: the build gives every client the persona's values.
-			## An invited client, set up only in another workspace, has no row here, since this
-			## registry holds this workspace's own members: its row is the persona member's own,
-			## which is what the build would have given it (AgentsTools.Registries.include).
+			## An invited client, set up only in another workspace, has its row in that workspace's
+			## registry, since this one holds this workspace's own members; where it has none there
+			## either, its row is the persona member's own, which is what the build would have given
+			## it (AgentsTools.Registries.include).
 			externalPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" || externalPres=""
 			type AgentsToolsMemberInvited > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 			[ -n "$externalPres" ] || ! AgentsToolsMemberInvited "$memberName" || externalPres="$( AgentsToolsCommsSlackMemberPresentation "$registryPersonaMember" )" || externalPres=""
@@ -2159,10 +2175,13 @@ blocks|verbatim|caller|stdin file"
 		if [ "$presentExternal" = "true" ] ; then
 			fromMark="$externalMark" ; fromName="$externalName" ; fromAlias="$externalAlias"
 		elif fromPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" ; then
-			## No row, or no alias in it, leaves the member name as the alias and no mark.
+			## No alias in its row leaves the member name as the alias.
 			fromMark="$( AgentsToolsCommsSlackPresentationField 1 "$fromPres" )"
 			fromAlias="$( AgentsToolsCommsSlackPresentationField 4 "$fromPres" )"
 			[ -n "$fromAlias" ] || fromAlias="$memberName"
+		elif [ "$routineAuthored" != "true" ] ; then
+			## No row anywhere: posted under its identifier, with no mark, and said in one line.
+			echo "# $MDSC_CMD --member-comms-slack-send-message: member '$memberName' has no row in the team-members-names registry of ${MMDAPP%/}, nor in that of a workspace it is set up in, so this message is posted under its identifier, with no mark and no alias (--make-agents-indices builds the registry)" >&2
 		fi
 		local fromText="${fromMark:+$fromMark }*_${fromName}_* @$fromAlias "
 		case "$fromMark" in
@@ -2309,7 +2328,7 @@ blocks|verbatim|caller|stdin file"
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho" >&2
 						set +e ; return 1
 					fi
-					## A member with no row, or no registry at all, reads as its plain name with no mark, never a refusal. Its mention id is a Slack fact and does not depend on the row.
+					## A member with no row, here or in the workspace it is set up in, or no registry at all, reads as its plain name with no mark, never a refusal. Its mention id is a Slack fact and does not depend on the row.
 					addrMarks="$( AgentsToolsCommsSlackMemberPresentation "$addrWho" )" || addrMarks=""
 					addrMark="$( AgentsToolsCommsSlackPresentationField 1 "$addrMarks" )" ; addrAlias="$( AgentsToolsCommsSlackPresentationField 4 "$addrMarks" )" ; addrName="$addrWho"
 					[ -n "$addrAlias" ] || addrAlias="$addrWho"

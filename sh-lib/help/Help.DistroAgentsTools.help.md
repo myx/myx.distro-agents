@@ -422,9 +422,11 @@
 			never as its own identifier;
 			the send is refused when that row lacks one of them. A
 			sender or addressee reads its mark and alias from the
-			same registry. An addressee with no row reads as its plain
-			name, and only a member directory that does not exist is
-			refused.
+			same registry, and one invited from another workspace
+			from the registry of the workspace it is set up in. With
+			no row in either it reads as its plain name, which for
+			the sender one line on stderr says, and only a member
+			directory that does not exist is refused.
 
 			**Hazard: trailing text args are shell argv.** A
 			shell-meaningful character (quote, backtick, $,
@@ -3185,9 +3187,12 @@
 			among the session's or task's participants, else forwarded
 			to the human-owner, and it stays open. The waiting question
 			ends on it and its session retries the exact call. A second
-			answer to the same escalation is not applied. The answer is
-			also said in the question's own thread, addressed to the
-			member that asked. A spawned session answers only as its
+			answer to the same escalation is not applied. What became
+			of the answer is said in the question's own thread once, by
+			the confirmation of its kind: what is granted, that
+			nothing is, or that the answer is not applied and who the
+			request goes to now. The answering member posts no line of
+			its own beside it. A spawned session answers only as its
 			own member.
 
 		--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]

@@ -188,9 +188,9 @@ rigAssert "a readback: the same body as before" \
 rigAssert "a decision: its options numbered, the recommended line kept" \
 	"$( ASKP_F_question='Pick' ASKP_OPTIONS=$'alpha -- a\nbeta -- b (recommended)' rigFill post escalate-decision.post.format.md one )" \
 	$'# 🧭 Decision\n\nPick\n\n**📋 Options**\n- 1️⃣ alpha -- a\n- 2️⃣ beta -- b (recommended)\n\n**✅ How to answer**\n- reply with the first word of the option you choose\n- or click its number, or reply with the number\n- or reply `ok` (or react with :+1:) to take the recommended option'
-rigAssert "a permission: its own presentation, the clicks named" \
+rigAssert "a permission: its first line made from the refused call, the asker's words under the reason, the clicks named" \
 	"$( ASKP_F_question='May I?' ASKP_F_refused_tool=Write ASKP_F_refused_target=/x ASKP_F_refused_for=me ASKP_F_refusal_id=refusal-1 ASKP_F_reason=why ASKP_F_task=t rigFill post request-permission.post.format.md grant )" \
-	$'# 🔐 Permission\n\nMay I?\n\n**🚫 Refused call**\n- tool: Write\n- target: /x\n- refused for: me\n- refusal: refusal-1\n\n**❔ Why this task needs it**\nwhy\n\n**🗂 Task**\nt\n\n**✅ How to answer**\n- reply `deny`, `allow-once` for this one call, or `allow-session` for this session\n- or click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session'
+	$'# 🔐 Permission\n\nAllow **Write** on `/x` for **me**? An allow grants exactly that, and nothing wider.\n\n**🚫 Refused call**\n- tool: Write\n- target: /x\n- refused for: me\n- refusal: refusal-1\n\n**❔ Why this task needs it**\nMay I?\nwhy\n\n**🗂 Task**\nt\n\n**✅ How to answer**\n- reply `deny`, `allow-once` for this one call, or `allow-session` for this session\n- or click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session'
 rigAssert "a permission under the second name: the same refused call, whole even where its record leaves a value empty" \
 	"$( ASKP_SKELETON="$rigHere/templates/ask-user-question.post.format.md" ASKP_F_question='May I?' ASKP_F_refused_tool=WebSearch ASKP_F_refused_target='' ASKP_F_refused_for=me ASKP_F_refusal_id=refusal-1 ASKP_F_reason=why ASKP_F_task=t rigFill post request-permission.post.format.md grant | LC_ALL=C sed -n '5,9p' )" \
 	$'**🚫 Refused call**\n- tool: WebSearch\n- target: \n- refused for: me\n- refusal: refusal-1'
