@@ -42,13 +42,15 @@ cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse 
 ## first on PATH answers the whole-host listing from the rig's own list, beside it, one
 ## `<pid> <command line>` line a process, and hands every other call to the real ps. Each line
 ## is a stand-in process of this rig under its own pid, and is listed only while that process
-## lives: one that is stopped is gone from the list, as it would be from the host's.
+## lives: one that is stopped is gone from the list, as it would be from the host's. Which
+## process started which (pid and ppid alone) is asked of the real ps: it holds no id to match.
 ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in
 	*" -A "*)
+		case "$*" in *ppid=*) exec "${0%/*}/ps.real" "$@" ;; esac
 		while read -r rigPsPid rigPsLine ; do
 			kill -0 "$rigPsPid" 2> /dev/null || continue
 			case "$*" in
@@ -461,6 +463,49 @@ rigTool "$rigTmp/e4" TaskStop '{"task_id":"dispatch-20261008T1200Z-ts.md"}'
 rigEnv=()
 rigAssert "the process is stopped"                         "$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4" )" 1
 rigAssert "Decisions: dismissed taskstop"                  "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-ts.md" 'dismissed: taskstop' )" 1
+## A run of a CLI that is given no session word: no line of the rig's process list runs as it,
+## and its record names the process its launch started (`run-process: <pid> <start>`). A
+## stand-in console with a child of its own, never a real CLI: TaskStop stops that process and
+## what it started. A recorded pid that another process has taken, begun at another time, is
+## never signalled.
+rigStandIn(){ ## -- starts the stand-in; sets rigStandPid, rigStandChild and rigStandStart (when it began, as one word)
+	local standLeft=40
+	rm -f "$rigTmp/stand.child"
+	bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-stand "$rigTmp/stand.child" > /dev/null 2>&1 < /dev/null &
+	rigStandPid=$!
+	rigLivePids="$rigLivePids $!"
+	disown "$!" 2> /dev/null || :
+	while [ "$standLeft" -gt 0 ] && [ ! -s "$rigTmp/stand.child" ] ; do sleep 0.25 ; standLeft=$(( standLeft - 1 )) ; done
+	rigStandChild="$( cat "$rigTmp/stand.child" 2> /dev/null )"
+	rigStandStart="$( LC_ALL=C ps -o lstart= -p "$rigStandPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
+	[ -n "$rigStandChild" ] && [ -n "$rigStandStart" ] || rigRefuse "the stand-in console did not start, so nothing below would be measured"
+}
+rigAlive(){ ## pid... -- how many of them are still running
+	local aliveCount=0 alivePid
+	for alivePid in "$@" ; do ! kill -0 "$alivePid" 2> /dev/null || aliveCount=$(( aliveCount + 1 )) ; done
+	printf '%s' "$aliveCount"
+}
+rigStandIn
+rigRecord rig-noword-ts-$$ spawn-started "" dispatch-20261008T1200Z-nwts "" "run-process: $rigStandPid $rigStandStart
+"
+rigItem running dispatch-20261008T1200Z-nwts rig-noword-ts-$$
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4n" TaskStop '{"task_id":"dispatch-20261008T1200Z-nwts.md"}'
+rigEnv=()
+rigAssert "control: no line of the rig's process list runs as that spawn, or holds its id" "$( LC_ALL=C grep -c -F -- "rig-noword-ts-$$" "$rigTmp/ps.list" )" 0
+rigAssert "a run with no session word is stopped: the process its record names, and what it started" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4n" ):$( rigAlive "$rigStandPid" "$rigStandChild" )" 1:0
+rigAssert "and its item records the ending"                "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-nwts.md" 'dismissed: taskstop' )" 1
+rigStandIn
+rigRecord rig-noword-reused-$$ spawn-started "" dispatch-20261008T1200Z-nwru "" "run-process: $rigStandPid Mon_Jan__1_00:00:00_2001
+"
+rigItem running dispatch-20261008T1200Z-nwru rig-noword-reused-$$
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4r" TaskStop '{"task_id":"dispatch-20261008T1200Z-nwru.md"}'
+rigEnv=()
+rigAssert "a recorded pid that another process has taken is never signalled: nothing is stopped, and that process and its child live on" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: NO-PROCESS' "$rigTmp/e4r" ):$( rigAlive "$rigStandPid" "$rigStandChild" )" 1:2
+kill "$rigStandChild" "$rigStandPid" 2> /dev/null
 
 ## ---------------------------------------------------------------- a return resumed natively
 ## From here the rig's console is the real template, run on a stub `claude` (first on PATH,
@@ -507,6 +552,8 @@ rigAssert "the new spawn records its cli and cli-setting"  "$( LC_ALL=C grep -h 
 rigAssert "claude ran once, --resume old --fork-session --session-id new" "$( ls "$rigTmp"/claude-args.* | wc -l | tr -d ' ' ):$( rigArgsWith "--resume rig-old-el --fork-session --session-id $rigNew " )" 1:1
 rigAssert "its prompt is the corrections and Decisions"    "$( rigArgsWith 'rs fix el' ):$( rigArgsWith '### Decisions (from dispatch-20261008T1400Z-el)' ):$( rigArgsWith '## Your sandbox' )" 1:1:0
 rigAssert "Decisions: restart: resumed"                    "$( rigDecisions "$rigRsItem" 'review: restart: resumed \(from rig-old-el\)' ):$( rigDecisions "$rigRsItem" 'review: restart: new-process' )" 1:0
+rigAssert "the launcher kept the process it started on the new spawn's record, and the run closed as it ended" \
+	"$( LC_ALL=C grep -c -E '^run-process: [0-9]+ [^ ]+$' "$rigSpawned/trk-rs-el/$rigNew.md" ):$( LC_ALL=C grep -c -x -e 'status: spawn-succeeded' -e 'exit-code: 0' "$rigSpawned/trk-rs-el/$rigNew.md" )" 1:2
 rigAssert "transcript: RESTART"                            "$( LC_ALL=C grep -h -c ' RESTART item=dispatch-20261008T1400Z-el kind=review ' "$rigData"/audit/*/session-*"${rigNew:0:8}"*.log 2> /dev/null | head -1 )" 1
 
 echo "-- 18. each ineligible session falls back to a new process, the reason recorded --"

@@ -104,7 +104,7 @@ Steps:
 
 Steps:
 1. Once per workday, before `magic-coordinator.daily.routine`, collect every doc-fix item in this member's inbox: its own `note-*` items and the `inquiry-*` items other members posted.
-2. Apply them together as one pass, each edit under the rule its file falls under: a skillset edit lands only by the skillset change rule.
+2. Apply them together as one pass, each edit under the rule its file falls under: a skillset edit lands only by the skillset change rule. Writing the `.md` file itself needs no separate ask, under this member's standing grant below.
 3. Mark each handled item processed with `--librarian-inbox-to-processed`.
 
 ## `team-self-sufficiency-audit` — daily check across every `magic-*` skill folder
@@ -133,6 +133,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A project's documentation references a file in another project only where it requires that project. Where it does, it states the requirement, not the path.
 - A file this member generates from other sources carries a header saying so, and that the source is what gets fixed.
 - A skill folder and its source in the bundle are one file, not two copies. Verify a skillset edit against its own content, never by comparing the two paths.
+- This member holds a standing grant to write the `.md` files of any team-member skill that is a real folder in the HOME skills folder (`.skillset-shared`), or a link there into the source tree of the workspace this session runs from (`.skillset-.local`) -- no ask needed. A skill linked in from another workspace is not covered, and is asked for as before. A permission is decided on the real file; a link and its target get the same answer.
 - Content belongs in `.basic.md` only when it is identity, always true. Everything professional goes in `.armed.md`.
 
 # Domain knowledge: documentation and skillset conventions

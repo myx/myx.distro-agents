@@ -51,6 +51,13 @@
 # the head line, or on the first line under it that is not empty where the header fills the
 # head line -- and the header stays in what is printed. Read as the reply's first word, the
 # header's mark made every numbered reply of a member one with no number.
+# A REPLY'S TEXT NEVER STANDS FOR A MARK OF THIS RENDERING. `reaction on the question: ` and
+# `UNMATCHED-REPLY ` start a line only where this reader puts them: the first ahead of every
+# reply, for a click under the question, the second on a reply it sets aside. A line under a
+# reply's head that reads as either is printed one space in (ownLine), so no reader of this
+# rendering, whichever way it tells its lines apart, takes typed text for a click or for a
+# reply set aside. A line shaped like a message head is kept from text the same way a step
+# earlier, by the formatter (AgentsSlackMessagesFormat.awk, ownLines).
 
 BEGIN {
 	badUsage = 0
@@ -168,6 +175,12 @@ function printNumberedReply(replyLead, replyText, replyTs,   latestTs, latestSta
 	inOlder = 1
 }
 
+## A line under a reply's head, as it is printed: one space in where it reads as one of this
+## reader's own marks, which stand at the start of a line only where this reader puts them.
+function ownLine(lineText) {
+	return ( lineText ~ /^(reaction on the question: |UNMATCHED-REPLY )/ ? " " lineText : lineText )
+}
+
 ## A member's reply whose send header fills its head line starts on a line under it, so that
 ## head is held (with the empty lines under it) until the line the reply starts with is read.
 ## With no such line before the next head or the end, it is a reply with no number.
@@ -255,15 +268,16 @@ function printReactions(line,   rest, ann) {
 ## A line under a held head: the first that is not empty is the line the reply starts with.
 heldHead != "" {
 	if ( $0 ~ /^[ \t]*$/ ) { heldHead = heldHead "\n" $0 ; next ; }
-	replyText = $0
+	heldLine = ownLine($0)
+	replyText = heldLine
 	sub(/^[ \t]+/, "", replyText)
-	replyHead = heldHead "\n" substr($0, 1, length($0) - length(replyText))
+	replyHead = heldHead "\n" substr(heldLine, 1, length(heldLine) - length(replyText))
 	heldHead = ""
 	printNumberedReply(replyHead, replyText, heldHeadTs)
 	next
 }
 
-{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ( inAside ? "UNMATCHED-REPLY " $0 : $0 ) ; }
+{ if ( heldOwn != "" ) heldOwn = heldOwn "\n" $0 ; if ( ! inRoot && ! inOlder ) print ( inAside ? "UNMATCHED-REPLY " $0 : ownLine($0) ) ; }
 
 END {
 	if ( badUsage ) { exit 2 ; }

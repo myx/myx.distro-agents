@@ -105,7 +105,7 @@ Steps:
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--magic-spawn-session`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
-5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (`magic-team.armed.md`'s **wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when.
+5. **spawn-dismiss**: A spawned member never ends on its own: it hands back, then waits (`magic-team.armed.md`'s **wait-never-quit**). Its handback puts its item into `board-review`; settle it with `magic-team.handback-review.routine`, whose verdicts end or continue the session. A session spawned with `--wait` ends on its own when its pass is done. `TaskStop` only for one that does not respond. The routine that spawned it names when. By hand: `SendMessage` its session thread, `address_to` naming it, message `DISMISSED`; with no `address_to` it dismisses no one.
 
 Execution discipline:
 - A requested spawn is launched in the same pass, or the procedure returns a loud error. It never silently becomes "deferred".
@@ -246,7 +246,7 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
-- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. A permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]`), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
+- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. A permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]` -- `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
 - **A batch of tasks is dispatched as a coworking session**, the quorum group as participants and the specialists as invitees, never as a series of solo dispatches. Solo is only for clear, checkable, single-dispatchable work one member fully owns. A restarted session re-notifies every participant and invitee.
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
@@ -259,7 +259,7 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 How to hand off:
 - Spawn the member through `spawn-one-dispatch`. Never invoke a member's `Skill` in place of dispatching: that collapses this context into theirs.
-- Once dispatched, supervise: watch reports as they arrive, answer, redirect when the work changes shape. Dismiss the member when done with it (**spawn-dismiss**).
+- Once dispatched, supervise: watch reports as they arrive, answer, redirect when the work changes shape. Dismiss the member when done with it (**spawn-dismiss**): `SendMessage` its session thread, `address_to` its name, message `DISMISSED`.
 
 What to hand off — binds the first brief and every later message into a running session:
 - Curate the goal, rules, context and inputs for this task. Never forward this session's own multi-topic history, and never an open pointer ("check X, Y, or wherever").
@@ -330,14 +330,14 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 - `--magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-create-running <team-member> <item-filename> [--header:...]...`
 - `--magic-advance-to-running <team-member> <item-filename> --from-state:<state> [--header:...]...`
-- `--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [<team-member>...]`
+- `--magic-spawn-session (--routine <selector>|--routine-default) [--session-name-or-comment <text>] [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [<team-member>...]`
 - `--member-inbox-note-upsert <team-member> <item-filename>`
 - `--member-upsert-member-inquiry <member> <item-filename>`
 - `--magic-team-roster-read <team-member>`
 - `--magic-team-roster-upsert <team-member>`
 - `--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]`
 - `--magic-escalation-forward <coordinator> <request-id>`
-- `--magic-permission-set-request <magic-coordinator> <item> (--entry <tool:target>... [--purpose <text>])...` — after a place's entries the asker may state what that access will be used for, which helps the person decide.
+- `--magic-permission-set-request <magic-coordinator> <item> (--entry <tool[,tool...]:target>... [--purpose <text>])... [--scope task|session] [--session-id <id>] [--participant <member>]...` — one `--entry` may name several tools for one target; after a place's entries the asker may state what that access will be used for, which helps the person decide. With no `--participant`, the set is for the item's own members. A target may name a place, built in (`.skillset-shared`, `.skillset-.local`) or registered; a custom place name may not start with a dot. A permission is decided on the real file, so a link and its target get the same answer.
 - `--magic-permission-list --member <member>`
 - `--magic-permission-revoke <ref>`
 - `--magic-permission-escalation-input-scan <team-member>`

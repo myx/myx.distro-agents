@@ -9,6 +9,9 @@
 ## Holds how a run is recognised too (AgentsToolsRegistryRunningSpawns): by the value of its own
 ## --session-id or --resume argument alone, matched whole, against a process list of this rig's
 ## own -- a ps first on PATH lists the rig's runs only, so no process of the host is ever seen.
+## A run of a CLI that is given no session word is the process its record names
+## (`run-process: <pid> <start>`), for as long as that same process lives: the rig's ps says
+## when its own pids started, too.
 ## Prints the time each side took per store.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -30,10 +33,13 @@ trap 'chmod -R u+rwx "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds
 ## one of its ids for a run of its own, and another copy of this check for its own holder. So
 ## the ps first on PATH answers the whole-host listing from the rig's own list, beside it, one
-## `<pid> <command line>` line a process, and hands every other call to the real ps.
+## `<pid> <command line>` line a process, and hands every other call to the real ps. When one
+## process started (-o lstart= -p <pid>) is answered from the rig's own table for a pid it
+## holds, `<pid> <start as ps prints it>` a line, and by the real ps for any other.
 mkdir -p "$rigTmp/bin"
 ln -s "$( command -v ps )" "$rigTmp/bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
+: > "$rigTmp/ps.started"
 cat > "$rigTmp/bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in
@@ -43,6 +49,14 @@ case " $* " in
 			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
 		esac
 		exit 0
+	;;
+	*" lstart= "*)
+		rigPsPid=""
+		for rigPsWord in "$@" ; do
+			case "$rigPsWord" in ''|*[!0123456789]*) ;; *) rigPsPid="$rigPsWord" ;; esac
+		done
+		rigPsLine="$( grep "^$rigPsPid " "${0%/*}/../ps.started" 2> /dev/null )"
+		[ -z "$rigPsLine" ] || { printf '%s\n' "${rigPsLine#* }" ; exit 0 ; }
 	;;
 esac
 exec "${0%/*}/ps.real" "$@"
@@ -220,7 +234,12 @@ rigFounder="rig-founder-$$" ; rigResumed="rig-resumed-$$" ; rigForked="rig-forke
 	## ids that hold a backslash and pattern characters, each as a run's own word
 	printf '900005 bash /rig/sh-lib/AgentsRigHarness.sh --session-id %s\n' "rig\\bs-$$"
 	printf '900006 bash /rig/sh-lib/AgentsRigHarness.sh --resume %s\n' "rig.star*-$$"
+	## a CLI that is given no session word, alive; and another process under a pid a run once had
+	printf '9000001 grok --rules /rig/rules the brief of a run with no session word on its line\n'
+	printf '9000003 sleep 600\n'
 } > "$rigTmp/ps.list"
+## When the rig's own pids started: the first as its record says, the reused one at another time.
+printf '9000001 Mon Oct 12 07:00:00 2026\n9000003 Mon Oct 12 09:30:00 2026\n' > "$rigTmp/ps.started"
 rigRec(){ ## sandbox, record, session-id, spawn-id, host, status
 	mkdir -p "$rigRSp/$1"
 	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\n---\n' "$3" "$4" "$5" "$6" > "$rigRSp/$1/$2.md"
@@ -244,6 +263,14 @@ rigRec r-resumed a s-x "$rigResumed" "$rigHost" started
 rigRec r-forked a s-x "$rigForked" "$rigHost" started
 rigRec r-forked-from a s-x "$rigForkedFrom" "$rigHost" started
 rigRec r-quoted a s-x "$rigQuoted" "$rigHost" started
+rigRecRun(){ ## sandbox, spawn-id, status, pid -- a record, named for its spawn as the launcher names it, that keeps the process its launch started, begun at 07:00:00
+	mkdir -p "$rigRSp/$1"
+	printf -- '---\nsession-id: s-x\nspawn-id: %s\nhost: %s\nstatus: %s\nowner: o\nrun-process: %s Mon_Oct_12_07:00:00_2026\n---\n' "$2" "$rigHost" "$3" "$4" > "$rigRSp/$1/$2.md"
+}
+rigRecRun r-noword-live "$rigNo-noword-live" started 9000001
+rigRecRun r-noword-dead "$rigNo-noword-dead" started 9000002
+rigRecRun r-noword-reused "$rigNo-noword-reused" started 9000003
+rigRecRun r-noword-closed "$rigNo-noword-closed" spawn-succeeded 9000001
 rigRec r-nospawn a s-open - "$rigHost" started
 rigRec r-nohost a s-open "$rigNo-nohost" - started
 rigRec r-open-ask a s-open "$rigNo-open" "$rigHost" started
@@ -291,6 +318,10 @@ rigAssert "a founding spawn whose process is gone is not running, though another
 	"$( rigLiveOf r-founder ):$( rigStateOf r-founder ):$( LC_ALL=C grep -c -F -- "spawned/$rigFounder/input" "$rigTmp/ps.list" ):$( LC_ALL=C grep -c -F -- "--intern-op-agent-spawn-proxy rig-member --dispatch-doc:create --session-id $rigFounder" "$rigTmp/ps.list" )" "no-process:unclosed:1:1"
 rigAssert "an id quoted in another run's brief, even after the words --session-id, is no run" "$( rigLiveOf r-quoted )" no-process
 rigAssert "the value is matched whole: a spawn id that is only the start of a longer one is no run" "$( rigLiveOf r-run-prefix )" no-process
+rigAssert "a live run of a CLI that is given no session word is running, by the process its record names" "$( rigLiveOf r-noword-live ):$( rigStateOf r-noword-live )" "running:running"
+rigAssert "one whose recorded process is gone is not running" "$( rigLiveOf r-noword-dead ):$( rigStateOf r-noword-dead )" "no-process:unclosed"
+rigAssert "a pid taken again by another process, started at another time, is not taken for the run" "$( rigLiveOf r-noword-reused ):$( LC_ALL=C grep -c '^9000003 ' "$rigTmp/ps.list" )" "no-process:1"
+rigAssert "a closed record is finished, whatever process it names" "$( rigStateOf r-noword-closed )" finished
 rigAssert "a spawn id with a backslash is matched literally" "$( rigLiveOf r-run-backslash )" running
 rigAssert "a spawn id with pattern characters is matched literally" "$( rigLiveOf r-run-meta )" running
 rigAssert "a ? in a spawn id matches only itself" "$( rigLiveOf r-run-meta-miss )" no-process
@@ -300,7 +331,7 @@ rigAssert "a blocked board item makes waiting" "$( rigStateOf r-board )" waiting
 rigAssert "awk's numeric == holds: 100 against an ask for 1e2" "$( rigStateOf r-numeric )" waiting
 rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$rigHere/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
-: > "$rigTmp/ps.list"
+: > "$rigTmp/ps.list" ; : > "$rigTmp/ps.started"
 
 ## --- a copy of a live workspace's stores ---
 if [ -n "$rigLiveFrom" ] ; then

@@ -317,9 +317,11 @@ AgentsToolsPermissionEntryPlace(){ ## entry, session id
 				return 1
 			}
 			placePath="$( AgentsToolsPermissionResolvePath "$placePath" )"
+			## The path under the place is resolved too: a link there and its target are one target.
 			case "$placeGlob" in
 				''|'**') permEntryTarget="${placePath%/}/**" ; permEntryPlace="$placeName:**" ;;
-				*) permEntryTarget="${placePath%/}/$placeGlob" ; permEntryPlace="$placeName:$placeGlob" ;;
+				*/'**') permEntryTarget="$( AgentsToolsPermissionResolvePath "${placePath%/}/${placeGlob%/\*\*}" )/**" ; permEntryPlace="$placeName:$placeGlob" ;;
+				*) permEntryTarget="$( AgentsToolsPermissionResolvePath "${placePath%/}/$placeGlob" )" ; permEntryPlace="$placeName:$placeGlob" ;;
 			esac
 		;;
 		*) permEntryPlace="$( AgentsToolsPermissionPlaceHint "$permEntryTarget" )" ;;
@@ -839,7 +841,15 @@ AgentsToolsPermissionSetTold(){ ## <pending-id> <allowed|denied> <answered by>
 		return 0
 	fi
 	toldOwner="$( AgentsToolsPermissionField "${toldFile%.set}.md" owner )"
-	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message "${toldOwner:-magic-coordinator}" "$toldThread" --identity-bot --from-stdin > /dev/null 2>&1 \
+	## It is addressed to the participants, each one the member send can address. One it cannot
+	## is still named by the line's own text, and never costs the others the line.
+	local toldArgs=( "${toldOwner:-magic-coordinator}" "$toldThread" --identity-bot ) toldPart
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	for toldPart in $toldParts ; do
+		! AgentsToolsAssertBareName "$toldPart" "a participant" permission-set-told 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$toldPart" > /dev/null 2>&1 \
+			|| toldArgs=( "${toldArgs[@]}" --address-to "$toldPart" )
+	done
+	printf '%s\n' "$toldText" | DistroAgentsTools --intern-op-comms-slack-send-message "${toldArgs[@]}" --from-stdin > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the permission set $toldId is $toldWhat, but its participants were not told in the session thread $toldThread" >&2
 	return 0
 }

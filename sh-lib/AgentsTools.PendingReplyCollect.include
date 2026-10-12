@@ -139,6 +139,9 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 				*"ESCALATION: $oneId answered"*)
 					collectOutcome="ANSWERED" ; collectAnswer="$oneVerdict"
 					printf 'ANSWERED %s %s | %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst" "$oneVerdict"
+					## What he wrote with the verdict comes with it, under its line: the words on the
+					## verdict's own line, and each message beside it, as the read gave them.
+					printf '%s\n' "$oneRead" | LC_ALL=C grep -E '^(VERDICT-TEXT|CLARIFICATION): ' | LC_ALL=C sed 's/^/  /' || :
 				;;
 				*"ESCALATION: $oneId open"*)
 					collectOutcome="OPEN"
@@ -235,6 +238,8 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 			local oneClarify="" oneFloor=""
 			oneClarify="$( printf '%s\n' "$oneBody" | AgentsToolsPendingReplyCollectOwnWords | LC_ALL=C awk -v answerTs="${oneAnswerTs:-$oneQts}" \
 				-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsPendingReplyClarifications.awk" 2>/dev/null )" || oneClarify=""
+			## And they come with the answer, under its line, worded as the record keeps them.
+			printf '%s\n' "$oneClarify" | LC_ALL=C awk -F'\t' 'NF >= 3 { saidText = $0 ; sub( /^[^\t]*\t[^\t]*\t/, "", saidText ) ; printf "  CLARIFICATION: %s %s: %s\n", $1, $2, saidText ; }'
 			oneFloor="$( printf '%s\n' "$oneBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )"
 			printf '%s\n' "$oneClarify" | DistroAgentsTools --intern-op-pending-reply-clarify "$oneId" --from-stdin --follow-floor "${oneFloor:-$oneQts}" --context collect > /dev/null 2>&1 \
 				|| echo "$MDSC_CMD: ⚠️ WARNING: $oneId is closed, but its clarifications were not kept" >&2

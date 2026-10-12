@@ -131,6 +131,22 @@ function dateFallbacks(textValue,   outText, tokenText, barAt) {
 	return outText textValue
 }
 
+## A text with no line of it reading as a message head. Message text carries embedded
+## newlines, and every reader of this rendering knows a message by its head line,
+## "<ts> | <user> |": a line of text shaped like one was read as a message of its own, by
+## whoever it named and at the ts it named. So anyone who could post in a thread could put
+## a reply there in another's name -- an owner's verdict on a permission -- and an asker could
+## in its own question's words. Such a line is printed one space in, where no reader takes
+## it for a head; nothing else of the text changes.
+function ownLines(textValue,   outText) {
+	outText = ""
+	while (match(textValue, /\n[0-9]+\.[0-9]+ \| /)) {
+		outText = outText substr(textValue, 1, RSTART) " "
+		textValue = substr(textValue, RSTART + 1)
+	}
+	return outText textValue
+}
+
 ## Slack-specific: track ts/user/bot_id/text plus each message's own
 ## reactions[] array and reply_count/latest_reply fields, per
 ## message index; print in END once every field has been seen -- field
@@ -300,6 +316,6 @@ END {
 				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
 		}
 
-		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, dateFallbacks(textOf[i]))
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownLines(dateFallbacks(textOf[i])))
 	}
 }

@@ -140,13 +140,13 @@ case "$1" in
 			settleThread="$( AgentsToolsPendingReplyField "$settleFile" thread-ts )"
 			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
 				settleNote="Withdrawn by $settleMember: $settleReason"$'\n'"This question no longer needs an answer."
-				if [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" = "bot" ] ; then
-					printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$settleMember" "$settleChannel:$settleThread" --identity-bot --from-stdin > /dev/null 2>&1 \
-						|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
-				else
-					printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "$settleMember" "$settleChannel:$settleThread" --from-stdin > /dev/null 2>&1 \
-						|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
-				fi
+				## It carries the addressee of the question it withdraws, as the question named it.
+				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
+				[ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
+				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
+				[ -z "$settleTo" ] || settleArgs=( "${settleArgs[@]}" --address-to "$settleTo" )
+				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \
+					|| echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note was not posted in its thread" >&2
 			fi
 			## The question's post takes no answer any more: it gets the cancelled mark of its
 			## template, loses the tooling's own answer emoji, and its How to answer part is

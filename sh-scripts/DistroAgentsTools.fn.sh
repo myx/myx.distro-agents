@@ -68,6 +68,35 @@ DistroAgentsTools(){
 						return $?
 					fi
 				;;
+				--upsert|--upsert-from-stdin|--upsert-if)
+					## A write is this workspace's own, always, and is made as it was. Where it is the first setting of a system this workspace holds for an invited member, that system is read here alone from then on, and what the workspace the member is set up in holds of it is no longer read: said in one line, once the write is made (AgentsToolsMemberSettingsBorrowEndedSay). The reader shifts the arguments, so what the line needs is kept first.
+					local optionScope="$2" optionKey="${4:-}" optionThere="" optionRc=0
+					case "$optionScope" in
+						magic-team) ;;
+						*) AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null && optionThere="$agentsConfigOptionElsewhere" ;;
+					esac
+					if [ -n "$optionThere" ] ; then
+						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
+						[ "$optionRc" -ne 0 ] || AgentsToolsMemberSettingsBorrowEndedSay "$optionScope" "$optionKey" "$optionThere"
+						return "$optionRc"
+					fi
+				;;
+				--delete|--delete-if)
+					## The mirror. Where the setting deleted is the last one of a system this workspace held for an invited member, that system is read from the workspace the member is set up in again, from then on: said in one line, once the delete is made (AgentsToolsMemberSettingsBorrowBegunSay). The reader shifts the arguments, so what the line needs is kept first.
+					local optionScope="$2" optionKey="${4:-}" optionPrefix="" optionRc=0
+					case "$optionScope" in
+						magic-team) ;;
+						*) optionPrefix="$( AgentsToolsMemberSettingSystemOf "$optionKey" )" ;;
+					esac
+					if [ -n "$optionPrefix" ] && AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$optionScope" "$optionPrefix" ; then
+						. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" || optionRc=$?
+						if [ "$optionRc" -eq 0 ] ; then
+							AgentsToolsConfigOptionElsewhere "$optionScope" "$optionKey" 2> /dev/null || :
+							[ -z "$agentsConfigOptionElsewhere" ] || AgentsToolsMemberSettingsBorrowBegunSay "$optionScope" "$optionKey" "$agentsConfigOptionElsewhere"
+						fi
+						return "$optionRc"
+					fi
+				;;
 			esac
 			. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
 			return $?

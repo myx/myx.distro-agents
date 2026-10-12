@@ -8,7 +8,8 @@
 ## that must change nothing: the reviewer rewrite on board/review items, dead and live dispatches,
 ## unclosed and live registry rows, nothing about it on stdout or stderr, one report post to the
 ## event-track thread (a fake curl first on PATH), and the processed-item GC taking its sandbox folder.
-## A live session is a line of this rig's own process list: a ps first on PATH lists the rig's runs only.
+## A live session is a line of this rig's own process list: a ps first on PATH lists the rig's runs only,
+## and says when its own pids started, for a run that is the process its record names.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -31,6 +32,7 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ps-bin"
 ln -s "$( command -v ps )" "$rigTmp/ps-bin/ps.real" || rigRefuse "no ps on PATH to hand the other calls to"
 : > "$rigTmp/ps.list"
+: > "$rigTmp/ps.started"
 cat > "$rigTmp/ps-bin/ps" <<'RIGPS'
 #!/bin/sh
 case " $* " in
@@ -40,6 +42,14 @@ case " $* " in
 			*) sed 's/^[^ ]* //' "${0%/*}/../ps.list" 2> /dev/null ;;
 		esac
 		exit 0
+	;;
+	*" lstart= "*)
+		rigPsPid=""
+		for rigPsWord in "$@" ; do
+			case "$rigPsWord" in ''|*[!0123456789]*) ;; *) rigPsPid="$rigPsWord" ;; esac
+		done
+		rigPsLine="$( grep "^$rigPsPid " "${0%/*}/../ps.started" 2> /dev/null )"
+		[ -z "$rigPsLine" ] || { printf '%s\n' "${rigPsLine#* }" ; exit 0 ; }
 	;;
 esac
 exec "${0%/*}/ps.real" "$@"
@@ -205,6 +215,10 @@ rigSum(){ ## file -- its checksum
 ## so that one live session exists for every rig to see. It is the live control of the review,
 ## dispatch and registry rows alike.
 printf '900001 rig-run --session-id rig-live\n' > "$rigTmp/ps.list"
+## And a CLI that is given no session word: its run is the process its record names. One lives,
+## begun when its record says; another pid a run once had is another process now, begun later.
+printf '9000001 grok --rules /rig/rules the brief of a run with no session word on its line\n9000003 sleep 600\n' >> "$rigTmp/ps.list"
+printf '9000001 Mon Oct 12 07:00:00 2026\n9000003 Mon Oct 12 09:30:00 2026\n' > "$rigTmp/ps.started"
 
 echo "-- board-review: the scan moves no review item, and rewrites review-by only for an ended reviewer session --"
 rigNew b1
@@ -383,6 +397,21 @@ echo "   second pass"
 rigCheck "a second pass changes nothing"                                  "$( rigSame "$rigTmp/b2.snap1" "$rigTmp/b2.snap2" )" same
 rigCheck "and prints no such section either"                                      "$( rigHeadings "$rigTmp/b2.s2" )" 0
 
+echo "-- a CLI that is given no session word: alive it is never closed, dead or its pid taken again it is --"
+rigNew b2n
+rigSandbox rig-nwlive "$rigHost" spawn-started "run-process: 9000001 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwlive dispatch-started ; rigAge "$( rigDir rig-nwlive )" 48
+rigSandbox rig-nwdead "$rigHost" spawn-started "run-process: 9000002 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwdead dispatch-started ; rigAge "$( rigDir rig-nwdead )" 48
+rigSandbox rig-nwreused "$rigHost" spawn-started "run-process: 9000003 Mon_Oct_12_07:00:00_2026" ; rigDispatch rig-nwreused dispatch-started ; rigAge "$( rigDir rig-nwreused )" 48
+rigSandbox rig-nwword "$rigHost" spawn-started ; rigDispatch rig-nwword dispatch-started ; rigAge "$( rigDir rig-nwword )" 48
+rigScan "$rigTmp/b2n.s1"
+rigCheck "a live run with no session word reads running, by the process its record names" "$( rigRegRow "$rigTmp/b2n.s1" rig-nwlive )" "spawn-started running"
+rigCheck "and is not closed, though its files are 48 h old: record and item as they were" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
+rigCheck "a dead one is closed: its record, and its item to review" "$( rigHeader "$( rigRec rig-nwdead )" status ):$( rigLoc dispatch-rig-nwdead.md )" "spawn-ended-without-close:review"
+rigCheck "a pid taken again by another process is not taken for the run: closed too" "$( rigHeader "$( rigRec rig-nwreused )" status ):$( rigLoc dispatch-rig-nwreused.md )" "spawn-ended-without-close:review"
+rigCheck "control: a record that names no process is judged by the session word, as before: none, so closed" "$( rigHeader "$( rigRec rig-nwword )" status ):$( rigLoc dispatch-rig-nwword.md )" "spawn-ended-without-close:review"
+rigScan "$rigTmp/b2n.s2"
+rigCheck "a second pass leaves the live one as it is" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
+
 echo "-- the report: one post to the advance spawn's event-track thread per acting pass, none otherwise --"
 rigFake="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/credential-exposure-check.curl.test.sh"
 [ -f "$rigFake" ] || rigRefuse "the fake curl fixture is missing: $rigFake"
@@ -541,6 +570,7 @@ printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 printf '#!/bin/sh\nif [ -e /dev/fd/4 ] ; then echo open ; else echo closed ; fi\n' > "$rigTmp/b10/probe.sh" ; chmod +x "$rigTmp/b10/probe.sh"
 rigCheck "control: a child started with fd 4 open does list it"          "$( bash -c 'exec 4> "$1" ; "$2"' rig "$rigTmp/b10/fd4.ctl" "$rigTmp/b10/probe.sh" )" open
 rigCheck "a console launched by the spawn proxy, with fd 4 open in its caller, does not"  "$( cat "$rigTmp/b10/fd4.seen" )" closed
+rigCheck "the launcher kept the process it started on the spawn's record, its pid and when it began" "$( LC_ALL=C grep -l -E '^run-process: [0-9]+ [^ ]+$' "$rigSp"/*/*.md 2> /dev/null | wc -l | tr -d ' ' )" 1
 rm -f "$rigTmp/b10/fd4.seen"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -558,6 +588,56 @@ while [ "$rigWaitLoop" -lt 120 ] && { [ ! -f "$rigTmp/b10/fd4.seen" ] || LC_ALL=
 done
 [ -f "$rigTmp/b10/fd4.seen" ] || rigRefuse "the detached fake console never ran: $( tail -3 "$rigTmp/b10/spawn2.err" )"
 rigCheck "a console launched by the detached branch does not list fd 4 either"  "$( cat "$rigTmp/b10/fd4.seen" )" closed
+
+echo "   the detached branch starts its console in the background and waits for it: what a caller relies on is as before"
+## One detached spawn on a stand-in console, never a real CLI; sets rigAsyncRecord to its record and rigAsyncOut to its output file.
+rigAsync(){ ## case name, the console's own lines
+	local asyncBefore asyncFile
+	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\n' "$2" > "$rigW/DistroAgentsConsole.sh"
+	chmod +x "$rigW/DistroAgentsConsole.sh"
+	asyncBefore="$( ls "$rigSp"/*/*.md 2> /dev/null )"
+	printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
+		| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
+			MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/b10/skills" RIG_TMP="$rigTmp" RIG_FN="$rigTool" \
+			bash -c '
+				case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+				case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
+				cd "$MMDAPP" && exec bash "$RIG_FN" --intern-op-agent-spawn-proxy rig-member --dispatch-doc:create
+			' > "$rigTmp/b10/async-$1.out" 2> "$rigTmp/b10/async-$1.err"
+	rigAsyncRecord=""
+	for asyncFile in "$rigSp"/*/*.md ; do
+		case $'\n'"$asyncBefore"$'\n' in *$'\n'"$asyncFile"$'\n'*) ;; *) rigAsyncRecord="$asyncFile" ;; esac
+	done
+	[ -n "$rigAsyncRecord" ] || rigRefuse "the detached spawn left no record: $( tail -3 "$rigTmp/b10/async-$1.err" )"
+	rigAsyncOut="$( LC_ALL=C sed -n 's/^OUTPUT_FILE=//p' "$rigTmp/b10/async-$1.out" | head -1 )"
+}
+rigAsyncEnded(){ ## -- waits, up to a minute, for that record to leave spawn-started
+	local endedLeft=120
+	while [ "$endedLeft" -gt 0 ] && [ "$( rigHeader "$rigAsyncRecord" status )" = spawn-started ] ; do sleep 0.5 ; endedLeft=$(( endedLeft - 1 )) ; done
+}
+## Whether the one rule takes that spawn for running: asked as the review flow and the accept dismissal ask it.
+rigAsyncRuns(){
+	( PATH="$rigTmp/ps-bin:$PATH" ; MMDAPP="$rigW" ; . "${rigTool%/sh-scripts/*}/sh-lib/AgentsTools.Registries.include" ; rigAsyncId="${rigAsyncRecord##*/}" ; AgentsToolsRegistrySpawnRuns "${rigAsyncId%.md}" "$rigAsyncRecord" && printf running || printf not-running )
+}
+rigAsync exit7 'echo first-on-stdout ; echo second-on-stderr >&2 ; echo third-on-stdout ; exit 7'
+rigAsyncEnded
+rigCheck "its exit status is the run's own, kept on the record"          "$( rigHeader "$rigAsyncRecord" exit-code )" 7
+rigCheck "its output is in the order the run wrote it, both streams"     "$( LC_ALL=C grep -h -o -e first-on-stdout -e second-on-stderr -e third-on-stdout "$rigAsyncOut" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "first-on-stdout second-on-stderr third-on-stdout "
+rigCheck "the record keeps the process the launch started"               "$( LC_ALL=C grep -c -E '^run-process: [0-9]+ [^ ]+$' "$rigAsyncRecord" )" 1
+rigCheck "a run that has ended is not running"                           "$( rigAsyncRuns )" not-running
+## A stand-in that carries no session word on its command line, and stays: the process the record names is the console itself.
+rm -f "$rigTmp/b10/console.pid"
+rigAsync term "echo \"\$\$\" > '$rigTmp/b10/console.pid' ; exec sleep 120"
+rigWaitLoop=0
+while [ "$rigWaitLoop" -lt 60 ] && [ ! -s "$rigTmp/b10/console.pid" ] ; do sleep 0.5 ; rigWaitLoop=$(( rigWaitLoop + 1 )) ; done
+[ -s "$rigTmp/b10/console.pid" ] || rigRefuse "the stand-in console never ran: $( tail -3 "$rigTmp/b10/async-term.err" )"
+rigCheck "the process the record names is the console the launcher started" "$( rigHeader "$rigAsyncRecord" run-process | LC_ALL=C awk '{ print $1 }' )" "$( cat "$rigTmp/b10/console.pid" )"
+rigCheck "a live run with no session word on its command line, and in no process list of the rig, is running by that process" \
+	"$( LC_ALL=C grep -c -F -- "$( cat "$rigTmp/b10/console.pid" ) " "$rigTmp/ps.list" ):$( rigAsyncRuns )" "0:running"
+kill -TERM "$( cat "$rigTmp/b10/console.pid" )" 2> /dev/null
+rigAsyncEnded
+rigCheck "a TERM sent to that process ends the run, and its exit status is the signal's" "$( rigHeader "$rigAsyncRecord" exit-code )" 143
+rigCheck "and it is no longer running"                                    "$( rigAsyncRuns )" not-running
 
 echo "   a Slack that is not set up never fails the scan"
 rigPostSetup b11 yes

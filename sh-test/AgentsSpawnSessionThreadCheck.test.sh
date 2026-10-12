@@ -8,8 +8,10 @@
 ## thread, the first opening it, each in a sandbox of its own; another caller has another
 ## session; a spawn made from inside a team session joins that session; --session-new
 ## opens one of the spawn's own; a caller with no session at all, a bare command line,
-## starts one as it always did. A fake console records the brief; the fake curl is the
-## Slack send identity check's own. Offline by construction.
+## starts one as it always did. The line that says a member joined is addressed to the
+## member whose session brought it in, and to nobody where there is none or it is the member
+## itself: never to the member that joined. A fake console records the brief; the fake curl
+## is the Slack send identity check's own. Offline by construction.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -63,6 +65,11 @@ rigOpeners(){ ## fixed text
 }
 rigReplies(){ ## fixed text
 	LC_ALL=C grep -F -- "$1" "$rigTmp/bodies" | LC_ALL=C grep -c -F '"thread_ts"' || :
+}
+## The joined line of the last spawn, whole: who it is from, who it is for, and what it says.
+## With no row in the names registry of the scenario workspace, a member reads as its plain name.
+rigJoined(){ ## member that joined, who the line is for as the header says it, what it was brought in for
+	rigReplies "\"text\":\"*_${1}_* @$1 → $2.\\n$1 joined: $3\""
 }
 ## The spawn records of one coworking session, and one header of the newest spawn record.
 rigRecordsOf(){ ## session id
@@ -120,6 +127,8 @@ rigAssert "it opens the session thread, naming who started the session and the s
 	"$( rigOpeners '"text":"🧵 Session *rework the vars loader*, started by magic-coordinator"' )" 1
 rigAssert "and says in it that it joined, with what it was brought in for" \
 	"$( rigReplies 'keeper-myx joined: change the loader code' )" 1
+rigAssert "the line is addressed to the member whose session brought it in, not to itself" \
+	"$( rigJoined keeper-myx '*_magic-coordinator_* @magic-coordinator' 'change the loader code' ):$( rigJoined keeper-myx '*_keeper-myx_* @keeper-myx' 'change the loader code' )" "1:0"
 rigThreadOne="$( cat "$rigWs/.local/agents/sessions/rig-native-one/session.thread" 2> /dev/null )"
 rigTrackOne="$( cat "$rigWs/.local/agents/sessions/rig-native-one/event-track.thread" 2> /dev/null )"
 rigAssert "the session's thread and its tracking-thread are recorded under the caller's session id" \
@@ -144,11 +153,22 @@ rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-two )
 rigOut="$( rigSpawn keeper-myx --description "look at the logs" )"
 rigAssert "a member another caller brings in gets that caller's session, with a thread of its own, the session by its id where it has no name and no known starter" \
 	"$( rigRecordsOf rig-native-two ):$( rigRecordsOf rig-native-one ):$( rigOpeners '"text":"🧵 Session *rig-native-two*"' ):$( rigReplies 'keeper-myx joined: look at the logs' )" "1:2:1:1"
+rigAssert "a caller that acts as no member: the line is addressed to nobody, and still posted" \
+	"$( rigJoined keeper-myx '@here' 'look at the logs' ):$( rigJoined keeper-myx '*_keeper-myx_* @keeper-myx' 'look at the logs' )" "1:0"
 ## From inside a team session: the session it was handed, as before.
 rigCaller=( MDAT_SPAWN_SESSION_ID=rig-run-inside MDAT_SESSION_ID=rig-team-session MDAT_SESSION_THREAD=CRIG00001:9.000009 MDAT_SPAWN_AGENT=keeper-myx )
 rigOut="$( rigSpawn magic-tester --description "help with the samples" )"
 rigAssert "a spawn made from inside a team session still joins that session, in its thread" \
 	"$( rigRecordsOf rig-team-session ):$( rigNewest session-thread ):$( rigOpeners '🧵 Session ' ):$( rigReplies 'magic-tester joined: help with the samples' ):$( LC_ALL=C grep -c -F '"thread_ts":"9.000009"' "$rigTmp/bodies" )" "1:CRIG00001:9.000009:0:1:1"
+rigAssert "its line is addressed to the member of the session it was spawned from" \
+	"$( rigJoined magic-tester '*_keeper-myx_* @keeper-myx' 'help with the samples' )" 1
+rigOut="$( rigSpawn keeper-myx --description "a second run of its own" )"
+rigAssert "a member that brings itself in: the line is addressed to nobody, never to itself" \
+	"$( rigJoined keeper-myx '@here' 'a second run of its own' ):$( rigJoined keeper-myx '*_keeper-myx_* @keeper-myx' 'a second run of its own' )" "1:0"
+rigCaller=( MDAT_SPAWN_SESSION_ID=rig-run-inside MDAT_SESSION_ID=rig-team-session MDAT_SESSION_THREAD=CRIG00001:9.000009 MDAT_SPAWN_AGENT=rig-no-such-member )
+rigOut="$( rigSpawn magic-tester --description "one more check" )"
+rigAssert "a caller the send cannot address: the line is addressed to nobody, and still posted" \
+	"$( rigJoined magic-tester '@here' 'one more check' )" 1
 ## Asked for plainly: a session of its own, from a caller that has one.
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-one MDAT_SPAWN_AGENT=magic-coordinator )
 rigOut="$( rigSpawn keeper-myx --session-new --session-name-or-comment "a separate matter" )"

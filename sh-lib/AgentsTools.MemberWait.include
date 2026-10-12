@@ -1277,7 +1277,11 @@ case "$1" in
 					waitHitIndex="${waitHit%%=*}"
 					echo "# arrived on: ${waitHit#*=}"
 					echo "# --- what that source holds now follows ---"
-					cat "$waitDir/now.$waitHitIndex"
+					## A line of the source's own content never reads as a line of this wait's: one that
+					## starts as a section mark, as `# arrived on: ` or as `WAIT-` is printed one space in.
+					## Read as the wait's own, three such lines typed into a watched conversation closed
+					## a question there with somebody else's next message as its answer.
+					LC_ALL=C awk '{ print ( $0 ~ /^(WAIT-|# --- |# arrived on: )/ ? " " $0 : $0 ) ; }' "$waitDir/now.$waitHitIndex"
 					echo "# --- end ---"
 					## A slack rendering carries one "<ts> | ..." message head per line, in ts
 					## order; that newest ts is named, and is the floor a continued wait takes.

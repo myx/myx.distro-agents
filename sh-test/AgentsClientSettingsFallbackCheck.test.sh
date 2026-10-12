@@ -10,7 +10,11 @@
 ## of a system held here, and that system is read here alone, so no credential is put together from two workspaces;
 ## the team's own settings are never borrowed and never stand in for the client's; a --member-* operation of the
 ## client is our own side, with nothing of the client's borrowed for it; and the client's own sweep reads the borrowed
-## systems and writes none of their settings here, which would cut the rest off. Offline: the fake `curl` and
+## systems and writes none of their settings here, which would cut the rest off; and where a person writes one here,
+## the tooling says in one line which system is read here alone from then on and which settings of it, held in the
+## other workspace, are no longer read, by their names and never a value; and where a person deletes the last
+## setting of a system held here, the mirror of that line says the system is read from the other workspace again.
+## Offline: the fake `curl` and
 ## `python3` of AgentsClientSystemsCheck, first on PATH, log each call with whose settings it carried. Every value of
 ## the fixture says whose it is: NDMTHERE the client's in the workspace it is set up in, NDMHERE the client's in this
 ## one, TEAMHERE and TEAMTHERE the two workspaces' own teams. What the stubs cannot show: a real answer of any system.
@@ -94,12 +98,14 @@ rigWorld(){ ## -- a fresh machine: this workspace holds nothing for the client
 	local wsName memberName
 	for wsName in ws-here ws-there ; do mkdir -p "$rigWork/$wsName/.local/.agents" "$rigWork/$wsName/.local/agents/members" ; done
 	for memberName in magic-team human-owner magic-coordinator keeper-here ; do rigMemberAt ws-here "$memberName" ; done
-	for memberName in magic-team client-ndm ; do rigMemberAt ws-there "$memberName" ; done
+	for memberName in magic-team client-ndm keeper-there ; do rigMemberAt ws-there "$memberName" ; done
 	printf '%s\n' "$rigWork/ws-here" "$rigWork/ws-there" > "$rigListFile"
 	rigSettings TEAMHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-here magic-team
 	rigSettings TEAMTHERE SLACKTEAM EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-there magic-team
 	rigSettings NDMTHERE SLACK EMAIL TRELLO GOOGLE JIRA CONFLUENCE | rigScopeOf ws-there client-ndm
-	rm -f "$rigWork/ws-here/.local/.agents/client-ndm.agent.env"
+	## a member that is no client, set up in the other workspace too: the fallback is any invited member's
+	rigSettings KTHERE SLACK | rigScopeOf ws-there keeper-there
+	rm -f "$rigWork/ws-here/.local/.agents/client-ndm.agent.env" "$rigWork/ws-here/.local/.agents/keeper-there.agent.env"
 	rigClean
 }
 rigClean(){ ## -- the logs of the calls made so far, emptied
@@ -111,6 +117,13 @@ rigRun(){ ## args... -- one dispatcher call from ws-here; stdout in out, stderr 
 	rigRc=0
 	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_REAL_PYTHON3="$rigRealPython" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
+}
+rigRunWith(){ ## the text for stdin, args... -- as rigRun, with that text on the call's stdin
+	local withText="$1" ; shift
+	rigClean
+	rigRc=0
+	( cd "$rigWork/ws-here" && printf '%s' "$withText" | env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_REAL_PYTHON3="$rigRealPython" \
+		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 rigN(){ ## file, fixed text -- how many lines hold it
 	LC_ALL=C grep -c -F -- "$2" "$1" 2> /dev/null || :
@@ -138,6 +151,21 @@ rigSaid(){ ## -- how many lines of the last run say a member's own settings are 
 }
 rigSaidFor(){ ## operation, the systems named -- how many lines of the last run are the one line of the fallback, whole, for a client: the systems, both workspaces, and the side that reads them
 	rigN "$rigTmp/err" "# DistroAgentsTools $1: member 'client-ndm' holds no settings of its own in $rigWork/ws-here for $2 -- each is read from $rigWork/ws-there, the workspace it is set up in, and only where the operation reaches the other organisation"
+}
+rigEnded(){ ## -- how many lines of the last run say a system is read here alone from now on
+	rigN "$rigTmp/err" "settings are read here alone from now on"
+}
+rigEndedFor(){ ## member, the key written, its system's prefix, the names no longer read -- how many lines of the last run are the one line of a write that ends a borrowing, whole
+	rigN "$rigTmp/err" "# DistroAgentsTools --agents-config-option: member '$1' now holds $2 in $rigWork/ws-here, so its $3* settings are read here alone from now on -- no longer read from $rigWork/ws-there, the workspace it is set up in: $4"
+}
+rigBegun(){ ## -- how many lines of the last run say a system is read from the other workspace from now on
+	rigN "$rigTmp/err" "settings are read from $rigWork/ws-there, the workspace it is set up in, from now on"
+}
+rigBegunFor(){ ## member, the key deleted, its system's prefix, the side said for a client (may be empty), the names read from now on -- how many lines of the last run are the one line of a delete that begins a borrowing, whole
+	rigN "$rigTmp/err" "# DistroAgentsTools --agents-config-option: member '$1' holds no $3* setting in $rigWork/ws-here now that $2 is deleted, so its $3* settings are read from $rigWork/ws-there, the workspace it is set up in, from now on$4: $5"
+}
+rigKeyHere(){ ## member, key -- how many lines of that member's scope in this workspace set that key
+	LC_ALL=C grep -c -e "^$2=" "$rigWork/ws-here/.local/.agents/$1.agent.env" 2> /dev/null || :
 }
 rigTeams(){ ## -- how many calls of the last run carried a setting of either workspace's own team
 	LC_ALL=C grep -c -i -E 'TEAMHERE|TEAMTHERE' "$rigTmp/calls" || :
@@ -250,7 +278,71 @@ rigSettings NDMHERE SLACK EMAIL TRELLO | rigScopeOf ws-here client-ndm
 rigRun --client-sweep-input-scan client-ndm
 rigAssert "control: where this workspace holds the client's Slack settings, the sweep reads them and persists the workspace it resolved here, as before" "$( rigN "$rigTmp/out" 'identity: slack URIGNDMHERE (config: client-ndm)' ) $( rigN "$rigTmp/out" 'SLACK_WORKSPACE_DOMAIN: OK (resolved rig.invalid)' ) $( rigN "$rigWork/ws-here/.local/.agents/client-ndm.agent.env" 'SLACK_WORKSPACE_DOMAIN=rig.invalid' ) $( rigFrom NDMTHERE )" "1 1 1 0"
 
-echo "-- 7. static --"
+echo "-- 7. a setting a person writes here ends the borrowing of its system, and the tooling says so in one line, by names only --"
+rigWorld
+rigSumThere="$( rigTreeSum ws-there )"
+rigRun --agents-config-option client-ndm --upsert SLACK_WORKSPACE_DOMAIN ndmhere.slack.invalid
+rigAssert "the write is made as it always was: here, and nothing under the workspace the client is set up in" "$rigRc $( rigKeyHere client-ndm SLACK_WORKSPACE_DOMAIN ) $( [ "$( rigTreeSum ws-there )" = "$rigSumThere" ] && printf untouched || printf written )" "0 1 untouched"
+rigAssert "and the tooling says in one line that Slack is read here alone from now on, and which settings of it, held in the other workspace, are no longer read" "$( rigEnded ) $( rigEndedFor client-ndm SLACK_WORKSPACE_DOMAIN SLACK_ 'SLACK_USER_TOKEN, SLACK_CONVERSATIONS' )" "1 1"
+rigAssert "by their names only: no value of the other workspace's is in anything the write said" "$( cat "$rigTmp/err" "$rigTmp/out" | LC_ALL=C grep -c -e 'rig-user-token-NDMTHERE' -e 'CNDM00001' -e 'ndmthere' || : )" 0
+rigRun --client-comms-slack-read client-ndm CNDM00001
+rigAssert "what the line says holds: the client's Slack read from here finds no token now, and the other workspace's is not used" "$( [ "$rigRc" != 0 ] && printf refused || printf ran ) $( rigLines "$rigTmp/calls" )" "refused 0"
+rigRun --agents-config-option client-ndm --upsert SLACK_CONVERSATIONS CHERE0009
+rigAssert "a further setting of a system already held here says nothing: nothing changes hands" "$rigRc $( rigKeyHere client-ndm SLACK_CONVERSATIONS ) $( rigEnded )" "0 1 0"
+rigRunWith 'rig-mail-secret-NDMHERE' --agents-config-option client-ndm --upsert-from-stdin EMAIL_APP_PASSWORD
+rigAssert "a setting written from stdin is the same: mail is read here alone from now on, the other workspace's mail settings named, and neither value shown" "$rigRc $( rigKeyHere client-ndm EMAIL_APP_PASSWORD ) $( rigEndedFor client-ndm EMAIL_APP_PASSWORD EMAIL_ 'EMAIL_IMAP_HOST, EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_USER' ) $( cat "$rigTmp/err" "$rigTmp/out" | LC_ALL=C grep -c -e 'rig-mail-secret' -e 'ndmthere' || : )" "0 1 1 0"
+rigRun --agents-config-option client-ndm --upsert-if TRELLO_KEY rig-trello-key-NDMHERE rig-not-the-value-held
+rigAssert "a conditional write that writes nothing ends no borrowing and says nothing" "$rigRc $( rigKeyHere client-ndm TRELLO_KEY ) $( rigEnded )" "0 0 0"
+rigRun --agents-config-option client-ndm --select TRELLO_KEY
+rigAssert "so Trello is still read from the workspace the client is set up in" "$rigRc [$( cat "$rigTmp/out" )]" "0 [rig-trello-key-NDMTHERE]"
+rigRun --agents-config-option client-ndm --upsert RIG_NOTE kept-here
+rigAssert "a key that is no system's is written here and says nothing: it was never read from there" "$rigRc $( rigKeyHere client-ndm RIG_NOTE ) $( rigEnded )" "0 1 0"
+printf '%s\n' 'GOOGLE_CLIENT_ID=rig-google-client-NDMTHERE' >> "$rigWork/ws-there/.local/.agents/client-ndm.agent.env.new" ; LC_ALL=C grep -v '^GOOGLE_' "$rigWork/ws-there/.local/.agents/client-ndm.agent.env" >> "$rigWork/ws-there/.local/.agents/client-ndm.agent.env.new" ; mv -f "$rigWork/ws-there/.local/.agents/client-ndm.agent.env.new" "$rigWork/ws-there/.local/.agents/client-ndm.agent.env"
+rigRun --agents-config-option client-ndm --upsert GOOGLE_CLIENT_ID rig-google-client-NDMHERE
+rigAssert "where the other workspace holds no other setting of that system, the write replaces all there was to read, and nothing is said" "$rigRc $( rigKeyHere client-ndm GOOGLE_CLIENT_ID ) $( rigEnded )" "0 1 0"
+rigRun --agents-config-option keeper-there --upsert SLACK_WORKSPACE_DOMAIN khere.slack.invalid
+rigAssert "it is any invited member's line, not a client's alone" "$rigRc $( rigEnded ) $( rigEndedFor keeper-there SLACK_WORKSPACE_DOMAIN SLACK_ 'SLACK_USER_TOKEN, SLACK_CONVERSATIONS' )" "0 1 1"
+rigRun --agents-config-option keeper-here --upsert SLACK_USER_TOKEN rig-user-token-KHERE
+rigAssert "control: a member set up here borrows nothing, so its first setting of a system says nothing" "$rigRc $( rigKeyHere keeper-here SLACK_USER_TOKEN ) $( rigEnded )" "0 1 0"
+rigRun --agents-config-option magic-team --upsert JIRA_SITE jira-teamhere-new.invalid
+rigAssert "control: nor does a write to the team's own scope" "$rigRc $( rigEnded )" "0 0"
+
+echo "-- 8. deleting the last setting of a system held here begins its borrowing again, and the mirror of that line says so, by names only --"
+rigWorld
+rigSettings NDMHERE SLACK | rigScopeOf ws-here client-ndm
+rigSumThere="$( rigTreeSum ws-there )"
+rigSlackNames='SLACK_USER_TOKEN, SLACK_WORKSPACE_DOMAIN, SLACK_CONVERSATIONS'
+rigRun --agents-config-option client-ndm --delete SLACK_CONVERSATIONS
+rigAssert "a setting deleted while others of its system stay here says nothing: the system is still this workspace's" "$rigRc $( rigKeyHere client-ndm SLACK_CONVERSATIONS ) $( rigBegun )" "0 0 0"
+rigRun --agents-config-option client-ndm --delete-if SLACK_WORKSPACE_DOMAIN rig-not-the-value-held
+rigAssert "a conditional delete that deletes nothing says nothing" "$rigRc $( rigKeyHere client-ndm SLACK_WORKSPACE_DOMAIN ) $( rigBegun )" "0 1 0"
+rigRun --agents-config-option client-ndm --delete SLACK_WORKSPACE_DOMAIN
+rigAssert "nor the next to last" "$rigRc $( rigHeldHere ) $( rigBegun )" "0 1 0"
+rigRun --agents-config-option client-ndm --delete-if SLACK_USER_TOKEN rig-user-token-NDMHERE
+rigAssert "the delete of the last one is made as it always was: here, and nothing under the workspace the client is set up in" "$rigRc $( rigHeldHere ) $( [ "$( rigTreeSum ws-there )" = "$rigSumThere" ] && printf untouched || printf written )" "0 0 untouched"
+rigAssert "and the tooling says in one line that Slack is read from the other workspace from now on, on which side for a client, and which settings those are" "$( rigBegun ) $( rigBegunFor client-ndm SLACK_USER_TOKEN SLACK_ ', and only where the operation reaches the other organisation' "$rigSlackNames" )" "1 1"
+rigAssert "by their names only: no value of either workspace's is in anything the delete said" "$( cat "$rigTmp/err" "$rigTmp/out" | LC_ALL=C grep -c -i -e 'rig-user-token' -e 'CNDM00001' -e 'slack.invalid' || : )" 0
+rigRun --client-comms-slack-read client-ndm CNDM00001
+rigAssert "what the line says holds: the client's Slack read from here uses the token held where it is set up again" "$rigRc $( rigCalls )" "0 slack conversations.history rig-user-token-NDMTHERE"
+printf '%s\n' 'SLACK_WORKSPACE_DOMAIN=khere.slack.invalid' | rigScopeOf ws-here keeper-there
+rigRun --agents-config-option keeper-there --delete SLACK_WORKSPACE_DOMAIN
+rigAssert "it is any invited member's line: one that is no client gets it with no side in it" "$rigRc $( rigBegun ) $( rigBegunFor keeper-there SLACK_WORKSPACE_DOMAIN SLACK_ '' "$rigSlackNames" )" "0 1 1"
+printf '%s\n' 'GOOGLE_CLIENT_ID=rig-google-client-NDMHERE' 'RIG_NOTE=kept-here' | rigScopeOf ws-here client-ndm
+LC_ALL=C grep -v '^GOOGLE_' "$rigWork/ws-there/.local/.agents/client-ndm.agent.env" > "$rigWork/ws-there/.local/.agents/client-ndm.agent.env.new" ; mv -f "$rigWork/ws-there/.local/.agents/client-ndm.agent.env.new" "$rigWork/ws-there/.local/.agents/client-ndm.agent.env"
+rigRun --agents-config-option client-ndm --delete GOOGLE_CLIENT_ID
+rigAssert "where the other workspace holds nothing of that system, there is nothing to read from it, and nothing is said" "$rigRc $( rigKeyHere client-ndm GOOGLE_CLIENT_ID ) $( rigBegun )" "0 0 0"
+rigRun --agents-config-option client-ndm --delete RIG_NOTE
+rigAssert "a key that is no system's is deleted and says nothing" "$rigRc $( rigKeyHere client-ndm RIG_NOTE ) $( rigBegun )" "0 0 0"
+printf '%s\n' 'SLACK_USER_TOKEN=rig-user-token-KHERE' | rigScopeOf ws-here keeper-here
+rigRun --agents-config-option keeper-here --delete SLACK_USER_TOKEN
+rigAssert "control: a member set up here has nowhere else to read from, so its last setting of a system deleted says nothing" "$rigRc $( rigKeyHere keeper-here SLACK_USER_TOKEN ) $( rigBegun )" "0 0 0"
+printf '%s\n' 'JIRA_SITE=jira-teamhere.invalid' | rigScopeOf ws-here magic-team
+rigRun --agents-config-option magic-team --delete JIRA_SITE
+rigAssert "control: nor does a delete in the team's own scope, which is never read from another workspace" "$rigRc $( rigBegun )" "0 0"
+
+echo "-- 9. static --"
+rigAssert "the line of a delete is said where a setting is deleted, after the delete, which is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--delete\|--delete-if\)/ { on = 1 } on && /LocalTools.Config.include/ && ! deleted { deleted = NR } on && /AgentsToolsMemberSettingsBorrowBegunSay "\$optionScope" "\$optionKey" "\$agentsConfigOptionElsewhere"/ && ! said { said = NR } END { print ( deleted && said && deleted < said ) ? "deleted-then-said" : "not" }' "$rigTool" )" deleted-then-said
+rigAssert "the line of a write is said where a setting is written, after the write, and the write is the sibling package's own, unchanged" "$( LC_ALL=C awk '/--upsert\|--upsert-from-stdin\|--upsert-if\)/ { on = 1 } on && /LocalTools.Config.include/ && ! wrote { wrote = NR } on && /AgentsToolsMemberSettingsBorrowEndedSay "\$optionScope" "\$optionKey" "\$optionThere"/ && ! said { said = NR } END { print ( wrote && said && wrote < said ) ? "written-then-said" : "not" }' "$rigTool" )" written-then-said
 rigAssert "the one place the tooling persists a setting it resolved asks first whether that scope's system is read from elsewhere" "$( LC_ALL=C awk '/AgentsToolsConfigOptionElsewhere "\$callingMember" "\$resolveWorkspaceKey"/ && ! asked { asked = NR } /--agents-config-option "\$callingMember" --upsert "\$resolveWorkspaceKey"/ && ! wrote { wrote = NR } END { print ( asked && wrote && asked < wrote ) ? "asked-first" : "not" }' "$rigHere/AgentsTools.InternOpCheckConfigs.include" )" asked-first
 rigAssert "and it is the only place the tooling writes a setting of a scope by a name it was handed" "$( cat "$rigHere"/*.include | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -E -e 'DistroAgentsTools --agents-config-option "\$[A-Za-z]+" --upsert "\$' || : )" 1
 if [ "$rigFails" -ne 0 ] ; then

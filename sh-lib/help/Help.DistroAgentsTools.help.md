@@ -2171,8 +2171,11 @@
 			workspace, which is always read-write; --ceiling defaults to
 			read-write. Registering a place grants nothing. The same row
 			again is a no-op; a name a project of this workspace
-			declares for another path is refused. Existence of <path> is
-			not checked (it may live on an unmounted volume).
+			declares for another path is refused. So is a name that
+			starts with a dot: only the two built-in places have one, and
+			a declared place of such a name is skipped with a warning.
+			Existence of <path> is not checked (it may live on an
+			unmounted volume).
 			Places a project declares need no call: a project.inf
 			Declares line `magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob>`
 			or `magic-team:workspace:<name>:<path>:<host-glob>` registers
@@ -2181,27 +2184,35 @@
 
 		--owner-workspace-forget <name>
 			Removes the place of that name that --owner-workspace-upsert
-			registered in this workspace. A name a project declares, or
-			this workspace's own, is refused; an unknown name is a
-			harmless no-op.
+			registered in this workspace. A name a project declares, this
+			workspace's own, or a built-in place's, is refused; an unknown
+			name is a harmless no-op.
 
 		--owner-workspace-list
-			Prints every registered place of every workspace, one per
-			line, TAB-separated: name, kind (workspace or directory),
-			ceiling (read-only or read-write), path, and present, absent
-			(not on this host) or unknown (its workspace cannot be read).
+			Prints the two built-in places, then every registered place
+			of every workspace, one per line, TAB-separated: name, kind
+			(workspace or directory), ceiling (read-only or read-write),
+			path, and present, absent (not on this host) or unknown (its
+			workspace cannot be read).
 			The same name with another path: this workspace's keeps the
 			name, each other is written <name>@<workspace>; with none
 			here, one warning, and each is written <name>@<workspace>.
-			Takes no arguments; prints nothing when no place is
-			registered yet.
+			The built-in places are `.skillset-shared`, the machine's
+			skillset in HOME (the skills folder the clients read there),
+			and `.skillset-.local`, the member set of this workspace
+			(.local/agents/members). They are no row of a registry, and a
+			registry row with a name that starts with a dot is left out,
+			with a warning. Takes no arguments.
 
 		--member-directory-list
-			Prints every registered place, one per line, TAB-separated:
-			name (or <name>@<workspace>, as --owner-workspace-list
-			writes it), kind (workspace or directory) and ceiling
-			(read-only or read-write). Never a path: ask for one by name
-			with --member-directory-path. Takes no arguments.
+			Prints the two built-in places, `.skillset-shared` (the
+			machine's skillset in HOME) and `.skillset-.local` (this
+			workspace's own member set), then every registered place, one
+			per line, TAB-separated: name (or <name>@<workspace>, as
+			--owner-workspace-list writes it), kind (workspace or
+			directory) and ceiling (read-only or read-write). Never a
+			path: ask for one by name with --member-directory-path. Takes
+			no arguments.
 
 		--member-directory-path <name>[/<relative>]
 			Prints the path of the place <name>, or of <relative> under
@@ -3094,10 +3105,12 @@
 			thread it was read in, from the template of its kind
 			(`# Confirmations`): what was read and by whom, and what
 			is granted, or that nothing is, or why it could not be
-			applied. An allow from someone who does not hold what it
-			allows goes up: to a holder with a live run in this
-			session, told in the session thread, else to the
-			human-owner, posted by the team bot with its answer emoji.
+			applied. The reply is addressed as the ask is, by name, and
+			in a forward's thread to the human-owner. An allow from
+			someone who does not hold what it allows goes up: to a
+			holder with a live run in this session, told in the
+			session thread, else to the human-owner, posted by the
+			team bot with its answer emoji.
 			An answer from the account that asked is never taken. A
 			question withdrawn by its asker prints `ESCALATION: <id>
 			closed withdrawn` and takes no verdict.
@@ -3173,8 +3186,9 @@
 			to the human-owner, and it stays open. The waiting question
 			ends on it and its session retries the exact call. A second
 			answer to the same escalation is not applied. The answer is
-			also said in the question's own thread. A spawned session
-			answers only as its own member.
+			also said in the question's own thread, addressed to the
+			member that asked. A spawned session answers only as its
+			own member.
 
 		--magic-escalation-answer <magic-coordinator> <request-id> <verdict> [text]
 			The coordinator answers one open escalation on behalf of the
@@ -3367,8 +3381,9 @@
 			`withdraw-reason: <text>`, and no verdict, so it answers,
 			grants and decides nothing, and is reminded no more. Its
 			item's `## Decisions` gets a `dismissed` line. A short note
-			in the question's own thread tells the person it is no
-			longer needed. The question's post gets the cancelled mark
+			in the question's own thread, addressed as the question
+			was, tells the person it is no longer needed. The
+			question's post gets the cancelled mark
 			of its template, loses the answer emoji the tooling placed,
 			and is edited to drop its How to answer part: the root of a
 			question with its own thread, else the live version of one
@@ -4037,7 +4052,9 @@
 			session brings the others in, left out where it is
 			not known. The tracking thread's session box links
 			to that root. Each member then says it joined, with
-			its own description. --session-new starts a separate session
+			its own description, addressed to the member whose
+			session brought it in, or to nobody where that is no
+			member. --session-new starts a separate session
 			with a thread of its own, and --session-id <id> joins
 			another one. A caller with no session at all, a bare
 			command line, starts one as before. Where the thread

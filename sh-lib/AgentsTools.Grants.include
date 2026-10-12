@@ -35,6 +35,8 @@
 ## source/** is no floor's: magic-librarian holds a standing read of it, every other member
 ## the namespace grants declared for it. The members this package carries hold their standing
 ## grants built in, never declared (AgentsToolsGrantsBuiltinText), so no source/ is needed.
+## magic-librarian's other one is a standing write of the .md files of the team members'
+## skills this machine holds, where they are its to change (AgentsToolsGrantsMemberSkills).
 ##
 ## Dot-sourced; functions only.
 ##
@@ -59,18 +61,22 @@ AgentsToolsGrantsIndexHeader(){ ## workspace -- sets agentsGrantsHeader
 
 ## Whether the index is current, by builtins only: its header is this run's, and it is newer
 ## than everything it is made from -- every workspace's grants and places this machine
-## points at, the member registries and index, the member set root, and this code.
+## points at, the member registries and index, the member set root, the machine's skills
+## folder in HOME, and this code.
 AgentsToolsGrantsIndexFresh(){ ## workspace, index file
 	local freshWs="${1%/}" freshFile="$2" freshHead="" freshShared="${HOME:-}/.agents/magic-team" freshSrc freshRoot freshName
 	[ -f "$freshFile" ] || return 1
 	IFS= read -r freshHead < "$freshFile" || return 1
 	AgentsToolsGrantsIndexHeader "$freshWs"
 	[ "$freshHead" = "$agentsGrantsHeader" ] || return 1
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 1
+	AgentsToolsPlacesHomeSkills || :
 	for freshSrc in \
 		"$freshWs/.local/agents/permissions.registry" "$freshWs/.local/agents/directories.registry" "$freshWs/.local/agents/members.index" \
 		"$freshShared/permissions.registry" "$freshShared/directories.registry" "$freshShared/members.registry" "$freshShared/member-homes.registry" \
-		"$freshShared/known-workspaces.registry" "$freshShared/known-workspaces.registry.imported" "$agentsGrantsSkillsetRoot" \
+		"$freshShared/known-workspaces.registry" "$freshShared/known-workspaces.registry.imported" "$agentsGrantsSkillsetRoot" "$agentsPlacesHomeSkills" \
 		"$agentsGrantsHere/AgentsTools.Grants.include" "$agentsGrantsHere/AgentsGrantsPattern.awk" "$agentsGrantsHere/AgentsGrantsIndexBuild.awk" \
+		"$agentsGrantsHere/AgentsTools.Places.include" \
 	; do
 		[ ! -e "$freshSrc" ] || [ "$freshFile" -nt "$freshSrc" ] || return 1
 	done
@@ -120,6 +126,37 @@ AgentsToolsGrantsBuiltinText(){ ## workspace the rows are written for, [tags]
 	done <<< "$( AgentsToolsGrantsPlaceMatch '*-testbed' )"
 }
 
+## The team members' skills that are the machine's own and this workspace's to change, one
+## resolved folder per line, each once: the entries of the machine's skillset in HOME, a
+## built-in place (AgentsToolsPlacesHomeSkills), that hold a member's own <name>.basic.md and
+## are no reference-only identity record, which is nobody's to write. A real folder there is
+## a skill that lives on this machine only. A link there counts where its target really lies
+## under this workspace's source/; one to anywhere else, another workspace's source tree or a
+## folder here that is itself a link out, never does. Resolved here, by the index builder,
+## once: a call is checked against the rows this gives, on its real file, whatever link it
+## came by.
+AgentsToolsGrantsMemberSkills(){ ## workspace
+	local skillsSource skillsEntry skillsName skillsReal skillsSeen=$'\n'
+	type AgentsToolsPlacesHomeSkills > /dev/null 2>&1 || . "$agentsGrantsHere/AgentsTools.Places.include" || return 0
+	AgentsToolsPlacesHomeSkills || return 0
+	skillsSource="$( cd "${1%/}/source" 2> /dev/null && pwd -P )" || skillsSource=""
+	for skillsEntry in "$agentsPlacesHomeSkills"/*/ ; do
+		skillsEntry="${skillsEntry%/}"
+		[ -d "$skillsEntry" ] || continue
+		skillsName="${skillsEntry##*/}"
+		[ -f "$skillsEntry/$skillsName.basic.md" ] || continue
+		! LC_ALL=C grep -q '^status: reference-only' "$skillsEntry/SKILL.md" 2> /dev/null || continue
+		skillsReal="$( cd "$skillsEntry" 2> /dev/null && pwd -P )" || continue
+		if [ -L "$skillsEntry" ] ; then
+			[ -n "$skillsSource" ] || continue
+			case "$skillsReal/" in "$skillsSource"/*) ;; *) continue ;; esac
+		fi
+		case "$skillsSeen" in *$'\n'"$skillsReal"$'\n'*) continue ;; esac
+		skillsSeen="$skillsSeen$skillsReal"$'\n'
+		printf '%s\n' "$skillsReal"
+	done
+}
+
 ## The whole index on stdout, computed: non-zero, the output then no index, on a failure.
 AgentsToolsGrantsIndexText(){ ## workspace
 	local textWs="${1%/}" textStream textReal textRoot
@@ -149,6 +186,13 @@ AgentsToolsGrantsIndexText(){ ## workspace
 			## carries it, here too so it never waits on the next --make-agents-indices there.
 			printf 'grant\tmagic-librarian:%s:builtin:Read(/%s/source/**)\n' "${textRoot##*/}" "$textRoot"
 		done <<< "$agentsGrantsRoots"
+		## The standing write of magic-librarian on the team members' skills this machine holds
+		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them. Rows of this
+		## workspace's own index only, never of a registry, which every workspace reads.
+		while IFS= read -r textRoot ; do
+			[ -n "$textRoot" ] || continue
+			printf 'grant\tmagic-librarian:%s:builtin:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
+		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
 		MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsClientAccessRootsMembers readable | LC_ALL=C awk '/^\// { print "floor\tread\t" $0 "/**" ; }'
 		[ -z "${HOME:-}" ] || printf 'floor\tread\t%s/.claude/skills/**\n' "${HOME%/}"
 	)" || return 1

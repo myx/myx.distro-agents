@@ -242,7 +242,7 @@ rigAssert "a list names its member"                           "$rigRc:$( rigN "$
 echo "-- 7. the members' read-only ops --"
 RIG_AGENT=keeper-d RIG_SESSION=s-k
 rigRun --member-directory-list
-rigAssert "places by name, kind and ceiling"                   "$rigRc:$( LC_ALL=C sort "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" "0:ro-dir directory read-only|rw-dir directory read-write|ws-main workspace read-write|"
+rigAssert "places by name, kind and ceiling, the two built-in ones among them" "$rigRc:$( LC_ALL=C sort "$rigTmp/out" | LC_ALL=C tr '\t\n' ' |' )" "0:.skillset-.local directory read-write|.skillset-shared directory read-write|ro-dir directory read-only|rw-dir directory read-write|ws-main workspace read-write|"
 rigAssert "and no path"                                        "$( LC_ALL=C grep -c / "$rigTmp/out" )" 0
 rigRun --member-directory-path rw-dir
 rigAssert "a place's path by name"                             "$rigRc:$( cat "$rigTmp/out" )" "0:$rigTmp/rw-dir"

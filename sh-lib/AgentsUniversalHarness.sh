@@ -2328,11 +2328,44 @@ AgentsHarnessDispatchReceipt(){ ## item filename
 ## item records is also an OS handle -- which is what lets a stop reach a helper that
 ## is cooperating in no way. The id travels in the environment, never in argv, so this never matches itself.
 ## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
+## Where no process carries it, the run is the process its spawn's record names (below).
 AgentsHarnessSessionPids(){ ## session id
+	local pidsFound pidsRecord pidsRun
 	export MDAT_HARNESS_WANT_SESSION="$1"
-	ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
+	pidsFound="$( ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
 		index($0, ENVIRON["MDAT_HARNESS_WANT_SESSION"]) > 0 { print $1 ; }
-	'
+	' )"
+	if [ -n "$pidsFound" ] ; then
+		printf '%s\n' "$pidsFound"
+		return 0
+	fi
+	## No process carries that id: the run of a CLI that is given no session word. Its process
+	## is the one its spawn's record names as the one its launch started, while that is still
+	## the same process (AgentsToolsRegistryRecordedRun, AgentsTools.Registries.include): that
+	## pid, then every process it started, however deep. A pid another process has taken since
+	## is never named here.
+	case "$1" in ''|*/*|.|..) return 0 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 0
+	type AgentsToolsRegistryRecordedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	for pidsRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$pidsRecord" ] || continue
+		pidsRun="$( AgentsToolsRegistryRecordedRun "$pidsRecord" )" || continue
+		ps -A -o pid=,ppid= 2>/dev/null | LC_ALL=C awk -v topPid="$pidsRun" '
+			{ parentOf[$1] = $2 ; pidList[++pidTotal] = $1 ; }
+			END {
+				print topPid ; startedBy[topPid] = 1 ;
+				do {
+					grew = 0 ;
+					for ( pidAt = 1 ; pidAt <= pidTotal ; pidAt++ ) {
+						onePid = pidList[pidAt] ;
+						if ( ! ( onePid in startedBy ) && ( parentOf[onePid] in startedBy ) ) { startedBy[onePid] = 1 ; print onePid ; grew = 1 ; }
+					}
+				} while ( grew ) ;
+			}
+		'
+		return 0
+	done
+	return 0
 }
 
 ## Spawns a helper session through the team spawn operation this package owns, and
@@ -2852,20 +2885,44 @@ AgentsHarnessRefusedTargetDecode(){ ## value
 ## named AgentsHarnessTool*: that family is the static tool class
 ## AgentsHarnessSelfCheck.test.awk matches site by site, and a helper with no tool behind it
 ## is reported there as an orphan.
-AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional next (see AgentsHarnessToolSendMessage)
+AgentsHarnessFormalSend(){ ## tool name, target, as_bot, body text, optional next (see AgentsHarnessToolSendMessage), optional address to (who the post is for, as SendMessage takes it)
 	local formalName="$1" formalTo="$2" formalAsBot="$3" formalBody="$4"
 	if [ -z "$formalTo" ] ; then
 		printf 'ERROR: %s: to is required and was empty, so there is nowhere to post it. Nothing was sent.\n' "$formalName" ; return 0
 	fi
-	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot" "" "" "" "${5:-}"
+	AgentsHarnessToolSendMessage "$formalTo" "$formalBody" "$formalAsBot" "${6:-}" "" "" "${5:-}"
+}
+
+## Who a handback is for where its call names nobody: the caller, the member whose session
+## started this one, as the spawn records name it (AgentsToolsSessionParentMember). Prints
+## nothing where no record names it, where it is this member itself, or where the member
+## send would not take the name as an addressee: a default never fails a handback.
+AgentsHarnessCallerMember(){
+	local callerMember=""
+	type AgentsToolsSessionParentMember > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+	type AgentsToolsSessionParentMember > /dev/null 2>&1 && type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || return 0
+	callerMember="$( AgentsToolsSessionParentMember 2> /dev/null )" || return 0
+	## The bare name the member send itself holds an addressee to.
+	case "$callerMember" in .|..|-*) return 0 ;; esac
+	AgentsHarnessBareName "$callerMember" && [ "$callerMember" != "$harnessAgent" ] || return 0
+	AgentsToolsTeamMemberDirectory "$callerMember" > /dev/null 2>&1 || return 0
+	printf '%s' "$callerMember"
 }
 
 ## Posting a handback does not end this run and releases nobody waiting on it -- the
 ## description says so, because a model reading otherwise stops working mid-task.
 AgentsHarnessToolSubagentHandback(){
-	local toolTo="${1:-$harnessParentName}" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolBody
+	local toolTo="${1:-$harnessParentName}" toolTask="$2" toolOutcome="$3" toolFindings="$4" toolUnfinished="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
+	fi
+	## A handback into a session thread that names nobody is for the caller. One into a
+	## conversation the call names keeps the addressee that conversation gives it.
+	if [ -z "$toolAddressTo" ] ; then
+		case "$toolTo" in
+			"$harnessParentName"|"$harnessCurrentName") toolAddressTo="$( AgentsHarnessCallerMember )" ;;
+		esac
 	fi
 	## Answers to this session's questions nobody waited on are collected by the tooling
 	## before it hands back, so none is left unread (AgentsTools.PendingReplyCollect.include).
@@ -2887,7 +2944,7 @@ AgentsHarnessToolSubagentHandback(){
 	## Its own words are the outcome, the findings and what is unfinished: the task as given is
 	## carried, and the answers collected are the tooling's.
 	harnessSendProse="$( AgentsHarnessSendProse "$toolOutcome" "$toolFindings" "$toolUnfinished" )" \
-	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback
+	AgentsHarnessFormalSend SubagentHandback "$toolTo" "$toolAsBot" "$toolBody" handback "$toolAddressTo"
 	## A delivered handback, posted to Slack or left in the caller's inbox, moves the session's
 	## own item running -> review once, recorded in its Decisions and transcript
 	## (AgentsTools.ReviewFlow.include). A failed one moves nothing. Silent, and never fails the call.
@@ -2898,7 +2955,7 @@ AgentsHarnessToolSubagentHandback(){
 }
 
 AgentsHarnessToolReportFindings(){
-	local toolTo="$1" toolSubject="$2" toolFindings="$3" toolEvidence="$4" toolConfidence="$5" toolAsBot="$6" toolBody
+	local toolTo="$1" toolSubject="$2" toolFindings="$3" toolEvidence="$4" toolConfidence="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody
 	if [ -z "$toolSubject" ] || [ -z "$toolFindings" ] ; then
 		printf 'ERROR: ReportFindings: both subject and findings are required, and one of them was empty. Nothing was sent.\n' ; return 0
 	fi
@@ -2911,11 +2968,11 @@ AgentsHarnessToolReportFindings(){
 		AgentsHarnessFormalField 'Confidence, and what was not checked:' "$toolConfidence"
 	} )"
 	harnessSendProse="$( AgentsHarnessSendProse "$toolSubject" "$toolFindings" "$toolEvidence" "$toolConfidence" )" \
-	AgentsHarnessFormalSend ReportFindings "$toolTo" "$toolAsBot" "$toolBody"
+	AgentsHarnessFormalSend ReportFindings "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
 
 AgentsHarnessToolPushNotification(){
-	local toolTo="$1" toolSeverity="$2" toolHeadline="$3" toolDetail="$4" toolAction="$5" toolAsBot="$6" toolBody toolMark
+	local toolTo="$1" toolSeverity="$2" toolHeadline="$3" toolDetail="$4" toolAction="$5" toolAsBot="$6" toolAddressTo="${7:-}" toolBody toolMark
 	if [ -z "$toolHeadline" ] ; then
 		printf 'ERROR: PushNotification: headline is required and was empty. Nothing was sent.\n' ; return 0
 	fi
@@ -2935,14 +2992,14 @@ AgentsHarnessToolPushNotification(){
 		AgentsHarnessFormalField 'Action required:' "$toolAction"
 	} )"
 	harnessSendProse="$( AgentsHarnessSendProse "$toolHeadline" "$toolDetail" "$toolAction" )" \
-	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody"
+	AgentsHarnessFormalSend PushNotification "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
 
 ## Announces a document. With url it announces one that already exists, and publishes
 ## nothing; announcing a link nobody can open is worse than not announcing it, so the URL is
 ## checked first. With file the tooling publishes it first (AgentsHarnessArtifactPublish).
 AgentsHarnessToolArtifact(){
-	local toolTo="$1" toolUrl="$2" toolTitle="$3" toolKind="$4" toolSummary="$5" toolAsBot="$6" toolFile="${7:-}" toolArgsRaw="${8:-}" toolBody
+	local toolTo="$1" toolUrl="$2" toolTitle="$3" toolKind="$4" toolSummary="$5" toolAsBot="$6" toolFile="${7:-}" toolArgsRaw="${8:-}" toolAddressTo="${9:-}" toolBody
 	if [ -n "$toolFile" ] ; then
 		AgentsHarnessArtifactPublish || return 0
 	fi
@@ -2958,7 +3015,7 @@ AgentsHarnessToolArtifact(){
 		AgentsHarnessFormalField 'Link:' "$toolUrl"
 		AgentsHarnessFormalField 'Summary:' "$toolSummary"
 	} )"
-	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody"
+	AgentsHarnessFormalSend Artifact "$toolTo" "$toolAsBot" "$toolBody" "" "$toolAddressTo"
 }
 
 ## The publish half of Artifact, outside the AgentsHarnessTool* family (no tool of its own).
@@ -5221,13 +5278,13 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		Bash)      harnessResult="$( AgentsHarnessToolBash "${harnessArgV_cwd}" "${harnessArgV_command}" "${harnessArgV_timeout}" )" ;;
 		WebSearch) harnessResult="$( AgentsHarnessToolWebSearch "${harnessArgV_query}" "$harnessFuncArgsRaw" )" ;;
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" "${harnessArgV_prompt}" )" ;;
-		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "" "" "" reply )" ;;
+		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
 		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" )" ;;
-		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" )" ;;
-		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" )" ;;
-		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" )" ;;
-		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" "${harnessArgV_file}" "$harnessFuncArgsRaw" )" ;;
+		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
+		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
+		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
+		Artifact)  harnessResult="$( AgentsHarnessToolArtifact "${harnessArgV_to}" "${harnessArgV_url}" "${harnessArgV_title}" "${harnessArgV_kind}" "${harnessArgV_summary}" "${harnessArgV_as_bot}" "${harnessArgV_file}" "$harnessFuncArgsRaw" "${harnessArgV_address_to}" )" ;;
 		AskQuestion) harnessResult="$( AgentsHarnessToolAskQuestion )" ;;
 		ConfirmReadback) harnessResult="$( AgentsHarnessToolConfirmReadback )" ;;
 		EscalateDecision) harnessResult="$( AgentsHarnessToolEscalateDecision )" ;;

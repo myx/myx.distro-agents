@@ -22,6 +22,10 @@
 ## The machine-wide known-workspaces.registry of earlier releases is read as owner rows until
 ## a workspace imports it, once; it is never written, for a process still running an earlier
 ## release, and its .imported marker ends its reading.
+## Two places are built in: the machine's skillset in HOME and the workspace's own member set.
+## They are hardcoded, first in every merged list, and never a row of a registry. Their names
+## start with a dot, and no other place's does: a registry row or a directive that names one
+## is refused with one line (AgentsToolsPlacesNameReserved).
 ##
 ## Dot-sourced; functions only.
 ##
@@ -34,6 +38,53 @@ AgentsToolsPlacesSharedFile(){
 }
 AgentsToolsPlacesLegacyFile(){
 	printf '%s\n' "${HOME:-}/.agents/magic-team/known-workspaces.registry"
+}
+
+## The machine's skillset in HOME: the skills folder the clients read there, $HOME/.claude/skills,
+## or $HOME/.agents/skills on a machine that holds only that one, so nobody has to know which.
+## An entry there is a link the member install made, or a real folder: a skill that lives on
+## this machine only. By builtins only.
+AgentsToolsPlacesHomeSkills(){ ## -- sets agentsPlacesHomeSkills
+	agentsPlacesHomeSkills=""
+	[ -n "${HOME:-}" ] || return 1
+	agentsPlacesHomeSkills="${HOME%/}/.claude/skills"
+	[ -d "$agentsPlacesHomeSkills" ] || [ ! -d "${HOME%/}/.agents/skills" ] || agentsPlacesHomeSkills="${HOME%/}/.agents/skills"
+}
+
+## THE BUILT-IN PLACES: their names, spelled here and nowhere else.
+##   the machine's skillset in HOME (AgentsToolsPlacesHomeSkills)
+agentsPlacesSkillsetShared=".skillset-shared"
+##   the workspace's own member set, .local/agents/members: what MDAT_SKILLSET_ROOT names there
+agentsPlacesSkillsetLocal=".skillset-.local"
+
+## Whether a name is the tooling's own to give: one that starts with a dot. THE ONE PLACE this
+## is decided. A custom place, a registry row's or a directive's, never has such a name; a dot
+## inside a name is anyone's.
+AgentsToolsPlacesNameReserved(){ ## name
+	case "$1" in .*) return 0 ;; esac
+	return 1
+}
+
+## The built-in places, as AgentsToolsPlacesSourceRows prints a row: both directories,
+## read-write, declared by nobody. The member set is the one this run reads its members from.
+AgentsToolsPlacesBuiltinRows(){ ## workspace
+	local builtinWs="${1%/}" builtinMembers="${MDAT_SKILLSET_ROOT:-}"
+	! AgentsToolsPlacesHomeSkills || printf '%s\tdirectory\tread-write\t%s\t%s\tbuilt-in\tbuiltin\n' "$agentsPlacesSkillsetShared" "$agentsPlacesHomeSkills" "${builtinWs:--}"
+	[ -n "$builtinMembers" ] || builtinMembers="${builtinWs:+$builtinWs/.local/agents/members}"
+	[ -z "$builtinMembers" ] || printf '%s\tdirectory\tread-write\t%s\t%s\tbuilt-in\tbuiltin\n' "$agentsPlacesSkillsetLocal" "${builtinMembers%/}" "${builtinWs:--}"
+}
+
+## Registry rows on stdin, without every row whose name is the tooling's own to give: each is
+## refused with one line, none with `quiet`.
+AgentsToolsPlacesRowsCustom(){ ## [quiet]
+	local customRow
+	while IFS= read -r customRow ; do
+		if AgentsToolsPlacesNameReserved "${customRow%%$'\t'*}" ; then
+			[ "${1:-}" = quiet ] || echo "🙋 WARNING: place ${customRow%%$'\t'*} is refused: a name that starts with a dot is a built-in place's, and no row takes one" >&2
+			continue
+		fi
+		printf '%s\n' "$customRow"
+	done
 }
 
 ## The mkdir lock beside a registry file: ten tries a second apart. rc 1 when not taken.
@@ -109,6 +160,10 @@ AgentsToolsPlacesDirectiveRows(){ ## workspace
 			echo "🙋 WARNING: $rowsProject: malformed place directive, skipped: magic-team:${rowsLine#* } (expected magic-team:directory:<name>:<ceiling-read|ceiling-write>:<path>:<host-glob> or magic-team:workspace:<name>:<path>:<host-glob>)" >&2
 			continue
 		fi
+		if AgentsToolsPlacesNameReserved "$rowsName" ; then
+			echo "🙋 WARNING: $rowsProject: place $rowsName is refused: a name that starts with a dot is a built-in place's, skipped: magic-team:${rowsLine#* }" >&2
+			continue
+		fi
 		case "$rowsShort" in
 			$rowsGlob) ;;
 			*) case "$rowsFull" in $rowsGlob) ;; *) continue ;; esac ;;
@@ -153,7 +208,7 @@ AgentsToolsPlacesLocalUpdate(){ ## workspace, directives|owner:<name> -- rows on
 		[ ! -f "$updateFile" ] || LC_ALL=C awk -F'\t' -v mode="$updateMode" '
 			NF >= 5 && $5 == "owner" && !( mode != "directives" && $1 == substr( mode, 7 ) )
 		' "$updateFile"
-	} | LC_ALL=C awk -F'\t' '
+	} | AgentsToolsPlacesRowsCustom | LC_ALL=C awk -F'\t' '
 		NF < 5 { next ; }
 		( $1 in seen ) {
 			if ( seen[$1] != $4 ) printf( "🙋 WARNING: place %s is already %s here, so the row naming it for %s (%s) is dropped\n", $1, seen[$1], $4, $5 ) > "/dev/stderr"
@@ -231,11 +286,15 @@ AgentsToolsPlacesSourceRows(){ ## workspace, flags
 ## declared-by. The same name and path is listed once. The same name with another path: this
 ## workspace's row keeps the bare name and each other is name@workspace; with no row here,
 ## each is name@workspace, after one warning (flag `quiet`: none). A name whose only row has
-## no known path is listed once, only when no other row names it.
+## no known path is listed once, only when no other row names it. The built-in places come
+## first, under their own names, and a registry row that names one is left out.
 AgentsToolsPlacesMergedText(){ ## workspace, flags
-	local mergedQuiet=0
-	case " ${2:-} " in *" quiet "*) mergedQuiet=1 ;; esac
-	AgentsToolsPlacesSourceRows "$1" "${2:-}" | LC_ALL=C awk -F'\t' -v OFS='\t' -v quiet="$mergedQuiet" '
+	local mergedQuiet=0 mergedRows=""
+	case " ${2:-} " in *" quiet "*) mergedQuiet=1 ; mergedRows=quiet ;; esac
+	{
+		AgentsToolsPlacesBuiltinRows "$1"
+		AgentsToolsPlacesSourceRows "$1" "${2:-}" | AgentsToolsPlacesRowsCustom "$mergedRows"
+	} | LC_ALL=C awk -F'\t' -v OFS='\t' -v quiet="$mergedQuiet" '
 		function wsName( root ) { if ( root == "-" ) return "legacy" ; sub( /.*\//, "", root ) ; return root ; }
 		NF >= 7 { n++ ; N[n] = $1 ; K[n] = $2 ; C[n] = $3 ; P[n] = $4 ; R[n] = $5 ; B[n] = $6 ; T[n] = $7 ; }
 		END {
@@ -340,6 +399,10 @@ AgentsToolsPlacesOf(){ ## workspace, path
 ## path; the same owner row again changes nothing.
 AgentsToolsPlacesOwnerUpsert(){ ## workspace, name, kind, ceiling, path
 	local upsertWs="${1%/}" upsertName="$2" upsertKind="$3" upsertCeiling="$4" upsertPath="$5" upsertHeld upsertHeldPath upsertHeldBy
+	if AgentsToolsPlacesNameReserved "$upsertName" ; then
+		echo "⛔ ERROR: $MDSC_CMD --owner-workspace-upsert: the name $upsertName starts with a dot, which only a built-in place's does -- give this path another --name" >&2
+		return 1
+	fi
 	AgentsToolsPlacesLegacyImport "$upsertWs" || return 1
 	if [ "$upsertName" = "${upsertWs##*/}" ] ; then
 		upsertHeld="workspace"$'\t'"read-write"$'\t'"$upsertWs"$'\t'"workspace"
@@ -372,6 +435,10 @@ AgentsToolsPlacesOwnerUpsert(){ ## workspace, name, kind, ceiling, path
 ## hold is a no-op, naming the workspace that does.
 AgentsToolsPlacesOwnerForget(){ ## workspace, name
 	local forgetWs="${1%/}" forgetName="$2" forgetBy forgetElse
+	if AgentsToolsPlacesNameReserved "$forgetName" ; then
+		echo "⛔ ERROR: $MDSC_CMD --owner-workspace-forget: the name $forgetName starts with a dot, which only a built-in place's does: no registry row holds one, and a built-in place is never removed" >&2
+		return 1
+	fi
 	AgentsToolsPlacesLegacyImport "$forgetWs" || return 1
 	forgetBy="$( LC_ALL=C awk -F'\t' -v n="$forgetName" 'NF >= 5 && $1 == n { print $5 ; exit ; }' "$( AgentsToolsPlacesLocalFile "$forgetWs" )" 2> /dev/null )"
 	case "$forgetBy" in

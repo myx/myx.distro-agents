@@ -258,6 +258,45 @@ AgentsToolsSpawnSettingsWorkspace(){
 ## (AgentsToolsMemberSettingsBorrowedSay).
 agentsMemberSettingSystems="SLACK EMAIL JIRA CONFLUENCE TRELLO GOOGLE"
 
+## The system a key is a setting of, as its key prefix. Nothing for a key that is no system's.
+AgentsToolsMemberSettingSystemOf(){ ## key
+	local ofSystem
+	for ofSystem in $agentsMemberSettingSystems ; do
+		case "$1" in "$ofSystem"_*) printf '%s_' "$ofSystem" ; return 0 ;; esac
+	done
+	return 0
+}
+
+## The names of the settings a workspace's scope holds of a system, each once, joined by
+## ", ": names only, never a value. One key may be left out.
+AgentsToolsScopeKeyNames(){ ## workspace, scope, key prefix, a key to leave out (may be empty)
+	local namesFile="${1%/}/.local/.agents/$2.agent.env" namesLine namesText=""
+	[ -f "$namesFile" ] && [ -r "$namesFile" ] || return 0
+	while IFS= read -r namesLine || [ -n "$namesLine" ] ; do
+		case "$namesLine" in
+			"$3"*=*)
+				[ "${namesLine%%=*}" != "${4:-}" ] || continue
+				case ", $namesText, " in
+					*", ${namesLine%%=*}, "*) ;;
+					*) namesText="$namesText${namesText:+, }${namesLine%%=*}" ;;
+				esac
+			;;
+		esac
+	done < "$namesFile"
+	printf '%s' "$namesText"
+}
+
+## For a line that says a member's own settings are read from the workspace it is set up in:
+## a client-* member's own settings are the other organisation's, read on the client side
+## alone (AgentsTools.CommsSide.include), and such a line is said before the side of the
+## operation is known, so for such a member it says which side reads them. Nothing for any
+## other member.
+AgentsToolsMemberSettingsSideClause(){ ## member
+	case "$1" in
+		client-*) printf ', and only where the operation reaches the other organisation' ;;
+	esac
+}
+
 ## The line: which systems of an invited member's own settings are read from the workspace
 ## it is set up in, each by its key prefix. On stderr, once, and nothing where none is.
 AgentsToolsMemberSettingsBorrowedSay(){ ## member, operation, the workspace the member is set up in
@@ -268,14 +307,7 @@ AgentsToolsMemberSettingsBorrowedSay(){ ## member, operation, the workspace the 
 		sayList="$sayList${sayList:+, }${saySystem}_*"
 	done
 	[ -n "$sayList" ] || return 0
-	## A client-* member's own settings are the other organisation's, read on the client side
-	## alone (AgentsTools.CommsSide.include). The line is said before the side of the operation
-	## is known, so for such a member it says which side reads them.
-	local saySide=""
-	case "$1" in
-		client-*) saySide=", and only where the operation reaches the other organisation" ;;
-	esac
-	echo "# $MDSC_CMD $2: member '$1' holds no settings of its own in ${MMDAPP%/} for $sayList -- each is read from ${3%/}, the workspace it is set up in$saySide" >&2
+	echo "# $MDSC_CMD $2: member '$1' holds no settings of its own in ${MMDAPP%/} for $sayList -- each is read from ${3%/}, the workspace it is set up in$( AgentsToolsMemberSettingsSideClause "$1" )" >&2
 	return 0
 }
 
@@ -297,6 +329,39 @@ AgentsToolsSpawnSettingsSettle(){ ## member, the workspace named for this one sp
 		return 1
 	}
 	printf '%s\n' "$settlePath"
+}
+
+## The line of a write that ends a borrowing. A setting of a system written here for an
+## invited member, whose settings of that system were read from the workspace it is set up
+## in until then, makes the system this workspace's: it is read here alone from then on, and
+## what that workspace holds of it is no longer read. Said once the write is made, on
+## stderr, by key names only, never a value. Nothing where the write left this workspace
+## without the system, or where that workspace holds no other setting of it.
+AgentsToolsMemberSettingsBorrowEndedSay(){ ## member, the key written, the workspace the member is set up in
+	local endedPrefix endedKeys
+	endedPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$endedPrefix" ] || return 0
+	AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$endedPrefix" || return 0
+	endedKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$endedPrefix" "$2" )"
+	[ -n "$endedKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' now holds $2 in ${MMDAPP%/}, so its ${endedPrefix}* settings are read here alone from now on -- no longer read from ${3%/}, the workspace it is set up in: $endedKeys" >&2
+	return 0
+}
+
+## Its mirror, the line of a delete that begins a borrowing. The last setting of a system
+## this workspace held for an invited member is deleted here, and the workspace the member
+## is set up in holds settings of that system: they are read from there from then on. Said
+## once the delete is made, on stderr, by key names only, never a value. Nothing where this
+## workspace still holds a setting of the system, or where that workspace holds none of it.
+AgentsToolsMemberSettingsBorrowBegunSay(){ ## member, the key deleted, the workspace the member is set up in
+	local begunPrefix begunKeys
+	begunPrefix="$( AgentsToolsMemberSettingSystemOf "$2" )"
+	[ -n "$begunPrefix" ] || return 0
+	! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$1" "$begunPrefix" || return 0
+	begunKeys="$( AgentsToolsScopeKeyNames "$3" "$1" "$begunPrefix" "" )"
+	[ -n "$begunKeys" ] || return 0
+	echo "# $MDSC_CMD --agents-config-option: member '$1' holds no ${begunPrefix}* setting in ${MMDAPP%/} now that $2 is deleted, so its ${begunPrefix}* settings are read from ${3%/}, the workspace it is set up in, from now on$( AgentsToolsMemberSettingsSideClause "$1" ): $begunKeys" >&2
+	return 0
 }
 
 ## Where one option is read from when it is not this workspace's own scope, in

@@ -242,8 +242,9 @@ RIGEOF
 chmod +x "$rigFakeWs/DistroAgentsConsole.sh"
 rigProxyRun(){ ## mode
 	: > "$rigRecords" ; : > "$rigTmp/console.log"
-	( export RIG_CONSOLE_MODE="$1" RIG_CONSOLE_LOG="$rigTmp/console.log" MDAT_SPAWN_SESSION_ID=rig-new MDAT_SPAWN_LAUNCH_MARKER="$rigFakeWs/.local/temp/rig.launch" MDSC_CMD=rig
-	  AgentsToolsSpawnProxyHarnessResumeRun "$rigFakeWs" sess "C1:2.3" "" RIG-FULL-BRIEF "$rigCtx" RIG-CORRECTIONS magic-tester rig-item.md --cli rig 2>/dev/null )
+	## The run starts the console of the workspace it is in, so the fake one is MMDAPP for this call.
+	( export RIG_CONSOLE_MODE="$1" RIG_CONSOLE_LOG="$rigTmp/console.log" MDAT_SPAWN_SESSION_ID=rig-new MDAT_SPAWN_LAUNCH_MARKER="$rigFakeWs/.local/temp/rig.launch" MDSC_CMD=rig MMDAPP="$rigFakeWs"
+	  AgentsToolsSpawnProxyHarnessResumeRun sess "C1:2.3" "" RIG-FULL-BRIEF "$rigCtx" RIG-CORRECTIONS magic-tester rig-item.md --cli rig 2>/dev/null )
 }
 rigProxyRun refuse
 rigAssert "the proxy falls back once: the resume, then the full brief" "$( tr '\n' '#' < "$rigTmp/console.log" )" "resume|RIG-CORRECTIONS#|RIG-FULL-BRIEF#"

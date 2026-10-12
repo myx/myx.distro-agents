@@ -120,7 +120,7 @@ Every `magic-tooling` operation this routine uses. Behaviour is read with `--mem
 - `--magic-heartbeat-state-upsert <team-member>`
 - `--magic-heartbeat-input-scan <team-member>`
 - `--magic-heartbeat-test-report-send <team-member>`
-- `--magic-spawn-session (--routine <selector>|--routine-default) [<team-member>...]`
+- `--magic-spawn-session (--routine <selector>|--routine-default) [--spawn-settings-workspace <name>] [--spawn-cli-service <name>] [<team-member>...]`
 - `--magic-board-create-running <team-member> <item-filename> [--header:...]...`
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`

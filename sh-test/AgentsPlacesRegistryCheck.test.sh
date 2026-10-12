@@ -182,7 +182,7 @@ rigWsMake ws-imp
 printf '%s\n' "$rigTmp/ws-legacy/" "# a comment" "relative-line" "$rigTmp/ws-imp" > "$rigLegacy"
 rigLegacySum="$( cksum < "$rigLegacy" )"
 rigAssert "before the import the earlier list is read: its absolute lines, as workspaces" "$( rigRoots ws-imp )" "T/ws-imp T/ws-legacy "
-rigAssert "and the list shows them, the missing one absent" "$( rigList ws-imp )" "ws-legacy:workspace:read-write:T/ws-legacy:absent ws-imp:workspace:read-write:T/ws-imp:present "
+rigAssert "and the list shows them, the missing one absent, after the two built-in places" "$( rigList ws-imp )" ".skillset-shared:directory:read-write:T/legacy-home/.claude/skills:absent .skillset-.local:directory:read-write:T/ws-imp/.local/agents/members:absent ws-legacy:workspace:read-write:T/ws-legacy:absent ws-imp:workspace:read-write:T/ws-imp:present "
 rigRun ws-imp --intern-directory-register
 rigAssert "the registration imports it once: the path no place has becomes an owner row" "$( rigLocal ws-imp )" "ws-imp:workspace:read-write:T/ws-imp:workspace ws-legacy:workspace:read-write:T/ws-legacy:owner "
 rigAssert "the earlier list is never written, and its marker is" "$( [ "$( cksum < "$rigLegacy" )" = "$rigLegacySum" ] && printf unchanged || printf changed ) $( [ -f "$rigLegacy.imported" ] && printf marked || printf unmarked )" "unchanged marked"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## The registry row builders as they stood before the one-awk-pass rewrite, verbatim but
 ## for the Legacy name prefix and for how a run is recognised, which is the rule of the
-## current render said the per-row way (AgentsToolsRegistryLegacyRunsAs), kept only as the
+## current render said the per-row way (AgentsToolsRegistryLegacyRunsAs, AgentsToolsRegistryLegacyRecordedRun), kept only as the
 ## reference side of AgentsRegistryRowsDiffCheck.test.sh. Never sourced by production code.
 
 ## One header value out of already-read frontmatter text. `-` where absent, and a
@@ -143,6 +143,23 @@ AgentsToolsRegistryLegacyRunsAs(){ ## process list text (`<pid> <command line>` 
 	return 1
 }
 
+## Whether the process an open record names as the one its launch started
+## (`run-process: <pid> <start>`) is still that same process, the per-row way of the rule
+## AgentsToolsRegistryRecordedRunAlive states: that pid, started at that time.
+AgentsToolsRegistryLegacyRecordedRun(){ ## spawn id
+	local runRecord runNamed runNow
+	for runRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$runRecord" ] || continue
+		runNamed="$( AgentsToolsRegistryLegacyHeader "$( AgentsToolsRegistryLegacyFrontmatter "$runRecord" )" run-process )"
+		## The header reader gives the value as one word: the pid, then the start, joined by `_`.
+		case "$runNamed" in [0123456789]*_?*) ;; *) continue ;; esac
+		case "${runNamed%%_*}" in *[!0123456789]*) continue ;; esac
+		runNow="$( LC_ALL=C ps -o lstart= -p "${runNamed%%_*}" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
+		[ -n "$runNow" ] && [ "$runNow" = "${runNamed#*_}" ] && return 0
+	done
+	return 1
+}
+
 AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, state filter
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile psText thisHost thisWorkspace
@@ -184,6 +201,10 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		else
 			rowLive="no-process"
 			! AgentsToolsRegistryLegacyRunsAs "$psText" "$rowSpawn" || rowLive="running"
+			case "$rowLive:$rowStatus" in
+				running:*|*:spawn-succeeded|*:spawn-failed|*:spawn-ended-without-close) ;;
+				*) ! AgentsToolsRegistryLegacyRecordedRun "$rowSpawn" || rowLive="running" ;;
+			esac
 		fi
 		rowState="$( AgentsToolsRegistryDeriveState "$rowStatus" "$rowLive" "$rowSession" )"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
@@ -195,7 +216,7 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-session-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, and an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"

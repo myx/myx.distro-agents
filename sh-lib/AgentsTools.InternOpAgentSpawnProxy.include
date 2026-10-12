@@ -219,14 +219,14 @@ AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may
 ## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is no
 ## session thread, or no output file to check: a spawn with nowhere captured is not reported
 ## wrongly as silent.
-##   $1 = session thread, $2 = member, $3 = output file, $4 = workspace to retry the spawn in,
-##   $5 = session id, $6... = the launch's own console CLI args (spawnCliArgs) -- the retry
-##   gets exactly the launch's env prefix and CLI selection, never the caller's own
+##   $1 = session thread, $2 = member, $3 = output file, $4 = session id, $5... = the launch's
+##   own console CLI args (spawnCliArgs) -- the retry gets exactly the launch's env prefix and
+##   CLI selection, never the caller's own, in the workspace this spawn runs in
 ## Called before any close step, while the record still says spawn-started: the retry resumes
 ## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
 AgentsToolsSpawnProxyHandbackWarn(){
-	local warnThread="$1" warnMember="$2" warnLog="$3" warnWorkspace="$4" warnSessionId="$5" warnClosed=""
-	shift 5 2>/dev/null || shift $#
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnClosed=""
+	shift 4 2>/dev/null || shift $#
 	local warnCliArgs=( "$@" )
 	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
 	[ -n "$warnThread" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
@@ -243,14 +243,15 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	## uses. MDAT_SPAWN_RESUME on a CLI with no real --resume refuses itself in
 	## the console (AgentsConsoleShellScript.template.sh), so a resume that
 	## cannot really happen is never silently reported as one.
-	if [ -z "$warnClosed" ] && [ -n "$warnWorkspace" ] && [ -x "$warnWorkspace/DistroAgentsConsole.sh" ] ; then
+	if [ -z "$warnClosed" ] && [ -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
 		local warnRetryPid warnWatchPid
-		( exec env MMDAPP="$warnWorkspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$warnWorkspace" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$warnWorkspace/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
+		( exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$MMDAPP/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
 				"Do not do new work first." )" >> "$warnLog" 2>&1 ) &
 		warnRetryPid=$!
+		AgentsToolsSpawnProxyRunRecord "$warnRetryPid"
 		( sleep 180 ; kill -TERM "$warnRetryPid" 2>/dev/null ; sleep 5 ; kill -KILL "$warnRetryPid" 2>/dev/null ) &
 		warnWatchPid=$!
 		wait "$warnRetryPid" 2>/dev/null || :
@@ -271,22 +272,25 @@ AgentsToolsSpawnProxyHandbackWarn(){
 ## its first stream-json event falls back, once, to a new process on the full brief.
 ## Either way the path that ran is recorded on the item and in this spawn's transcript.
 ## The handback retry's own resume (MDAT_SPAWN_RESUME) is a different path, untouched.
-AgentsToolsSpawnProxyConsoleRun(){ ## workspace, session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
-	local runWs="$1" runSession="$2" runThread="$3" runConv="$4" runFull="$5" runFrom="$6" runResume="$7" runWho="$8" runItem="$9"
+AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
+	local runSession="$1" runThread="$2" runConv="$3" runFull="$4" runFrom="$5" runResume="$6" runWho="$7" runItem="$8"
 	local runMark runPid runWatchPid runRc=0
-	shift 9
+	shift 8
 	if [ -n "$runFrom" ] ; then
 		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
 		rm -f "$runMark"
-		env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
-			"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+			"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
 		runPid=$!
+		AgentsToolsSpawnProxyRunRecord "$runPid"
 		## The resume recorded when its first event arrives, not when the session ends. The
 		## watcher ends within a second of the run (this shell's wait reaps it), either way.
 		(
 			while [ ! -e "$runMark" ] ; do
-				kill -0 "$runPid" 2>/dev/null || exit 0
+				## A run that marked its first event and ended between these two looks is still
+				## recorded: the mark is looked for once more before the watcher gives up.
+				kill -0 "$runPid" 2>/dev/null || { [ -e "$runMark" ] && break ; exit 0 ; }
 				sleep 1
 			done
 			AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID"
@@ -303,8 +307,21 @@ AgentsToolsSpawnProxyConsoleRun(){ ## workspace, session id, session thread, con
 		echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the resume of $runFrom exited $runRc before its first event -- starting a new process instead" >&2
 		( AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the resume of $runFrom exited $runRc before its first event)" RESTART "$MDAT_SPAWN_SESSION_ID" )
 	fi
-	env MMDAPP="$runWs" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$runWs" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
-		"$runWs/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull"
+	## Started in the background and waited for, so that the process it becomes is known, and
+	## kept on the spawn's record (AgentsToolsSpawnProxyRunRecord). Nothing else of the run
+	## changes: its stdin and its streams are the same, its exit status is what this returns,
+	## and the wait lasts until that process has ended.
+	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
+		"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
+	runPid=$!
+	AgentsToolsSpawnProxyRunRecord "$runPid"
+	runRc=0
+	wait "$runPid" 2>/dev/null || runRc=$?
+	while kill -0 "$runPid" 2>/dev/null ; do
+		runRc=0
+		wait "$runPid" 2>/dev/null || runRc=$?
+	done
+	return "$runRc"
 }
 
 ## magic-architect's own finding: this spawn's own unanswered questions are already
@@ -1295,10 +1312,18 @@ case "$1" in
 		## brought in for: every spawn but the one whose own session the thread is. The result
 		## is never assigned to sessionThread.
 		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] ; then
+			## It is said to the member whose session brings this one in, where the send can
+			## address it, and to nobody where there is none: never to the member that joined.
+			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot )
+			type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+			if [ -n "$spawnerMember" ] && [ "$spawnerMember" != "$callerName" ] && AgentsToolsAssertBareName "$spawnerMember" "the spawning member" agent-spawn-proxy 2> /dev/null \
+				&& AgentsToolsTeamMemberDirectory "$spawnerMember" > /dev/null 2>&1 ; then
+				joinedArgs=( "${joinedArgs[@]}" --address-to "$spawnerMember" )
+			fi
 			if [ -z "$sessionThread" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: no session thread to post the start line in" >&2
 			elif [ "$( printf '%s joined%s' "$callerName" "${spawnDescriptionKept:+: $spawnDescriptionKept}" \
-				| DistroAgentsTools --intern-op-comms-slack-send-message "$callerName" "$sessionThread" --identity-bot --address-to "$callerName" --from-stdin 2>&1 > /dev/null \
+				| DistroAgentsTools --intern-op-comms-slack-send-message "${joinedArgs[@]}" --from-stdin 2>&1 > /dev/null \
 				| LC_ALL=C awk -F= '$1 == "SENT_MESSAGE_TS" { tsSeen = 1 ; } END { print tsSeen + 0 ; }' )" != "1" ] ; then
 				echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the start line was not posted in $sessionThread" >&2
 			fi
@@ -1642,6 +1667,9 @@ case "$1" in
 				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
+			## The process this launch started, kept on the spawn's record: how its run is seen
+			## alive where its CLI is given no session word (AgentsToolsSpawnProxyRunRecord).
+			AgentsToolsSpawnProxyRunRecord "$spawnPid"
 			## Nothing to read until the child is actually running: started right
 			## after spawnPid is captured, so as little of the run as possible is
 			## missed. Only where outputFile hid the child's own stream -- the two
@@ -1718,7 +1746,7 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			## The handback retry first, before any close step: it resumes this very session, so it
 			## runs while the record still says started, and its tokens and posts precede the end.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$MMDAPP" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "${spawnCliArgs[@]}"
 			## The session's tokens onto its item first, so the closing post sums what is there now.
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart"
@@ -1804,10 +1832,10 @@ case "$1" in
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
-				AgentsToolsSpawnProxyHarnessResumeRun "$MMDAPP" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+				AgentsToolsSpawnProxyHarnessResumeRun "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
 					"$resumeContextFile" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
 			else
-			AgentsToolsSpawnProxyConsoleRun "$MMDAPP" "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
+			AgentsToolsSpawnProxyConsoleRun "$sessionId" "$sessionThread" "$conversationThreads" "$spawnContext" \
 				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
 			fi
 			bgExitCode=$?
@@ -1821,7 +1849,7 @@ case "$1" in
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 			## The handback retry before any close step, as in the waiting branch: the record still says started.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$MMDAPP" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "${spawnCliArgs[@]}"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"

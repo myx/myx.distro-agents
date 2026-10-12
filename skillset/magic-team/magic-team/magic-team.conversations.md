@@ -38,7 +38,7 @@ Form and control points for every live exchange: threads, sessions, interviews, 
 15. **watch-quoted-content-for-hints**: A `> ` quote of this conversation scopes the rest of the message to that point only. Other quotes are references.
 16. **address-messages-clearly**: Every message has an addressee (`magic-team.shared.md`'s "Every message is addressed, tagged, and sent on a real channel").
     - A message for the whole conversation says so in its first line.
-    - A message needing someone's reply, or not for every participant, tags every named addressee with a real mention: `<mark> @<alias>` from that member's `.basic.md`.
+    - A message needing someone's reply, or not for every participant, names every addressee in the posting tool's `address_to`; the tool renders the real mention itself, never one typed into the body.
     - A reference to an earlier point quotes it.
 17. **reflect-assessment-feedback**: Before replying to an incoming message, assess its context:
     - a tracking document is attached: apply its rules and state.
@@ -77,7 +77,7 @@ Confirmations go through the chain of command in `magic-team.armed.md`'s "Escala
 36. **confirm-before-acting-mandatory**: A confirm-first request survives every relay. Policy-bearing wording is relayed literally.
 37. **relay-rephrase-needs-confirm**: A relayed message keeps its wording. A rephrase is confirmed first. Trimming a routing prefix (`send to all:`) is not a rephrase.
 38. **labeled-annotation-not-rephrasing**: A separate, labelled remark by the relaying party is not a rephrase; where it conflicts with the relayed words, the words win. A relay of the human-owner's reply carries his words only.
-39. **waiting-on-human-owner-needs-marker**: A message asking him for a reply carries `NEEDS REPLY:` on its own line before the question. A thread is "waiting on human-owner" only while such a marker stands unanswered.
+39. **asking-human-owner-uses-an-ask-tool**: A question for him is always asked with an ask tool (`AskQuestion`, or the fitting typed one — `ConfirmReadback`, `EscalateDecision`, `RequestPermission`, `ProposeApprove`), alone in its own message; a report never carries one. `NEEDS REPLY:` in a plain message is retired. A thread is "waiting on human-owner" only while such an ask stands unanswered.
 40. **rule-text-directive-first-and-tight**: Instruction text leads with the command, briefly reasoned, structured.
 41. **session-is-one-continued-routine-instance**: One routine instance is one session and one transcript, across media and interruptions.
 42. **wording-and-substance-are-separate-checks**: Check wording and substance separately. Draft several phrasings and pick the better; present a real tradeoff and ask.

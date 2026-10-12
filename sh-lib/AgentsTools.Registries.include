@@ -402,8 +402,10 @@ AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
 	' "$openPending" "$1" 2>/dev/null || :
 }
 
-## HOW A RUN IS RECOGNISED, the one place: by its own word on its own command line, and by
-## nothing else. Prints the ids the processes of a process list run as, one per line; stdin is
+## HOW A RUN IS RECOGNISED, the one place, by a fact of the run's own and by nothing else: its
+## own word on its own command line (here), or, where its CLI is given no such word, the
+## process its launch started, kept on its record (AgentsToolsRegistryRecordedRunAlive below).
+## Prints the ids the processes of a process list run as, one per line; stdin is
 ## the list, a line a process, which may start with its pid. That word is the value of the
 ## process's own --session-id argument, or of its own --resume argument -- the first of the
 ## two on its line, as the launcher writes them (AgentsConsoleShellScript.template.sh): a run
@@ -437,27 +439,81 @@ AgentsToolsRegistryRunWords(){ ## -- stdin: process list text
 	' 2>/dev/null || :
 }
 
-## The spawn ids of a spawned-sessions registry that a process of a process list RUNS AS
-## (AgentsToolsRegistryRunWords), one per line between newlines: the list is read once for
-## every row, not by a shell match per row. An empty id is never printed; the caller matches
-## that one itself.
-AgentsToolsRegistryRunningSpawns(){ ## spawned-sessions registry file, process list text
-	printf '\n'
-	[ -f "$1" ] || return 0
-	printf '%s' "$2" | AgentsToolsRegistryRunWords | LC_ALL=C awk '
-		FILENAME == ARGV[1] { runsAs[$0] = 1 ; next ; }
-		$8 != "" && ( $8 in runsAs ) { print $8 ; }
-	' - "$1" 2>/dev/null || :
+## When a process of this host started, as one word; nothing when there is no such process.
+AgentsToolsRegistryProcessStart(){ ## pid
+	LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }'
 }
 
-## Whether a process of this host runs as one spawn, by the same rule: for a caller that asks
-## about one spawn and reads no registry. Whether that spawn's record is open, and of this
-## host, is the caller's own question. rc 0 running.
-AgentsToolsRegistrySpawnRuns(){ ## spawn id
-	local runsWords
+## Whether the process a spawn record names as the one its launch started is still that same
+## process: `run-process: <pid> <start>`, written by the launcher as it starts the console
+## (AgentsToolsSpawnProxyRunRecord, AgentsTools.SpawnSandbox.include), which becomes the CLI
+## or waits for it. So a run is seen alive whatever its CLI puts on its command line, for as
+## long as its process lives. The same pid started at another time is another process. A
+## record that names none, written before launches were kept, is not alive by this: it is
+## judged by the session word alone, as before. Prints that process's pid, rc 0, while it
+## lives; nothing, rc 1, otherwise.
+AgentsToolsRegistryRecordedRun(){ ## spawn record file
+	local recordedRun recordedPid recordedStart
+	recordedRun="$( LC_ALL=C awk '
+		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+		fenceCount == 1 && index( $0, "run-process: " ) == 1 { print substr( $0, 14 ) ; exit ; }
+	' "$1" 2>/dev/null )" || recordedRun=""
+	recordedPid="${recordedRun%% *}" ; recordedStart="${recordedRun#* }"
+	case "$recordedPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$recordedStart" != "$recordedRun" ] && [ -n "$recordedStart" ] || return 1
+	[ "$( AgentsToolsRegistryProcessStart "$recordedPid" )" = "$recordedStart" ] || return 1
+	printf '%s\n' "$recordedPid"
+}
+
+## The same as a question alone: rc 0 while the process the record names still lives.
+AgentsToolsRegistryRecordedRunAlive(){ ## spawn record file
+	AgentsToolsRegistryRecordedRun "$1" > /dev/null
+}
+
+## The spawn ids of a spawned-sessions registry that run on this host, one per line between
+## newlines: those a process of the list runs as (AgentsToolsRegistryRunWords), the list read
+## once for every row and not by a shell match per row; and, of the rows of this host still
+## open and found by no word, those whose record names a process that still lives
+## (AgentsToolsRegistryRecordedRunAlive). An empty id is never printed; the caller matches
+## that one itself.
+AgentsToolsRegistryRunningSpawns(){ ## spawned-sessions registry file, process list text
+	local runningHost runningLine runningRecord
+	printf '\n'
+	[ -f "$1" ] || return 0
+	runningHost="$( hostname -s 2>/dev/null )" || runningHost=""
+	[ -n "$runningHost" ] || runningHost="unknown"
+	printf '%s' "$2" | AgentsToolsRegistryRunWords | LC_ALL=C awk -v thisHost="$runningHost" '
+		FILENAME == ARGV[1] { runsAs[$0] = 1 ; next ; }
+		$8 == "" { next ; }
+		( $8 in runsAs ) { print "= " $8 ; next ; }
+		$8 != "-" && $4 == thisHost && $6 != "spawn-succeeded" && $6 != "spawn-failed" && $6 != "spawn-ended-without-close" { print "? " $8 ; }
+	' - "$1" 2>/dev/null | while IFS= read -r runningLine ; do
+		case "$runningLine" in
+			'= '*) printf '%s\n' "${runningLine#'= '}" ;;
+			'? '*)
+				for runningRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"${runningLine#'? '}.md" ; do
+					[ -f "$runningRecord" ] || continue
+					! AgentsToolsRegistryRecordedRunAlive "$runningRecord" || { printf '%s\n' "${runningLine#'? '}" ; break ; }
+				done
+			;;
+		esac
+	done || :
+}
+
+## Whether one spawn runs on this host, by the same rule: a process of this host runs as it,
+## or the process its record names still lives. For a caller that asks about one spawn and
+## reads no registry; it gives the record where it has it, else the record is found by the
+## id. Whether that record is open, and of this host, is the caller's own question. rc 0
+## running.
+AgentsToolsRegistrySpawnRuns(){ ## spawn id, its record file (may be empty)
+	local runsWords runsRecord
 	[ -n "${1:-}" ] || return 1
 	runsWords="$( ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunWords )" || runsWords=""
 	case $'\n'"$runsWords"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; esac
+	for runsRecord in "${2:-}" "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+		[ -n "$runsRecord" ] && [ -f "$runsRecord" ] || continue
+		! AgentsToolsRegistryRecordedRunAlive "$runsRecord" || return 0
+	done
 	return 1
 }
 
@@ -652,7 +708,7 @@ $rowSpawn
 		return 0
 	fi
 	printf '%s\n' "columns: tracking-name session-id parent-session-id host owner status exit-code spawn-id agent-log-thread session-thread workspace live state"
-	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, and an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
+	printf '%s\n\n' "live and state: measured/derived during this scan and NOT stored in the registry file, which has the eleven columns before them. live is a process of this host that runs as the spawn: the value of its own --session-id or --resume argument is the spawn-id, matched whole, or it is the process the spawn's record names as the one its launch started, still living; an id standing anywhere else on a command line is no run. state is running/waiting/finished/unclosed/unknown-foreign -- finished is read straight from status and stands regardless of live."
 	while IFS= read -r registryRow ; do
 		[ -n "$registryRow" ] || continue
 		rowState="${registryRow##* }"

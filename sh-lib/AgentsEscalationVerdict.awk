@@ -54,6 +54,11 @@
 # longer placed or named, being the mark the tooling puts on an answered question.
 # A reaction by an asking account never counts (MDAT_VERDICT_ASKING): the tooling places the
 # answer emoji under the question as the account that posted it.
+# A CLICK IS READ ONLY WHERE THE RENDERING PUTS IT: ahead of the first reply. A line under a
+# reply's head is that reply's text whatever it starts with, a line that reads as a reaction
+# line too -- a reply's text never stands for a click, of its writer or of anyone it names.
+# Such a line used to be taken out of the reply and counted with the clicks; it gave no
+# verdict only because the clicks were already judged at the reply's head.
 #
 # ENVIRON["MDAT_VERDICT_KIND"]    question | readback | decision | permission | permission-set | review
 #                                 | proposal
@@ -63,6 +68,15 @@
 #                                 holding "(recommended)" names the recommended option.
 # ENVIRON["MDAT_VERDICT_AUTHORS"] the accounts whose answer counts, space-separated.
 # ENVIRON["MDAT_VERDICT_ASKING"]  the accounts that asked, space-separated; may be empty.
+# ENVIRON["MDAT_VERDICT_WORDS"]   non-empty: the words on the verdict's line are carried too.
+#
+# THE WORDS WITH A VERDICT. A reply that gives a verdict is not only a verdict: what the person
+# wrote after the answering word, on that line, is for the asker to read -- a condition, a
+# correction, a hint. Asked for them (MDAT_VERDICT_WORDS), the verdict of every kind is printed
+# as "<verdict> -- <words>", the way a correction's, an edit's, a review's and a proposal's
+# always are; a selection of several is its whole line and has none. The words never change
+# the verdict. A caller that does not ask gets the verdict as before: this reader also runs
+# for processes started before the words were carried, which match the verdict whole.
 
 function lowered( text,    upperSet, lowerSet, outText, charIndex, oneChar, charAt ) {
 	upperSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" ;
@@ -102,6 +116,7 @@ function affirmed( text,    words, wordTotal, oneWord ) {
 
 BEGIN {
 	kind = ENVIRON["MDAT_VERDICT_KIND"] ;
+	wordsWanted = ( ENVIRON["MDAT_VERDICT_WORDS"] != "" ) ;
 	recommendedWord = "" ;
 	optionTotal = split( ENVIRON["MDAT_VERDICT_OPTIONS"], optionLines, "\n" ) ;
 	for ( optionIndex = 1 ; optionIndex <= optionTotal ; optionIndex++ ) {
@@ -261,9 +276,7 @@ function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
 
 verdict != "" { next ; }
 
-index( $0, "reaction on the question: [reactions: " ) == 1 {
-	judgeMessage() ;
-	if ( verdict != "" ) { next ; }
+! replySeen && index( $0, "reaction on the question: [reactions: " ) == 1 {
 	reactionName = substr( $0, length( "reaction on the question: [reactions: " ) + 1 ) ;
 	sub( / .*$/, "", reactionName ) ;
 	reactionUsers = $0 ;
@@ -292,6 +305,7 @@ index( $0, "reaction on the question: [reactions: " ) == 1 {
 /^[0123456789]+\.[0123456789]+ \| [^|]* \| / {
 	judgeReactions() ;
 	judgeMessage() ;
+	replySeen = 1 ;
 	messageTs = $1 ;
 	messageAuthor = $0 ;
 	sub( /^[^|]*\| /, "", messageAuthor ) ;
@@ -383,6 +397,14 @@ function judgeMessage(    replyText, replyWord, replyRest ) {
 		else if ( numberOf( replyWord ) > 0 ) { verdict = numberWord[numberOf( replyWord )] ; }
 	} else if ( form == "many" ) {
 		verdict = manyOf( replyText ) ;
+	}
+	## The words on the verdict's line, for a caller that keeps them: what follows the answering
+	## word, or the two of "I agree".
+	if ( verdict != "" && wordsWanted && form != "many" && index( verdict, " -- " ) == 0 ) {
+		if ( replyWord == "i" ) { sub( /^[^ \t]+[ \t]*/, "", replyRest ) ; }
+		sub( /^[-:,.;!]+[ \t]*/, "", replyRest ) ;
+		gsub( /\t/, " ", replyRest ) ;
+		if ( replyRest != "" ) { verdict = verdict " -- " replyRest ; }
 	}
 	if ( verdict != "" ) { author = messageAuthor ; verdictTs = messageTs ; }
 }

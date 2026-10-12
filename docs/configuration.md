@@ -12,7 +12,9 @@ places its projects declare; register one no project declares by hand:
 	DistroAgentsTools.fn.sh --owner-workspace-forget <name>
 
 Read and set a member's own configuration and credentials. Always pipe a secret
-through `--upsert-from-stdin`, so it never appears in the process table:
+through `--upsert-from-stdin`, so it never appears in the process table. A member's own setting
+for a system this workspace holds none of is read from the workspace it is set up in instead.
+Team-wide settings are never borrowed this way.
 
 	DistroAgentsTools.fn.sh --agents-config-option <member> --select-all
 	DistroAgentsTools.fn.sh --agents-config-option <member> --upsert-from-stdin <key>

@@ -125,7 +125,7 @@ AgentsReviewChildLive(){ ## record path
 	thisHost="$( hostname -s 2> /dev/null )" || thisHost="unknown"
 	[ "$liveHost" = "$thisHost" ] || return 0
 	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-	! AgentsToolsRegistrySpawnRuns "$liveSpawn" || return 0
+	! AgentsToolsRegistrySpawnRuns "$liveSpawn" "$1" || return 0
 	printf 'spawn %s is not running on this host, so its session has ended\n' "$liveSpawn"
 	return 1
 }
@@ -642,7 +642,11 @@ AgentsReviewPromptClose(){ ## record file, pending id, who closes it, why
 	pcTs="$( AgentsToolsDecisionsField "$pcFile" question-ts )"
 	[ -n "$pcOwner" ] && [ -n "$pcChannel" ] && [ -n "$pcTs" ] || return 0
 	pcNote="$( ASKP_F_reason="$pcWhy" AgentsReviewPromptFill block "Notes/settled" 2> /dev/null )" || pcNote=""
-	[ -z "$pcNote" ] || printf '%s\n' "$pcNote" | AgentsReviewTools --intern-op-comms-slack-send-message "$pcOwner" "$pcChannel:$pcTs" --identity-bot --from-stdin > /dev/null 2>&1 \
+	## It carries the addressee of the prompt it follows, as the prompt named it.
+	local pcArgs=( "$pcOwner" "$pcChannel:$pcTs" --identity-bot --from-stdin ) pcTo
+	pcTo="$( AgentsToolsDecisionsField "$pcFile" address-to )"
+	[ -z "$pcTo" ] || pcArgs=( "${pcArgs[@]}" --address-to "$pcTo" )
+	[ -z "$pcNote" ] || printf '%s\n' "$pcNote" | AgentsReviewTools --intern-op-comms-slack-send-message "${pcArgs[@]}" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: ${MDSC_CMD:-review}: the review prompt $pcId is closed, but its thread was not told" >&2
 	AgentsToolsAskPostClose "$pcFile" "$pcTs" cancelled edit
 	return 0

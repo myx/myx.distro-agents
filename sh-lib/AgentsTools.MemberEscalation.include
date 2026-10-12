@@ -154,6 +154,12 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 	fi
 	cfArgs=( "$cfOwner" "$cfChannel:$cfThread" --from-stdin )
 	[ -z "$cfBot" ] || cfArgs=( "${cfArgs[@]}" --identity-bot )
+	## It carries the addressee of the ask it follows, as the ask named it: in the thread of a
+	## forward, the human-owner the forward was addressed to (AgentsToolsEscalationForwardPost).
+	local cfTo
+	cfTo="$( AgentsToolsEscalationField "$cfFile" address-to )"
+	[ -z "$cfForward" ] || cfTo="human-owner"
+	[ -z "$cfTo" ] || cfArgs=( "${cfArgs[@]}" --address-to "$cfTo" )
 	printf '%s\n' "$cfText" | DistroAgentsTools --intern-op-comms-slack-send-message "${cfArgs[@]}" > /dev/null 2>&1 \
 		|| echo "⚠️ WARNING: $MDSC_CMD: the answer $cfVerdict for $cfId was read, but its confirmation was not posted in $cfChannel:$cfThread" >&2
 	return 0
@@ -721,7 +727,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		printf '%s\n' "$threadAnswers" | LC_ALL=C grep -q -E '^([0-9]+\.[0-9]+ \| |reaction on the question: |UNMATCHED-REPLY )' || { printf 'OPEN\t\n' ; return 0 ; }
 		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
 		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
-			| MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
+			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
 				MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$threadFile" select )" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEscalationVerdict.awk" 2>/dev/null )" || threadVerdict=""
 		[ -z "$threadNoVerdict" ] || [ -z "$threadVerdict" ] || threadVerdict="RETURNED"$'\t'$'\t'
@@ -766,6 +772,14 @@ AgentsToolsEscalationFloor(){ ## thread verdict output
 		}
 		$1 == "ANSWER-TS" || $1 == "CLARIFY" { if ( top == "" || newer( $2, top ) ) { top = $2 ; } }
 		END { print top ; }'
+}
+
+## What the person wrote beside the verdict's own line, for whoever reads this result: the
+## CLARIFY lines of a thread verdict, a line a message, `CLARIFICATION: <ts> <author>: <text>`,
+## worded as the record keeps it. A reply that gives a verdict is not only a verdict: what he
+## wrote under it, and after it, is for the asker to read.
+AgentsToolsEscalationSaid(){ ## thread verdict output
+	printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '$1 == "CLARIFY" { saidText = $0 ; sub( /^CLARIFY\t[^\t]*\t[^\t]*\t/, "", saidText ) ; printf "CLARIFICATION: %s %s: %s\n", $2, $3, saidText ; }'
 }
 
 ## Keeps the CLARIFY lines a thread verdict carried on the record and its item's Decisions,
@@ -909,14 +923,14 @@ case "$1" in
 			printf 'ESCALATION: %s open\n' "$readId"
 			printf 'VERDICT: RETURNED\n'
 			[ -z "$readReason" ] || printf 'VERDICT-REASON: %s\n' "$readReason"
+			AgentsToolsEscalationSaid "$readOut"
 			return 0
 		fi
+		## The words on the verdict's own line come with it as "<verdict> -- <words>", for every
+		## kind (AgentsEscalationVerdict.awk, MDAT_VERDICT_WORDS): they are its text, given to the
+		## asker with it and kept on the record. The verdict is what stands ahead of them.
 		case "${readVerdict%%$'\t'*}" in
-			'correct -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#correct -- }" ; readVerdict="correct"$'\t'"${readVerdict#*$'\t'}" ;;
-			'edit -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#edit -- }" ; readVerdict="edit"$'\t'"${readVerdict#*$'\t'}" ;;
-			## A proposal's verdict by reply carries the rest of its line the same way.
-			'approved -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#approved -- }" ; readVerdict="approved"$'\t'"${readVerdict#*$'\t'}" ;;
-			'rejected -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#rejected -- }" ; readVerdict="rejected"$'\t'"${readVerdict#*$'\t'}" ;;
+			*' -- '*) readText="${readVerdict%%$'\t'*}" ; readText="${readText#* -- }" ; readVerdict="${readVerdict%% -- *}"$'\t'"${readVerdict#*$'\t'}" ;;
 		esac
 		## A review verdict's text is what the person wrote with it: after the word, in the rest
 		## of that reply and in every later one; for a click, in every reply of his there.
@@ -962,7 +976,9 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
-		## The rest of the reply and every later one: clarifications on this verdict.
+		## The rest of the reply and every later one: clarifications on this verdict, given to
+		## whoever reads this result and kept on the record.
+		AgentsToolsEscalationSaid "$readOut"
 		[ "$( AgentsToolsEscalationField "$readFile" status )" != "reply-received" ] || AgentsToolsEscalationClarify "$readId" "$readOut"
 		return 0
 	;;
@@ -1054,7 +1070,8 @@ case "$1" in
 				set +e ; return 1
 			;;
 			*)
-				echo "$MDSC_CMD: ⛔ ERROR: the reply in the thread of $rbId already names ${rbVerdict%%$'\t'*}, so no readback is needed -- collect it with Wait" >&2
+				rbVerdict="${rbVerdict%%$'\t'*}"
+				echo "$MDSC_CMD: ⛔ ERROR: the reply in the thread of $rbId already names ${rbVerdict%% -- *}, so no readback is needed -- collect it with Wait" >&2
 				set +e ; return 1
 			;;
 		esac
@@ -1163,9 +1180,14 @@ case "$1" in
 			set +e ; return 1
 		}
 		## Said in the question's thread too, so the people there see it was answered and by whom.
+		## The line is the answering member's own, and the addressee of the ask is that member:
+		## it is addressed to the member that asked, where the send can address it.
+		local answerArgs=( "$answerMember" "$( AgentsToolsEscalationField "$answerFile" channel ):$( AgentsToolsEscalationField "$answerFile" thread-ts )" --from-stdin )
+		type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		! AgentsToolsAssertBareName "$answerOwner" "the asking member" escalation-answer 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$answerOwner" > /dev/null 2>&1 \
+			|| answerArgs=( "${answerArgs[@]}" --address-to "$answerOwner" )
 		[ -z "$( AgentsToolsEscalationField "$answerFile" channel )" ] || printf '%s\n' "Answered by $answerMember: $answerVerdict${answerText:+ -- $answerText}" \
-			| DistroAgentsTools --intern-op-comms-slack-send-message "$answerMember" \
-				"$( AgentsToolsEscalationField "$answerFile" channel ):$( AgentsToolsEscalationField "$answerFile" thread-ts )" --from-stdin > /dev/null 2>&1 \
+			| DistroAgentsTools --intern-op-comms-slack-send-message "${answerArgs[@]}" > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: $MDSC_CMD: the verdict is applied, but it was not said in the question's thread" >&2
 		return 0
 	;;

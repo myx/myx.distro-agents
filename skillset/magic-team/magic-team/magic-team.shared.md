@@ -199,7 +199,7 @@ Deferred work starts only when the current step is released and he has said to s
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, link or blocking decision reaches him at once on his direct channel, never left in a session. The chain of command decides who sends it: the session's `magic-coordinator` forwards what it does not settle; a member with no coordinator present asks him with `AskQuestion`. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
+A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. The chain of command decides who sends it: the session's `magic-coordinator` forwards what it does not settle; a member with no coordinator present asks him with `AskQuestion` itself. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 
@@ -222,7 +222,7 @@ One message, one topic. A message that wants something opens with the decision, 
 
 - Every message has an addressee. A message left in a session has not reached him.
 - `magic-coordinator` sends to the human-owner's direct conversation; any other member sends to the team conversation or its session thread.
-- An addressee is tagged with a real mention the platform renders (`--address-to`). Check what was stored, not the send's success. A send that cannot tag is a defect to report.
+- An addressee is tagged with a real mention the platform renders (`--address-to`, `address_to` on `SendMessage`, `SubagentHandback`, `ReportFindings`, `PushNotification` and `Artifact`, as the ask tools already take it) — never a mention typed into the body. A thread post naming nobody there is headed `@here`; a member reads that as a post for nobody. Check what was stored, not the send's success. A send that cannot tag is a defect to report.
 
 ## A reply threads onto the message it answers
 

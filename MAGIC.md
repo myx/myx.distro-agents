@@ -56,6 +56,11 @@ that the code and docs do not readily tell you.
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today.
+- **One team, two organisations.** A call reaches our own organisation unless it is on the client
+  side: a `--client-*` operation, or a `client:` address, of a `client-*` member
+  (`AgentsTools.CommsSide.include`). A `client-*` member's own settings for an outside system are the
+  other organisation's: read on the client side only, with nothing of the team's read in their place.
+  The prefix and the address select the side, never a credential the member happens to hold.
 - **All non-member Slack code is in `sh-lib/AgentsTools.CommsSlack.include`**: the shared helpers, the
   in-context helper `AgentsToolsSlackCheck`, and `--intern-op-slack-call` and `-check-scopes` (whose
   `--scope-source` may name an `AgentsTools*` helper). The dispatcher holds no Slack code. Any
@@ -277,7 +282,9 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   symlinks in the vendor link folders (`~/.claude/skills`, `~/.agents/skills`, `~/.copilot/skills`,
   `<ws>/.claude/skills`, `<ws>/.agents/skills`). A hook or server added by hand there reaches that
   external tool only. Reading one to verify it was written right is fine (`AgentsClaudeSettingsVerify.awk`,
-  `AgentsMcpServerJsonVerify.awk`, the setup checks).
+  `AgentsMcpServerJsonVerify.awk`, the setup checks). The grants index builder is the one exception: it
+  reads the HOME skills folder's own entries, to tell a real skill folder from a link and which
+  workspace's source tree a link reaches (see "Places", below).
 - **The harness `Skill` tool still serves a real folder** a user or vendor put in `~/.claude/skills`. A
   link there is ours and is skipped.
 - **Primary sources and our indices** (in `.local/agents`):
@@ -315,7 +322,10 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   all three routed with the place ops and never switched to a member workspace. The workspace roots the member
   resolver and the `*` grant expansion walk are its `workspace` rows plus every pointer root.
   `known-workspaces.registry`, the earlier list, is never written: it is read as owner rows until the
-  first registration or owner op imports it, then its `.imported` marker ends its reading.
+  first registration or owner op imports it, then its `.imported` marker ends its reading. Two names
+  are built in, needing no registration: `.skillset-shared` is the machine's HOME skills folder;
+  `.skillset-.local` is the workspace's own local skillset. Use either in a task, a document or a
+  dispatch in place of a path. A custom place name may not start with a dot.
 - **Member homes** (`AgentsTools.MemberHomes.include`). `--intern-member-home-register` registers the
   members a registered workspace without agents declares, by the member scan, as `source-declared` rows
   under that workspace's root (a `.` in their grants unrolls to it; nothing is installed there; their
@@ -498,7 +508,10 @@ User steps are in [docs/installation.md](docs/installation.md).
   is every workspace place whose name matches, tagged `wildcard`, none matching no error and no row;
   `directory:<name>` resolves through the places and is capped to read on a read-only one; an unknown
   name is an `unresolved` row, warned), plus
-  each acting member's own directory, magic-librarian's read of `source/**`, and the built-in grants of
+  each acting member's own directory, magic-librarian's read of `source/**` and its write of the `.md`
+  files of a team-member skill that is a real folder in the HOME skills folder or a link there into
+  this workspace's own source tree (not one linked in from another workspace, still asked as today),
+  and the built-in grants of
   the members this package carries (`AgentsToolsGrantsBuiltinText`, never declared, so no `source/` is
   needed: magic-architect's WebFetch and WebSearch; magic-tester's read of `source/**/{sh-test,test,tests}/**`
   and `.local/myx/**` in every tooling workspace and write of `**` in `*-testbed` ones; project.inf names
@@ -670,10 +683,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   under 10 minutes old.
 - **The session record** `<sandbox>/<spawn-id>.md` sits outside `input/` and `output/`, so the session
   cannot forge it. Its frontmatter rebuilds the spawned-sessions registry. Fields: `session-id`,
-  `spawn-id`, `parent-session-id`, `tracking-name`, `host`, `workspace` (basename, never a path),
-  `owner`, `status`, `started-at`, `execution-receipt`, `output-file`, `agent-log-thread`,
-  `session-thread`, `spawns`/`spawned-by`. Beside it: `event-track.thread` and `session.thread`
-  (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id.
+  `spawn-id`, `parent-session-id`, `tracking-name`, `host`, `workspace` (basename, never a path, the
+  one this record is kept in), `executing-workspace`, `paying-workspace`, `member-workspace` (the three
+  workspaces of this run, always: which executes it, which pays for it, which is the member's),
+  `owner`, `status`, `started-at`, `execution-receipt`, `output-file`, `agent-log-thread`, `cli-asked`
+  (the service this one spawn was started on, where one was named for it), `session-thread`,
+  `spawns`/`spawned-by`. Beside it: `event-track.thread` and `session.thread`
+  (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id. The start post
+  names `paying-workspace` and `member-workspace` only where either differs from the workspace the
+  session runs from.
 - **Children lists.** The spawn op appends the child's record path to `.local/agents/children/<parent>`.
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
@@ -684,6 +702,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `waiting` reads the pending-replies registry. Rows are one awk pass
   (`AgentsRegistryHeaderRows.awk`), never a fork per file; `live` and `state` are derived without a fork
   per row. Filters (`view`, `session_id`, `state`) are in the tool description.
+- **A run is alive by one rule only**: a process of this host runs as a spawn when the value of its
+  own `--session-id` or `--resume` argument -- the first of the two on its line -- is that spawn's id,
+  matched whole; an id standing anywhere else on the line is no run, and neither is a command line of
+  the tooling itself (`DistroAgentsTools.fn.sh`, the command or its interpreter's script).
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -700,19 +722,34 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `Wait`ing, and ends only on `DISMISSED`. A `--wait` spawn is the exception (its caller is blocked), so
   the proxy exports `MDAT_SPAWN_CALLER_WAITS=true`.
 - **`DISMISSED` is recognised by its tag, never by the posting account** (spawner and child may share a
-  bot): the send header's addressees, or a typed `DISMISSED <member>`. One addressed to someone else or
-  `@here` dismisses no one. One function, `dismissalOf` in `AgentsDismissalMatch.awk`, also used by
+  bot): the send header's addressees, from the send's own `address_to`, or a typed `DISMISSED <member>`.
+  One addressed to someone else, to nobody (`@here`), or sent with no `address_to`, dismisses no one. One function, `dismissalOf` in `AgentsDismissalMatch.awk`, also used by
   `AgentsSlackThreadAnswers.awk` so the own-post skip never drops it. `TaskStop` is the last resort.
 - **`--magic-spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
-  A wildcard or prose `executors` value is refused. Invitees are never spawned here.
+  A wildcard or prose `executors` value is refused. Invitees are never spawned here. It takes
+  `--spawn-settings-workspace <name>` and `--spawn-cli-service <name>`, the same as the Agent tool's own
+  `settings_workspace` field beside `cli_service`.
+- **The paying workspace is a spawn setting, not a workspace switch.** The CLI service, the harness tier
+  and the credentials a member is spawned with are `magic-team`-scope settings, read from the workspace
+  the session runs from unless another workspace known on this machine is named to pay: by
+  `SPAWN_SETTINGS_WORKSPACE=<name>` in that scope for every spawn here, by the same key in one member's
+  own scope, or by `--spawn-settings-workspace` on one task's spawn. A review return's restart reads it
+  from the record of the run it replaces, so it is paid from the same workspace. The spawn operation
+  settles this once into `MDAT_SPAWN_SETTINGS_WORKSPACE` for that spawn
+  (`AgentsToolsSpawnSettingsSettle`). Only these settings move: the board, the team data, the records
+  and the comms stay those of the workspace the session runs from, and the workspace named this way is
+  read itself, never one it names in turn.
 - **Member ops run in the member's workspace.** `AgentsToolsMemberWorkspaceResolve` (in
   `AgentsTools.MemberWorkspace.include`, sourced at entry) picks the current workspace if the member is
   there, else the tracked workspace where it is a source link, else the first tracked one with it. A
   switch re-runs the whole call in a subshell with `AgentsToolsWorkspaceSwitch`. No switch for
   `magic-team`/`human-owner`, an untracked current workspace, the spawn ops, `--intern-mcp-execute`,
   `--intern-op-decisions-append` and `--intern-op-review-*`. The spawner starts the member's session in
-  the member's workspace but keeps records and board in its own.
+  the member's workspace but keeps records and board in its own. A member's own settings for a system
+  neither workspace holds any of are read from the workspace it is set up in instead
+  (`AgentsToolsScopeHoldsKeys`), reported once on stderr (`AgentsToolsMemberSettingsBorrowedSay`). A
+  team-wide setting is never borrowed this way.
 - **Who may call.** `AgentsToolsActingMember`: `MDAT_SPAWN_AGENT`, else the harness agent, else the owner
   of the spawn record. No such session means the console, which passes every check. `--member-*` ops
   whose member is a credential or identity refuse a session naming another member
@@ -969,8 +1006,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   or a member name (its DM via `AgentsToolsCommsSlackMentionUserId`; no Slack account means an
   `inquiry-*` in its inbox, which `AskQuestion` refuses). An empty `to` is the session thread
   (`AgentsToolsSessionThreadFind`), resolved inside `--member-comms-slack-send-message` so MCP gets it
-  too; `SubagentHandback` defaults to `session-parent`. `ProposeApprove` keeps its own `to`: the
+  too, the same in a native session that is itself the coworking session; the ask tools follow the same
+  rule. `SubagentHandback` defaults to `session-parent`. `ProposeApprove` keeps its own `to`: the
   human-owner by default, or a named conversation -- never a thread, since its first message opens one.
+- **`address_to` names who a post is for, apart from `to`'s target.** `SendMessage`, `SubagentHandback`,
+  `ReportFindings`, `PushNotification` and `Artifact` take it, as the ask tools already did (`--address-to`
+  at the CLI). The tool tags the real mention itself (see "Send header"); nothing is typed into the body.
+  A thread post with none is headed `@here`, read as for nobody. `SendMessage` to a session thread with
+  `address_to` naming a member and the body `DISMISSED` dismisses it; with no `address_to` it dismisses
+  no one. A `SubagentHandback` naming nobody is addressed to the member whose session started it, where a
+  record names that member.
 - **The five ask tools** (`AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission`,
   `ProposeApprove`) each render by their own template (`sh-lib/templates/<tool-kebab-name>.post.format.md`).
   `select` gives the answer form: `text` (the default, no `select` given), `yes-no`, `one` or `many` --
@@ -988,8 +1033,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`NEXT:` lines.** A result the model must act on ends with one `NEXT:` line naming the call, added after
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
   posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`).
-- **`Wait` tool** calls `--member-wait-for-input` and adds only: `mode` (`default`/`continue`/`close`),
-  reaction id sets, `slack:session-parent` and `slack:session-current` rewriting, and `DISMISSED` detection
+- **`Wait` tool** calls `--member-wait-for-input`, which takes `slack:session-current` and
+  `slack:session-parent` itself, and adds only: `mode` (`default`/`continue`/`close`),
+  reaction id sets, and `DISMISSED` detection
   (`AgentsHarnessWaitDismissed.awk`, matched by `AgentsDismissalMatch.awk`'s one shared rule: a body
   that is exactly `DISMISSED`, addressed to this member by the team send header naming it, or typed
   plain as `DISMISSED <member>` with no header -- recognised by that tag, never by the Slack account,
@@ -1086,7 +1132,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   names `human-owner`, posts him one review prompt, kind `review`: 👍 accepts, ↩️ returns, ❌ rejects, and
   a reply starting `accept`, `return` or `reject` does the same. A review settled another way closes the
   open prompt; every other `review-by` still posts none. A reviewer's accept moves review → processed;
-  reject moves it to running with comments.
+  return moves it to running, the same session, with comments; reject moves it to pending, for a fresh
+  session.
 - **The approval cascade** (`AgentsToolsApprovalCascade`, `AgentsTools.ApprovalCascade.include`) fires
   when an `approval-*` arrives in `board-processed` carrying `approved-by` and `approved-at`. Each `blocks`
   item takes those values as `default` ops; a stamped `board-blocked` item whose every `blocked-by` is
@@ -1270,7 +1317,10 @@ op's own option arm.
   `--intern-op-check-configs <scope> --resolve-slack-workspace-into SLACK_WORKSPACE_DOMAIN` (user token
   first) on that scope's config-check pass (`--magic-heartbeat-config-check`,
   `--client-sweep-config-check`). A member without its own pass gets the team's domain, which is wrong if
-  its token is in another workspace: add a pass, never a per-call `auth.test`.
+  its token is in another workspace: add a pass, never a per-call `auth.test`. The resolved name is not
+  persisted into a scope whose Slack settings are themselves read from another workspace
+  (`AgentsToolsConfigOptionElsewhere`): it is reported, not written, so that workspace keeps the token
+  and this one does not start claiming the system as its own.
 - **`X-Request-Detail: slack-workspace=<v>; client-member=<v>; channel-id=<v>`** goes on stderr ahead of
   `KEY=value` fields, at every attributable call site. Text only. `client-member` means the acting member,
   not a `client-*`. Unresolved values are `<lookup-failed>` or `<none>`. Scope polls and the domain
@@ -1287,6 +1337,9 @@ op's own option arm.
   the Slack family, so nothing credential-bearing is defined by loading it. The URL is a bearer capability: never in diagnostics, curl stderr discarded, body printed
   only on 2xx. `POST_HTTP_STATUS=`, `POST_BYTES=` (sent). Transport failure writes `000 0`. https only. No
   `EXIT` trap. The URL stays in argv by decision (single-use, short-lived).
+- **A reaction is read as a verdict only from before the addressee's first reply in the thread.** Once a
+  reply stands, a later click is never read, even where the ask's kind declares that reaction a verdict
+  (see "20. Questions, decisions and review").
 - **`AgentsToolsSlackCheck`** reads one target (`magic-team`, `human-owner`, `event-track`, `event-alert`,
   a bare id, or `<channel>:<ts>`). `human-owner` merges both DMs: exit 0 both, 3 one, 4 neither, 1 failed
   early. Pretty `ts | user | text` by default; `--raw` for JSON. `--sweep-read-incoming-comms` also
@@ -1294,10 +1347,10 @@ op's own option arm.
 - **`--intern-op-check-configs` carries no Slack call** except the domain resolve, sourced in that branch
   only.
 - **Send header.** `--member-comms-slack-send-message` always prepends the sender's mark, bold name and
-  `@alias` before `→`. A member addressee becomes a real `<@U…>` mention via
-  `AgentsToolsCommsSlackMentionUserId`: a member by `auth.test` on its own user token, the human-owner by
-  `SLACK_CHANNEL_HUMAN_OWNER` (a user id). Anything else degrades to `@alias` text. `users.list` resolves
-  nobody.
+  `@alias` before `→`, naming the addressees its call's `address_to` (or `--address-to`) gave it. A
+  member addressee becomes a real `<@U…>` mention via `AgentsToolsCommsSlackMentionUserId`: a member by
+  `auth.test` on its own user token, the human-owner by `SLACK_CHANNEL_HUMAN_OWNER` (a user id). Anything
+  else degrades to `@alias` text. `users.list` resolves nobody.
 - **`--update-ts <ts>`** edits that message in place (`chat.update`) instead of posting a new one: the
   same text, blocks and author line this send would post, under the same floor; it carries none of
   `thread_ts`, `reply_broadcast` or `metadata`, which only a new post takes. Slack's answer to an edit is
@@ -1365,7 +1418,8 @@ op's own option arm.
 - **Presence** (`--member-comms-slack-presence-*`, no help pair): held by a websocket, never set
   (`users.setPresence` has no `active`). User token only (`rtm.connect` refuses bots). Keyed by
   `<team_id>:<user_id>`, one holder per account, found by argv match, start under a `mkdir` lock,
-  extended with `SIGUSR1`, TTL 300 s default.
+  extended with `SIGUSR1`, TTL 300 s default. Its client-side twin, `--client-comms-slack-presence-keep`,
+  `-status` and `-stop`, now has its own help entries.
 - **Socket mode** (`--member-comms-slack-socket-*`, no help pair): `SLACK_APP_TOKEN` (member, then team);
   keyed by the token's scope, since Slack delivers each event to one connection. The token reaches the
   holder (URLs expire and refresh); envelopes are acknowledged on arrival; continuation frames are
@@ -1373,7 +1427,8 @@ op's own option arm.
   with `communication-channel-id`. No TTL. No log of its own: rows go to the workspace Slack log,
   `comms-slack-send.YYYY-MM.log`, in its eight columns (target `socket`, column 6 the event kind
   `connected|reconnect|received|error|stopped`, reason never a body or token, session `-`); `--status` reads
-  them from there. Its framing is separate from the presence holder's on purpose.
+  them from there. Its framing is separate from the presence holder's on purpose. Its client-side twin,
+  `--client-comms-slack-socket-start`, `-status` and `-stop`, now has its own help entries too.
 - **File share**: three calls (get upload URL, raw POST via `AgentsToolsUrlPostBytes`, complete).
   `files.upload` is retired. Target resolved before step 1; `SLACK_CHANNEL_HUMAN_OWNER` is a user id and
   must be opened as a DM. `thread_ts` must be the parent ts (normalised via `conversations.replies`).
@@ -1418,7 +1473,9 @@ op's own option arm.
   unrestricted query (400), pages by `nextPageToken`/`isLast`, has no total. An unresolvable JQL returns
   200 with no rows, so an empty result says nothing beyond that query. A bad token gives 401 on
   `/myself` but 404 on a private issue (anonymous); `--intern-op-atlassian-check --product jira` is the
-  credential check. A null description is a real answer. Default format `adf` (writable back);
+  credential check, and for a `client-*` member run on our own side it answers the own-side line instead
+  (`AgentsToolsCommsOwnSideCheck`/`AgentsToolsCommsOwnSideLine`), naming the `--client-*` twin to use. A
+  null description is a real answer. Default format `adf` (writable back);
   `rendered` is offered.
 - **Jira writes**: `issue-create` never calls createmeta; extra fields via `--fields-json`, merged by
   `AgentsAtlassianJsonObjectMerge.py` (no text splicing). Never auto-retry a create with an unknown
@@ -1485,14 +1542,24 @@ op's own option arm.
   asking session gets `NOT ASKED AGAIN`) goes into that question's own thread under its number and the
   identity it was asked with, offered only where the asker can post again (asked as the bot, or by this
   member). A question asked with `to=<channel>:<ts>` naming the thread a question opened for itself is a
-  follow-up on it and takes no new number (`AgentsToolsAskThreadRootTag`). A leading `Q<n>` in the question text is removed. In a thread several questions
-  share (only one the asker named): a reply starting `Q<n>` answers that one; an unnumbered reply answers
-  the latest question above it while open, and none after it is closed (`resolved-epoch`).
+  follow-up on it and takes no new number (`AgentsToolsAskThreadRootTag`). A leading `Q<n>` in the question text is removed. A reply starting with a
+  question's own number takes that form even where it is alone in its thread, the number and a
+  following mark stripped before what is read as the answer. In a thread several questions
+  share (only one the asker named): a reply starting another `Q<n>` answers that one; an unnumbered reply answers
+  the latest question above it while open, and none after it is closed (`resolved-epoch`). A reply that
+  would answer one already closed, while another is still open, is set aside: every line of it, and the
+  lines under it, printed marked `UNMATCHED-REPLY`, so its reader returns it `RETURNED` rather than
+  letting another asker take it.
   `AgentsToolsAskThreadOthers` feeds the others to `AgentsSlackThreadAnswers.awk`.
 - **`AgentsSlackThreadAnswers.awk` skips a member's own send header first**
   (`memberSendHeaderLength`, `AgentsDismissalMatch.awk`), on the head line or the first non-empty line
   under it where the header fills the head line. Without it, the header's own mark read as the reply's
   first word made every numbered reply from a member read as unnumbered.
+- **`AgentsPendingReplyOwnWords.awk` runs the same header strip ahead of the answer-text and
+  clarifications readers** (`AgentsPendingReplyAnswerText.awk`, `AgentsPendingReplyClarifications.awk`),
+  so a member's own send header is never itself recorded as the answer, nor the answer under it
+  recorded as a clarification. The rendering it reads keeps the header, for `Wait` and `DISMISSED` to
+  read, so the strip runs only on the way into these two readers.
 - **First line, then clarifications.** A reply's first line is its answer or verdict -- its first line
   that is no quote of the question: a ``` fenced block and lines starting with `>` or `&gt;` heading the
   reply are skipped (`firstUnquoted`, the same in the verdict, answer-text and clarification readers);
@@ -1501,6 +1568,14 @@ op's own option arm.
   (`AgentsPendingReplyClarifications.awk`, `--intern-op-pending-reply-clarify`): under the record's own
   `## Clarifications`, and as `clarification` lines on its item's `## Decisions`, once each by ts. The
   harness, collect and the escalation read all keep them when they close a question.
+- **A verdict-bearing reply's own words are returned too, never only the verdict.** Words in the same
+  reply, beyond the verdict itself, print as `VERDICT-TEXT:`; a later reply in the same thread prints as
+  `CLARIFICATION:`. A line of that text that reads like one of the reader's own markers (`VERDICT:`,
+  `WAIT-ID:`, `NEXT:`, `ASK-RESULT:` and the like) is printed one space indented, so it is never taken
+  for a real one.
+- **A reply is its head and every line under it, up to the next head** (`AgentsSlackThreadAnswersSince.awk`'s
+  rule). Every line is judged by the reply it belongs to, never by what the line itself starts with.
+  A later message, kept as a clarification, is recorded whole.
 - **Plain affirmations** (`AgentsEscalationVerdict.awk`): a first word ok, okay, yes, agree, agreed, confirm
   or confirmed (also after "I", any case), or a +1, ok_hand or white_check_mark reaction, is yes for a
   readback and, for a decision, the option whose line holds `(recommended)` -- at most one may, refused
@@ -1514,6 +1589,9 @@ op's own option arm.
   naming the check mark in its own text, still takes it as the send mark, for that one case only). A
   permission set answers as a permission does: `x` denies, `unlock` allows the set, both by click, deny
   first where both are held; `edit` carries its change in words and is never a click.
+- **A click is read only ahead of the addressee's first reply.** Once a reply stands in the thread, a
+  later click is never read as a verdict, even where the kind declares that reaction a verdict (see
+  "18. Slack").
 - **The asker's readback** (`--member-escalation-readback`, EscalateDecision `pending_id` + `readback`):
   once a decision's reply names no option, its asker may post, in the question's thread under the ask's
   identity, which option it takes the reply to mean. The record closes with that verdict, `closed-by:
@@ -1599,6 +1677,10 @@ op's own option arm.
   writes `.local/agents/sessions/<id>/refusal-<uuid>.md` first
   (`--intern-op-permission-refusal-log`), then posts to event-track. The result adds `REFUSAL-ID:`
   (`none` without a session or record).
+- **A skill linked in from another workspace still needs an ask.** magic-librarian's standing `.md`-edit
+  grant covers only a real skill folder in the HOME skills folder, or one linked there into this
+  workspace's own source tree. From this workspace that excludes `client-ndm`, `keeper-mel`,
+  `keeper-acm`, `keeper-ndm`, `keeper-ae3` and the partner members, linked in from elsewhere.
 - **Grant and denial posts exist in event-track, beside the refusal post.** Whichever way an escalation's
   answer came, a `grant` where an allow is written and a `denial` where a deny is applied post once each,
   into the same session thread the refusal opened.
@@ -1607,7 +1689,8 @@ op's own option arm.
   the absolute path beside it. One resolver, shared by every permission post, the Permission set post
   included (`sh-lib/templates/permission-set.post.format.md`, which groups its asks by place and takes an
   optional `--purpose` per place). The record behind the post always keeps the exact, absolute target:
-  only what is posted is shortened.
+  only what is posted is shortened. `.skillset-shared` and `.skillset-.local` are two such places, built
+  in, needing no registration (see "Places", section 6).
 - **Grants are keyed by session, member, tool and target** (resolved path, or exact command bytes), taken
   from the record, never the ask's text. Allow-once is spent by one `mkdir consumed/<id>` when the gate
   admits the call, and an unused one lapses `MDAT_PERMISSION_ONCE_TTL` seconds (default 300) after its
@@ -1620,7 +1703,8 @@ op's own option arm.
   `grants.index`, and its session's own sandbox), `standing` (its own rows of `grants.index`, every `*`
   row unrolled there: a `write` row, from `allow-write`, is every file tool on its glob; a `read` row,
   from `allow-read`, is Read/Grep/Glob only; `tool` rows `<tool>[:<target>]`, from the `allow-tool`
-  declare verb, never projected into Claude settings), then `set`/`passed`/`granted` session or task
+  declare verb, never projected into Claude settings; a permission is decided on the real file, and a
+  link and its target get the same answer), then `set`/`passed`/`granted` session or task
   grants. No write tool is held in a read-only place, through any layer. `cred` and `spend` skip floor and
   standing. Grant-read admits floor and standing as `GRANT: standing`.
 - **No approving what you don't hold.** `grant-open` returns rc 3 with `NOT-HOLDS:` and `HOLDERS:`;
@@ -1640,7 +1724,10 @@ op's own option arm.
   identity) keeps every member's rows; a native client gets its member's roots (section 14).
 - **A named member's file tools are decided by its session permission index** when the harness is given
   no root flags: `sessions/<id>/permissions.<member>.index`, the member's rows of `grants.index` joined
-  with the session's own grants (session, task, once; its own, coworking and parent stores). Every check
+  with the session's own grants (session, task, once; its own, coworking and parent stores). Built the
+  same way for a member that joined a session as for the one it was spawned for: the header, the
+  sandbox folders, the origin and the stores reach the one awk in the environment, never as arguments.
+  Every check
   is builtins only: two `-nt` tests (it must be strictly newer than `grants.index` and every joined
   store's `grants`), then a loop of `[[ ]]` over rows whose globs were translated into bash patterns at
   the rebuild (one awk). The ceiling first: a write in a read-only place is refused, not recorded, naming
@@ -1656,9 +1743,17 @@ op's own option arm.
   interactive native console) ends by its client's `SessionEnd` hook (`client-hooks/root-session-end.sh`,
   class `native`): `sessions/<id>/ended` plus a store touch, its open asks `--mark-ended`, its transcript's
   END; a `SessionStart` resume removes the marker. A coworking store ends with the spawn whose id it carries.
-- **A restart on the same board item keeps its session and task grants.** `AgentsToolsPermissionItemRunsScan`
-  checks the other runs of the asking member on that item, live or ended, before the holds check gives up:
-  an `allow-session` from an earlier run still holds in the run that replaces it, while the item stays open.
+- **A restart on the same board item keeps its session and task grants.** A session grant given to a
+  member's run on a board item holds for its other runs on that item in the same coworking session too
+  -- the runs a review return or a resume starts under a new id -- until the item is closed or that
+  session ends (`AgentsToolsGrantsItemRuns`): a `runs` row of the index, the item and that session
+  checked at the call. A task grant given to that run holds the same way, while the item it names stays
+  open: a `task` row like any other. A run started since the index was built is found on the way to a
+  refusal (`--intern-op-permission-grant-read`).
+- **A write grant reads too.** A session, `runs` or `task` row for Edit, Write or Execute admits a Read,
+  Grep or Glob of the same target as well (`AgentsToolsGrantsToolCovers`), never the other way round.
+  rc 1 when no row admits the call. magic-librarian's own standing `write` row for a team-member skill's
+  `.md` files admits the same Read, Grep and Glob of it, the same way.
 - **Revoke** (`--magic-permission-revoke <ref>`, implemented as `--intern-op-permission-revoke`):
   `<store>/revoked/<ref>`, a file (awk tests it by `getline`, which cannot tell a directory), then
   `AgentsToolsGrantsStoreTouch`. Every reader skips it. A task grant's entries (its `task:` grants
@@ -1701,6 +1796,13 @@ op's own option arm.
   number while the record is still open; a holder still alive is respected, and so is one on another host,
   which cannot be seen from here. `mkdir`-ing the claim directory only marks who made it first; the real
   arbitration is the holder chain.
+- **Asking the human-owner.** A member with no Slack account of its own has every ask -- question,
+  readback, decision, permission -- posted by the team bot, in the bot's own conversation with him,
+  with the answer emoji placed. A `RequestPermission` goes there the same way whatever the asking
+  member holds. A resolved question's own marks are placed under the identity its record names, not
+  necessarily the asking member's own. A refusal that one open ask would already answer names it
+  (`OPEN-ASK:` lines of the grant read) instead of inviting a second one: wait on that ask's id and
+  retry the call.
 - **An answer applies in a fixed order**: the verdict is noted, the grant an allow carries is written,
   then the record closes carrying the verdict and who gave it (`AgentsToolsEscalationApply`/
   `AgentsToolsEscalationApplyFinish`). A read that finds an apply stopped partway completes it from
@@ -1722,6 +1824,12 @@ op's own option arm.
 
 Each instrument states what it proves and its red recipe in its own header. What a maintainer must know:
 
+- **One full suite runs on this machine at a time.** A run of `AgentsRunTests.sh` with no name given
+  is the whole suite, and waits its turn, machine-wide, in arrival order (`AgentsRunQueueTurn`,
+  ticket files under `$HOME/.agents/magic-team/suite-queue`, never under the package). A run of named
+  tests is never queued. The line is said once per wait, naming who it waits behind. The hand rule this
+  replaces, `mkdir $MMDAPP/.local/temp/suite-run.lock` around a full suite, is kept on both sides, so a
+  session still on the hand rule and a queued run never run at once.
 - **Wired into `--owner-setup-scaleway --check`**: `HARNESS_PARSES`, `AgentsHarnessSelfCheck.test.awk`
   (four sites per tool; text match, so it misses syntax and JSON breaks), `AgentsHarnessToolsJsonCheck`
   (parsed vs text counts; reads through `AgentsHarnessJsonSlice.awk`, not the consuming reader),

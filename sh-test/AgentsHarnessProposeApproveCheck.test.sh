@@ -264,9 +264,10 @@ rigAssert "a reply marked on its head line alone, as before, goes the same way w
 		| LC_ALL=C awk -v sinceTs=1700000002.500000 -f "$rigHere/AgentsSlackThreadAnswersSince.awk" | LC_ALL=C tr '\n' '|' )" \
 	"UNMATCHED-REPLY $rigNew a new comment|its second line|"
 rigSinceTag=""
+## A line that reads as one of the thread reader's own marks comes from it one space in (ownLine).
 rigAssert "with no reply set aside, as a proposal's own thread reads: a line goes with its reply whatever it starts with" \
 	"$( rigSince "$rigOld an old comment" '# its second line' 'reaction on the question: its third line' "$rigLive" "$rigNew a new comment" '# its second line' 'reaction on the question: its third line' )" \
-	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new comment|# its second line|reaction on the question: its third line|"
+	"reaction on the question: [reactions: x x1 (URIGOWNER)]|$rigNew a new comment|# its second line| reaction on the question: its third line|"
 
 echo "-- posted nothing: a correction for its caller to make --"
 rigStart corrections

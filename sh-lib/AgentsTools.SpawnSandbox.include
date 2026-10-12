@@ -168,6 +168,23 @@ AgentsToolsSessionParentThreadFind(){
 	printf '%s %s\n' "$parentThread" "$parentId"
 }
 
+## The member the session that started this one acts as: the `owner:` of that session's own
+## spawn record, the session named by this one's record. Prints the name and returns 0.
+## Returns 1, nothing printed, when no parent session is recorded, or that session has no
+## record that names a member -- a native client session, never spawned through the proxy.
+AgentsToolsSessionParentMember(){
+	local memberRecord memberParent="" memberOwner=""
+	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+		[ ! -f "$memberRecord" ] || memberParent="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-session-id )"
+	done
+	case "$memberParent" in ''|none|*/*|.|..) return 1 ;; esac
+	for memberRecord in "$MMDAPP"/.local/agents/spawned/*/"$memberParent.md" ; do
+		[ ! -f "$memberRecord" ] || memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner )"
+	done
+	[ -n "$memberOwner" ] || return 1
+	printf '%s\n' "$memberOwner"
+}
+
 ## A conversation thread is `<channel>:<ts>`: an upper-case Slack id and a message ts.
 AgentsToolsSpawnConversationThreadValid(){ ## channel:ts
 	printf '%s\n' "$1" | LC_ALL=C grep -qxE '[A-Z0-9]+:[0-9]+\.[0-9]+'
@@ -430,7 +447,7 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	if [ "$childHost" = "$thisHost" ] ; then
 		## Running is a process that runs as the spawn, by the one rule of the spawned-sessions render.
 		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-		AgentsToolsRegistrySpawnRuns "$itemSpawn" || { printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
+		AgentsToolsRegistrySpawnRuns "$itemSpawn" "$recordPath" || { printf 'ACCEPT-DISMISS: not sent: spawn %s is not running on this host, so its session has ended\n' "$itemSpawn" ; return 0 ; }
 	fi
 	childMember="$( AgentsToolsSpawnSandboxRecordHeader "$recordPath" owner )"
 	[ -n "$childMember" ] || { printf 'ACCEPT-DISMISS: not sent: spawn %s names no owner member to address\n' "$itemSpawn" ; return 0 ; }
@@ -446,6 +463,31 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 	else
 		printf 'ACCEPT-DISMISS: not sent: the send to %s in %s failed: %s\n' "$childMember" "$childThread" "$( printf '%s\n' "$sendOut" | LC_ALL=C grep -m1 'ERROR' )"
 	fi
+	return 0
+}
+
+## THE PROCESS A LAUNCH STARTED, kept on the spawn's own record: its pid and when it began,
+## `run-process: <pid> <start>`, written by the launcher the moment it has started the console.
+## The console becomes the CLI, or waits for it, so that process lives as long as the run
+## does. It is how a run is seen alive where its CLI is given no session word of its own on
+## its command line (AgentsToolsRegistryRecordedRunAlive, AgentsTools.Registries.include):
+## for every CLI alike, and the same pid begun at another time is another process. A later
+## launch of the same spawn -- a resume, the handback retry -- replaces the one before it.
+## Through this package's own header writer, aside and then one rename. Never fails the launch.
+AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
+	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody
+	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
+	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
+	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	runStart="$( AgentsToolsRegistryProcessStart "$1" )" || runStart=""
+	[ -n "$runStart" ] || return 0
+	runOps="$MMDAPP/.local/temp/mdat-session-run-ops.$$.$1"
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || return 0
+	printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart" > "$runOps" 2> /dev/null || return 0
+	runBody="$( LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$runFile" 2> /dev/null )" || runBody=""
+	rm -f "$runOps"
+	[ -n "$runBody" ] || return 0
+	{ printf '%s\n' "$runBody" > "$runFile.run.$$" && mv -f "$runFile.run.$$" "$runFile" ; } 2> /dev/null || rm -f "$runFile.run.$$"
 	return 0
 }
 
