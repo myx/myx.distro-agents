@@ -18,7 +18,7 @@ Not a member/routine contract — this is the fixed skeleton of the question a m
 
 # Summary
 
-One skeleton for every kind: the title of the kind, the question, then each field the call gave, in one fixed order, and how to answer. Everything that belongs to a kind is taken from that kind's own template: its title, the refused call of a permission, the line of each option, the lines that say how to answer, the emoji placed under the post, its marks and its returned hint.
+One skeleton for every kind: the title of the kind, the question, then each field the call gave, in one fixed order, and how to answer. Everything that belongs to a kind is taken from that kind's own template: its title, the first line, the refusal and the reason of a permission, the line of each option, the lines that say how to answer, the emoji placed under the post, its marks and its returned hint.
 
 ## Goals
 
@@ -48,9 +48,7 @@ One skeleton for every kind: the title of the kind, the question, then each fiel
 ]][[**▶️ What I will do if confirmed**
 {{will-do}}
 
-]][[{{refused-call}}
-
-]][[**❔ Why this task needs it**
+]][[**💡 Why this task needs it**
 {{reason}}
 
 ]][[**🗂 Task**
@@ -63,7 +61,9 @@ One skeleton for every kind: the title of the kind, the question, then each fiel
 {{context}}
 
 ]][[**✅ How to answer**
-{{how-to-answer}}]]
+{{how-to-answer}}
+
+]][[{{refusal}}]]
 ```
 
 # Contract
@@ -72,7 +72,7 @@ One skeleton for every kind: the title of the kind, the question, then each fiel
 - rule: `{{kind-title}}` is the title line of the template of the call's kind, filled as that template fills it: its icon and word, the question's number where it shares a thread, and the revised mark on the question asked again, changed.
 - rule: Required: `{{question}}`. Every other field is shown where the call gave it, under its own heading, in this order, whatever the kind. Which fields a kind needs is decided by the tool, as for the tool of that kind.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
-- rule: `{{refused-call}}` is the part of that name in the template of the call's kind (its `# Parts`), filled exactly as that kind's own post has it. Only a permission's template has it, so the refused call is shown for a permission and for no other kind, and it is shown whole even where its refusal record leaves a value empty.
+- rule: `{{refusal}}` is the part of that name in the template of the call's kind (its `# Parts`), filled exactly as that kind's own post has it: the id of the refusal record, on the last line of the post. Only a permission's template has it, so the refusal is shown for a permission and for no other kind.
 - rule: A part of the kind's template that carries the name of a field stands where this skeleton shows that field. A permission's template has two: its `{{question}}` is the line made from the refused call, never the asker's words, and its `{{reason}}` is the question as the asker worded it, then the reason. So a permission under the second name leads with the refused call too, and no other kind is changed.
 - rule: `{{options}}`, `{{how-to-answer}}`, the emoji placed under the post, the marks and the returned hint are those of the template of the call's kind, by its answer form, exactly as a call of that kind's own tool has them.
 - rule: A post that no longer takes an answer is this same text without its `How to answer` group, as for the tool of its kind.

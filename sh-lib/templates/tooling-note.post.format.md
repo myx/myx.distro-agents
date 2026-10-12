@@ -5,7 +5,7 @@ maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — these are the fixed texts of the short lines the tooling posts on its own, in the thread each belongs to: that a member was brought into a session, and what was done about an ask after it was asked. The tooling fills a line's slots and sends it through the member send, so it names its sender and its addressee as every member message does. None of them is an ask: an ask is posted from the template of its own tool. None is an event-track post.
+Not a member/routine contract — these are the fixed texts of the short lines the tooling posts on its own, in the thread each belongs to: that a member was brought into a session, that a member's run ended with nothing handed back or with a question of its own still open, and what was done about an ask after it was asked. The tooling fills a line's slots and sends it through the member send, so it names its sender and its addressee as every member message does. None of them is an ask: an ask is posted from the template of its own tool. None is an event-track post.
 
 ## Contents
 
@@ -14,6 +14,8 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - Scope
 - Session
   - joined
+  - handback-missing
+  - question-open
 - Ask
   - readback
   - withdrawn
@@ -49,6 +51,18 @@ What the tooling says in a session's thread about the session itself.
 
 ```
 {{member}} joined[[: {{description}}]]
+```
+
+## handback-missing
+
+```
+📦 {{member}} ended its run[[ `{{run}}`]] and posted no handback. What it did is not reported in this thread.
+```
+
+## question-open
+
+```
+❓ {{member}} ended its run[[ `{{run}}`]] and left questions of its own open: {{count}}. Each one stays open and can still be answered.
 ```
 
 # Ask
@@ -114,6 +128,8 @@ an earlier date
 - rule: Who a line is addressed to is settled by the operation that posts it, and is named by the send, in the author line of the message. Every block is given that addressee as `{{address-to}}` wherever the operation names one, so a line that speaks to its addressee names it by that slot, never by a name written here.
 - rule: A slot outside `[[ … ]]` is required. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines. No field is ever shown as a placeholder. A line that cannot be filled is not posted, and the operation says so on stderr.
 - rule: `## joined` under `# Session` is posted by the team bot in a session's thread for every member brought into it, but not for the one whose own session the thread is: `{{member}}`, the member brought in, and `{{description}}`, what it was brought in for, as its spawn said.
+- rule: `## handback-missing` is posted by the team bot in a session's thread when the run of a member in it ends with no `SubagentHandback` call seen in its output, after the one retry that asks it for one: `{{member}}`, the member whose run it is, and `{{run}}`, the first 8 characters of that run's id. It is addressed to the member that brought that one in, where the send can address it, and to nobody where there is none, never to the member it is about. It is a message, never a tracking post: the box that tracks the same fact goes to the session's tracking thread, and only there (`event-track.post.format.md`, `handback`).
+- rule: `## question-open` is posted the same way when a run ends and at least one question it asked is still open: `{{count}}`, how many. The box that lists them goes to the session's tracking thread, and only there (`event-track.post.format.md`, `notice`).
 - rule: `## readback` is posted in the thread of a decision, or of a question with an answer form, by its asker, under the identity the question was asked with, when the asker closes it with its own reading of a reply that named none of the answers: `{{member}}`, the asker; `{{option}}`, the answer it takes the reply to mean; `{{text}}`, what it understood, where it said so.
 - rule: `## withdrawn` is posted in the thread of a question its asker discarded, under the identity the question was asked with: `{{member}}`, the asker, and `{{reason}}`, why, as the asker gave it.
 - rule: `## reminder` is posted in the thread of an ask still waiting for its answer, under the identity it was asked with: `{{asked}}`, when it was asked, a Slack date token so each reader sees it in their own timezone, else the `## asked-earlier` words under `# Words` where the record names no time; `{{number}}`, which reminder this is; and `{{question}}`, the question as it was asked, quoted, left out with its line break where the record holds none.

@@ -24,6 +24,10 @@
 # field as it was given.
 # Nothing here knows which templates exist: a template is whatever file is named, and a form
 # whatever heading it carries.
+# A form may have a block of its own for a post that carries one more field: a heading
+# `<form>, with <slot>` beside the form's own, under `# Answers` and under `# Reactions`,
+# taken where that slot has a value. So what a post offers follows what it was filled with,
+# and the form keeps its one name.
 # The number marks are fixed here, with the names the verdict reader takes a click by
 # (AgentsEscalationVerdict.awk): the keycaps one to ten. An option past the tenth is numbered
 # in plain digits and has no emoji.
@@ -44,6 +48,16 @@ function askFail( code, text ) {
 
 function askMark( number ) {
 	return ( number <= 10 ? askMarks[number] : number "." ) ;
+}
+
+## The block of a form under one section: the one headed `<form>, with <slot>` where the
+## template has it and that slot has a value, else the form's own.
+function askFormKey( section, formName,    formKey, withHead ) {
+	withHead = section SUBSEP formName ", with " ;
+	for ( formKey in ttHas ) {
+		if ( index( formKey, withHead ) == 1 && ttSlot( substr( formKey, length( withHead ) + 1 ) ) != "" ) { return formKey ; }
+	}
+	return section SUBSEP formName ;
 }
 
 BEGIN {
@@ -83,7 +97,7 @@ BEGIN {
 	}
 
 	## A form whose emoji are its numbers shows its options numbered.
-	reactKey = "Reactions" SUBSEP form ;
+	reactKey = askFormKey( "Reactions", form ) ;
 	numbered = ( ( reactKey in ttHas ) && index( ttBlock[reactKey], "{{numbers}}" ) > 0 ) ;
 	numberNames = "" ;
 	for ( optionNo = 1 ; optionNo <= optionTotal && optionNo <= 10 ; optionNo++ ) {
@@ -130,7 +144,7 @@ BEGIN {
 	askSlot["how-to-answer"] = "" ;
 	if ( want == "post" ) {
 		answerKey = "Answers" SUBSEP form ", recommended" ;
-		if ( ! recommended || ! ( answerKey in ttHas ) ) { answerKey = "Answers" SUBSEP form ; }
+		if ( ! recommended || ! ( answerKey in ttHas ) ) { answerKey = askFormKey( "Answers", form ) ; }
 		if ( ! ( answerKey in ttHas ) ) { askFail( 3, "the template has no `## " form "` block under `# Answers`: " template ) ; }
 		askSlot["how-to-answer"] = ttFill( ttBlock[answerKey] ) ;
 		if ( askSlot["how-to-answer"] == "" ) { askFail( 3, "the `## " form "` block under `# Answers` is empty: " template ) ; }

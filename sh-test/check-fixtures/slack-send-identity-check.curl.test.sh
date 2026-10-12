@@ -23,6 +23,16 @@ if [ "$rigMethod" = "chat.postMessage" ] && [ -s "$RIG_SCENARIO/post-exits" ] ; 
 		exit "$rigExit"
 	fi
 fi
+## A scenario can have successive posts answered by Slack with an error, one error name per
+## line; a line `ok` is a post that goes through.
+if [ "$rigMethod" = "chat.postMessage" ] && [ -s "$RIG_SCENARIO/post-errors" ] ; then
+	rigError="$( head -1 "$RIG_SCENARIO/post-errors" )"
+	tail -n +2 "$RIG_SCENARIO/post-errors" > "$RIG_SCENARIO/post-errors.next" && mv "$RIG_SCENARIO/post-errors.next" "$RIG_SCENARIO/post-errors"
+	if [ "$rigError" != "ok" ] ; then
+		printf '{"ok":false,"error":"%s"}\n' "$rigError"
+		exit 0
+	fi
+fi
 case "$rigToken" in
 	rig-bot-*) rigUser="URIGBOT01" ;;
 	*) rigUser="URIG${rigToken##*-}" ;;

@@ -120,7 +120,7 @@ rigRun
 rigAssert "it runs, rc 0"                                 "$rigRc" 0
 rigAssert "no code call was made"                         "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/scenario/code.log" )" 0
 rigAssert "the copy holds its payload"                    "$( ls -A "$rigHome" | LC_ALL=C sort | tr '\n' ' ' )" \
-	".payload-sum extension.js instructions.md magic-team.basic.md package.json the-conclave.mark.svg "
+	".payload-sum extension.js instructions.md magic-team.basic.md package.json panel.js the-conclave.mark.svg "
 rigAssert "the team text copy matches its source"         "$( cmp -s "$rigHome/magic-team.basic.md" "$rigBasic" && echo same || echo differs )" same
 rigAssert "every listed folder links to it"               "$( rigResolving )" 3
 rigAssert "the workspace root also links to it"           "$( [ -L "$rigWs/.vscode/extensions/magic-team-panel" ] && [ "$( cd "$rigWs/.vscode/extensions/magic-team-panel" && pwd -P )" = "$( cd "$rigHome" && pwd -P )" ] && echo resolves || echo other )" resolves

@@ -113,15 +113,17 @@ rigThreadOf(){ ## fixed text
 	[ -n "$threadFile" ] || { printf 'not-posted' ; return 0 ; }
 	LC_ALL=C awk -v path=thread_ts -v optional=1 -f "$rigHere/AgentsHarnessJsonField.awk" < "$threadFile" 2>/dev/null
 }
-## The header the member send writes, with no row in the names registry: the plain names.
+## The header the member send writes, with no row in the names registry: each member by its
+## member name, said once, with the default icon of its prefix group, which for a member of
+## this rig is the one of a member of no listed group.
 rigTo(){ ## from, the addressees as the header says them
-	printf '*_%s_* @%s → %s.' "$1" "$1" "$2"
+	printf '🤖 *_%s_* → %s.' "$1" "$2"
 }
 rigNamed(){ ## member
-	printf '*_%s_* @%s' "$1" "$1"
+	printf '🤖 *_%s_*' "$1"
 }
 ## The human-owner as the send names him, which is the header of every ask addressed to him.
-rigOwner='*_human-owner_* <@URIGOWNER>'
+rigOwner='👤 *_human-owner_* <@URIGOWNER>'
 
 echo "-- the note that a question is withdrawn carries the addressee of the question --"
 rigStart withdrawOwner

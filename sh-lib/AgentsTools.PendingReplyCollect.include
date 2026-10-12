@@ -21,6 +21,7 @@
 ##   OPEN <id> <tag> | <question first line>                   -- nothing yet
 ##   UNREADABLE <id> <tag> | <why>                             -- nothing is known; stays open
 ##   ALREADY-CLOSED <id> <status>                              -- closed by another closer first
+##   DROPPED <id> <tag> | <question first line>                -- a held change, at its session's end
 ## then `COLLECT: answered=<n> unmatched=<n> open=<n> unreadable=<n>`.
 ##
 
@@ -121,6 +122,15 @@ AgentsToolsPendingReplyCollectOne(){ ## record file
 		esac
 	done < <( AgentsToolsPendingReplyCollectFields "$oneFile" )
 	[ "$oneStatus" = "reply-pending" ] || { collectOutcome="SKIPPED" ; return 0 ; }
+	## A held change is its session's own: at that session's end (collectMark) it is dropped, never
+	## left for an approval nobody is there to hear (AgentsTools.InternOpChange.include).
+	if [ "$oneKind" = "change" ] && [ -n "${collectMark:-}" ] ; then
+		type AgentsChangeDrop > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpChange.include"
+		AgentsChangeDrop "$oneFile" "$oneId" tooling "the session that made it has ended"
+		collectOutcome="DROPPED"
+		printf 'DROPPED %s %s | %s\n' "$oneId" "${oneTag:--}" "$oneFirst"
+		return 0
+	fi
 	## A readback, decision or permission is read only for a session that is gone (collectTyped,
 	## set by the main loop's pass): its verdict is read and applied by the escalation op, the one
 	## place that does it, exactly as the asking session's own wait would have.

@@ -25,7 +25,10 @@
 ##   <header>
 ##   store   <dir>                                   each store, for the freshness test
 ##   ceiling <pattern> <read-only|read-write> <place> <path>   deepest first
-##   allow   " <tools> " <pattern> <floor|standing>
+##   approve " <tools> " <pattern> <standing> <origin>   ahead of every allow row: a call one
+##           covers is held for approval, unless a session, runs, task or once row admits it
+##   allow   " <tools> " <pattern> <floor|standing> <origin>   the origin as the grants index
+##           notes it, `floor` or <workspace>:<kind>; none for the session's own floor rows
 ##   session <tool> <pattern> <ref> <store>
 ##   runs    <tool> <pattern> <ref> <item> <coworking session store, or ->
 ##   task    <tool> <pattern> <item>
@@ -36,6 +39,9 @@
 ## store whose session has ended. A once row's expiry, a once row's use, a task's item and a
 ## session row's end are checked at the call. A runs row is a session grant of one of the
 ## member's other runs on the same item: its item and that session's end are checked there too.
+## An approve row is the member's own approve row of the grants index, a write by approval: the
+## tools it holds for approval are Edit and Write. It stands ahead of the allow rows, since no
+## floor or standing row admits a call it covers.
 ##
 ## -v mode=list (--intern-op-permission-list): the member's effective grants instead, one row
 ## each, TAB-separated: kind, read|write|<tool>, target, place (name:relative, or -), origin,
@@ -47,7 +53,7 @@
 
 BEGIN {
 	FS = "\t" ; OFS = "\t" ; ok = 0 ; rowCount = 0
-	readTools = " Read Grep Glob " ; writeTools = " Read Edit Write Execute Grep Glob "
+	readTools = " Read Grep Glob " ; writeTools = " Read Edit Write Execute Grep Glob " ; approveTools = " Edit Write "
 	fileTools = writeTools
 	n = split( ENVIRON["agentsGrantsEnded"], endedList, "\n" )
 	for ( i = 1 ; i <= n ; i++ ) if ( endedList[i] != "" ) endedStore[endedList[i]] = 1
@@ -77,8 +83,9 @@ FNR == 1 && NR == 1 { if ( index( $0, "myx.distro grants.index " ) != 1 ) exit 1
 NR == FNR {
 	if ( $1 == "*" && $2 == "ceiling" ) { ceilingRow[++ceilingCount] = $4 OFS $5 OFS $6 OFS substr( $3, 1, length( $3 ) - 3 ) ; next ; }
 	if ( $1 != member ) next
-	if ( $2 == "read" ) allowRow[++allowCount] = readTools OFS $4 OFS $5
-	else if ( $2 == "write" ) allowRow[++allowCount] = writeTools OFS $4 OFS $5
+	if ( $2 == "read" ) allowRow[++allowCount] = readTools OFS $4 OFS $5 OFS $6
+	else if ( $2 == "write" ) allowRow[++allowCount] = writeTools OFS $4 OFS $5 OFS $6
+	else if ( $2 == "approve" ) approveRow[++approveCount] = approveTools OFS $4 OFS $5 OFS $6
 	if ( mode == "list" ) listStanding()
 	next
 }
@@ -196,9 +203,9 @@ function itemOpen( name,    states, count, i ) {
 	return 0
 }
 
-## A floor, standing read or write, or standing tool row of the grants index.
+## A floor, standing read or write, standing write by approval, or standing tool row of the grants index.
 function listStanding(    what, glob, colon ) {
-	if ( $2 == "read" || $2 == "write" ) { listRow[++listCount] = $5 OFS $2 OFS $3 OFS placeHint( $3 ) OFS ( $5 == "floor" ? "floor" : $6 ) OFS "none" ; return ; }
+	if ( $2 == "read" || $2 == "write" || $2 == "approve" ) { listRow[++listCount] = $5 OFS $2 OFS $3 OFS placeHint( $3 ) OFS ( $5 == "floor" ? "floor" : $6 ) OFS "none" ; return ; }
 	if ( $2 != "tool" ) return
 	what = $3 ; glob = "*" ; colon = index( what, ":" )
 	if ( colon ) { glob = substr( what, colon + 1 ) ; what = substr( what, 1, colon - 1 ) ; }
@@ -236,6 +243,7 @@ END {
 	n = split( stores, storeList, "\n" )
 	for ( i = 1 ; i <= n ; i++ ) if ( storeList[i] != "" ) print "store", storeList[i]
 	for ( i = 1 ; i <= ceilingCount ; i++ ) print "ceiling", ceilingRow[i]
+	for ( i = 1 ; i <= approveCount ; i++ ) print "approve", approveRow[i]
 	for ( i = 1 ; i <= allowCount ; i++ ) print "allow", allowRow[i]
 	if ( sandboxIn != "" ) print "allow", readTools, grantsGlobPattern( sandboxIn "/**" ), "floor"
 	if ( sandboxOut != "" ) print "allow", writeTools, grantsGlobPattern( sandboxOut "/**" ), "floor"

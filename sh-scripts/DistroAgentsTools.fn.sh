@@ -40,8 +40,12 @@ DistroAgentsTools(){
 	## Every --magic-* op is magic-coordinator's, or the console's (AgentsToolsMagicCallerCheck).
 	## One the skillset documents for any member stays open until the human-owner rules on its
 	## name: MAGIC.md, "Who may call".
+	## A --client-* op naming a client is that client's own session's, or the console's
+	## (AgentsToolsClientCallerCheck): one rule for the whole family, asked here and in no
+	## stub. magic-coordinator's own way to one is a --magic-* op, --magic-client-operation-run.
 	case "$1" in
 		--magic-*) AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
+		--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;
 	esac
 
 	## A --client-* op reaches the other organisation of the client-* member it names. The
@@ -129,6 +133,13 @@ DistroAgentsTools(){
 
 		--magic-comms-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicComms.include"
+			return $?
+		;;
+
+		## One --client-* op, run as the client-* member it names: magic-coordinator's own way
+		## to the other organisation.
+		--magic-client-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MagicClient.include"
 			return $?
 		;;
 
@@ -255,6 +266,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The retest queue: what a session asks to have tested again, the tester's batch of it, and a request's outcome.
+		--member-retest-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberRetest.include"
+			return $?
+		;;
+
 		--member-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Member.include"
 			return $?
@@ -349,6 +366,12 @@ DistroAgentsTools(){
 
 		--intern-op-pending-reply-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPendingReply.include"
+			return $?
+		;;
+
+		## A change held for the human-owner's approval: kept, shown to him, applied on his verdict.
+		--intern-op-change-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpChange.include"
 			return $?
 		;;
 

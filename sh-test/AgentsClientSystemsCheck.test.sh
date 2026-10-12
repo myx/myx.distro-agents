@@ -229,7 +229,7 @@ done
 rigPre=( MDAT_SPAWN_AGENT=client-mel MDAT_SPAWN_SESSION_ID=rig-session-client )
 for rigOp in --client-comms-email-check --client-comms-trello-whoami --client-comms-google-whoami ; do
 	rigRun "$rigOp" client-ndm
-	rigAssert "$rigOp from a spawned session names only that session's own member" "$rigRc $( rigN "$rigTmp/err" 'this session acts as client-mel, so it cannot act as client-ndm' ) $( rigLines "$rigTmp/calls" )" "1 1 0"
+	rigAssert "$rigOp from a session of another client is refused: a --client-* operation is the named client's own session's alone" "$rigRc $( rigN "$rigTmp/err" "this session acts as client-mel, and a --client-* operation in the name of client-ndm is for client-ndm's own session only -- nothing was done: ask the session's magic-coordinator, which can run it as client-ndm" ) $( rigLines "$rigTmp/calls" )" "1 1 0"
 done
 rigPre=()
 for rigOp in --client-comms-email-bogus --client-comms-trello-bogus --client-comms-google-bogus ; do
@@ -251,13 +251,19 @@ rigAssert "a member of ours with no mailbox is told its own scope is not set, as
 rigRun --member-comms-jira-board-list keeper-none
 rigAssert "and in Jira it is the designed refusal that names the missing settings, as before" "$rigRc $( rigN "$rigTmp/err" 'JIRA_SITE' ) $( rigN "$rigTmp/err" 'on our own organisation' ) $( rigLines "$rigTmp/calls" )" "6 1 0 0"
 
-echo "-- 6. the coordinator acting as a client stays on the client side, as it was --"
+echo "-- 6. magic-coordinator reaches the client side through --magic-client-operation-run; a --magic-comms-* operation given a client is our own side --"
+rigRun --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm 41
+rigAssert "its mark of a message as client-ndm, through its own operation, is in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
 rigRun --magic-comms-email-mark-seen client-ndm 41
-rigAssert "its mark of a message as client-ndm is in the mailbox the client holds" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3, $4, $5 }' "$rigTmp/calls" )" "0 imap imap-ndm.invalid us@ndm.invalid UID STORE"
+rigAssert "the --magic-comms- mark given a client is our own side, where a client holds no mail settings: the one line, naming --magic-client-operation-run, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --member-comms-email-mark-seen: client-ndm has no mail settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --magic-client-operation-run magic-coordinator --client-comms-email-mark-seen client-ndm." )" "1 0 1"
 rigRun --magic-comms-email-mark-seen keeper-here 41
 rigAssert "control: as a member of our own team it is that member's mailbox" "$rigRc $( LC_ALL=C awk '{ print $1, $2, $3 }' "$rigTmp/calls" )" "0 imap imap-keeper.here.invalid us@keeper.here.invalid"
+rigRun --magic-client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
+rigAssert "its Trello comment as client-ndm, through its own operation, is under the account the client holds" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-NDM"
 rigRun --magic-comms-trello-post-comment client-ndm 5f0000000000000000000c01 'Rig comment.'
-rigAssert "its Trello comment as client-ndm is under the account the client holds" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-NDM"
+rigAssert "the --magic-comms- comment given a client is our own side, where a client holds no Trello settings: the one line, naming --magic-client-operation-run, and no call" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --magic-comms-trello-post-comment: client-ndm has no Trello settings on our own organisation's side: what it holds is the other organisation's. For the other organisation use --magic-client-operation-run magic-coordinator --client-comms-trello-post-comment client-ndm." )" "1 0 1"
+rigRun --magic-comms-trello-post-comment keeper-here 5f0000000000000000000c01 'Rig comment.'
+rigAssert "control: as a member of our own team it is posted under that member's own account, as before" "$rigRc $( rigCalls )" "0 trello cards/5f0000000000000000000c01/actions/comments rig-trello-key-KHERE"
 
 echo "-- 7. a client's own sweep reads what the client holds, and a scan with no marker reads none of it --"
 rigRun --client-sweep-input-scan client-ndm
@@ -272,7 +278,7 @@ rigAssert "control: and of a member of ours that holds none says its own scope i
 
 echo "-- 8. help --"
 rigRun --member-help client-ndm
-rigAssert "a client is offered the client operations of mail, Trello and Google, and the presence and socket ones of Slack" "$rigRc $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-email-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-trello-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-google-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-slack-presence-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-slack-socket-' )" "0 6 3 11 3 3"
+rigAssert "a client is offered the client operations of mail, Trello and Google, and the presence and socket ones of Slack" "$rigRc $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-email-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-trello-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-google-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-slack-presence-' ) $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-slack-socket-' )" "0 6 6 11 3 3"
 rigRun --member-help keeper-here
 rigAssert "control: a member that is no client is offered none of them" "$rigRc $( rigN "$rigTmp/out" 'DistroAgentsTools.fn.sh --client-comms-' )" "0 0"
 for rigFamily in email trello google ; do
@@ -290,7 +296,7 @@ rigAssert "every file of the package that reads a member's own mail, Trello or G
 rigAssert "control: the same search does find files that read them" "$( for rigFile in "$rigHere"/*.include ; do LC_ALL=C grep -q -E -e '--agents-config-option "\$[A-Za-z]*" --select (EMAIL_APP_PASSWORD|TRELLO_TOKEN|GOOGLE_REFRESH_TOKEN)' "$rigFile" && printf 'x' ; done | LC_ALL=C awk '{ print ( length( $0 ) >= 4 ) ? "found" : "blind" }' )" found
 rigAssert "the one reader of a member's Jira and Confluence settings asks it before it reads them" "$( LC_ALL=C awk '/AgentsToolsCommsOwnSettingsApply "\$actingMember"/ && ! asked { asked = NR } /--select "\$\{keyPrefix\}_SITE"/ && ! read { read = NR } END { print ( asked && read && asked < read ) ? "asked-first" : "not" }' "$rigHere/AgentsTools.InternOpAtlassianCall.include" )" asked-first
 rigAssert "a client's own document stays where its own settings name it: the publish says the client side itself, once" "$( LC_ALL=C grep -c -F -e 'client-*) local -x MDAT_COMMS_SIDE=client ;;' "$rigHere/AgentsTools.InternArtifact.include" || : )" 1
-rigAssert "and the coordinator acting as a client says it for every system, once" "$( LC_ALL=C grep -c -F -e '--magic-comms-*:client-*) local -x MDAT_COMMS_SIDE=client ;;' "$rigHere/AgentsTools.MagicComms.include" || : )" 1
+rigAssert "a --magic-comms-* operation says our own side itself, once, whoever the member it is given is, and none says the client side" "$( LC_ALL=C grep -c -F -e 'local -x MDAT_COMMS_SIDE=client' "$rigHere/AgentsTools.MagicComms.include" || : ) $( LC_ALL=C grep -c -F -e '--magic-comms-*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;' "$rigHere/AgentsTools.MagicComms.include" || : )" "0 1"
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CLIENT SYSTEMS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
 fi

@@ -228,6 +228,20 @@ case "$1" in
 			return 0
 		}
 
+		## The spawn of the pass this loop started last, by its id: the newest spawn record that
+		## carries this loop's own receipt. The spawn proxy runs in this loop's own process, so the
+		## receipt it writes (`execution-receipt: spawn-proxy-<UTC stamp>-<pid>`) ends with this
+		## process's id, and nothing a pass spawns itself does. A pass that was ended leaves no
+		## status lines, so its record is how its session is known. Prints nothing for none.
+		AgentsToolsMainLoopPassSpawn() {
+			local passRecord=""
+			passRecord="$( LC_ALL=C grep -H -E "^execution-receipt: spawn-proxy-[0-9TZ]+-$$\$" "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null \
+				| LC_ALL=C awk -F': ' '{ if ( $NF > newest ) { newest = $NF ; record = $1 ; } } END { sub( /:execution-receipt$/, "", record ) ; print record ; }' )" || passRecord=""
+			[ -n "$passRecord" ] && [ -f "$passRecord" ] || return 0
+			passRecord="${passRecord##*/}"
+			printf '%s' "${passRecord%.md}"
+		}
+
 		## One root-harness-routine start, spawn to reaped child, leaving the child's status in $spawnRc.
 		AgentsToolsMainLoopIteration() {
 			mainLoopPassTimedOut=""
@@ -316,12 +330,25 @@ case "$1" in
 				## The time as a Slack date token, so each reader sees it in their own timezone
 				## (AgentsTools.SlackDate.include); a moment the helper cannot read stays as it was.
 				type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
-				DistroAgentsTools --intern-op-event-track-post magic-coordinator event-track --kind error \
+				## A tracking post about the pass that timed out, so it goes into the tracking thread of
+				## that pass's own session, a reply there as every other is (AgentsToolsEventTrackThreadPost),
+				## never a post of its own at the top of event-track. Only a pass that ended before its
+				## spawn was recorded has no session to post into, and its post opens a thread by itself.
+				local passSpawn="" passPost=()
+				passSpawn="$( AgentsToolsMainLoopPassSpawn )" || passSpawn=""
+				passPost=( --kind error ${passSpawn:+--session-id "$passSpawn"} \
 					--field what="Heartbeat pass timed out after ${passTimeoutSeconds}s" \
 					--field detail="ended by TERM then KILL, process group; its lock is left for the next pass's stale-lock recheck" \
 					--field host="$( hostname -s 2>/dev/null || echo unknown )" \
-					--field at="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null || date +"%Y-%m-%d %H:%M %z" )" > /dev/null 2>&1 \
-					|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to event-track" >&2
+					--field at="$( AgentsToolsSlackDateToken "$( date +%s )" date-time 2> /dev/null || date +"%Y-%m-%d %H:%M %z" )" )
+				if [ -n "$passSpawn" ] ; then
+					type AgentsToolsEventTrackThreadPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include" 2> /dev/null || :
+					AgentsToolsEventTrackThreadPost magic-coordinator "$MMDAPP/.local/agents/sessions/$passSpawn" "${passPost[@]}" < /dev/null > /dev/null 2>&1 \
+						|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to the tracking thread of the pass $passSpawn" >&2
+				else
+					DistroAgentsTools --intern-op-event-track-post magic-coordinator event-track "${passPost[@]}" > /dev/null 2>&1 \
+						|| echo "# $MDSC_CMD --intern-main-loop: the timeout could not be posted to event-track" >&2
+				fi
 			fi
 			## Nothing may sit between a wait and its spawnRc above: any diagnostic there
 			## becomes what $? reports. Everything below runs once the status is already held.

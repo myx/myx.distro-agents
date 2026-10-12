@@ -163,8 +163,8 @@ function whoIs(id,   raw, nl, i, f) {
 
 ## Who a message is from and who it is for, so no reader parses the header itself.
 ## The team's own send writes one header line ahead of the body:
-##   [<mark> ]*_<from>_* @<alias> → <addressee>[; <addressee>]...<.>
-## where each addressee is `[<mark> ]*_<member>_* <handle>`, `<@U…>`, `<#C…>`, or the
+##   [<mark> ]*_<from>_*[ @<alias>] → <addressee>[; <addressee>]...<.>
+## where each addressee is `[<mark> ]*_<member>_*[ <handle>]`, `<@U…>`, `<#C…>`, or the
 ## whole field is `@here` -- addressed to nobody in particular. Sets hdrAuthor and
 ## hdrAddressees; both empty when the text carries no such header.
 function readHeader(text,   arrow, fromPart, toPart, endPos, n, parts, k, entry, nm, out) {

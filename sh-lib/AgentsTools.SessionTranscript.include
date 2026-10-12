@@ -192,6 +192,8 @@ AgentsTranscriptOutcomeOf(){ ## result, preset outcome (optional), first line (o
 				*) printf 'error' ;;
 			esac
 		;;
+		## A change held for approval: neither refused nor applied.
+		HELD:*) printf 'held' ;;
 		*) printf 'ok' ;;
 	esac
 }

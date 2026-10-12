@@ -5,7 +5,7 @@ maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the fixed text of the decision a member posts with `EscalateDecision`. The tool fills its slots and sends it through the member send: as that member's own message, or as the team bot's when it is asked of the human-owner by a member that has no Slack account of its own. It is not an event-track post.
+Not a member/routine contract — this is the fixed text of the decision a member posts with `EscalateDecision`. The tool fills its slots and sends it through the member send: as that member's own message, or as the team bot's when it is asked of the human-owner. It is not an event-track post.
 
 ## Contents
 
@@ -81,16 +81,18 @@ The lines under `How to answer`.
 ## one
 
 ```
-- reply with the first word of the option you choose
-- or click its number, or reply with the number
+- click the number of your choice
+- or reply with its number, or with the first word of the option
+- the word first; a comment after a comma, or on the next lines
 ```
 
 ## one, recommended
 
 ```
-- reply with the first word of the option you choose
-- or click its number, or reply with the number
-- or reply `ok` (or react with :+1:) to take the recommended option
+- click the number of your choice
+- or reply with its number, or with the first word of the option
+- the word first; a comment after a comma, or on the next lines
+- or reply `ok` (or add 👍) to take the recommended option
 ```
 
 # Reactions
@@ -152,7 +154,7 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 
 # Contract
 
-- rule: The post is the one fenced block under `## post`, sent through the member send as the asking member's own message. Asked of the human-owner (`to` is `human-owner`) by a member that has no Slack account of its own, it is the team bot's message, whatever `as_bot` says: that member's own send to the owner would go out under another member's account, in a conversation where the bot can place no answer emoji. It then stands in the bot's own conversation with the owner, as a permission does, and its record says `ask-identity: bot`, so its answer emoji and every later read, edit and reminder are the bot's too. It names its addressee as every member message does.
+- rule: The post is the one fenced block under `## post`, sent through the member send as the asking member's own message. Asked of the human-owner (`to` is `human-owner`), it is the team bot's message, whoever asks and whatever `as_bot` says: the owner is asked in one place, never in the conversation of whichever account asks. It then stands in the bot's own conversation with the owner, as a permission does, and its record says `ask-identity: bot`, so its answer emoji and every later read, edit and reminder are the bot's too. It names its addressee as every member message does.
 - rule: Required: `{{question}}` and `{{options}}`. Optional: `{{tag}}`, the question's number where it shares a thread, and `{{context}}`. `{{how-to-answer}}` is filled from `# Answers` on every post that takes an answer.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: `{{options}}` is one line per option, in the order given, each by the `## numbered` line. `{{option}}` is the option as given, a leading `- ` dropped. `{{number}}` is its number as a keycap emoji, 1️⃣ to 🔟. An option past the tenth is numbered in plain digits.

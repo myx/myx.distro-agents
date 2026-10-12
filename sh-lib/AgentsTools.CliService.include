@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.CliService.include -- what the tooling knows of a CLI service a session runs
+## on, where the fact is the service's own whatever the workspace. Sourced, never run.
+## Functions only.
+##
+## THE WAIT ROUND. A wait of a session that brings nothing comes back a little sooner than
+## the prompt cache of its CLI service expires, so the turn that goes on waiting reads the
+## session's whole history from that cache. Coming back later, it pays for that history
+## again, uncached, at every wake. The length of that round is one number a service, in
+## seconds, kept here and nowhere in the wait code.
+## SAFE IS SHORT: a service whose cache lifetime is not known for sure takes the round of a
+## five-minute cache, so a wake is never later than the cache lives.
+## One setting overrides it for a whole workspace, whatever the service: WAIT_ROUND_SECONDS
+## (AgentsTools.OwnerSetupOptionSpec.include).
+## Not built: a round per model or per preset. It would be one more argument of
+## AgentsToolsCliServiceWaitRound, looked up ahead of the service's own number.
+##
+
+## The round of each service whose cache lifetime is known, `<service>:<seconds>`.
+##   claude-native   by the recorded rounds of its sessions in this estate (the audit
+##                   transcripts of 2026-10-10 to 12): after 5.5 to 50 minutes idle every
+##                   round read its history from the cache, 41 of 41, and the first that
+##                   did not came after 54 minutes. So three quarters of an hour.
+agentsCliServiceWaitRounds="claude-native:2700"
+## The safe round, of every other service: four and a half minutes, under a five-minute cache.
+agentsCliServiceWaitRoundSafe=270
+
+## The CLI service a session runs on: the name its launcher wrote into the session's own
+## store (the launch marker, MDAT_SPAWN_LAUNCH_MARKER). A session the tooling did not launch
+## has none: the vendor claude CLI names its own session in its environment
+## (CLAUDE_CODE_SESSION_ID), which is that same service, and of any other root session the
+## service is not known, so nothing is printed.
+AgentsToolsCliServiceOfSession(){ ## session id
+	local serviceLine=""
+	case "$1" in ''|*/*|.|..) return 0 ;; esac
+	if [ ! -s "$MMDAPP/.local/agents/sessions/$1/launch" ] ; then
+		[ "${CLAUDE_CODE_SESSION_ID:-}" != "$1" ] || printf 'claude-native'
+		return 0
+	fi
+	IFS= read -r serviceLine < "$MMDAPP/.local/agents/sessions/$1/launch" || :
+	case "$serviceLine" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 0 ;; esac
+	printf '%s' "$serviceLine"
+}
+
+## The wait round of a service, in whole seconds: the workspace's own setting where it is a
+## whole number of one second or more, else the service's, else the safe one.
+AgentsToolsCliServiceWaitRound(){ ## cli service (empty: not known)
+	local roundSet="" roundOne
+	roundSet="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WAIT_ROUND_SECONDS 2> /dev/null )" || roundSet=""
+	case "$roundSet" in
+		''|0|*[!0123456789]*) ;;
+		*) printf '%s' "$roundSet" ; return 0 ;;
+	esac
+	for roundOne in $agentsCliServiceWaitRounds ; do
+		[ -n "$1" ] && [ "${roundOne%%:*}" = "$1" ] || continue
+		printf '%s' "${roundOne#*:}"
+		return 0
+	done
+	printf '%s' "$agentsCliServiceWaitRoundSafe"
+}

@@ -211,25 +211,60 @@ AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may
 	return 1
 }
 
+## What the tooling itself tells the participants of a session, in its session thread, about
+## the run of one of them: one message, its text the note template's
+## (sh-lib/templates/tooling-note.post.format.md, `# Session`), sent through the member send
+## as the team bot in the name of the member it is about, and addressed to the member that
+## brought that one in, where that is known. Never a tracking post: the box that tracks the
+## same fact goes to the tracking thread, by its caller. Silent with no session thread. Never
+## fails the spawn: one stderr warning at most.
+AgentsToolsSpawnProxySessionNotice(){ ## session thread, the member it is about, whom it is told (may be empty), line (a heading under `# Session`), count (may be empty)
+	local noticeThread="$1" noticeMember="$2" noticeTell="" noticeName="$4" noticeText="" noticeArgs
+	[ -n "$noticeThread" ] || return 0
+	noticeArgs=( "$noticeMember" "$noticeThread" --identity-bot )
+	## Addressed to the member that brought it in, where the send can address it, and to nobody
+	## where there is none: never to the member it is about, whose run has ended.
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	if [ -n "${3:-}" ] && [ "$3" != "$noticeMember" ] && AgentsToolsAssertBareName "$3" "the spawning member" agent-spawn-proxy 2> /dev/null \
+		&& AgentsToolsTeamMemberDirectory "$3" > /dev/null 2>&1 ; then
+		noticeTell="$3"
+		noticeArgs=( "${noticeArgs[@]}" --address-to "$noticeTell" )
+	fi
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+	noticeText="$( ASKP_BLOCK="Session/$noticeName" ASKP_F_member="$noticeMember" ASKP_F_run="${MDAT_SPAWN_SESSION_ID:0:8}" ASKP_F_count="${5:-}" ASKP_F_address_to="$noticeTell" \
+		AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || noticeText=""
+	if [ -z "$noticeText" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line could not be filled from sh-lib/templates/tooling-note.post.format.md, so the session thread $noticeThread was not told" >&2
+		return 0
+	fi
+	printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not posted in the session thread $noticeThread" >&2
+	return 0
+}
+
 ## A question, a finding needing confirmation or a refusal is never only left in a log --
 ## the member hands back instead. A spawn whose process ended with no SubagentHandback call
-## at all leaves nothing in the session thread, so the tooling posts one line there itself.
+## at all leaves nothing in the session thread, so the tooling says so itself: the box that
+## tracks it in the session's tracking thread, and one message in the session thread for
+## the member that brought this one in (AgentsToolsSpawnProxySessionNotice).
 ## SubagentHandback writes no marker of its own -- it is a formatted SendMessage, nothing
 ## more -- so this checks for its announce line in outputFile, the same replay-matched-prefix
-## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is no
-## session thread, or no output file to check: a spawn with nowhere captured is not reported
+## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is
+## neither thread, or no output file to check: a spawn with nowhere captured is not reported
 ## wrongly as silent.
-##   $1 = session thread, $2 = member, $3 = output file, $4 = session id, $5... = the launch's
-##   own console CLI args (spawnCliArgs) -- the retry gets exactly the launch's env prefix and
-##   CLI selection, never the caller's own, in the workspace this spawn runs in
+##   $1 = session thread, $2 = member, $3 = output file, $4 = session id, $5 = the session's
+##   tracking thread, $6 = the member that brought this one in (either may be empty),
+##   $7... = the launch's own console CLI args (spawnCliArgs) -- the retry gets exactly the
+##   launch's env prefix and CLI selection, never the caller's own, in the workspace this
+##   spawn runs in
 ## Called before any close step, while the record still says spawn-started: the retry resumes
 ## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
 AgentsToolsSpawnProxyHandbackWarn(){
-	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnClosed=""
-	shift 4 2>/dev/null || shift $#
+	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnTrack="${5:-}" warnTell="${6:-}" warnClosed=""
+	shift 6 2>/dev/null || shift $#
 	local warnCliArgs=( "$@" )
 	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
-	[ -n "$warnThread" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
+	[ -n "$warnThread$warnTrack" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
 	LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
 	## A closed session is never resumed, as a closed child is never messaged (AgentsToolsBoardAcceptDismissChild,
 	## AgentsReviewChildLive): no retry, the handback-missing notice below, and the close takes its item to review.
@@ -259,10 +294,11 @@ AgentsToolsSpawnProxyHandbackWarn(){
 		wait "$warnWatchPid" 2>/dev/null || :
 		LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
 	fi
-	DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnThread" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+	[ -z "$warnTrack" ] || DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnTrack" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
+	AgentsToolsSpawnProxySessionNotice "$warnThread" "$warnMember" "$warnTell" handback-missing
 	return 0
 }
 
@@ -327,18 +363,22 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 ## magic-architect's own finding: this spawn's own unanswered questions are already
 ## collected below into PENDING_OPEN/PENDING_REPLY -- real, but only in this call's own
 ## structured return, which only a reader of that return ever sees. An open question is
-## never only left in a log either, so a real one is posted into the session thread too.
-##   $1 = session thread, $2 = member, $3 = collected lines (ANSWERED/OPEN/UNMATCHED/UNREADABLE, one per line)
+## never only left in a log either, so a real one is said too: the box that lists them in
+## the session's tracking thread, and one message in the session thread for the member that
+## brought this one in (AgentsToolsSpawnProxySessionNotice).
+##   $1 = session thread, $2 = member, $3 = collected lines (ANSWERED/OPEN/UNMATCHED/UNREADABLE, one per line),
+##   $4 = the session's tracking thread, $5 = the member that brought this one in (either may be empty)
 AgentsToolsSpawnProxyOpenQuestionWarn(){
-	local warnThread="$1" warnMember="$2" warnOpenLines
-	[ -n "$warnThread" ] || return 0
+	local warnThread="$1" warnMember="$2" warnTrack="${4:-}" warnTell="${5:-}" warnOpenLines
+	[ -n "$warnThread$warnTrack" ] || return 0
 	warnOpenLines="$( printf '%s\n' "$3" | LC_ALL=C grep -E '^(OPEN|UNMATCHED|UNREADABLE) ' || : )"
 	[ -n "$warnOpenLines" ] || return 0
-	printf '%s\n' "$warnOpenLines" \
-	  | DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnThread" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+	[ -z "$warnTrack" ] || printf '%s\n' "$warnOpenLines" \
+	  | DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnTrack" --kind notice --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field what="ended with its own question still open, never answered" --from-stdin 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: open-question notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
+	AgentsToolsSpawnProxySessionNotice "$warnThread" "$warnMember" "$warnTell" question-open "$( printf '%s\n' "$warnOpenLines" | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 	return 0
 }
 
@@ -516,11 +556,13 @@ case "$1" in
 		## Recorded as `conversation-threads:`, passed as MDAT_CONVERSATION_THREADS, and
 		## their recent history lands in input/conversation.md.
 		local conversationThreads=""
-		## Where the spawned session's own thread lives. event-track is an explicit
-		## override -- keep the session thread pinned to this spawn's own agent-log
-		## thread, the main loop's own heartbeat pass uses this so a solitary pass
-		## never opens a coworking thread it has no other member to share. magic-team,
-		## the default, runs the ordinary session-starting/joining logic below.
+		## Whether the session this spawn starts opens its session thread at once. magic-team,
+		## the default, runs the ordinary session-starting/joining logic below. event-track is
+		## an explicit override for a session that starts alone -- the main loop's own heartbeat
+		## pass uses it, so a solitary pass never opens a coworking thread it has no other
+		## member to share: it has its tracking thread only, and no session thread until it
+		## brings a member in, whose spawn opens one in magic-team. A tracking thread is never
+		## a session thread.
 		local sessionThreadMode="magic-team"
 		## Free text for a session-starting spawn's own opening post title. Never a
 		## bare name: this reaches a printf argument position, never its format
@@ -529,6 +571,11 @@ case "$1" in
 		## --session-new: this spawn starts a coworking session of its own, with its own thread,
 		## whatever session its caller has or is in. The plain way to ask for a separate session.
 		local sessionNew=""
+		## --calling-member: the member this spawn call is made as, said by a caller that knows
+		## it where the calling session's own environment names none. The harness Agent tool
+		## says it: a session never spawned carries no member, and each call it makes is served
+		## as one.
+		local callingMemberSaid=""
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
@@ -715,6 +762,15 @@ case "$1" in
 					case " $conversationThreads " in *" $2 "*) ;; *) conversationThreads="$conversationThreads${conversationThreads:+ }$2" ;; esac
 					shift 2
 				;;
+				--calling-member)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --calling-member requires <team-member>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "--calling-member" agent-spawn-proxy || { set +e ; return 1 ; }
+					callingMemberSaid="$2"
+					shift 2
+				;;
 				--wait)
 					waitMode="true"
 					shift
@@ -733,7 +789,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -1027,6 +1083,10 @@ case "$1" in
 		## is no member's session.
 		local spawnerMember=""
 		spawnerMember="$( AgentsToolsActingMember 2> /dev/null )" || spawnerMember=""
+		## The member that makes this spawn call: the calling session's own, else the one its
+		## caller said the call is made as (--calling-member). Kept on the spawn's record
+		## (`parent-member:`), and who the lines this spawn posts for its caller are addressed to.
+		local spawnCallMember="${spawnerMember:-$callingMemberSaid}"
 
 		## The session the agent will actually run under, minted HERE so the same
 		## value reaches both the CLI and the dispatch record below -- that shared
@@ -1249,8 +1309,8 @@ case "$1" in
 		## distinct from this spawn's own spawn-id and agent-log-thread below. Settled
 		## before the event-track start post, which names it.
 		## --session-thread:event-track is an explicit, still-supported override (the
-		## main loop's own solitary heartbeat pass uses it): pin the session thread to
-		## this spawn's own agent-log thread and skip opening anything in magic-team.
+		## main loop's own solitary heartbeat pass uses it): the session starts with its
+		## tracking thread only, and nothing is opened in magic-team for it here.
 		## Otherwise: an inherited session-id, or an explicit --session-id, means
 		## this spawn JOINS that session and opens no thread, only a reply; none means this spawn
 		## STARTS one, session-id becomes its own spawn-id, and its own opening
@@ -1258,34 +1318,47 @@ case "$1" in
 		## the session id.
 		## sessionId itself is already settled, above, before the dispatch item was
 		## created -- only its thread is decided here.
+		## A TRACKING THREAD IS NEVER A SESSION THREAD (AgentsToolsEventTrackThreadIs): no handback,
+		## question or message of a member goes into one. A session started before that rule may
+		## still hand its tracking thread down as its session thread, or carry it on its records:
+		## here that names no session thread, and the session's own is looked for, and opened, as
+		## for any session joined that has none.
 		local sessionThread="" sessionThreadLock="" sessionThreadRecord="$MMDAPP/.local/agents/sessions/$sessionId/session.thread"
+		local sessionJoined="" sessionTrackChannel=""
+		[ "$sessionId" = "$MDAT_SPAWN_SESSION_ID" ] || sessionJoined="true"
+		type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackThread.include"
+		sessionTrackChannel="$( AgentsToolsEventTrackChannel )"
 		if [ -n "$joinSessionId" ] ; then
 			sessionThread="$joinSessionThread"
 		elif [ "$sessionThreadMode" = "event-track" ] ; then
-			## The agent-log thread itself, set once the start post below has opened it.
+			## A session that starts alone: no session thread until it brings a member in.
 			:
 		elif [ -n "$inheritedSessionId" ] && [ -z "$sessionNew" ] ; then
 			sessionThread="$inheritedSessionThread"
-		elif [ -n "$sessionOfCaller" ] ; then
-			## The caller's own session: its thread is the one the first member brought in
-			## opened. Looked for, and opened below where there is none, in one step under the
-			## session's own lock, so two members brought in at once still share one thread.
-			## Its record first (sessions/<session-id>/session.thread, written by the opener at
-			## once), then the spawn records of the members already in the session.
+		fi
+		[ -z "$sessionThread" ] || ! AgentsToolsEventTrackThreadIs "$sessionThread" "$sessionTrackChannel" || sessionThread=""
+		if [ -z "$sessionThread" ] && [ -n "$sessionJoined" ] ; then
+			## A session joined that hands no thread down: the caller's own, a native client's; one
+			## that started alone; one whose opening post failed. Its thread is the one the first
+			## member brought in opened. Looked for, and opened below where there is none, in one
+			## step under the session's own lock, so two members brought in at once still share one
+			## thread. Its record first (sessions/<session-id>/session.thread, written by the opener
+			## at once), then the spawn records of the members already in the session.
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 			! AgentsToolsLocalLockTake "session-thread-$sessionId" 60 || sessionThreadLock="$agentsLocalLockPath"
 			[ -n "$sessionThreadLock" ] || echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the lock on the session thread of $sessionId could not be taken, so two members brought in at once may each open a thread" >&2
 			[ ! -s "$sessionThreadRecord" ] || IFS= read -r sessionThread < "$sessionThreadRecord" || sessionThread=""
+			[ -z "$sessionThread" ] || ! AgentsToolsEventTrackThreadIs "$sessionThread" "$sessionTrackChannel" || sessionThread=""
 			[ -n "$sessionThread" ] || sessionThread="$(
 				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 				AgentsToolsRegistrySpawnedSessionsRebuild > /dev/null 2>&1 || exit 1
-				LC_ALL=C awk -v want="$sessionId" '
-					$2 == want && $10 != "-" { print $10 ; found = 1 ; exit ; }
+				LC_ALL=C awk -v want="$sessionId" -v track="$sessionTrackChannel" '
+					$2 == want && $10 != "-" && ( track == "" || index( $10, track ":" ) != 1 ) { print $10 ; found = 1 ; exit ; }
 					END { exit ( found ? 0 : 1 ) ; }
 				' "$( AgentsToolsRegistryFile spawned-sessions )"
 			)" || sessionThread=""
 		fi
-		if [ -z "$sessionThread" ] && [ -z "$joinSessionId" ] && [ "$sessionThreadMode" != "event-track" ] && { [ -z "$inheritedSessionId" ] || [ -n "$sessionNew" ] ; } ; then
+		if [ -z "$sessionThread" ] && { [ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] ; } ; then
 			## Human-owner's own correction: the team-channel root is not the tooling
 			## thread. One short human line, titled by --session-name-or-comment or
 			## else the session id -- no id block, no host, no timestamps. That detail
@@ -1301,8 +1374,9 @@ case "$1" in
 			sessionThread="$(
 				AgentsToolsSpawnProxySessionRootPost "$callerName" "${sessionNameOrComment:-$sessionId}" "$spawnerMember"
 			)" || sessionThread=""
-			## Recorded at once as the session's, so the member brought in next finds it.
-			if [ -n "$sessionOfCaller" ] && [ -n "$sessionThread" ] ; then
+			## Recorded at once as the session's, so the member brought in next finds it, and the
+			## session that brought this one in does (session-current, AgentsToolsSessionCurrentThreadFind).
+			if [ -n "$sessionJoined" ] && [ -n "$sessionThread" ] ; then
 				{ mkdir -p "${sessionThreadRecord%/*}" && printf '%s\n' "$sessionThread" > "$sessionThreadRecord.$$.tmp" && mv -f "$sessionThreadRecord.$$.tmp" "$sessionThreadRecord" ; } 2> /dev/null \
 					|| echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the session thread $sessionThread of $sessionId could not be recorded, so a member brought in before this spawn is recorded may open another" >&2
 			fi
@@ -1313,13 +1387,13 @@ case "$1" in
 		## is never assigned to sessionThread. Its text is the note template's
 		## (sh-lib/templates/tooling-note.post.format.md, `# Session`, joined).
 		if [ "$sessionId" != "$MDAT_SPAWN_SESSION_ID" ] ; then
-			## It is said to the member whose session brings this one in, where the send can
-			## address it, and to nobody where there is none: never to the member that joined.
+			## It is said to the member that makes this spawn call, where the send can address
+			## it, and to nobody where there is none: never to the member that joined.
 			local joinedArgs=( "$callerName" "$sessionThread" --identity-bot ) joinedTo="" joinedLine=""
 			type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
-			if [ -n "$spawnerMember" ] && [ "$spawnerMember" != "$callerName" ] && AgentsToolsAssertBareName "$spawnerMember" "the spawning member" agent-spawn-proxy 2> /dev/null \
-				&& AgentsToolsTeamMemberDirectory "$spawnerMember" > /dev/null 2>&1 ; then
-				joinedTo="$spawnerMember"
+			if [ -n "$spawnCallMember" ] && [ "$spawnCallMember" != "$callerName" ] && AgentsToolsAssertBareName "$spawnCallMember" "the calling member" agent-spawn-proxy 2> /dev/null \
+				&& AgentsToolsTeamMemberDirectory "$spawnCallMember" > /dev/null 2>&1 ; then
+				joinedTo="$spawnCallMember"
 				joinedArgs=( "${joinedArgs[@]}" --address-to "$joinedTo" )
 			fi
 			type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
@@ -1368,7 +1442,8 @@ case "$1" in
 		## parse it. Holds `<channel>:<ts>`, or is empty. Computed before the
 		## sandbox tracking file below so that file can carry it from the start.
 		local eventTrackSessionThread="${sessionThread:-none}"
-		[ -n "$joinSessionId" ] || [ "$sessionThreadMode" != "event-track" ] || eventTrackSessionThread="this thread"
+		## A session that starts alone has no session thread to name: its box shows none.
+		[ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] || eventTrackSessionThread="-"
 		## Each id by its first 8 characters, and no field that only repeats another: the
 		## parent and the tracking name where they are the session's own read as no value (-).
 		local eventTrackParent="-" eventTrackTracking="$sandboxName"
@@ -1455,8 +1530,6 @@ case "$1" in
 				echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: event-track thread not opened $agentsEventTrackError" >&2
 			fi
 		fi
-		## --session-thread:event-track, joining nothing: the session thread is this one.
-		[ -n "$joinSessionId" ] || [ "$sessionThreadMode" != "event-track" ] || sessionThread="$eventTrackThread"
 
 		## The session tracking file, in the ROOT and never in input/ or output/: the root
 		## is granted to nothing, so this is the one record of the spawn the spawned
@@ -1492,6 +1565,10 @@ case "$1" in
 			## belongs to which session -- computed above and until now only ever
 			## reaching the event-track post, never this durable record.
 			printf 'parent-session-id: %s\n' "${parentSessionId:-none}"
+			## The member that made this spawn call, where one is known: who a handback of this
+			## session is for when it names nobody (AgentsToolsSessionParentMember). The calling
+			## session may have no record of its own to read it from.
+			[ -z "$spawnCallMember" ] || printf 'parent-member: %s\n' "$spawnCallMember"
 			[ -z "$parentThread" ] || printf 'parent-thread: %s\n' "$parentThread"
 			printf 'tracking-name: %s\n' "$sandboxName"
 			## The machine this spawn ran on, because a sandbox tree is synced between
@@ -1609,13 +1686,17 @@ case "$1" in
 		## Handed over in the brief as `<channel>:<ts>`, same field name as before
 		## the session/agent-log split, so an existing reader of this line keeps
 		## working unchanged. A failed post is one stderr warning above, the spawn
-		## goes on, and the brief says no thread was opened.
+		## goes on, and the brief says no thread was opened. A session that starts
+		## alone has none by its own rule, and its brief says that instead.
+		local sessionThreadNone="none -- the opening post failed, so post a new thread in magic-team yourself"
+		[ -n "$sessionJoined" ] || [ "$sessionThreadMode" != "event-track" ] \
+			|| sessionThreadNone="none -- this session starts alone, so it has no session thread yet: one is opened in magic-team when it brings a member in, and session-current names it from then on. Its tracking thread in event-track is the tooling's own record of this run, and takes no message of yours"
 		spawnContext="$( printf '%s\n' \
 			"$spawnContext" \
 			"" \
 			"## Your session thread" \
 			"" \
-			"session_thread_ts: ${sessionThread:-none -- the opening post failed, so post a new thread in magic-team yourself}" )"
+			"session_thread_ts: ${sessionThread:-$sessionThreadNone}" )"
 		## Same line shape as session_thread_ts, one per thread, after it so its reader is unchanged.
 		if [ -n "$conversationThreads" ] ; then
 			local conversationLine conversationNote="A bare Wait watches these beside your session thread. Answer there, in that thread."
@@ -1751,7 +1832,7 @@ case "$1" in
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
 			## The handback retry first, before any close step: it resumes this very session, so it
 			## runs while the record still says started, and its tokens and posts precede the end.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}"
 			## The session's tokens onto its item first, so the closing post sums what is there now.
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart"
@@ -1784,7 +1865,7 @@ case "$1" in
 			echo "PENDING_ANSWERED=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c '^ANSWERED ' )"
 			echo "PENDING_OPEN=$( printf '%s\n' "$spawnCollected" | LC_ALL=C grep -c -E '^(OPEN|UNMATCHED|UNREADABLE) ' )"
 			printf '%s\n' "$spawnCollected" | LC_ALL=C grep -E '^(ANSWERED|OPEN|UNMATCHED|UNREADABLE) ' | LC_ALL=C sed 's/^/PENDING_REPLY=/' || :
-			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected"
+			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember"
 			## Kept beside the status, never folded into it: this is what separates a real failure from a silent no-op.
 			echo "LAUNCHED=$( AgentsToolsSpawnProxySawSentinel "$MDAT_SPAWN_LAUNCH_MARKER" && echo true || echo false )"
 			## rc 5 from the console is its one structured answer: no external CLI
@@ -1854,14 +1935,14 @@ case "$1" in
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
 			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
 			## The handback retry before any close step, as in the waiting branch: the record still says started.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "${spawnCliArgs[@]}"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}"
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart"
 			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
-			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected"
+			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember"
 			if [ "$dispatchDocMode" = "create" ] ; then
 				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then

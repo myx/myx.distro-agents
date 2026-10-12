@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.MagicClient.include -- the --magic-client-* operation group for
+## DistroAgentsTools.fn.sh's dispatcher. Sourced lazily from the `--magic-client-*)`
+## wildcard arm via the standard $MDLT_ORIGIN-based path. Not standalone: relies on being
+## dot-sourced for $1/$@/$MDSC_CMD.
+##
+## THE COORDINATOR'S ONE WAY TO THE OTHER ORGANISATION. A --client-* operation is run by the
+## client-* member it names, in that member's own session, and by nobody else
+## (AgentsToolsClientCallerCheck). magic-coordinator has an operation of its own prefix
+## instead: it gives its own member name first, as every --magic-* operation takes it, then
+## word for word the command line the client itself gives -- the --client-* operation, the
+## client member's name, that operation's arguments. Two things are asked of that name: it
+## starts with client-, and the member exists. The rest is forwarded unchanged to the stub
+## the client's own call reaches, and runs as that client: nothing is implemented here.
+## Who may call it is the rule of every --magic-* operation, asked where one is dispatched
+## (AgentsToolsMagicCallerCheck): nothing about the session that calls is asked here.
+##
+
+case "$1" in
+
+	--magic-client-operation-run)
+		shift
+		local callingMember="${1:-}" clientOperation="${2:-}" clientMember="${3:-}"
+		case "$callingMember" in -*) callingMember="" ;; esac
+		if [ -z "$callingMember" ] || [ -z "$clientOperation" ] || [ -z "$clientMember" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-client-operation-run: syntax is <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$callingMember" "<magic-coordinator>" magic-client-operation-run || { set +e ; return 1 ; }
+		## The member named first is the caller, and this operation has one: a call that
+		## names any other member fails loud.
+		if [ "$callingMember" != "magic-coordinator" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-client-operation-run: runs only as magic-coordinator, and $callingMember is not it -- its syntax is <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]" >&2
+			set +e ; return 1
+		fi
+		case "$clientOperation" in
+			--client-?*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-client-operation-run: runs a --client-* operation, and $clientOperation is not one -- nothing was done" >&2
+				set +e ; return 1
+			;;
+		esac
+		case "$clientMember" in
+			client-*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD --magic-client-operation-run: runs a --client-* operation as a client-* member, and $clientMember is not one -- nothing was done" >&2
+				set +e ; return 1
+			;;
+		esac
+		AgentsToolsAssertBareName "$clientMember" "<client-member-name>" magic-client-operation-run || { set +e ; return 1 ; }
+		## The member exists where its directory is in the member set view this call reads,
+		## or where it is invited: set up in another workspace of this machine, from which
+		## its own dispatch below brings it (AgentsToolsMemberSkillsetBring).
+		if [ ! -d "$MDAT_SKILLSET_ROOT/$clientMember" ] && ! AgentsToolsMemberInvited "$clientMember" ; then
+			echo "⛔ ERROR: $MDSC_CMD --magic-client-operation-run: no such member: $clientMember is set up neither in ${MMDAPP%/} nor in another workspace of this machine -- nothing was done" >&2
+			set +e ; return 1
+		fi
+		## As that client: the member this call acts as is the client named, for the one
+		## operation and everything it calls. What follows the caller's name is forwarded
+		## unchanged and dispatched as the client's own call is, so the side, the settings
+		## read, the sender recorded and every refusal are the operation's own, and so are its
+		## stdin, its output and its exit status.
+		local -x MDAT_SPAWN_AGENT="$clientMember"
+		DistroAgentsTools "${@:2}"
+		return $?
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

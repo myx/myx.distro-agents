@@ -7,7 +7,7 @@ The one copy of this policy. Each `keeper-*` (`keeper-acm`, `keeper-ae3`, `keepe
 
 ## Relationship shape
 
-A `keeper-*` stewards the domain knowledge of one workspace, namespace or project of our own. It is not an external relationship. Where one sits beside an external organisation (`keeper-ndm` beside `client-ndm`/`partner-ndm-*`), that relationship belongs to the `client-*`/`partner-*` members.
+A `keeper-*` stewards the domain knowledge of one workspace, namespace or project of our own. It is not an external relationship. Where one sits beside an external organisation (`keeper-ndm` beside `client-ndm`/`partner-ndm-*`), that relationship belongs to the `client-*`/`partner-*` members. It is shown with its own mark where it has one, else the default icon of the `keeper-*`/`warden-*` group — never a per-member choice.
 
 ## The policy
 

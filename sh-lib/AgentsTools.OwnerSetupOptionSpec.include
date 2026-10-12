@@ -26,6 +26,11 @@ AgentsToolsOwnerSetupOptionSpec(){
 		WEB_DENY_PREFIXES)
 			printf '%s\n' 'magic-team|<url-prefix>[ <url-prefix>...]|plain|URL prefixes WebFetch never fetches, even under an allowed or built-in prefix. Space-separated, matched as WEB_ALLOW_PREFIXES is. A WebSearch result under one of them is no longer kept outside allowed_domains.'
 		;;
+		## The one override of the wait round every CLI service has a number of its own for
+		## (AgentsTools.CliService.include).
+		WAIT_ROUND_SECONDS)
+			printf '%s\n' 'magic-team|<seconds>|plain|how long a wait of a session that brings nothing runs before it comes back, in whole seconds, for every session of this workspace whatever CLI it runs on. Left unset each CLI service takes its own: a little under the lifetime of its prompt cache where that is known, else 270, under a five-minute cache. Set it only where the cache of the service in use here is known to live longer or shorter than that.'
+		;;
 		## The team place in Confluence: a general team key, not the publish step alone. Its
 		## Google counterpart is found by listing, never configured: the folder named magic-team.
 		CONFLUENCE_SPACE)

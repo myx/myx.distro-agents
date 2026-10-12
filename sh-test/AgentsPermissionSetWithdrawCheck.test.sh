@@ -138,7 +138,7 @@ rigTextOf(){ ## body file
 }
 ## What an edit must carry: the text the post was sent with, less its how-to-answer part.
 rigClosedOf(){ ## the body file of the post
-	rigTextOf "$1" | LC_ALL=C sed 's/\\n\\nClick ❌ to deny.*$//'
+	rigTextOf "$1" | LC_ALL=C sed 's/\\n\\n\*\*✅ How to answer\*\*.*$//'
 }
 ## Whether an edit is a whole message as the send builds one: it names the post it edits, has
 ## blocks, and says nowhere how to answer -- "<names it>:<blocks>:<how to answer>".
@@ -169,7 +169,7 @@ rigSetFile="$rigWs/.local/agents/pending/$rigSetId.md"
 rigSetTs="$( rigField "$rigSetFile" question-ts )"
 rigSetPost="$( rigPostOf "$rigSetId" )"
 rigAssert "the request is open, as a permission set"       "$( rigField "$rigSetFile" status ):$( rigField "$rigSetFile" kind )" "reply-pending:permission-set"
-rigAssert "its post says how to answer"                    "$( rigHas "$rigSetPost" 'Click ❌ to deny, or 🔓 to allow the set.' ):$( rigHas "$rigSetPost" 'Or reply with the first word: allow-set, deny, or edit followed by the change.' )" "yes:yes"
+rigAssert "its post says how to answer"                    "$( rigHas "$rigSetPost" '- click ❌ to deny, or 🔓 to allow the set: an allow gives these to every participant listed' ):$( rigHas "$rigSetPost" '- or reply `allow-set`, `deny`, or `edit:` followed by the change' )" "yes:yes"
 rigAssert "and shows what is asked, what is held, and the task" "$( rigHas "$rigSetPost" 'rig-ws:SETP/**` — Read, Write' ):$( rigHas "$rigSetPost" 'rig-ws:DEV/held/**` — Edit (magic-developer)' ):$( rigHas "$rigSetPost" 'Fix the vars loader' )" "yes:yes:yes"
 rigAssert "the two answer emoji are placed under it"       "$( rigReacted reactions "$rigSetTs" )" "x unlock"
 rigAssert "the record keeps what was held, with its holder" "$( LC_ALL=C grep -c -x -F "held: Edit:$rigWs/DEV/held/**"$'\t''magic-developer' "${rigSetFile%.md}.set" ):$( LC_ALL=C grep -c '^entry: ' "${rigSetFile%.md}.set" )" "1:3"

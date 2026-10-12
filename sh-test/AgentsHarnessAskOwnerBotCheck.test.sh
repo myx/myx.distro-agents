@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 ## Behavioural check on who asks the human-owner, and as whom an answer is read and marked,
 ## run through --intern-tool, the path the myx.distro MCP uses. Covers: a question, a readback
-## and a decision asked of the human-owner by a member with no Slack account of its own are the
-## team bot's posts, in the bot's conversation with the owner, their answer emoji placed and
-## their thread read under the bot's token, and their answer confirmed there once; a member
-## with an account of its own, and a question addressed to the owner in another conversation,
-## ask as before; a proposal stays the coordinator's own two posts, with no emoji of the
-## tooling; the collector reads a plain question the bot asked as the bot, and its resolved
+## and a decision asked of the human-owner are the team bot's posts, in the bot's conversation
+## with the owner, their answer emoji placed and their thread read under the bot's token, and
+## their answer confirmed there once -- from a member with no Slack account of its own and
+## from one with an account alike, whatever as_bot says; a question addressed to the owner in
+## another conversation is asked there as before; a proposal stays the coordinator's own two
+## posts, with no emoji of the tooling; the collector reads a plain question the bot asked as the bot, and its resolved
 ## marks go on under the bot's token at the first call; a permission whose addressee does not
 ## hold the refused call goes to the holder running in the session, and that member's answer
 ## reaches the asker; what the RequestPermission description says of both; and what the as_bot
-## text of the three other tools that ask says of a member with no account.
+## text of the three other tools that ask says of an ask to the human-owner.
 ## Offline: a Slack-shaped fake curl is first on PATH, a ps that lists the rig's own runs only
 ## is beside it, and every scenario runs in its own workspace under this check's temp tree, in
 ## $MMDAPP/.local/temp.
@@ -281,24 +281,70 @@ rigAssert "read as the bot, and the owner's reply is received" \
 rigAssert "it has no answer form: no answer emoji is placed, and no confirmation is posted" \
 	"$( rigCallsAs reactions.add "$rigBotToken" '1700000001.000101 +1' ):$( rigCallsAs reactions.add "$rigBotToken" '1700000001.000101 x' ):$( rigCalls chat.postMessage )" "0:0:1"
 
-echo "-- the accepted siblings ask as before --"
+echo "-- the same asks from a member with an account of its own: the team bot posts them too --"
+## The live fault: such a member asked the owner under its own account, in its own conversation
+## with him, so he was asked in one place or another by who asked.
+## Its question as the bot's: "<the no-account form>:<posts under the member's own token>".
+rigOwnPost(){
+	printf '%s:%s' "$( rigOwnerPost )" "$( rigCallsAs chat.postMessage "$rigOwnToken" )"
+}
+## Its emoji and its read: "<placed under the bot>:<any placed under its own>:<read under the bot>:<read under its own>".
+rigOwnMarks(){ ## how many emoji names to show
+	printf '%s:%s:%s:%s' "$( rigPlacedAs "$rigBotToken" 000101 | cut -d' ' -f1-"$1" )" "$( rigUsedAs reactions.add "$rigOwnToken" )" \
+		"$( rigUsedAs conversations.replies "$rigBotToken" )" "$( rigUsedAs conversations.replies "$rigOwnToken" )"
+}
 rigStart question-own-account
 rigThread 000101 "$( rigReactions "$rigBoth" +1 )" ""
 rigCall 60 AskQuestion '{"to":"human-owner","question":"Should the rig go on?","select":"yes-no"}'
-rigAssert "a member with an account of its own asks the owner under it: its own post, record, emoji and read, none of them the bot's" \
-	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigPlacedAs "$rigOwnToken" 000101 | cut -d' ' -f1-2 ):$( rigUsedAs reactions.add "$rigBotToken" ):$( rigUsedAs conversations.replies "$rigBotToken" ):$( rigVerdictLine )" \
-	"$rigOwnToken:0:member:+1 x:no:no:VERDICT: yes"
+rigAssert "a yes-no question: the bot's post to the owner, none under the member's own token, and the bot on its record" \
+	"$( rigOwnPost )" "$rigBotToken:0:yes:bot:human-owner:0"
+rigAssert "its thumbs up and cross are placed and its thread is read under the bot's token, never under the member's own, and the owner's click is the answer" \
+	"$( rigOwnMarks 2 ):$rigKilled:$( rigVerdictLine )" "+1 x:no:yes:no:no:VERDICT: yes"
+rigAssert "the answer is confirmed once in its thread, by the bot" \
+	"$( rigConfirmed 'Read: `yes` by human-owner. It is recorded as the answer.' )" "$rigBotToken:yes:yes:2"
+rigStart readback-own-account
+rigThread 000101 "" "$( rigMessage 000200 URIGOWNER 'yes' )"
+rigCall 60 ConfirmReadback '{"to":"human-owner","question":"Is this right?","understood":"The rig keeps the report.","source":"The message of today.","will_do":"Keep the report."}'
+rigAssert "a readback: the same, and the owner's reply is the answer" \
+	"$( rigOwnPost ):$( rigOwnMarks 2 ):$rigKilled:$( rigVerdictLine )" "$rigBotToken:0:yes:bot:human-owner:0:+1 x:no:yes:no:no:VERDICT: yes"
+rigAssert "confirmed once in its thread, by the bot" \
+	"$( rigConfirmed 'Read: `yes` by human-owner. It is recorded as the answer to this readback.' )" "$rigBotToken:yes:yes:2"
+rigStart decision-own-account
+rigThread 000101 "$( rigReactions "$rigBoth" two )" ""
+rigCall 60 EscalateDecision "{\"to\":\"human-owner\",\"question\":\"Which check first?\",$rigOptions}"
+rigAssert "a decision: the same, and the number the owner clicked is the option" \
+	"$( rigOwnPost ):$( rigOwnMarks 3 ):$rigKilled:$( rigVerdictLine )" "$rigBotToken:0:yes:bot:human-owner:0:one two three:no:yes:no:no:VERDICT: beta"
+rigAssert "confirmed once in its thread, by the bot" \
+	"$( rigConfirmed 'Read: `beta` by human-owner. It is recorded as the decision.' )" "$rigBotToken:yes:yes:2"
+rigStart text-own-account
+rigThread 000101 "" "$( rigMessage 000200 URIGOWNER 'Go on with it.' )"
+rigCall 60 AskQuestion '{"to":"human-owner","question":"What should the rig do next?"}'
+rigAssert "a free-text question: the bot's post, read as the bot, and the owner's reply is received" \
+	"$( rigOwnPost ):$( rigUsedAs conversations.replies "$rigBotToken" ):$( rigUsedAs conversations.replies "$rigOwnToken" ):$rigKilled:$( rigFirstLine "$rigScenarioDir/out" )" \
+	"$rigBotToken:0:yes:bot:human-owner:0:yes:no:no:ASK-RESULT: RECEIVED"
 rigStart question-own-account-as-bot
 rigThread 000101 "$( rigReactions "$rigBoth" x )" ""
 rigCall 60 AskQuestion '{"to":"human-owner","as_bot":true,"question":"Should the rig go on?","select":"yes-no"}'
-rigAssert "and with as_bot it is the bot's, as before: post, record, emoji and read" \
-	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigOwnToken" ):$( rigRecordField ask-identity ):$( rigPlacedAs "$rigBotToken" 000101 | cut -d' ' -f1-2 ):$( rigUsedAs conversations.replies "$rigOwnToken" ):$( rigVerdictLine )" \
-	"$rigBotToken:0:bot:+1 x:no:VERDICT: no"
+rigAssert "with as_bot true it is the bot's, as before: post, record, emoji and read" \
+	"$( rigOwnPost ):$( rigOwnMarks 2 ):$( rigVerdictLine )" "$rigBotToken:0:yes:bot:human-owner:0:+1 x:no:yes:no:VERDICT: no"
+rigStart question-own-account-not-as-bot
+rigThread 000101 "$( rigReactions "$rigBoth" +1 )" ""
+rigCall 60 AskQuestion '{"to":"human-owner","as_bot":false,"question":"Should the rig go on?","select":"yes-no"}'
+rigAssert "and with as_bot false it is the bot's too: whatever as_bot says" \
+	"$( rigOwnPost ):$( rigOwnMarks 2 ):$( rigVerdictLine )" "$rigBotToken:0:yes:bot:human-owner:0:+1 x:no:yes:no:VERDICT: yes"
+
+echo "-- the accepted siblings ask as before --"
 rigStart question-no-account-elsewhere no-account
 rigThread 000101 "$( rigReactions "$rigBoth" +1 )" ""
 rigCall 60 AskQuestion '{"to":"magic-team","address_to":"human-owner","question":"Should the rig go on?","select":"yes-no"}'
 rigAssert "addressed to the owner in another conversation, by a member with no account: asked there as before, and its record says the member asked" \
 	"$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' ):$( rigRecordField ask-identity ):$( rigRecordField address-to ):$( rigVerdictLine )" "yes:member:human-owner:VERDICT: yes"
+rigStart question-own-account-elsewhere
+rigThread 000101 "$( rigReactions "$rigBoth" +1 )" ""
+rigCall 60 AskQuestion '{"to":"magic-team","address_to":"human-owner","question":"Should the rig go on?","select":"yes-no"}'
+rigAssert "and by a member with an account of its own: its own post there, its own emoji and read, none of them the bot's" \
+	"$( rigPostedAs 1 ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigPlacedAs "$rigOwnToken" 000101 | cut -d' ' -f1-2 ):$( rigUsedAs reactions.add "$rigBotToken" ):$( rigUsedAs conversations.replies "$rigBotToken" ):$( rigVerdictLine )" \
+	"$rigOwnToken:yes:0:member:+1 x:no:no:VERDICT: yes"
 
 echo "-- a proposal stays the coordinator's own: two posts under its account, and no emoji of the tooling --"
 rigStart proposal
@@ -328,7 +374,7 @@ rigAssert "the collector reads its thread under the bot's token, never under the
 rigAssert "its resolved marks go on under the bot's token, and no call for them is made under the member's own" \
 	"$( rigCollectMarks "$rigBotToken" ) $( rigUsedAs reactions.add "$rigOwnToken" )" "1:1 no"
 rigStart collect-member-asked
-rigCall 30 AskQuestion '{"to":"human-owner","question":"What should the rig do next?","wait":false}'
+rigCall 30 AskQuestion '{"to":"magic-team","address_to":"human-owner","question":"What should the rig do next?","wait":false}'
 rigCallsAside ask
 rigThread 000101 "" "$( rigMessage 000200 URIGOWNER 'Go on with it.' )"
 rigOp --intern-op-pending-reply-collect --id "$( rigRecordId )" --context rig
@@ -411,23 +457,23 @@ rigAssert "it says the request may be addressed to another than the one named, a
 	"$( rigWireSays 'the request is addressed to a holder running in this session, else to the human-owner' ):$( rigWireSays 'A NOTE: line of the result then says who it was addressed to, and why.' )" "yes:yes"
 rigAssert "one declaration, on one line, and no apostrophe in it: the tools JSON stands inside single quotes" \
 	"$( printf '%s\n' "$rigWireLine" | LC_ALL=C grep -c . ):$( printf '%s\n' "$rigWireLine" | LC_ALL=C grep -c "'" )" "1:0"
-## The as_bot text of the three other tools that ask says the rule for a member with no account.
+## The as_bot text of the three other tools that ask says the rule: the bot, whatever as_bot says.
 rigWireOf(){ ## tool name -> its one declaration line
 	LC_ALL=C grep -F "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$rigHere/AgentsOpenAiChatWire.sh"
 }
 rigWireAsBot=""
 for rigWireTool in AskQuestion:question ConfirmReadback:readback EscalateDecision:decision ; do
 	case "$( rigWireOf "${rigWireTool%%:*}" )" in
-		*"\"as_bot\":{\"type\":\"boolean\",\"description\":\"Optional. true posts as the team bot instead of your member identity. Default false. A ${rigWireTool##*:} to the human-owner from a member with no Slack account of its own is posted by the team bot whatever this says, in the conversation of the bot with the owner.\"}"*) rigWireAsBot="$rigWireAsBot${rigWireTool%%:*}=yes " ;;
+		*"\"as_bot\":{\"type\":\"boolean\",\"description\":\"Optional. true posts as the team bot instead of your member identity. Default false. A ${rigWireTool##*:} to the human-owner is posted by the team bot whatever this says, in the conversation of the bot with the owner.\"}"*) rigWireAsBot="$rigWireAsBot${rigWireTool%%:*}=yes " ;;
 		*) rigWireAsBot="$rigWireAsBot${rigWireTool%%:*}=no " ;;
 	esac
 done
-rigAssert "the as_bot text of AskQuestion, ConfirmReadback and EscalateDecision says the rule for a member with no account, each for its own kind" \
+rigAssert "the as_bot text of AskQuestion, ConfirmReadback and EscalateDecision says the bot asks the human-owner whatever as_bot says, each for its own kind" \
 	"$rigWireAsBot" "AskQuestion=yes ConfirmReadback=yes EscalateDecision=yes "
 rigAssert "each of the three is one declaration on one line, with no apostrophe in it" \
 	"$( { rigWireOf AskQuestion ; rigWireOf ConfirmReadback ; rigWireOf EscalateDecision ; } | LC_ALL=C grep -c . ):$( { rigWireOf AskQuestion ; rigWireOf ConfirmReadback ; rigWireOf EscalateDecision ; } | LC_ALL=C grep -c "'" )" "3:0"
 rigAssert "the served list is still rendered from it" \
-	"$( bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"RequestPermission","description":"Ask for a call that was refused' )" 1
+	"$( bash "$rigHere/AgentsHarnessMcpMirror.sh" 2>/dev/null | LC_ALL=C grep -c -F '{"name":"RequestPermission","description":"Ask for the access a task needs, starting from a call that was refused' )" 1
 
 rigUnknown="$( cat "$rigTmp"/*/curl.log 2>/dev/null | LC_ALL=C awk '$0 ~ /^url:/ || $0 == "no-method" { hitCount++ ; } END { print hitCount + 0 ; }' )"
 rigAssert "no request went anywhere but a Slack method" "$rigUnknown" 0

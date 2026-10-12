@@ -253,7 +253,7 @@ rigSpawn4="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/review/$rigItem
 rigAssert "and its transcript does"                        "$( LC_ALL=C grep -h -c " REVIEW item=$rigItem4 kind=review " "$rigData"/audit/*/session-*"${rigSpawn4:0:8}"*.log 2> /dev/null | head -1 )" 1
 rigAssert "its record names the parent's own thread"       "$( LC_ALL=C grep -h -c -x 'parent-thread: CPAR00001:1700000000.000100' "$rigSpawned"/*/"$rigSpawn4.md" )" 1
 
-echo "-- 5. a --wait pass ended, its parent with no thread: review as wait-pass-ended, coordinator thread fallback --"
+echo "-- 5. a --wait pass ended, its parent with no thread: review as wait-pass-ended, and where its handback goes --"
 rigRecord rig-par-nothread spawn-started "" "" rig-par-nothread
 rigRecord rig-coord-1 spawn-started CCOORD001:1700000000.000200 "" rig-coord-1
 LC_ALL=C sed -i.bak 's/^owner: keeper-myx$/owner: magic-coordinator/' "$rigSpawned/rig-coord-1/rig-coord-1.md" && rm -f "$rigSpawned/rig-coord-1/rig-coord-1.md.bak"
@@ -264,7 +264,21 @@ rigItem5="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/p5" | head -1 )" ; 
 rigAssert "the item is in review"                          "$( rigLoc "$rigItem5" )" review
 rigAssert "review-reason wait-pass-ended"                  "$( LC_ALL=C grep -c -x 'review-reason: wait-pass-ended' "$rigData/board/review/$rigItem5.md" )" 1
 rigSpawn5="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/review/$rigItem5.md" | head -1 )"
-rigAssert "the child's parent-thread is magic-coordinator's" "$( LC_ALL=C grep -h -c -x 'parent-thread: CCOORD001:1700000000.000200' "$rigSpawned"/*/"$rigSpawn5.md" )" 1
+## The child joined its parent's session, and its spawn opened that session's thread: the
+## parent's own from then on, so the handback goes there, not to another session's thread.
+rigThread5="$( cat "$rigWs/.local/agents/sessions/rig-par-nothread/session.thread" 2> /dev/null )"
+rigAssert "the child's parent-thread is the session thread its spawn opened for its parent's session" \
+	"$( [ -n "$rigThread5" ] && printf opened || printf none ):$( LC_ALL=C grep -h -c -x "parent-thread: ${rigThread5:-none}" "$rigSpawned"/*/"$rigSpawn5.md" )" "opened:1"
+## Only a parent whose session has no thread at all leaves the handback magic-coordinator's:
+## here the child starts a session of its own, so nothing opens one for its parent.
+rigRecord rig-par-nothread-b spawn-started "" "" rig-par-nothread-b
+rigEnv=( MDAT_SPAWN_SESSION_ID=rig-par-nothread-b )
+rigRun "$rigTmp/p5b" bash -c 'printf "rig brief" | bash "$0" --intern-op-agent-spawn-proxy keeper-myx --dispatch-doc:create --wait --session-new' "$rigFn"
+rigEnv=()
+rigItem5b="$( LC_ALL=C sed -n 's/^DISPATCH_ITEM=//p' "$rigTmp/p5b" | head -1 )" ; rigItem5b="${rigItem5b%.md}"
+rigSpawn5b="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/review/$rigItem5b.md" 2> /dev/null | head -1 )"
+rigAssert "a child in a session of its own, its parent's session with no thread: the parent-thread is magic-coordinator's" \
+	"$( [ -e "$rigWs/.local/agents/sessions/rig-par-nothread-b/session.thread" ] && printf opened || printf none ):$( LC_ALL=C grep -h -c -x 'parent-thread: CCOORD001:1700000000.000200' "$rigSpawned"/*/"${rigSpawn5b:-none}.md" 2> /dev/null )" "none:1"
 ## The child's handback to session-parent now has somewhere to go.
 rigItem running dispatch-20261008T1200Z-fb rig-child-fb
 rigRecord rig-child-fb spawn-started "" dispatch-20261008T1200Z-fb rig-child-fb 'parent-thread: CCOORD001:1700000000.000200
@@ -510,6 +524,148 @@ rigEnv=()
 rigAssert "a recorded pid that another process has taken is never signalled: nothing is stopped, and that process and its child live on" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: NO-PROCESS' "$rigTmp/e4r" ):$( rigAlive "$rigStandPid" "$rigStandChild" )" 1:2
 kill "$rigStandChild" "$rigStandPid" 2> /dev/null
+## A run with no tracking item: its spawn record alone names it. TaskStop given the spawn's own
+## id stops it by the one rule a run is recognised by (the process whose own --session-id or
+## --resume word is that id, or the process its record names) and says there was no item to
+## record the stop on. A line that holds the id inside another word, and a command line of the
+## tooling that names it, are no run of it and are never signalled.
+rigStandInWord(){ ## command line text -- a stand-in process listed under its own pid with that line; sets rigWordPid
+	bash -c 'sleep 300 ; :' rig-word > /dev/null 2>&1 < /dev/null &
+	rigWordPid=$!
+	rigLivePids="$rigLivePids $!"
+	printf '%s %s\n' "$!" "$1" >> "$rigTmp/ps.list"
+	disown "$!" 2> /dev/null || :
+}
+rigBoardSum(){ find "$rigData/board" -type f -exec cksum {} + 2> /dev/null | LC_ALL=C sort | cksum ; }
+rigStandInWord "rig-run --session-id rig-noitem-ts-$$"
+rigNoItemPid="$rigWordPid"
+rigRecord rig-noitem-ts-$$ spawn-started "" ""
+rigStandInWord "claude --add-dir $rigSpawned/rig-noitem-ts-$$/input --session-id rig-noitem-other-$$ --agent keeper-myx Readable $rigSpawned/rig-noitem-ts-$$/input, as said by --session-id rig-noitem-ts-$$"
+rigNoItemOther="$rigWordPid"
+rigStandInWord "bash $rigFn --intern-op-rig keeper-myx --session-id rig-noitem-ts-$$"
+rigNoItemTooling="$rigWordPid"
+rigBoardWas="$( rigBoardSum )"
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4u" TaskStop "{\"task_id\":\"rig-noitem-ts-$$\"}"
+rigEnv=()
+rigAssert "a run with no tracking item is stopped by its own id" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4u" ):$( LC_ALL=C grep -c '^ERROR' "$rigTmp/e4u" ):$( rigAlive "$rigNoItemPid" )" 1:0:0
+rigAssert "its result says plainly that there was no item to record the stop on, and names its spawn record" \
+	"$( LC_ALL=C grep -c -F "No dispatch item names session rig-noitem-ts-$$ as its own run, so there is no item to record a stop on." "$rigTmp/e4u" ):$( LC_ALL=C grep -c -F "$rigSpawned/rig-noitem-ts-$$/rig-noitem-ts-$$.md" "$rigTmp/e4u" ):$( LC_ALL=C grep -c -F 'Dispatch item ' "$rigTmp/e4u" )" 1:1:0
+rigAssert "and nothing on the board is written"            "$( rigBoardSum )" "$rigBoardWas"
+rigAssert "a line holding that id inside another word or in its text, and a tooling command line naming it, are no run of it: neither is signalled" \
+	"$( rigAlive "$rigNoItemOther" "$rigNoItemTooling" )" 2
+kill "$rigNoItemOther" "$rigNoItemTooling" 2> /dev/null
+rigStandIn
+rigRecord rig-noitem-noword-$$ spawn-started "" "" "" "run-process: $rigStandPid $rigStandStart
+"
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4v" TaskStop "{\"task_id\":\"rig-noitem-noword-$$\"}"
+rigEnv=()
+rigAssert "with no item and no session word, the process its record names is stopped, and what it started, and the result says both" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4v" ):$( rigAlive "$rigStandPid" "$rigStandChild" ):$( LC_ALL=C grep -c -F 'so there is no item to record a stop on.' "$rigTmp/e4v" ):$( LC_ALL=C grep -c -F 'and the process this run was started as, which its spawn record names, is no longer running.' "$rigTmp/e4v" )" 1:0:1:1
+rigRecord rig-noitem-gone-$$ spawn-succeeded "" ""
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4g" TaskStop "{\"task_id\":\"rig-noitem-gone-$$\"}"
+rigEnv=()
+rigAssert "with no item and no live run of that id, nothing is signalled: NO-PROCESS, with the status its record holds" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: NO-PROCESS' "$rigTmp/e4g" ):$( LC_ALL=C grep -c -F 'status spawn-succeeded.' "$rigTmp/e4g" ):$( LC_ALL=C grep -c -F 'TERM' "$rigTmp/e4g" )" 1:1:0
+## An id that no spawn record of this workspace names is no run of this team, whatever process
+## of the host carries it as its own word: nothing is signalled.
+rigStandInWord "rig-run --session-id rig-norecord-ts-$$"
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4x" TaskStop "{\"task_id\":\"rig-norecord-ts-$$\"}"
+rigEnv=()
+rigAssert "control: an id no spawn record names is not reached, though a process runs as it" \
+	"$( LC_ALL=C grep -c "^ERROR: no dispatch item matches handle rig-norecord-ts-$$ " "$rigTmp/e4x" ):$( LC_ALL=C grep -c '^STOP-RESULT' "$rigTmp/e4x" ):$( rigAlive "$rigWordPid" )" 1:0:1
+kill "$rigWordPid" 2> /dev/null
+## A spawn that joined a session: its item names the session as session-id and the spawn as
+## spawn-id. Its own id reaches that item, and the stop is recorded there as for any item.
+rigStandInWord "rig-run --session-id rig-join-ts-$$"
+rigItem running dispatch-20261008T1200Z-jts rig-join-ts-$$ "session-id: rig-shared-ts-$$
+"
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4j" TaskStop "{\"task_id\":\"rig-join-ts-$$\"}"
+rigEnv=()
+rigAssert "a spawn's own id reaches the item that names it as spawn-id: stopped, and recorded on that item" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4j" ):$( rigAlive "$rigWordPid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-jts.md" 'dismissed: taskstop' ):$( LC_ALL=C grep -c -F "Dispatch item dispatch-20261008T1200Z-jts.md, session rig-join-ts-$$." "$rigTmp/e4j" ):$( LC_ALL=C grep -c -F 'no item to record' "$rigTmp/e4j" )" 1:0:1:1:0
+## An item written before session-id and spawn-id were split names its own run as session-id
+## and carries no spawn-id: that id reaches it as before.
+rigStandInWord "rig-run --session-id rig-presplit-ts-$$"
+rigItem running dispatch-20261008T1200Z-pts "" "session-id: rig-presplit-ts-$$
+"
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4p" TaskStop "{\"task_id\":\"rig-presplit-ts-$$\"}"
+rigEnv=()
+rigAssert "control: an item that names its run as session-id alone is reached by that id as before: stopped, and recorded there" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4p" ):$( rigAlive "$rigWordPid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-pts.md" 'dismissed: taskstop' ):$( LC_ALL=C grep -c -F "Dispatch item dispatch-20261008T1200Z-pts.md, session rig-presplit-ts-$$." "$rigTmp/e4p" )" 1:0:1:1
+rigAssert "control: a run with an item is told of its item as before" \
+	"$( LC_ALL=C grep -c -F "Dispatch item dispatch-20261008T1200Z-ts.md, session rig-live-ts-$$." "$rigTmp/e4" ):$( LC_ALL=C grep -c -F 'The dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment.' "$rigTmp/e4" )" 1:1
+## A founding spawn stopped through its item while two other participants of its session run. The
+## command line of each participant holds the session folder, which carries the founding spawn's
+## id, and a command line of the tooling names the session: none of them is the run the item
+## names, and none is signalled.
+rigStandInWord "claude --add-dir $rigSpawned/rig-found-ts-$$/input --session-id rig-found-ts-$$ --agent keeper-myx"
+rigFoundPid="$rigWordPid"
+rigStandInWord "claude --add-dir $rigSpawned/rig-found-ts-$$/input --session-id rig-part1-ts-$$ --agent magic-tester"
+rigPart1Pid="$rigWordPid"
+rigStandInWord "claude --add-dir $rigSpawned/rig-found-ts-$$/input --session-id rig-part2-ts-$$ --agent magic-tester"
+rigPart2Pid="$rigWordPid"
+rigStandInWord "bash $rigFn --intern-op-agent-spawn-proxy magic-tester --session-id rig-found-ts-$$"
+rigFoundTooling="$rigWordPid"
+rigItem running dispatch-20261008T1200Z-fts rig-found-ts-$$ "session-id: rig-found-ts-$$
+"
+rigItem running dispatch-20261008T1100Z-p1ts rig-part1-ts-$$ "session-id: rig-found-ts-$$
+"
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4f" TaskStop '{"task_id":"dispatch-20261008T1200Z-fts.md"}'
+rigEnv=()
+rigAssert "a founding spawn stopped through its item: its own run alone is signalled, the two other participants of its session and the tooling line stay alive" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4f" ):$( rigAlive "$rigFoundPid" ):$( rigAlive "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" ):$( LC_ALL=C grep -c -F "TERM was sent to pid(s) $rigFoundPid and the process list no longer carries that session id." "$rigTmp/e4f" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-fts.md" 'dismissed: taskstop' )" 1:0:3:1:1
+## The id several participants share is the founding spawn's own: given as the handle it is the
+## founding spawn's run that is asked for, and its item, never the first item on the board that
+## holds the id, which here is a participant's.
+rigStandInWord "claude --add-dir $rigSpawned/rig-found-ts-$$/input --session-id rig-found-ts-$$ --agent keeper-myx"
+rigFoundPid="$rigWordPid"
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4s" TaskStop "{\"task_id\":\"rig-found-ts-$$\"}"
+rigEnv=()
+rigAssert "a session id several participants share reaches the item of the run asked for, not the first on the board: the founding spawn is stopped, the participants live" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4s" ):$( LC_ALL=C grep -c -F "Dispatch item dispatch-20261008T1200Z-fts.md, session rig-found-ts-$$." "$rigTmp/e4s" ):$( rigAlive "$rigFoundPid" ):$( rigAlive "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p1ts.md" 'dismissed: taskstop' )" 1:1:0:3:0
+kill "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" 2> /dev/null
+## A session id that items name only as the session they joined, with no run and no spawn record
+## of its own: nothing says which participant is meant, so it is refused in one line that lists
+## the items and says to name one.
+rigStandInWord "claude --add-dir $rigSpawned/rig-lost-ts-$$/input --session-id rig-part3-ts-$$ --agent magic-tester"
+rigPart3Pid="$rigWordPid"
+rigStandInWord "claude --add-dir $rigSpawned/rig-lost-ts-$$/input --session-id rig-part4-ts-$$ --agent keeper-myx"
+rigPart4Pid="$rigWordPid"
+rigItem running dispatch-20261008T1100Z-p3ts rig-part3-ts-$$ "session-id: rig-lost-ts-$$
+"
+rigItem running dispatch-20261008T1100Z-p4ts rig-part4-ts-$$ "session-id: rig-lost-ts-$$
+"
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4m" TaskStop "{\"task_id\":\"rig-lost-ts-$$\"}"
+rigEnv=()
+rigAssert "a shared session id that is no run of its own is refused in one line that lists the items and says to name one; nothing is signalled or recorded" \
+	"$( LC_ALL=C grep -c -x -F "ERROR: rig-lost-ts-$$ is the session id of 2 dispatch item(s), and no item and no spawn record has it as its own run: dispatch-20261008T1100Z-p3ts.md (keeper-myx, spawn-id rig-part3-ts-$$), dispatch-20261008T1100Z-p4ts.md (keeper-myx, spawn-id rig-part4-ts-$$). Pass the filename of the one to stop, or its spawn-id, as task_id. Nothing was signalled." "$rigTmp/e4m" ):$( LC_ALL=C grep -c '^STOP-RESULT' "$rigTmp/e4m" ):$( rigAlive "$rigPart3Pid" "$rigPart4Pid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p3ts.md" 'dismissed: taskstop' )" 1:0:2:0
+## The same id where a spawn record names it and no item is its own: the founding spawn's run is
+## the one asked for, stopped with no item to record it on; the participant's item is left alone.
+rigStandInWord "claude --add-dir $rigSpawned/rig-lost-ts-$$/input --session-id rig-lost-ts-$$ --agent keeper-myx"
+rigLostPid="$rigWordPid"
+rigRecord rig-lost-ts-$$ spawn-started "" ""
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4l" TaskStop "{\"task_id\":\"rig-lost-ts-$$\"}"
+rigEnv=()
+rigAssert "with a spawn record of that id and no item of its own, the founding spawn's run is stopped and said to have no item; the participants and their items are left alone" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4l" ):$( LC_ALL=C grep -c -F "No dispatch item names session rig-lost-ts-$$ as its own run, so there is no item to record a stop on." "$rigTmp/e4l" ):$( rigAlive "$rigLostPid" ):$( rigAlive "$rigPart3Pid" "$rigPart4Pid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p3ts.md" 'dismissed: taskstop' )" 1:1:0:2:0
+kill "$rigPart3Pid" "$rigPart4Pid" 2> /dev/null
 
 ## ---------------------------------------------------------------- a return resumed natively
 ## From here the rig's console is the real template, run on a stub `claude` (first on PATH,

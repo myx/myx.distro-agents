@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on --intern-main-loop's pass bound. A bound that fires ends the
-## whole pass (its process group), records timed-out, tries to tell event-track, and the
+## whole pass (its process group), records timed-out, tries to tell event-track, in the
+## tracking thread of the pass that timed out, and the
 ## next pass proceeds; no bound never ends a pass and reports it running; a short pass
 ## says nothing. The real loop and spawn proxy run; the console, curl and every setting
 ## are this rig's own. GUARD: every tooling call goes through one `env -i` whose child
@@ -122,6 +123,12 @@ rigAssert "the hung pass is gone, its whole group with it" "$( kill -0 "$rigFirs
 rigAssert "it never reached its own end"               "$( LC_ALL=C grep -c "^end $rigFirstPid$" "$rigDir/console.log" )" 0
 rigAssert "the ending is said on stderr"               "$( LC_ALL=C grep -c 'passed MAIN_LOOP_PASS_TIMEOUT_SECONDS=20 -- ending it' "$rigDir/loop.err" )" 1
 rigAssert "event-track is told"                        "$( LC_ALL=C grep -q -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null && printf yes || printf no )" yes
+## The live fault: it was a post of its own at the top of event-track. It is a tracking post
+## about that pass, so it is a reply in the tracking thread that pass's start post opened,
+## the one recorded for its session.
+rigTimedOutThread="$( cat "$rigDir/ws/.local/agents/sessions"/*/event-track.thread 2>/dev/null | head -1 )"
+rigAssert "as a reply in the tracking thread of the pass that timed out, once" \
+	"$( [ -n "$rigTimedOutThread" ] && printf recorded || printf none ):$( LC_ALL=C grep -c -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null ):$( LC_ALL=C grep -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null | LC_ALL=C grep -c -F "{\"channel\":\"${rigTimedOutThread%%:*}\"" ):$( LC_ALL=C grep -F 'Heartbeat pass timed out' "$rigDir/posted" 2>/dev/null | LC_ALL=C grep -c -F "\"thread_ts\":\"${rigTimedOutThread#*:}\"" )" "recorded:1:1:1"
 ## When it happened is a Slack date token, so each reader sees it in their own timezone: its
 ## epoch is this run's own time, and its fallback is that same moment as UTC text.
 rigAtToken="$( LC_ALL=C grep -o -E 'at: <!date\^[0-9]+\^\{date_num\} \{time\}\|[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} UTC>' "$rigDir/posted" 2>/dev/null | head -1 )"

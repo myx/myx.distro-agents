@@ -10,8 +10,10 @@
 ## (AgentsTools.SpawnSandbox.include), the transcript and the harness context.
 ##
 ## THE THREAD belongs to the coworking session, and every participant's tracking posts go
-## into it: its start, its feed, a refusal, a grant, a denial, a notice, its handback, its
-## end, its housekeeping. ONE THREAD PER COWORKING SESSION, in one record:
+## into it, and nowhere else: its start, its feed, a refusal, a grant, a denial, a notice,
+## the box that says its handback is missing, its end, its housekeeping. A participant's
+## handback itself is a member's message, and goes to the session thread, as what a
+## participant must be told does. ONE THREAD PER COWORKING SESSION, in one record:
 ## $MMDAPP/.local/agents/sessions/<session-id>/event-track.thread, one line `<channel>:<ts>`,
 ## keyed by the coworking session id -- the `session-id` the spawn proxy settles: a spawn's
 ## own id where it starts a session, the joined session's where it joins. The spawn that
@@ -186,6 +188,29 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 		[ -n "${1:-}" ] || return 0
 		mkdir -p "$1" 2>/dev/null && : > "$1/feed.open" 2>/dev/null || :
 		return 0
+	}
+
+fi
+
+## A TRACKING THREAD IS NEVER A SESSION THREAD. A thread of the event-track conversation is the
+## tooling's own, for its tracking posts: no member's message, handback or question goes
+## there, so no session's thread is one, and whatever settles a session thread asks here
+## first. rc 0 when <channel>:<ts> lies in the event-track conversation; rc 1 when it does
+## not, or when no such conversation is configured. A caller that asks for many threads reads
+## the conversation once and passes it. Defined by its own name, outside the block above, so
+## a process that read this file before the rule still gets it.
+if ! type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 ; then
+
+	## The event-track conversation's id, or nothing where none is configured.
+	AgentsToolsEventTrackChannel(){
+		DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_EVENT_TRACK 2>/dev/null < /dev/null || :
+	}
+
+	AgentsToolsEventTrackThreadIs(){ ## <channel>:<ts>, the event-track conversation where the caller has read it (optional)
+		local isChannel="${2:-}"
+		case "${1:-}" in ?*:?*) ;; *) return 1 ;; esac
+		[ $# -ge 2 ] || isChannel="$( AgentsToolsEventTrackChannel )"
+		[ -n "$isChannel" ] && [ "${1%%:*}" = "$isChannel" ]
 	}
 
 fi

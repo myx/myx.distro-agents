@@ -479,12 +479,12 @@ rigRecordRaw kind-permission "owner: $rigMember\nkind: permission\naddress-to: h
 rigRecordRaw kind-question "owner: $rigMember\nkind: question\naddress-to: human-owner\nchannel: DRIGBOTDM\nquestion-ts: $( rigKindTs 2 )\nthread-ts: $( rigKindTs 2 )\naddressees: URIGOWNER\nask-identity: bot\nasked-at: 2026-09-29 12:00 +0300\n" \
 	'# ❓ Question\n\nIs the rig asked by the bot?\n\n**✅ How to answer**\n- reply\n'
 rigRecordRaw kind-set "owner: $rigMember\nkind: permission-set\naddress-to: human-owner\nchannel: DRIGBOTDM\nquestion-ts: $( rigKindTs 3 )\nthread-ts: $( rigKindTs 3 )\naddressees: URIGOWNER\nask-identity: bot\nasked-at: 2026-09-29 12:00 +0300\n" \
-	'# 🔐 Permission set\n\nMay the participants have these, for this session only?\n\n**➕ Asked for**\n- `rig:tree` — Read\n'
+	'# 🔐 Permission set\n\nMay the participants have these, for this session only?\n\n**🔑 Asked for**\n- `rig:tree` — Read\n'
 rigRecordRaw kind-review "owner: $rigMember\nkind: review\naddress-to: human-owner\nchannel: DRIGBOTDM\nquestion-ts: $( rigKindTs 4 )\nthread-ts: $( rigKindTs 4 )\naddressees: URIGOWNER\nask-identity: bot\nitem: rig-item\nasked-at: 2026-09-29 12:00 +0300\n" \
 	"# 🔎 Review\n\n$rigMember handed back, and its work waits for your verdict.\n\n**🗂 Task**\nrig task\n"
 ## A proposal: its root is the question, the proposal is the reply under it (its live version).
 rigRecordRaw kind-proposal "owner: $rigMember\nkind: proposal\naddress-to: human-owner\nchannel: DRIGOWNER\nquestion-ts: $( rigKindTs 5 )\nthread-ts: $( rigKindTs 5 )\nrevision-ts: $( rigKindTs 0 )\naddressees: URIGOWNER\nask-identity: member\nasked-at: 2026-09-29 12:00 +0300\n" \
-	'# 📜 Proposal\n\nShall the rig take the new form?\n\n# 📄 The proposal\n\nThe rig takes the new form.\n\n**🔗 Document**\nhttps://rig.invalid/doc\n'
+	'# 📜 Proposal\n\nShall the rig take the new form?\n\n# 📘 The proposal\n\nThe rig takes the new form.\n\n**🔗 Document**\nhttps://rig.invalid/doc\n'
 rigRemind out
 rigAssert "all five are reminded"                          "$( rigHolds "$rigScenarioDir/out" 'REMIND: reminded=5 threads=5 digests=0 skipped=0 failed=0' )" yes
 for rigKind in permission question set review proposal ; do
@@ -598,7 +598,7 @@ rigRecord ask-mate $(( 32 * 60 )) human-owner
 LC_ALL=C sed -i.bak -e "s/^owner: .*/owner: $rigOther/" -e 's/^session-id: .*/session-id: rig-mate/' "$rigScenarioDir/ws/.local/agents/pending/ask-mate.md"
 ## Asked from the session that leads the coworking session, which is no spawn of it and is in no wait.
 rigRecordRaw ask-lead "owner: $rigMember\nsession-id: rig-cow\nkind: permission-set\naddress-to: human-owner\nchannel: DRIGBOTDM\nquestion-ts: $( rigTsOf $(( 33 * 60 )) )\nthread-ts: $( rigTsOf $(( 33 * 60 )) )\naddressees: URIGOWNER\nask-identity: bot\nasked-at: 2026-09-29 12:00 +0300\n" \
-	'# 🔐 Permission set\n\nMay the participants have these, for this session only?\n\n**➕ Asked for**\n- `rig:tree` — Read\n'
+	'# 🔐 Permission set\n\nMay the participants have these, for this session only?\n\n**🔑 Asked for**\n- `rig:tree` — Read\n'
 ## And one of the mate's that the owner answered, which the mate has not taken.
 rigRecordRaw ask-heard "owner: $rigOther\nsession-id: rig-mate\nkind: question\naddress-to: human-owner\nchannel: CRIG00001\nquestion-ts: $( rigTsOf $(( 36 * 60 )) )\nthread-ts: $( rigTsOf $(( 36 * 60 )) )\naddressees: URIGOWNER\nasking-accounts: URIGSELF1\nasked-at: 2026-09-29 12:00 +0300\n" \
 	'# ❓ Question\n\nMay the rig keep what the mate asked?\n'

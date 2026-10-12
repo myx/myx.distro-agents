@@ -95,9 +95,10 @@ rigTextOf(){ ## body file
 	[ -f "$1" ] || { printf 'no-such-file' ; return 0 ; }
 	LC_ALL=C awk '{ at = index( $0, "\"text\":\"" ) ; if ( ! at ) { next ; } rest = substr( $0, at + 8 ) ; end = 0 ; marks[1] = "\",\"thread_ts\":" ; marks[2] = "\",\"ts\":" ; marks[3] = "\",\"blocks\":" ; for ( markNo = 1 ; markNo <= 3 ; markNo++ ) { markAt = index( rest, marks[markNo] ) ; if ( markAt > 0 && ( end == 0 || markAt < end ) ) { end = markAt ; } } if ( end > 0 ) { print substr( rest, 1, end - 1 ) ; } exit ; }' "$1"
 }
-## What an edit must carry: the text the post was sent with, less its How to answer part.
+## What an edit must carry: the text the post was sent with, less its How to answer part. Of a
+## permission the line that names its refusal stands after that part, and stays.
 rigClosedOf(){ ## the body file of the post
-	rigTextOf "$1" | LC_ALL=C sed 's/\\n\\n\*\*✅ How to answer\*\*.*$//'
+	rigTextOf "$1" | LC_ALL=C sed -e 's/\\n\\n\*\*✅ How to answer\*\*.*\(\\n\\n_Refusal:_ .*\)$/\1/' -e 's/\\n\\n\*\*✅ How to answer\*\*.*$//'
 }
 ## Whether an edit is a whole message as the send builds one: it names the post it edits,
 ## has blocks, and holds no How to answer anywhere -- "<names it>:<blocks>:<How to answer>".
@@ -184,24 +185,24 @@ rigAssert "a free-text question: no emoji line, plain options, the rest as befor
 	$'# ❓ Question\n\nWhich way?\n\n**📋 Options**\n- alpha -- a\n- beta -- b\n\n**⚙ Context**\nctx\n\n**✅ How to answer**\n- reply in this thread'
 rigAssert "a readback: the same body as before" \
 	"$( ASKP_F_tag=Q2 ASKP_F_question='Right?' ASKP_F_understood=U ASKP_F_source=S ASKP_F_will_do=W rigFill post confirm-readback.post.format.md confirm )" \
-	$'# 🔁 Readback Q2\n\nRight?\n\n**📥 What I understood**\nU\n\n**📎 Where it came from**\nS\n\n**▶️ What I will do if confirmed**\nW\n\n**✅ How to answer**\n- reply `yes` (or `ok`, `agreed`, `confirm`) to confirm, `no` to stop, or `correct` followed by the correction\n- or react with :white_check_mark: or :+1: for yes, :x: for no'
+	$'# 🔁 Readback Q2\n\nRight?\n\n**📥 What I understood**\nU\n\n**📎 Where it came from**\nS\n\n**▶️ What I will do if confirmed**\nW\n\n**✅ How to answer**\n- click 👍 to confirm or ❌ to stop\n- or reply `yes` (or `ok`, `agreed`, `confirm`), `no`, or `correct:` followed by the correction\n- the word first; a comment after a comma, or on the next lines'
 rigAssert "a decision: its options numbered, the recommended line kept" \
 	"$( ASKP_F_question='Pick' ASKP_OPTIONS=$'alpha -- a\nbeta -- b (recommended)' rigFill post escalate-decision.post.format.md one )" \
-	$'# 🧭 Decision\n\nPick\n\n**📋 Options**\n- 1️⃣ alpha -- a\n- 2️⃣ beta -- b (recommended)\n\n**✅ How to answer**\n- reply with the first word of the option you choose\n- or click its number, or reply with the number\n- or reply `ok` (or react with :+1:) to take the recommended option'
-rigAssert "a permission: its first line made from the refused call, the asker's words under the reason, the clicks named" \
+	$'# 🧭 Decision\n\nPick\n\n**📋 Options**\n- 1️⃣ alpha -- a\n- 2️⃣ beta -- b (recommended)\n\n**✅ How to answer**\n- click the number of your choice\n- or reply with its number, or with the first word of the option\n- the word first; a comment after a comma, or on the next lines\n- or reply `ok` (or add 👍) to take the recommended option'
+rigAssert "a permission: its first line made from the refused call, the asker's words under the reason, the clicks named first, and last the refusal by its id, each said once" \
 	"$( ASKP_F_question='May I?' ASKP_F_refused_tool=Write ASKP_F_refused_target=/x ASKP_F_refused_for=me ASKP_F_refusal_id=refusal-1 ASKP_F_reason=why ASKP_F_task=t rigFill post request-permission.post.format.md grant )" \
-	$'# 🔐 Permission\n\nAllow **Write** on `/x` for **me**? An allow grants exactly that, and nothing wider.\n\n**🚫 Refused call**\n- tool: Write\n- target: /x\n- refused for: me\n- refusal: refusal-1\n\n**❔ Why this task needs it**\nMay I?\nwhy\n\n**🗂 Task**\nt\n\n**✅ How to answer**\n- reply `deny`, `allow-once` for this one call, or `allow-session` for this session\n- or click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session'
-rigAssert "a permission under the second name: the same refused call, whole even where its record leaves a value empty" \
-	"$( ASKP_SKELETON="$rigHere/templates/ask-user-question.post.format.md" ASKP_F_question='May I?' ASKP_F_refused_tool=WebSearch ASKP_F_refused_target='' ASKP_F_refused_for=me ASKP_F_refusal_id=refusal-1 ASKP_F_reason=why ASKP_F_task=t rigFill post request-permission.post.format.md grant | LC_ALL=C sed -n '5,9p' )" \
-	$'**🚫 Refused call**\n- tool: WebSearch\n- target: \n- refused for: me\n- refusal: refusal-1'
-rigAssert "and under the second name no other kind shows a refused call, a refusal id given or not" \
-	"$( ASKP_SKELETON="$rigHere/templates/ask-user-question.post.format.md" ASKP_F_question='Go?' ASKP_F_refusal_id=refusal-1 rigFill post ask-question.post.format.md text | LC_ALL=C grep -c 'Refused call' )" 0
+	$'# 🔐 Permission\n\nAllow **Write** on `/x` for **me**? An allow grants exactly that, and nothing wider.\n\n**💡 Why this task needs it**\nMay I?\nwhy\n\n**🗂 Task**\nt\n\n**✅ How to answer**\n- click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session\n- or reply `deny`, `allow-once` or `allow-session`\n- the word first; a comment after a comma, or on the next lines\n\n_Refusal:_ `refusal-1`'
+rigAssert "a permission under the second name: the same first line, a target its record leaves empty left out of it, and the same refusal line, last" \
+	"$( ASKP_SKELETON="$rigHere/templates/ask-user-question.post.format.md" ASKP_F_question='May I?' ASKP_F_refused_tool=WebSearch ASKP_F_refused_target='' ASKP_F_refused_for=me ASKP_F_refusal_id=refusal-1 ASKP_F_reason=why ASKP_F_task=t rigFill post request-permission.post.format.md grant | LC_ALL=C sed -n '3p;$p' )" \
+	$'Allow **WebSearch** for **me**? An allow grants exactly that, and nothing wider.\n_Refusal:_ `refusal-1`'
+rigAssert "and under the second name no other kind shows a refusal, a refusal id given or not" \
+	"$( ASKP_SKELETON="$rigHere/templates/ask-user-question.post.format.md" ASKP_F_question='Go?' ASKP_F_refusal_id=refusal-1 rigFill post ask-question.post.format.md text | LC_ALL=C grep -c 'Refusal' )" 0
 rigAssert "yes-no: its two answers" \
-	"$( ASKP_F_question='Go?' rigFill post ask-question.post.format.md yes-no | tail -n 3 )" \
-	$'**✅ How to answer**\n- click 👍 for yes or ❌ for no\n- or reply `yes` or `no`'
+	"$( ASKP_F_question='Go?' rigFill post ask-question.post.format.md yes-no | tail -n 4 )" \
+	$'**✅ How to answer**\n- click 👍 for yes or ❌ for no\n- or reply `yes` or `no`\n- the word first; a comment after a comma, or on the next lines'
 rigAssert "one: its options numbered, how to choose one" \
-	"$( ASKP_F_question='Which?' ASKP_OPTIONS=$'a\nb' rigFill post ask-question.post.format.md one | tail -n 6 )" \
-	$'- 1️⃣ a\n- 2️⃣ b\n\n**✅ How to answer**\n- click the number of your choice\n- or reply with its number, or with the first word of the option'
+	"$( ASKP_F_question='Which?' ASKP_OPTIONS=$'a\nb' rigFill post ask-question.post.format.md one | tail -n 7 )" \
+	$'- 1️⃣ a\n- 2️⃣ b\n\n**✅ How to answer**\n- click the number of your choice\n- or reply with its number, or with the first word of the option\n- the word first; a comment after a comma, or on the next lines'
 rigAssert "many: past the tenth an option has a plain number" \
 	"$( ASKP_F_question='Which?' ASKP_OPTIONS=$'a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk' rigFill post ask-question.post.format.md many | LC_ALL=C sed -n '15,20p' )" \
 	$'- 🔟 j\n- 11. k\n\n**✅ How to answer**\n- click each number you choose, then 🆗 to send\n- or reply with the numbers or first words, separated by spaces or commas, for example `1 3`'
@@ -399,12 +400,12 @@ rigThread 000101 "" ""
 rigCall 30 AskUserQuestion "{$rigAsk,\"question\":\"Which way now?\",\"kind\":\"question\",\"understood\":\"u-text\",\"source\":\"s-text\",\"will_do\":\"w-text\",\"reason\":\"r-text\",\"task_ref\":\"dispatch-rig\",\"context\":\"c-text\",\"wait\":false}"
 rigAssert "a plain question under the second name is posted" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigRecordField kind )" "ASK-RESULT: POSTED:question"
 rigAssert "with every field it was given, the task among them, as before" \
-	"$( rigHolds "$rigScenarioDir/post.1" '# ❓ Question\n\nWhich way now?\n\n**📥 What I understood**\nu-text\n\n**📎 Where it came from**\ns-text\n\n**▶️ What I will do if confirmed**\nw-text\n\n**❔ Why this task needs it**\nr-text\n\n**🗂 Task**\ndispatch-rig\n\n**⚙ Context**\nc-text\n\n**✅ How to answer**\n- reply in this thread' )" yes
+	"$( rigHolds "$rigScenarioDir/post.1" '# ❓ Question\n\nWhich way now?\n\n**📥 What I understood**\nu-text\n\n**📎 Where it came from**\ns-text\n\n**▶️ What I will do if confirmed**\nw-text\n\n**💡 Why this task needs it**\nr-text\n\n**🗂 Task**\ndispatch-rig\n\n**⚙ Context**\nc-text\n\n**✅ How to answer**\n- reply in this thread' )" yes
 rigStart old-name-decision-fields
 rigThread 000101 "" ""
 rigCall 30 AskUserQuestion "{$rigAsk,\"question\":\"Which check first?\",\"kind\":\"decision\",$rigOptions,\"reason\":\"r-text\",\"task_ref\":\"dispatch-rig\",\"wait\":false}"
 rigAssert "a decision under the second name keeps its reason and task above the options" \
-	"$( rigHolds "$rigScenarioDir/post.1" '# 🧭 Decision\n\nWhich check first?\n\n**❔ Why this task needs it**\nr-text\n\n**🗂 Task**\ndispatch-rig\n\n**📋 Options**\n- 1️⃣ alpha -- the unit checks' )" yes
+	"$( rigHolds "$rigScenarioDir/post.1" '# 🧭 Decision\n\nWhich check first?\n\n**💡 Why this task needs it**\nr-text\n\n**🗂 Task**\ndispatch-rig\n\n**📋 Options**\n- 1️⃣ alpha -- the unit checks' )" yes
 rigCall 30 EscalateDecision "{$rigAsk,\"question\":\"Which check first?\",$rigOptions,\"task_ref\":\"dispatch-rig\"}"
 rigAssert "control: the tool of that kind takes its own fields only" "$( rigHolds "$rigScenarioDir/out" 'ERROR: EscalateDecision: task_ref is not a parameter of EscalateDecision' )" yes
 
@@ -532,9 +533,11 @@ rigCall 60 AskQuestion "{\"pending_id\":\"$rigSharedFirst\",\"revise\":true,\"co
 rigAssert "the update ran to its answer"               "$rigKilled" no
 rigAssert "the update is posted under the same number" "$( rigHolds "$rigScenarioDir/post.3" '# ❓ Question Q1 ✏️ updated' ):$( rigFieldOf "$rigSharedFirst" revision-ts )" "yes:1700000001.000301"
 rigAssert "the reply numbered for it answers its live version, the one numbered for the other does not" "$( rigVerdictLine )" "VERDICT: beta"
-rigAssert "its record closes with it, the other stays open" "$( rigFieldOf "$rigSharedFirst" verdict ):$( rigFieldOf "$rigSharedSecond" status )" "beta:reply-pending"
-rigCall 60 AskQuestion "{\"pending_id\":\"$rigSharedSecond\"}"
-rigAssert "the other question takes the reply numbered for it" "$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict )" "VERDICT: gamma:gamma"
+## A wait of a session returns on every update of interest to that session: the same wait takes
+## the reply numbered for the other question too, said as what else arrived.
+rigAssert "its record closes with it" "$( rigFieldOf "$rigSharedFirst" verdict ):$( rigFieldOf "$rigSharedFirst" status )" "beta:reply-received"
+rigAssert "the other question takes the reply numbered for it, in the same wait" \
+	"$( rigHolds "$rigScenarioDir/out" 'ALSO-ARRIVED: ' ):$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedSecond, as the asking call would take it ---" ):$( rigFieldOf "$rigSharedSecond" status ):$( rigFieldOf "$rigSharedSecond" verdict )" "yes:yes:reply-received:gamma"
 rigSharedStart revise-shared-plain
 rigSharedThread '000400|beta'
 rigCall 60 AskQuestion "{\"pending_id\":\"$rigSharedFirst\",\"revise\":true,\"context\":\"alpha takes a minute\"}"
@@ -641,7 +644,7 @@ rigThread 000101 "$( rigReactions "$rigBoth" +1 )" ""
 rigCall 8 RequestPermission "{$rigAsk,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$rigPermissionRefusal\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}" from-read
 rigAssert "a thumbs up is no answer to a permission"   "$( rigVerdictLine )" "VERDICT: RETURNED"
 rigAssert "and grants nothing"                         "$( [ -s "$rigScenarioDir/ws/.local/agents/sessions/rig-forms-permission-click/grants" ] && printf granted || printf none )" none
-rigAssert "the cross, the one and the repeat sign were placed" "$( rigReacted reactions 000101 )" "x one repeat"
+rigAssert "the cross, the one and the repeat sign were placed, and the folder, which this request offers" "$( rigReacted reactions 000101 )" "x one repeat file_folder"
 rigAssert "the post names the clicks"                  "$( rigHolds "$rigScenarioDir/post.1" 'click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session' )" yes
 rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
 rigCall 60 RequestPermission "{\"pending_id\":\"$( rigRecordId )\"}"
@@ -667,9 +670,9 @@ rigSeededAs(){ ## token, ts suffix
 	printf '%s:%s:%s' "$( rigCallsAs reactions.add "$1" "1700000001.$2 x" )" "$( rigCallsAs reactions.add "$1" "1700000001.$2 one" )" "$( rigCallsAs reactions.add "$1" "1700000001.$2 repeat" )"
 }
 ## A refused write, then its permission asked of whoever the fields name; the thread is scripted by the caller.
-rigPermissionAsk(){ ## the path of the refused write, the call's to and its other fields
+rigPermissionAsk(){ ## the path of the refused write, the call's to and its other fields, the task it is for (default dispatch-rig)
 	rigCall 60 Write "{\"path\":\"$1\",\"content\":\"x\"}"
-	rigCall 60 RequestPermission "{$2,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$( rigRefusal "$rigScenarioDir/out" )\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}"
+	rigCall 60 RequestPermission "{$2,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$( rigRefusal "$rigScenarioDir/out" )\",\"reason\":\"the rig needs it\",\"task_ref\":\"${3:-dispatch-rig}\"}"
 }
 ## How many records of the scenario say one identity asked.
 rigRecordsAskedAs(){ ## bot|member
@@ -728,25 +731,33 @@ rigAssert "addressed to the owner in another conversation: the member's own post
 	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' ):$( rigVerdictLine )" "$rigOwnToken:0:member:yes:VERDICT: allow-once"
 rigStart owner-question
 rigCall 30 AskQuestion '{"to":"human-owner","question":"Should the rig go on?","select":"yes-no","wait":false}'
-rigAssert "a plain question to the human-owner is unchanged: the member's own post, record and emoji" \
-	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigBotToken" ):$( rigRecordField ask-identity ):$( rigCallsAs reactions.add "$rigOwnToken" '1700000001.000101 +1' ):$( rigCallsAs reactions.add "$rigBotToken" '1700000001.000101 +1' )" "$rigOwnToken:0:member:1:0"
-## The same permission asked of the owner again. One the bot asked keeps its own thread. One
-## asked before under a member's own account stands where the bot is not: the bot posts it anew.
+rigAssert "a plain question to the human-owner is the team bot's too: its post, record and emoji, none under the member's own token" \
+	"$( rigPostedAs 1 ):$( rigCallsAs chat.postMessage "$rigOwnToken" ):$( rigRecordField ask-identity ):$( rigCallsAs reactions.add "$rigBotToken" '1700000001.000101 +1' ):$( rigCallsAs reactions.add "$rigOwnToken" '1700000001.000101 +1' )" "$rigBotToken:0:bot:1:0"
+## The same permission asked of the owner again: the same refused call, which is what a
+## permission is known by, never its words. One the bot asked keeps its own thread. One asked
+## before under a member's own account stands where the bot is not: the bot posts it anew.
+## Each answer here allows the call once, so the call is made once more, which uses that grant
+## up, and is refused again before it is asked again. Each time it is asked for another task
+## of the session: a further call asked alone for the same task, once he has answered one, is
+## not posted at all (AgentsHarnessPermissionSetAskCheck).
+rigAgainFile="/dev/null/rig-forms/owner-permission-again"
 rigStart owner-permission-again
 rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
-rigPermissionAsk /dev/null/rig-forms/owner-permission-again-a '"to":"human-owner"'
+rigPermissionAsk "$rigAgainFile" '"to":"human-owner"'
 rigAgainPost="$( rigNextPost )"
 rigThread 000101 "$( rigReactions "$rigBoth" one )" "$( rigMessage "000${rigAgainPost}01" URIGSELF1 'asked again' "$( rigReactions "$rigBoth" one )" )"
-rigPermissionAsk /dev/null/rig-forms/owner-permission-again-b '"to":"human-owner"'
+rigCall 60 Write "{\"path\":\"$rigAgainFile\",\"content\":\"x\"}"
+rigPermissionAsk "$rigAgainFile" '"to":"human-owner"' 'the second task of the rig'
 rigAssert "asked again after the bot asked it: the bot's reply in that question's own thread" \
 	"$( rigPostedAs "$rigAgainPost" ):$( rigHolds "$rigScenarioDir/post.$rigAgainPost" '"thread_ts":"1700000001.000101"' ):$( rigSeededAs "$rigBotToken" "000${rigAgainPost}01" ):$( rigRecordsAskedAs bot )" "$rigBotToken:yes:1:1:1:2"
 ## As records from before read: asked under the member's own account.
 for rigAgainRecord in "$rigScenarioDir/ws/.local/agents/pending"/*.md ; do
 	LC_ALL=C sed 's/^ask-identity: bot$/ask-identity: member/' "$rigAgainRecord" > "$rigAgainRecord.rig" && mv -f "$rigAgainRecord.rig" "$rigAgainRecord"
 done
+rigCall 60 Write "{\"path\":\"$rigAgainFile\",\"content\":\"x\"}"
 rigAgainPost="$( rigNextPost )"
 rigThread "000${rigAgainPost}01" "$( rigReactions "$rigBoth" one )" ""
-rigPermissionAsk /dev/null/rig-forms/owner-permission-again-c '"to":"human-owner"'
+rigPermissionAsk "$rigAgainFile" '"to":"human-owner"' 'the third task of the rig'
 rigAssert "asked again after a member's own post of it: a new message of the bot's, never a reply in that thread" \
 	"$( rigPostedAs "$rigAgainPost" ):$( rigCallsAs chat.postMessage "$rigOwnToken" ):$( LC_ALL=C grep -c -F '"thread_ts"' "$rigScenarioDir/post.$rigAgainPost" 2>/dev/null ):$( rigSeededAs "$rigBotToken" "000${rigAgainPost}01" )" "$rigBotToken:0:0:1:1:1"
 rigAssert "and its record says the bot asked"          "$( rigRecordsAskedAs bot ):$( rigRecordsAskedAs member )" "1:2"
@@ -836,7 +847,7 @@ rigReturnedAsk returned-then-member
 rigThread 000101 "" "$( rigMessage 000200 URIGOWNER "$rigHeader this is not decided yet. Do not wait on it." )"
 rigReturnedCall
 rigAssert "a member's reply that names no answer returns it" "$( rigVerdictLine )" "VERDICT: RETURNED"
-rigThread 000101 "" "$( rigMessage 000200 URIGOWNER "$rigHeader this is not decided yet. Do not wait on it." )$( rigMessage 000300 URIGOWNER "$rigHeader allow-once  The owner decided: yes, for this one write." )"
+rigThread 000101 "" "$( rigMessage 000200 URIGOWNER "$rigHeader this is not decided yet. Do not wait on it." )$( rigMessage 000300 URIGOWNER "$rigHeader allow-once. The owner decided: yes, for this one write." )"
 rigReturnedAgain
 rigAssert "then the same member's reply naming an answer after its send header is the answer" "$( rigVerdictLine ):$( rigRecordField status ):$( rigReturnedGrants )" "VERDICT: allow-once:reply-received:1"
 
@@ -857,7 +868,7 @@ for rigPlaceTool in RequestPermission AskUserQuestion ; do
 	rigThread 000101 "$( rigReactions "$rigBoth" one )" ""
 	rigCall 60 "$rigPlaceTool" "{$rigAsk,\"question\":\"May the rig write this file?\"$( [ "$rigPlaceTool" != "AskUserQuestion" ] || printf ',"kind":"permission"' ),\"refusal_id\":\"$rigPlaceId\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}"
 	rigAssert "$rigPlaceTool: the refused target is shown by its place, and no absolute path is in the post" \
-		"$( rigHolds "$rigScenarioDir/post.1" '- target: rig-ws:OUT/place.txt\n' ):$( LC_ALL=C grep -c -F "$rigScenarioDir/ws/OUT" "$rigScenarioDir/post.1" )" "yes:0"
+		"$( rigHolds "$rigScenarioDir/post.1" ' on `rig-ws:OUT/place.txt` for ' ):$( LC_ALL=C grep -c -F "$rigScenarioDir/ws/OUT" "$rigScenarioDir/post.1" )" "yes:0"
 	rigAssert "$rigPlaceTool: the grant is still written for the exact path the record keeps" \
 		"$( rigVerdictLine ):$( LC_ALL=C grep -c -F "$rigScenarioDir/ws/OUT/place.txt" "$rigScenarioDir/ws/.local/agents/sessions/rig-forms-permission-place-$rigPlaceTool/$rigPlaceId.md" )" "VERDICT: allow-once:1"
 done

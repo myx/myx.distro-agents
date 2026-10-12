@@ -60,10 +60,10 @@ rigVerdict(){ ## kind, select, the reply's first line, words wanted (1|empty) ->
 		LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" 2>&1 | LC_ALL=C tr '\t' '|' | LC_ALL=C cut -d'|' -f1-2
 }
 ## kind | answer form | the reply's first line | its verdict | the verdict as a caller that does not ask for the words gets it
-for rigRow in "permission||allow-once, $rigWords|allow-once|allow-once" "permission||deny $rigWords|deny|deny" "permission-set||allow-set - $rigWords|allow-set|allow-set" \
+for rigRow in "permission||allow-once, $rigWords|allow-once|allow-once" "permission||deny, $rigWords|deny|deny" "permission-set||allow-set - $rigWords|allow-set|allow-set" \
 	"proposal||approved, $rigWords|approved|approved -- $rigWords" "review||accept: $rigWords|accept|accept -- $rigWords" \
-	"readback||yes $rigWords|yes|yes" "readback||I confirm, $rigWords|yes|yes" "decision||beta, $rigWords|beta|beta" "decision||2 $rigWords|beta|beta" \
-	"question|yes-no|yes, $rigWords|yes|yes" "question|one|beta $rigWords|beta|beta" ; do
+	"readback||yes, $rigWords|yes|yes" "readback||I confirm, $rigWords|yes|yes" "decision||beta, $rigWords|beta|beta" "decision||2 $rigWords|beta|beta" \
+	"question|yes-no|yes, $rigWords|yes|yes" "question|one|beta, $rigWords|beta|beta" ; do
 	IFS='|' read -r rigKind rigForm rigLine rigWant rigAsBefore <<< "$rigRow"
 	rigAssert "$rigKind${rigForm:+ ($rigForm)} [$rigLine]: the verdict, and the words on its line" "$( rigVerdict "$rigKind" "$rigForm" "$rigLine" 1 )" "$rigWant -- $rigWords|URIGOWNER"
 	rigAssert "$rigKind${rigForm:+ ($rigForm)} [$rigLine]: not asked for the words, the verdict as before" "$( rigVerdict "$rigKind" "$rigForm" "$rigLine" "" )" "$rigAsBefore|URIGOWNER"
@@ -188,7 +188,7 @@ for rigRow in 'readback||yes|yes' 'decision||beta|beta' 'question|yes-no|yes|yes
 	rigTsNext=$(( rigTsNext + 10 )) ; rigTs="1700000000.000$rigTsNext"
 	rigId="$( rigOpen "$rigKind" "$rigTs" ${rigForm:+--select "$rigForm"} --options "$rigOptions" )"
 	[ -n "$rigId" ] || rigRefuse "no $rigKind request could be opened"
-	rigAnswered "$rigTs" "$rigWord $rigWords"
+	rigAnswered "$rigTs" "$rigWord, $rigWords"
 	rigAssert "$rigKind${rigForm:+ ($rigForm)}: the verdict, the words on its line, both messages; and the record keeps the three" \
 		"$( rigReadWords magic-tester "$rigId" "$rigTs" )" "VERDICT: $rigWant|VERDICT-TEXT: $rigWords|2|$rigWant|$rigWords|2"
 done
@@ -203,7 +203,7 @@ rigTs="1700000000.000710"
 rigOp --intern-op-permission-refusal-log magic-tester --session-id rig-set-tester --tool Write --target "$rigWs/ELSE/w1.txt" --reason rig
 rigId="$( rigOpen permission "$rigTs" --refusal-id "$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$rigTmp/op.out" | head -1 )" )"
 [ -n "$rigId" ] || rigRefuse "no permission request could be opened"
-rigAnswered "$rigTs" "allow-session $rigWords"
+rigAnswered "$rigTs" "allow-session, $rigWords"
 rigAssert "permission: the allow, the words on its line, both messages; and the record keeps the three" \
 	"$( rigReadWords magic-tester "$rigId" "$rigTs" )" "VERDICT: allow-session|VERDICT-TEXT: $rigWords|2|allow-session|$rigWords|2"
 rigAssert "the words did not turn the allow into anything else: its grant is written" "$( rigGrantRead magic-tester rig-set-tester Write "$rigWs/ELSE/w1.txt" )" "session"
@@ -214,7 +214,7 @@ RIG_OP_AGENT="" RIG_OP_SESSION=""
 rigId="$( LC_ALL=C sed -n 's/^PERMISSION-SET: asked //p' "$rigTmp/op.out" )"
 [ -n "$rigId" ] || rigRefuse "the rig's permission set request asked nothing: $( head -2 "$rigTmp/op.err" )"
 rigTs="$( rigField "$rigId" question-ts )"
-rigAnswered "$rigTs" "allow-set $rigWords"
+rigAnswered "$rigTs" "allow-set, $rigWords"
 rigAssert "permission set: the allow, the words on its line, both messages; and the record keeps the three" \
 	"$( rigReadWords magic-coordinator "$rigId" "$rigTs" )" "VERDICT: allow-set|VERDICT-TEXT: $rigWords|2|allow-set|$rigWords|2"
 rigAssert "and its grants are written"                 "$( rigGrantRead magic-tester rig-set-tester Read "$rigWs/SETW/a.txt" )" "task"
@@ -281,28 +281,28 @@ rigAskOptions='"options":"alpha -- the unit checks\nbeta -- the lint"'
 
 ## The ask's own close, a kind at a time.
 rigToolStart close-decision
-rigToolAnswer "beta $rigWords"
+rigToolAnswer "beta, $rigWords"
 rigToolCall 60 EscalateDecision "{$rigAsk,\"question\":\"Which check first?\",$rigAskOptions}"
 rigAssert "the ask's own close, a decision: the verdict, the words on its line, every line he wrote; and the record keeps them" \
-	"$rigToolKilled:$( rigToolWords "beta $rigWords" )" "no:VERDICT: beta|VERDICT-TEXT: $rigWords|5|beta|$rigWords|2"
+	"$rigToolKilled:$( rigToolWords "beta, $rigWords" )" "no:VERDICT: beta|VERDICT-TEXT: $rigWords|5|beta|$rigWords|2"
 rigToolStart close-readback
-rigToolAnswer "yes $rigWords"
+rigToolAnswer "yes, $rigWords"
 rigToolCall 60 ConfirmReadback "{$rigAsk,\"question\":\"Did I read it right?\",\"understood\":\"tag v1\",\"source\":\"the brief\",\"will_do\":\"tag it\"}"
 rigAssert "the ask's own close, a readback: the same" \
-	"$rigToolKilled:$( rigToolWords "yes $rigWords" )" "no:VERDICT: yes|VERDICT-TEXT: $rigWords|5|yes|$rigWords|2"
+	"$rigToolKilled:$( rigToolWords "yes, $rigWords" )" "no:VERDICT: yes|VERDICT-TEXT: $rigWords|5|yes|$rigWords|2"
 rigToolStart close-question-one
-rigToolAnswer "beta $rigWords"
+rigToolAnswer "beta, $rigWords"
 rigToolCall 60 AskQuestion "{$rigAsk,\"question\":\"Which check first?\",\"select\":\"one\",$rigAskOptions}"
 rigAssert "the ask's own close, a question that takes one: the same" \
-	"$rigToolKilled:$( rigToolWords "beta $rigWords" )" "no:VERDICT: beta|VERDICT-TEXT: $rigWords|5|beta|$rigWords|2"
+	"$rigToolKilled:$( rigToolWords "beta, $rigWords" )" "no:VERDICT: beta|VERDICT-TEXT: $rigWords|5|beta|$rigWords|2"
 rigToolStart close-permission
 rigToolCall 60 Write '{"path":"/dev/null/rig-words/x","content":"x"}'
 rigToolRefusal="$( LC_ALL=C sed -n 's/^REFUSAL-ID: \(refusal-[0-9a-f-]*\)$/\1/p' "$rigToolDir/out" | head -1 )"
 [ -n "$rigToolRefusal" ] || rigRefuse "the rig produced no refusal to ask permission for"
-rigToolAnswer "allow-once $rigWords"
+rigToolAnswer "allow-once, $rigWords"
 rigToolCall 60 RequestPermission "{$rigAsk,\"question\":\"May the rig write this file?\",\"refusal_id\":\"$rigToolRefusal\",\"reason\":\"the rig needs it\",\"task_ref\":\"dispatch-rig\"}"
 rigAssert "the ask's own close, a permission: the allow with words after it is still the allow, and the words come with it" \
-	"$rigToolKilled:$( rigToolWords "allow-once $rigWords" )" "no:VERDICT: allow-once|VERDICT-TEXT: $rigWords|5|allow-once|$rigWords|2"
+	"$rigToolKilled:$( rigToolWords "allow-once, $rigWords" )" "no:VERDICT: allow-once|VERDICT-TEXT: $rigWords|5|allow-once|$rigWords|2"
 rigToolStart close-text
 rigToolAnswer "keep it, $rigWords"
 rigToolCall 60 AskQuestion "{$rigAsk,\"question\":\"May the rig keep its report file?\"}"
@@ -312,12 +312,12 @@ rigAssert "the ask's own close, a question that takes any text: the answer is hi
 ## The answer taken by Wait, then a later reply arriving on Wait.
 rigToolStart wait-decision
 rigToolCall 30 EscalateDecision "{$rigAsk,\"question\":\"Which check first?\",$rigAskOptions,\"wait\":false}"
-rigToolThread "$( rigToolMsg 000200 "beta $rigWords\\n$rigUnder" )"
+rigToolThread "$( rigToolMsg 000200 "beta, $rigWords\\n$rigUnder" )"
 rigToolCall 60 Wait '{"mode":"continue"}'
 rigAssert "the answer taken by Wait: the verdict, the words on its line and the lines under it, in what the member reads and on the record" \
-	"$rigToolKilled:$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigToolDir/out" ):$( LC_ALL=C grep -m1 '^VERDICT-TEXT: ' "$rigToolDir/out" ):$( LC_ALL=C grep -c -x -F -e "1700000001.000200 | URIGOWNER | beta $rigWords" -e '# a note' -e 'and tell me when done' "$rigToolDir/out" ):$( rigToolField verdict ):$( rigToolField verdict-text )" \
+	"$rigToolKilled:$( LC_ALL=C grep -m1 '^VERDICT: ' "$rigToolDir/out" ):$( LC_ALL=C grep -m1 '^VERDICT-TEXT: ' "$rigToolDir/out" ):$( LC_ALL=C grep -c -x -F -e "1700000001.000200 | URIGOWNER | beta, $rigWords" -e '# a note' -e 'and tell me when done' "$rigToolDir/out" ):$( rigToolField verdict ):$( rigToolField verdict-text )" \
 	"no:VERDICT: beta:VERDICT-TEXT: $rigWords:3:beta:$rigWords"
-rigToolThread "$( rigToolMsg 000200 "beta $rigWords\\n$rigUnder" )$( rigToolMsg 000300 "$rigLaterText" )"
+rigToolThread "$( rigToolMsg 000200 "beta, $rigWords\\n$rigUnder" )$( rigToolMsg 000300 "$rigLaterText" )"
 rigToolCall 60 Wait '{"mode":"continue"}'
 rigAssert "a later reply of his arriving on Wait: it reaches the member whole, as a clarification, and is kept" \
 	"$rigToolKilled:$( LC_ALL=C grep -c -x -F 'ASK-RESULT: CLARIFIED' "$rigToolDir/out" ):$( LC_ALL=C grep -x -F -e '1700000001.000300 | URIGOWNER | one more thing' -e '# keep a copy' "$rigToolDir/out" | LC_ALL=C sort -u | LC_ALL=C grep -c . ):$( LC_ALL=C grep -c -x -F -e '- 1700000001.000200 URIGOWNER: # a note / and tell me when done' -e '- 1700000001.000300 URIGOWNER: one more thing / # keep a copy' "$( rigToolRecord )" )" \
@@ -331,7 +331,7 @@ rigToolCollect(){
 }
 rigToolStart collect-question-one
 rigToolCall 30 AskQuestion "{$rigAsk,\"question\":\"Which check first?\",\"select\":\"one\",$rigAskOptions,\"wait\":false}"
-rigToolAnswer "beta $rigWords"
+rigToolAnswer "beta, $rigWords"
 rigToolCollect
 rigAssert "the collect, a question that takes one: answered with the verdict, and the words and both messages come with it" \
 	"$( LC_ALL=C grep -c '^ANSWERED .* | beta$' "$rigToolDir/out" ):$( LC_ALL=C grep -c -x -F -e "  VERDICT-TEXT: $rigWords" -e '  CLARIFICATION: 1700000001.000200 URIGOWNER: # a note / and tell me when done' -e '  CLARIFICATION: 1700000001.000300 URIGOWNER: one more thing / # keep a copy' "$rigToolDir/out" ):$( rigToolField verdict ):$( rigToolField verdict-text )" \
@@ -431,7 +431,7 @@ revRead(){
 }
 revStart words
 [ "$( revField kind ):$( revLoc )" = "review:review" ] || rigRefuse "the rig's handback asked for no review: $( head -3 "$revDir/handback" )"
-revThread '' ",{\"ts\":\"1700000002.000001\",\"user\":\"URIGOWNER\",\"text\":\"accept $rigWords\\\\n# a note\\\\nand tell me when done\",\"thread_ts\":\"%s\"},{\"ts\":\"1700000002.000002\",\"user\":\"URIGOWNER\",\"text\":\"one more thing\\\\n# keep a copy\"}"
+revThread '' ",{\"ts\":\"1700000002.000001\",\"user\":\"URIGOWNER\",\"text\":\"accept, $rigWords\\\\n# a note\\\\nand tell me when done\",\"thread_ts\":\"%s\"},{\"ts\":\"1700000002.000002\",\"user\":\"URIGOWNER\",\"text\":\"one more thing\\\\n# keep a copy\"}"
 rigAssert "the accept with words after it is the accept, and the item is processed" "$( revRead )" "VERDICT: accept:processed:reply-received"
 rigAssert "its words are everything he wrote with it, the line that starts as a heading too" \
 	"$( LC_ALL=C grep -m1 '^VERDICT-TEXT: ' "$revDir/read" )" "VERDICT-TEXT: $rigWords / # a note / and tell me when done / one more thing / # keep a copy"

@@ -98,10 +98,11 @@ Steps:
 1. **spawn-choose-shape**: Reuse a live session already on the same line of work by message. Otherwise spawn fresh. One session holds one line of work.
    - rule: a spawned session commands only members it spawned itself (`magic-team.coworking.routine`'s "An executor can only command members it spawned itself"). Work needing a quorum of members that already exist is convened by the session that spawned them.
    - rule: prefer flat dispatch. A spawned instance spawning further members is the exception, and its report about other members' work is verified against the artefacts.
-2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (the tooling's `sh-lib/templates/spawn-brief.document.format.md`) itself; the brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these three labelled lines, each present even when the answer is none:
+2. **spawn-prepare-brief**: Write the brief per this file's "How to hand off" and "What to hand off" rules. The team `Agent` tool prepends the mechanical block (the tooling's `sh-lib/templates/spawn-brief.document.format.md`) itself; the brief never copies it. The brief carries a `## spawn-prepare-brief` heading with these four labelled lines, each present even when the answer is none:
    - `warnings:` — the open `warning-*` items relevant to this dispatch, restated short. Relevance is this session's judgement now; a warning it cannot say why it includes is left out. `none relevant` when the open set was read and none qualified, `none open` when there was none.
    - `held-context:` — the messages and relays the calling session holds that the spawn needs, or `none`.
    - `checked:` — what this brief did on both points above, so a brief that looked and found nothing differs from one that never looked.
+   - `access:` — the places and tools this work needs, worked out before launch, so the spawned member asks once with `entries` rather than call by call.
    Re-read the drafted brief for the block before sending.
 3. **spawn-launch**: Spawn with the team `Agent` tool (`mcp__myx_distro__Agent` in a native client), never a client's in-process subagent. Further members join by the session id the first spawn printed. To start a routine's own session with its executors in one call, use `--magic-spawn-session`.
 4. **spawn-record-dispatch**: Board-tracked work: move the tracked item to `board-running` if it is not there, and record the spawn's receipt as its `execution-receipt`.
@@ -246,7 +247,7 @@ The fast gate at task creation: may this task exist, and may the asking member a
 
 - Work crossing a domain boundary loops in the owning member directly, never through an adjacent member. No task directs a member outside a domain another member owns. Ambiguous ownership is escalated.
 - No member creates a task telling another member to do something destructive or irreversible outside that action's established mandate. What counts as destructive is the acting member's own file (for infrastructure, `magic-devops.armed.md`'s "Destructive and irreversible actions").
-- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. A permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]` -- `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
+- A dispatch sanctioning a mutating action names the exact operation and target set. An unnamed one is unsanctioned, and the acting member escalates it. This member works out what the whole task needs before asking, the same as any member, and asks once: a permission the session will need is planned into its `dispatch-*` item's `allows:` (`--magic-permission-set-request`, an entry naming a place as `@<name>[:<glob>]` -- `.skillset-shared` and `.skillset-.local` are two built-in places, needing no registration), and the dispatch names the namespaces its work reads (`--member-namespace-list`).
 - **A batch of tasks is dispatched as a coworking session**, the quorum group as participants and the specialists as invitees, never as a series of solo dispatches. Solo is only for clear, checkable, single-dispatchable work one member fully owns. A restarted session re-notifies every participant and invitee.
 - **One spawned session holds one line of work.** A related follow-up goes to the live session by message; a new line of work gets a fresh session.
 - **`magic-coordinator` is the mandated channel to the human-owner**, for status, questions and approvals. No other member seeks his approval or verifies Slack, Trello or approval content on its own initiative. Inside a session it coordinates:
@@ -322,6 +323,7 @@ Every `magic-tooling` operation this member's own procedures and rules use. Beha
 
 - `--member-comms-slack-send-message <team-member> <target> [text...]`
 - `--member-comms-slack-react <team-member> <channel>:<ts> <emoji-name>`
+- `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]` — this member's own way to a `client-*` member's operation; the named member is the client, dispatched in its own session.
 - `--magic-comms-trello-post-comment <team-member> <card-id> [text...]`
 - `--magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:...]...`
 - `--magic-board-to-blocked <team-member> <item-filename> --from-state:<state> [--header:...]...`

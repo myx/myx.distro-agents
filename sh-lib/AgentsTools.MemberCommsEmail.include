@@ -83,11 +83,11 @@ case "$1" in
 
 		## The client stubs: the same operations on the side of the other organisation, for a
 		## client-* member alone, under the settings that member itself holds for it. The side is
-		## set where a --client-* operation is dispatched. A spawned session names only itself,
-		## as with the member stubs above.
+		## set, and who may call is asked, where a --client-* operation is dispatched: the client's
+		## own session alone (AgentsToolsClientCallerCheck).
 		--client-comms-email-check|--client-comms-email-read|--client-comms-email-mark-seen|--client-comms-email-send)
 			case "${2:-}" in
-				client-*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+				client-*) ;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own mail under that member's own settings for it" >&2
 					set +e ; return 1

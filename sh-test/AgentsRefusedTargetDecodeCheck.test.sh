@@ -114,7 +114,7 @@ rigStart record-escaped
 rigRecord rig-session-1 refusal-rig1 "100%25 sure%0Asecond line"
 rigAsk rig-session-1 refusal-rig1 "May that be allowed" URIGOWNER1
 rigAssert "the question was posted"                "$( [ -f "$rigScenarioDir/post.1" ] && printf yes || printf no )" yes
-rigAssert "the percent is shown as a percent"      "$( rigHolds "$rigScenarioDir/post.1" "target: 100% sure" )" yes
+rigAssert "the percent is shown as a percent"      "$( rigHolds "$rigScenarioDir/post.1" " on \`100% sure" )" yes
 rigAssert "the escaped percent is gone"            "$( rigHolds "$rigScenarioDir/post.1" "%25" )" no
 rigAssert "the escaped newline is gone"            "$( rigHolds "$rigScenarioDir/post.1" "%0A" )" no
 
@@ -122,14 +122,14 @@ echo "-- a URL target reaches the decider as it is --"
 rigStart url-target
 rigRecord rig-session-6 refusal-rig6 "https://api.slack.com/reference/block-kit/blocks"
 rigAsk rig-session-6 refusal-rig6 "May api.slack.com be added to the allowlist" URIGOWNER6
-rigAssert "the URL is shown readable"              "$( rigHolds "$rigScenarioDir/post.1" "target: https://api.slack.com/reference/block-kit/blocks" )" yes
+rigAssert "the URL is shown readable"              "$( rigHolds "$rigScenarioDir/post.1" " on \`https://api.slack.com/reference/block-kit/blocks\` for " )" yes
 rigAssert "no colon escape is shown"               "$( rigHolds "$rigScenarioDir/post.1" "%3A" )" no
 
 echo "-- a target with no escapes is unchanged --"
 rigStart plain-target
 rigRecord rig-session-2 refusal-rig2 "plain/target/no-escapes"
 rigAsk rig-session-2 refusal-rig2 "plain case" URIGOWNER2
-rigAssert "a plain target is shown exactly as it was" "$( rigHolds "$rigScenarioDir/post.1" "target: plain/target/no-escapes" )" yes
+rigAssert "a plain target is shown exactly as it was" "$( rigHolds "$rigScenarioDir/post.1" " on \`plain/target/no-escapes\` for " )" yes
 
 echo "-- a malformed escape, a lone percent, does not break the message --"
 rigStart malformed-escape

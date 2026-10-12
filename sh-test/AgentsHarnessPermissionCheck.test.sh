@@ -385,12 +385,13 @@ rigAskPermission rig-session "$( rigRefusalId )" "deny"
 rigAssert "the verdict is deny"                            "$( rigLineOf 'VERDICT: ' )" "VERDICT: deny"
 rigAssert "no grant is written"                            "$( rigLineOf 'GRANT: ' )" "no-GRANT: line"
 rigAssert "the retry is refused"                           "$( rigWriteCall rig-session "$rigTarget" )" "ERROR: path not in the allowed write-root set -- it may still be readable: $rigTarget"
-rigWriteCall rig-session "$rigTarget" > /dev/null
+## Another refused call than the denied one above. A permission is known by its call --
+## session, member, tool and target -- never by its words: the same call asked again,
+## however it is worded, gets that deny back unasked (Asked once, in MAGIC.md).
+rigWriteCall rig-session "$rigScenarioDir/ws/OUT/q-later.txt" > /dev/null
 rigIdLater="$( rigRefusalId )"
 printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGBOT01","text":"question"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"maybe later","thread_ts":"1700000001.000101"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
 rm -f "$rigScenarioDir/posts"
-## Worded apart from the denied ask above: the same session asking the same permission
-## question again gets that deny back unasked (Asked once, in MAGIC.md).
 rigTool rig-session AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task now write the refused file after all?\",\"address_to\":\"URIGOWNER\",\"kind\":\"permission\",\"refusal_id\":\"$rigIdLater\",\"reason\":\"r\",\"task_ref\":\"t\"}"
 rigAssert "an answer naming no option is RETURNED"         "$( rigLineOf 'VERDICT: ' )" "VERDICT: RETURNED"
 rigAssert "and nothing is posted for it"                   "$( cat "$rigScenarioDir/posts" )" 1
@@ -513,6 +514,7 @@ rigPending="$( rigPendingId )"
 sleep 3
 rigAssert "before the answer, the call has not returned"   "$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned )" waiting
 rigAssert "and its record is open"                         "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" reply-pending
+rigAssert "it names the member it asks among its addressees, by its member name" "$( LC_ALL=C awk -F': ' '$1 == "addressees" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" magic-coordinator
 rigOp --member-escalation-answer magic-developer "$rigPending" allow-once
 rigAssert "a member it is not addressed to cannot answer"  "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
 ## The coordinator answers from its own session, with the coordinator's form.
@@ -533,6 +535,9 @@ rigAssert "the answering session is recorded"      "$( LC_ALL=C awk -F': ' '$1 =
 rigAssert "the coordinator's answer is applied"            "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "and the grant is written from the record"       "$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdC" )" yes
 rigAssert "the waiting call ended on the answer"           "$( rigAskFinish 45 )" yes
+## This scenario gives the question no thread to read, so what ended the call is the record
+## the team operation closed, and nothing a thread held.
+rigAssert "with its thread unreadable all along: the answer came by the record alone" "$( rigHolds "$rigScenarioDir/err" 'rig_no_replies' )" yes
 rigAssert "it returned RECEIVED"                           "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
 rigAssert "with the verdict"                               "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "and who gave it"                                "$( rigLineOf 'ANSWERED-BY: ' )" "ANSWERED-BY: magic-coordinator"
@@ -543,6 +548,49 @@ RIG_OP_AGENT=""
 rigOp --member-escalation-read magic-tester "$rigPending"
 rigAssert "read returns the recorded verdict"              "$( rigHolds "$rigScenarioDir/op.out" 'VERDICT: allow-once' )" yes
 rigVerdict "sync escalation -- waits for the coordinator's answer, resumes the same session, uses the grant"
+
+## ---------------------------------------------------------------------------
+## 17b. The same with the question's thread readable and quiet. The member's name among the
+##      addressees has the thread read for its own reply; the answer given through the team
+##      operation is in no thread, and still ends the waiting call when it is given: within
+##      the call's round, a minute long, never at the end of it.
+## ---------------------------------------------------------------------------
+rigStart answer-by-coordinator-thread no
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+rigTarget="$rigScenarioDir/ws/OUT/t.txt"
+rigWriteCall rig-session "$rigTarget" > /dev/null
+rigIdT="$( rigRefusalId )"
+rigAskMember rig-session "$rigIdT" magic-coordinator
+rigPending="$( rigPendingId )"
+sleep 3
+rigAssert "control: the call waits, and its record names the member among its addressees" \
+	"$( kill -0 "$rigAskPid" 2>/dev/null && printf waiting || printf returned ):$( LC_ALL=C awk -F': ' '$1 == "addressees" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" )" "waiting:magic-coordinator"
+RIG_OP_AGENT=magic-coordinator
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
+RIG_OP_AGENT=""
+rigAssert "the waiting call ended on the answer given through the operation, within its round" "$( rigAskFinish 45 )" yes
+rigAssert "its thread was read for the member's own reply, and no read of it failed" "$( [ "$( rigCalls conversations.replies )" -gt 0 ] && printf read || printf unread ):$( rigHolds "$rigScenarioDir/err" 'rig_no_replies' )" "read:no"
+rigAssert "it returned RECEIVED, with the verdict and who gave it" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigLineOf 'VERDICT: ' ):$( rigLineOf 'ANSWERED-BY: ' )" "ASK-RESULT: RECEIVED:VERDICT: allow-once:ANSWERED-BY: magic-coordinator"
+rigAssert "the same session's exact retry passes"          "$( rigWriteCall rig-session "$rigTarget" )" "$( rigOkLine "$rigTarget" )"
+rigVerdict "sync escalation, its thread readable -- the answer through the operation ends the waiting call within its round"
+
+## 17c. An asking call cut short leaves its ask open; answered through the team operation
+##      after that, the answer is returned to the requester by a later Wait on the ask.
+rigStart answer-later-wait no
+printf '{"ok":true,"messages":[{"ts":"1700000001.000101","user":"URIGSELF1","text":"question"}],"has_more":false}\n' > "$rigScenarioDir/replies.json"
+rigTarget="$rigScenarioDir/ws/OUT/l.txt"
+rigWriteCall rig-session "$rigTarget" > /dev/null
+rigAskMember rig-session "$( rigRefusalId )" magic-coordinator
+rigPending="$( rigPendingId )"
+sleep 3
+rigAskFinish 0 > /dev/null
+rigAssert "an asking call cut short leaves its ask open"   "$( LC_ALL=C awk -F': ' '$1 == "status" { print $2 ; exit ; }' "$rigScenarioDir/ws/.local/agents/pending/$rigPending.md" 2>/dev/null )" reply-pending
+RIG_OP_AGENT=magic-coordinator
+rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-session
+RIG_OP_AGENT=""
+rigTool rig-session Wait "{\"sources\":\"ask:$rigPending\",\"timeout\":\"30\"}"
+rigAssert "a later Wait returns the answer to the requester" "$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'ASK-RESULT: RECEIVED' ):$( rigLineOf 'VERDICT: ' )" "WAIT-RESULT: RECEIVED:yes:VERDICT: allow-session"
+rigVerdict "a call cut short -- a later Wait returns the answer given through the operation"
 
 ## ---------------------------------------------------------------------------
 ## 18. The asking member cannot answer its own escalation through the operation.

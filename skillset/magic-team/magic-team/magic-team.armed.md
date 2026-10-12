@@ -77,12 +77,12 @@ A term in `` `backticks` `` carries the meaning below. The list is partial; more
 - `quorum-all-agree` — every member of the named group agrees. The default meaning of "quorum".
 - `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects; silence is "not yet spoken".
 - `routing-origin` — a message's verified first source. `routing-relay` — a hop it passed through. `routing-target` — who it is for.
-- `session-current` — the send target naming the session thread of the coworking session a member works in now. Send, read, react, the ask tools and `Wait` take it, the same as `session-parent`.
+- `session-current` — the send target naming the session thread of the coworking session a member works in now, one of six built-in aliases with `session-parent`, `magic-team`, `human-owner`, `event-track` and `event-alert`. Send, read, react, edit, delete, file-share, the ask tools and the posting tools take any of them; `Wait` takes them as sources. `<alias>:<ts>` is a reply in the thread of that message; an alias naming nowhere fails with one plain line.
 - `session-parent` — the send target naming the session that started a member, used instead of its channel id.
 - `session thread` — the `slack-magic-team` thread the tooling opens for a session, addressed as `session-current`. Sends and asks with an empty target default to it, the same in a native session that is itself the coworking session. A bare `Wait` there watches `magic-team`, `human-owner` and, once it has one, this same session thread.
 - `skillset file` — an instruction-layer team file: rules, contracts, templates. Board, inbox, vault and audit content is data, not skillset.
 - `skillset reader` — the one tool any skillset file is read with: `mcp__myx_distro__Skill` in a native client, `Skill` in the team harness.
-- `slack-magic-team`, `slack-human-owner`, `slack-event-track`, `slack-event-alert` — the team channel, the human-owner's direct conversation, the event-trace channel, the alert channel. Send targets `magic-team`, `human-owner`, `event-track`, `event-alert`.
+- `slack-magic-team`, `slack-human-owner`, `slack-event-track`, `slack-event-alert` — the team channel, the human-owner's direct conversation, the event-trace channel, the alert channel. Send targets `magic-team`, `human-owner`, `event-track`, `event-alert`, completing the six built-in aliases with `session-current` and `session-parent`: a member names a place this way, never a channel id.
 - `tracking-thread` — the `event-track` thread the tooling opens for a session, holding its automatic trace. Distinct from the session thread, where participants talk.
 - `vault-item` — a document under `vault/`: verbatim documents and facts, `verbatim-*`.
 - `verbatim-intent` — a fixed statement of purpose a later edit is checked against. `verbatim-benchmark` — a fixed concrete case that tests an intent. Neither is paraphrased once written.
@@ -109,8 +109,9 @@ All statements apply at the same time, always. These rules override a magic-team
 # Waiting
 
 **wait-never-quit**: Any agent or task in a session never stops on its own. Its handback is the final report of its work and its last message, through `SubagentHandback` or any other way it reports. A handback naming nobody in `address_to` is addressed to the member whose session started it, where a record names that member. After it, it only waits with `Wait` (`mcp__myx_distro__Wait` in a native client), at least on its own session thread, and keeps obeying what arrives.
-- Only the system or its caller ends it: an accept, a reject, the review wait limit, a cancel, a shutdown. The ending reaches it as `DISMISSED` in its session thread, addressed to it; its `Wait` returns `DISMISSED`, and it ends.
+- Only the system or its caller ends it: an accept, a reject, the review wait limit, a cancel, a shutdown. The ending reaches it as `DISMISSED` in its session thread, addressed to it; its `Wait` returns `DISMISSED`, and it ends. After `DISMISSED` a member gives its handback if it has not, and calls nothing more.
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
+- An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived, the ask's own question stays open, and the result's last line gives the exact call to go on with.
 - Exception: a session spawned with its caller blocked on it (`--wait`, such as the host loop's heartbeat or root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
 - `TaskStop` is only a last-resort force-stop for an unresponsive agent.
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
@@ -155,7 +156,7 @@ Writing:
 - A new element in an instruction file or report matches the length and detail of its siblings.
 
 Git, scope and finishing:
-- **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`, and the member asks with a `permission` ask ("Nothing stops on its own"); the grant is `allow-once`, `allow-session` or `allow-task`.
+- **A member acts within its granted permissions.** Each member holds standing grants for its own scope; a `keeper-*` reads, writes and executes in its own domain by default. An action beyond them is refused with a `REFUSAL-ID:`. The member asks once for what the task needs, as one Permission set (`RequestPermission` with `entries`, "Nothing stops on its own"); a single-call ask is for a truly single case only. The grant is `allow-once`, `allow-session` or `allow-task`.
 - What a member holds is computed by tooling only, and `--member-permission-list <own-name>` lists it: the floor, its standing grants (declared for it by namespace, workspace or place), its session's or task's permission set, and grants received; `cred:` and `spend:` start with the human-owner. The floor: the team tools, its session sandbox (read `input/`, write `output/`), writing `.local/temp/**`, and under `source/` reading every `MAGIC.md`, `README.md` and `docs/**.md` and writing `MAGIC.md`. Anything else under `source/` needs a grant. A member's own file may hold a wider standing grant tied to a place: magic-librarian's `.md`-edit of a team-member skill under `.skillset-shared` or `.skillset-.local` is one (`magic-librarian.armed.md`). Nobody approves what it does not hold: tooling routes that ask up, to a holder in the session or task, then to the human-owner. A holder may pass a permission on (`--member-permission-pass`) to a participant or a member it spawned for the work, never wider or longer than its own.
 - A routine may allow its participants permissions for its run (`allows:` in its frontmatter).
 - A destructive or irreversible action is confirmed through the chain of command before it runs, even inside a grant; a high-stakes one reaches the human-owner every time (`magic-team.conversations.md`'s **anchor-refusal-safeguard**).
@@ -330,7 +331,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 **Rule**: a date inside any name — document, file, item — is `YYYYMMDD'T'HHmm'Z'`, or `YYYYMMDD'T'HHmmSS'Z'` where seconds are needed.
 
-**Prefix grant**: the whole `--member-*` namespace. An operation's prefix names who may run it: `--member-*` any member, `--magic-*` `magic-coordinator` only, `--librarian-*` `magic-librarian`, `--client-*` a `client-*` member, `--owner-*` only where a member's own list names it. A member needing a `--magic-*` operation asks the session's `magic-coordinator`.
+**Prefix grant**: the whole `--member-*` namespace. An operation's prefix names who may run it, with no exception: `--member-*` any member, `--magic-*` `magic-coordinator` only, `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. A member needing a `--magic-*` operation asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
 
 ## DistroAgentsTools magic-tooling operations
 

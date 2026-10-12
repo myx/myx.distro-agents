@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check that the texts the tooling posts on its own are blocks of its templates
 ## (sh-lib/templates/), filled by the one filler, and not texts written in code: the joined
-## line of a session, the readback note, the withdrawn note, the reminder line, the line a
+## line of a session, the two lines that say how a run ended (no handback, a question of its
+## own open), the readback note, the withdrawn note, the reminder line, the line a
 ## forwarded request opens with, the line that hands a request to a holder, and the bodies of
 ## the four report tools (SubagentHandback, ReportFindings, PushNotification, Artifact).
 ## Three ways. Each block, filled, gives the words it is meant to give. No line of code
@@ -59,6 +60,12 @@ rigAssert "the joined line, with what the member was brought in for" \
 	"$( ASKP_F_member=keeper-rig ASKP_F_description='look at the logs' rigBlock "$rigNote" Session/joined )" 'keeper-rig joined: look at the logs'
 rigAssert "the joined line, with no description" \
 	"$( ASKP_F_member=keeper-rig rigBlock "$rigNote" Session/joined )" 'keeper-rig joined'
+rigAssert "the line that says a run ended with no handback" \
+	"$( ASKP_F_member=keeper-rig ASKP_F_run=0a1b2c3d rigBlock "$rigNote" Session/handback-missing )" \
+	'📦 keeper-rig ended its run `0a1b2c3d` and posted no handback. What it did is not reported in this thread.'
+rigAssert "the line that says a run ended with questions of its own open, with how many" \
+	"$( ASKP_F_member=keeper-rig ASKP_F_run=0a1b2c3d ASKP_F_count=2 rigBlock "$rigNote" Session/question-open )" \
+	'❓ keeper-rig ended its run `0a1b2c3d` and left questions of its own open: 2. Each one stays open and can still be answered.'
 rigAssert "the readback note, with what was understood" \
 	"$( ASKP_F_member=keeper-rig ASKP_F_option=beta ASKP_F_text='the later one' rigBlock "$rigNote" Ask/readback )" \
 	$'🔁 Readback by keeper-rig: I take your reply to mean `beta` -- the later one\nIf that is wrong, reply here. Your reply is kept on this decision.'
@@ -85,21 +92,31 @@ rigAssert "the line that hands a request to a holder: the holder named by the ad
 	'A permission request asked by keeper-rig is now yours to answer, keeper-holder. keeper-other does not hold WebSearch, so that answer is not applied. Answer it with the escalation answer operation, naming request `11111111-2222`.'
 rigAssert "what was not held, for a call with no target" \
 	"$( ASKP_F_by=keeper-other ASKP_F_tool=WebSearch rigBlock "$rigNote" Reasons/not-held )" 'keeper-other does not hold WebSearch'
-rigHandbackFull=$'Handback\n\nTask as given:\nT\n\nOutcome:\nO\n\nFindings:\nF\n\nUnfinished, and what was not checked:\nU\n\nAnswers collected, and questions still open:\nC'
+## Each report has the form the ask posts have: a title that says what it is, with its icon,
+## the task in words where one is known, then each field under a label of its own.
+rigHandbackFull=$'# 🏁 Handback\n\n**🗂 Task**\nT\n\n**📦 Outcome**\nO\n\n**🔍 Findings**\nF\n\n**⏳ Unfinished, and what was not checked**\nU\n\n**📬 Answers collected, and questions still open**\nC'
 rigAssert "a handback, every field given" \
 	"$( ASKP_F_task=T ASKP_F_outcome=O ASKP_F_findings=F ASKP_F_unfinished=U ASKP_F_collected=C rigBlock "$rigReport" Skeleton/SubagentHandback )" "$rigHandbackFull"
 rigAssert "a handback with its outcome alone: no label over nothing" \
-	"$( ASKP_F_outcome=O rigBlock "$rigReport" Skeleton/SubagentHandback )" $'Handback\n\nOutcome:\nO'
+	"$( ASKP_F_outcome=O rigBlock "$rigReport" Skeleton/SubagentHandback )" $'# 🏁 Handback\n\n**📦 Outcome**\nO'
 rigAssert "findings, every field given" \
-	"$( ASKP_F_subject=S ASKP_F_findings=F ASKP_F_evidence=E ASKP_F_confidence=C rigBlock "$rigReport" Skeleton/ReportFindings )" \
-	$'Findings: S\n\nWhat was established:\nF\n\nEvidence:\nE\n\nConfidence, and what was not checked:\nC'
-rigAssert "a notification, its severity word the template's own" \
-	"$( ASKP_F_severity="$( rigBlock "$rigReport" Severity/alert )" ASKP_F_headline=H ASKP_F_detail=D ASKP_F_action_required=A rigBlock "$rigReport" Skeleton/PushNotification )" \
-	$'ALERT -- H\n\nDetail:\nD\n\nAction required:\nA'
-rigAssert "the three severity words" "$( rigBlock "$rigReport" Severity/info ) $( rigBlock "$rigReport" Severity/warn ) $( rigBlock "$rigReport" Severity/alert )" "INFO WARN ALERT"
-rigAssert "a document announced, with no title given" \
-	"$( ASKP_F_title="$( rigBlock "$rigReport" Words/untitled )" ASKP_F_kind=PRO ASKP_F_url=https://rig.invalid/d ASKP_F_summary=S rigBlock "$rigReport" Skeleton/Artifact )" \
-	$'Document\n\nKind:\nPRO\n\nLink:\nhttps://rig.invalid/d\n\nSummary:\nS'
+	"$( ASKP_F_task=T ASKP_F_subject=S ASKP_F_findings=F ASKP_F_evidence=E ASKP_F_confidence=C rigBlock "$rigReport" Skeleton/ReportFindings )" \
+	$'# 🔍 Findings\n\nS\n\n**🗂 Task**\nT\n\n**📌 What was established**\nF\n\n**📎 Evidence**\nE\n\n**⚖️ Confidence, and what was not checked**\nC'
+rigAssert "a notification: its title the template's own, by its severity, then its headline, its task and its fields" \
+	"$( ASKP_F_task=T ASKP_F_severity="$( rigBlock "$rigReport" Severity/alert )" ASKP_F_headline=H ASKP_F_detail=D ASKP_F_action_required=A rigBlock "$rigReport" Skeleton/PushNotification )" \
+	$'# 🚨 Alert\n\nH\n\n**🗂 Task**\nT\n\n**📋 Detail**\nD\n\n**👉 What you need to do**\nA'
+rigAssert "a notification with its headline alone: the title and the headline, no label" \
+	"$( ASKP_F_severity="$( rigBlock "$rigReport" Severity/info )" ASKP_F_headline=H rigBlock "$rigReport" Skeleton/PushNotification )" $'# ℹ️ Notice\n\nH'
+rigAssert "the three titles of a notification" "$( rigBlock "$rigReport" Severity/info )|$( rigBlock "$rigReport" Severity/warn )|$( rigBlock "$rigReport" Severity/alert )" "ℹ️ Notice|⚠️ Warning|🚨 Alert"
+rigAssert "a document announced, with no title given: the word for one is its title" \
+	"$( ASKP_F_title="$( rigBlock "$rigReport" Words/untitled )" ASKP_F_kind=proposal ASKP_F_url=https://rig.invalid/d ASKP_F_summary=S rigBlock "$rigReport" Skeleton/Artifact )" \
+	$'# 📘 Document\n\n**🏷 Kind**\nproposal\n\n**🔗 Link**\nhttps://rig.invalid/d\n\n**📝 Summary**\nS'
+rigAssert "the task of a report: the task in words leads, the names of its item follow the words" \
+	"$( ASKP_F_task_title='Rework the rig widget' ASKP_F_task_names='`task-rig` · `dispatch-rig`' rigBlock "$rigReport" Lines/task )" 'Rework the rig widget · `task-rig` · `dispatch-rig`'
+rigAssert "with the task as a handback gives it: on a line of its own under them" \
+	"$( ASKP_F_task_title='Rework the rig widget' ASKP_F_task_names='`task-rig`' ASKP_F_task_given='Check the rig.' rigBlock "$rigReport" Lines/task )" $'Rework the rig widget · `task-rig`\nCheck the rig.'
+rigAssert "no report block starts a line with a slot that holds an identifier" \
+	"$( LC_ALL=C awk '/^# Skeleton/ { on = 1 } /^# Severity/ { on = 0 } on && /^(\[\[)?`?\{\{(task-names|session-id|request-id|run)\}\}/ { hitCount++ } END { print hitCount + 0 }' "$rigHere/templates/$rigReport" )" 0
 rigAssert "a value is placed as it is: a slot mark, a group mark, an ampersand and a backslash in it pass through" \
 	"$( ASKP_F_member='k' ASKP_F_reason='a {{slot}} [[group]] & \1 %s' rigBlock "$rigNote" Ask/withdrawn | head -1 )" 'Withdrawn by k: a {{slot}} [[group]] & \1 %s'
 
@@ -108,8 +125,8 @@ echo "-- no line of code holds one of these texts --"
 rigInCode(){ ## fixed text -> how many code lines of the package hold it
 	cat "$rigHere"/*.sh "$rigHere"/*.include "$rigPackage/sh-scripts"/*.sh 2>/dev/null | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$1" || :
 }
-for rigPhrase in ' joined%s' 'Answered by $' 'Readback by $' 'Withdrawn by $' 'is now yours to answer' 'The answer in this thread is the verdict' 'Still waiting for your answer' \
-	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established:' 'Unfinished, and what was not checked:' 'Confidence, and what was not checked:' 'Action required:' 'Answers collected, and questions still open:' ; do
+for rigPhrase in ' joined%s' 'posted no handback' 'left questions of its own open' 'Answered by $' 'Readback by $' 'Withdrawn by $' 'is now yours to answer' 'The answer in this thread is the verdict' 'Still waiting for your answer' \
+	"'Handback\\n" "'Findings: %s" 'Task as given:' 'What was established' 'Unfinished, and what was not checked' 'Confidence, and what was not checked' 'Action required:' 'What you need to do' 'Answers collected, and questions still open' ; do
 	rigAssert "no code line holds: $rigPhrase"                "$( rigInCode "$rigPhrase" )" 0
 done
 rigAssert "control: the same search does find a text that is written in code" "$( [ "$( rigInCode 'Nothing was sent.' )" -gt 0 ] && printf found || printf blind )" found
@@ -178,35 +195,73 @@ rigSaid(){ ## fixed text
 	printf '%s' "$saidCount"
 }
 
-echo "-- the four report tools, from the package as it is: what they always posted --"
+echo "-- the four report tools, from the package as it is --"
 rigStart reports "$MDLT_ORIGIN"
 rigTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds.","findings":"Nothing is loose.","unfinished":"The far side was not checked."}'
 [ "$( rigPosts )" = 1 ] || rigRefuse "the handback never reached the fake curl, so nothing below would be measured: $( head -1 "$rigScenarioDir/out" )"
-rigAssert "a handback: its first line, then each field under its label" "$( rigBodyOf 1 )" \
-	'Handback\n\nTask as given:\nCheck the rig.\n\nOutcome:\nThe rig holds.\n\nFindings:\nNothing is loose.\n\nUnfinished, and what was not checked:\nThe far side was not checked.'
+rigAssert "a handback of a session with no item: its title, the task as the call gave it, then each field under its label" "$( rigBodyOf 1 )" \
+	'# 🏁 Handback\n\n**🗂 Task**\nCheck the rig.\n\n**📦 Outcome**\nThe rig holds.\n\n**🔍 Findings**\nNothing is loose.\n\n**⏳ Unfinished, and what was not checked**\nThe far side was not checked.'
 rigTool ReportFindings '{"to":"magic-team","subject":"the rig","findings":"It holds at 100% load."}'
-rigAssert "findings: a field the call left out leaves its label out, and a percent sign is a percent sign" "$( rigBodyOf 2 )" \
-	'Findings: the rig\n\nWhat was established:\nIt holds at 100% load.'
+rigAssert "findings: a field the call left out leaves its label out, no task label where no task is known, and a percent sign is a percent sign" "$( rigBodyOf 2 )" \
+	'# 🔍 Findings\n\nthe rig\n\n**📌 What was established**\nIt holds at 100% load.'
 rigTool PushNotification '{"to":"magic-team","severity":"warn","headline":"The rig is warm.","action_required":"Look at the fan."}'
-rigAssert "a notification: its severity word, its headline, the field given" "$( rigBodyOf 3 )" \
-	'WARN -- The rig is warm.\n\nAction required:\nLook at the fan.'
-rigTool Artifact '{"to":"magic-team","url":"https://rig.invalid/doc","kind":"PRO","summary":"The rig, on one page."}'
-rigAssert "a document announced with no title: the word for one, then its fields" "$( rigBodyOf 4 )" \
-	'Document\n\nKind:\nPRO\n\nLink:\nhttps://rig.invalid/doc\n\nSummary:\nThe rig, on one page.'
+rigAssert "a notification: its title by its severity, its headline, the field given" "$( rigBodyOf 3 )" \
+	'# ⚠️ Warning\n\nThe rig is warm.\n\n**👉 What you need to do**\nLook at the fan.'
+rigAssert "it opens with no word in capitals and no double hyphen, as it did" "$( rigSaid 'WARN -- ' ):$( rigSaid 'Action required:' )" "0:0"
+rigTool Artifact '{"to":"magic-team","url":"https://rig.invalid/doc","kind":"proposal","summary":"The rig, on one page."}'
+rigAssert "a document announced with no title: the word for one as its title, then its fields" "$( rigBodyOf 4 )" \
+	'# 📘 Document\n\n**🏷 Kind**\nproposal\n\n**🔗 Link**\nhttps://rig.invalid/doc\n\n**📝 Summary**\nThe rig, on one page.'
 rigTool PushNotification '{"to":"magic-team","severity":"bogus","headline":"The rig."}'
 rigAssert "control: a severity that is none is still refused, and nothing more is posted" "$( LC_ALL=C grep -c 'severity must be info, warn or alert' "$rigScenarioDir/out" ):$( rigPosts )" "1:4"
+
+echo "-- a report of a session that works a task says the task in words --"
+## The session's spawn was dispatched for a board item: a dispatch that tracks a task.
+rigStart reports-task "$MDLT_ORIGIN"
+mkdir -p "$rigScenarioDir/data/board/running" "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session"
+printf -- '---\ntype: task\nowner: %s\n---\n\n# Rework the rig widget\n\nThe widget drops its last line. Make it keep it.\n' "$rigMember" > "$rigScenarioDir/data/board/running/task-20261012T0000Z-rig-widget.md"
+printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\ntracks: task-20261012T0000Z-rig-widget\n---\n\n# rig dispatch\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
+printf -- '---\nsession-id: rig-report-session\nspawn-id: rig-report-session\nparent-session-id: none\nowner: %s\nstatus: spawn-started\nspawns: dispatch-20261012T0100Z-rig-widget\n---\n' "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-report-session/rig-report-session.md"
+rigTaskTool(){ ## tool, argument object -- one served call of that session
+	( cd "$rigScenarioDir/ws" && printf '%s' "$2" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
+		MDLT_ORIGIN="$rigScenarioOrigin" MDLT_OPTION="--run-from-path $rigScenarioOrigin" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" \
+		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID=rig-report-session \
+		bash "$rigScenarioOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$1" --access-read-root "$rigScenarioDir/ws" --access-write-root "$rigScenarioDir/ws/IN" ) \
+		> "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
+}
+rigTaskLine='Rework the rig widget · `task-20261012T0000Z-rig-widget` · `dispatch-20261012T0100Z-rig-widget`'
+rigTaskTool PushNotification '{"to":"magic-team","severity":"alert","headline":"The rig stopped.","detail":"It stopped at the second step."}'
+[ "$( rigPosts )" = 1 ] || rigRefuse "the notification of the session with a task never reached the fake curl: $( head -1 "$rigScenarioDir/out" )"
+rigAssert "a notification: its title, its headline, the task in words with the names of its item after the words, then the detail" "$( rigBodyOf 1 )" \
+	"# 🚨 Alert\\n\\nThe rig stopped.\\n\\n**🗂 Task**\\n$rigTaskLine\\n\\n**📋 Detail**\\nIt stopped at the second step."
+rigTaskTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds."}'
+rigAssert "a handback: the task in words, and under it the task as the call gave it" "$( rigBodyOf 2 )" \
+	"# 🏁 Handback\\n\\n**🗂 Task**\\n$rigTaskLine\\nCheck the rig.\\n\\n**📦 Outcome**\\nThe rig holds."
+rigTaskTool ReportFindings '{"to":"magic-team","subject":"the rig","findings":"It holds."}'
+rigAssert "findings: the same task, under their subject" "$( rigBodyOf 3 )" \
+	"# 🔍 Findings\\n\\nthe rig\\n\\n**🗂 Task**\\n$rigTaskLine\\n\\n**📌 What was established**\\nIt holds."
+rigTaskTool Artifact '{"to":"magic-team","url":"https://rig.invalid/doc","title":"The rig, measured"}'
+rigAssert "a document announced: its own title is the title of the post, then the same task" "$( rigBodyOf 4 )" \
+	"# 📘 The rig, measured\\n\\n**🗂 Task**\\n$rigTaskLine\\n\\n**🔗 Link**\\nhttps://rig.invalid/doc"
+## An item with no words of its own: a dispatch that tracks nothing and has no heading.
+printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: rig-report-session\n---\n' "$rigMember" > "$rigScenarioDir/data/board/running/dispatch-20261012T0100Z-rig-widget.md"
+rigTaskTool PushNotification '{"to":"magic-team","severity":"info","headline":"The rig goes on."}'
+rigAssert "a task with no words to say it: no Task label, and never the name of its item alone under one" "$( rigBodyOf 5 )" '# ℹ️ Notice\n\nThe rig goes on.'
+rigTaskTool SubagentHandback '{"to":"magic-team","task":"Check the rig.","outcome":"The rig holds."}'
+rigAssert "a handback there: the task as the call gave it, alone" "$( rigBodyOf 6 )" '# 🏁 Handback\n\n**🗂 Task**\nCheck the rig.\n\n**📦 Outcome**\nThe rig holds.'
+rigAssert "no line of these posts starts with the name of an item" \
+	"$( for rigPostNo in 1 2 3 4 5 6 ; do rigBodyOf "$rigPostNo" ; printf '\\n' ; done | LC_ALL=C awk '{ lineCount = split( $0, lineOf, /\\n/ ) ; for ( lineNo = 1 ; lineNo <= lineCount ; lineNo++ ) { if ( lineOf[lineNo] ~ /^`?(task|dispatch)-[0-9]/ ) { hitCount++ ; } } } END { print hitCount + 0 ; }' )" 0
 
 echo "-- from the copy with marked templates: what is posted is the template's --"
 rigStart reports-marked "$rigOrigin"
 rigTool SubagentHandback '{"to":"magic-team","outcome":"The rig holds."}'
 [ "$( rigPosts )" = 1 ] || rigRefuse "the handback of the marked run never reached the fake curl: $( head -1 "$rigScenarioDir/out" )"
-rigAssert "a handback follows its template"               "$( rigBodyOf 1 )" 'RIGMARK Handback\n\nOutcome:\nThe rig holds.'
+rigAssert "a handback follows its template"               "$( rigBodyOf 1 )" 'RIGMARK # 🏁 Handback\n\n**📦 Outcome**\nThe rig holds.'
 rigTool ReportFindings '{"to":"magic-team","subject":"the rig","findings":"It holds."}'
-rigAssert "findings follow their template"                "$( rigBodyOf 2 )" 'RIGMARK Findings: the rig\n\nWhat was established:\nIt holds.'
+rigAssert "findings follow their template"                "$( rigBodyOf 2 )" 'RIGMARK # 🔍 Findings\n\nthe rig\n\n**📌 What was established**\nIt holds.'
 rigTool PushNotification '{"to":"magic-team","severity":"info","headline":"The rig is fine."}'
-rigAssert "a notification follows its template, its severity word too" "$( rigBodyOf 3 )" 'RIGMARK RIGMARK INFO -- The rig is fine.'
+rigAssert "a notification follows its template, its title too" "$( rigBodyOf 3 )" 'RIGMARK # RIGMARK ℹ️ Notice\n\nThe rig is fine.'
 rigTool Artifact '{"to":"magic-team","url":"https://rig.invalid/doc"}'
-rigAssert "a document announced follows its template, the word for no title too" "$( rigBodyOf 4 )" 'RIGMARK RIGMARK Document\n\nLink:\nhttps://rig.invalid/doc'
+rigAssert "a document announced follows its template, the word for no title too" "$( rigBodyOf 4 )" 'RIGMARK # 📘 RIGMARK Document\n\n**🔗 Link**\nhttps://rig.invalid/doc'
 
 ## One open question of the member, in a thread of its own, as the ask tools leave it.
 rigRecord(){ ## id, kind, address-to, options (may be empty), age in seconds (default 60)

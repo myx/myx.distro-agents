@@ -12,7 +12,7 @@
 ## tell a spawner from its child. The body is exactly DISMISSED (a trailing `.` or `!`
 ## allowed) in either form:
 ##   - the team's own send header addressing <member>:
-##     `[<mark> ]*_<from>_* @<alias> → ...*_<member>_*... .` then DISMISSED
+##     `[<mark> ]*_<from>_*[ @<alias>] → ...*_<member>_*... .` then DISMISSED
 ##     (what SendMessage with address_to <member> and message DISMISSED writes);
 ##     its author is AgentsSessionContextCommsItems.awk's readHeader author: the
 ##     first `*_<name>_*` before the arrow, with nothing but a mark before it;
@@ -55,7 +55,10 @@ function dismissalOf(msg, member,   rest, ann, sender, arrow, fromPart, author, 
 ## memberSendHeaderLength(text) -- the length of the send header <text> starts with, its
 ## closing `. ` or line end included; 0 where it starts with none. The header is exactly
 ## what the member send writes ahead of the body (AgentsTools.MemberCommsSlack.include):
-## before the arrow nothing but an optional mark, the sender and its alias. Here for
+## before the arrow nothing but an optional mark, the sender, and its alias where that is
+## not the sender's own name, which the header says once. With no alias beside the name the
+## mark is held to what a mark is, a `:shortcode:` or a sign that is no plain letter, so a
+## line of somebody's own words is never taken for a header. Here for
 ## AgentsSlackThreadAnswers.awk, which reads a question's number as the first word after
 ## that header: every caller of that reader loads this file ahead of it, a Wait started
 ## before this function was written included. AgentsEscalationVerdict.awk's
@@ -66,7 +69,7 @@ function memberSendHeaderLength(text,   arrowAt, fromPart, toPart, endAt) {
 	arrowAt = index(text, " → ") ;
 	if (arrowAt == 0) { return 0 ; } ;
 	fromPart = substr(text, 1, arrowAt - 1) ;
-	if (fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+$/) { return 0 ; } ;
+	if (fromPart !~ /^([^ ]+ )?\*_[^*]+_\* @[^ ]+$/ && fromPart !~ /^((:[A-Za-z0-9_+-]+:|[^ -~]+) )?\*_[^*]+_\*$/) { return 0 ; } ;
 	toPart = substr(text, arrowAt + length(" → ")) ;
 	endAt = index(toPart, ". ") ;
 	if (endAt > 0) { return arrowAt + length(" → ") + endAt ; } ;

@@ -71,4 +71,4 @@ Keep the console for work that needs an agent session.
 
 ## Working with the team
 
-[Working with The Conclave](../vscode/magic-team/instructions.md) explains how to ask the team for work: whom to address, and what to expect back.
+[The team panel's own instructions](../vscode/magic-team/instructions.md) explain how to ask the team for work: whom to address, and what to expect back.

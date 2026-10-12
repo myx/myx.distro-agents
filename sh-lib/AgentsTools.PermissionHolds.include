@@ -40,8 +40,34 @@ agentsPermissionFloorTools=" Skill SendMessage Wait SubagentHandback AskUserQues
 ## The file tools a path permission speaks for, and the ones of them that only read.
 agentsPermissionFileTools=" Read Edit Write Execute Grep Glob "
 agentsPermissionReadTools=" Read Grep Glob "
+## THE TOOLS AN ENTRY OF A PERMISSION NAMES: the one place they are listed. Every name a gate
+## asks this model about, or that it gives a meaning of its own: the file tools; the native
+## client's own of them, MultiEdit and NotebookEdit, which its hook decides as Edit, and its
+## Bash, whose target is the command; WebFetch and Artifact, which the harness asks a grant
+## for, with WebSearch and Agent, each held by its name; cred and spend, the human-owner's
+## unless granted. A tool a gate comes to ask about is one more word here.
+agentsPermissionEntryTools=" Read Grep Glob Edit Write MultiEdit NotebookEdit Execute Bash WebFetch WebSearch Agent Artifact cred spend "
 ## The board states an item is still open in; a task grant lives only while its item does.
 agentsPermissionOpenStates="running review blocked pending backlog parked"
+## HOW MANY CALLS ASKED ALONE the human-owner answers for one session and one task: the one
+## place the number stands. Once he has answered that many, the next call of that session for
+## that task is not asked alone: it goes back to its asker, to be asked with everything else
+## the task still needs, as one Permission set (--intern-op-permission-single-asks).
+agentsPermissionSingleAsks=1
+
+## Whether a permission entry may name a tool: one of the list above; a tool of the team
+## floor, which every member holds already; or a tool of an MCP server, named by its own
+## name, `mcp__<server>__<tool>`, and on no list. Taken as written: `read` is no tool.
+AgentsToolsPermissionEntryToolKnown(){ ## tool name
+	case "$1" in
+		''|*[[:space:]]*) return 1 ;;
+		mcp__?*__?*) return 0 ;;
+	esac
+	case "$agentsPermissionEntryTools$agentsPermissionFloorTools" in
+		*" $1 "*) return 0 ;;
+	esac
+	return 1
+}
 
 ## True for the human-owner, by name or by his configured Slack account.
 AgentsToolsPermissionIsHumanOwner(){ ## who

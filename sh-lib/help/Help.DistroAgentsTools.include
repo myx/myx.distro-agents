@@ -99,6 +99,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-start <te
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-status <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-slack-socket-stop <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-check <team-member>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-post-comment <team-member> <card-id> [text...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-read <team-member> <notification-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-comms-trello-whoami <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]" >&2
@@ -131,6 +134,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-parked <team-member>
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-pending <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-board-to-processed <team-member> <item-filename> --from-state:<state> [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-append-session-transcript <team-member> <session-id> [--speaker <speaker-name>] [--timestamp <ISO-UTC-date-time>] (--message <verbatim-text>|--from-stdin|--from-file <path>) [--create]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-client-operation-run <magic-coordinator> --client-<operation> <client-member-name> [<argument>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-add <team-member> <page-id> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-comment-id <id>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-comment-read <team-member> <page-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-confluence-page-create <team-member> (--space <key>|--space-id <numeric-id>) --title <text> (--body-storage <html>|--body-storage-from-stdin|--body-storage-from-file <path>) [--parent-id <id>]" >&2
@@ -248,20 +252,20 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-board-read <team-
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-issue-read <team-member> <issue-key> [--format adf|rendered]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-issue-search <team-member> <sprint-id> [--start-at <n>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-jira-sprint-list <team-member> <board-id> [--start-at <n>]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts> [<channel>:<ts>...] [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-file <path> [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] --from-stdin [--text-group report|brief|relay]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts> [--identity-bot] [text...] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-delete-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [<channel>:<ts>...] [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-file <path> [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] --from-stdin [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-edit-message <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent [--identity-bot] [text...] [--text-group report|brief|relay]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-info <team-member> <file-id> [--identity-bot] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-file <path> [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-share <team-member> <target> --from-stdin [--snippet-type <v>] [--title <v>] [--comment <text>] [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts>|session-current|session-parent <emoji-name> [--identity-bot]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-react <team-member> <channel>:<ts>|<alias>:<ts>|session-current|session-parent <emoji-name> [--identity-bot]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-read <team-member> (<channel>:<ts>|<alias>:<ts>|session-current|session-parent [--thread]|<channel>|<conversation-id>|magic-team|human-owner|event-track|event-alert [--oldest <ts>]) [--identity-bot]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-search-messages <team-member> <magic-team|human-owner|event-track|event-alert|<conversation-id>|<channel>> (--comms-since-date-time <v>|--comms-since-utime <v>) [--max-pages <n>] [--raw]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...] [--text-group report|brief|relay]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <magic-team|human-owner|event-track|event-alert|session-current|session-parent|<alias>:<ts>|<conversation-id>|<channel>:<ts>|<team-member>[:<ts>]> [--identity-bot] [--metadata <json>] [text...] [--text-group report|brief|relay]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-file <path> [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-send-message <team-member> <target> [--identity-bot] [--reply-broadcast] [--address-to <who>]... --from-stdin [--format markdown|blocks] [--message-text <text>|--message-text-from-file <path>] [--metadata <json>] [--text-group report|brief|relay]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-comms-trello-check <team-member>" >&2
@@ -304,6 +308,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-accept <magic-coordina
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-return <magic-coordinator> <item-filename> (--message <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-reject <magic-coordinator> <item-filename> (--message <text>|--from-stdin)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-review-follow-up <magic-coordinator> <item-filename> <new-item-name> --from-stdin" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-queue [--by <who>] [--about <scratch-folder>] --why <text> [--file <changed-file>]... [<test>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-drain [--rest [--about <scratch-folder>]]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --member-retest-result <request-id>..." >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-work-session-input-scan <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --members --backend <member-name> <operation>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge" >&2

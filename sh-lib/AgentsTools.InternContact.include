@@ -217,15 +217,17 @@ case "$1" in
 		## stands rather than have the header changed for it.
 		if [ "$digestRoute" = "--needs-ruling" ] ; then
 			## His own Slack DM, because that is where he replies: the send
-			## path's own human-owner target, which forces a user identity.
+			## path's own human-owner target, under the member's own account
+			## where it has one, else as the team bot.
 			DistroAgentsTools --intern-op-comms-slack-send-message "$digestMember" human-owner \
 				--address-to "$digestOrigin" "${digestText# }"
 			return $?
 		fi
 
 		## The bot's own conversation with him. That same human-owner target
-		## cannot be it -- it forces the user identity by design -- so this
-		## route names his account and lets --identity-bot open the bot DM.
+		## cannot be it for a member with an account of its own, which posts
+		## under it -- so this route names his account and lets --identity-bot
+		## open the bot DM.
 		local ownerUserId
 		ownerUserId="$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER )" || ownerUserId=""
 		if [ -z "$ownerUserId" ] ; then

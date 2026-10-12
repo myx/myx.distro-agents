@@ -4,7 +4,7 @@
 # prints it with the send header taken off every reply that starts with one, so what is left
 # of a reply is its writer's own words. Every other line is printed as it is.
 # A MEMBER'S REPLY starts with the send header the team's own send writes ahead of every
-# message, `[<mark> ]*_<from>_* @<alias> → <addressees>.`: it is no part of what the reply
+# message, `[<mark> ]*_<from>_*[ @<alias>] → <addressees>.`: it is no part of what the reply
 # says. This runs ahead of the two readers that keep what a reply says and read it by its
 # first line -- AgentsPendingReplyAnswerText.awk, the recorded answer, and
 # AgentsPendingReplyClarifications.awk, what is kept with it. With the header left on, one

@@ -12,11 +12,18 @@
 ##       workspace's own file, through the pointers in $HOME/.agents/magic-team.
 ##   $MMDAPP/.local/agents/grants.index   every member's rows, fully unrolled: `*` one row per
 ##       member, the floor, ceilings, unresolved names kept as rows that admit nothing
-##       (AgentsGrantsIndexBuild.awk). Built by --make-agents-indices; a reader finding it stale
-##       or missing rebuilds it (AgentsToolsGrantsIndexEnsure).
+##       (AgentsGrantsIndexBuild.awk). A grant written `approve:Edit(/glob)` is a write BY
+##       APPROVAL, a read row and an `approve` row: the member reads those files, and its Edit
+##       or Write of one is neither refused nor applied but HELD, shown to the human-owner and
+##       applied when he approves (AgentsTools.InternOpChange.include) -- unless a grant given
+##       for its task, its session or the one call allows it. What the member holds standing,
+##       or by the floor, never comes ahead of the approval.
+##       Built by --make-agents-indices; a reader finding it stale or missing rebuilds it
+##       (AgentsToolsGrantsIndexEnsure).
 ##   $MMDAPP/.local/agents/sessions/<id>/permissions.<member>.index   one session's own:
 ##       the member's rows joined with the session's grants (AgentsGrantsSessionIndex.awk),
-##       what the harness decides a file tool by, with builtins only. A revoked grant (a
+##       what the harness decides a file tool by, with builtins only: admitted, refused, or
+##       held for approval. A revoked grant (a
 ##       marker in its store's revoked/) and a session grant whose session has ended are out.
 ##       A session grant given to the member's run on a board item holds for its other runs on
 ##       that item in the same coworking session too, the runs a review return or a resume
@@ -35,8 +42,10 @@
 ## source/** is no floor's: magic-librarian holds a standing read of it, every other member
 ## the namespace grants declared for it. The members this package carries hold their standing
 ## grants built in, never declared (AgentsToolsGrantsBuiltinText), so no source/ is needed.
-## magic-librarian's other one is a standing write of the .md files of the team members'
-## skills this machine holds, where they are its to change (AgentsToolsGrantsMemberSkills).
+## magic-librarian's other one is a standing write by approval of the .md files of the team
+## members' skills this machine holds, where they are its to change
+## (AgentsToolsGrantsMemberSkills): it is never asked for the access, and each change of one
+## waits for the human-owner's approval.
 ##
 ## Dot-sourced; functions only.
 ##
@@ -172,6 +181,16 @@ AgentsToolsGrantsIndexText(){ ## workspace
 		agentsGrantsPlaces="$( AgentsToolsPlacesMergedText "$textWs" quiet )"
 		agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$textWs" )"
 		printf '%s\n' "$agentsGrantsPlaces" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF >= 4 { print "place", $1, $2, $3, $4 ; }'
+		## The standing write of magic-librarian on the team members' skills this machine holds
+		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them, BY APPROVAL
+		## (`approve:`): each change is held for the human-owner and applied when he approves. Rows
+		## of this workspace's own index only, never of a registry, which every workspace reads.
+		## Their kind is `skillset`, and they come before every other grant: a call on such a file
+		## is decided by its row here, whatever else would admit it too (AgentsToolsGrantsCheckSkillset).
+		while IFS= read -r textRoot ; do
+			[ -n "$textRoot" ] || continue
+			printf 'grant\tmagic-librarian:%s:skillset:approve:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
+		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
 		AgentsToolsTeamGrantRows "$textWs" permissions.registry | LC_ALL=C awk '{ print "grant\t" $0 ; }'
 		## The built-in grants of the members this package carries, as every written registry
 		## carries them, here too so a workspace with no source and no registry holds them.
@@ -186,13 +205,6 @@ AgentsToolsGrantsIndexText(){ ## workspace
 			## carries it, here too so it never waits on the next --make-agents-indices there.
 			printf 'grant\tmagic-librarian:%s:builtin:Read(/%s/source/**)\n' "${textRoot##*/}" "$textRoot"
 		done <<< "$agentsGrantsRoots"
-		## The standing write of magic-librarian on the team members' skills this machine holds
-		## (AgentsToolsGrantsMemberSkills): their .md files, and nothing else in them. Rows of this
-		## workspace's own index only, never of a registry, which every workspace reads.
-		while IFS= read -r textRoot ; do
-			[ -n "$textRoot" ] || continue
-			printf 'grant\tmagic-librarian:%s:builtin:Edit(/%s/**.md)\n' "${textWs##*/}" "$textRoot"
-		done <<< "$( AgentsToolsGrantsMemberSkills "$textWs" )"
 		MDAT_SKILLSET_ROOT="$agentsGrantsSkillsetRoot" AgentsToolsClientAccessRootsMembers readable | LC_ALL=C awk '/^\// { print "floor\tread\t" $0 "/**" ; }'
 		[ -z "${HOME:-}" ] || printf 'floor\tread\t%s/.claude/skills/**\n' "${HOME%/}"
 	)" || return 1
@@ -793,15 +805,21 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 
 ## One file-tool call decided by the session index rows on stdin, by builtins only. The
 ## ceiling first: a write tool in a read-only place is refused, rc 3, agentsGrantsCheckPlace
-## its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what, and
-## for an Allow once agentsGrantsCheckOnce its refusal id, for its caller to use up. A once
-## row's expiry, its use, a task row's open item, a session row's end, and a runs row's open
-## item and coworking session are checked only on the row that matches; the expiry with one
-## `date`. A session, runs or task row of Edit or Write admits a read of its path too
-## (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
+## its name. Then the rows in order: rc 0 admitted, agentsGrantsCheckLayer saying by what; for
+## a floor or standing row agentsGrantsCheckFrom its origin in the grants index, `floor` or
+## <workspace>:<kind>; for an Allow once agentsGrantsCheckOnce its refusal id, for its caller
+## to use up. A once row's expiry, its use, a task row's open item, a session row's end, and a
+## runs row's open item and coworking session are checked only on the row that matches; the
+## expiry with one `date`. A session, runs or task row of Edit or Write admits a read of its
+## path too (AgentsToolsGrantsToolCovers). rc 1 when no row admits the call.
+## An approve row stands ahead of the allow rows. A call one covers is admitted by no floor or
+## standing row after it: only by a session, runs, task or once row, a grant given for that
+## work. With none, rc 4: held for approval, agentsGrantsCheckLayer `approve <standing>` and
+## agentsGrantsCheckFrom the origin of that row, for its caller to keep the change and show
+## it, never to apply it (AgentsHarnessFileGate, AgentsUniversalHarness.sh).
 AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
-	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl
-	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace=""
+	local checkKind checkA checkB checkC checkD checkE checkWrite="" checkCeiling="" checkState checkNow checkTtl checkApprove="" checkApproveFrom=""
+	agentsGrantsCheckLayer="" ; agentsGrantsCheckOnce="" ; agentsGrantsCheckPlace="" ; agentsGrantsCheckFrom=""
 	case " Edit Write Execute " in *" $1 "*) checkWrite=1 ;; esac
 	while IFS=$'\t' read -r checkKind checkA checkB checkC checkD checkE ; do
 		case "$checkKind" in
@@ -813,10 +831,18 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 				agentsGrantsCheckPlace="$checkC"
 				return 3
 			;;
-			allow)
+			approve)
+				[ -z "$checkApprove" ] || continue
 				case "$checkA" in *" $1 "*) ;; *) continue ;; esac
 				[[ $2 == $checkB ]] || continue
-				agentsGrantsCheckLayer="$checkC"
+				checkApprove="$checkC" ; checkApproveFrom="$checkD"
+			;;
+			allow)
+				## Never ahead of an approval: only a grant given for the work admits such a call.
+				[ -z "$checkApprove" ] || continue
+				case "$checkA" in *" $1 "*) ;; *) continue ;; esac
+				[[ $2 == $checkB ]] || continue
+				agentsGrantsCheckLayer="$checkC" ; agentsGrantsCheckFrom="$checkD"
 				return 0
 			;;
 			session)
@@ -856,6 +882,7 @@ AgentsToolsGrantsSessionCheckRows(){ ## tool, resolved path, own session store
 			end) break ;;
 		esac
 	done
+	[ -z "$checkApprove" ] || { agentsGrantsCheckLayer="approve $checkApprove" ; agentsGrantsCheckFrom="$checkApproveFrom" ; return 4 ; }
 	return 1
 }
 
@@ -866,6 +893,14 @@ AgentsToolsGrantsSessionCheck(){ ## tool, resolved path, own session store
 	else
 		AgentsToolsGrantsSessionCheckRows "$1" "$2" "$3" <<< "$agentsGrantsSessionText"
 	fi
+}
+
+## Whether the call that check decided last was decided by magic-librarian's standing write on
+## a team member's skill file (AgentsToolsGrantsMemberSkills), by the origin of its row: a
+## read it admitted, or an Edit or a Write it holds for approval (rc 4).
+AgentsToolsGrantsCheckSkillset(){
+	case "$agentsGrantsCheckFrom" in ?*:skillset) return 0 ;; esac
+	return 1
 }
 
 ## A session store's grants changed: opening, using up or revoking a grant touches the

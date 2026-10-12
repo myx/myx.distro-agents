@@ -210,8 +210,10 @@ AgentsToolsVscodeFolderLinks(){
 ## Resolves the icon for a --install-skillset-symlinks / --install-skillset-report-render row's
 ## MEMBER column ($1) into the caller's `reportWho`, the same assign-to-caller-var shape
 ## AgentsToolsInstallClassifyTarget uses for classifyHome/classifyWspace. $2, when non-empty, is
-## the member's own already-resolved explicit/custom icon -- it always wins over the name-prefix
-## default below and is passed straight through untouched. No caller wires a $2 in yet (there is
+## the member's own already-resolved explicit/custom icon -- it always wins over the default of
+## the member's kind and is passed straight through untouched. That default is not listed here:
+## it is the one list a message's author line takes it from too (AgentsToolsTeamMemberKindIcon,
+## AgentsTools.TeamRegistry.include). No caller wires a $2 in yet (there is
 ## no explicit-icon source plumbed into this report today); the parameter exists so a future one
 ## has a seam here without another edit to the four call sites.
 AgentsToolsInstallReportIcon(){
@@ -220,14 +222,8 @@ AgentsToolsInstallReportIcon(){
 		reportWho="$iconExplicit"
 		return 0
 	fi
-	case "$iconName" in
-		client-*)          reportWho="👥" ;;
-		partner-*)         reportWho="👫" ;;
-		keeper-*|warden-*) reportWho="🔏" ;;
-		human-owner)       reportWho="👤" ;;
-		magic-*)           reportWho="🤖" ;;
-		*)                 reportWho="🤖" ;;
-	esac
+	type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	reportWho="$( AgentsToolsTeamMemberKindIcon "$iconName" )"
 }
 
 ## A user-home slot that already links to another workspace's copy of a member: which copy
@@ -1802,9 +1798,10 @@ case "$1" in
 		local panelSource="$MDLT_ORIGIN/myx/myx.distro-agents/vscode/magic-team"
 		local panelSkillset="$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team/magic-team"
 		local panelHome="$panelWorkspace/.local/agents/vscode-magic-team-panel"
-		local panelFile
-		for panelFile in "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
-			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" ; do
+		## The panel's files, named once: the check, the sum and the copy below all read this list.
+		local panelFile panelFiles=( "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/panel.js" "$panelSource/instructions.md" \
+			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" )
+		for panelFile in "${panelFiles[@]}" ; do
 			if [ ! -f "$panelFile" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: panel source file missing: $panelFile" >&2
 				set +e ; return 1
@@ -1813,8 +1810,7 @@ case "$1" in
 		## The payload in a fixed order: the sum decides a rewrite, so a changed team text
 		## reaches the panel with no version bump.
 		local panelSum
-		panelSum="$( cat "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
-			"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" | cksum )" || {
+		panelSum="$( cat "${panelFiles[@]}" | cksum )" || {
 			echo "⛔ ERROR: $MDSC_CMD --install-vscode-magic-team-panel: could not sum the panel payload" >&2
 			set +e ; return 1
 		}
@@ -1830,8 +1826,7 @@ case "$1" in
 				rm -rf "${panelHome%/*}"/.vscode-magic-team-panel.* || exit 1
 				panelBuild="$( mktemp -d "${panelHome%/*}/.vscode-magic-team-panel.XXXXXX" )" || exit 1
 				trap 'rm -rf "$panelBuild"' EXIT
-				cp "$panelSource/package.json" "$panelSource/extension.js" "$panelSource/instructions.md" \
-					"$panelSkillset/magic-team.basic.md" "$panelSkillset/resources/the-conclave.mark.svg" "$panelBuild/" || exit 1
+				cp "${panelFiles[@]}" "$panelBuild/" || exit 1
 				printf '%s\n' "$panelSum" > "$panelBuild/.payload-sum" || exit 1
 				chmod 755 "$panelBuild" || exit 1
 				[ ! -e "$panelHome" ] || mv "$panelHome" "$panelBuild.old" || exit 1

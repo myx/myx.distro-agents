@@ -279,14 +279,20 @@ AgentsToolsSlackClientSide(){ ## acting member
 }
 
 ## For an error about a Slack setting that is not there: what the side of the call has to do
-## with it, for a client-* member. Prints nothing for any other member.
+## with it, for a client-* member. Prints nothing for any other member. Where the operation
+## run is the coordinator's own (--magic-comms-*, MDAT_COMMS_OP), the coordinator's way to a
+## --client-* operation is named with it.
 AgentsToolsSlackSideNote(){ ## acting member
+	local noteRun=""
 	case "$1" in
 		client-*)
 			if AgentsToolsSlackClientSide "$1" ; then
 				printf ' -- this call is on the side of the other organisation, where only the settings %s itself holds are read, never the team'"'"'s' "$1"
 			else
-				printf ' -- this call is on our own organisation'"'"'s side, where %s has no Slack settings of its own: what it holds is the other organisation'"'"'s, read in a --client-* operation or for a client:<addressee> address' "$1"
+				case "${MDAT_COMMS_OP:-}" in
+					--magic-comms-*) noteRun=", which magic-coordinator runs with --magic-client-operation-run," ;;
+				esac
+				printf ' -- this call is on our own organisation'"'"'s side, where %s has no Slack settings of its own: what it holds is the other organisation'"'"'s, read in a --client-* operation%s or for a client:<addressee> address' "$1" "$noteRun"
 			fi
 		;;
 	esac
@@ -328,7 +334,7 @@ AgentsToolsSlackOneWayLine(){ ## address as given, acting member (optional)
 ## operation.
 DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 	local target="$1"
-	local channel threadTs clientMark=""
+	local channel threadTs clientMark="" sessionParent=""
 	case "$target" in
 		client:client:*) return 2 ;;
 		client:*) clientMark="client:" ; target="${target#client:}" ;;
@@ -365,14 +371,13 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 		## coworking session the calling member works in, session-parent the thread of the session that
 		## started it. A third line names the parent session. A name that names nowhere is refused, rc 3:
 		## the one line printed says why and what to pass instead, for the caller to show as it is.
+		## With :<ts> the name is the message with that ts in the conversation that thread is in, as
+		## <alias>:<ts> is for every alias above: one message, with no conversation id to know.
 		session-current|session-current:*|session-parent|session-parent:*)
-			local sessionName="${target%%:*}" sessionFound="" sessionRc=0 sessionParent="" sessionWhy=""
+			local sessionName="${target%%:*}" sessionMessage="" sessionFound="" sessionRc=0 sessionWhy=""
 			type AgentsToolsSessionCurrentThreadFind > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
-			case "$target" in
-				*:*)
-					printf '%s names one thread and takes no :<ts>. Pass %s alone, or <channel>:<ts> for one message.\n' "$sessionName" "$sessionName"
-					return 3
-				;;
+			case "$target" in *:*) sessionMessage="${target#*:}" ;; esac
+			case "$sessionName" in
 				session-current)
 					sessionFound="$( AgentsToolsSessionCurrentThreadFind 2> /dev/null )" || sessionRc=$?
 					sessionWhy="this session has no session thread"
@@ -394,13 +399,23 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 					return 3
 				;;
 			esac
-			printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "${sessionFound%%:*}" "${sessionFound#*:}"
-			[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
-			return 0
+			channel="${sessionFound%%:*}"
+			threadTs="${sessionMessage:-${sessionFound#*:}}"
 		;;
+		## <channel>:<ts>, one message or the thread under it: the conversation by its Slack id, as
+		## Slack gives it. A word that is no id names no conversation: refused, rc 3, with the one
+		## line that says what to pass. So is a Wait source given as an address
+		## (slack:<channel>:<ts>), whose first word is no conversation. Never a [A-Z] range --
+		## bracket ranges are collation-dependent.
 		*:*)
 			channel="${target%%:*}"
 			threadTs="${target#*:}"
+			case "$channel" in
+				*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]*)
+					printf "'%s' names no conversation: '%s' is not a Slack id. Pass the id of the conversation and the ts of the message, <channel>:<ts>, with no other word in front of them.\n" "$1" "$channel"
+					return 3
+				;;
+			esac
 		;;
 		## Bare uppercase id: a whole conversation, so THREAD_TS stays empty and the send posts at top level.
 		## Must stay after `*:*`, and never a [A-Z] range -- bracket ranges are collation-dependent.
@@ -427,9 +442,35 @@ DistroAgentsToolsResolveTarget(){ ## address, acting member (optional)
 		;;
 	esac
 	if [ -z "$channel" ] ; then
-		return 1
+		## A named conversation whose setting is not there names nowhere, as a session address with no
+		## thread does: refused, rc 3, by one line saying why and what to pass instead. Any other
+		## address with no channel in it is rc 1, as it always was.
+		local aliasSetting=""
+		case "${target%%:*}" in
+			event-track) aliasSetting="SLACK_CHANNEL_EVENT_TRACK" ;;
+			event-alert) aliasSetting="SLACK_CHANNEL_EVENT_ALERT" ;;
+			magic-team) aliasSetting="SLACK_CHANNEL_MAGIC_TEAM" ;;
+			human-owner) aliasSetting="SLACK_CHANNEL_HUMAN_OWNER" ;;
+		esac
+		[ -n "$aliasSetting" ] || return 1
+		printf 'the setting %s is not set in this workspace, so %s names nowhere. Pass the conversation by its id instead.\n' "$aliasSetting" "${target%%:*}"
+		return 3
 	fi
+	## The message, after a named conversation or an id alike, is a ts as Slack gives it: seconds,
+	## a dot, then the rest, all digits. Anything else names no message: refused, rc 3, the same
+	## way. None at all is the conversation itself.
+	case "$threadTs" in
+		''|*[0123456789].[0123456789]*) ;;
+		*) threadTs="not-a-ts:$threadTs" ;;
+	esac
+	case "$threadTs" in
+		*[!0123456789.]*|*.*.*)
+			printf "'%s' names no message: '%s' is not a message ts. Pass the ts of the message as Slack gives it, such as 1700000000.000100, after the conversation: <channel>:<ts>.\n" "$1" "${target#*:}"
+			return 3
+		;;
+	esac
 	printf 'CHANNEL=%s\nTHREAD_TS=%s\n' "$clientMark$channel" "$threadTs"
+	[ -z "$sessionParent" ] || printf 'PARENT_SESSION_ID=%s\n' "$sessionParent"
 	return 0
 }
 

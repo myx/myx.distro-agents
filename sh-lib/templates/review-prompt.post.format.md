@@ -88,7 +88,7 @@ One line of the post that is filled on its own.
 ## session
 
 ```
-`{{session-id}}`[[ · {{session-thread}}]][[ — {{session-description}}]]
+[[{{session-description}} · ]]`{{session-id}}`[[ · {{session-thread}}]]
 ```
 
 # Answers
@@ -99,8 +99,9 @@ The lines under `How to answer`.
 
 ```
 - click 👍 to accept, ↩️ to return it for corrections, or ❌ to reject it
-- or reply with the first word: `accept`, `return` or `reject`
-- a return or a reject takes what to change from your reply: write it after the word, or in a reply beside your click
+- or reply `accept`, `return` or `reject`
+- the word first; a comment after a comma, or on the next lines
+- a return or a reject needs what to change: write it in that reply, or in a reply beside your click
 ```
 
 # Reactions
@@ -186,11 +187,11 @@ The one reply the tooling posts in the prompt's own thread once an answer is rea
 - rule: Required: `{{member}}`, the member that handed back. A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: `{{task}}` is the `## task` line, which says what was worked on in words: `{{task-title}}`, the title of the item the handed-back item tracks, else that item's own heading; `{{task-names}}`, the names of the tracked item and of the dispatch, each in code style; and `{{task-text}}`, the tracked item's first paragraph, else the first paragraph of the dispatch's own brief. One reader gives them, for this post, the permission set post and the event-track start post alike (`AgentsTools.TaskText.include`).
 - rule: `{{outcome}}` is the outcome line of the handback as the review flow records it on the item: one line, redacted.
-- rule: `{{session}}` is the `## session` line of the session that handed back: `{{session-id}}`, the first 8 characters of its coworking session; `{{session-thread}}`, its session thread, a link where the workspace's address is configured, else its `<channel>:<ts>` in code style; and `{{session-description}}`, what its spawn said it is for.
+- rule: `{{session}}` is the `## session` line of the session that handed back, its words first: `{{session-description}}`, what its spawn said it is for; then `{{session-id}}`, the first 8 characters of its coworking session; and `{{session-thread}}`, its session thread, a link where the workspace's address is configured, else its `<channel>:<ts>` in code style.
 - rule: The answer form is `verdict`. `{{how-to-answer}}` is the block under `# Answers` named for it, on every post that takes an answer.
 - rule: The emoji placed under the post are the block under `# Reactions` named `verdict`, one Slack name each, in that order: `+1` accepts, `leftwards_arrow_with_hook` returns, `x` rejects. They are placed by the identity that posted, and a reaction by that identity is never an answer: only a click by the one the post is addressed to is. None of them is `white_check_mark`, the mark the tooling itself puts on a question once it is answered.
 - rule: A name placed here must be one the verdict reader takes for a review (`AgentsEscalationVerdict.awk`). Two of them held by one account name no verdict.
-- rule: A reply answers by its first word: `accept`, `return` or `reject`. What follows the word, the rest of that reply and every later reply are the text of the verdict. For a click, every reply of the person in the thread is. The text is kept as one line, its parts joined by ` / `.
+- rule: A reply answers by its first line, as the verdict reader takes it (`AgentsEscalationVerdict.awk`): `accept`, `return` or `reject` alone, or the word, a punctuation mark and then words. What follows the mark, the rest of that reply and every later reply are the text of the verdict. For a click, every reply of the person in the thread is. The text is kept as one line, its parts joined by ` / `.
 - rule: A return and a reject need a text, as the reviewer's own operations do. One clicked with no reply beside it is not applied until that reply is written. An accept needs none.
 - rule: The verdict is applied by the review flow as the reviewer's own operation applies it, signed `human-owner`. The record of the prompt closes with it.
 - rule: A reply that names no verdict is not an answer. It goes back to the member that handed back as `RETURNED`, the review stays open, and a later reply or click is the verdict.

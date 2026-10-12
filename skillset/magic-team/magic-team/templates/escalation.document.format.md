@@ -54,14 +54,17 @@ refusal_id: <the REFUSAL-ID: the refusal printed>
 reason: <why this task needs the refused thing -- the post's own lead line, written by the tooling from
   the refused call, already names the tool, the place and the member; this field supplies only the why>
 task_ref: <the board item or dispatch the task is tracked in>
-verdicts: deny | allow-once | allow-session | allow-task
+entries: <optional -- Tool,Tool:<place or folder>/**, one `purpose: <text>` line covering the entries above it;
+  given, the ask becomes one Permission set for this member's own task, covering every entry, no `to` needed>
+verdicts: deny | allow-once | allow-session | allow-task | allow-set
 ```
 
 ```
-kind: permission-set                <- asked by tooling (--magic-permission-set-request), never by RequestPermission
+kind: permission-set                <- asked with RequestPermission's `entries` by the member itself, or by
+  tooling (--magic-permission-set-request) for the coordinator
 item: <the task's board item>
 scope: task | session
-entries: <tool:target, one per extra no participant holds>
+entries: <tool:target, one per extra no participant holds -- any tool the gate can decide, an `mcp__` tool name included; an unknown name returns a correction, posting nothing>
 verdicts: allow-set | deny | edit   <- edit also returns the change
 ```
 
@@ -78,15 +81,15 @@ verdicts: approved | rejected       <- the owner's own mark on the root, or a re
 
 - rule: Every field the kind names is filled. A missing field, or an unknown kind, posts nothing.
 - rule: The result's first line is `ASK-RESULT:`. A typed kind adds `VERDICT: <value>`. The addressee's own words beyond the verdict come back too: words in the same reply as `VERDICT-TEXT:`, a later reply in the same thread as `CLARIFICATION:`. A line of that text that reads like one of the reader's own markers is printed one space indented, so it is never mistaken for one.
-- rule: An answer outside the kind's verdicts reads `RETURNED`, and the ask stays open. The member never guesses a verdict from the answer text.
+- rule: A typed answer is a verdict when the answering word stands alone on the reply's first line, or when a punctuation mark follows the word and then the comment (`allow-once, only this file`; `deny. The path is wrong`). A word followed by more words with no mark is not a verdict: it reads `RETURNED`, with the full text, and the ask stays open. A number answering a numbered `decision` keeps its own, more lenient rule: `2 please` still answers option 2. The member never guesses a verdict from the answer text.
 - rule: After `RETURNED`, the member may clarify in the same thread, then waits again with `Wait` — `mode=continue`, or a new wait on the result's `WAIT-ID`, as its `NEXT:` line gives. Nothing is posted by it, and only the asking session may wait on its own ask.
 - rule: Only the addressee's answer is a verdict. A reply from anyone else is not one.
-- rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask. A reaction counts only ahead of the addressee's first reply; once it has replied, a later click is not read. An answer given through `--member-escalation-answer` gets one reply, its confirmation; no separate `Answered by` line is posted.
+- rule: The addressee answers in the ask's own thread, or with `--member-escalation-answer <member> <request-id> <verdict> [text]`. The request id is the pending-reply id the ask printed. The asking member never answers its own ask. A reaction counts only where the kind declares it: ✅ is `yes` and ❌ is `no` on a readback, and ❌ is `deny` on a permission ask. A reaction counts only ahead of the addressee's first reply; once it has replied, a later click is not read. An answer given through `--member-escalation-answer` gets one reply, its confirmation; no separate `Answered by` line is posted. A member answering for someone else writes the word, a mark, and who decided (`allow-once. The owner decided it`). A member with no Slack account of its own may instead answer with a plain reply in the session thread; the tooling knows who answered by the sender its post recorded, not by a Slack account.
 - rule: An allow verdict also prints `GRANT:`. The tooling writes the grant with the session, and no member writes its own. The member then runs the operation the ask named: the refused call, or the other operation and route the ask put in its place.
 - rule: `allow-once` covers one run of the operation the ask named. `allow-session` covers the same tool and target until the session ends. `allow-task` covers them while the ask's task item is open, and no longer than the session. None outlives the session.
 - rule: An allow is applied only from an approver who holds what it allows, or the human-owner. Anyone else's allow is not applied: tooling re-addresses the ask to a holder among the session's or task's participants, else forwards it to the human-owner, and it stays open.
-- rule: A `permission-set` ask carries the extras of a task's or session's permission set as ONE ask to the human-owner. `allow-set` grants them to every participant for that scope and records the set on the item's `## Decisions`; a `task` set also becomes the item's `allows`.
+- rule: A `permission-set` ask carries the extras of a task's or session's permission set as ONE ask to the human-owner. `allow-set` grants them to every participant for that scope and records the set on the item's `## Decisions`; a `task` set also becomes the item's `allows`. While a session's permission question to him is open, a further refused call of that session joins the same open prompt rather than asking anew, turning it into one Permission set; an answer already given to it is not widened by a later join.
 - rule: `deny` is a verdict. That part of the task is reported as denied and still open.
 - rule: No answer is not a verdict. The ask stays open.
-- rule: The member asks with the wait on and reads the verdict from `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered.
+- rule: The member asks with the wait on and reads the verdict from `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove` itself. `--member-escalation-read <member> <request-id>` shows it again, and reads `open` while nobody has answered. A search result shows a reply's own mark ahead of its text.
 - rule: `magic-coordinator`, as the addressee, may forward the ask to the human-owner with `--magic-escalation-forward <coordinator> <request-id>`. His reply is the verdict for the original ask, and the record stays the same one.

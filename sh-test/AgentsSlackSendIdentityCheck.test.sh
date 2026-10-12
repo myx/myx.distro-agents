@@ -2,9 +2,12 @@
 ## Behavioural check on which token --member-comms-slack-send-message posts under, run
 ## rather than read, against a scenario workspace built here. Holds: --identity-bot
 ## posts with the bot token, the human-owner target included; without it a member
-## holding its own SLACK_USER_TOKEN posts with that token, and a token-less member's
-## human-owner send relays under magic-coordinator's. A fake `curl` first on PATH
-## logs each method with its token; every token is a literal. Offline by construction.
+## holding its own SLACK_USER_TOKEN posts with that token, and a member with none posts
+## as the team bot, to the human-owner too: nothing is relayed under another member's
+## account. What Slack answers to a post is final unless it is a rate limit, and an
+## address whose conversation is no Slack id, or whose ts is no ts, is refused before any
+## call. A fake `curl` first on PATH logs each method with its token; every token is a
+## literal. Offline by construction.
 ## Also who may send: a spawned session acts only as itself through a --member-* op (send,
 ## react, email, wait, digest) and reads no config scope, the tooling's --intern-op-* form
 ## names any member, and the --magic-* form is the coordinator's.
@@ -72,8 +75,27 @@ rigAssert "no flag, a member with its own user token posts with that token" \
 	"$( rigSend keeper-myx human-owner )" rig-user-token-KEEPER
 rigAssert "no flag, the same member to a channel keeps its own token" \
 	"$( rigSend keeper-myx magic-team )" rig-user-token-KEEPER
-rigAssert "no flag, a token-less member to human-owner relays under magic-coordinator" \
-	"$( rigSend magic-team human-owner )" rig-user-token-COORD
+## TO THE HUMAN-OWNER a member with no Slack account of its own posts as the team bot, in the
+## bot's own conversation with the owner. The live fault: it went out under magic-coordinator's
+## account, into the coordinator's conversation with the owner.
+rigOwnerSend(){ ## member -- "<rc>:<tokens that posted>:<posts to the owner's account>:<lines naming magic-coordinator's account>"
+	local ownerOut="" ownerRc=0
+	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
+	ownerOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		bash "$rigTool" --member-comms-slack-send-message "$1" human-owner RIG-BODY-MARKER 2>&1 )" || ownerRc=$?
+	printf '%s:%s:%s:%s' "$ownerRc" "$( LC_ALL=C awk '$1 == "chat.postMessage" { printf "%s%s", sep, $2 ; sep = "," }' "$rigTmp/calls" )" \
+		"$( LC_ALL=C grep -c -F '{"channel":"URIGOWNER",' "$rigTmp/bodies" )" "$( printf '%s\n' "$ownerOut" | LC_ALL=C grep -c "magic-coordinator's user account" )"
+}
+rigAssert "no flag, a member with no account to human-owner: one post, the team bot's, to the owner's own account, and nothing said of another member's account" \
+	"$( rigOwnerSend magic-team )" "0:rig-bot-token-TEAM:1:0"
+rigAssert "a routine's send to human-owner is the team bot's too" \
+	"$( rigOwnerSend routine-heartbeat )" "0:rig-bot-token-TEAM:1:0"
+mv "$rigWs/.local/.agents/magic-coordinator.agent.env" "$rigTmp/coordinator.env.aside"
+rigAssert "magic-coordinator with no account of its own: the team bot's as well, never an error for want of a relay" \
+	"$( rigOwnerSend magic-coordinator )" "0:rig-bot-token-TEAM:1:0"
+mv "$rigTmp/coordinator.env.aside" "$rigWs/.local/.agents/magic-coordinator.agent.env"
+rigAssert "control: magic-coordinator with its own account posts to human-owner under it" \
+	"$( rigOwnerSend magic-coordinator )" "0:rig-user-token-COORD:1:0"
 
 ## A transport failure before anything reached Slack is retried; one after it may have
 ## reached Slack is not, since a post is not idempotent and a retry could post twice.
@@ -91,6 +113,44 @@ rigAssert "and the send fails" "$rigSendRc" 1
 rigAssert "and the send says whether it posted is unknown" \
 	"$( printf '%s' "$rigSendOut" | grep -c 'WHETHER THIS WAS POSTED IS UNKNOWN' )" 1
 rm -f "$rigTmp/post-exits"
+
+## WHAT SLACK ANSWERS TO A POST IS FINAL, unless it is a rate limit: the same post sent again
+## gets the same answer. The live fault: an invalid_thread_ts was sent five times, and then
+## mail said that Slack comms were stuck.
+rigAnswered(){ ## Slack's answers to the successive posts, one a line -- leaves rigSendRc and rigSendOut
+	printf '%s\n' "$@" > "$rigTmp/post-errors"
+	: > "$rigTmp/calls"
+	rigSendRc=0
+	rigSendOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		bash "$rigTool" --member-comms-slack-send-message keeper-myx CRIG00001:1700000000.000100 --identity-bot RIG-BODY-MARKER 2>&1 )" || rigSendRc=$?
+	rm -f "$rigTmp/post-errors"
+}
+rigAnswered invalid_thread_ts ok
+rigAssert "an error Slack answers with is final: one post, the send fails, and nothing is tried again" "$( rigPostCount ):$rigSendRc" "1:1"
+rigAssert "it says Slack answered and names its error, and no mail says comms are stuck" \
+	"$( printf '%s' "$rigSendOut" | grep -c 'nothing was posted -- Slack answered and refused it (invalid_thread_ts)' ):$( printf '%s' "$rigSendOut" | grep -c 'notifying by email' )" "1:0"
+rigAnswered ratelimited ok
+rigAssert "a rate limit is the one answer tried again: the second post goes out" "$( rigPostCount ):$rigSendRc" "2:0"
+
+## AN ADDRESS NAMES A CONVERSATION BY ITS SLACK ID AND A MESSAGE BY ITS TS. The live fault: a
+## Wait source given as an address, slack:<channel>:<ts>, was read as the conversation `slack`.
+rigAddressed(){ ## address -- "<rc>:<posts>:<lines of the refusal that hold the text given>"
+	local addressOut="" addressRc=0
+	: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
+	addressOut="$( cd "$rigWs" && env -u MDAT_DATA_ROOT RIG_SCENARIO="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		bash "$rigTool" --member-comms-slack-send-message keeper-myx "$1" --identity-bot RIG-BODY-MARKER 2>&1 )" || addressRc=$?
+	printf '%s:%s:%s' "$addressRc" "$( rigPostCount )" "$( printf '%s\n' "$addressOut" | LC_ALL=C grep -c -F -- "$2" )"
+}
+rigAssert "a word in front of the conversation is refused, with one line that says what to pass, and no call to Slack" \
+	"$( rigAddressed slack:DRIG00001:1700000000.000100 "'slack:DRIG00001:1700000000.000100' names no conversation: 'slack' is not a Slack id. Pass the id of the conversation and the ts of the message, <channel>:<ts>, with no other word in front of them. Nothing was sent." )" "1:0:1"
+rigAssert "a ts that is no ts is refused the same way" \
+	"$( rigAddressed DRIG00001:1700000000.000100:conversation "'DRIG00001:1700000000.000100:conversation' names no message: '1700000000.000100:conversation' is not a message ts. Pass the ts of the message as Slack gives it, such as 1700000000.000100, after the conversation: <channel>:<ts>. Nothing was sent." )" "1:0:1"
+rigAssert "after a named conversation too" \
+	"$( rigAddressed magic-team:not-a-ts "'magic-team:not-a-ts' names no message: 'not-a-ts' is not a message ts." )" "1:0:1"
+rigAssert "control: a conversation id with a message ts is posted into that thread" \
+	"$( rigAddressed DRIG00001:1700000000.000100 'no such line' ):$( LC_ALL=C grep -c -F '"thread_ts":"1700000000.000100"' "$rigTmp/bodies" )" "0:1:0:1"
+rigAssert "control: a conversation id alone is posted at its top" \
+	"$( rigAddressed DRIG00001 'no such line' )" "0:1:0"
 
 ## Who may send. A spawned session (MDAT_SPAWN_AGENT) acts only as its own member through a
 ## --member-* op; the tooling's --intern-op-* form and the coordinator's --magic-* form do not.

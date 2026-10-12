@@ -47,7 +47,7 @@ The team's identifier is `magic-team`; its identity is The Conclave. A member's 
 
 ### Identity marks
 
-A member with a persona carries `## Identity marks` in its `.basic.md`; image files sit in its `resources/`.
+A member with a persona carries `## Identity marks` in its `.basic.md`; image files sit in its `resources/`. A member with its own mark keeps it; one with none is shown with the default icon of its prefix group instead — the rule is by group, never by one member.
 
 - **Unicode character** — required; the fallback that works everywhere.
 - **Slack shortcode** — `:name:`, optional, only together with the image.
@@ -118,7 +118,7 @@ Every section a contract names is present, in contract order, with its lead-in, 
 
 ### Partner / Client (`partner-*`/`client-*`)
 
-A `client-*` member's comms are read with `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`, `client-*` only. `magic-coordinator.communication-sweep.routine` runs it for every `client-*` member.
+A `client-*` member's comms are read with `--client-sweep-input-scan <team-member> [--comms-since-utime <v>|--comms-since-date-time <v>]`, `client-*` only. `magic-coordinator.communication-sweep.routine` runs it for every `client-*` member. A `--client-*` operation naming a client runs only for that client in its own session -- nobody else, checked once where the operation is dispatched. `magic-coordinator` reaches it through `--magic-client-operation-run` instead.
 
 ## Nested-item grammar
 
@@ -199,16 +199,16 @@ Deferred work starts only when the current step is released and he has said to s
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. The chain of command decides who sends it: the session's `magic-coordinator` forwards what it does not settle; a member with no coordinator present asks him with `AskQuestion` itself. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
+A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Every member asks him directly with its own ask tool; no relay under a session's `magic-coordinator` stands between. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 
 A refusal, a failed mechanism, a missing operation or grant, an unverified source, an open question or a finding needing confirmation never ends the task, is never only logged, and never changes its scope.
 
 - Who answers: `magic-team.armed.md`'s "Escalation and chain of command".
-- An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it or forwards it to the human-owner. The kinds: `templates/escalation.document.format.md`.
+- An escalation is an `AskQuestion` ask to the session's `magic-coordinator`, in the session thread, never chat relay; a permission ask goes to its routine, below. The coordinator answers it, or escalates it to the human-owner with its own ask — no relay under the coordinator carries another member's words to him. The kinds: `templates/escalation.document.format.md`.
 - An escalation is synchronous. A typed ask (readback, decision, permission) waits inside its own call. A plain question waits with `Wait`, per `magic-team.armed.md`'s **wait-never-quit**.
-- Every refusal is escalated as a `permission` ask to `magic-coordinator.permission-escalation.routine` (its `to`), citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named. A write refused in a read-only place is not asked for: write to the session sandbox `output/`, or find another suitable location.
+- Before starting a task, work out what it needs: every place, in every workspace, and every tool. Ask once with `entries`, one Permission set covering all of it. Ask one call alone only when it is truly a single case. A refusal still met is escalated as a `permission` ask to `magic-coordinator.permission-escalation.routine` (its `to`), citing its `REFUSAL-ID:` and why the task needs it. On an allow, run the operation and route the ask named. A write refused in a read-only place is not asked for: write to the session sandbox `output/`, or find another suitable location.
 - A problem or contradiction is escalated even when it does not block. Another non-blocking matter is filed with `post-inquiry` and the member carries on; answers are collected before closure steps.
 - The gated part stays open until a verdict. No answer is not a verdict. A deny is a verdict: report that part denied and open, never work around it.
 - A verdict returned by the tooling is acted on as returned.

@@ -60,6 +60,22 @@ AgentsToolsTeamLocalFile(){ ## workspace, name
 	printf '%s\n' "${1%/}/.local/agents/$2"
 }
 
+## The default icon of a member's prefix group: what a member with no mark of its own is
+## shown with, in the member table of the installer (AgentsToolsInstallReportIcon) and in the
+## author line of a message (AgentsToolsCommsSlackMemberTeamPresentation) alike. A member's
+## own mark always wins over it. The one list of them: the rule is the prefix, and no member
+## of a group is named.
+AgentsToolsTeamMemberKindIcon(){ ## member
+	case "$1" in
+		client-*)          printf '%s' "👥" ;;
+		partner-*)         printf '%s' "👫" ;;
+		keeper-*|warden-*) printf '%s' "🔏" ;;
+		human-owner)       printf '%s' "👤" ;;
+		magic-*)           printf '%s' "🤖" ;;
+		*)                 printf '%s' "🤖" ;;
+	esac
+}
+
 ## The workspace roots whose own grant files make up the machine-wide grant set: the
 ## given workspace first, then every root the shared pointer file lists, each once.
 AgentsToolsTeamGrantWorkspaces(){ ## workspace

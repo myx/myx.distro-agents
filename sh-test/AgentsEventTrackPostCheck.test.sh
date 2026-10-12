@@ -435,9 +435,9 @@ done <<'RIG_WANT_EOF'
 ⏳ Wait → RECEIVED from *U0RIGUSER*: "yes, go ahead" · on: reply · 1 m 5 s
 ⏳ Wait → TIMEOUT 1700 s · 28 m 20 s
 🚀 Agent spawn → *keeper-myx* (session 7f12abcd…) · started
-❔ RequestPermission → *human-owner* · permission: "May I write MAGIC.md in lib.tukaani-xz-java?"
-❔ EscalateDecision → *human-owner* · decision: "Which README goes first?"
-❔ ProposeApprove → *human-owner* · proposal: "Do we retire the old sync?"
+❓ RequestPermission → *human-owner* · permission: "May I write MAGIC.md in lib.tukaani-xz-java?"
+❓ EscalateDecision → *human-owner* · decision: "Which README goes first?"
+❓ ProposeApprove → *human-owner* · proposal: "Do we retire the old sync?"
 🧠 round 12 · in 48K · cache 310K · out 1.2K
 🌐 WebFetch `https://example.invalid/page` → 10 B
 🗒️ note by *magic-tester*: "a note to the transcript"
@@ -647,13 +647,15 @@ rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTm
 ## ---------------------------------------------------------------------------
 echo "-- a Wait says how it resolved, from whom, and what it waited on where that changed --"
 ## ---------------------------------------------------------------------------
+## The author line of a member send in its two forms: a name said once, where the member's alias
+## is its own name, and name and alias, where the alias is another word.
 cat > "$rigTmp/lines.wait" <<'RIG_WAIT_EOF'
 2030-01-01T00:08:00Z TOOL Wait sources="slack:magic-team ask:2dc1d732-8ee1-4438-94e7-9d8148c8e71b" -> ok 900B/12L 30.0s
 2030-01-01T00:08:00Z WAIT-RESULT
 > WAIT-RESULT: RECEIVED
 > # sources: slack:magic-team ask:2dc1d732-8ee1-4438-94e7-9d8148c8e71b
 > # --- what that source holds now follows ---
-> 1791523076.323569 | U0BOT | [sender: magic-devops] :wrench: *_magic-devops_* @magic-devops → @here. Handback  the &lt;b&gt; check, see <https://example.invalid/x|the board>
+> 1791523076.323569 | U0BOT | [sender: magic-devops] :wrench: *_magic-devops_* → @here. Handback  the &lt;b&gt; check, see <https://example.invalid/x|the board>
 > more text of it
 > 1791523076.325939 | U0BOT | [sender: magic-architect] *_magic-architect_* @magic-architect → @here. armed
 > # --- end ---
@@ -1079,8 +1081,11 @@ printf '%s\n' '#!/usr/bin/env bash' \
 chmod +x "$rigTmp/ws/DistroAgentsConsole.sh"
 printf 'RIG-SPAWN-BRIEF\n' > "$rigTmp/spawn.brief"
 rigEnvFile="$rigTmp/ws/.local/.agents/magic-team.agent.env"
-cp "$rigEnvFile" "$rigTmp/agent.env.base"
-## No parent session: env -i, so the spawn is a lone one, and its session thread is its event-track thread.
+## No conversation is set for magic-team in the spawns below: a spawn that joins a session
+## with no session thread would open one there, and say that it joined, and this check is of
+## the tracking posts alone (the session thread is AgentsSpawnTrackingPlaceCheck's).
+LC_ALL=C grep -v '^SLACK_CHANNEL_MAGIC_TEAM=' "$rigEnvFile" > "$rigTmp/agent.env.base"
+## No parent session: env -i, so the spawn is a lone one: it has its event-track thread, and no session thread.
 ## Given a parent spawn id and a session, it is spawned from that parent and joins that session instead.
 ## The member spawned is rigSpawnMember, magic-tester where it is not set. Its dispatch options
 ## are rigSpawnArgs: no dispatch document where nothing else is asked.
@@ -1119,8 +1124,8 @@ rigAssert "one start post, the first post, a root, with the CLI resolved before 
 	"$( rigPostsMade | LC_ALL=C awk '$3 == "🚀_session_start" { print $1 ":" $2 }' ):$( LC_ALL=C grep -l -F 'cli: configured' "$rigTmp/scenario"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' )" "1:root:0"
 rigAssert "the root opens with the session's box, its title the session and its subtitle one date, then the starter's own run box, and nothing outside the boxes" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep '^BOX ' | rigMask | LC_ALL=C sed -E 's/`[0-9a-f]{8}`/`<id>`/' | LC_ALL=C tr '\n' '|' ):$( rigShape "$rigTmp/scenario/post.1" )" 'BOX [thread] session `<id>` | <date {ago}>|BOX [bust_in_silhouette] magic-tester (run `<id>`) | <date {date_short_pretty} at {time}>|:0:0:0:0:0'
-rigAssert "the session's box says who started it and its session thread; the run's box the resolved CLI, how it runs, and everything else settled before it" \
-	"$( rigYes env LC_ALL=C grep -q -F '"text":"🚀 session start — by *magic-tester*"' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '"text":"session thread: `this thread`"' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start\ncli: rig-cli · runs: native · wait: true\ndispatch: `none`"' "$rigTmp/scenario/post.1" )" yes:yes:yes
+rigAssert "the session's box says who started it, and names no session thread, since a session that starts alone has none: a tracking thread is never one; the run's box the resolved CLI, how it runs, and everything else settled before it" \
+	"$( rigYes env LC_ALL=C grep -q -F '"text":"🚀 session start — by *magic-tester*"' "$rigTmp/scenario/post.1" ):$( LC_ALL=C grep -c -F 'session thread' "$rigTmp/scenario/post.1" ):$( rigYes env LC_ALL=C grep -q -F '"text":"▶️ run start\ncli: rig-cli · runs: native · wait: true\ndispatch: `none`"' "$rigTmp/scenario/post.1" )" yes:0:yes
 rigAssert "and leaves out what is not known, with no placeholder" "$( LC_ALL=C grep -c -e 'tier: -' -e 'routine: -' -e ': - ' "$rigTmp/scenario/post.1" )" 0
 rigAssert "a compact root: each id its first 8 characters, in its box's title, the starter's run id the session's own; no parent when there is none, no tracking name that is the session's own, no output, receipt or context" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C grep '^BOX ' | LC_ALL=C grep -o -E '`[0-9a-f]{8}`' | LC_ALL=C sort -u | LC_ALL=C awk 'END { print NR }' ):$( LC_ALL=C grep -c -e 'parent: ' -e 'tracking: ' -e 'output: ' -e 'receipt: ' -e 'context: ' -e 'spawn: ' -e 'joined session' "$rigTmp/scenario/post.1" )" 1:0
@@ -1189,9 +1194,9 @@ rigAssert "both spawn records name that one thread" \
 rigPostBoxes(){ ## post number
 	rigBoxes "$rigTmp/scenario/post.$1" | rigMask | LC_ALL=C tr '\n' '|'
 }
-rigAssert "the first post: the session's box holds its id, who started it and its thread, and nothing of a run -- no CLI, tier or host is the session's" \
+rigAssert "the first post: the session's box holds its id and who started it, and nothing of a run -- no CLI, tier or host is the session's" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk 'NR > 1 && /^BOX / { exit ; } { print ; }' | rigMask | LC_ALL=C tr '\n' '|' )" \
-	"BOX [thread] session \`${rigCow:0:8}\` | <date {ago}>|🚀 session start — by *magic-coordinator*|~ session thread: \`this thread\`|"
+	"BOX [thread] session \`${rigCow:0:8}\` | <date {ago}>|🚀 session start — by *magic-coordinator*|"
 rigAssert "the starter's own start entry is the second box of that post: its member, its run, its CLI and how it runs" \
 	"$( rigBoxes "$rigTmp/scenario/post.1" | LC_ALL=C awk '/^BOX / { boxNo++ ; } boxNo == 2 && ! /^~ / { print ; }' | rigMask | LC_ALL=C tr '\n' '|' )" \
 	"BOX [bust_in_silhouette] magic-coordinator (run \`${rigCow:0:8}\`) | <date {date_short_pretty} at {time}>|▶️ run start|cli: rig-cli · runs: native · wait: true|dispatch: \`none\`|"

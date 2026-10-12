@@ -55,7 +55,7 @@ A proposal puts one document to the human-owner. The root is the question the pr
 ## post
 
 ```
-# 📄 The proposal
+# 📘 The proposal
 
 {{proposal}}
 
@@ -78,6 +78,7 @@ The lines under `How to answer`.
 ```
 - react on the first message of this thread: ✅ approves the document, ❌ rejects the proposal
 - or reply here `approved` or `rejected`
+- the word first; a comment after a comma, or on the next lines
 - any other reply here is a comment: the proposal is worked out from it, and this message is replaced by the changed one
 ```
 
@@ -123,7 +124,7 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 - rule: `{{document}}` is the link to the proposal document: the absolute `http://` or `https://` URL of a page that exists. The document is what the human-owner approves. A proposal with no document is never posted.
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: The answer form is `approve`. `{{how-to-answer}}` is the block under `# Answers` named for it.
-- rule: The verdict is the human-owner's own reaction on the root, as the verdict reader takes it for a proposal (`AgentsEscalationVerdict.awk`): `white_check_mark` approves and `x` rejects, reject first where he holds both. A reply whose first word is `approved` or `rejected` gives the same verdict, and the rest of that line is its text. A reaction under the proposal reply is no verdict, and no plain agreement approves.
+- rule: The verdict is the human-owner's own reaction on the root, as the verdict reader takes it for a proposal (`AgentsEscalationVerdict.awk`): `white_check_mark` approves and `x` rejects, reject first where he holds both. A reply whose first line is `approved` or `rejected`, alone or followed by a punctuation mark and words, gives the same verdict, and the words on that line are its text. A reaction under the proposal reply is no verdict, and no plain agreement approves.
 - rule: A changed proposal replaces the reply: the reply before it is deleted and the changed one is posted under the same root, so one proposal reply is live at a time. Nothing is marked, and the root is not touched. Once a verdict is on the root, no changed proposal is posted.
 - rule: A post that no longer takes an answer is the reply's same text without its `How to answer` group: the reply of a discarded proposal. The tooling edits that reply to it. `## cancelled` under `# Marks` is the reaction the tooling puts on that reply, never on the root.
 - rule: `## hint` under `# Returned` is what the asker is told when a reply names none of the answers. `{{explain-call}}`, `{{revise-call}}` and `{{withdraw-call}}` are the exact calls, given by the tool. No readback closes a proposal: only the human-owner's own verdict does.

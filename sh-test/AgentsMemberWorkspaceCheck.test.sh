@@ -634,7 +634,7 @@ rigAssert "the environment its call ran in is, field for field, the one a member
 rigPre=()
 rigRunIn ws-here --member-comms-slack-send-message client-ndm magic-team RIG-BODY
 rigAssert "a --member- send of a client reaches our own team: the bot and the channel of the workspace it was called from" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
-rigAssert "under its own name, with the mark and alias of its row in the names registry of the workspace it is set up in, and its metadata" "$( rigText ) $( rigN "$rigTmp/bodies" '"metadata"' )" '🐭 *_client-ndm_* @dispatchr → @here.\nRIG-BODY 1'
+rigAssert "under its own name, with the mark of its row in the names registry of the workspace it is set up in, its member name as its alias and never its persona's, and its metadata" "$( rigText ) $( rigN "$rigTmp/bodies" '"metadata"' )" '🐭 *_client-ndm_* → @here.\nRIG-BODY 1'
 rigAssert "no token the client holds was used, in either workspace, and nothing of the workspace it is set up in" "$( rigN "$rigTmp/calls" 'NDMHERE' ) $( rigN "$rigTmp/calls" 'NDMTHERE' ) $( rigN "$rigTmp/calls" 'token-THERE' ) $( rigN "$rigTmp/bodies" 'CTHERE0001' )" "0 0 0 0"
 rigRunIn ws-here --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
 rigAssert "a --client- send of the same client reaches the other organisation: the token this workspace holds for the client, the conversation named by its id" "$rigRc $( rigTokens )$( rigChannel )" "0 rig-user-token-NDMHERE CNDM00001"
@@ -820,7 +820,7 @@ rigStarts(){ ## -- each start seen, with the record status at that start: launch
 }
 rigRetrySpawn open
 rigAssert "control: an open session with no handback is retried once, and the retry runs while its record still says started" "$rigRc $( rigStarts )" "0 launch=spawn-started true=spawn-started"
-rigAssert "control: the close comes after the retry, which handed back, so no handback-missing notice is posted" "$rigRecordStatus $( rigN "$rigTmp/bodies" 'none posted' )" "spawn-succeeded 0"
+rigAssert "control: the close comes after the retry, which handed back, so nothing says a handback is missing: no box, and no message in the session thread" "$rigRecordStatus $( rigN "$rigTmp/bodies" 'none posted' ) $( rigN "$rigTmp/bodies" 'posted no handback' )" "spawn-succeeded 0 0"
 rigAssert "the record it closes is the calling workspace's own"           "$( LC_ALL=C sed "s|$rigWork/||" "$rigTmp/record.path" 2> /dev/null | LC_ALL=C cut -d/ -f1-4 )" "ws-here/.local/agents/spawned"
 for rigCloseMode in record dismissed ending ; do
 	rigRetrySpawn "$rigCloseMode"
@@ -831,7 +831,8 @@ for rigCloseMode in record dismissed ending ; do
 	esac
 	[ "$rigCloseMode" = record ] || rigAssert "control ($rigCloseMode): the session had a transcript to record its ending in" "$( cat "$rigTmp/transcript.seen" 2> /dev/null || printf no )" yes
 	rigAssert "a closed session ($rigCloseWhat) is not resumed: launched once, never retried" "$rigRc $( rigStarts )" "0 launch=spawn-started true=none"
-	rigAssert "instead ($rigCloseMode): the handback-missing notice is posted, the reason is logged, and the close still runs" "$( [ "$( rigN "$rigTmp/bodies" 'none posted' )" -gt 0 ] && printf notice || printf silent ) $( rigN "$rigSessionLog" 'no handback retry for spawn' ) $rigRecordStatus" "notice 1 spawn-succeeded"
+	## This workspace has no event-track conversation, so no tracking box is made: the session thread is told, in a message.
+	rigAssert "instead ($rigCloseMode): the session thread is told the handback is missing, the reason is logged, and the close still runs" "$( [ "$( rigN "$rigTmp/bodies" 'posted no handback' )" -gt 0 ] && printf told || printf silent ) $( rigN "$rigTmp/bodies" 'none posted' ) $( rigN "$rigSessionLog" 'no handback retry for spawn' ) $rigRecordStatus" "told 0 1 spawn-succeeded"
 done
 rm -f "$rigTmp"/start.* "$rigTmp/record.path" "$rigTmp/transcript.seen"
 rigConsole ws-here HERE
@@ -1096,10 +1097,13 @@ rigToolIn ws-here "$( rigView ws-there )" keeper-there Wait '{"sources":"slack:m
 rigAssert "Wait as an invited member: the long poll ran under its own identity, and under the root of the workspace its session runs in" "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KTHERE ws-here'
 rigToolIn ws-here "$( rigView ws-here )" keeper-here Wait '{"sources":"slack:magic-team","timeout":0}'
 rigAssert "control: Wait as a member set up in the current workspace"     "$( LC_ALL=C awk '$1 ~ /^conversations/ { print $2 ; exit }' "$rigTmp/calls" ) $( rigEnvOf conversations.history MMDAPP | LC_ALL=C sed "s|$rigWork/||" )" 'rig-user-token-KHERE ws-here'
+## Every ask to the human-owner is the team bot's post in the bot's conversation with him, whoever asks: an invited
+## member's own account, read from the workspace it is set up in, posts none of it. The bot is that of the workspace
+## its session runs in, and so is the human-owner; nothing of the team of the workspace it is set up in is used.
 rigToolIn ws-here "$( rigView ws-there )" keeper-there AskUserQuestion '{"to":"human-owner","question":"May the rig keep its file?","wait":false}'
-rigAssert "AskUserQuestion as an invited member, whose own account is read from the workspace it is set up in: every post goes to the human-owner of the workspace its session runs in, under that account, and nothing of its own workspace's team is used" "$( rigTokens | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -v '^$' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'bot-token-THERE' )" 'rig-user-token-KTHERE UHEREOWNER 0'
+rigAssert "AskUserQuestion as an invited member that has an account of its own: every post goes to the human-owner of the workspace its session runs in, under the team bot of that workspace and none under its own account, and nothing of its own workspace's team is used" "$( rigTokens | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -v '^$' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'bot-token-THERE' )" 'rig-bot-token-HERE UHEREOWNER 0'
 rigToolIn ws-here "$( rigView ws-third )" keeper-multi AskUserQuestion '{"to":"human-owner","question":"May the rig keep its other file?","wait":false}'
-rigAssert "AskUserQuestion as an invited member with no account of its own in either workspace: every post goes to that human-owner under the team bot of the workspace its session runs in, as for any member without one" "$( rigTokens | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -v '^$' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'THERE' )" 'rig-bot-token-HERE UHEREOWNER 0'
+rigAssert "AskUserQuestion as an invited member with no account of its own in either workspace: the same, every post goes to that human-owner under the team bot of the workspace its session runs in" "$( rigTokens | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -v '^$' | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )$( rigChannel ) $( rigN "$rigTmp/calls" 'THERE' )" 'rig-bot-token-HERE UHEREOWNER 0'
 rigToolIn ws-here "$( rigView ws-there )" keeper-there AskQuestion '{"to":"magic-team","address_to":"UHEREOWNER","question":"May the rig go on?","wait":false}'
 rigAssert "AskQuestion as an invited member is posted in that workspace's own conversation, under its own identity"  "$( LC_ALL=C sed -n '1p' "$rigTmp/out" ) $( rigTokens )$( rigChannel )" "ASK-RESULT: POSTED rig-user-token-KTHERE CHERE0001"
 rigToolIn ws-here "$( rigView ws-there )" client-ndm SendMessage '{"to":"magic-team","message":"RIG-BODY"}'

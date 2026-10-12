@@ -441,16 +441,30 @@ AgentsPendingAsksForRoutine(){ ## routine short name, e.g. permission-escalation
 ## Where a spawn's handback goes when it names session-parent: the parent session's own
 ## thread, else magic-coordinator's -- the newest live magic-coordinator spawn with a
 ## thread -- so a handback, and the DISMISSED it leads to, always have a thread.
+## The parent's own thread is the one on its spawn record, else the one recorded for the
+## coworking session it works in (sessions/<session-id>/session.thread): a parent that
+## started alone, or a native client's session, has its thread opened by the first member
+## it brings in, and carries none on a record of its own. Never a tracking thread: a
+## handback is a member's message (AgentsToolsEventTrackThreadIs).
 ## Only for a spawn that has a parent. Prints `<channel>:<ts>`; rc 1 for none.
 AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
-	local ptParent="$1" ptOwn="$2" ptRecord ptThread="" ptBest="" ptBestRecord=""
+	local ptParent="$1" ptOwn="$2" ptRecord ptThread="" ptBest="" ptBestRecord="" ptTrack="" ptSession="" ptOne
 	case "$ptParent" in ''|none|*/*|.|..) return 1 ;; esac
 	[ -n "${MMDAPP:-}" ] || return 1
 	AgentsReviewLoad
+	type AgentsToolsEventTrackThreadIs > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.EventTrackThread.include"
+	ptTrack="$( AgentsToolsEventTrackChannel )"
 	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/"$ptParent.md" ; do
 		[ -f "$ptRecord" ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
-		AgentsToolsSpawnConversationThreadValid "$ptThread" && { printf '%s\n' "$ptThread" ; return 0 ; }
+		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
+		[ -n "$ptSession" ] || ptSession="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-id )"
+	done
+	for ptOne in "$ptSession" "$ptParent" ; do
+		case "$ptOne" in ''|*/*|.|..) continue ;; esac
+		ptThread=""
+		[ ! -s "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" ] || IFS= read -r ptThread < "$MMDAPP/.local/agents/sessions/$ptOne/session.thread" || :
+		AgentsToolsSpawnConversationThreadValid "$ptThread" && ! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" && { printf '%s\n' "$ptThread" ; return 0 ; }
 	done
 	for ptRecord in "$MMDAPP/.local/agents/spawned"/*/*.md ; do
 		[ -f "$ptRecord" ] || continue
@@ -459,6 +473,7 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 		[ "$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" status )" = spawn-started ] || continue
 		ptThread="$( AgentsToolsSpawnSandboxRecordHeader "$ptRecord" session-thread )"
 		AgentsToolsSpawnConversationThreadValid "$ptThread" || continue
+		! AgentsToolsEventTrackThreadIs "$ptThread" "$ptTrack" || continue
 		if [ -z "$ptBestRecord" ] || [ "$ptRecord" -nt "$ptBestRecord" ] ; then
 			ptBest="$ptThread" ; ptBestRecord="$ptRecord"
 		fi

@@ -208,7 +208,7 @@ rigFill(){ ## want -- the template filled straight, the slots from the caller's 
 }
 
 echo "-- 0. the template: the post, the post that takes no answer any more, the emoji --"
-rigHow=$'**✅ How to answer**\n- click 👍 to accept, ↩️ to return it for corrections, or ❌ to reject it\n- or reply with the first word: `accept`, `return` or `reject`\n- a return or a reject takes what to change from your reply: write it after the word, or in a reply beside your click'
+rigHow=$'**✅ How to answer**\n- click 👍 to accept, ↩️ to return it for corrections, or ❌ to reject it\n- or reply `accept`, `return` or `reject`\n- the word first; a comment after a comma, or on the next lines\n- a return or a reject needs what to change: write it in that reply, or in a reply beside your click'
 rigAssert "the post, whole" \
 	"$( ASKP_F_member=keeper-myx ASKP_F_task=$'The task\n`task-a` · `dispatch-b`' ASKP_F_outcome='rig work done' ASKP_F_session='`5e55104a` · `C1:1.2`' rigFill post )" \
 	$'# 🔎 Review\n\nkeeper-myx handed back, and its work waits for your verdict.\n\n**🗂 Task**\nThe task\n`task-a` · `dispatch-b`\n\n**📦 Outcome**\nrig work done\n\n**🧵 Session**\n`5e55104a` · `C1:1.2`\n\n'"$rigHow"
@@ -232,7 +232,7 @@ rigAssert "the item moved running -> review"               "$( rigLoc )" review
 rigAssert "one more post: the review prompt, by the team bot" "$( rigPosts ):$( cat "$rigDir/post.2.token" 2> /dev/null )" "2:rig-bot-token-TEAM"
 rigAssert "to the human-owner, addressed to him"           "$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigDir/post.2" 2> /dev/null ):$( rigHas "$rigDir/post.2" '<@URIGOWNER>' )" "1:yes"
 rigAssert "the prompt, whole: who, the task in words, the outcome, the session and its thread, how to answer" "$( rigPromptBody )" \
-	$'# 🔎 Review\n\nkeeper-myx handed back, and its work waits for your verdict.\n\n**🗂 Task**\nRework the rig widget\n`task-20261012T0000Z-handback` · `dispatch-20261012T0100Z-handback`\nThe widget drops its last line. Make it keep it.\n\n**📦 Outcome**\nrig work done\n\n**🧵 Session**\n`5e55104a` · [thread](https://rig.slack.example/archives/CSES00001/p1700000000000100) — rework the rig widget\n\n'"$rigHow"
+	$'# 🔎 Review\n\nkeeper-myx handed back, and its work waits for your verdict.\n\n**🗂 Task**\nRework the rig widget\n`task-20261012T0000Z-handback` · `dispatch-20261012T0100Z-handback`\nThe widget drops its last line. Make it keep it.\n\n**📦 Outcome**\nrig work done\n\n**🧵 Session**\nrework the rig widget · `5e55104a` · [thread](https://rig.slack.example/archives/CSES00001/p1700000000000100)\n\n'"$rigHow"
 rigAssert "its record: a review, asked of the human-owner by the member that handed back" \
 	"$( rigRecordCount ):$( rigField kind ):$( rigField address-to ):$( rigField owner ):$( rigField session-id ):$( rigField item ):$( rigField ask-identity ):$( rigField status )" \
 	"1:review:human-owner:keeper-myx:$rigSpawn:$rigItem:bot:reply-pending"
@@ -318,7 +318,7 @@ echo "-- 6. each verdict by reply: the first word, the text after it --"
 rigStart reply-accept
 rigWork human-owner
 rigHandback "rig work done"
-rigThread "" "$( rigReply 000250 URIGOWNER 'accept good work' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'accept: good work' )"
 rigRead
 rigAssert "accept, with a word on it"                      "$( rigReadLine 'VERDICT: ' ):$( rigLoc ):$( rigDecisions 'human-owner verdict: accepted: good work' )" "VERDICT: accept:processed:1"
 rigStart reply-return
@@ -331,7 +331,7 @@ rigAssert "its text is the rest of the reply, every line of it" "$( LC_ALL=C gre
 rigStart reply-reject
 rigWork human-owner
 rigHandback "rig work done"
-rigThread "" "$( rigReply 000250 URIGOWNER 'reject start over' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'reject: start over' )"
 rigRead
 rigAssert "reject"                                         "$( rigReadLine 'VERDICT: ' ):$( rigLoc ):$( rigDecisions 'human-owner verdict: rejected: start over' )" "VERDICT: reject:pending:1"
 rigStart reply-return-bare

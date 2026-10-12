@@ -240,8 +240,9 @@ function bodyText(    bodyNo, outText ) {
 
 ## A Slack message's text as a reader wants its first line: a date token as its fallback text,
 ## Slack's own entities decoded (the post escapes them again), a link as its label, and the
-## member send's author line -- [sender: …], its emoji, its *_name_* and its `@from → @to.` --
-## left out. Sets slackSender to the member a [sender: …] tag names.
+## member send's author line -- [sender: …], its emoji, its *_name_* and its `@from → @to.`,
+## or `→ @to.` alone where the line says a member whose alias is its name once -- left out.
+## Sets slackSender to the member a [sender: …] tag names.
 function slackText( text,    linkText, labelAt ) {
 	slackSender = "" ;
 	text = sldFallbacks( text ) ;
@@ -249,7 +250,7 @@ function slackText( text,    linkText, labelAt ) {
 	sub( /^[ \t]+/, "", text ) ;
 	if ( match( text, /^\[sender: [^]]*\]/ ) ) { slackSender = substr( text, 10, RLENGTH - 10 ) ; text = substr( text, RLENGTH + 1 ) ; sub( /^[ \t]+/, "", text ) ; }
 	sub( /^:[A-Za-z0-9_+-]+:[ \t]*/, "", text ) ;
-	sub( /^\*_[^*]*_\*[ \t]*/, "", text ) ;
+	if ( sub( /^\*_[^*]*_\*[ \t]*/, "", text ) ) { sub( /^\342\206\222 [^ ]+[.][ \t]*/, "", text ) ; }
 	sub( /^@[^ ]+ \342\206\222 [^ ]+[.][ \t]*/, "", text ) ;
 	while ( match( text, /<(https?|mailto):[^>]*>/ ) ) {
 		linkText = substr( text, RSTART + 1, RLENGTH - 2 ) ;

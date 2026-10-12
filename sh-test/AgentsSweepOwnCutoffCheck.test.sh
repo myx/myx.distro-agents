@@ -49,12 +49,14 @@ rigNote="note-20260812T231137Z-sweep-state.md"
 printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n\nteam body line\n' "$rigTeamTs" > "$rigDir/data/inboxes/magic-coordinator/$rigNote"
 printf -- '---\nlast_swept_ts: %s\n---\n\n# sweep-state-note\n' "$rigClientTs" > "$rigDir/data/inboxes/client-fix1/$rigNote"
 
-## One tooling call in the fixture tree, guarded.
+## One tooling call in the fixture tree, guarded. rigSession names the member whose session the call comes from;
+## empty, the call comes from no session: the console.
+rigSession=""
 rigRun(){ ## out-name, args...
 	local runName="$1" ; shift
 	local runRc=0
 	env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" MMDAPP="$rigDir/ws" MDAT_DATA_ROOT="$rigDir/data" TMPDIR="$rigDir/ws/.local/temp" \
-		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY=0 FIX_DMS=2 FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" FIX_DIR="$rigDir" FIX_LATENCY=0 FIX_DMS=2 FIX_TS="$rigNow" RIG_TMP="$rigTmp" ${rigSession:+MDAT_SPAWN_AGENT="$rigSession"} \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
 			case "$MDAT_DATA_ROOT" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac
@@ -98,6 +100,16 @@ rigTeam="$( rigTeamPart stated )" ; rigC1="$( rigPart stated client-fix1 )"
 rigAssert "team part reads at the stated cut-off"           "$( rigHas "$rigTeam" "cut-off --comms-since-utime $rigExplicitTs" )" yes
 rigAssert "client-fix1 still reads at its own"              "$( rigHas "$rigC1" "cut-off --comms-since-utime $rigClientTs" )" yes
 rigAssert "the stated cut-off reaches no client"            "$( rigHas "$rigC1$( rigPart stated client-fix2 )" "$rigExplicitTs" )" no
+
+echo "-- the sweep from magic-coordinator's own session still reads every client: each is swept as that client, through --magic-client-operation-run --"
+rigSession=magic-coordinator
+rigRun session --magic-sweep-input-scan magic-coordinator
+rigSession=""
+rigC1="$( rigPart session client-fix1 )" ; rigC2="$( rigPart session client-fix2 )"
+rigAssert "both client parts are in the document, and neither says that no scan was made" "$( [ -n "$rigC1" ] && [ -n "$rigC2" ] && printf yes || printf no ) $( rigHas "$rigC1$rigC2" "no scan was made -- this member recorded no coverage of its own" )" "yes no"
+rigAssert "client-fix1 is read at its own cut-off, as it is from the console" "$( rigHas "$rigC1" "cut-off --comms-since-utime $rigClientTs" )" yes
+rigAssert "each client part is what the same sweep from the console gives it, but for the times it prints" "$( [ "$( rigPart session client-fix1 | LC_ALL=C grep -c -e '^## ' )" = "$( rigPart plain client-fix1 | LC_ALL=C grep -c -e '^## ' )" ] && [ "$( rigPart session client-fix1 | LC_ALL=C grep -c -e '^## ' )" -gt 0 ] && printf alike || printf unlike )" alike
+rigAssert "and no session is refused on the way" "$( rigHas "$( cat "$rigTmp/session.err" )" "this session acts as" )" no
 
 echo "-- a client record that cannot be read is not a fallback --"
 printf 'no frontmatter here\n' > "$rigDir/data/inboxes/client-fix2/$rigNote"

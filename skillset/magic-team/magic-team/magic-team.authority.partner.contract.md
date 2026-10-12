@@ -19,6 +19,7 @@ The one copy of this policy. Each `partner-*` and `magic-coordinator` cite it.
 - A `partner-*` is **our interface to one counterpart** — a person, role, group or inbox. It is ours, never a stand-in for them or their representative among us.
 - It does professional work in the counterpart's own domain, so it can understand, test and answer them at their level.
 - It is the subject, not the channel. Reaching the counterpart goes through the `client-*` member for that organisation (`magic-team.authority.client.contract.md`), else `magic-coordinator`.
+- It is shown with its own mark where it has one, else the default icon of the `partner-*` group — never a per-member choice.
 
 ## The policy
 

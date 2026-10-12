@@ -142,3 +142,22 @@ AgentsToolsOutputStyleRefusal(){ ## acting member, declared group, destination, 
 
 	return 0
 }
+
+## Holds back a member's own message that carries the retired marker of a question,
+## `NEEDS REPLY`. A question to a person is asked with a tool that asks, alone in its own
+## message: that is what records it, reminds of it and collects its answer, and a marker in
+## a plain message does none of that. Text on stdin: the sender's own words, as the floor
+## above takes them. 0 proceeds. 6 is the CORRECTION outcome, in the form the floor's has:
+## its first line starts with the fixed word CORRECTION, then one line for each line that
+## carries the marker, then a NEXT line. Only the marker itself is looked for
+## (AgentsOutputStyleMarker.awk): no wording is read as a question, and code and a quoted
+## line are left out, so a message can still name the marker.
+AgentsToolsOutputStyleRetiredMarker(){
+	local markerLines
+	markerLines="$( LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsOutputStyleMarker.awk" )" || markerLines=""
+	[ -n "$markerLines" ] || return 0
+	echo "CORRECTION: $MDSC_CMD: this message was NOT sent and must be corrected and sent again. It carries the marker NEEDS REPLY, which is retired: a question to a person is asked with a tool that asks, alone in its own message, and a plain message carries none. This is a correction for the sender to make, never a refusal or a denial: there is no limit on attempts, and every attempt is checked the same way. Only the marker is looked for, in the sender's own words: a quoted line and code are left out, and no wording is read as a question." >&2
+	printf '%s\n' "$markerLines" >&2
+	echo "NEXT: ask the question with a tool that asks, alone in its own message, and send this message again without the marker and without the question" >&2
+	return 6
+}

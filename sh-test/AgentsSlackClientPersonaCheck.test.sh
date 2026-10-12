@@ -12,9 +12,10 @@
 ## followed until the next build, and unreadable files change nothing. A client's EXTERNAL presentation is its send on
 ## the side of the other organisation (--client-comms-slack-send-message, under its own user token or its own bot
 ## token): that row, with no client identifier in the payload and no metadata. Its --member- send reaches our own team,
-## under its member name (AgentsClientSidesCheck holds which side an operation reaches). A sender with
-## no row, or no alias, shows its member name; an addressee whose directory is missing refuses, one whose directory
-## exists but has no row is plain @<member>, and its mention id never depends on a row. Also held: the Name shapes, a
+## under its member name as its alias, never the persona's, with the mark of its row (AgentsClientSidesCheck holds
+## which side an operation reaches). A sender with no row, or no alias, shows its member name; an addressee whose
+## directory is missing refuses, one whose directory exists but has no row is @<member>; a member with no mark of its
+## own is shown with the default icon of its prefix group, and its mention id never depends on a row. Also held: the Name shapes, a
 ## localised name byte for byte, the in-body mention rules, no identity swap to the shared bot for an external send,
 ## the two call places of the build and its help pair. A fake `curl` first on PATH logs each method with its token and
 ## the posted bodies; every token is a literal. Offline by construction. What the stubs cannot show: how real Slack
@@ -241,16 +242,16 @@ rigAssert "no client identifier and no metadata in the payload"            "$( r
 echo "-- 3. --identity-bot with only the shared team bot token: internal --"
 rigSend client-ndm magic-team --identity-bot
 rigAssert "posted under the shared bot token"                              "$rigRc $( rigPostToken )" "0 rig-bot-token-TEAM"
-rigAssert "the header keeps the member name, with the alias and mark of its row" "$( rigText )" '🐭 *_client-ndm_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "the header keeps the member name, as its alias too, with the mark of its row" "$( rigText )" '🐭 *_client-ndm_* → @here.\nRIG-BODY'
 rigAssert "the row's names are absent, and the default metadata is present" "$( rigBodyHas 'Magic Vane' ) $( rigBodyHas '"metadata"' )" "0 1"
 rigAssert "control: the same payload check does find the client identifier here" "$( rigBodyHas 'client-ndm' )" 1
 
-echo "-- 4. a client without a user token sending to the human-owner, relayed under another member's token: internal --"
+echo "-- 4. a client without a user token sending to the human-owner: the shared team bot, internal --"
 rm -f "$rigWs/.local/.agents/client-mel.agent.env"
 rigSend client-mel human-owner
-rigAssert "posted under the relay target's user token"                     "$rigRc $( rigPostToken )" "0 rig-user-token-COORD"
-rigAssert "the header names the client, not its row names"                 "$( rigText ) $( rigBodyHas 'Magic Vane' )" '🐭 *_client-mel_* @dispatchr → <@URIGOWNER>.\nRIG-BODY 0'
-rigAssert "the existing relay warning is unchanged"                        "$( rigN "$rigTmp/err" "🙋 WARNING: DistroAgentsTools --member-comms-slack-send-message: 'client-mel' has no SLACK_USER_TOKEN of its own, so this human-owner send goes out under magic-coordinator's user account, with 'client-mel' named in the message header -- pass --identity-bot to send as the team bot instead" )" 1
+rigAssert "posted under the shared bot token, never relayed under another member's" "$rigRc $( rigPostToken )" "0 rig-bot-token-TEAM"
+rigAssert "the header names the client, not its row names nor its row alias" "$( rigText ) $( rigBodyHas 'Magic Vane' )" '🐭 *_client-mel_* → <@URIGOWNER>.\nRIG-BODY 0'
+rigAssert "and nothing is said of another member's account"                "$( rigN "$rigTmp/err" "magic-coordinator's user account" )" 0
 rigWorld
 
 echo "-- 5. other members: the header is its row alias and mark, or its member name --"
@@ -259,7 +260,7 @@ rigAssert "a member with its own token and row"                            "$( r
 rigSend keeper-myx magic-team --identity-bot
 rigAssert "the same member as the shared bot"                              "$( rigText )" '🔧 *_keeper-myx_* @forge → @here.\nRIG-BODY'
 rigSend magic-team magic-team --identity-bot
-rigAssert "the team member with a directory and no row: its own name as mark-less alias" "$( rigText )" '*_magic-team_* @magic-team → @here.\nRIG-BODY'
+rigAssert "the team member with a directory and no row: its own name as alias, with the default icon of its prefix group" "$( rigText )" '🤖 *_magic-team_* → @here.\nRIG-BODY'
 
 echo "-- 6. a persona that cannot be read: client rows are dashes, one warning per field, an external send refused --"
 rigRefusal(){ ## label, how many fields the persona is missing
@@ -338,7 +339,7 @@ rigAssert "and no client identifier"                                       "$( r
 rigSendOut client-ndm CRIG00001 --address-to keeper-myx
 rigAssert "to a non-client member: its own header and its mention"         "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🔧 *_keeper-myx_* <@URIGKEEPER>.\nRIG-BODY'
 rigSend keeper-myx magic-team --address-to client-ndm
-rigAssert "in our workspace, addressing a client: its member name, its row alias, no mention" "$( rigText ) $( rigBodyHas '"type":"user"' )" '🔧 *_keeper-myx_* @forge → 🐭 *_client-ndm_* @dispatchr.\nRIG-BODY 0'
+rigAssert "in our workspace, addressing a client: its member name, as its alias too, the mark of its row, no mention" "$( rigText ) $( rigBodyHas '"type":"user"' )" '🔧 *_keeper-myx_* @forge → 🐭 *_client-ndm_*.\nRIG-BODY 0'
 
 echo "-- 9. an @name in the body --"
 rigSendOutBody client-ndm CRIG00001 "ping @client-ndm and @client-mel"
@@ -400,7 +401,7 @@ rigSendOut client-ndm CRIG00001
 rigAssert "after the build: the client's external header is the override"  "$( rigText )" '🐭 *_Alexa Quill_* @pr.manager → @here.\nRIG-BODY'
 rigAssert "both client rows and the persona's own row carry it"            "$( rigIndexRow client-ndm ) $( rigIndexRow client-mel ) $( rigIndexRow "$rigPersona" )" "client-ndm|🐭|Alexa|Quill|pr.manager client-mel|🐭|Alexa|Quill|pr.manager $rigPersona|🐭|Alexa|Quill|pr.manager"
 rigSend client-ndm magic-team --identity-bot
-rigAssert "control: the same client as the shared bot shows its member name with the overridden alias" "$( rigText )" '🐭 *_client-ndm_* @pr.manager → @here.\nRIG-BODY'
+rigAssert "control: the same client as the shared bot shows its member name, and the overridden alias is the persona's, not shown in our team" "$( rigText )" '🐭 *_client-ndm_* → @here.\nRIG-BODY'
 rigWorld ; rigScope "$rigPersona" FIRST_NAME=Alexa
 rigAssert "FIRST_NAME alone: the family and alias stay from the bullets"   "$( rigIndexRow client-ndm )" 'client-ndm|🐭|Alexa|Vane|dispatchr'
 rigWorld ; rigScope "$rigPersona" FAMILY_NAME=Quill
@@ -427,34 +428,34 @@ rigSendOut client-ndm CRIG00001 --address-to keeper-ghost
 rigAssert "the same refusal in an external send"                           "$rigRc $( LC_ALL=C grep -c -F -- "'keeper-ghost': no such team member" "$rigTmp/err" || : ) $( rigNoCalls )" "1 1 0"
 mkdir -p "$rigSkills/keeper-bare"
 rigSend keeper-myx magic-team --address-to keeper-bare
-rigAssert "a directory with no row: plain @member, no mark, sent"          "$rigRc $( rigPosts ) $( rigText )" '0 1 🔧 *_keeper-myx_* @forge → *_keeper-bare_* @keeper-bare.\nRIG-BODY'
+rigAssert "a directory with no row: @member, the default icon of its prefix group, sent" "$rigRc $( rigPosts ) $( rigText )" '0 1 🔧 *_keeper-myx_* @forge → 🔏 *_keeper-bare_*.\nRIG-BODY'
 rigAssert "and no mention id, in the text or the blocks"                   "$( rigN "$rigTmp/bodies" '<@' ) $( rigBodyHas '"type":"user"' )" "0 0"
 mkdir -p "$rigSkills/keeper-acct" ; printf 'SLACK_USER_TOKEN=rig-user-token-ACCT\n' > "$rigWs/.local/.agents/keeper-acct.agent.env"
 rigSend keeper-myx magic-team --address-to keeper-acct
-rigAssert "a directory with no row but a Slack account of its own: no mark, its member name, and its mention id all the same" "$rigRc $( rigText ) $( rigBodyHas '{"type":"user","user_id":"URIGACCT"}' )" '0 🔧 *_keeper-myx_* @forge → *_keeper-acct_* <@URIGACCT>.\nRIG-BODY 1'
+rigAssert "a directory with no row but a Slack account of its own: the default icon of its prefix group, its member name, and its mention id all the same" "$rigRc $( rigText ) $( rigBodyHas '{"type":"user","user_id":"URIGACCT"}' )" '0 🔧 *_keeper-myx_* @forge → 🔏 *_keeper-acct_* <@URIGACCT>.\nRIG-BODY 1'
 rigSend keeper-myx magic-team --address-to keeper-myx
 rigAssert "control: the same send to a member with a row and an account does mention it" "$( rigText ) $( rigBodyHas '{"type":"user","user_id":"URIGKEEPER"}' )" '🔧 *_keeper-myx_* @forge → 🔧 *_keeper-myx_* <@URIGKEEPER>.\nRIG-BODY 1'
 rigSend keeper-myx magic-team --address-to magic-team
-rigAssert "a directory holding only a basic.md has no row either: plain"   "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @forge → *_magic-team_* @magic-team.\nRIG-BODY'
+rigAssert "a directory holding only a basic.md has no row either: its member name, the default icon of its prefix group" "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @forge → 🤖 *_magic-team_*.\nRIG-BODY'
 rigSendOut client-ndm CRIG00001 --address-to keeper-bare
-rigAssert "in an external send: plain as well"                             "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → *_keeper-bare_* @keeper-bare.\nRIG-BODY'
+rigAssert "in an external send: plain as well"                             "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → *_keeper-bare_*.\nRIG-BODY'
 rigSend keeper-myx magic-team --address-to keeper-plain
 rigAssert "control: an addressee with a row, no Slack account: its mark and alias" "$( rigText )" '🔧 *_keeper-myx_* @forge → 🔨 *_keeper-plain_* @plainalias.\nRIG-BODY'
 rigSendOut client-ndm CRIG00001 --address-to keeper-myx
 rigAssert "control: an addressee with a row and an account: its mention"   "$( rigText )" '🐭 *_Magic Vane_* @dispatchr → 🔧 *_keeper-myx_* <@URIGKEEPER>.\nRIG-BODY'
 rm -f "$rigNamesFile"
 rigSend keeper-myx magic-team --address-to keeper-plain
-rigAssert "no registry file at all: the sender shows its member name, the addressee is plain, sent" "$rigRc $( rigPosts ) $( rigText )" '0 1 *_keeper-myx_* @keeper-myx → *_keeper-plain_* @keeper-plain.\nRIG-BODY'
+rigAssert "no registry file at all: the sender and the addressee show their member names, each with the default icon of its prefix group, sent" "$rigRc $( rigPosts ) $( rigText )" '0 1 🔏 *_keeper-myx_* → 🔏 *_keeper-plain_*.\nRIG-BODY'
 rigAssert "and no mention id for an addressee with no Slack account"       "$( rigN "$rigTmp/bodies" '<@' ) $( rigBodyHas '"type":"user"' )" "0 0"
 rigSend keeper-myx magic-team --address-to keeper-acct
-rigAssert "with no registry file an addressee with an account still gets its mention id, as before the registry" "$rigRc $( rigText ) $( rigBodyHas '{"type":"user","user_id":"URIGACCT"}' )" '0 *_keeper-myx_* @keeper-myx → *_keeper-acct_* <@URIGACCT>.\nRIG-BODY 1'
+rigAssert "with no registry file an addressee with an account still gets its mention id, as before the registry" "$rigRc $( rigText ) $( rigBodyHas '{"type":"user","user_id":"URIGACCT"}' )" '0 🔏 *_keeper-myx_* → 🔏 *_keeper-acct_* <@URIGACCT>.\nRIG-BODY 1'
 rigSend keeper-myx magic-team --address-to client-ndm
-rigAssert "a client addressee in an internal send with no registry: plain" "$rigRc $( rigText )" '0 *_keeper-myx_* @keeper-myx → *_client-ndm_* @client-ndm.\nRIG-BODY'
+rigAssert "a client addressee in an internal send with no registry: its member name, the default icon of its prefix group" "$rigRc $( rigText )" '0 🔏 *_keeper-myx_* → 👥 *_client-ndm_*.\nRIG-BODY'
 rigSendOut client-ndm CRIG00001
 rigAssert "control: the external client send with no registry still refuses" "$rigRc $( rigNoCalls )" "1 0"
 rigWorldPlain ; rigBullets keeper-plain 'Plain Keeper.' '' 🔨 ; rigBullets keeper-myx 'Forge Keeper.' '' 🔧 ; rigBuild
 rigSend keeper-myx magic-team --address-to keeper-plain
-rigAssert "a row with no alias, sender and addressee: the mark is kept, the member name is the alias" "$( rigText )" '🔧 *_keeper-myx_* @keeper-myx → 🔨 *_keeper-plain_* @keeper-plain.\nRIG-BODY'
+rigAssert "a row with no alias, sender and addressee: the mark is kept, the member name is the alias" "$( rigText )" '🔧 *_keeper-myx_* → 🔨 *_keeper-plain_*.\nRIG-BODY'
 rigWorldPlain
 
 echo "-- 13. an edit shows in a send only through team-members-names --"
@@ -509,7 +510,7 @@ rm -f "$rigSkills/client-ndm/SKILL.md" "$rigSkills/client-ndm/client-ndm.basic.m
 rigSendOut client-ndm CRIG00001
 rigAssert "the skill and basic files and the linked-members index deleted after the build change nothing: external" "$rigRc $( rigText )" '0 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY'
 rigSend keeper-myx magic-team --address-to client-ndm
-rigAssert "and internal"                                                   "$( rigText )" '🔧 *_keeper-myx_* @forge → 🐭 *_client-ndm_* @dispatchr.\nRIG-BODY'
+rigAssert "and internal: its member name as its alias, with the mark of its row" "$( rigText )" '🔧 *_keeper-myx_* @forge → 🐭 *_client-ndm_*.\nRIG-BODY'
 rigWorldPlain ; rigScopeRaw keeper-plain ALIAS=scopedplain ; rigBuild
 chmod 000 "$rigSkills"/*/SKILL.md "$rigSkills"/*/*.basic.md "$rigWs/.local/.agents/$rigPersona.agent.env" "$rigWs/.local/.agents/client-mel.agent.env" "$rigWs/.local/.agents/keeper-plain.agent.env" "$rigLinkedFile"
 rigAssert "control: those files really are unreadable to this check"       "$( cat "$rigSkills/client-ndm/SKILL.md" 2> /dev/null | wc -c | tr -d ' ' ) $( cat "$rigSkills/client-ndm/client-ndm.basic.md" 2> /dev/null | wc -c | tr -d ' ' ) $( cat "$rigWs/.local/.agents/keeper-plain.agent.env" 2> /dev/null | wc -c | tr -d ' ' ) $( cat "$rigLinkedFile" 2> /dev/null | wc -c | tr -d ' ' )" "0 0 0 0"
@@ -662,7 +663,7 @@ rigAssert "persona ALIAS with a slash: the external send refuses, no fallback to
 rigScopeBad "an ordinary member's ALIAS with a space" keeper-myx 'ALIAS=a b' alias
 rigAssert "and its own warning is the member one, the clients' rows are untouched" "$( rigWarnsOf 'persona member' ) $( rigIndexRow client-ndm )" '0 client-ndm|🐭|Magic|Vane|dispatchr'
 rigSend keeper-myx magic-team
-rigAssert "an ordinary sender with an alias stored -: its member name, its mark, sent" "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* @keeper-myx → @here.\nRIG-BODY'
+rigAssert "an ordinary sender with an alias stored -: its member name, its mark, sent" "$rigRc $( rigText )" '0 🔧 *_keeper-myx_* → @here.\nRIG-BODY'
 rigWorldPlain ; rigScope "$rigPersona" 'FIRST_NAME=' 'ALIAS='
 rigAssert "sibling: an empty scope value is unset, the bullets apply, no warning" "$( rigIndexRow client-ndm ) $( LC_ALL=C grep -c 'WARNING' "$rigTmp/build.err" || : )" 'client-ndm|🐭|Magic|Vane|dispatchr 0'
 rigSendOut client-ndm CRIG00001

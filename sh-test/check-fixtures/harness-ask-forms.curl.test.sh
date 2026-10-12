@@ -53,7 +53,10 @@ case "$rigMethod" in
 		printf '{"ok":true,"channel":{"id":"CRIG00001","is_im":false,"is_mpim":false}}\n'
 	;;
 	conversations.replies)
-		if [ -f "$RIG_SCENARIO/replies.json" ] ; then
+		## A thread of its own answers from replies.<ts>.json; every other thread shares replies.json.
+		if [ -n "$rigTs" ] && [ -f "$RIG_SCENARIO/replies.$rigTs.json" ] ; then
+			cat "$RIG_SCENARIO/replies.$rigTs.json"
+		elif [ -f "$RIG_SCENARIO/replies.json" ] ; then
 			cat "$RIG_SCENARIO/replies.json"
 		else
 			printf '{"ok":false,"error":"rig_no_replies"}\n'

@@ -87,6 +87,27 @@ if ! type AgentsToolsMagicCallerCheck >/dev/null 2>&1 ; then
 	}
 fi
 
+if ! type AgentsToolsClientCallerCheck >/dev/null 2>&1 ; then
+	## A --client-* op naming a client-* member is that client's own session's, and nobody
+	## else's: refused, rc 1 with the reason, from a spawned session acting as any other
+	## member, another client among them. The one line also says the way there is:
+	## magic-coordinator's own names the op that is its own, --magic-client-operation-run,
+	## which runs this one as that client (AgentsTools.MagicClient.include), and any other
+	## member's says to ask magic-coordinator for that. A call from no such session is the
+	## console's, and accepted. A name that is no client's is left to the op, which refuses
+	## it by name.
+	AgentsToolsClientCallerCheck(){ ## named member, operation
+		local checkActing checkWay
+		case "$1" in client-*) ;; *) return 0 ;; esac
+		checkActing="$( AgentsToolsActingMember )"
+		case "$checkActing" in ''|"$1") return 0 ;; esac
+		checkWay="ask the session's magic-coordinator, which can run it as $1"
+		[ "$checkActing" != magic-coordinator ] || checkWay="magic-coordinator runs it with --magic-client-operation-run magic-coordinator --$2 $1"
+		echo "$MDSC_CMD: $2: ⛔ ERROR: this session acts as $checkActing, and a --client-* operation in the name of $1 is for $1's own session only -- nothing was done: $checkWay" >&2
+		return 1
+	}
+fi
+
 ## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
 ## no unbound-variable death for a caller that runs under `set -u`. No
 ## shipped caller does today -- this is idiom, not a fix for a live fault.

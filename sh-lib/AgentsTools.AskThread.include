@@ -119,7 +119,9 @@ AgentsToolsAskThreadNextTag(){ ## addressee
 ##   SAME<TAB><channel><TAB><thread ts><TAB><tag><TAB><pending id><TAB><identity> -- the same
 ##       question to the same addressee was asked before and is closed: asked again, it is
 ##       still that question, so it goes into that question's own thread, under its own
-##       number (or none), and under the identity (bot|member) it was asked with there
+##       number (or none), and under the identity (bot|member) it was asked with there.
+##       Never for a question its asker withdrew: its post carries the cancelled mark, so
+##       asked again it is a new message of its own
 ##   NEW<TAB>Q1                                           -- post it, as a message of its own
 ## A different question never takes over another question's thread: each new question to a
 ## person or a conversation opens its own thread, which belongs to that question alone, and
@@ -130,7 +132,7 @@ AgentsToolsAskThreadNextTag(){ ## addressee
 AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
 	local findTo="$1" findAddress="$2" findKey="$3" findAsker="${4:-}" findFile findLine
 	local dupId="" dupOwner="" dupSession=""
-	local sameId="" sameChannel="" sameThread="" sameTag="" sameTs="" sameIdentity=""
+	local sameId="" sameChannel="" sameThread="" sameTag="" sameTs="" sameIdentity="" sameStatus=""
 	local fileStatus fileAddress fileKey fileOwner fileSession fileChannel fileThread fileTag fileTs fileIdentity
 	for findFile in "$MMDAPP/.local/agents/pending"/*.md ; do
 		[ -f "$findFile" ] || continue
@@ -159,9 +161,11 @@ AgentsToolsAskThreadFind(){ ## to, address_to, question key, asking member
 		[ "$fileIdentity" = "bot" ] || { [ -n "$findAsker" ] && [ "$fileOwner" = "$findAsker" ] ; } || continue
 		if [ -z "$sameId" ] || [[ "$fileTs" > "$sameTs" ]] ; then
 			sameId="${findFile##*/}" ; sameId="${sameId%.md}" ; sameChannel="$fileChannel" ; sameThread="$fileThread" ; sameTag="$fileTag" ; sameTs="$fileTs"
-			sameIdentity="${fileIdentity:-member}"
+			sameIdentity="${fileIdentity:-member}" ; sameStatus="$fileStatus"
 		fi
 	done
+	## The newest time it was asked ended in a withdraw: nothing of it is a thread to go back to.
+	[ "$sameStatus" != "withdrawn" ] || sameId=""
 	if [ -n "$dupId" ] ; then
 		printf 'DUPLICATE\t%s\t%s\t%s\n' "$dupId" "$dupOwner" "$dupSession"
 		return 0

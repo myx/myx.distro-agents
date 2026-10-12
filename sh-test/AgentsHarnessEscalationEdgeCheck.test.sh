@@ -376,7 +376,8 @@ rigAssert "decision: an option after other words is not taken" "$( rigVerdictOf 
 rigAssert "\"do not deny\" is not deny"                   "$( rigVerdictOf permission '' 'do not deny' )" "RETURNED|"
 rigAssert "\"don't allow-session\" grants nothing"        "$( rigVerdictOf permission '' "don't allow-session" )" "RETURNED|"
 rigAssert "\"not allow-once\" grants nothing"             "$( rigVerdictOf permission '' 'not allow-once' )" "RETURNED|"
-rigAssert "\"allow-once please\" is allow-once"           "$( rigVerdictOf permission '' 'allow-once please' )" "allow-once|URIGOWNER"
+rigAssert "\"allow-once please\" is no answer"            "$( rigVerdictOf permission '' 'allow-once please' )" "RETURNED|"
+rigAssert "\"allow-once, please\" is allow-once"          "$( rigVerdictOf permission '' 'allow-once, please' )" "allow-once|URIGOWNER"
 rigAssert "\"deny\" is deny"                              "$( rigVerdictOf permission '' 'deny' )" "deny|URIGOWNER"
 rigAssert "decision: the option's first word answers"    "$( rigVerdictOf decision "$rigDecisionOptions" 'beta, the second way' )" "beta|URIGOWNER"
 rigAssert "a reply naming no answer stays unclassified"  "$( rigVerdictOf permission '' 'YES, SURE allow' )" "RETURNED|"
@@ -385,7 +386,8 @@ rigAssert "an answer inside a longer word is not named"  "$( rigVerdictOf permis
 
 echo "-- a plain affirmation: yes for a readback, the recommended option for a decision, never a permission --"
 rigRecommendedOptions="- alpha the first way"$'\n'"- beta the second way (Recommended)"
-rigAssert "readback: \"I confirm this Q\" is yes"         "$( rigVerdictOf readback '' 'I confirm this Q' )" "yes|URIGOWNER"
+rigAssert "readback: \"I confirm this Q\" is no answer"   "$( rigVerdictOf readback '' 'I confirm this Q' )" "RETURNED|"
+rigAssert "readback: \"I confirm, this Q\" is yes"        "$( rigVerdictOf readback '' 'I confirm, this Q' )" "yes|URIGOWNER"
 rigAssert "readback: \"Ok.\" is yes"                       "$( rigVerdictOf readback '' 'Ok.' )" "yes|URIGOWNER"
 rigAssert "readback: \"I do not confirm\" is not"          "$( rigVerdictOf readback '' 'I do not confirm' )" "RETURNED|"
 rigAssert "decision: \"Agreed\" takes the recommended one" "$( rigVerdictOf decision "$rigRecommendedOptions" 'Agreed, go' )" "beta|URIGOWNER"
@@ -396,12 +398,12 @@ rigAssert "permission: yes answers nothing"               "$( rigVerdictOf permi
 ## A member's reply starts with the send header every member message carries: it is no part
 ## of the reply, so the first word after it is the answer.
 rigHeader=':mouse: *_magic-coordinator_* @dispatchr → <@URIGASKER>.'
-rigAssert "a member's reply: the first word after its send header is the answer" "$( rigVerdictOf permission '' "$rigHeader allow-once  The owner decided." )" "allow-once|URIGOWNER"
+rigAssert "a member's reply: the first line after its send header is the answer" "$( rigVerdictOf permission '' "$rigHeader allow-once. The owner decided." )" "allow-once|URIGOWNER"
 rigAssert "the header on a line of its own, the answer on the next" "$( rigVerdictOf permission '' "$rigHeader"$'\n''deny' )" "deny|URIGOWNER"
 rigAssert "a member's reply that names no answer after its header is returned" "$( rigVerdictOf permission '' "$rigHeader this is not decided yet." )" "RETURNED|"
 rigAssert "a header with no mark and two addressees is a header too" "$( rigVerdictOf decision "$rigDecisionOptions" '*_keeper-myx_* @keeper → *_magic-tester_* @tester; *_magic-developer_* <@URIGDEV>. beta' )" "beta|URIGOWNER"
 rigAssert "an arrow in a person's own words is no header" "$( rigVerdictOf permission '' 'see a → b. allow-once' )" "RETURNED|"
-rigAssert "permission set: edit is a reply, carrying the change" "$( rigVerdictOf permission-set '' 'edit drop the cred entry' )" "edit -- drop the cred entry|URIGOWNER"
+rigAssert "permission set: edit is a reply, carrying the change" "$( rigVerdictOf permission-set '' 'edit: drop the cred entry' )" "edit -- drop the cred entry|URIGOWNER"
 rigAssert "permission set: a typed ok grants nothing"     "$( rigVerdictOf permission-set '' 'ok' )" "RETURNED|"
 rigReactionOf(){ ## kind, options, reaction name
 	printf 'reaction on the question: [reactions: %s x1 (URIGOWNER)]\n' "$3" \
@@ -419,7 +421,7 @@ rigAssert "permission set: a click by the account that asked never counts" \
 	"$( printf 'reaction on the question: [reactions: unlock x1 (URIGBOT)]\n' | MDAT_VERDICT_KIND=permission-set MDAT_VERDICT_AUTHORS='URIGOWNER URIGBOT' MDAT_VERDICT_ASKING=URIGBOT LC_ALL=C awk -f "$rigHere/AgentsEscalationVerdict.awk" | tr '\t' '|' | cut -d'|' -f1-2 )" "RETURNED|"
 
 echo "-- a reply opening with a quote of the question: its first unquoted line is the verdict --"
-rigAssert "a fenced quote, then I confirm, is yes"        "$( rigVerdictOf readback '' $'```Did I read your intent right?```\nI confirm this Q, go ahead' )" "yes|URIGOWNER"
+rigAssert "a fenced quote, then I confirm, is yes"        "$( rigVerdictOf readback '' $'```Did I read your intent right?```\nI confirm, go ahead' )" "yes|URIGOWNER"
 rigAssert "a fence over several lines is skipped"         "$( rigVerdictOf readback '' $'```\nDid I read\nyour intent right?\n```\nyes' )" "yes|URIGOWNER"
 rigAssert "&gt; quoted lines are skipped"                 "$( rigVerdictOf decision "$rigDecisionOptions" $'&gt; Which way?\n&gt; alpha or beta\n\nbeta' )" "beta|URIGOWNER"
 rigAssert "> quoted lines are skipped"                    "$( rigVerdictOf permission '' $'> May the rig write it?\nallow-once' )" "allow-once|URIGOWNER"

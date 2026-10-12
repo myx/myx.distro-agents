@@ -2,8 +2,9 @@
 ## Behavioural check on arm-before-acting (6127) in the harness's own model loop: in a
 ## spawned session a mutating call is redirected until the member's duty file has been
 ## read to its end with Skill; read-only calls never are; only a read reaching the last
-## line arms; the redirect is posted to event-track once; the spawn's close record says
-## armed yes, no or unknown. A served call and a loop with no spawn id are never gated.
+## line arms; the redirect is posted to event-track once, into the tracking thread of the
+## run's session, which it opens where the session has none yet; the spawn's close record
+## says armed yes, no or unknown. A served call and a loop with no spawn id are never gated.
 ## Offline: a fake curl replays canned model rounds and answers Slack; every run goes
 ## through one `env -i` whose child refuses to start outside this rig's mktemp tree.
 set -u
@@ -119,6 +120,23 @@ rigAssert "the .armed file holds when"                 "$( rigYes test -s "$rigD
 rigAssert "the redirects were posted to event-track once" "$( LC_ALL=C grep -c 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null || : )" 1
 rigAssert "as a system box naming the run, the tool and the member's duty file" \
 	"$( rigYes env LC_ALL=C grep -q -F "\"subtitle\":{\"type\":\"mrkdwn\",\"text\":\"run \`rig-sess\` · <!date^" "$rigDir/slack.bodies" ):$( rigYes env LC_ALL=C grep -q -F "\"text\":\"🚫 refusal: Unarmed call redirected\\ntool: \`Write\`\\nreason: read $rigMember.armed.md with Skill first\"" "$rigDir/slack.bodies" )" yes:yes
+
+rigAssert "it is a tracking post of the run's session: with no tracking thread yet it opens one, recorded as the session's" \
+	"$( cat "$rigDir/ws/.local/agents/sessions/rig-session-arm/event-track.thread" 2>/dev/null )" "CRIGTRACK:1700000001.000100"
+
+echo "-- the redirect is a reply in the session's tracking thread --"
+## The live fault: it was a post of its own at the top of event-track, beside the thread.
+rigScenario tracked
+mkdir -p "$rigDir/ws/.local/agents/sessions/rig-session-tracked"
+printf 'CRIGTRACK:1699999999.000900\n' > "$rigDir/ws/.local/agents/sessions/rig-session-tracked/event-track.thread"
+rigCall Write "{\"path\":\"$rigTmp/tracked/ws/OUT/a.txt\",\"content\":\"rig\"}"
+rigEnd
+rigLoop rig-session-tracked
+rigAssert "control: the unarmed Write is redirected" "$( rigRedirected 1 )" yes
+rigAssert "in a session that has a tracking thread the redirect is posted once, as a reply there" \
+	"$( LC_ALL=C grep -c 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null || : ):$( LC_ALL=C grep 'Unarmed call redirected' "$rigDir/slack.bodies" 2>/dev/null | LC_ALL=C grep -c -F '"thread_ts":"1699999999.000900"' )" "1:1"
+rigAssert "and the session's thread stays the one it had" \
+	"$( cat "$rigDir/ws/.local/agents/sessions/rig-session-tracked/event-track.thread" 2>/dev/null )" "CRIGTRACK:1699999999.000900"
 
 echo "-- what counts as arming: ranges must cover every line --"
 rigScenario ranged

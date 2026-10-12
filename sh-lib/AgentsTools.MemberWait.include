@@ -133,6 +133,10 @@ agentsWaitKindEvery="slack:1 file:1 inbox:1 board:1 ask:1"
 ## stored baseline starts from an empty one: an arrival already there returns at once, as a
 ## --wait-since-utime does for a thread. Every other kind takes its first probe as the baseline.
 agentsWaitKindEmptyBaseline="ask"
+## How far a floor (--wait-since-utime) may lead this host's clock, in seconds. The ts of a
+## message just posted is another clock's "now", so a floor that close ahead is still a
+## moment that has passed; one further ahead is not, and is refused before anything is waited on.
+agentsWaitFloorAhead=300
 
 ## Slack. Through the team's own sanctioned read operation and no other path:
 ## the credential stays inside that operation and never reaches argv here.
@@ -297,10 +301,17 @@ AgentsWaitProbeBoard(){
 ## A decision its asker closed by readback keeps a `follow-floor`, the readback's own ts: it
 ## is then watched from there, with no closed line, so what arrives is only what the person
 ## wrote after the readback -- an objection, or more -- which the asking harness keeps.
+## An answer given through the team operation -- by the one asked, or on its behalf -- is in
+## no thread, and the record keeps the session that gave it: there the record's status is the
+## arrival, said beside whatever its thread holds from its follow floor, and when that thread
+## cannot be read. So it reaches its asker in the wait that runs, or in the next one, whoever
+## was asked: an account, or a member with none, which stands among the addressees by its
+## member name and whose reply in the thread is read too (AgentsSlackThreadAnswers.awk).
 AgentsWaitProbeAsk(){
 	local probeMember="$1" probeTarget="$2" probeOut="$4" probeRecord probeLine
 	local probeStatus="" probeChannel="" probeTs="" probeThreadTs="" probeAddressees="" probeFollow=""
 	local probeAsking="" probeRevision="" probeKind="" probeSelect="" probeIdentity=""
+	local probeBySession="" probeByOperation="" probeUnread=""
 	probeRecord="$MMDAPP/.local/agents/pending/$probeTarget.md"
 	[ -f "$probeRecord" ] || return 2
 	while IFS= read -r probeLine ; do
@@ -316,10 +327,13 @@ AgentsWaitProbeAsk(){
 			'kind: '*) probeKind="${probeLine#kind: }" ;;
 			'select: '*) probeSelect="${probeLine#select: }" ;;
 			'ask-identity: '*) probeIdentity="${probeLine#ask-identity: }" ;;
+			'answered-session: '*) probeBySession="${probeLine#answered-session: }" ;;
 			'# '*) break ;;
 		esac
 	done < "$probeRecord"
 	[ "$probeStatus" != "reply-pending" ] || probeFollow=""
+	## Answered through the team operation.
+	[ "$probeStatus" = "reply-pending" ] || [ -z "$probeBySession" ] || probeByOperation=1
 	## A question asked again, changed, is answered on its live version: the replies after it
 	## and the clicks under it -- and, where the question has its own thread, the clicks under
 	## its first post too, which stays the place to answer.
@@ -330,11 +344,17 @@ AgentsWaitProbeAsk(){
 		## A proposal is answered on its root alone: the clicks under its root, never those under
 		## the proposal reply, and the replies after that reply (AgentsSlackThreadAnswersSince.awk).
 		if [ "$probeKind" = "proposal" ] && [ -n "$probeRevision" ] && [ -z "$probeFollow" ] ; then
-			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || return 2
-			LC_ALL=C awk -v sinceTs="$probeRevision" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswersSince.awk" \
-				< "$probeOut.root" > "$probeOut" 2>/dev/null || return 2
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "$probeTs" "$probeOut.root" "$probeAddressees" "false" "$probeAsking" "" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+			[ -n "$probeUnread" ] || LC_ALL=C awk -v sinceTs="$probeRevision" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackThreadAnswersSince.awk" \
+				< "$probeOut.root" > "$probeOut" 2>/dev/null || probeUnread=1
 		else
-			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || return 2
+			AgentsWaitProbeSlack "$probeMember" "$probeChannel:$probeThreadTs" "${probeFollow:-${probeRevision:-$probeTs}}" "$probeOut" "$probeAddressees" "false" "$probeAsking" "$probeAlso" "$( [ "$probeIdentity" = "bot" ] && printf 'true' || printf 'false' )" || probeUnread=1
+		fi
+		## A thread that cannot be read is an unreadable source, except where the record itself
+		## holds the answer: what the team operation answered is said from the record alone.
+		if [ -n "$probeUnread" ] ; then
+			[ -n "$probeByOperation" ] || return 2
+			: > "$probeOut" || return 2
 		fi
 		## Several options are sent by the send mark: until the clicks give a verdict
 		## (AgentsEscalationVerdict.awk, the one reader), a number clicked is no arrival yet.
@@ -353,7 +373,7 @@ AgentsWaitProbeAsk(){
 		probeFollow=""
 		: > "$probeOut" || return 2
 	fi
-	[ "$probeStatus" = "reply-pending" ] || [ -n "$probeFollow" ] || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
+	[ "$probeStatus" = "reply-pending" ] || { [ -n "$probeFollow" ] && [ -z "$probeByOperation" ] ; } || printf '# pending reply %s is closed: %s\n' "$probeTarget" "${probeStatus:-none}" >> "$probeOut" || return 2
 	return 0
 }
 
@@ -624,21 +644,27 @@ case "$1" in
 
 		## slack:session-current and slack:session-parent each name that session's thread, as the Wait tool
 		## takes them: the one address resolver gives the thread, and it is waited on as its :conversation
-		## source, before anything below checks or stores a source. A name that names nowhere is refused
-		## by the resolver's own line.
-		local sessionSource sessionSources="" sessionResolved="" sessionRc=0
+		## source, before anything below checks or stores a source. With :<ts> the name is one message in
+		## that thread's conversation, and the source is the thread of that message: plain for an answer
+		## to it, with :conversation for any new post there. A name that names nowhere is refused by the
+		## resolver's own line.
+		local sessionSource sessionSources="" sessionResolved="" sessionRc=0 sessionAddress="" sessionForm=""
 		for sessionSource in $waitSources ; do
 			case "$sessionSource" in
 				slack:session-current|slack:session-current:*|slack:session-parent|slack:session-parent:*)
+					sessionAddress="${sessionSource#slack:}" ; sessionForm=""
+					case "$sessionAddress" in *:conversation) sessionForm=":conversation" ; sessionAddress="${sessionAddress%:conversation}" ;; esac
+					## The name alone is the thread itself: any new post there.
+					case "$sessionAddress" in *:*) ;; *) sessionForm=":conversation" ;; esac
 					type DistroAgentsToolsResolveTarget > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CommsSlack.include"
 					sessionRc=0
-					sessionResolved="$( DistroAgentsToolsResolveTarget "${sessionSource#slack:}" "$memberName" )" || sessionRc=$?
+					sessionResolved="$( DistroAgentsToolsResolveTarget "$sessionAddress" "$memberName" )" || sessionRc=$?
 					if [ "$sessionRc" != "0" ] ; then
 						echo "WAIT-RESULT: ERROR"
 						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $sessionResolved Nothing was waited on." >&2
 						set +e ; return 1
 					fi
-					sessionSource="slack:$( printf '%s\n' "$sessionResolved" | sed -n 's/^CHANNEL=//p' ):$( printf '%s\n' "$sessionResolved" | sed -n 's/^THREAD_TS=//p' ):conversation"
+					sessionSource="slack:$( printf '%s\n' "$sessionResolved" | sed -n 's/^CHANNEL=//p' ):$( printf '%s\n' "$sessionResolved" | sed -n 's/^THREAD_TS=//p' )$sessionForm"
 				;;
 			esac
 			sessionSources="$sessionSources$sessionSource "
@@ -787,6 +813,25 @@ case "$1" in
 				set +e ; return 1
 			;;
 		esac
+		## THE ROUND OF A SESSION'S WAIT. A wait that belongs to a session -- a mode, with its
+		## session id -- comes back, when nothing arrived, a little sooner than the prompt cache
+		## of the CLI service that session runs on expires, so the turn that goes on waiting
+		## reads the session's history from that cache. Its bound is at most that service's round
+		## (AgentsTools.CliService.include), whatever bound the call names, and that round where
+		## it names none. A wait of no session keeps the bound it was given, or none.
+		if [ -n "$waitSessionId" ] ; then
+			case "$waitMode" in
+				default|continue)
+					local waitRound=""
+					type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CliService.include"
+					waitRound="$( AgentsToolsCliServiceWaitRound "$( AgentsToolsCliServiceOfSession "$waitSessionId" )" )"
+					case "$waitRound" in
+						''|*[!0-9]*) ;;
+						*) [ -n "$waitTimeout" ] && [ "$waitTimeout" -le "$waitRound" ] || waitTimeout="$waitRound" ;;
+					esac
+				;;
+			esac
+		fi
 		case "$waitPoll" in
 			''|*[!0-9]*)
 				echo "WAIT-RESULT: ERROR"
@@ -810,6 +855,18 @@ case "$1" in
 					set +e ; return 1
 				;;
 			esac
+			## A FLOOR IS A MOMENT THAT HAS PASSED. Nothing at or before it counts, so a wait from
+			## a floor ahead of the present returns on nothing until that moment comes, whatever
+			## arrives meanwhile: for the length of its bound, and through every --wait-continue
+			## after it, which resumes from the floor stored. Refused at second zero, like a kind
+			## this build does not carry, with both moments named.
+			local waitSinceNow
+			waitSinceNow="$( date +%s )"
+			if AgentsWaitTsNewer "$waitSince" "$(( waitSinceNow + agentsWaitFloorAhead ))" ; then
+				echo "WAIT-RESULT: ERROR"
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --wait-since-utime: $waitSince is ahead of the present, which is $waitSinceNow in epoch seconds on this host. A floor is a moment that has passed: nothing at or before it counts, so from this one nothing that arrives would be returned until then. Nothing was waited on: pass the ts of a message already posted, or epoch seconds at or before the present, or leave it out to wait from the floor stored for the source, else from now." >&2
+				set +e ; return 1
+			fi
 		fi
 
 		## Every source is resolved to its probe BEFORE the wait starts. A kind
@@ -1200,7 +1257,11 @@ case "$1" in
 				fi
 
 				## Every source is scanned, and every one that changed is returned, not the first.
-				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" ; then
+				## A kind whose rendering holds arrivals only has nothing to return while that rendering
+				## is empty: what stood there was taken -- an answer its asker read moves the floor of
+				## its thread past it -- or taken back, and neither is an arrival.
+				if ! cmp -s "$waitDir/base.$roundIndex" "$waitDir/now.$roundIndex" \
+					&& { [ -s "$waitDir/now.$roundIndex" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) false ;; *) true ;; esac ; } ; then
 					waitOutcome="RECEIVED"
 					waitHits="$waitHits$roundIndex=$roundSource "
 				fi

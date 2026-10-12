@@ -194,7 +194,10 @@ case "$1" in
 				## workspace that hid all ten of its messages. --client-sweep-input-scan
 				## resolves that member's OWN stored position itself (its own
 				## sweep-state record, the default window only when it has none).
-				DistroAgentsTools --client-sweep-input-scan "$2" \
+				## SWEPT AS THAT CLIENT. A --client-* operation is its client's own session's
+				## alone, and this pass is the coordinator's: it goes through the coordinator's
+				## own operation, which runs it as the client named (AgentsTools.MagicClient.include).
+				DistroAgentsTools --magic-client-operation-run magic-coordinator --client-sweep-input-scan "$2" \
 					> "$clientSweepDir/$2.document" || accountStatus=$?
 				printf '%s\n' "$accountStatus" > "$clientSweepDir/$2.status"
 				return 0

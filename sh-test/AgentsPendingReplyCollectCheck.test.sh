@@ -213,7 +213,7 @@ rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it",
 printf '%s' '{"to":"magic-team","outcome":"rig done"}' | rigEnv env MDAT_SPAWN_SESSION_ID=rig-sess-h MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 	bash "$rigHarness" --intern-tool SubagentHandback > "$rigScenarioDir/handback" 2> "$rigScenarioDir/handback.err"
 rigAssert "the handback is posted"                        "$( ls "$rigScenarioDir"/post.* 2>/dev/null | wc -l | tr -d ' ' )" 1
-rigAssert "with the collected field"                      "$( rigHolds "$rigScenarioDir/post.1" 'Answers collected, and questions still open:' )" yes
+rigAssert "with the collected field"                      "$( rigHolds "$rigScenarioDir/post.1" '**📬 Answers collected, and questions still open**' )" yes
 rigAssert "carrying the answer"                           "$( rigHolds "$rigScenarioDir/post.1" 'yes, keep it' )" yes
 rigAssert "and the record is closed"                      "$( rigStatus "$rigQ1" )" reply-received
 rigAssert "control: the body names its channel as this check reads it" "$( rigHolds "$rigScenarioDir/post.1" '"channel":"CRIG00001"' )" yes

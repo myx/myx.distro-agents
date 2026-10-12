@@ -46,7 +46,7 @@
 # answers the message it is on, as ever. Held, not open: a late reply numbered for an
 # answered question never answers the one still open.
 # A MEMBER'S REPLY starts with the send header the team's own send writes ahead of every
-# message, `[<mark> ]*_<from>_* @<alias> → <addressees>.`: it is no part of the reply, so the
+# message, `[<mark> ]*_<from>_*[ @<alias>] → <addressees>.`: it is no part of the reply, so the
 # number is the first word after it (memberSendHeaderLength, AgentsDismissalMatch.awk) -- on
 # the head line, or on the first line under it that is not empty where the header fills the
 # head line -- and the header stays in what is printed. Read as the reply's first word, the
@@ -243,7 +243,17 @@ function printReactions(line,   rest, ann) {
 	}
 	inRoot = 0
 	if ( ! newerThan(msgTs, rootTs) ) { inOlder = 1 ; next ; }
-	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) { inOlder = 1 ; next ; }
+	if ( ! conversationMode && ! index( " " fromUsers " ", " " $3 " " ) ) {
+		## A MEMBER WITH NO ACCOUNT OF ITS OWN answers under the team's one, so no account tells
+		## its reply. Among the accounts that answer (-v fromUsers) it stands by its member
+		## name, and its reply is told by the sender the tooling recorded on the post as it was
+		## sent -- the formatter's `[sender: X]`, out of the message's own metadata -- never by a
+		## name in the text, nor by the send header, which a text can imitate. An account is
+		## never matched this way. The reply is printed as posted by that member.
+		replySender = lineSender($0)
+		if ( replySender == "" || replySender ~ /^[A-Z]/ || ! index( " " fromUsers " ", " " replySender " " ) ) { inOlder = 1 ; next ; }
+		sub(/^[^|]*\| [^|]*\|/, msgTs " | " replySender " |")
+	}
 	if ( conversationMode && callerName != "" && ! includeOwn && lineSender($0) == callerName ) { inOlder = 1 ; heldOwn = $0 ; next ; }
 	inOlder = 0
 	if ( tag != "" ) {

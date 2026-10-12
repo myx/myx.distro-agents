@@ -4,10 +4,11 @@
 ##
 ## AgentsTools.InternOpEventTrackPost.include -- --intern-op-event-track-post, the one path of
 ## the tooling's own tracking posts: the posts in a coworking session's event-track thread,
-## which every participant of it posts into, and the tooling's status notes in a session
-## thread. Never a member's message. --session-id names the run a post is about, the
-## participant's own id; which thread it goes to is the caller's
-## (AgentsTools.EventTrackThread.include).
+## which every participant of it posts into, and nowhere else: never a post in a session
+## thread, where what a participant must be told is a message addressed to it
+## (sh-lib/templates/tooling-note.post.format.md, `# Session`). Never a member's message.
+## --session-id names the run a post is about, the participant's own id; which thread it
+## goes to is the caller's (AgentsTools.EventTrackThread.include).
 ##
 ## The text is the tooling template sh-lib/templates/event-track.post.format.md, read
 ## from this package's own sh-lib, so the template and the code that fills it are always

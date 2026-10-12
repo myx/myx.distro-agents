@@ -232,20 +232,23 @@ rigSharedStart(){ ## scenario name, the answer form's fields (may be empty)
 ## The human-owner's own replies, each numbered: the reading a member's reply is held to.
 rigSharedStart owner-numbered "$rigOptions"
 rigSharedThread '000101 000201' '000400|Q2 gamma' '000500|Q1 beta'
+## A wait of a session returns on every update of interest to that session, so the call that
+## waits for the first question takes what stands for the second in the same thread too:
+## each by the reply numbered for it, the second said as what else arrived.
 rigCall 60 "{\"pending_id\":\"$rigSharedFirst\"}"
-rigAssert "a person's reply numbered for the first question answers it" "$rigKilled:$( rigVerdictLine ):$( rigFieldOf "$rigSharedFirst" verdict )" "no:VERDICT: beta:beta"
-rigAssert "and the second is still open"               "$( rigFieldOf "$rigSharedSecond" status )" "reply-pending"
-rigCall 60 "{\"pending_id\":\"$rigSharedSecond\"}"
-rigAssert "which takes the reply numbered for it"      "$rigKilled:$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict )" "no:VERDICT: gamma:gamma"
+rigAssert "a person's reply numbered for the first question answers it" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigVerdictLine ):$( rigFieldOf "$rigSharedFirst" verdict )" "no:ASK-RESULT: RECEIVED:VERDICT: beta:beta"
+rigAssert "and the second takes the reply numbered for it in the same wait, said as what else arrived" \
+	"$( rigHolds "$rigScenarioDir/out" 'ALSO-ARRIVED: ' ):$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedSecond, as the asking call would take it ---" ):$( rigFieldOf "$rigSharedSecond" status ):$( rigFieldOf "$rigSharedSecond" verdict )" "yes:yes:reply-received:gamma"
 
 ## The case of the ruling: a member replies with the number of the first and an answer. The
 ## first question takes the answer, and the second stays open.
 rigSharedStart member-numbered "$rigOptions"
 rigSharedThread '000101 000201' "000400|$rigHeader Q1 beta"
-rigCall 6 "{\"pending_id\":\"$rigSharedSecond\"}" from-read
-rigAssert "a member's reply numbered for the first question does not answer the second: it is still waiting" "$rigKilled:$( rigFieldOf "$rigSharedSecond" status )" "yes:reply-pending"
-rigCall 60 "{\"pending_id\":\"$rigSharedFirst\"}"
-rigAssert "the first question takes it as its answer"  "$rigKilled:$( rigVerdictLine ):$( rigFieldOf "$rigSharedFirst" verdict )" "no:VERDICT: beta:beta"
+## The call that waits for the second question returns on that reply, as on every update of
+## interest to its session: taken for the first question, never for the second.
+rigCall 60 "{\"pending_id\":\"$rigSharedSecond\"}"
+rigAssert "a member's reply numbered for the first question does not answer the second: its call returns on it, and the second is still open" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigFieldOf "$rigSharedSecond" status )" "no:ASK-RESULT: ARRIVED-OTHER:reply-pending"
+rigAssert "the first question takes it as its answer"  "$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedFirst, as the asking call would take it ---" ):$( rigVerdictLine ):$( rigFieldOf "$rigSharedFirst" verdict )" "yes:VERDICT: beta:beta"
 rigAssert "its record closes, the second stays open"   "$( rigFieldOf "$rigSharedFirst" status ):$( rigFieldOf "$rigSharedSecond" status )" "reply-received:reply-pending"
 rigCall 6 "{\"pending_id\":\"$rigSharedSecond\"}" from-read
 rigAssert "and that reply never answers the second, the first now closed" "$rigKilled:$( rigFieldOf "$rigSharedSecond" status )" "yes:reply-pending"
@@ -254,28 +257,25 @@ rigAssert "and that reply never answers the second, the first now closed" "$rigK
 ## numbered for the second question.
 rigSharedStart member-numbered-next-line "$rigOptions"
 rigSharedThread '000101 000201' "000400|$rigHeader\\nQ2 gamma"
-rigCall 6 "{\"pending_id\":\"$rigSharedFirst\"}" from-read
-rigAssert "the header on a line of its own, the number under it: the first question is still waiting" "$rigKilled:$( rigFieldOf "$rigSharedFirst" status )" "yes:reply-pending"
-rigCall 60 "{\"pending_id\":\"$rigSharedSecond\"}"
-rigAssert "the second question takes it as its answer" "$rigKilled:$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict ):$( rigFieldOf "$rigSharedFirst" status )" "no:VERDICT: gamma:gamma:reply-pending"
+rigCall 60 "{\"pending_id\":\"$rigSharedFirst\"}"
+rigAssert "the header on a line of its own, the number under it: it does not answer the first question, whose call returns on it" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigFieldOf "$rigSharedFirst" status )" "no:ASK-RESULT: ARRIVED-OTHER:reply-pending"
+rigAssert "the second question takes it as its answer" "$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedSecond, as the asking call would take it ---" ):$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict ):$( rigFieldOf "$rigSharedFirst" status )" "yes:VERDICT: gamma:gamma:reply-pending"
 
 ## A member's reply with no number, as before: it answers the latest question above it.
 rigSharedStart member-plain "$rigOptions"
 rigSharedThread '000101 000201' "000400|$rigHeader gamma"
-rigCall 6 "{\"pending_id\":\"$rigSharedFirst\"}" from-read
-rigAssert "a member's reply with no number does not answer the first question" "$rigKilled:$( rigFieldOf "$rigSharedFirst" status )" "yes:reply-pending"
-rigCall 60 "{\"pending_id\":\"$rigSharedSecond\"}"
-rigAssert "it answers the question posted last above it" "$rigKilled:$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict )" "no:VERDICT: gamma:gamma"
+rigCall 60 "{\"pending_id\":\"$rigSharedFirst\"}"
+rigAssert "a member's reply with no number does not answer the first question, whose call returns on it" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigFieldOf "$rigSharedFirst" status )" "no:ASK-RESULT: ARRIVED-OTHER:reply-pending"
+rigAssert "it answers the question posted last above it" "$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedSecond, as the asking call would take it ---" ):$( rigVerdictLine ):$( rigFieldOf "$rigSharedSecond" verdict )" "yes:VERDICT: gamma:gamma"
 
 ## Two questions that take any text: no verdict is read, so the Wait alone says whose the reply is.
 rigSharedStart member-numbered-text ""
 rigSharedThread '000101 000201' "000400|$rigHeader Q1: keep the first report"
-rigCall 6 "{\"pending_id\":\"$rigSharedSecond\"}" from-read
-rigAssert "free text: the second question is still waiting" "$rigKilled:$( rigFieldOf "$rigSharedSecond" status )" "yes:reply-pending"
-rigCall 60 "{\"pending_id\":\"$rigSharedFirst\"}"
+rigCall 60 "{\"pending_id\":\"$rigSharedSecond\"}"
+rigAssert "free text: the reply numbered for the first question does not answer the second, whose call returns on it" "$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigFieldOf "$rigSharedSecond" status )" "no:ASK-RESULT: ARRIVED-OTHER:reply-pending"
 rigAssert "free text: the first question receives the member's reply" \
-	"$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'keep the first report' ):$( rigFieldOf "$rigSharedFirst" status ):$( rigFieldOf "$rigSharedSecond" status )" \
-	"no:ASK-RESULT: RECEIVED:yes:reply-received:reply-pending"
+	"$( rigHolds "$rigScenarioDir/out" "# --- pending reply $rigSharedFirst, as the asking call would take it ---" ):$( LC_ALL=C grep -c -x 'ASK-RESULT: RECEIVED' "$rigScenarioDir/out" ):$( rigHolds "$rigScenarioDir/out" 'keep the first report' ):$( rigFieldOf "$rigSharedFirst" status ):$( rigFieldOf "$rigSharedSecond" status )" \
+	"yes:1:yes:reply-received:reply-pending"
 
 echo "-- one question alone in its thread: a reply starting with its own number is its answer --"
 ## One question asked into a thread, alone there, not waited on: it is numbered, as every

@@ -168,15 +168,19 @@ AgentsToolsSessionParentThreadFind(){
 	printf '%s %s\n' "$parentThread" "$parentId"
 }
 
-## The member the session that started this one acts as: the `owner:` of that session's own
-## spawn record, the session named by this one's record. Prints the name and returns 0.
-## Returns 1, nothing printed, when no parent session is recorded, or that session has no
-## record that names a member -- a native client session, never spawned through the proxy.
+## The member that made the spawn call this session was started by: as this session's own
+## spawn record names it (`parent-member:`, written at the spawn), else, for a record written
+## before that line was, the `owner:` of the spawn record of the session that started it.
+## Prints the name and returns 0. Returns 1, nothing printed, when neither names one: such a
+## record, and a parent that is a native client session, never spawned through the proxy.
 AgentsToolsSessionParentMember(){
 	local memberRecord memberParent="" memberOwner=""
 	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
-		[ ! -f "$memberRecord" ] || memberParent="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-session-id )"
+		[ -f "$memberRecord" ] || continue
+		memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-member )"
+		memberParent="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-session-id )"
 	done
+	[ -z "$memberOwner" ] || { printf '%s\n' "$memberOwner" ; return 0 ; }
 	case "$memberParent" in ''|none|*/*|.|..) return 1 ;; esac
 	for memberRecord in "$MMDAPP"/.local/agents/spawned/*/"$memberParent.md" ; do
 		[ ! -f "$memberRecord" ] || memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner )"

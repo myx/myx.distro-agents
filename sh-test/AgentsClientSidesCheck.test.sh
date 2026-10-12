@@ -227,19 +227,19 @@ rigAssert "a --client-* Jira operation runs here: the site and the user this wor
 echo "-- 2. a --member-* operation of a client reaches our own team, whatever the client holds --"
 rigRun --member-comms-slack-send-message client-ndm magic-team RIG-BODY
 rigAssert "its send to magic-team is posted by our team's bot, into our team's conversation" "$rigRc $( rigTokens chat.postMessage )$( rigChannel )" "0 rig-bot-token-HERE CHERE0001"
-rigAssert "under its member name, plain, as an invited member with no row in this workspace's names registry, and the metadata that names the sender" "$( rigText ) $( rigN "$rigTmp/bodies" '"event_payload":{"sender":"client-ndm"}' )" '*_client-ndm_* @client-ndm → @here.\nRIG-BODY 1'
+rigAssert "under its member name, as an invited member with no row in a names registry: with the default icon of its prefix group, and the metadata that names the sender" "$( rigText ) $( rigN "$rigTmp/bodies" '"event_payload":{"sender":"client-ndm"}' )" '👥 *_client-ndm_* → @here.\nRIG-BODY 1'
 rigAssert "no call used the token it holds for the other organisation, and none anything of the other workspace" "$( rigTheirs ) $( rigElsewhere )" "0 0"
 rigAssert "what the send reports as its conversation carries no client: marker" "$( rigSent CHANNEL )" "CHERE0001"
 rigRun --member-comms-slack-send-message client-ndm magic-team --identity-bot RIG-BODY
 rigAssert "the same with --identity-bot: our team's bot" "$rigRc $( rigTokens chat.postMessage )" "0 rig-bot-token-HERE "
 rigRun --member-comms-slack-send-message client-mel magic-team RIG-BODY
-rigAssert "a client set up here, that holds a bot token of its own: still our team's bot, its own never used, under its member name with the mark and alias of its row" "$rigRc $( rigTokens chat.postMessage )$( rigTheirs ) $( rigText )" '0 rig-bot-token-HERE 0 🐭 *_client-mel_* @dispatchr → @here.\nRIG-BODY'
+rigAssert "a client set up here, that holds a bot token of its own: still our team's bot, its own never used, with the mark of its row and its member name as its alias, never the alias of its persona" "$rigRc $( rigTokens chat.postMessage )$( rigTheirs ) $( rigText )" '0 rig-bot-token-HERE 0 🐭 *_client-mel_* → @here.\nRIG-BODY'
 rigRun --member-comms-slack-read client-ndm magic-team
 rigAssert "its read of magic-team is our team's bot reading our team's conversation" "$rigRc $( rigTokens conversations.history )$( rigTheirs )" "0 rig-bot-token-HERE 0"
 rigRun --member-comms-slack-react client-ndm CHERE0001:1700000001.000101 eyes
 rigAssert "its reaction in our conversation is our team's bot's" "$rigRc $( cat "$rigTmp/reactions" )" "0 rig-bot-token-HERE CHERE0001 1700000001.000101 eyes"
 rigRun --member-comms-slack-send-message client-ndm human-owner RIG-BODY
-rigAssert "to the human-owner it is relayed under the coordinator's account, as for any member with no account in our Slack" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigN "$rigTmp/err" "'client-ndm' has no SLACK_USER_TOKEN of its own, so this human-owner send goes out under magic-coordinator's user account" ) $( rigTheirs )" "0 rig-user-token-COORD UHEREOWNER 1 0"
+rigAssert "to the human-owner it is our team's bot's post too, as for any member with no account in our Slack: nothing is relayed under another member's account" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigN "$rigTmp/err" "magic-coordinator's user account" ) $( rigTheirs )" "0 rig-bot-token-HERE UHEREOWNER 0 0"
 rigRun --member-comms-slack-send-message keeper-here client-ndm RIG-BODY
 rigAssert "addressed by name from inside our team, a client has no Slack account on our side: refused as a member with no DM, never sent to its account in the other organisation" "$rigRc $( rigN "$rigTmp/err" "NO-SLACK-DM: team member 'client-ndm' has no Slack DM channel of its own" ) $( rigLines "$rigTmp/bodies" ) $( rigTheirs )" "1 1 0 0"
 rigRun --member-comms-slack-read client-ndm CNDM00001
@@ -281,15 +281,27 @@ rigRun --client-comms-slack-read keeper-here CNDM00001
 rigAssert "the family runs only as a client-* member: any other name is refused by name, and nothing is called" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "⛔ ERROR: DistroAgentsTools --client-comms-slack-read: runs only as a client-* member, and keeper-here is not one" )" "1 0 1"
 rigPre=( MDAT_SPAWN_AGENT=keeper-here )
 rigRun --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
-rigAssert "a spawned session that acts as another member cannot post there as the client, as it cannot through the member stub" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" 'this session acts as keeper-here, so it cannot act as client-ndm -- nothing was done' )" "1 0 1"
+rigAssert "a spawned session that acts as another member cannot post there in the client's name: a --client-* operation is the client's own session's alone" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "this session acts as keeper-here, and a --client-* operation in the name of client-ndm is for client-ndm's own session only -- nothing was done: ask the session's magic-coordinator, which can run it as client-ndm" )" "1 0 1"
 rigRun --member-comms-slack-send-message client-ndm magic-team RIG-BODY
-rigAssert "control: the member stub refuses that session the same way" "$rigRc $( rigN "$rigTmp/err" 'this session acts as keeper-here, so it cannot act as client-ndm -- nothing was done' )" "1 1"
+rigAssert "control: the member stub refuses that session too, in its own words" "$rigRc $( rigN "$rigTmp/err" 'this session acts as keeper-here, so it cannot act as client-ndm -- nothing was done' )" "1 1"
 rigPre=( MDAT_SPAWN_AGENT=client-ndm )
 rigRun --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
 rigAssert "accepted sibling: the client's own session posts there" "$rigRc $( rigTokens chat.postMessage )" "0 rig-user-token-NDM "
+cp "$rigTmp/calls" "$rigTmp/calls.own" ; cp "$rigTmp/bodies" "$rigTmp/bodies.own"
+rigPre=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigRun --magic-client-operation-run magic-coordinator --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
+rigAssert "magic-coordinator reaches the other organisation through its own operation, which runs the client's operation as that client: the client's token, its presentation there" "$rigRc $( rigTokens chat.postMessage )$( rigText ) $( rigOurs )" '0 rig-user-token-NDM 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0'
+rigAssert "every call it makes and every body it posts is what the client's own session made and posted: the same sender" "$( cmp -s "$rigTmp/calls" "$rigTmp/calls.own" && printf same-calls || printf other-calls ) $( cmp -s "$rigTmp/bodies" "$rigTmp/bodies.own" && printf same-bodies || printf other-bodies )" "same-calls same-bodies"
+rigRun --client-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
+rigAssert "and not by the client's operation itself: its session is refused in one line that names its own operation, and nothing is posted" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "this session acts as magic-coordinator, and a --client-* operation in the name of client-ndm is for client-ndm's own session only -- nothing was done: magic-coordinator runs it with --magic-client-operation-run magic-coordinator --client-comms-slack-send-message client-ndm" )" "1 0 1"
+rigRun --magic-comms-slack-read client-ndm CNDM00001
+rigAssert "a --magic-comms-* operation given a client is our own side, as for any other member: the conversation is looked for in our own Slack, by our team's bot, and nothing the client holds is used" "$( rigTokens conversations.history )$( rigTheirs )" "rig-bot-token-HERE 0"
+rigPre=( MDAT_COMMS_OP=--magic-comms-slack-read )
+rigFn AgentsToolsSlackSideNote client-ndm
+rigAssert "and where it is not found there, what the error says of the side names magic-coordinator's own way to the other organisation" "$fnOut" " -- this call is on our own organisation's side, where client-ndm has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation, which magic-coordinator runs with --magic-client-operation-run, or for a client:<addressee> address"
 rigPre=()
-rigRun --magic-comms-slack-send-message client-ndm CNDM00001 RIG-BODY
-rigAssert "the coordinator acting as a client still reaches the other organisation, as before: the client's token, its presentation there" "$rigRc $( rigTokens chat.postMessage )$( rigText ) $( rigOurs )" '0 rig-user-token-NDM 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0'
+rigFn AgentsToolsSlackSideNote client-ndm
+rigAssert "control: in every other operation it says the side as it did" "$fnOut" " -- this call is on our own organisation's side, where client-ndm has no Slack settings of its own: what it holds is the other organisation's, read in a --client-* operation or for a client:<addressee> address"
 rigRun --magic-comms-slack-read keeper-here magic-team
 rigAssert "control: the coordinator acting as a member that is no client stays in our own Slack" "$rigRc $( rigTokens conversations.history )" "0 rig-user-token-KHERE "
 rigRun --client-sweep-input-scan client-ndm
@@ -372,7 +384,9 @@ rigAssert "and in a --member- read" "$rigRc $( rigLines "$rigTmp/calls" ) $( rig
 rigRun --member-comms-slack-send-message client-ndm client:keeper-here RIG-BODY
 rigAssert "a team member's name under the marker: the same hint" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "'client:keeper-here' is refused: for 'keeper-here', $rigHintMarked." )" "1 0 1"
 rigRun --magic-comms-slack-send-message client-ndm magic-team RIG-BODY
-rigAssert "the coordinator acting as a client, to one of our own named conversations: the hint, and no post under the client's token into our conversation" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigN "$rigTmp/err" "'magic-team' is refused: for 'magic-team', $rigHintPlain." )" "1 0 1"
+rigAssert "a --magic-comms- send given a client, to one of our own named conversations, is our own side like the client's own --member- send: posted by our team's bot into our conversation, under the client's member name, and nothing the client holds is used" "$rigRc $( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigTheirs )" '0 rig-bot-token-HERE CHERE0001 👥 *_client-ndm_* → @here.\nRIG-BODY 0'
+rigRun --magic-client-operation-run magic-coordinator --client-comms-slack-send-message client-ndm magic-team RIG-BODY
+rigAssert "through --magic-client-operation-run that name is refused as in the client's own --client- send: the hint that names the --member- twin, and no post" "$rigRc $( rigLines "$rigTmp/calls" ) $( rigHinted --client-comms-slack-send-message magic-team )" "1 0 1"
 rigRun --member-comms-slack-send-message keeper-here magic-team RIG-BODY
 rigAssert "control: for a member that is no client those names work as they always have, with no hint" "$rigRc $( rigTokens chat.postMessage )$( rigN "$rigTmp/err" "$rigHint" )" "0 rig-user-token-KHERE 0"
 
@@ -412,7 +426,7 @@ rigPre=()
 
 echo "-- 6. the tools with no marker reach our own team, a client: address the other organisation --"
 rigToolAs client-ndm SendMessage '{"to":"magic-team","message":"RIG-BODY"}'
-rigAssert "SendMessage as a client to magic-team: our team's bot, our team's conversation, its member name" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigTheirs )" 'rig-bot-token-HERE CHERE0001 *_client-ndm_* @client-ndm → @here.\nRIG-BODY 0'
+rigAssert "SendMessage as a client to magic-team: our team's bot, our team's conversation, its member name" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigTheirs )" 'rig-bot-token-HERE CHERE0001 👥 *_client-ndm_* → @here.\nRIG-BODY 0'
 rigToolAs client-ndm SendMessage '{"to":"client:CNDM00001","message":"RIG-BODY"}'
 rigAssert "SendMessage as a client to a client: address: the client's token, that conversation, its presentation there" "$( rigTokens chat.postMessage )$( rigChannel ) $( rigText ) $( rigOurs )" 'rig-user-token-NDM CNDM00001 🐭 *_Magic Vane_* @dispatchr → @here.\nRIG-BODY 0'
 rigAssert "and the Wait it names for a reply is on the same side" "$( rigN "$rigTmp/out" 'Wait sources=slack:client:CNDM00001:1700000001.000101:conversation' )" 1

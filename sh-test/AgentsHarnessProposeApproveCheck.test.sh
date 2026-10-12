@@ -199,7 +199,7 @@ rigAssert "the root is the question alone, under its own title" \
 	$'# 📜 Proposal\n\nWhich way?'
 rigAssert "the proposal reply: the proposed form, the link to its document, how to answer" \
 	"$( ASKP_F_proposal='This way.' ASKP_F_document="$rigLink" rigFill post propose-approve.post.format.md approve )" \
-	$'# 📄 The proposal\n\nThis way.\n\n**🔗 Document**\n'"$rigLink"$'\n\n**✅ How to answer**\n- react on the first message of this thread: ✅ approves the document, ❌ rejects the proposal\n- or reply here `approved` or `rejected`\n- any other reply here is a comment: the proposal is worked out from it, and this message is replaced by the changed one'
+	$'# 📘 The proposal\n\nThis way.\n\n**🔗 Document**\n'"$rigLink"$'\n\n**✅ How to answer**\n- react on the first message of this thread: ✅ approves the document, ❌ rejects the proposal\n- or reply here `approved` or `rejected`\n- the word first; a comment after a comma, or on the next lines\n- any other reply here is a comment: the proposal is worked out from it, and this message is replaced by the changed one'
 rigAssert "the context is shown where one is given" \
 	"$( ASKP_F_proposal='This way.' ASKP_F_document="$rigLink" ASKP_F_context='ctx' rigFill post propose-approve.post.format.md approve | LC_ALL=C sed -n '8,9p' )" \
 	$'**⚙ Context**\nctx'
@@ -210,7 +210,7 @@ rigAssert "the template places no emoji: the root carries only a person's own" \
 	"$( rigFill reactions propose-approve.post.format.md approve | LC_ALL=C grep -c . )" 0
 rigAssert "a reply that takes no answer any more: the same text without How to answer" \
 	"$( ASKP_F_proposal='This way.' ASKP_F_document="$rigLink" rigFill closed propose-approve.post.format.md approve )" \
-	$'# 📄 The proposal\n\nThis way.\n\n**🔗 Document**\n'"$rigLink"
+	$'# 📘 The proposal\n\nThis way.\n\n**🔗 Document**\n'"$rigLink"
 rigAssert "the template has no mark for a root or a replaced reply, and one for a discarded reply" \
 	"$( ASKP_BLOCK=Marks/superseded rigFill block propose-approve.post.format.md '' | LC_ALL=C grep -c 'has no block' ):$( ASKP_BLOCK=Marks/revised rigFill block propose-approve.post.format.md '' | LC_ALL=C grep -c 'has no block' ):$( ASKP_BLOCK=Marks/cancelled rigFill block propose-approve.post.format.md '' )" \
 	"1:1:no_entry_sign"

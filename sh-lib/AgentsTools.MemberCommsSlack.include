@@ -84,6 +84,69 @@ AgentsToolsCommsSlackMemberPresentation(){ ## member
 	done
 }
 
+## Whether an alias is one a member of this workspace already goes by: the alias of another
+## member's row in this workspace's names registry, or another member's own name there. A
+## client's row is not asked for its alias: that one is its persona's, for the other
+## organisation, and inside our team a client goes by its member name.
+AgentsToolsCommsSlackAliasTakenHere(){ ## alias, the member that would take it
+	LC_ALL=C awk -v want="$1" -v who="$2" '
+		$1 == who { next ; }
+		$1 == want || ( $1 !~ /^client-/ && $5 == want ) { taken = 1 ; exit ; }
+		END { exit taken ? 0 : 1 ; }
+	' "$( AgentsToolsRegistryFile team-members-names )" 2> /dev/null
+}
+
+## A member as our own team sees it, "<mark> TAB <alias>", neither ever empty: what the
+## author line of a message shows for its sender, and for a member it is addressed to, in
+## every send that is not a client's presentation to the other organisation. Its mark and
+## alias are those of its row (AgentsToolsCommsSlackMemberPresentation), which no rule here
+## changes, read under the rules of our own team:
+##   - a member's own mark is the one shown. Only a member with no mark at all, no row or
+##     a row without one, is shown with the default icon of its prefix group, from the one
+##     list of them (AgentsToolsTeamMemberKindIcon, the member table's);
+##   - every client-* member goes by its own member name here. The alias of its row is its
+##     persona's, for the other organisation alone, so here no alias names two members;
+##   - a member invited from another workspace whose alias a member here already goes by
+##     is shown by its member name, and one line on stderr says so;
+##   - a member with no row anywhere is shown by its member name, and for a sender one
+##     line on stderr says so.
+AgentsToolsCommsSlackMemberTeamPresentation(){ ## member, its part in the send (sender|addressee)
+	local teamPres teamMark="" teamAlias=""
+	if teamPres="$( AgentsToolsCommsSlackMemberPresentation "$1" )" ; then
+		teamMark="$( AgentsToolsCommsSlackPresentationField 1 "$teamPres" )"
+		case "$1" in
+			client-*) ;;
+			*)
+				teamAlias="$( AgentsToolsCommsSlackPresentationField 4 "$teamPres" )"
+				## Its row is another workspace's where this one's registry holds none for it.
+				if [ -n "$teamAlias" ] && [ "$teamAlias" != "$1" ] \
+					&& ! AgentsToolsCommsSlackMemberPresentationRow "$1" "$( AgentsToolsRegistryFile team-members-names )" > /dev/null \
+					&& AgentsToolsCommsSlackAliasTakenHere "$teamAlias" "$1" ; then
+					echo "# $MDSC_CMD --member-comms-slack-send-message: member '$1' is invited from another workspace, where its alias is '$teamAlias', which a member of ${MMDAPP%/} already goes by, so here it is shown by its member name" >&2
+					teamAlias=""
+				fi
+			;;
+		esac
+	elif [ "${2:-}" = "sender" ] ; then
+		echo "# $MDSC_CMD --member-comms-slack-send-message: member '$1' has no row in the team-members-names registry of ${MMDAPP%/}, nor in that of a workspace it is set up in, so this message is posted under its member name as its alias, with the default icon of its prefix group (--make-agents-indices builds the registry)" >&2
+	fi
+	if [ -z "$teamMark" ] ; then
+		type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		teamMark="$( AgentsToolsTeamMemberKindIcon "$1" )"
+	fi
+	printf '%s\t%s\n' "$teamMark" "${teamAlias:-$1}"
+}
+
+## The alias of a member as the author line shows it beside its name: `@<alias>`, and
+## nothing where the alias is the name itself, which the line then says once. The one rule
+## for a sender and for a member a message is addressed to, whoever it is: a client inside
+## our team, a member with no alias of its own, a routine. What reads the line takes both
+## forms (memberSendHeaderLength, AgentsDismissalMatch.awk): a member is known by its name,
+## between `*_` and `_*`, never by its alias.
+AgentsToolsCommsSlackAliasShown(){ ## name as the line shows it, alias
+	[ "$2" = "$1" ] || printf '@%s' "$2"
+}
+
 ## The account columns of one cache row: "handle=real name=display name=workspace
 ## domain", from one read-only users.info call under the member's own token (the
 ## human-owner has none, so the call is made as the member named in $3). A value
@@ -372,12 +435,12 @@ case "$1" in
 
 		## The client stubs: the same operations on the side of the other organisation, for a
 		## client-* member alone, under the settings that member itself holds for it. The side is
-		## set where a --client-* operation is dispatched. A spawned session names only itself,
-		## as with the member stubs above.
+		## set, and who may call is asked, where a --client-* operation is dispatched: the client's
+		## own session alone (AgentsToolsClientCallerCheck).
 		--client-comms-slack-read|--client-comms-slack-search-messages|--client-comms-slack-react|--client-comms-slack-delete-message|--client-comms-slack-edit-message|--client-comms-slack-file-info|--client-comms-slack-file-fetch|--client-comms-slack-file-share|--client-comms-slack-send-message|--client-comms-slack-presence-keep|--client-comms-slack-presence-status|--client-comms-slack-presence-stop|--client-comms-slack-profile-set|--client-comms-slack-profile-get|--client-comms-slack-socket-start|--client-comms-slack-socket-status|--client-comms-slack-socket-stop)
 			case "${2:-}" in
 				--print-required-scopes) ;;
-				client-*) AgentsToolsActingMemberCheck "$2" "${1#--}" || { set +e ; return 1 ; } ;;
+				client-*) ;;
 				*)
 					echo "⛔ ERROR: $MDSC_CMD $1: runs only as a client-* member, and ${2:-<no member named>} is not one -- this family reaches an external organisation's own Slack under that member's own settings for it" >&2
 					set +e ; return 1
@@ -694,6 +757,13 @@ case "$1" in
 				;;
 			esac
 
+			## A session address names one thread, never a conversation to search: refused for what it is.
+			case "$target" in
+				session-current|session-parent)
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: '$target' names one thread, and this operation searches a whole conversation over a time window, so a session address is refused here. To read that thread, use --member-comms-slack-read <team-member> $target --thread." >&2
+					set +e ; return 1
+				;;
+			esac
 			if [ -n "$threadTs" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-search-messages: target '$target' names one specific message (<channel>:<ts>), and this operation searches a whole conversation over a time window. The <ts> was NOT ignored -- pass the channel alone. To read that one message or its thread, use --member-comms-slack-read <team-member> <channel>:<ts> [--thread] -- note that op takes the acting member as its FIRST argument, ahead of the target." >&2
 				set +e ; return 1
@@ -887,7 +957,7 @@ case "$1" in
 				;;
 			esac
 			if [ -z "$threadTs" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: a specific <ts> is required -- use <channel>:<ts>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-react: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names" >&2
 				set +e ; return 1
 			fi
 
@@ -1020,7 +1090,7 @@ case "$1" in
 				if [ -z "$threadTs" ] ; then
 					printf 'DELETE_TARGET=%s\n' "$oneTarget"
 					printf '%s\n' DELETE_STATE=no-message-ts
-					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: a specific <ts> is required -- use <channel>:<ts>. Nothing was deleted for '$oneTarget'; the remaining targets are still attempted." >&2
+					echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-delete-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names. Nothing was deleted for '$oneTarget'; the remaining targets are still attempted." >&2
 					deleteFailed=$(( deleteFailed + 1 ))
 					continue
 				fi
@@ -1212,7 +1282,7 @@ case "$1" in
 				;;
 			esac
 			if [ -z "$threadTs" ] ; then
-				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: a specific <ts> is required -- use <channel>:<ts>" >&2
+				echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-edit-message: a specific <ts> is required -- use <channel>:<ts>, or <alias>:<ts> for a message in the conversation an alias names" >&2
 				set +e ; return 1
 			fi
 
@@ -1906,6 +1976,20 @@ case "$1" in
 						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --metadata is not valid JSON" >&2
 						set +e ; return 1
 					fi
+					## The sender a message carries is its acting member, whatever metadata the send is
+					## given: a reader tells whose answer a post is by it (AgentsSlackThreadAnswers.awk).
+					## No backslash escape is taken, so a key cannot be written another way, and every
+					## `sender` in it names the acting member.
+					case "$2" in
+						*\\*)
+							echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --metadata holds a backslash escape, and none is taken there: a key or a value written with one cannot be checked. Nothing was sent." >&2
+							set +e ; return 1
+						;;
+					esac
+					if printf '%s' "$2" | LC_ALL=C tr -d ' \t\r\n' | LC_ALL=C sed "s/\"sender\":\"$memberName\"//g" | LC_ALL=C grep -q '"sender":' ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --metadata names another sender than $memberName, the member this send acts as. A message carries its own member as its sender, and no other. Nothing was sent." >&2
+						set +e ; return 1
+					fi
 					sendMetadata="$2" ; shift 2
 				;;
 				--reply-broadcast)
@@ -2060,44 +2144,28 @@ blocks|verbatim|caller|stdin file"
 			sendIdentity="user"
 		fi
 
-		## human-owner under the member's own identity: own token, or relay via magic-coordinator. --identity-bot always sends as the bot.
-		local relayedForMember="false"
-		case "$identityAsBot:$target" in
-			false:human-owner|false:human-owner:*)
-				if [ -z "$memberUserToken" ] ; then
-					if [ "$memberName" != "magic-coordinator" ] ; then
-						memberUserToken="$( DistroAgentsTools --agents-config-option magic-coordinator --select SLACK_USER_TOKEN 2>/dev/null || true )"
-						relayedForMember="true"
-					fi
-					if [ -z "$memberUserToken" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: no native SLACK_USER_TOKEN for '$memberName', and magic-coordinator (the relay target for a token-less member) has none configured either -- there is no path to human-owner that isn't the team-private shared bot DM. Configure one of the two before this send can succeed." >&2
-						set +e ; return 1
-					fi
-					[ "$relayedForMember" != "true" ] || echo "🙋 WARNING: $MDSC_CMD --member-comms-slack-send-message: '$memberName' has no SLACK_USER_TOKEN of its own, so this human-owner send goes out under magic-coordinator's user account, with '$memberName' named in the message header -- pass --identity-bot to send as the team bot instead" >&2
-				fi
-				sendIdentity="user"
-			;;
-		esac
+		## TO THE HUMAN-OWNER the rule is the same as to anyone: a member with a Slack account of its
+		## own posts under it, and a member with none posts as the team bot, in the bot's own
+		## conversation with the owner, as its question to the owner does (AgentsHarnessAsk).
+		## Nothing is relayed under another member's account.
 
 		## A client presents under the names of its own team-members-names row in a workspace that is not ours:
 		## its own user token posts there, and so does its own bot token, and both are
-		## read on the client side only. The shared bot token and a relay under another
-		## member's token are our workspace, which keeps the internal identifier.
+		## read on the client side only. The shared bot token is our workspace, which
+		## keeps the internal identifier.
 		## Decided here, before the header is built; the bot token is resolved once
 		## and carried to the send below.
 		local presentExternal="false" earlyBotResolved="false" earlyBotTokenLine=""
 		case "$memberName" in
 			client-*)
-				if [ "$relayedForMember" != "true" ] ; then
-					if [ "$sendIdentity" = "user" ] ; then
-						[ -z "$memberUserToken" ] || presentExternal="true"
-					else
-						earlyBotTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || earlyBotTokenLine=""
-						earlyBotResolved="true"
-						case "$earlyBotTokenLine" in
-							"member-bot-token "*) presentExternal="true" ;;
-						esac
-					fi
+				if [ "$sendIdentity" = "user" ] ; then
+					[ -z "$memberUserToken" ] || presentExternal="true"
+				else
+					earlyBotTokenLine="$( AgentsToolsResolveSlackBotToken "$memberName" )" || earlyBotTokenLine=""
+					earlyBotResolved="true"
+					case "$earlyBotTokenLine" in
+						"member-bot-token "*) presentExternal="true" ;;
+					esac
 				fi
 			;;
 		esac
@@ -2170,26 +2238,28 @@ blocks|verbatim|caller|stdin file"
 
 		## Who the message is from. Built always -- the identity swap below
 		## needs it too -- but inserted only where the Slack account shown
-		## is not the member's own: a bot post, or one relayed for them.
+		## is not the member's own: a bot post.
 		local fromPres fromMark="" fromName="$memberName" fromAlias="$memberName" fromElems=""
 		if [ "$presentExternal" = "true" ] ; then
 			fromMark="$externalMark" ; fromName="$externalName" ; fromAlias="$externalAlias"
-		elif fromPres="$( AgentsToolsCommsSlackMemberPresentation "$memberName" )" ; then
-			## No alias in its row leaves the member name as the alias.
-			fromMark="$( AgentsToolsCommsSlackPresentationField 1 "$fromPres" )"
-			fromAlias="$( AgentsToolsCommsSlackPresentationField 4 "$fromPres" )"
-			[ -n "$fromAlias" ] || fromAlias="$memberName"
 		elif [ "$routineAuthored" != "true" ] ; then
-			## No row anywhere: posted under its identifier, with no mark, and said in one line.
-			echo "# $MDSC_CMD --member-comms-slack-send-message: member '$memberName' has no row in the team-members-names registry of ${MMDAPP%/}, nor in that of a workspace it is set up in, so this message is posted under its identifier, with no mark and no alias (--make-agents-indices builds the registry)" >&2
+			## Inside our own team a member is shown as its team sees it: its icon, never none,
+			## and its in-team alias (AgentsToolsCommsSlackMemberTeamPresentation). A routine is
+			## no member, and keeps its name alone.
+			fromPres="$( AgentsToolsCommsSlackMemberTeamPresentation "$memberName" sender )"
+			fromMark="${fromPres%%$'\t'*}" ; fromAlias="${fromPres#*$'\t'}"
+			[ -n "$fromAlias" ] || fromAlias="$memberName"
 		fi
-		local fromText="${fromMark:+$fromMark }*_${fromName}_* @$fromAlias "
+		## Its alias stands beside its name only where it is another word (AgentsToolsCommsSlackAliasShown).
+		local fromShown
+		fromShown="$( AgentsToolsCommsSlackAliasShown "$fromName" "$fromAlias" )"
+		local fromText="${fromMark:+$fromMark }*_${fromName}_* ${fromShown:+$fromShown }"
 		case "$fromMark" in
 			"")	;;
 			:*:)	fromElems="{\"type\":\"emoji\",\"name\":\"${fromMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
 			*)	fromElems="{\"type\":\"text\",\"text\":\"$fromMark \"}," ;;
 		esac
-		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$fromName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" @$fromAlias \"},"
+		fromElems="$fromElems{\"type\":\"text\",\"text\":\"$fromName\",\"style\":{\"bold\":true,\"italic\":true}},{\"type\":\"text\",\"text\":\" ${fromShown:+$fromShown }\"},"
 
 		## Nothing named, and the conversation is a DM or a group DM: its own
 		## participants are the addressees, minus the sender. Keyed on the
@@ -2213,6 +2283,8 @@ blocks|verbatim|caller|stdin file"
 		## That is the harm this lookup buys off, not merely a vaguer header.
 		## A lookup that answers nothing still leaves "@here" rather than
 		## failing a send over a header field.
+		## Whether the addressees are ids the send read itself, below, and not words of its caller.
+		local addressInferred=""
 		if [ -z "$addressToList" ] ; then
 			local dmParties="" dmInfo="" dmIsMpim="" dmSelfId="" dmParty="" dmIndex=0 dmKept=""
 			local dmArgs
@@ -2257,10 +2329,7 @@ blocks|verbatim|caller|stdin file"
 			## matched nobody and the sender addressed itself. In a one-to-one
 			## DM the counterpart is the other party by construction and this is
 			## a no-op, which is why it is written once for every shape rather
-			## than once per shape. Exception: a token-less member's human-owner
-			## send relays under magic-coordinator's token, so the id read here
-			## is not that one -- that target is a one-to-one DM, where the
-			## filter has nothing to do either way.
+			## than once per shape.
 			if [ -n "$dmParties" ] ; then
 				dmArgs=( "$memberName" --api auth.test )
 				[ "$sendIdentity" != "bot" ] || dmArgs+=( --identity bot )
@@ -2277,6 +2346,7 @@ blocks|verbatim|caller|stdin file"
 				fi
 			fi
 			addressToList="$dmParties"
+			addressInferred="true"
 		fi
 
 		## Who the message is for.
@@ -2286,7 +2356,7 @@ blocks|verbatim|caller|stdin file"
 		## adds nothing here: it can be addressed, and it cannot be recognised as an
 		## author, so a caller is told the list is empty rather than given a name that
 		## would never match.
-		local addressedIds=""
+		local addressedIds="" addressedMembers=""
 		local addrWho addrMarks addrMark addrName addrAlias addrUserId addrHandleText addrHandleElems
 		for addrWho in $addressToList ; do
 			## A client: addressee is a person or a conversation of the other organisation, by id,
@@ -2304,15 +2374,30 @@ blocks|verbatim|caller|stdin file"
 				addressedText="$addressedText; "
 				addressedElems="$addressedElems{\"type\":\"text\",\"text\":\"; \"},"
 			fi
+			## What the word is. An account or a conversation only by the whole shape of a Slack
+			## id: upper-case letters and digits and nothing else, nine characters or more, as
+			## the one address resolver holds a bare id (DistroAgentsToolsResolveTarget), a U
+			## first for an account and a C, D or G for a conversation. Never by its first letters
+			## alone: a word that only began like an id reached the header and the blocks as it
+			## was given. An id the send read itself, the other party of a direct message, keeps
+			## the length it came with, and is held to the letters and digits all the same.
+			local addrKind=""
 			case "$addrWho" in
-				U[A-Z0-9][A-Z0-9]*)
+				*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789]*) ;;
+				U????????*) addrKind="account" ;;
+				C????????*|D????????*|G????????*) addrKind="place" ;;
+				U??*) [ "$addressInferred" != "true" ] || addrKind="account" ;;
+				C??*|D??*|G??*) [ "$addressInferred" != "true" ] || addrKind="place" ;;
+			esac
+			case "$addrKind:$addrWho" in
+				account:*)
 					## A real Slack account: the structured element in blocks,
 					## the escape form in text. Different forms, same field.
 					addressedText="$addressedText<@$addrWho>"
 					addressedIds="$addressedIds$addrWho "
 					addressedElems="$addressedElems{\"type\":\"user\",\"user_id\":\"$addrWho\"},"
 				;;
-				C[A-Z0-9][A-Z0-9]*|D[A-Z0-9][A-Z0-9]*|G[A-Z0-9][A-Z0-9]*)
+				place:*)
 					addressedText="$addressedText<#$addrWho>"
 					addressedElems="$addressedElems{\"type\":\"channel\",\"channel_id\":\"$addrWho\"},"
 				;;
@@ -2321,16 +2406,23 @@ blocks|verbatim|caller|stdin file"
 					set +e ; return 1
 				;;
 				*)
-					## The name reaches the payload as a JSON string, so it is
-					## held to the same bare-name shape as the sender's own.
-					AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message || { set +e ; return 1 ; }
-					if ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null ; then
-						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho" >&2
+					## A team member, by its name. The name reaches the payload as a JSON string, so
+					## it is held to the same bare-name shape as the sender's own. A word that is
+					## neither a member nor an id names nobody: refused in one line that says so.
+					if ! AgentsToolsAssertBareName "$addrWho" "--address-to" member-comms-slack-send-message 2> /dev/null || ! AgentsToolsTeamMemberDirectory "$addrWho" > /dev/null ; then
+						echo "⛔ ERROR: $MDSC_CMD --member-comms-slack-send-message: --address-to '$addrWho': no such team member -- expected $MDAT_SKILLSET_ROOT/$addrWho. The word is no Slack id either: an account is U and a conversation C, D or G, then upper-case letters and digits only, nine characters or more in all. Nothing was sent." >&2
 						set +e ; return 1
 					fi
-					## A member with no row, here or in the workspace it is set up in, or no registry at all, reads as its plain name with no mark, never a refusal. Its mention id is a Slack fact and does not depend on the row.
-					addrMarks="$( AgentsToolsCommsSlackMemberPresentation "$addrWho" )" || addrMarks=""
-					addrMark="$( AgentsToolsCommsSlackPresentationField 1 "$addrMarks" )" ; addrAlias="$( AgentsToolsCommsSlackPresentationField 4 "$addrMarks" )" ; addrName="$addrWho"
+					## Inside our own team an addressee is shown as a sender is: its icon and its in-team alias (AgentsToolsCommsSlackMemberTeamPresentation). A member with no row, here or in the workspace it is set up in, or no registry at all, reads as its member name, never a refusal. Its mention id is a Slack fact and does not depend on the row.
+					## In a client's presentation to the other organisation it is read from its row as it stands, and a client addressee is settled below.
+					addrName="$addrWho"
+					if [ "$presentExternal" = "true" ] ; then
+						addrMarks="$( AgentsToolsCommsSlackMemberPresentation "$addrWho" )" || addrMarks=""
+						addrMark="$( AgentsToolsCommsSlackPresentationField 1 "$addrMarks" )" ; addrAlias="$( AgentsToolsCommsSlackPresentationField 4 "$addrMarks" )"
+					else
+						addrMarks="$( AgentsToolsCommsSlackMemberTeamPresentation "$addrWho" addressee )"
+						addrMark="${addrMarks%%$'\t'*}" ; addrAlias="${addrMarks#*$'\t'}"
+					fi
 					[ -n "$addrAlias" ] || addrAlias="$addrWho"
 					## The handle half of the field, in the two forms the same
 					## field takes. Where the member has a Slack account, both
@@ -2364,10 +2456,16 @@ blocks|verbatim|caller|stdin file"
 						addressedIds="$addressedIds$addrUserId "
 						addrHandleElems="{\"type\":\"text\",\"text\":\" \"},{\"type\":\"user\",\"user_id\":\"$addrUserId\"},"
 					else
-						addrHandleText="@$addrAlias"
-						addrHandleElems="{\"type\":\"text\",\"text\":\" @$addrAlias\"},"
+						## A member with no account of its own: named by its member name among those
+						## whose answer counts (SENT_MESSAGE_ADDRESSEE_MEMBERS), where a reader tells its
+						## reply by the sender recorded on it. Never a client: its account is elsewhere.
+						case "$addrWho" in client-*) ;; *) addressedMembers="$addressedMembers$addrWho " ;; esac
+						## Its alias, where that is another word than its name (AgentsToolsCommsSlackAliasShown).
+						addrHandleText="$( AgentsToolsCommsSlackAliasShown "$addrName" "$addrAlias" )"
+						addrHandleElems=""
+						[ -z "$addrHandleText" ] || addrHandleElems="{\"type\":\"text\",\"text\":\" $addrHandleText\"},"
 					fi
-					addressedText="$addressedText${addrMark:+$addrMark }*_${addrName}_* $addrHandleText"
+					addressedText="$addressedText${addrMark:+$addrMark }*_${addrName}_*${addrHandleText:+ $addrHandleText}"
 					case "$addrMark" in
 						"")	;;
 						:*:)	addressedElems="$addressedElems{\"type\":\"emoji\",\"name\":\"${addrMark//:/}\"},{\"type\":\"text\",\"text\":\" \"}," ;;
@@ -2448,9 +2546,8 @@ blocks|verbatim|caller|stdin file"
 		## so stripping that prefix is what opens the slot. Always shown, no
 		## exception for a member's own "user" identity: a coworking-session
 		## reviewer must not have to know which member happens to hold a
-		## real Slack account. The identity swap below repeats these two
-		## lines, and its own guard keeps a relayed send from taking both
-		## and inserting the sender twice.
+		## real Slack account. The identity swap below changes the token
+		## alone and sends this same payload again.
 		rawText="$fromText$rawText"
 		[ -z "$blocksJson" ] || blocksJson="$headerOpen$fromElems${blocksJson#"$headerOpen"}"
 
@@ -2542,6 +2639,11 @@ blocks|verbatim|caller|stdin file"
 			local floorGating="none" floorText="$sourceText" floorRc=0
 			[ "${MDAT_SEND_FLOOR:-}" != "hold" ] || floorGating="word-cap semicolon paragraph-gate"
 			[ -z "${MDAT_SEND_PROSE_FILE:-}" ] || [ ! -f "$MDAT_SEND_PROSE_FILE" ] || floorText="$( cat "$MDAT_SEND_PROSE_FILE" )"
+			## Held back the same way, and first: a member's own message that carries the retired
+			## marker of a question, `NEEDS REPLY`. A question is asked with a tool that asks,
+			## alone in its own message (AgentsToolsOutputStyleRetiredMarker). Only the marker is
+			## looked for, and a send of the tooling's own is not looked at.
+			[ "${MDAT_SEND_FLOOR:-}" != "hold" ] || printf '%s' "$floorText" | AgentsToolsOutputStyleRetiredMarker || { floorRc=$? ; set +e ; return "$floorRc" ; }
 			printf '%s' "$floorText" | AgentsToolsOutputStyleRefusal "$memberName" "$textGroup" "$target" "$botTokenSource" "$floorGating" || { floorRc=$? ; set +e ; return "$floorRc" ; }
 		fi
 
@@ -2697,6 +2799,15 @@ blocks|verbatim|caller|stdin file"
 					echo "# $MDSC_CMD --member-comms-slack-send-message: permanent verdict under $sendIdentity identity and no recovery applies -- not retried -- $response" >&2
 					break
 				;;
+				## A rate limit is the one answer of Slack that another try can change.
+				*'"error":"ratelimited"'*|*'"error":"rate_limited"'*) ;;
+				## Any other answer of Slack is its verdict on this post: the same post sent again
+				## gets the same answer, so it is said once and never retried.
+				*'"ok":false'*)
+					permanentVerdict="Slack answered and refused it ($( AgentsToolsSlackSendErrorCode ))"
+					echo "# $MDSC_CMD --member-comms-slack-send-message: $permanentVerdict -- not retried, only a rate limit is tried again -- $response" >&2
+					break
+				;;
 			esac
 			echo "# $MDSC_CMD --member-comms-slack-send-message: attempt $attempt/$maxAttempts did not confirm ok:true, retrying in ${backoff}s -- $response" >&2
 			sleep "$backoff"
@@ -2756,6 +2867,7 @@ blocks|verbatim|caller|stdin file"
 			## of their own. Empty is a stated value: a wait cannot qualify an answer
 			## without it, and must say so rather than accept whatever arrives.
 			echo "SENT_MESSAGE_ADDRESSEES=${addressedIds% }" >&2
+			[ -z "$addressedMembers" ] || echo "SENT_MESSAGE_ADDRESSEE_MEMBERS=${addressedMembers% }" >&2
 			AgentsToolsSlackSendLogLine ok "$( [ -n "$updateTs" ] && printf 'edited' || printf 'posted' ) ts=$sentTs"
 			printf '%s\n' "$response"
 			return 0

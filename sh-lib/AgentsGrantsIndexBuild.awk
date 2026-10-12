@@ -7,13 +7,20 @@
 ##   member  <name>                                  every member a `*` row reaches
 ##   place   <name> <kind> <ceiling> <path>          the merged place list
 ##   floor   <read|write> <glob>                     every member's floor
-##   grant   <member:workspace:kind:grant>           every workspace's permissions registry
+##   grant   <member:workspace:kind:grant>           every workspace's permissions registry;
+##                                                   a grant `approve:Edit(/glob)` is a write
+##                                                   by approval: its files are read as a read
+##                                                   grant reads them, and an Edit or a Write
+##                                                   of one is held for the human-owner's
+##                                                   approval (AgentsTools.InternOpChange.include),
+##                                                   ahead of every floor and standing row
 ## Prints the index, one row per line, TAB-separated:
 ##   *        ceiling <path>/** <pattern> <read-only|read-write> <place>   deepest first
-##   <member> <read|write|tool|unresolved> <glob or tool text> <pattern or -> <floor|standing> <note>
+##   <member> <read|write|approve|tool|unresolved> <glob or tool text> <pattern or -> <floor|standing> <note>
 ##   end
-## Fully unrolled: a `*` row is one row per member. A write row on a read-only place is a
-## read row, with one warning; an unresolved row is kept, never matched, with one warning --
+## Fully unrolled: a `*` row is one row per member, and a write by approval is two rows, read
+## and approve. A write row on a read-only place is a read row, with one warning, and so is a
+## write by approval there; an unresolved row is kept, never matched, with one warning --
 ## here for another workspace's row (-v self=<this workspace's name>), its own install having
 ## said it for its own.
 
@@ -53,11 +60,12 @@ $1 == "grant" {
 	if ( kind == "tool" ) { verb = "tool" ; glob = text ; }
 	else if ( kind == "unresolved" ) { verb = "unresolved" ; glob = text ; }
 	else if ( text ~ /^Edit\(\/.*\)$/ ) { verb = "write" ; glob = substr( text, 6, length( text ) - 6 ) ; }
+	else if ( text ~ /^approve:Edit\(\/.*\)$/ ) { verb = "approve" ; glob = substr( text, 14, length( text ) - 14 ) ; }
 	else if ( text ~ /^Read\(\/.*\)$/ ) { verb = "read" ; glob = substr( text, 6, length( text ) - 6 ) ; }
 	else next
-	if ( verb == "read" || verb == "write" ) { sub( /^\/\/+/, "/", glob ) ; glob = resolvedGlob( glob ) ; }
+	if ( verb == "read" || verb == "write" || verb == "approve" ) { sub( /^\/\/+/, "/", glob ) ; glob = resolvedGlob( glob ) ; }
 	note = ws ":" kind
-	if ( verb == "write" && ( p = placeOf( grantsGlobBase( glob ) ) ) && placeCeiling[p] == "read-only" ) {
+	if ( ( verb == "write" || verb == "approve" ) && ( p = placeOf( grantsGlobBase( glob ) ) ) && placeCeiling[p] == "read-only" ) {
 		verb = "read"
 		if ( !( ( who SUBSEP glob ) in cappedSaid ) ) {
 			cappedSaid[who SUBSEP glob] = 1
@@ -104,7 +112,7 @@ function emit( who, verb, glob, from, note,    key ) {
 	key = who SUBSEP verb SUBSEP glob
 	if ( key in emitted ) return
 	emitted[key] = 1
-	print who, verb, glob, ( verb == "read" || verb == "write" ) ? grantsGlobPattern( glob ) : "-", from, note
+	print who, verb, glob, ( verb == "read" || verb == "write" || verb == "approve" ) ? grantsGlobPattern( glob ) : "-", from, note
 }
 
 END {
@@ -125,6 +133,8 @@ END {
 		who = memberOrder[m]
 		for ( g = 1 ; g <= grantCount ; g++ ) {
 			if ( grantWho[g] != who && grantWho[g] != "*" ) continue
+			## A write by approval reads what it may change: its read row, then its approve row.
+			if ( grantVerb[g] == "approve" ) emit( who, "read", grantGlob[g], "standing", grantNote[g] )
 			emit( who, grantVerb[g], grantGlob[g], "standing", grantNote[g] )
 		}
 		for ( f = 1 ; f <= floorCount ; f++ ) emit( who, floorVerb[f], floorGlob[f], "floor", "floor" )

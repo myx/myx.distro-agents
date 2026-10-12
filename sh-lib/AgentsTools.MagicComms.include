@@ -509,19 +509,24 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 	set +e ; return 4
 }
 
-## The coordinator acting as a client-* member acts in that member's own sources, which are the
-## other organisation's: the client side (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include),
-## as it has always reached them, in Slack, by mail and in Trello alike.
-case "$1:${2:-}" in
-	--magic-comms-*:client-*) local -x MDAT_COMMS_SIDE=client ;;
+## A --magic-comms-* operation is our own organisation's side, whoever the member it is given
+## is (MDAT_COMMS_SIDE, AgentsTools.CommsSide.include): the coordinator acting for that member
+## inside our team. Its own name goes with the side (MDAT_COMMS_OP), so where our side holds
+## nothing of a system for a client-* member, the line that says so names the coordinator's own
+## way to the other organisation, --magic-client-operation-run (AgentsToolsCommsOwnSideLine).
+case "$1" in
+	--magic-comms-*) local -x MDAT_COMMS_SIDE=own MDAT_COMMS_OP="$1" ;;
 esac
 
 case "$1" in
 
-	## The coordinator acting as another member where the skillset requires it: a client-*
-	## member's own sources, handled as that member in the communication sweep. The member
-	## form's implementation, behind the dispatcher's --magic-* caller check.
-	--magic-comms-slack-read|--magic-comms-slack-send-message|--magic-comms-slack-react|--magic-comms-email-send|--magic-comms-email-mark-seen)
+	## The coordinator acting for another member inside our own team: the member form's
+	## implementation, on our own organisation's side, behind the dispatcher's --magic-*
+	## caller check. A client-* member's sources in its other organisation are not reached
+	## here: they are its --client-* operations, which the coordinator runs with
+	## --magic-client-operation-run. The Trello comment has no member form: its one
+	## implementation is --intern-op-comms-trello-post-comment (AgentsTools.MemberCommsTrello.include).
+	--magic-comms-slack-read|--magic-comms-slack-send-message|--magic-comms-slack-react|--magic-comms-email-send|--magic-comms-email-mark-seen|--magic-comms-trello-post-comment)
 		## A stub whose implementation is an in-context helper calls it by name.
 		case "$1" in
 			--magic-comms-email-mark-seen)
@@ -541,133 +546,6 @@ case "$1" in
 	--magic-comms-slack-conversations-roster)
 		AgentsToolsCommsSlackConversationsRoster "${@:2}"
 		return $?
-	;;
-
-	--magic-comms-trello-post-comment)
-		shift
-		local callingMember="$1"
-		shift || true
-		local cardId="$1"
-		shift || true
-
-		if [ -z "$callingMember" ] || [ -z "$cardId" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: syntax is <team-member> <card-id> [text...]|--from-stdin|--from-file <path>" >&2
-			set +e ; return 1
-		fi
-
-		AgentsToolsAssertBareName "$callingMember" "<team-member>" magic-comms-trello-post-comment || { set +e ; return 1 ; }
-		case "$callingMember" in
-			routine-*)
-			;;
-			*)
-				if [ ! -d "$MDAT_SKILLSET_ROOT/$callingMember" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: no such member skill directory: $MDAT_SKILLSET_ROOT/$callingMember" >&2
-					set +e ; return 1
-				fi
-			;;
-		esac
-
-		if [ -z "$cardId" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must not be empty -- it must be a Trello card id: the 24-character hex id, or the short link from the card URL" >&2
-			set +e ; return 1
-		fi
-		local cardIdRest="$cardId" cardIdChar
-		while [ -n "$cardIdRest" ] ; do
-			cardIdChar="${cardIdRest%"${cardIdRest#?}"}"
-			cardIdRest="${cardIdRest#?}"
-			case "$cardIdChar" in
-				a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z) ;;
-				A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z) ;;
-				0|1|2|3|4|5|6|7|8|9) ;;
-				*)
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: <card-id> must be a Trello card id -- letters and digits only, no '/', '?', '#', '.', '-' or whitespace; the value goes into the request path, so it is refused, never repaired: $cardId" >&2
-					set +e ; return 1
-				;;
-			esac
-		done
-
-		local bodyMode="args" bodyText fromFilePath
-		case "$1" in
-			--from-stdin)
-				bodyMode="stdin"
-				shift
-				[ $# -eq 0 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-stdin takes no trailing arguments" >&2
-					set +e ; return 1
-				}
-			;;
-			--from-file)
-				bodyMode="file"
-				fromFilePath="$2"
-				shift 2 || true
-				if [ -z "$fromFilePath" ] || [ ! -f "$fromFilePath" ] ; then
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file requires an existing file" >&2
-					set +e ; return 1
-				fi
-				[ $# -eq 0 ] || {
-					echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: --from-file takes no trailing arguments" >&2
-					set +e ; return 1
-				}
-			;;
-		esac
-
-		case "$bodyMode" in
-			stdin)
-				bodyText="$( cat )"
-				## Measured, never refused: this posts to a counterparty's board.
-				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OutputStyle.include"
-				printf '%s' "$bodyText" | AgentsToolsOutputStyleRefusal "$callingMember" "" "trello comment" "" none || :
-			;;
-			file)
-				bodyText="$( cat "$fromFilePath" )"
-			;;
-			args)
-				bodyText="$*"
-			;;
-		esac
-
-		if [ -z "$bodyText" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: empty comment text" >&2
-			set +e ; return 1
-		fi
-
-		local trelloKey trelloToken
-		trelloKey="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_KEY )"
-		trelloToken="$( DistroAgentsTools --agents-config-option "$callingMember" --select TRELLO_TOKEN )"
-		if [ -z "$trelloKey" ] || [ -z "$trelloToken" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN not fully set in ${callingMember}'s own scope in .local/.agents" >&2
-			set +e ; return 1
-		fi
-		local trelloNewline=$'\n'
-		case "$trelloKey$trelloToken" in
-			*"$trelloNewline"*)
-				echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: TRELLO_KEY/TRELLO_TOKEN in ${callingMember}'s own scope in .local/.agents contains a newline -- a Trello credential never legitimately does, so the config is corrupted; the value is NOT stripped or repaired here, since a newline breaks out of the header into a second curl config line and silently hiding a corrupted credential is worse than failing" >&2
-				set +e ; return 1
-			;;
-		esac
-
-		local trelloKeyEsc trelloTokenEsc
-		trelloKeyEsc="${trelloKey//\\/\\\\}"
-		trelloKeyEsc="${trelloKeyEsc//\"/\\\"}"
-		trelloTokenEsc="${trelloToken//\\/\\\\}"
-		trelloTokenEsc="${trelloTokenEsc//\"/\\\"}"
-		echo "# $MDSC_CMD --magic-comms-trello-post-comment: posting comment to card=$cardId" >&2
-		local trelloRc=0
-		## The text travels in a file, never argv, which a long one outgrows; stdin is the header's.
-		(
-			mkdir -p "$MMDAPP/.local/temp" && textFile="$( mktemp "$MMDAPP/.local/temp/mdat-trello-comment.XXXXXX" )" || exit 1
-			trap 'rm -f "$textFile"' EXIT
-			printf '%s' "$bodyText" > "$textFile" || exit 1
-			printf 'header = "Authorization: OAuth oauth_consumer_key=\\"%s\\", oauth_token=\\"%s\\""\n' \
-				"$trelloKeyEsc" "$trelloTokenEsc" \
-				| curl -sS --connect-timeout 10 --max-time 120 --fail-with-body -K - -X POST "https://api.trello.com/1/cards/${cardId}/actions/comments" \
-					--data-urlencode "text@$textFile"
-		) || trelloRc=$?
-		if [ "$trelloRc" -ne 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --magic-comms-trello-post-comment: posting the comment to card=$cardId failed (curl rc=$trelloRc) -- the comment was NOT posted; curl's own error is on the line above" >&2
-			set +e ; return "$trelloRc"
-		fi
-		return 0
 	;;
 
 	--magic-comms-jira-board-list)

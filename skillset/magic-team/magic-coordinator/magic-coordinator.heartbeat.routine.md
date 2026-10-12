@@ -74,7 +74,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 # Closure steps
 
 1. **close-state-and-unlock**: Release the lock with `--magic-heartbeat-close-state-and-unlock`. Reached only after **run-advance** finished.
-2. **conclude-event-track-thread**: React ✅ on the pass's session thread root (`--member-comms-slack-react`).
+2. **conclude-event-track-thread**: React ✅ on the pass's tracking thread root (`--member-comms-slack-react`).
 3. **report-status-to-spawner**: Report the pass status, advance's outcome included, to the spawner, then hand back and end: the host loop is blocked on this pass (`magic-team.armed.md`'s **wait-never-quit** exception).
 
 # Routine's local procedures
@@ -99,9 +99,9 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- This routine extends `magic-team.coworking.routine`, with these overrides: the pass's session thread is the `event-track` thread the tooling opened for it; **fold-in-learned-lessons** does not run; the opening and closing groups reduce to posting into that thread and **conclude-event-track-thread**.
-- Post a short progress line into the session thread after each step. Something the human-owner must act on goes per `magic-team.shared.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
-- Between steps, read what spawned sessions sent. Assess each, dispatch any real work through `spawn-one-dispatch`, and record the outcome in the session thread.
+- This routine extends `magic-team.coworking.routine`, with these overrides: while the pass runs alone it has a tracking thread in `event-track`, never a session thread; the first member it brings in opens the session thread in `magic-team`, addressed to that member; **fold-in-learned-lessons** does not run; the opening and closing groups reduce to posting into the tracking thread and **conclude-event-track-thread**.
+- Post a short progress line into the tracking thread after each step. Something the human-owner must act on goes per `magic-team.shared.md`'s "Anything needing the human-owner to act reaches him on his own direct channel".
+- Between steps, read what spawned sessions sent. Assess each, dispatch any real work through `spawn-one-dispatch`, and record the outcome in the tracking thread.
 - Running unattended, every caution rule applies at full strength: no unilateral epics, the per-platform send rules, no manufactured work.
 - A real pass follows existing instructions and operations, one plain call at a time. A better approach that occurs mid-pass is filed as an idea, never built inline. Testing and investigation sessions are exempt.
 - New work found mid-pass is filed into an inbox or the board queue. Only the human-owner's live override in answer to an active blocker skips the queue.

@@ -553,25 +553,25 @@ rigSetId="$( rigSetAsk dispatch-rig-set --entry "Write:$rigWs/SETP/**" --entry "
 [ -n "$rigSetId" ] || rigRefuse "the rig's permission set request asked nothing: $( head -2 "$rigTmp/op.err" )"
 rigSetBody "$rigSetId" > "$rigTmp/set.body"
 rigAssert "five tools on one place are one line, two places two lines each with its own tools in one fixed order, and a target in no place keeps its path" \
-	"$( LC_ALL=C awk '$0 == "**➕ Asked for**" { on = 1 ; next ; } on && /^$/ { exit ; } on && /^- / { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
+	"$( LC_ALL=C awk '$0 == "**🔑 Asked for**" { on = 1 ; next ; } on && /^$/ { exit ; } on && /^- / { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
 	'- `rig-ws:SETP/**` — Read, Grep, Glob, Edit, Write|- `rig-ws:SETQ/**` — Read, Write|- `/nowhere/rig-set/**` — Read|'
 rigAssert "each purpose is right under its place, first after the question, and a place with none has no such line" \
 	"$( sed -n '3,10p' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
-	'May the participants have these, for this task only?||**➕ Asked for**|- `rig-ws:SETP/**` — Read, Grep, Glob, Edit, Write|  - need to read some files|- `rig-ws:SETQ/**` — Read, Write|  - want to update vars there|- `/nowhere/rig-set/**` — Read|'
+	'May the participants have these, for this task only?||**🔑 Asked for**|- `rig-ws:SETP/**` — Read, Grep, Glob, Edit, Write|  - need to read some files|- `rig-ws:SETQ/**` — Read, Write|  - want to update vars there|- `/nowhere/rig-set/**` — Read|'
 rigAssert "what is held is grouped the same way, with its holder" \
 	"$( LC_ALL=C awk '$0 == "**✅ Already held, passed on by the holder**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" '- `rig-ws:DEV/held/**` — Edit (magic-developer)|'
 rigAssert "no absolute path of the place is anywhere in the post, no separate list of places, and no line is written twice" \
 	"$( LC_ALL=C grep -c -F "$rigWs" "$rigTmp/set.body" ):$( LC_ALL=C grep -c -e 'Places' -e ' is rig-ws:' "$rigTmp/set.body" ):$( LC_ALL=C grep . "$rigTmp/set.body" | LC_ALL=C sort | LC_ALL=C uniq -d | LC_ALL=C grep -c . )" "0:0:0"
 rigAssert "with a purpose given the task is its title with both names, and no longer text" \
 	"$( LC_ALL=C awk '$0 == "**🗂 Task**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" 'Fix the vars loader|`task-rig-set` · `dispatch-rig-set`|'
-rigAssert "the session: its short id, its thread, and what the spawn that started it said it is for" \
-	"$( LC_ALL=C awk '$0 == "**🧵 Session**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" )" '`rig-set` · `CRIG00001:1700000000.000500` — rework the vars loader'
+rigAssert "the session: what the spawn that started it said it is for, first, then its short id and its thread" \
+	"$( LC_ALL=C awk '$0 == "**🧵 Session**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" )" 'rework the vars loader · `rig-set` · `CRIG00001:1700000000.000500`'
 rigAssert "each participant with the host its spawn runs on and what it was brought in for" \
 	"$( LC_ALL=C awk '$0 == "**👥 Participants**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )" \
 	"- magic-coordinator · host rig-host-a — rework the vars loader|- magic-developer · host $rigHost — change the loader code|- magic-tester · host rig-host-c — check it against the samples|"
 rigAssert "who asks and where, and how to answer, said once with whom an allow reaches" \
 	"$( LC_ALL=C awk '$0 == "**🙋 Asked by**" { on = 1 ; next ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
-	"magic-coordinator · $rigSetHost / ${rigWs##*/}||Click ❌ to deny, or 🔓 to allow the set. An allow gives these to every participant listed.|Or reply with the first word: allow-set, deny, or edit followed by the change.|"
+	"magic-coordinator · $rigSetHost / ${rigWs##*/}||**✅ How to answer**|- click ❌ to deny, or 🔓 to allow the set: an allow gives these to every participant listed|- or reply \`allow-set\`, \`deny\`, or \`edit:\` followed by the change|- the word first; a comment after a comma, or on the next lines|"
 rigAssert "the post that went out is that body, to the human-owner" \
 	"$( LC_ALL=C grep -l -F 'rig-ws:SETP/**' "$rigTmp"/post.[0-9]* 2>/dev/null | LC_ALL=C awk 'END { print NR }' ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" kind ):$( rigField "$rigWs/.local/agents/pending/$rigSetId.md" address-to )" "1:permission-set:human-owner"
 rigAssert "the record keeps every entry exactly as asked, with its exact target, and each purpose with its place" \
@@ -589,7 +589,7 @@ rigAssert "with no purpose the task shows its title, both names and its first pa
 	"$( LC_ALL=C awk '$0 == "**🗂 Task**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" | LC_ALL=C tr '\n' '|' )" \
 	'Fix the vars loader|`task-rig-set` · `dispatch-rig-set`|The loader drops a variable whose value holds an equals sign. It must keep the whole value! Add a check for it. Then run the suite?|'
 rigAssert "and it still says the session, the participants with their hosts, who asks and the scope" \
-	"$( LC_ALL=C grep -c -e '^`rig-set` · ' -e ' · host rig-host-c' -e "^magic-coordinator · $rigSetHost / " -e 'for this task only' "$rigTmp/set.body" )" 4
+	"$( LC_ALL=C grep -c -e '`rig-set` · ' -e ' · host rig-host-c' -e "^magic-coordinator · $rigSetHost / " -e 'for this task only' "$rigTmp/set.body" )" 4
 ## A description the spawner gave for the dispatch leads that longer text.
 printf -- '---\nstatus: dispatch-started\nowner: magic-developer\nsession-id: rig-set\ntracks: task-rig-set\ndescription: bring the loader in line with the vars file\n---\n\n# Spawn-proxy dispatch: magic-developer\n\n## Brief\n\nthe brief of the dispatch.\n' \
 	> "$rigData/board/running/dispatch-rig-set.md"
@@ -612,7 +612,7 @@ printf 'SLACK_WORKSPACE_DOMAIN=rig-team.slack.com\n' >> "$rigWs/.local/.agents/m
 rigSetId="$( rigSetAsk dispatch-rig-set --entry "Read:$rigWs/SETT/**" --scope task --session-id rig-set "${rigSetThree[@]}" )"
 rigSetBody "$rigSetId" > "$rigTmp/set.body"
 rigAssert "the session's thread is a link where the workspace's address is configured" \
-	"$( LC_ALL=C awk '$0 == "**🧵 Session**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" )" '`rig-set` · [thread](https://rig-team.slack.com/archives/CRIG00001/p1700000000000500) — rework the vars loader'
+	"$( LC_ALL=C awk '$0 == "**🧵 Session**" { on = 1 ; next ; } on && /^$/ { exit ; } on { print ; }' "$rigTmp/set.body" )" 'rework the vars loader · `rig-set` · [thread](https://rig-team.slack.com/archives/CRIG00001/p1700000000000500)'
 RIG_OP_AGENT=magic-coordinator RIG_OP_SESSION=rig-coord
 rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --purpose 'a purpose with no entry before it' --entry "Read:$rigWs/SETU/**" --scope task --session-id rig-set
 RIG_OP_AGENT="" RIG_OP_SESSION=""
@@ -640,7 +640,7 @@ rigSetFileC="$rigWs/.local/agents/pending/$rigSetIdC.md"
 rigAssert "the two click answers are placed under the prompt, the cross then the unlock" \
 	"$( LC_ALL=C awk -v want="$( rigField "$rigSetFileC" question-ts )" -v before="${rigSetReacted:-0}" 'NR > before && $1 == want { printf "%s ", $2 ; }' "$rigTmp/reactions" 2>/dev/null )" "x unlock "
 rigAssert "and the post names them, with the typed answers" \
-	"$( rigSetBody "$rigSetIdC" | LC_ALL=C grep -c -x -F -e 'Click ❌ to deny, or 🔓 to allow the set. An allow gives these to every participant listed.' -e 'Or reply with the first word: allow-set, deny, or edit followed by the change.' )" 2
+	"$( rigSetBody "$rigSetIdC" | LC_ALL=C grep -c -x -F -e '- click ❌ to deny, or 🔓 to allow the set: an allow gives these to every participant listed' -e '- or reply `allow-set`, `deny`, or `edit:` followed by the change' )" 2
 rigSetThread "$rigSetIdC" "$( rigSetClick x '"URIGBOT9"' ),$( rigSetClick unlock '"URIGBOT9"' ),$( rigSetClick +1 '"URIGOWNER"' ),$( rigSetClick ok '"URIGOWNER"' )"
 rigSetRead "$rigSetIdC"
 rigAssert "the emoji the tooling placed, a thumbs up and an ok grant nothing: the set stays open" \
@@ -739,8 +739,8 @@ rigAssert "one entry naming three tools for one target is three entries on the r
 	"$( LC_ALL=C grep '^entry: ' "$rigWs/.local/agents/pending/$rigSetIdZ.set" 2>/dev/null | LC_ALL=C tr '\n' '|' )" "entry: Write:$rigWs/SETZ/**|entry: Read:$rigWs/SETZ/**|entry: Glob:$rigWs/SETZ/**|"
 rigSetPosts="$( rigCalls chat.postMessage )" ; rigSetRc=0
 rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Read,Everything:$rigWs/SETZ2/**" --scope task --session-id rig-set --participant magic-tester || rigSetRc=$?
-rigAssert "a list naming a tool the operation does not know is a correction, never a refusal: nothing is asked, and no word means every tool" \
-	"$rigSetRc:$( LC_ALL=C grep -c "^CORRECTION: .*nothing was asked. The entry 'Read,Everything:$rigWs/SETZ2/\*\*' lists a tool this operation does not know: 'Everything'" "$rigTmp/op.err" ):$( LC_ALL=C grep -c -i -e 'refused' -e 'denied' "$rigTmp/op.err" ):$(( $( rigCalls chat.postMessage ) - rigSetPosts )):$( LC_ALL=C grep -c '^PERMISSION-SET: ' "$rigTmp/op.out" )" "6:1:0:0:0"
+rigAssert "a list naming a tool the permission model does not know is a correction, never a refusal: nothing is asked, and no word means every tool" \
+	"$rigSetRc:$( LC_ALL=C grep -c "^CORRECTION: .*nothing was asked. The entry 'Read,Everything:$rigWs/SETZ2/\*\*' names a tool the permission model does not know: 'Everything'" "$rigTmp/op.err" ):$( LC_ALL=C grep -c -i -e 'refused' -e 'denied' "$rigTmp/op.err" ):$(( $( rigCalls chat.postMessage ) - rigSetPosts )):$( LC_ALL=C grep -c '^PERMISSION-SET: ' "$rigTmp/op.out" )" "6:1:0:0:0"
 rigOp --magic-permission-set-request magic-coordinator dispatch-rig-set --entry "Edit:$rigWs/DEV/held2/**" --scope task --session-id rig-set "${rigSetThree[@]}"
 rigAssert "control: an entry a participant with a live run holds is held, and nothing is asked" \
 	"$( rigHas "$rigTmp/op.out" "HELD: Edit:$rigWs/DEV/held2/** by magic-developer standing" ):$( rigHas "$rigTmp/op.out" 'PERMISSION-SET: held' )" "yes:yes"

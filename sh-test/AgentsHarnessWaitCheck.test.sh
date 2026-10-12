@@ -408,6 +408,34 @@ rigAssert "no request left this box"                     "$( rigCurlCalls )" 0
 rigVerdict "the --wait-since-utime baseline -- named returns what is there, omitted waits for a change"
 
 ## ---------------------------------------------------------------------------
+## 5b. A floor ahead of the present. A floor is a moment that has passed: nothing at or
+##     before it counts, so a wait from a later one returns on nothing until that moment
+##     comes, whatever arrives meanwhile. A member's Wait given an epoch ten days ahead
+##     sat deaf in its session thread while three messages addressed to it were posted
+##     there. Refused at second zero, the floor and the present both named. Its controls
+##     share the same 600-second bound and answer the other way: the present itself, and a
+##     floor a minute ahead, which is another clock's "now" -- the ts of a message just posted.
+## ---------------------------------------------------------------------------
+rigDropF="$rigTmp/dropF.txt"
+printf 'RIG-PRESENT-MARKER\n' > "$rigDropF"
+rigFloorNow="$( date +%s )"
+rigFloorAhead=$(( rigFloorNow + 864000 ))
+rigOp since-ahead "$rigMember" --wait-source "file:$rigDropF" --wait-since-utime "$rigFloorAhead" --wait-timeout 600 --wait-poll-interval 1
+rigAssert "ahead: the marker line opens stdout"            "$( rigMarker "$rigOpOut" )" "WAIT-RESULT: ERROR"
+rigAssert "ahead: a wait that could not run returns 1"     "$rigOpStatus" 1
+rigAssert "ahead: refused at second zero, not at the bound" "$( rigWithin "$rigOpElapsed" 10 )" "within-10"
+rigAssert "ahead: the diagnostic names the floor it was given, and says where it stands" "$( rigHolds "$rigOpErr" "--wait-since-utime: $rigFloorAhead is ahead of the present" )" yes
+rigAssert "ahead: nothing was reported as waited on"       "$( rigHolds "$rigOpOut" '# waited:' )" no
+rigOp since-ahead-ts "$rigMember" --wait-source "file:$rigDropF" --wait-since-utime "$rigFloorAhead.000100" --wait-timeout 600 --wait-poll-interval 1
+rigAssert "ahead: a message ts ahead of the present is refused the same way" "$( rigMarker "$rigOpOut" ) $rigOpStatus $( rigWithin "$rigOpElapsed" 10 )" "WAIT-RESULT: ERROR 1 within-10"
+rigOp since-present "$rigMember" --wait-source "file:$rigDropF" --wait-since-utime "$rigFloorNow" --wait-timeout 600 --wait-poll-interval 1
+rigAssert "control: the present is a floor, and what is there returns at once" "$( rigMarker "$rigOpOut" ) $rigOpStatus $( rigWithin "$rigOpElapsed" 10 )" "WAIT-RESULT: RECEIVED 0 within-10"
+rigOp since-other-clock "$rigMember" --wait-source "file:$rigDropF" --wait-since-utime "$(( $( date +%s ) + 60 )).000100" --wait-timeout 600 --wait-poll-interval 1
+rigAssert "control: a ts a minute ahead, another clock's now, is a floor too" "$( rigMarker "$rigOpOut" ) $rigOpStatus $( rigWithin "$rigOpElapsed" 10 )" "WAIT-RESULT: RECEIVED 0 within-10"
+rigAssert "no request left this box"                       "$( rigCurlCalls )" 0
+rigVerdict "a floor ahead of the present -- ERROR at second zero, rc 1, and the present is its control"
+
+## ---------------------------------------------------------------------------
 ## 6. The listing reports what this build actually carries. Counted against the
 ##    adapter functions DEFINED IN THE SOURCE rather than against the list the
 ##    operation prints from: a check reading the same variable the subject prints
@@ -1486,9 +1514,15 @@ rigAssert "a RECEIVED names the continue call as its next step" "$( rigHolds "$r
 rigAssert "control: not the TIMEOUT wording"                   "$( rigHolds "$rigScenarioDir/result" 'NEXT: nothing new yet' )" no
 rigVerdict "the Wait tool's RECEIVED ends with the NEXT: line naming mode=continue"
 
-## A Wait with no timeout in our own harness is NOT capped: it reaches the operation with
-## no --wait-timeout at all, so it returns on the arrival and names no bound.
+## A Wait with no timeout in our own harness names no bound of its own: it reaches the
+## operation with no --wait-timeout at all and returns on the arrival. The operation holds
+## the wait of a session to the round of the CLI service it runs on, a little under that
+## service's prompt cache (AgentsTools.CliService.include), and to no other cap. Which
+## service that is depends on where this check runs, so the scenario's workspace names its
+## own round, the one setting that overrides every service's (WAIT_ROUND_SECONDS).
 rigStart tool-no-timeout
+mkdir -p "$rigScenarioDir/.local/.agents"
+printf 'WAIT_ROUND_SECONDS=900\n' > "$rigScenarioDir/.local/.agents/magic-team.agent.env"
 rigDropNT="$rigScenarioDir/dropNT.txt"
 : > "$rigDropNT"
 rigWaitModeStream "$rigScenarioDir/res.1" "file:$rigDropNT" "" default
@@ -1498,8 +1532,8 @@ MDAT_WAIT_POLL_SECONDS=1 rigRun --agent "$rigMember"
 rigDropDone
 rigToolResult "$rigScenarioDir/req.2" "$rigScenarioDir/result"
 rigAssert "no timeout: the model is shown RECEIVED"            "$( rigPrefix "$rigScenarioDir/result" 'WAIT-RESULT: RECEIVED' )" yes
-rigAssert "no timeout: the wait ran with no bound, no 300s cap" "$( rigHolds "$rigScenarioDir/result" 's of no bound' )" yes
-rigVerdict "the harness Wait with no timeout waits until something arrives"
+rigAssert "no timeout: the wait ran under the round of its workspace alone, no 300s cap" "$( rigHolds "$rigScenarioDir/result" 's of 900s bound' )" yes
+rigVerdict "the harness Wait with no timeout waits until something arrives, or its round is over"
 
 rigStart tool-mode-omitted
 rigDropU="$rigScenarioDir/dropU.txt"

@@ -138,6 +138,15 @@ function dateFallbacks(textValue,   outText, tokenText, barAt) {
 ## a reply there in another's name -- an owner's verdict on a permission -- and an asker could
 ## in its own question's words. Such a line is printed one space in, where no reader takes
 ## it for a head; nothing else of the text changes.
+## A text that itself STARTS as one of this formatter's own annotations is printed one
+## space in. A reader tells who sent a post, and what was clicked under it, by the
+## annotation that stands ahead of the text -- AgentsSlackThreadAnswers.awk takes the
+## answer of a member with no account of its own by `[sender: X]` -- so that place holds
+## the formatter's word only, never what somebody typed.
+function ownStart(textValue) {
+	return (textValue ~ /^\[(sender|reactions|thread): /) ? " " textValue : textValue
+}
+
 function ownLines(textValue,   outText) {
 	outText = ""
 	while (match(textValue, /\n[0-9]+\.[0-9]+ \| /)) {
@@ -316,6 +325,6 @@ END {
 				replyCountOf[i], (i in latestReplyOf ? latestReplyOf[i] : "?"))
 		}
 
-		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownLines(dateFallbacks(textOf[i])))
+		print sprintf("%s | %s |%s %s", tsOf[i], (i in userOf ? userOf[i] : "?"), annotations, ownStart(ownLines(dateFallbacks(textOf[i]))))
 	}
 }

@@ -204,8 +204,10 @@ rigAssert "and none in its record"                        "$( LC_ALL=C grep -c '
 rigOwnReplies ',{"ts":"1700000001.000102","user":"URIGSELF1","text":"follow-up","thread_ts":"1700000001.000101"},{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, only that one","thread_ts":"1700000001.000101"}'
 rigAsk wait2 20 "{\"pending_id\":\"$rigFollowUp\"}"
 rigAssert "the answer in the thread answers the follow-up" "$( head -1 "$rigScenarioDir/wait2" )" "ASK-RESULT: RECEIVED"
-rigAsk wait1 20 "{\"pending_id\":\"$rigFollowRoot\"}"
-rigAssert "and the question it follows up"                "$( head -1 "$rigScenarioDir/wait1" )" "ASK-RESULT: RECEIVED"
+## A wait of a session returns on every update of interest to that session: the wait for the
+## follow-up takes that answer for the question it follows up too, said as what else arrived.
+rigAssert "and the question it follows up, in the same wait" \
+	"$( rigHolds "$rigScenarioDir/wait2" 'ALSO-ARRIVED: ' ):$( rigHolds "$rigScenarioDir/wait2" "# --- pending reply $rigFollowRoot, as the asking call would take it ---" ):$( rigStatus "$rigFollowRoot" )" "yes:yes:reply-received"
 
 echo "-- two questions to the same person in a thread the asker named: both inside it --"
 rigTwoOpen named "$rigToNamed"
@@ -219,20 +221,20 @@ rigAssert "Q2's record carries its number"                "$( LC_ALL=C grep -c '
 echo "-- two open in the named thread: a reaction on Q2 answers Q2 only --"
 rigTwoOpen reaction "$rigToNamed"
 rigReplies ',"reactions":[{"name":"white_check_mark","count":1,"users":["URIGOWNER"]}]' ""
-rigAsk wait1 6 "{\"pending_id\":\"$rigQ1Id\"}"
-rigAssert "Q1 is still waited on"                         "$rigKilled" yes
-rigAsk wait2 20 "{\"pending_id\":\"$rigQ2Id\"}"
-rigAssert "Q2 is answered"                                "$( head -1 "$rigScenarioDir/wait2" )" "ASK-RESULT: RECEIVED"
+## The call that waits for Q1 returns on it, as on every update of interest to its session:
+## taken for Q2, never for Q1.
+rigAsk wait1 20 "{\"pending_id\":\"$rigQ1Id\"}"
+rigAssert "Q1 is not answered by it: its call returns on it as something else" "$rigKilled:$( head -1 "$rigScenarioDir/wait1" )" "no:ASK-RESULT: ARRIVED-OTHER"
+rigAssert "Q2 is answered"                                "$( rigHolds "$rigScenarioDir/wait1" "# --- pending reply $rigQ2Id, as the asking call would take it ---" ):$( LC_ALL=C grep -c -x 'ASK-RESULT: RECEIVED' "$rigScenarioDir/wait1" )" "yes:1"
 rigAssert "Q2's record closes"                            "$( rigStatus "$rigQ2Id" )" reply-received
 rigAssert "Q1's stays open"                               "$( rigStatus "$rigQ1Id" )" reply-pending
 
 echo "-- two open in the named thread: a reply tagged Q1 answers Q1 only --"
 rigTwoOpen tagged "$rigToNamed"
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Q1: yes","thread_ts":"1700000001.000100"}'
-rigAsk wait2 6 "{\"pending_id\":\"$rigQ2Id\"}"
-rigAssert "Q2 is still waited on"                         "$rigKilled" yes
-rigAsk wait1 20 "{\"pending_id\":\"$rigQ1Id\"}"
-rigAssert "Q1 is answered"                                "$( head -1 "$rigScenarioDir/wait1" )" "ASK-RESULT: RECEIVED"
+rigAsk wait2 20 "{\"pending_id\":\"$rigQ2Id\"}"
+rigAssert "Q2 is not answered by it: its call returns on it as something else" "$rigKilled:$( head -1 "$rigScenarioDir/wait2" )" "no:ASK-RESULT: ARRIVED-OTHER"
+rigAssert "Q1 is answered"                                "$( rigHolds "$rigScenarioDir/wait2" "# --- pending reply $rigQ1Id, as the asking call would take it ---" ):$( LC_ALL=C grep -c -x 'ASK-RESULT: RECEIVED' "$rigScenarioDir/wait2" )" "yes:1"
 rigAssert "Q1's record closes"                            "$( rigStatus "$rigQ1Id" )" reply-received
 rigAssert "Q2's stays open"                               "$( rigStatus "$rigQ2Id" )" reply-pending
 rigAssert ":eyes: on the reply the wait took"             "$( LC_ALL=C grep -c -x -F '1700000001.000200 eyes' "$rigScenarioDir/reactions" 2>/dev/null )" 1
@@ -242,12 +244,11 @@ rigAssert "none on the named thread root, not ours"       "$( LC_ALL=C grep -c -
 echo "-- two open in the named thread: a plain reply answers the latest question above it, Q2 only --"
 rigTwoOpen untagged "$rigToNamed"
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes","thread_ts":"1700000001.000100"}'
-rigAsk wait1 6 "{\"pending_id\":\"$rigQ1Id\"}"
-rigAssert "Q1 is still waited on"                         "$rigKilled" yes
+rigAsk wait1 20 "{\"pending_id\":\"$rigQ1Id\"}"
+rigAssert "Q1 is not answered by it: its call returns on it as something else" "$rigKilled:$( head -1 "$rigScenarioDir/wait1" )" "no:ASK-RESULT: ARRIVED-OTHER"
 rigAssert "and its record stays open"                     "$( rigStatus "$rigQ1Id" )" reply-pending
-rigAsk wait2 20 "{\"pending_id\":\"$rigQ2Id\"}"
-rigAssert "Q2 is answered"                                "$( head -1 "$rigScenarioDir/wait2" )" "ASK-RESULT: RECEIVED"
-rigAssert "with no verdict line"                          "$( LC_ALL=C grep -c '^VERDICT: ' "$rigScenarioDir/wait2" )" 0
+rigAssert "Q2 is answered"                                "$( rigHolds "$rigScenarioDir/wait1" "# --- pending reply $rigQ2Id, as the asking call would take it ---" ):$( LC_ALL=C grep -c -x 'ASK-RESULT: RECEIVED' "$rigScenarioDir/wait1" )" "yes:1"
+rigAssert "with no verdict line"                          "$( LC_ALL=C grep -c '^VERDICT: ' "$rigScenarioDir/wait1" )" 0
 rigAssert "and its record closes"                         "$( rigStatus "$rigQ2Id" )" reply-received
 
 echo "-- Q2 answered: that same reply still does not answer Q1 --"
@@ -284,8 +285,10 @@ rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Q1: yes","t
 rigAsk wait1 20 "{\"pending_id\":\"$rigQ1Id\"}"
 rigAssert "Q1 is answered and closed"                     "$( rigStatus "$rigQ1Id" )" reply-received
 rigReplies "" ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"Q1: yes","thread_ts":"1700000001.000100"},{"ts":"1700000001.000300","user":"URIGOWNER","text":"Q1 actually no","thread_ts":"1700000001.000100"}'
-rigAsk wait2 6 "{\"pending_id\":\"$rigQ2Id\"}"
-rigAssert "Q2 is still waited on"                         "$rigKilled" yes
+## It is a later word on Q1's answer, of interest to the session that asked Q1: the call that
+## waits for Q2 returns on it as that, and Q2 is not answered.
+rigAsk wait2 20 "{\"pending_id\":\"$rigQ2Id\"}"
+rigAssert "Q2 is not answered by it: its call returns on it as a later word on Q1's answer" "$rigKilled:$( head -1 "$rigScenarioDir/wait2" ):$( LC_ALL=C grep -c -x 'ASK-RESULT: CLARIFIED' "$rigScenarioDir/wait2" )" "no:ASK-RESULT: ARRIVED-OTHER:1"
 rigAssert "and stays open"                                "$( rigStatus "$rigQ2Id" )" reply-pending
 
 echo "-- control: a different party in the named thread is numbered on its own --"

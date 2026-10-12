@@ -5,7 +5,7 @@ maintainers: [magic-coordinator, magic-librarian, magic-architect, keeper-myx, h
 
 Normative contract: this file's own `# Contract` section, at its end. Where it and the rest of this file disagree, `# Contract` wins.
 
-Not a member/routine contract — this is the fixed text of every post the tooling makes to track a session: the posts in a coworking session's event-track thread, which every participant of the session posts into, and the tooling's own status notes in a session thread. `--intern-op-event-track-post` fills its slots and posts it. A member's own message never uses it.
+Not a member/routine contract — this is the fixed text of every post the tooling makes to track a session: the posts in a coworking session's event-track thread, which every participant of the session posts into, and nowhere else. What a participant must be told in a session thread is a message, with a template of its own (`tooling-note.post.format.md`, `# Session`). `--intern-op-event-track-post` fills its slots and posts it. A member's own message never uses it.
 
 ## Contents
 
@@ -320,31 +320,31 @@ One line per operation, chosen as `# Contract` says.
 ## AskQuestion
 
 ```
-❔ [[{{comment}} — ]]AskQuestion[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+❓ [[{{comment}} — ]]AskQuestion[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
 ## ConfirmReadback
 
 ```
-❔ [[{{comment}} — ]]ConfirmReadback[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+❓ [[{{comment}} — ]]ConfirmReadback[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
 ## EscalateDecision
 
 ```
-❔ [[{{comment}} — ]]EscalateDecision[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+❓ [[{{comment}} — ]]EscalateDecision[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
 ## RequestPermission
 
 ```
-❔ [[{{comment}} — ]]RequestPermission[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+❓ [[{{comment}} — ]]RequestPermission[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
 ## ProposeApprove
 
 ```
-❔ [[{{comment}} — ]]ProposeApprove[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
+❓ [[{{comment}} — ]]ProposeApprove[[ → *{{to}}*]][[ · {{kind}}]][[: "{{question}}"]]
 ```
 
 ## Agent
