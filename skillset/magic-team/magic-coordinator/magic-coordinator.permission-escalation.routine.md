@@ -47,7 +47,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 1. **read-input-scan**: Run `--magic-permission-escalation-input-scan magic-coordinator`. `(none)`: nothing else runs.
 2. **decide-each-ask**: For each ask listed, oldest first, one of:
    - rule: an ask of another workspace is answered there: the `execute` tool's `workspace` argument, set to its `workspace:` line.
-   - rule: the narrowest verdict the task needs: `allow-once`, else `allow-session`, else `allow-folder` where the ask offers it and the task works in that folder, else `allow-task`, which needs an `item:`.
+   - rule: the narrowest verdict the task needs: `allow-once`, else `allow-session`, else `allow-folder` where the ask offers it and the task works in that folder, else `allow-project` where the ask offers it and the task works across that project, else `allow-task`, which needs an `item:`.
    - rule: a second single-call ask from the same session for the same task, once the owner has answered its first, is denied, with the order to ask once with `entries` instead.
    - **grant**: the task needs it: `--magic-escalation-answer magic-coordinator <id> <verdict> [text]`. Where `magic-coordinator` does not hold the refused call, tooling re-addresses it itself: to a holder running in this coworking session, else to the human-owner, each time with a `NOTE:` line saying why. That reply is the verdict.
    - **deny**: the task does not need it, or another route serves it (a listed set-request, the session sandbox `output/`): `--magic-escalation-answer magic-coordinator <id> deny <why, and the route>`.

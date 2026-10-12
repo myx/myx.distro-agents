@@ -21,9 +21,11 @@ Not a member/routine contract — this is the fixed text of the permission reque
 - Answers
   - grant
   - grant, with folder
+  - grant, with folder and project
 - Reactions
   - grant
   - grant, with folder
+  - grant, with folder and project
 - Marks
   - revised
   - superseded
@@ -34,6 +36,8 @@ Not a member/routine contract — this is the fixed text of the permission reque
   - once
   - session
   - task
+- Reasons
+  - not-offered
 - Confirmations
   - granted
   - denied
@@ -127,6 +131,16 @@ The lines under `How to answer`.
 - the word first; a comment after a comma, or on the next lines
 ```
 
+## grant, with folder and project
+
+```
+- click ❌ to deny, 1️⃣ to allow once, or 🔁 to allow for this session
+- or click 📁 to allow **{{refused-tool}}** on `{{folder}}`, for this session
+- or click 🏗️ to allow **{{refused-tool}}** on the project `{{project}}`, for this session
+- or reply `deny`, `allow-once` or `allow-session`, `allow-folder` for 📁, or `allow-project` for 🏗️
+- the word first; a comment after a comma, or on the next lines
+```
+
 # Reactions
 
 The emoji the tooling places under the post, as Slack names.
@@ -146,6 +160,16 @@ x
 one
 repeat
 file_folder
+```
+
+## grant, with folder and project
+
+```
+x
+one
+repeat
+file_folder
+building_construction
 ```
 
 # Marks
@@ -206,6 +230,16 @@ for this session
 for this task
 ```
 
+# Reasons
+
+Why an answer that was read could not be applied, as the `not-applied` confirmation says it.
+
+## not-offered
+
+```
+This request offers no {{offer}} that can be allowed.
+```
+
 # Confirmations
 
 The one reply the tooling posts in the thread an answer was read in: what was read, and what was done with it.
@@ -247,10 +281,14 @@ The one reply the tooling posts in the thread an answer was read in: what was re
 - rule: A slot outside `[[ … ]]` is required: with one empty, nothing is posted. Text in `[[ … ]]` is kept only when every slot in it has a value, and a group may span lines, so a heading is left out together with its empty field. No field is ever shown as a placeholder.
 - rule: The answer form is `grant`. `{{how-to-answer}}` is the block under `# Answers` named for it.
 - rule: The emoji placed under the post are the block under `# Reactions` named for the answer form, one Slack name each, in that order. They are placed by the identity that posted, and a reaction by that identity is never an answer.
-- rule: A name placed here must be one the verdict reader takes for a permission (`AgentsEscalationVerdict.awk`): `x` to deny, `one` to allow once, `repeat` to allow for this session, and `file_folder` for the folder, only where the post offers it. A thumbs up is never placed and never grants.
+- rule: A name placed here must be one the verdict reader takes for a permission (`AgentsEscalationVerdict.awk`): `x` to deny, `one` to allow once, `repeat` to allow for this session, `file_folder` for the folder and `building_construction` for the project, each only where the post offers it. A thumbs up is never placed and never grants.
 - rule: A request for one refused file offers one more answer: the folder of that file. `{{folder}}` is that folder as a post shows a target, `<place>:<folder>/**`, and the answers and the emoji are then the blocks named `grant, with folder`: a block headed `<form>, with <slot>` is taken where that slot has a value (`AgentsAskPostFill.awk`). Their folder line says exactly what that answer grants, before he gives it: `{{refused-tool}}` on everything in that folder, for this session. Its word is `allow-folder` and its emoji `file_folder`. The first line of the post is unchanged: it says what a plain allow grants.
 - rule: The folder is the one the refused file lies in, and nothing wider. It is not offered, and `allow-folder` is then no answer of the request, typed or clicked, where it cannot be right: a tool that has no place; a target that is no absolute path, is a pattern, or has a `..` segment; a write in a read-only place; and a folder that is the root of the file system, the home directory or the root of a workspace, so that this answer never gives a whole workspace (`AgentsToolsPermissionFolderEntry`, `AgentsTools.InternOpPermission.include`).
 - rule: An `allow-folder` is granted as a permission set of one entry, of scope session, for the member whose call was refused, by the code that applies every set (`AgentsToolsPermissionSetApply`). What it grants is worked out from the refusal record when the answer is applied, never from the post. A grant to Edit or Write a folder reads it too, as every such grant does. Its confirmation is the block `granted`: the tool, the folder as the post showed it, and `for this session`.
+- rule: A request for one refused file that lies in a project offers the project too, beside the folder. A project is a project of a workspace's source tree: the nearest folder, at or above the refused file, that holds a `project.inf`, inside the `source` folder of a workspace this machine knows. `{{project}}` is that folder as a post shows a target, `<place>:<project>/**`, and the answers and the emoji are then the blocks named `grant, with folder and project`: a block whose heading names several slots, ` and ` between them, is taken where each of them has a value, and of the blocks that can be taken the one that names the most is (`AgentsAskPostFill.awk`). Its project line says exactly what that answer grants, before he gives it: `{{refused-tool}}` on everything in that project, its `project.inf` included, for this session. Its word is `allow-project` and its emoji `building_construction`. The folder line and the first line of the post are unchanged.
+- rule: The project is offered only where the folder is, so under every limit of the folder answer, and only where it is wider than the folder: where the project is the very folder of the refused file the two answers would grant the same, and the folder answer alone is offered. The source tree itself is never a project, and a folder that holds a `project.inf` outside a source tree is none. A write is never offered for a project that is a read-only place. Where it is not offered, `allow-project` is no answer of the request, typed or clicked (`AgentsToolsPermissionProjectEntry`, `AgentsTools.InternOpPermission.include`).
+- rule: An `allow-project` is granted as an `allow-folder` is: a permission set of one entry, of scope session, for the member whose call was refused, worked out from the refusal record when the answer is applied, never from the post. No file of the project is set apart: its `project.inf` is granted as every file beside it. Its confirmation is the block `granted`: the tool, the project by its place, and `for this session`.
+- rule: `## not-offered` under `# Reasons` is the `{{reason}}` of the `not-applied` confirmation of an `allow-folder` or an `allow-project` that names nothing to grant when it is applied: the request offered none, or the folder or the project can no longer be granted. `{{offer}}` is the word of that answer after `allow-`: `folder` or `project`.
 - rule: `{{revised}}` is the `## revised` text under `# Marks`, shown only on the post of the question asked again, changed.
 - rule: A post that no longer takes an answer is this same text without its `How to answer` group: the post of a discarded question, and a superseded version of a question asked inside a thread that is not its own. The tooling edits that post to it, and takes its own answer emoji off it.
 - rule: `## superseded` under `# Marks` is the reaction the tooling puts on a version of the question that an update replaced, and `## cancelled` the one it puts on the post of a discarded question.

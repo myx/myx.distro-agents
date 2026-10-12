@@ -27,7 +27,9 @@
 # A form may have a block of its own for a post that carries one more field: a heading
 # `<form>, with <slot>` beside the form's own, under `# Answers` and under `# Reactions`,
 # taken where that slot has a value. So what a post offers follows what it was filled with,
-# and the form keeps its one name.
+# and the form keeps its one name. A heading may name more than one field, `<form>, with
+# <slot> and <slot>`: its block is taken only where every one of them has a value, and of the
+# blocks that can be taken the one that names the most fields is.
 # The number marks are fixed here, with the names the verdict reader takes a click by
 # (AgentsEscalationVerdict.awk): the keycaps one to ten. An option past the tenth is numbered
 # in plain digits and has no emoji.
@@ -51,13 +53,23 @@ function askMark( number ) {
 }
 
 ## The block of a form under one section: the one headed `<form>, with <slot>` where the
-## template has it and that slot has a value, else the form's own.
-function askFormKey( section, formName,    formKey, withHead ) {
+## template has it and that slot has a value, else the form's own. A heading that names
+## several slots, ` and ` between them, is taken where each has a value; of several headings
+## that can be taken, the one naming the most slots, and of two that name as many the one
+## that sorts first, so the choice never follows the order a template is read in.
+function askFormKey( section, formName,    formKey, withHead, slotNames, slotTotal, slotNo, bestKey, bestTotal ) {
 	withHead = section SUBSEP formName ", with " ;
+	bestKey = section SUBSEP formName ; bestTotal = 0 ;
 	for ( formKey in ttHas ) {
-		if ( index( formKey, withHead ) == 1 && ttSlot( substr( formKey, length( withHead ) + 1 ) ) != "" ) { return formKey ; }
+		if ( index( formKey, withHead ) != 1 ) { continue ; }
+		slotTotal = split( substr( formKey, length( withHead ) + 1 ), slotNames, " and " ) ;
+		for ( slotNo = 1 ; slotNo <= slotTotal ; slotNo++ ) {
+			if ( ttSlot( slotNames[slotNo] ) == "" ) { break ; }
+		}
+		if ( slotNo <= slotTotal ) { continue ; }
+		if ( slotTotal > bestTotal || ( slotTotal == bestTotal && formKey < bestKey ) ) { bestKey = formKey ; bestTotal = slotTotal ; }
 	}
-	return section SUBSEP formName ;
+	return bestKey ;
 }
 
 BEGIN {

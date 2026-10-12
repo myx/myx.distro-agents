@@ -261,9 +261,12 @@ AgentsToolsRegistryTeamMembersNamesRebuild(){
 	AgentsToolsRegistryWrite team-members-names AgentsToolsRegistryTeamMembersNamesRows
 }
 
-## The prepared registries of this workspace's members, rebuilt in one pass. The
-## set is the one list below: another registry is one more line. Each file is
-## noted on stderr; fails only when a file cannot be written.
+## All four registries, rebuilt in one pass: the two of this workspace's members, then
+## the two of its sessions, each by the rebuild function every other rebuild of it calls.
+## A workspace with no session store yet (an install, a host no session ran on) has
+## those two written with no rows, never a failure. The set is the one list below:
+## another registry is one more line. Each file is noted on stderr; fails only when a
+## file cannot be written.
 AgentsToolsRegistryAgentsIndicesBuild(){
 	local indicesFailed="false" indicesName indicesRebuild indicesFile indicesRows
 	while read -r indicesName indicesRebuild ; do
@@ -276,7 +279,9 @@ AgentsToolsRegistryAgentsIndicesBuild(){
 			indicesFailed="true"
 		fi
 	done <<< "team-members AgentsToolsRegistryTeamMembersRebuild
-team-members-names AgentsToolsRegistryTeamMembersNamesRebuild"
+team-members-names AgentsToolsRegistryTeamMembersNamesRebuild
+spawned-sessions AgentsToolsRegistrySpawnedSessionsRebuild
+pending-replies AgentsToolsRegistryPendingRepliesRebuild"
 	[ "$indicesFailed" = "false" ]
 }
 

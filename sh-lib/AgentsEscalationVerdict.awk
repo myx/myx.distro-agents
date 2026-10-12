@@ -42,8 +42,10 @@
 # none. A permission is also answered by click: x is deny, one is allow-once, repeat is
 # allow-session, deny first and then the narrower grant when several are held. Where the
 # request offers the folder of the refused file (MDAT_VERDICT_FOLDER), file_folder is
-# allow-folder, the widest and so the last, and the word allow-folder is an answer too;
-# where it does not, neither the click nor the word answers anything. So is a
+# allow-folder, wider and so after them, and the word allow-folder is an answer too;
+# where it does not, neither the click nor the word answers anything. The same holds for the
+# project that file lies in (MDAT_VERDICT_PROJECT): building_construction is allow-project,
+# the widest and so the last, and the word allow-project is an answer too. So is a
 # permission set: x is deny and unlock is allow-set, deny first; edit only by reply, since it
 # carries the change in words.
 # A PROPOSAL (ProposeApprove) is answered by the human-owner's own click on its root:
@@ -89,6 +91,8 @@
 # ENVIRON["MDAT_VERDICT_WORDS"]   non-empty: the words on the verdict's line are carried too.
 # ENVIRON["MDAT_VERDICT_FOLDER"]  permission only, non-empty: the request offers the folder of
 #                                 the refused file, so allow-folder is one of its answers.
+# ENVIRON["MDAT_VERDICT_PROJECT"] permission only, non-empty: the request offers the project
+#                                 the refused file lies in, so allow-project is one of its answers.
 #
 # THE WORDS WITH A VERDICT. A reply that gives a verdict is not only a verdict: what the person
 # wrote after the answering word, on that line, is for the asker to read -- a condition, a
@@ -149,6 +153,8 @@ BEGIN {
 	if ( kind == "readback" ) { optionSet["yes"] = 1 ; optionSet["no"] = 1 ; optionSet["correct"] = 1 ; }
 	else if ( kind == "permission" ) { optionSet["deny"] = 1 ; optionSet["allow-once"] = 1 ; optionSet["allow-session"] = 1 ; optionSet["allow-task"] = 1 ; }
 	folderOffered = ( kind == "permission" && ENVIRON["MDAT_VERDICT_FOLDER"] != "" ) ;
+	projectOffered = ( kind == "permission" && ENVIRON["MDAT_VERDICT_PROJECT"] != "" ) ;
+	if ( projectOffered ) { optionSet["allow-project"] = 1 ; }
 	if ( folderOffered ) { optionSet["allow-folder"] = 1 ; }
 	else if ( kind == "permission-set" ) { optionSet["deny"] = 1 ; optionSet["allow-set"] = 1 ; optionSet["edit"] = 1 ; }
 	else if ( kind == "proposal" ) { optionSet["approved"] = 1 ; optionSet["rejected"] = 1 ; }
@@ -247,6 +253,7 @@ function judgeReactions(    lineIndex, name, who, heldIndex, picked ) {
 		else if ( ( who = holderOf( "one" ) ) != "" ) { verdict = "allow-once" ; }
 		else if ( ( who = holderOf( "repeat" ) ) != "" ) { verdict = "allow-session" ; }
 		else if ( folderOffered && ( who = holderOf( "file_folder" ) ) != "" ) { verdict = "allow-folder" ; }
+		else if ( projectOffered && ( who = holderOf( "building_construction" ) ) != "" ) { verdict = "allow-project" ; }
 		if ( verdict != "" ) { author = who ; }
 		return ;
 	}
@@ -436,7 +443,7 @@ function answerOf( word, plain ) {
 		if ( word == "yes" || word == "no" || ( word == "correct" && kind == "readback" ) ) { return word ; }
 		return ( plain && ( word in affirmSet ) ) ? "yes" : "" ;
 	}
-	if ( kind == "permission" ) { return ( word == "deny" || word == "allow-once" || word == "allow-session" || word == "allow-task" || ( word == "allow-folder" && folderOffered ) ) ? word : "" ; }
+	if ( kind == "permission" ) { return ( word == "deny" || word == "allow-once" || word == "allow-session" || word == "allow-task" || ( word == "allow-folder" && folderOffered ) || ( word == "allow-project" && projectOffered ) ) ? word : "" ; }
 	if ( kind == "permission-set" ) { return ( word == "deny" || word == "allow-set" || word == "edit" ) ? word : "" ; }
 	if ( kind == "proposal" ) { return ( word == "approved" || word == "approve" ) ? "approved" : ( ( word == "rejected" || word == "reject" ) ? "rejected" : "" ) ; }
 	if ( kind == "change" ) { return ( word == "approve" || word == "approved" ) ? "approve" : ( ( word == "reject" || word == "rejected" ) ? "reject" : "" ) ; }

@@ -553,11 +553,11 @@ rigScopeRaw keeper-sq 'ALIAS=a"b'
 rigScopeRaw keeper-ud 'FIRST_NAME=not decided yet'
 mkdir -p "$rigAgentsDir"
 printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 'seed-replies\n' > "$rigAgentsDir/pending-replies.registry" ; printf 'seed-log\n' > "$rigAgentsDir/comms-slack-send.2026-10.log"
-rigSeedSum="$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )"
+rigSeedSum="$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the two registries, the member index and the grants index, and keeps the other files: the folder holds those, the three seeded and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
-rigAssert "and the seeded files are untouched"                             "$( cat "$rigAgentsDir/spawned-sessions.registry" "$rigAgentsDir/pending-replies.registry" "$rigAgentsDir/comms-slack-send.2026-10.log" | cksum )" "$rigSeedSum"
+rigAssert "the build makes exactly the four registries, the member index and the grants index, and keeps the other files: the folder holds those, the seeded log and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the seeded log is untouched, and the two session registries are rebuilt from their stores, which hold nothing here: no seeded row is left" "$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" ) $( rigLines "$rigAgentsDir/spawned-sessions.registry" ) $( rigLines "$rigAgentsDir/pending-replies.registry" )" "$rigSeedSum 0 0"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
 rigAssert "the persona member's own row is an ordinary row"                "$( rigIndexRow "$rigPersona" )" "$rigPersona|🐭|Magic|Vane|dispatchr"

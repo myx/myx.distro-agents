@@ -3817,9 +3817,13 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			## The folder of the refused file, which a request for one call offers as one more
 			## answer: as the post shows it, and nothing where it cannot be right
 			## (--intern-op-permission-folder). A request with entries is a set, and offers none.
-			askRefusedFolder=""
+			## The project that file lies in is one more answer beside the folder, where the same
+			## operation names one: a project of a source tree that is wider than the folder.
+			askRefusedFolder="" ; askRefusedProject=""
 			[ -n "${toolEntries:-}" ] || askRefusedFolder="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-folder "$harnessAgent" \
-				--session-id "$askSession" --refusal-id "$toolRefusalId" 2> /dev/null | LC_ALL=C sed -n 's/^SHOWN: //p' | head -1 )" || askRefusedFolder=""
+				--session-id "$askSession" --refusal-id "$toolRefusalId" 2> /dev/null )" || askRefusedFolder=""
+			askRefusedProject="$( LC_ALL=C sed -n 's/^PROJECT-SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
+			askRefusedFolder="$( LC_ALL=C sed -n 's/^SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
 		;;
 		proposal)
 			## Put by its own tool only: the skeleton of the second name has no place for its document.
@@ -3859,7 +3863,7 @@ AgentsHarnessAskBody(){ ## optional revised (1: the question asked again, change
 	ASKP_OPTIONS="$toolOptions" ASKP_REVISED="${1:-}" ASKP_F_tag="$askTag" ASKP_F_question="$toolQuestion" ASKP_F_context="$toolContext" \
 		ASKP_F_understood="$toolUnderstood" ASKP_F_source="$toolFrom" ASKP_F_will_do="$toolWillDo" \
 		ASKP_F_refused_tool="$askRefusedTool" ASKP_F_refused_target="$askRefusedTarget" ASKP_F_refused_for="$askRefusedOwner" ASKP_F_refusal_id="$toolRefusalId" \
-		ASKP_F_folder="${askRefusedFolder:-}" \
+		ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" \
 		ASKP_F_reason="$toolReason" ASKP_F_task="$toolTaskRef" ASKP_F_proposal="$toolProposal" ASKP_F_document="$toolDocument" \
 		AgentsToolsAskPostFill post "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> "$harnessScratch/ask-post.err"
 }
@@ -3884,15 +3888,16 @@ AgentsHarnessAskProse(){
 AgentsHarnessAskFields(){
 	AgentsHarnessAskPost || return 0
 	AgentsToolsAskPostFieldsPack asked-as "${askPostName:-$harnessAskName}" tag "$askTag" question "$toolQuestion" context "$toolContext" understood "$toolUnderstood" source "$toolFrom" will-do "$toolWillDo" \
-		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" \
+		refused-tool "$askRefusedTool" refused-target "$askRefusedTarget" refused-for "$askRefusedOwner" refusal-id "$toolRefusalId" folder "${askRefusedFolder:-}" project "${askRefusedProject:-}" \
 		reason "$toolReason" task "$toolTaskRef" proposal "$toolProposal" document "$toolDocument"
 }
 
 ## The answer emoji of the caller's question, as Slack names: what its template places for
-## its answer form, the folder's too where a permission offers the folder of the refused file.
+## its answer form, the folder's too where a permission offers the folder of the refused file,
+## and the project's where it offers the project beside it.
 AgentsHarnessAskSeedNames(){
 	AgentsHarnessAskPost && AgentsToolsAskKindRow "$toolKind" || return 0
-	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
+	ASKP_OPTIONS="$toolOptions" ASKP_F_folder="${askRefusedFolder:-}" ASKP_F_project="${askRefusedProject:-}" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$( AgentsHarnessAskForm )" 2> /dev/null || :
 }
 
 ## Places emoji under one post, or takes them off, as the identity that posted it. A failed
@@ -4129,7 +4134,7 @@ AgentsHarnessAsk(){
 	local askChannel="" askTs="" askThreadTs="" askAddressees=""
 	local askRounds=0
 	local askSelfIds=" " askRecordOnly="" askSessionWait="" askOthers=""
-	local askSession="" askRecord="" askRecordLine askRefusedTool="" askRefusedTarget="" askRefusedOwner="" askRefusedCall="" askRefusedFolder=""
+	local askSession="" askRecord="" askRecordLine askRefusedTool="" askRefusedTarget="" askRefusedOwner="" askRefusedCall="" askRefusedFolder="" askRefusedProject=""
 	local askTag="" askKey="" askWhere="" askDupId="" askDupOwner="" askDupSession="" askLock="" askRoutine=""
 	## A re-wait: the question is already posted and recorded, so everything it is judged
 	## against comes from its open record, and nothing is posted again.

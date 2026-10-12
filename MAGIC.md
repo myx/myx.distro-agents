@@ -1651,8 +1651,11 @@ op's own option arm.
   permission ask offers one more click, `file_folder` (`allow-folder`), only for a file tool on a real
   path with no `..` segment: it grants that tool on every file in the refused file's own folder, until
   the session ends, and is never offered for a write in a read-only place, nor for a folder that is a
-  whole workspace or HOME. The grant it writes is a set of that one entry, beside a record that stays of
-  kind `permission`.
+  whole workspace or HOME. A second click, `building_construction` (`allow-project`), is read the same
+  way, offered only beside `file_folder` and only where the refused file's project -- the nearest folder
+  at or above it, in the source tree of a workspace, holding a `project.inf` -- is wider than its folder;
+  it grants the tool on every file of that project, the `project.inf` included. Either grant it writes is
+  a set of that one entry, beside a record that stays of kind `permission`.
 - **A click is read only ahead of the addressee's first reply.** Once a reply stands in the thread, a
   later click is never read as a verdict, even where the kind declares that reaction a verdict (see
   "18. Slack").

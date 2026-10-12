@@ -350,6 +350,52 @@ AgentsToolsPermissionFolderEntry(){ ## tool, natural target, session id
 	printf '%s:%s/**' "$folderTool" "$folderOf"
 }
 
+## THE PROJECT OF A REFUSED FILE, as one more answer of a single permission may grant it
+## beside the folder: `<tool>:<project>/**`, natural -- the tool of the refused call, for the
+## project its file lies in, its project.inf with every file beside it. A project is a project
+## of a workspace's source tree: the nearest folder, at or above the file, that holds a
+## project.inf, inside the source folder of a workspace this machine knows. Printed only
+## where the folder answer is offered (AgentsToolsPermissionFolderEntry), so under every limit
+## that one has, and only where the project is wider than the folder: where it is the very
+## folder of the file the two would grant the same, and the folder answer alone is offered.
+## The source tree itself is never a project, and the project folder is held to the limits of
+## a folder answer too: never the root of a workspace, never a write in a read-only place. A
+## path written with an empty or a `.` segment is walked up by no rule here, so it has no
+## project to offer. rc 1, nothing printed, otherwise.
+AgentsToolsPermissionProjectEntry(){ ## tool, natural target, session id
+	local projectFolder projectOf projectRoot projectBase projectTree=""
+	projectFolder="$( AgentsToolsPermissionFolderEntry "$1" "$2" "$3" )" || return 1
+	projectFolder="${projectFolder#*:}" ; projectFolder="${projectFolder%/\*\*}"
+	case "$projectFolder/" in
+		*//*|*/./*) return 1 ;;
+	esac
+	type AgentsToolsPlacesWorkspaceRoots > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include" || return 1
+	## The source tree that holds the folder: of a workspace root as it is listed, or as it
+	## resolves; the deepest one, where a workspace lies inside the tree of another.
+	while IFS= read -r projectRoot ; do
+		[ -n "$projectRoot" ] || continue
+		for projectBase in "$projectRoot" "$( AgentsToolsPermissionResolvePath "$projectRoot" )" ; do
+			case "$projectFolder" in
+				"$projectBase/source/"?*)
+					case "$projectTree/" in
+						"$projectBase/source/"*) ;;
+						*) projectTree="$projectBase/source" ;;
+					esac
+				;;
+			esac
+		done
+	done <<< "$( AgentsToolsPlacesWorkspaceRoots "${MMDAPP%/}" 2> /dev/null )"
+	[ -n "$projectTree" ] || return 1
+	## The nearest folder, from the folder of the file up to the tree, that holds a project.inf.
+	projectOf="$projectFolder"
+	while [ "$projectOf" != "$projectTree" ] && [ ! -f "$projectOf/project.inf" ] ; do
+		projectOf="${projectOf%/*}"
+	done
+	[ "$projectOf" != "$projectTree" ] && [ "$projectOf" != "$projectFolder" ] || return 1
+	## What is printed is the folder answer of the project folder, so under its every limit.
+	AgentsToolsPermissionFolderEntry "$1" "$projectOf" "$3"
+}
+
 ## One permission entry made ready to ask for: split into permEntryTool and permEntryTarget, an
 ## @<name>[:<glob>] target resolved through --intern-directory-resolve to a path under that
 ## place (the glob a path, ** or <path>/**, relative, never with a .. segment), and
@@ -1534,11 +1580,14 @@ case "$1" in
 	## permission: `ENTRY: <tool>:<folder>/**`, natural, and `SHOWN: <that folder as a post shows
 	## a target>`. Nothing is printed where no folder can be offered
 	## (AgentsToolsPermissionFolderEntry), or the refusal is not that member's. rc 0 either way.
+	## And after them what the project answer of it would grant, where one is offered beside
+	## the folder (AgentsToolsPermissionProjectEntry): `PROJECT-ENTRY: <tool>:<project>/**` and
+	## `PROJECT-SHOWN: <that project as a post shows a target>`.
 	--intern-op-permission-folder)
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-permission-folder"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local folderMember="${1:-}" folderSession="" folderRefusal="" folderRecord folderEntry
+		local folderMember="${1:-}" folderSession="" folderRefusal="" folderRecord folderEntry folderProject
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -1562,6 +1611,9 @@ case "$1" in
 		folderEntry="$( AgentsToolsPermissionFolderEntry "$( AgentsToolsPermissionField "$folderRecord" tool )" \
 			"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession" )" || return 0
 		printf 'ENTRY: %s\nSHOWN: %s\n' "$folderEntry" "$( AgentsToolsPermissionShownTarget "${folderEntry#*:}" )"
+		folderProject="$( AgentsToolsPermissionProjectEntry "$( AgentsToolsPermissionField "$folderRecord" tool )" \
+			"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession" )" || return 0
+		printf 'PROJECT-ENTRY: %s\nPROJECT-SHOWN: %s\n' "$folderProject" "$( AgentsToolsPermissionShownTarget "${folderProject#*:}" )"
 		return 0
 	;;
 

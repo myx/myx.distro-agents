@@ -98,25 +98,28 @@ AgentsToolsEscalationAsked(){ ## record file
 ## The folder a single permission offers beside its plain answers, as its post shows it
 ## (`<place>:<folder>/**`), or nothing: the `folder` slot that post was filled with
 ## (`<id>.fields`). Only a request whose post said what the folder answer grants takes it.
-AgentsToolsEscalationFolderOffered(){ ## record file
+## Named `project`, the same of the project it offers beside the folder: its `project` slot.
+AgentsToolsEscalationFolderOffered(){ ## record file, optional: project (default: folder)
 	[ -f "${1%.md}.fields" ] && [ "$( AgentsToolsEscalationField "$1" kind )" = "permission" ] || return 0
-	LC_ALL=C awk -F'\t' '$1 == "folder" && $2 != "" { print $2 ; exit ; }' "${1%.md}.fields" 2> /dev/null || :
+	LC_ALL=C awk -F'\t' -v slot="${2:-folder}" '$1 == slot && $2 != "" { print $2 ; exit ; }' "${1%.md}.fields" 2> /dev/null || :
 }
 
 ## What the folder answer of a single permission grants, `<tool>:<folder>/**`, natural: worked
 ## out from its refusal record at the moment it is asked for, never from the post
 ## (AgentsToolsPermissionFolderEntry, AgentsTools.InternOpPermission.include). rc 1, nothing
-## printed, where the request offered no folder, or none can be granted now.
-AgentsToolsEscalationFolder(){ ## record file
-	local folderSession folderRefusal folderRecord
-	[ -n "$( AgentsToolsEscalationFolderOffered "$1" )" ] || return 1
+## printed, where the request offered no folder, or none can be granted now. Named `project`,
+## the same of its project answer, `<tool>:<project>/**` (AgentsToolsPermissionProjectEntry).
+AgentsToolsEscalationFolder(){ ## record file, optional: project (default: folder)
+	local folderSession folderRefusal folderRecord folderEntry=AgentsToolsPermissionFolderEntry
+	[ "${2:-folder}" != "project" ] || folderEntry=AgentsToolsPermissionProjectEntry
+	[ -n "$( AgentsToolsEscalationFolderOffered "$1" "${2:-folder}" )" ] || return 1
 	folderSession="$( AgentsToolsEscalationField "$1" session-id )"
 	folderRefusal="$( AgentsToolsEscalationField "$1" refusal-id )"
 	case "$folderSession:$folderRefusal" in */*|*:|:*) return 1 ;; esac
 	folderRecord="$MMDAPP/.local/agents/sessions/$folderSession/$folderRefusal.md"
 	[ -f "$folderRecord" ] || return 1
-	type AgentsToolsPermissionFolderEntry > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
-	AgentsToolsPermissionFolderEntry "$( AgentsToolsPermissionField "$folderRecord" tool )" \
+	type "$folderEntry" > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
+	"$folderEntry" "$( AgentsToolsPermissionField "$folderRecord" tool )" \
 		"$( AgentsToolsPermissionRecordDecode "$( AgentsToolsPermissionField "$folderRecord" target )" )" "$folderSession"
 }
 
@@ -173,8 +176,9 @@ AgentsToolsEscalationConfirm(){ ## record file, request id, block (granted|denie
 			cfAsked="$( AgentsToolsEscalationAsked "$cfFile" | head -1 )"
 			cfTool="${cfAsked%%$'\t'*}" ; cfTarget="${cfAsked#*$'\t'}"
 			case "$cfVerdict" in
-				## The folder answer: what was granted is the folder its set keeps, for the session.
-				allow-folder)
+				## The folder answer, and the project answer: what was granted is the folder, or the
+				## project, its set keeps, for the session.
+				allow-folder|allow-project)
 					cfTarget="$( LC_ALL=C sed -n 's/^entry: [^:]*://p' "${cfFile%.md}.set" 2> /dev/null | head -1 )"
 					cfScope="session"
 				;;
@@ -525,15 +529,20 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 	## The folder answer of a single permission (allow-folder): what it grants is the folder of
 	## the refused file, worked out now from the refusal record. Where the request offered no
 	## folder, or none can be granted, the answer is not applied and the request stays open.
-	local applyFolder=""
-	if [ "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" = "permission:allow-folder" ] ; then
-		applyFolder="$( AgentsToolsEscalationFolder "$applyFile" )" || applyFolder=""
+	## The project answer (allow-project) the same, of the project that file lies in: applyWide
+	## is which of the two the answer is, `folder` or `project`, the word after its `allow-`.
+	local applyFolder="" applyWide=""
+	case "$( AgentsToolsEscalationField "$applyFile" kind ):$applyVerdict" in
+		permission:allow-folder|permission:allow-project) applyWide="${applyVerdict#allow-}" ;;
+	esac
+	if [ -n "$applyWide" ] ; then
+		applyFolder="$( AgentsToolsEscalationFolder "$applyFile" "$applyWide" )" || applyFolder=""
 		if [ -z "$applyFolder" ] ; then
-			echo "$MDSC_CMD: ⛔ ERROR: $applyId offers no folder that can be allowed, so $applyVerdict is not applied and the request stays open" >&2
-			AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "This request offers no folder that can be allowed."
+			echo "$MDSC_CMD: ⛔ ERROR: $applyId offers no $applyWide that can be allowed, so $applyVerdict is not applied and the request stays open" >&2
+			AgentsToolsEscalationConfirm "$applyFile" "$applyId" not-applied "$applyVerdict" "$applyBy" "$applyFromForward" "$( ASKP_F_offer="$applyWide" AgentsToolsEscalationTemplateBlock permission "Reasons/not-offered" )"
 			printf 'ESCALATION: %s open\n' "$applyId"
 			printf 'VERDICT: RETURNED\n'
-			printf 'VERDICT-REASON: %s answered %s, but this request offers no folder that can be allowed, so nothing is granted and the request stays open\n' "$applyBy" "$applyVerdict"
+			printf 'VERDICT-REASON: %s answered %s, but this request offers no %s that can be allowed, so nothing is granted and the request stays open\n' "$applyBy" "$applyVerdict" "$applyWide"
 			return 5
 		fi
 	fi
@@ -611,9 +620,11 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		## The folder answer: a Permission set of one entry, of the session, for the member whose
 		## call was refused, kept beside the record and applied by the code that applies every
 		## set, which writes no grant line twice. It names no item: the answer's own line on the
-		## item's Decisions is the record of it.
-		permission:allow-folder)
-			[ -n "$applyFolder" ] || applyFolder="$( AgentsToolsEscalationFolder "$applyFile" )" || applyFolder=""
+		## item's Decisions is the record of it. The project answer is the same set, its one
+		## entry the project. What was worked out above stands only for the answer it was worked
+		## out for: a noted answer completed in place of this call's is worked out anew.
+		permission:allow-folder|permission:allow-project)
+			[ -n "$applyFolder" ] && [ "$applyWide" = "${applyVerdict#allow-}" ] || applyFolder="$( AgentsToolsEscalationFolder "$applyFile" "${applyVerdict#allow-}" )" || applyFolder=""
 			type AgentsToolsPermissionSetApply > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpPermission.include"
 			if [ -n "$applyFolder" ] && [ ! -f "${applyFile%.md}.set" ] ; then
 				{
@@ -637,12 +648,15 @@ AgentsToolsEscalationApply(){ ## record file, request id, verdict, verdict text,
 		;;
 	esac
 	case "$applyKind:$applyVerdict" in
-		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-folder|permission-set:allow-set)
+		permission:allow-once|permission:allow-session|permission:allow-task|permission:allow-folder|permission:allow-project|permission-set:allow-set)
 			if [ -z "$applyGrant" ] ; then
 				## Nothing is granted, so nothing is recorded: the note goes and the claim with it,
 				## and the request stays open for an answer that can be applied. The one-entry set of
-				## a folder answer goes too: the request is the single permission it was.
-				[ "$applyKind:$applyVerdict" != "permission:allow-folder" ] || rm -f "${applyFile%.md}.set" 2>/dev/null
+				## a folder answer, or of a project answer, goes too: the request is the single
+				## permission it was.
+				case "$applyKind:$applyVerdict" in
+					permission:allow-folder|permission:allow-project) rm -f "${applyFile%.md}.set" 2>/dev/null ;;
+				esac
 				rm -f "$applyNote" 2>/dev/null
 				AgentsToolsEscalationClaimGive
 				applyWhy="$( printf '%s\n' "$applyWhy" | LC_ALL=C grep -m1 -F '⛔' )" || applyWhy=""
@@ -873,7 +887,7 @@ AgentsToolsEscalationThreadVerdict(){ ## member, record file, pending id, channe
 		threadUntagged="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -c '^UNMATCHED-REPLY ' )"
 		threadVerdict="$( printf '%s\n' "$threadAnswers" | LC_ALL=C grep -v '^UNMATCHED-REPLY ' \
 			| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="${threadKind:-question}" MDAT_VERDICT_OPTIONS="$threadOptions" MDAT_VERDICT_AUTHORS="$threadAuthors" \
-				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" \
+				MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$threadFile" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$threadFile" project )" \
 				MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$threadFile" select )" MDAT_VERDICT_ASKING="$( AgentsToolsEscalationField "$threadFile" asking-accounts )" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEscalationVerdict.awk" 2>/dev/null )" || threadVerdict=""
 		[ -z "$threadNoVerdict" ] || [ -z "$threadVerdict" ] || threadVerdict="RETURNED"$'\t'$'\t'
@@ -1338,8 +1352,9 @@ case "$1" in
 		case "$answerKind:$answerVerdict" in
 			readback:yes|readback:no|readback:correct|permission:deny|permission:allow-once|permission:allow-session|permission:allow-task) answerFound=1 ;;
 			permission-set:allow-set|permission-set:deny|permission-set:edit) answerFound=1 ;;
-			## The folder answer, only of a request whose post offered the folder.
-			permission:allow-folder) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" )" ] || answerFound=1 ;;
+			## The folder answer, only of a request whose post offered the folder; the project
+			## answer, only of one whose post offered the project.
+			permission:allow-folder|permission:allow-project) [ -z "$( AgentsToolsEscalationFolderOffered "$answerFile" "${answerVerdict#allow-}" )" ] || answerFound=1 ;;
 			decision:*)
 				while IFS= read -r answerOptionLine ; do
 					answerOptionLine="${answerOptionLine#- }"

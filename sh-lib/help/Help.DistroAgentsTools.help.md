@@ -2675,6 +2675,16 @@
 			Every client-* row carries the persona member's values
 			instead (its own files and scope are not read).
 
+			Also the two registries of this workspace's sessions,
+			each whole, from its store: `spawned-sessions.registry`,
+			a row for every spawn record under
+			`.local/agents/spawned`, and `pending-replies.registry`,
+			a row for every ask under `.local/agents/pending` and
+			for every board item that carries `blocked-on`. A
+			workspace that has no such store yet gets the registry
+			with no rows, and the build goes on. The operations that
+			read one of the two still rebuild it first.
+
 			Then the grants. `permissions.registry` (`member:workspace:
 			kind:grant`), and its `permissions-tags.registry`, from what
 			this workspace's projects declare, `magic-team:permissions:
@@ -3328,13 +3338,19 @@
 			answering word of one option for a decision, deny,
 			allow-once, allow-session or allow-task for a permission,
 			allow-folder too where its post offers the folder of the
-			refused file, and allow-set, deny or edit for a permission
+			refused file, allow-project too where it offers the project,
+			and allow-set, deny or edit for a permission
 			set. allow-folder grants the tool of the refused call on
 			everything in that folder, for the session, as a set of one
 			entry for the member whose call it was; it is offered only
 			for a file tool on a path with no `..` segment, never for
 			a write in a read-only place, and never for a folder that
-			is a whole workspace. [text]
+			is a whole workspace. allow-project grants that tool on
+			everything in the project the refused file lies in, its
+			project.inf included, the same way: the nearest folder at
+			or above the file that holds a project.inf, in the source
+			tree of a workspace. It is offered only where the folder
+			is, and only where the project is wider than it. [text]
 			carries a readback correction or an edit's change.
 
 			The record closes carrying the verdict and who gave it. An
