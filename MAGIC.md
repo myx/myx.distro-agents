@@ -497,9 +497,12 @@ User steps are in [docs/installation.md](docs/installation.md).
   looks the same. A real discovery failure exits 1. An empty selection is never passed to
   `ListDistroDeclares --select-from-env`.
 - **`$workspace` is `${workspaceArg:-$MMDAPP}`** in the permissions and symlinks ops.
-- **`--make-agents-indices`** (`AgentsTools.Make.include`) rebuilds `team-members.registry` and
-  `team-members-names.registry` from the list in `AgentsToolsRegistryAgentsIndicesBuild`
-  (`AgentsTools.Registries.include`); a new registry is one line there plus `Rows`/`Rebuild` functions.
+- **`--make-agents-indices`** (`AgentsTools.Make.include`) rebuilds all four registries --
+  `team-members.registry`, `team-members-names.registry`, `spawned-sessions.registry` and
+  `pending-replies.registry` -- each by its own rebuild function, from the one list in
+  `AgentsToolsRegistryAgentsIndicesBuild` (`AgentsTools.Registries.include`); a new registry is one line
+  there plus `Rows`/`Rebuild` functions. Where a workspace has no session store, the last two are written
+  with no rows, with a plain note and no error.
   Rows exist only for members with a path in this workspace. Names come from the member's `basic.md`
   (`- **Name**:` as plain words, split at the first space; alias and mark via
   `AgentsToolsCommsSlackMemberMarks`), overridden by scope keys `FIRST_NAME`, `FAMILY_NAME`, `ALIAS`.
@@ -701,7 +704,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
   there counts as session activity for the advance pass.
-- **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call. Eleven
+- **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call, the same
+  rebuild `--make-agents-indices` also runs. Eleven
   stored columns (the first seven unchanged for position readers), plus `live` (checked during the call,
   this host only) and `state` (`running`/`waiting`/`finished`/`unclosed`/`unknown-foreign`), matched on spawn id.
   `waiting` reads the pending-replies registry. Rows are one awk pass
