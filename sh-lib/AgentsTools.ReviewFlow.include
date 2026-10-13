@@ -318,18 +318,26 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## can be joined, its native session is resumed with the corrections (the proxy's
 ## AgentsToolsSpawnProxyConsoleRun); else a new process, its brief the item with its
 ## Decisions first. Which path ran is recorded: `restart: resumed` or `restart: new-process (<why>)`.
+## A NEW PROCESS ON PURPOSE: with MDAT_REVIEW_RESTART_FRESH set by its caller nothing is
+## resumed, whatever could be: the answer `fresh` to the question about a dead run
+## (AgentsToolsSessionControlDeathAct, AgentsTools.SessionControlDeath.include).
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
 	local rsFrom="" rsWhy="" rsPaying="" rsAsked=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
-	if rsWhy="$( AgentsReviewResumeEligible "$rsRecord" )" ; then
+	## Taken here and taken out of the environment: the run that is started must not inherit it.
+	local rsFresh="${MDAT_REVIEW_RESTART_FRESH:-}"
+	unset MDAT_REVIEW_RESTART_FRESH
+	if [ -n "$rsFresh" ] ; then
+		rsWhy="a fresh start was asked for"
+	elif rsWhy="$( AgentsReviewResumeEligible "$rsRecord" )" ; then
 		rsFrom="${rsRecord##*/}" ; rsFrom="${rsFrom%.md}"
 	fi
 	## Not a native resume: a universal-harness session resumes from its kept context
 	## (AgentsTools.HarnessResume.include), a separate branch end to end. Its reason replaces
 	## the native one only for a session that did not run on claude at all.
 	local rsContext="" rsContextWhy=""
-	if [ -z "$rsFrom" ] ; then
+	if [ -z "$rsFrom" ] && [ -z "$rsFresh" ] ; then
 		type AgentsReviewContextResumeEligible > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.HarnessResume.include"
 		if rsContextWhy="$( AgentsReviewContextResumeEligible "$rsRecord" )" ; then
 			rsContext="$rsContextWhy"
@@ -486,8 +494,15 @@ AgentsToolsSpawnParentThread(){ ## parent session id, this spawn's own id
 ## For a Wait of a session whose own item waits in review: `expired` once
 ## REVIEW_WAIT_LIMIT seconds have passed since it entered review, else the seconds left.
 ## rc 1, nothing printed, when the session's item is not in review.
+## THE LIMIT DOES NOT RUN WHILE A QUESTION ABOUT THE DEATH OF A RUN STANDS OPEN in the session
+## this run works in, whichever run of it died and whoever was asked
+## (AgentsToolsSessionControlDeathQuestion, AgentsTools.SessionControlDeath.include): rc 1 then,
+## nothing printed, so the Wait is not bounded by the limit and nobody is dismissed by it. A
+## run that handed back and waits for its review is alive and waiting, also while the one who
+## would review it is the dead one. Once the question is closed the limit runs again, counted
+## from the moment it was closed where that is later than the moment the item entered review.
 AgentsReviewWaitLeft(){ ## spawn id
-	local leftItem leftPath leftSince leftLimit leftNow
+	local leftItem leftPath leftSince leftLimit leftNow leftRecord leftSession="" leftHold=""
 	AgentsReviewLoad
 	leftItem="$( AgentsReviewItemOfSession "$1" )" || return 1
 	leftPath="$( AgentsToolsDecisionsItemPath "$leftItem" )" || return 1
@@ -495,6 +510,19 @@ AgentsReviewWaitLeft(){ ## spawn id
 	[ "$( AgentsToolsDecisionsField "$leftPath" spawn-id )" = "$1" ] || return 1
 	leftSince="$( AgentsToolsDecisionsField "$leftPath" review-since-epoch )"
 	case "$leftSince" in ''|*[!0123456789]*) return 1 ;; esac
+	for leftRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+		[ ! -f "$leftRecord" ] || leftSession="$( AgentsToolsSpawnSandboxRecordHeader "$leftRecord" session-id )"
+	done
+	case "$leftSession" in ''|-|*/*|.|..) leftSession="" ;; esac
+	if [ -n "$leftSession" ] && [ -f "$MMDAPP/.local/agents/sessions/$leftSession/control/dead" ] ; then
+		type AgentsToolsSessionControlDeathQuestion > /dev/null 2>&1 || . "$agentsReviewLib/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
+		leftHold="$( AgentsToolsSessionControlDeathQuestion "$leftSession" 2> /dev/null )" || leftHold=""
+		case "$leftHold" in
+			open) return 1 ;;
+			''|*[!0123456789]*) ;;
+			*) [ "$leftHold" -le "$leftSince" ] || leftSince="$leftHold" ;;
+		esac
+	fi
 	leftLimit="$( AgentsReviewWaitLimit )"
 	leftNow="$( date +%s )"
 	if [ $(( leftNow - leftSince )) -ge "$leftLimit" ] ; then

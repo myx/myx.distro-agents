@@ -383,7 +383,8 @@ case "$1" in
 		fi
 		## A resolved question shows it where people look: :eyes: on the reply taken as its
 		## answer, a mark on the question in its thread (:white_check_mark: answered,
-		## :ballot_box_with_check: settled), and :white_check_mark: on the thread's opener in
+		## :ballot_box_with_check: settled), the answer emoji the tooling placed there taken off
+		## with that mark, and :white_check_mark: on the thread's opener in
 		## the conversation once no question in that thread is open. Best effort, after the
 		## record is closed: a reaction that fails is logged and never undoes the close. Never
 		## an answer either: only an addressee's reaction answers.
@@ -410,7 +411,17 @@ case "$1" in
 				[ -z "$pendingAnswerTs" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$pendingAnswerTs" eyes "$pendingId" "$reactIdentity"
 				## Never on the root of a proposal: a mark there is the human-owner's own verdict, and
 				## the tooling puts none beside it.
-				[ -z "$reactQuestion" ] || [ "$reactKind" = "proposal" ] || AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId" "$reactIdentity"
+				if [ -n "$reactQuestion" ] && [ "$reactKind" != "proposal" ] ; then
+					## The question takes no click any more: with its mark the tooling takes off that
+					## post the answer emoji it placed there itself, the names its template gives for
+					## its kind and answer form, under the identity that placed them
+					## (AgentsToolsAskPostClose). The click of who answered is his own, and stays.
+					## The prompt of a held change is also edited to its text without `How to answer`,
+					## as one that was rejected is. Best effort, each step, as the mark is.
+					type AgentsToolsAskPostClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+					AgentsToolsAskPostClose "$pendingFile" "$reactQuestion" "" "$( [ "$reactKind" != "change" ] || printf 'edit' )"
+					AgentsToolsPendingReplyReact "$reactOwner" "$reactChannel:$reactQuestion" "${pendingMark:-white_check_mark}" "$pendingId" "$reactIdentity"
+				fi
 				## The opener is ours only where the question opened its own thread; a question
 				## asked inside someone's thread (<channel>:<ts>) leaves that thread's root alone.
 				## A question posted as the root of its own thread has no opener: it is that root,

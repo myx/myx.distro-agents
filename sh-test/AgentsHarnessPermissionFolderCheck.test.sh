@@ -331,7 +331,7 @@ rigAssert "under how to answer the plain answers stand as before, and one line s
 	"yes:yes:yes"
 rigAssert "the folder stands on the post once, by its place, and no path of this machine is shown" \
 	"$( rigTextCount "$rigScenarioDir/post.1" 'rig-out:reports/**' ):$( rigTextCount "$rigScenarioDir/post.1" '/dev/null' )" "1:0"
-rigAssert "the folder emoji is placed with the three plain ones, by the bot, and the one mark after them is that it is answered" "$( rigEmoji 1 )" "x one repeat file_folder white_check_mark|"
+rigAssert "the folder emoji is placed with the three plain ones, by the bot; answered, it gets the answered mark, and the bot takes its own answer emoji off it" "$( rigEmoji 1 )" "x one repeat file_folder white_check_mark|x one repeat file_folder"
 rigAssert "the request is still a single permission, closed with that verdict" "$( rigRecordCount ):$( rigRecordField kind ):$( rigRecordField status ):$( rigRecordField verdict )" "1:permission:reply-received:allow-folder"
 rigAssert "what was granted is one entry of a set of the session, for the member whose call was refused: the tool for that folder" \
 	"$( rigLines "$( rigSetFile )" 'scope: session' ):$( rigLines "$( rigSetFile )" "session-id: $rigSession" ):$( rigLines "$( rigSetFile )" "participants: $rigMember" ):$( rigStarts "$( rigSetFile )" 'entry: ' ):$( rigLines "$( rigSetFile )" "entry: Write:$rigOut/reports/**" )" \

@@ -352,9 +352,9 @@ rigAsk "$rigSecond" "May the rig write the second file?" 8
 rigAssert "the post was edited to show both calls, and then put back as it was asked: its last edit is the single permission again" \
 	"$( rigEdits ):$( rigHolds "$rigScenarioDir/edit.$rigPrompt" 'Permission set' ):$( rigHolds "$rigScenarioDir/edit.$rigPrompt" "$rigTwo" ):$( rigHolds "$rigScenarioDir/edit.$rigPrompt" "$rigOne" ):$( rigHolds "$rigScenarioDir/edit.$rigPrompt" 'allow-once' )" \
 	"2:no:no:yes:yes"
-rigAssert "the call was never written to its record: still a single permission, with no set; the lock was never placed, and the one mark after its emoji is that it is answered" \
+rigAssert "the call was never written to its record: still a single permission, with no set; the lock was never placed; answered, it gets the answered mark and its own answer emoji are taken off it" \
 	"$( rigRecordField kind ):$( rigRecordField refusal-id ):$( [ -f "$( rigSetFile )" ] && printf set || printf no-set ):$( rigEmoji )" \
-	"permission:$rigFirst:no-set:x one repeat file_folder white_check_mark|"
+	"permission:$rigFirst:no-set:x one repeat file_folder white_check_mark|x one repeat file_folder"
 rigAssert "his allow-once is applied to the prompt as it was asked: the first call alone, once" \
 	"$( rigRecordField status ):$( rigRecordField verdict ):$( rigGranted "$rigOne" ):$( rigGranted "$rigTwo" )" "reply-received:allow-once:once:none"
 rigAssert "and the second call is not posted: it comes back as a correction" \

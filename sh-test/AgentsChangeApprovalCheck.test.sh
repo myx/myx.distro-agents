@@ -14,7 +14,8 @@
 ##    2. shown, in two posts: the message that opens the thread, a few lines -- who asks, the
 ##       file by its place name, what for, how to answer -- and the first reply there, the
 ##       change as a diff, the task in words, the session, who asked;
-##    3. approved by click: applied as shown, once, and said in the prompt's thread;
+##    3. approved by click: applied as shown, once, and said in the prompt's thread; with the
+##       answered mark the tooling's own click answers leave the prompt, and its How to answer;
 ##    4. rejected: dropped, the prompt closed as the post of a discarded permission set is;
 ##    5. a reply with words: back to the member as RETURNED with his whole text, the change
 ##       still held; then approved by reply, his words with it;
@@ -38,7 +39,9 @@
 ##   17. what comes ahead of an approval: a grant given for the task, and nothing the member
 ##       holds standing or by the floor, its own directory neither;
 ##   18. a prompt posted before its change moved to its thread, one post that holds the change:
-##       read, answered, confirmed and closed as it was.
+##       read, answered, confirmed and closed as it was;
+##   19. the asking session's Wait after an answer by click: the tooling's own emoji leaving the
+##       prompt is no arrival, and only what he writes there after is.
 ## Red recipe: leave the `approve)` row out of AgentsToolsGrantsSessionCheckRows
 ## (AgentsTools.Grants.include), and section 1 fails on its first call, refused.
 ## Offline: a Slack-shaped fake curl is first on PATH, and a ps beside it lists the rig's own
@@ -372,10 +375,14 @@ rigAssert "the record closes with the verdict, who gave it and what was done" "$
 	"reply-received:approve:URIGOWNER:applied -- OK: replaced one occurrence in $rigWs/held/notes.md"
 rigAssert "one confirmation reply under the prompt, by the team bot: what was read and what was done" \
 	"$( rigPosts ):$( cat "$rigDir/post.3.token" 2> /dev/null ):$( LC_ALL=C grep -c -F 'Read: `approve` by human-owner. The change is applied to `rig-ws:held/notes.md`, exactly as shown.' "$rigDir/post.3" 2> /dev/null ):$( rigHas "$rigDir/post.3" "\"thread_ts\":\"$( rigField question-ts )\"" )" "3:rig-bot-token-TEAM:1:yes"
+rigAssert "with the answered mark the tooling takes its own click answers off the prompt, and puts no cancelled mark on it" \
+	"$( rigReacted reactions.removed ):$( rigReacted reactions )" "+1 x:+1 x white_check_mark"
+rigAssert "and the prompt is edited to its first post's text without How to answer, the reply under it left as it is" \
+	"$( LC_ALL=C tr '\n' ' ' < "$rigDir/edited" ):$( rigHas "$rigDir/edit.$( rigField question-ts )" 'wants to change' ):$( rigHas "$rigDir/edit.$( rigField question-ts )" 'Raise the second word' ):$( rigHas "$rigDir/edit.$( rigField question-ts )" 'How to answer' ):$( rigHas "$rigDir/edit.$( rigField question-ts )" '@@ -1,4 +1,4 @@' )" "$( rigField question-ts ) :yes:yes:no:no"
 rigAssert "the item's Decisions hold the verdict" "$( LC_ALL=C grep -c -F -- "-> approve" "$rigData/board/running/$rigItem.md" )" 1
 rigRead
-rigAssert "a second read reports the same, and applies and says nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigPosts ):$( rigBytes "$rigWs/held/notes.md" )" \
-	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:3:alpha\\nBETA\\ngamma\\ndelta\\n"
+rigAssert "a second read reports the same, and applies, says, takes off and edits nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigPosts ):$( rigBytes "$rigWs/held/notes.md" ):$( rigReacted reactions.removed ):$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigDir/edited" )" \
+	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:3:alpha\\nBETA\\ngamma\\ndelta\\n:+1 x:1"
 
 echo "-- 4. rejected: dropped, nothing applied, the prompt closed as the post of a discarded permission set is --"
 rigStart rejected
@@ -385,11 +392,11 @@ rigRead
 rigAssert "his ❌ is read as reject, and the change is dropped" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' )" "VERDICT: reject:CHANGE: dropped -- rejected, so nothing is applied to rig-ws:held/notes.md"
 rigAssert "what he wrote beside the click comes with it" "$( LC_ALL=C grep -c -F 'not this word' "$rigDir/read" )" 1
 rigAssert "nothing is applied" "$( rigBytes "$rigWs/held/notes.md" ):$( rigField status ):$( rigField verdict )" 'alpha\nbeta\ngamma\ndelta\n:reply-received:reject'
-rigAssert "its click answers are taken off, and it is marked" "$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "+1 x:no_entry_sign"
+rigAssert "its click answers are taken off, with the answered mark and as the prompt is closed, and it is marked" "$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "+1 x +1 x:no_entry_sign"
 rigAssert "its post is edited to the same text without How to answer" \
 	"$( LC_ALL=C grep -c -F 'wants to change' "$rigDir/edit.$( rigField question-ts )" 2> /dev/null ):$( LC_ALL=C grep -c -F 'How to answer' "$rigDir/edit.$( rigField question-ts )" 2> /dev/null )" "1:0"
 rigAssert "the reply under it, the change, is left as it is: the first post alone is edited, and nothing is deleted" \
-	"$( LC_ALL=C tr '\n' ' ' < "$rigDir/edited" ):$( [ -f "$rigDir/deleted" ] && printf deleted || printf none )" "$( rigField question-ts ) :none"
+	"$( LC_ALL=C sort -u "$rigDir/edited" | LC_ALL=C tr '\n' ' ' ):$( [ -f "$rigDir/deleted" ] && printf deleted || printf none )" "$( rigField question-ts ) :none"
 rigAssert "and its thread is told what was read" "$( LC_ALL=C grep -l -F 'Read: `reject` by human-owner. The change is dropped: nothing is applied to `rig-ws:held/notes.md`.' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead
@@ -427,7 +434,7 @@ rigRead
 rigAssert "the kept edit no longer fits exactly: nothing is applied, and the member is told to make the change again" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' )" \
 	"VERDICT: approve:CHANGE: not-applied -- $rigWs/held/notes.md has changed since this change was shown: its old_string matched 1 place(s) then and matches 2 now, so nothing was written. Make the change again: it is held and shown to him anew."
 rigAssert "the file is as the other change left it" "$( rigBytes "$rigWs/held/notes.md" )" 'alpha\nbetatwo\ngamma\nbeta\n'
-rigAssert "the change is dropped: its record closed, its prompt closed and marked" "$( rigField status ):$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "reply-received:+1 x:no_entry_sign"
+rigAssert "the change is dropped: its record closed, its prompt closed and marked" "$( rigField status ):$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "reply-received:+1 x +1 x:no_entry_sign"
 rigAssert "and he is told his approve was not applied, why, and that the member makes the change again" "$( LC_ALL=C grep -l -F "Read: \`approve\` by human-owner, and the change is not applied to \`rig-ws:held/notes.md\`: $rigWs/held/notes.md has changed since this change was shown: its old_string matched 1 place(s) then and matches 2 now, so nothing was written. It is dropped, and keeper-myx is told to make it again: it is then shown to you anew." "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigStart later
 rigEdit edit "$rigWs/held/notes.md" beta BETA
@@ -711,6 +718,9 @@ rigThread "$( rigClick +1 URIGOWNER )" "$( rigReply 000250 URIGOWNER 'why BETA a
 rigRead
 rigAssert "his 👍 approves it: the kept change is applied as it was shown, and the record closes" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigBytes "$rigWs/held/notes.md" ):$( rigField status )" \
 	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:alpha\\nBETA\\ngamma\\ndelta\\n:reply-received"
+rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
+rigAssert "with the answered mark its click answers leave it, and it is edited to the one post it was without How to answer, its change still in it" \
+	"$( rigReacted reactions.removed ):$( rigReacted reactions ):$( rigHas "$rigBeforeEdit" 'wants to change' ):$( rigHas "$rigBeforeEdit" 'How to answer' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" 'Rework the rig widget' )" "+1 x:+1 x white_check_mark:yes:no:yes:yes"
 rigAssert "and it is confirmed with one reply in its thread" \
 	"$(( $( rigPosts ) - rigBeforePosts )):$( LC_ALL=C grep -c -F 'Read: `approve` by human-owner. The change is applied to `rig-ws:held/notes.md`, exactly as shown.' "$rigDir/post.$( rigPosts )" 2> /dev/null ):$( rigHas "$rigDir/post.$( rigPosts )" "\"thread_ts\":\"$( rigField question-ts )\"" )" "1:1:yes"
 rigStart before-rejected
@@ -720,7 +730,7 @@ rigThread "$( rigClick x URIGOWNER )" ""
 rigRead
 rigAssert "rejected: dropped, nothing applied, its click answers taken off, and it is marked" \
 	"$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigBytes "$rigWs/held/notes.md" ):$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" \
-	'VERDICT: reject:CHANGE: dropped -- rejected, so nothing is applied to rig-ws:held/notes.md:alpha\nbeta\ngamma\ndelta\n:+1 x:no_entry_sign'
+	'VERDICT: reject:CHANGE: dropped -- rejected, so nothing is applied to rig-ws:held/notes.md:alpha\nbeta\ngamma\ndelta\n:+1 x +1 x:no_entry_sign'
 rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
 rigAssert "its post is edited to the one post it was, without How to answer: the change, the task, the session and who asked stay in it" \
 	"$( rigHas "$rigBeforeEdit" 'wants to change' ):$( rigHas "$rigBeforeEdit" 'How to answer' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" '+BETA' ):$( rigHas "$rigBeforeEdit" 'Rework the rig widget' ):$( rigHas "$rigBeforeEdit" '5e55104a' ):$( rigHas "$rigBeforeEdit" 'Asked by' )" "yes:no:yes:yes:yes:yes:yes"
@@ -740,6 +750,30 @@ rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
 rigAssert "its session ended: dropped by the tooling, its thread told, its post the one post it was without How to answer" \
 	"$( LC_ALL=C grep -c "^DROPPED $( rigId ) " "$rigDir/collect" ):$( rigField status ):$( LC_ALL=C grep -l -F 'This change is dropped: the session that made it has ended. Nothing is applied, and the prompt above takes no answer any more.' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" 'How to answer' )" "1:withdrawn:1:yes:no"
 rigThreadOwn=1
+
+echo "-- 19. the Wait after an answer by click: the tooling's own emoji leaving the prompt is no arrival --"
+## The thread as Slack gives it, one entry an emoji with everyone who holds it: before the
+## answer is read the tooling's own two and his click, after it his click and the answered mark.
+rigThreadAs(){ ## reactions JSON, replies (rigReply words, may be empty)
+	local asTs
+	asTs="$( rigField question-ts )"
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the prompt","reactions":[%s]},{"ts":"1700000001.000201","user":"URIGBOT01","text":"the change","thread_ts":"%s"}%s],"has_more":false}\n' \
+		"$asTs" "$1" "$asTs" "${2:-}" > "$rigDir/replies.$asTs.json"
+}
+rigStart after-click
+rigEdit edit "$rigWs/held/notes.md" beta BETA
+rigThreadAs '{"name":"+1","count":2,"users":["URIGBOT01","URIGOWNER"]},{"name":"x","count":1,"users":["URIGBOT01"]}'
+rigTool "$rigDir/wait1" Wait '{"timeout":30}'
+rigAssert "his click arrives on the Wait as the verdict, applied, and its thread stays watched" \
+	"$( LC_ALL=C grep -c -x -e 'ASK-RESULT: RECEIVED' -e 'VERDICT: approve' "$rigDir/wait1" ):$( rigField status ):$( rigField follow-floor ):$( rigWaitSet )" "2:reply-received:$( rigField question-ts ):1"
+rigThreadAs '{"name":"+1","count":1,"users":["URIGOWNER"]},{"name":"white_check_mark","count":1,"users":["URIGBOT01"]}'
+rigTool "$rigDir/wait2" Wait '{"mode":"continue","timeout":6}'
+rigAssert "the next Wait brings nothing: the tooling's own emoji gone from the prompt is no arrival, and the answer is not given twice" \
+	"$( LC_ALL=C grep -c '^WAIT-RESULT: TIMEOUT' "$rigDir/wait2" ):$( LC_ALL=C grep -c -e '^ASK-RESULT: ' -e '^reaction on the question: ' "$rigDir/wait2" )" "1:0"
+rigThreadAs '{"name":"+1","count":1,"users":["URIGOWNER"]},{"name":"white_check_mark","count":1,"users":["URIGBOT01"]}' "$( rigReply 000450 URIGOWNER 'soften it later, please' )"
+rigTool "$rigDir/wait3" Wait '{"mode":"continue","timeout":30}'
+rigAssert "what he writes there after still arrives, kept with the answer" \
+	"$( LC_ALL=C grep -c -x 'ASK-RESULT: CLARIFIED' "$rigDir/wait3" ):$( rigHas "$rigDir/wait3" 'soften it later, please' )" "1:yes"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CHANGE APPROVAL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

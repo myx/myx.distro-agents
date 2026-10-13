@@ -356,6 +356,14 @@ AgentsWaitProbeAsk(){
 			[ -n "$probeByOperation" ] || return 2
 			: > "$probeOut" || return 2
 		fi
+		## An answered question is watched for what the person writes after. A click under it
+		## answers nothing any more, and the emoji there change by the tooling's own hand: its
+		## answer emoji leave that post with the answered mark, or as the post is closed. So
+		## once the record is closed no reaction line is an arrival: only a message is.
+		if [ "$probeStatus" != "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then
+			LC_ALL=C grep -v '^reaction on the question: ' "$probeOut" > "$probeOut.kept" 2>/dev/null || :
+			mv -f "$probeOut.kept" "$probeOut" || return 2
+		fi
 		## Several options are sent by the send mark: until the clicks give a verdict
 		## (AgentsEscalationVerdict.awk, the one reader), a number clicked is no arrival yet.
 		if [ "$probeSelect" = "many" ] && [ "$probeStatus" = "reply-pending" ] && LC_ALL=C grep -q '^reaction on the question: ' "$probeOut" 2>/dev/null ; then

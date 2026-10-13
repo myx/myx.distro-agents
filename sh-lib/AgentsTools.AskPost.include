@@ -180,12 +180,13 @@ AskUserQuestion||ask-user-question.post.format.md||*"
 	}
 
 	## A post that no longer takes an answer: the tooling's own answer emoji are taken off it,
-	## it gets one mark (a heading under `# Marks` of its template), and, when asked, it is
+	## it gets one mark (a heading under `# Marks` of its template; none where no mark is named:
+	## an answered question gets its own where its record closes), and, when asked, it is
 	## edited to the same post without its `How to answer` part. The edit is the member send
 	## itself, told to update that message (--update-ts): the same author line, text and
 	## blocks the post went out with, under the same floor, so what a person sees does change
 	## and any body the send took is taken again. Each step is best effort.
-	AgentsToolsAskPostClose(){ ## record file, post ts, mark (superseded|cancelled), edit (edit|empty)
+	AgentsToolsAskPostClose(){ ## record file, post ts, mark (superseded|cancelled; empty: none), edit (edit|empty)
 		local closeFile="$1" closeTs="$2" closeMark="$3" closeEdit="${4:-}" closeOwner closeChannel closeAs closeEmoji closeText closeRevised=1 closeVersion="" closeTarget closeTo closeArgs
 		closeOwner="$( AgentsToolsAskPostField "$closeFile" owner )"
 		closeChannel="$( AgentsToolsAskPostField "$closeFile" channel )"
@@ -193,7 +194,8 @@ AskUserQuestion||ask-user-question.post.format.md||*"
 		[ -n "$closeOwner" ] && [ -n "$closeChannel" ] && [ -n "$closeTs" ] || return 0
 		closeEmoji="$( AgentsToolsAskPostRecordFill reactions "$closeFile" 2>/dev/null )" || closeEmoji=""
 		[ -z "$closeEmoji" ] || AgentsToolsAskPostReact "$closeOwner" "$closeChannel:$closeTs" "$closeAs" remove $closeEmoji
-		closeEmoji="$( AgentsToolsAskPostRecordFill block "$closeFile" "Marks/$closeMark" 2>/dev/null )" || closeEmoji=""
+		closeEmoji=""
+		[ -z "$closeMark" ] || closeEmoji="$( AgentsToolsAskPostRecordFill block "$closeFile" "Marks/$closeMark" 2>/dev/null )" || closeEmoji=""
 		[ -z "$closeEmoji" ] || AgentsToolsAskPostReact "$closeOwner" "$closeChannel:$closeTs" "$closeAs" add $closeEmoji
 		[ "$closeEdit" = "edit" ] || return 0
 		## The question's first post is filled as it was first asked, with no revised mark. A

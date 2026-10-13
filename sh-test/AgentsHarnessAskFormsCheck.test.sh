@@ -435,7 +435,7 @@ rigCall 60 AskQuestion "{\"pending_id\":\"$rigRootId\",\"revise\":true,\"questio
 rigAssert "the second update ran to its answer"        "$rigKilled" no
 rigAssert "the update before it is removed"            "$( cat "$rigScenarioDir/deleted" 2>/dev/null | tr '\n' ' ' )" "1700000001.000201 "
 rigAssert "the root is still marked once"              "$( rigReacted reactions 000101 | tr ' ' '\n' | LC_ALL=C grep -c -x recycle )" 1
-rigAssert "the emoji that no longer answer leave the root" "$( rigReacted reactions.removed 000101 )" "one two three four ok"
+rigAssert "the emoji that no longer answer leave the root, and those of the live form leave it with the answered mark" "$( rigReacted reactions.removed 000101 )" "one two three four ok +1 x"
 rigAssert "and the missing ones are placed on it"      "$( rigReacted reactions 000101 | tr ' ' '\n' | LC_ALL=C grep -c -x -e '+1' -e x )" 2
 rigAssert "a click on the root answers the live version" "$( rigVerdictLine )" "VERDICT: yes"
 rigAssert "the same record and id throughout"          "$( rigRecordCount ):$( rigRecordId )" "1:$rigRootId"

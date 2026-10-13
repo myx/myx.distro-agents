@@ -334,7 +334,7 @@ rigAssert "what a place is for stands under it, and what the whole access is for
 rigAssert "every place stands once, and no path of this machine is shown" \
 	"$( rigTextCount "$rigScenarioDir/post.1" 'rig-out:reports/**' ):$( rigTextCount "$rigScenarioDir/post.1" 'rig-far:docs/**' ):$( rigTextCount "$rigScenarioDir/post.1" '.skillset-.local:magic-tester/**' ):$( rigTextCount "$rigScenarioDir/post.1" 'WebSearch' ):$( rigTextCount "$rigScenarioDir/post.1" '/dev/null' ):$( rigTextCount "$rigScenarioDir/post.1" '`/' )" \
 	"1:1:1:1:0:0"
-rigAssert "the set's own answer emoji are placed under it by the bot, and the one mark after them is that it is answered" "$( rigEmoji 1 )" "x unlock white_check_mark|"
+rigAssert "the set's own answer emoji are placed under it by the bot; answered, it gets the answered mark, and the bot takes its own answer emoji off it" "$( rigEmoji 1 )" "x unlock white_check_mark|x unlock"
 rigAssert "the answer is confirmed once, in the thread of the post, by the bot: the one other post" \
 	"$( rigCalls chat.postMessage ):$( cat "$rigScenarioDir/posted-as.2" 2>/dev/null ):$( rigHolds "$rigScenarioDir/post.2" "\"thread_ts\":\"$( rigPostTs 1 )\"" ):$( rigHolds "$rigScenarioDir/post.2" "Read: \`allow-set\` by human-owner. Granted: 7 permission(s) to $rigMember, for this task only." )" \
 	"2:$rigBotToken:yes:yes"

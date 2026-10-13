@@ -113,7 +113,7 @@ case "$rigMethod" in
 		rigTs="$( date +%s ).$( printf '%06d' "$$" )"
 		printf '{"ok":true,"channel":"DRIG00001","ts":"%s","message":{"ts":"%s","user":"URIGBOT01"}}\n' "$rigTs" "$rigTs"
 	;;
-	reactions.add) rigKeep bodies ; printf '{"ok":true}\n' ;;
+	reactions.add) [ ! -e "$rigDir/hang-react" ] || exec sleep 30 ; rigKeep bodies ; printf '{"ok":true}\n' ;;
 	*) rigKeep bodies ; printf '{"ok":false,"error":"channel_not_found"}\n' ;;
 esac
 RIGCURL
@@ -122,8 +122,14 @@ PATH="$rigTmp/bin:$PATH"
 export PATH
 [ "$( command -v ps )" = "$rigTmp/bin/ps" ] && [ "$( command -v curl )" = "$rigTmp/bin/curl" ] \
 	|| rigRefuse "the rig's own ps and curl are not first on PATH, so this check would read the host's process list or issue a real request"
-## The closing time of a record is four seconds here, the bound of a post two, and a tick one.
-printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=4\nSESSION_CONTROL_POST_SECONDS=2\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+## The closing time of a record is twelve seconds here, which two ticks of a loaded machine stay within, and a tick one. The bound of a post is thirty seconds, which
+## no post of this rig reaches on a loaded machine, and two where a scenario is about the bound: a post that is
+## ended at its bound is tried again, and what that does is held by those scenarios, not left to the load.
+rigBound(){ ## seconds
+	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_EVENT_TRACK=CRIGTRACK\nSESSION_CONTROL_TICK_SECONDS=1\nSESSION_CONTROL_CLOSING_SECONDS=12\nSESSION_CONTROL_POST_SECONDS=%s\n' "$1" > "$rigWs/.local/.agents/magic-team.agent.env.rig" \
+		&& mv -f "$rigWs/.local/.agents/magic-team.agent.env.rig" "$rigWs/.local/.agents/magic-team.agent.env"
+}
+rigBound 30
 for rigMember in keeper-rig keeper-myx magic-coordinator human-owner ; do
 	mkdir -p "$rigSkills/$rigMember"
 	printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigSkills/$rigMember/$rigMember.basic.md"
@@ -356,7 +362,7 @@ rigAssert "its process gone and its record open: the first tick notes that momen
 rigOne d-old
 rigAssert "a tick within the closing time records no death, and a thread started again reads the same moment: the closing time is not started anew" \
 	"$( rigDeadLines d-old ):$( cat "$rigStores/d-old/control/gone" 2> /dev/null )" "0:$rigNoted"
-sleep 4
+sleep 13
 rigOne d-old
 rigAssert "after its closing time, its record still open, it is a death: one line, the state member-dead, and its note is gone from control/gone" \
 	"$( rigDeadLines d-old d-old ):$( rigState d-old ):$( rigGoneNotes d-old d-old )" "1:member-dead:0"
@@ -383,12 +389,12 @@ rigAssert "the death of the executor leaves the thread running while a participa
 	"$( rigEnded "$rigExec" && echo ended || echo alive ):$( rigDeadLine d-exec d-exec | LC_ALL=C cut -d ' ' -f 3 ):$( rigState d-exec ):$( rigDeadLines d-exec )" "alive:role=executor:member-dead:1"
 rigThreadEnd "$rigExec"
 ## The only run of a session is a death, and its question is open: d-gone, of section 1.
-rigCalls="$( wc -l < "$rigSlack/calls" | LC_ALL=C tr -d ' ' )"
+rigCalls="$( LC_ALL=C grep -c '^chat.postMessage ' "$rigSlack/calls" )"
 rigThread only d-gone ; rigOnly="$rigThreadPid"
 rigWaitFor 20 rigHolds d-gone "$rigOnly" || rigRefuse "the thread of d-gone did not start: $( LC_ALL=C tr '\n' ' ' < "$rigTmp/only.err" | cut -c1-600 )"
 sleep 10
 rigAssert "the thread stays when the only run of its session is a death and its question is open: after ten ticks it lives, with its pid file and its lock, the state member-dead, and it has posted nothing more" \
-	"$( rigEnded "$rigOnly" && echo ended || echo alive ):$( rigControl d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e pid -e lock ):$( rigState d-gone ):$( rigQuestions d-gone ):$(( $( wc -l < "$rigSlack/calls" | LC_ALL=C tr -d ' ' ) - rigCalls ))" "alive:2:member-dead:URIGOWNER - human-owner;:0"
+	"$( rigEnded "$rigOnly" && echo ended || echo alive ):$( rigControl d-gone | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -e pid -e lock ):$( rigState d-gone ):$( rigQuestions d-gone ):$(( $( LC_ALL=C grep -c '^chat.postMessage ' "$rigSlack/calls" ) - rigCalls ))" "alive:2:member-dead:URIGOWNER - human-owner;:0"
 rigCall --manager-session-list > "$rigTmp/list.out" 2> "$rigTmp/list.err" < /dev/null
 rigAssert "a session with no live run and an open question reads waiting in the list of sessions" \
 	"$( LC_ALL=C awk '$1 == "session" && $2 == "d-gone" { for ( wordAt = 3 ; wordAt <= NF ; wordAt++ ) { if ( $wordAt == "waiting" ) { print "waiting" ; exit } } }' "$rigTmp/list.out" )" "waiting"
@@ -499,7 +505,31 @@ rigAssert "the stub refuses the first post: no question stands, no record is ope
 	"[$( rigQuestions d-retry )]:[$( rigAsks d-retry )]:$( rigDeadLine d-retry d-retry | LC_ALL=C grep -c -F -- 'asked=' ):$( rigLogHas d-retry 'it is tried again' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "not-said" }' ):$( LC_ALL=C grep -c -F -- '`d-retry`' "$rigSlack/bodies.refused" 2> /dev/null )" "[]:[]:0:said:1"
 rigOne d-retry ; rigSettle d-retry
 rigAssert "and takes the second: one question stands where it was sent, and one record is open" "$( rigQuestions d-retry ):$( rigAsks d-retry )" "URIGOWNER - human-owner;:human-owner;"
+## The post is ended at its bound after Slack took the question and before the post could mark it: the stub does
+## not answer the first emoji.
+rigItem item-cut d-cut human-owner
+rigRec d-cut d-cut keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-cut
+"
+rigBound 2 ; : > "$rigSlack/hang-react"
+rigOne d-cut ; rigSettle d-cut
+rigCutFirst="$( rigQuestions d-cut ):$( rigAsks d-cut ):$( rigDeadLine d-cut d-cut | LC_ALL=C grep -c -F -- 'asked=' ):$( rigLogHas d-cut 'did not end within its bound of 2 seconds' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "not-said" }' )"
+rm -f "$rigSlack/hang-react" ; rigBound 30
+rigOne d-cut ; rigSettle d-cut ; rigOne d-cut ; rigSettle d-cut
+rigAssert "a post that is ended at its bound after Slack took the question is not posted again: the next try finds its record, places its emoji and keeps its id on the line, and one question stands with one record" \
+	"$rigCutFirst|$( rigQuestions d-cut ):$( rigAsks d-cut ):$( rigDeadLine d-cut d-cut | LC_ALL=C grep -c -F -- 'asked=' )" "URIGOWNER - human-owner;:human-owner;:0:said|URIGOWNER - human-owner;:human-owner;:1"
+## The post was made and its record could not be written: what the send answered is kept, and nothing else of it.
+rigItem item-sent d-sent human-owner
+rigRec d-sent d-sent keeper-rig spawn-started "supervisor-process: $rigGoneShell
+spawns: item-sent
+"
+mkdir -p "$rigStores/d-sent/control"
+printf 'SENT_MESSAGE_CHANNEL=DRIG00001\nSENT_MESSAGE_TS=1700000009.000900\nSENT_MESSAGE_ADDRESSEES=URIGOWNER\n' > "$rigStores/d-sent/control/post.d-sent.sent"
+rigOne d-sent ; rigSettle d-sent
+rigAssert "a question that was posted while its record could not be written gets its record at the next try, and no second post" \
+	"[$( rigQuestions d-sent )]:$( rigAsks d-sent ):$( LC_ALL=C grep -l -x -F -- 'question-ts: 1700000009.000900' "$rigPending"/*.md 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/d-sent/control/post.d-sent.sent" ] && echo kept || echo taken )" "[]:human-owner;:1:taken"
 ## A post that is not answered, under a thread: a second run of the session dies meanwhile.
+rigBound 2
 rigItem item-hang d-hang human-owner
 rigItem item-hangc c-hang human-owner
 rigStand '' ; rigHangShell="$rigStandPid"
@@ -523,7 +553,7 @@ rigWaitFor 15 rigLogSays s-hang 'did not end within its bound of 2 seconds'
 rigAssert "a post that hangs is ended after its bound: the process that posted is no more, no record is opened, and the log of the thread says so" \
 	"$( rigIsStill "$rigJob" && echo still-there || echo ended ):$( rigAsks s-hang ):$( rigLogHas s-hang 'did not end within its bound of 2 seconds' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "said" : "not-said" }' )" "ended::said"
 rigHangAsked(){ [ -n "$( rigQuestions d-hang )" ] && [ -n "$( rigQuestions c-hang )" ] ; }
-rm -f "$rigSlack/hang"
+rm -f "$rigSlack/hang" ; rigBound 30
 rigWaitFor 40 rigHangAsked
 sleep 4
 rigAssert "and it is tried again once the stub answers: one question for each of the two dead runs, and two open records" \

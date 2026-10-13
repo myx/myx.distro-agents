@@ -20,6 +20,12 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - run-stopped
   - run-bound
   - run-died
+  - death-resumed
+  - death-fresh
+  - death-new-process
+  - death-closed
+  - death-killed
+  - death-failed
   - unrequested
   - question-open
 - Death
@@ -28,6 +34,7 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - participant
   - options
   - context
+  - again
 - Ask
   - readback
   - withdrawn
@@ -101,6 +108,42 @@ What the tooling says in a session's thread about the session itself, and what i
 💀 The run[[ `{{run}}`]] of {{member}} died: its process is gone, and nothing closed its record.[[ {{unrequested}}]]
 ```
 
+## death-resumed
+
+```
+▶️ {{member}} is started again after its run[[ `{{run}}`]] died, from the context it kept. {{by}} answered `{{option}}`.
+```
+
+## death-fresh
+
+```
+▶️ {{member}} is started again after its run[[ `{{run}}`]] died, from its brief, with no context. {{by}} answered `{{option}}`.
+```
+
+## death-new-process
+
+```
+▶️ {{member}} is started again after its run[[ `{{run}}`]] died, as a new process from its brief: its context could not be resumed[[ ({{reason}})]]. {{by}} answered `{{option}}`.
+```
+
+## death-closed
+
+```
+☑️ The run[[ `{{run}}`]] of {{member}} that died stays ended: its record is closed[[, and its item `{{item}}` is accepted]]. {{by}} answered `{{option}}`.
+```
+
+## death-killed
+
+```
+🛑 The session of {{member}}, whose run[[ `{{run}}`]] died, is ended: what still lived of it was killed, and the record of the dead run is closed. {{by}} answered `{{option}}`.
+```
+
+## death-failed
+
+```
+⚠️ The answer `{{option}}` of {{by}} about the run[[ `{{run}}`]] of {{member}} that died was not carried out: {{reason}}. Nothing more is tried by itself, and the run stays as it is.
+```
+
 ## unrequested
 
 ```
@@ -148,6 +191,12 @@ kill: end what still lives of its session, and close it
 
 ```
 Nothing is started, closed or ended until this is answered.[[ Its task: `{{item}}`.]]
+```
+
+## again
+
+```
+Your run died, and {{by}} answered `{{option}}`: you are started again on the same task. Go on with it, then hand back.
 ```
 
 # Ask
@@ -220,6 +269,8 @@ an earlier date
 - rule: `## run-stopped` is the line of a run that a member's `TaskStop` ended: `{{by}}`, that member, and `{{at}}`, when, a Slack date token, both as the run's transcript records that ending. It is posted whatever the run had handed back, and in place of `## handback-missing`.
 - rule: `## run-bound` is the line of a run that the tooling ended because the wait of its caller reached its bound: `{{seconds}}`, that bound. It is posted whatever the run had handed back, and in place of `## handback-missing`.
 - rule: `## run-died` is the line of a run that died: its process is gone, the shell that supervised it is gone, its record is still open, and nobody ended it on purpose. The control thread of its session posts it, once, as the team bot, where a line of an end is posted and to whom, in place of the five lines above, and nothing where a handback of the run stands in that thread. Where the death is asked about in that same thread, the question is the message, and this line is not posted.
+- rule: The six lines `## death-resumed`, `## death-fresh`, `## death-new-process`, `## death-closed`, `## death-killed` and `## death-failed` say what became of the answer to the question about a run that died. The control thread of the session posts one of them, once, as the team bot, in the thread of the question, addressed to the one who answered, and in the thread of the session that requested the run, addressed to the member that brought it in, where that is another thread: `{{member}}`, the member whose run died; `{{run}}`, the first 8 characters of that run's id; `{{by}}`, who was asked and answered; `{{option}}`, the option taken. `## death-new-process` is the line of a `resume` whose context could not be resumed, with why, `{{reason}}`. `## death-closed` names the item that was accepted, `{{item}}`, where the run had one. `## death-failed` says why the answer was not carried out, `{{reason}}`: the death then stays unsettled.
+- rule: `## again` under `# Death` is what the member that is started again is told, as the corrections of the return that starts it: `{{by}}`, who answered, and `{{option}}`, the option taken.
 - rule: `## unrequested` is what a line of an end says more of a run that no session requested: `{{session}}`, the name its spawn gave its session, left out with its sentence where it gave none.
 - rule: The blocks under `# Death` are the fields of the question about a run that died, which is asked only where the item of that run names a reviewer. It is a decision: the control thread of the session posts it from the template of a decision (`escalate-decision.post.format.md`), as the team bot, to that reviewer, with a record of the kind `decision`. `## question` is its question: `{{member}}`, the member whose run died; `{{role}}`, the `## executor` words for the founder of the session and the `## participant` words for any other run; the session by the name its spawn gave it, `{{session}}`, else by the first 8 characters of its id, `{{session-id}}`, never both; and `{{run}}`, the first 8 characters of the run's id. `## options` is its options, one a line, in that order, each starting with the word that answers it. `## context` is its context: `{{item}}`, the dispatch item of the run.
 - rule: `## question-open` is posted by the team bot in the run's own session thread when a run ends and at least one question it asked is still open, addressed to the member that brought that one in, where the send can address it: `{{count}}`, how many. The box that lists them goes to the session's tracking thread, and only there (`event-track.post.format.md`, `notice`).

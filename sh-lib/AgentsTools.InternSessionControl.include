@@ -89,10 +89,12 @@
 ## the disk, alone or with the store above it, the thread ends at its next tick, makes
 ## nothing again, and says so in one line on its standard error.
 ##
-## A DEATH IS TOLD AND ASKED ABOUT APART FROM THE TICK. What is posted about a death is one
-## bounded call of the tooling, a process of its own that the thread starts and never waits
-## for (`--death`, AgentsToolsSessionControlDeathStart): a call to Slack that hangs holds no
-## tick, and one that failed is tried again at a later tick and said in the log.
+## A DEATH IS TOLD AND ASKED ABOUT APART FROM THE TICK, and so is its answer read from its
+## thread and carried out. Each is one bounded call of the tooling, a process of its own that
+## the thread starts and never waits for (`--death`, AgentsToolsSessionControlDeathStart): a
+## call to Slack that hangs holds no tick, and one that failed is tried again at a later tick
+## and said in the log. The tick itself reads the answer from the record of the question, a
+## file. Once no death is unsettled the state is what the runs say again.
 ##
 ## It runs as no member: whatever session it is started from, nothing of that session
 ## reaches what it does or what it starts.
@@ -423,45 +425,67 @@ AgentsToolsSessionControlSeconds(){ ## key, default
 	printf '%s\n' "$secondsValue"
 }
 
-## WHAT IS POSTED ABOUT ONE DEATH IS STARTED APART FROM THE TICK: the thread's own operation
+## WHAT IS DONE ABOUT ONE DEATH IS STARTED APART FROM THE TICK: the thread's own operation
 ## as a process of its own, `--death`, which makes the one bounded call
-## (AgentsToolsSessionControlDeathPost, AgentsTools.SessionControlDeath.include). It is never
-## waited for and never signalled. What it says goes to the log of the thread. The process
-## is kept in control/post.<run id>, as `<pid> <start>`: while that is still that process no
-## second post about the same death is started, by this thread or by one started again.
-AgentsToolsSessionControlDeathStart(){ ## run id
+## (AgentsToolsSessionControlDeathPost, AgentsTools.SessionControlDeath.include): what is told
+## and asked, then the read of the thread of the question, then the carrying out of its
+## answer. It is never waited for and never signalled. What it says goes to the log of the
+## thread. The process is kept in control/post.<run id>, as `<pid> <start>`: while that is
+## still that process no second call about the same death is started, by this thread or by
+## one started again. A start that is one of many, the read of a thread on its period, is
+## not said in the log.
+AgentsToolsSessionControlDeathStart(){ ## run id, `quiet` for a start that is not said (may be empty)
 	local startRun="$1" startPid="" startBegan=""
 	(
+		## WHAT THE THREAD IGNORES, WHAT IT STARTS IGNORES TOO, and a shell that was started
+		## with a signal ignored cannot give it back its default. This call may start a member
+		## again, and that run must not live with an interrupt, a quit and an alarm ignored:
+		## so the call is started through perl, where there is one, with each of them at its
+		## default. It is the same process still, by exec.
+		if command -v perl > /dev/null 2>&1 ; then
+			exec perl -e 'for my $name ( qw( HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF PIPE USR1 USR2 TERM ) ) { $SIG{$name} = "DEFAULT" ; } exec { $ARGV[0] } @ARGV or exit 127' \
+				"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
+		fi
 		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
 	) < /dev/null >> "$controlDir/log" 2>&1 &
 	startPid="$!"
 	case "$startPid" in
 		''|*[!0123456789]*)
-			AgentsToolsSessionControlOnce nopost "the process that posts about the death of run $startRun could not be started -- it is tried again at the next tick"
+			controlPostWait="$controlPostWait
+$startRun $(( SECONDS + controlPostBound ))"
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $startRun: the process that is to act on it could not be started -- it is tried again in ${controlPostBound}s"
 			return 0
 		;;
 	esac
 	disown "$startPid" 2> /dev/null || :
 	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
 	AgentsToolsSessionControlKeep "post.$startRun" "${startBegan:-$startPid}" || :
-	AgentsToolsSessionControlSay event "session $controlSession: the death of run $startRun: what is told and asked about it is posted by pid $startPid, apart from the tick, within ${controlPostBound}s"
+	[ -n "${2:-}" ] || AgentsToolsSessionControlSay event "session $controlSession: the death of run $startRun: what is due about it is done by pid $startPid, apart from the tick, within ${controlPostBound}s"
 	return 0
 }
 
 ## ONE DEATH THAT IS NOT SETTLED, at one tick. The line of the death is the caller's
 ## deathsLine, and is changed here. In order:
-## - a post about it in flight is left to end, by looking and never by waiting;
-## - a post that has ended left its result: what it told and what it asked is kept on the
-##   line, and a result that says the death is settled settles it. A post that failed, or
+## - a call about it in flight is left to end, by looking and never by waiting;
+## - a call that has ended left its result: what it told and what it asked is kept on the
+##   line, and a result that says the death is settled settles it. A call that failed, or
 ##   left nothing, is said in the log, and the next is started no sooner than the bound of
-##   a post later;
-## - a death whose question is asked waits for its answer: reading it and carrying it out
-##   are tasks of their own, and nothing more is posted here;
+##   a call later. An answer that could not be carried out is kept on the line as `failed=`,
+##   said in the log, and not tried again by itself: the death stays unsettled;
 ## - a death whose record another closer closed before it was told and asked here is
 ##   settled: that closer told its end, by its own rule;
-## - else a post about it is started.
+## - a death that is asked: THE ANSWER IS READ FROM THE RECORD OF THE QUESTION, a file, and
+##   from nothing else at a tick. Open: the thread of the question is read by a call apart,
+##   every SESSION_CONTROL_ANSWER_READ_SECONDS, where every typed answer is read and
+##   applied; whoever else closes the record, a click or a reply taken by another reader, an
+##   answer given through the pending store, is taken the same way. Closed with one of the
+##   options of the question: the option is kept on the line, `answer=<option>
+##   answered=<moment>`, and a call apart carries it out. Withdrawn: the death is settled,
+##   how=withdrawn, and never asked again. Closed any other way, or gone: said once, kept as
+##   `failed=`, and the death stays unsettled;
+## - else a call about it is started.
 AgentsToolsSessionControlDeathStep(){
-	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil=""
+	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil="" stepQuiet="" stepWait="" stepAsked stepStatus stepAnswer stepNot=""
 	stepMarker="$controlDir/post.$stepRun"
 	stepStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	[ -n "$controlPostBound" ] || controlPostBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_POST_SECONDS 120 )"
@@ -489,39 +513,91 @@ AgentsToolsSessionControlDeathStep(){
 							*:elsewhere) deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere" ;;
 						esac
 					;;
+					read) stepWait="read" ;;
+					done)
+						case "$stepValue" in
+							''|*[!abcdefghijklmnopqrstuvwxyz-]*) ;;
+							*) case " $deathsLine " in *" settled="*) ;; *) deathsLine="$deathsLine settled=$stepStamp how=$stepValue" ;; esac ;;
+						esac
+					;;
+					failed) stepNot="$stepValue" ;;
 					error) stepFailed="yes" ; stepError="$stepValue" ;;
 				esac
 			done < "$stepMarker.result"
 		} 2> /dev/null
 		rm -f "$stepMarker" "$stepMarker.result" 2> /dev/null
 		[ -n "$stepRead" ] || { stepFailed="yes" ; stepError="it ended and left no result" ; }
-		if [ -n "$stepFailed" ] ; then
+		if [ -n "$stepFailed" ] || [ -n "$stepWait" ] ; then
+			stepUntil="$controlPostBound"
+			if [ -z "$stepFailed" ] ; then
+				[ -n "$controlReadPeriod" ] || controlReadPeriod="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_ANSWER_READ_SECONDS 60 )"
+				stepUntil="$controlReadPeriod"
+			fi
 			while read -r stepOne stepValue ; do
 				[ -z "$stepOne" ] || [ "$stepOne" = "$stepRun" ] || stepKeep="$stepKeep$stepOne $stepValue
 "
 			done <<< "$controlPostWait"
-			controlPostWait="$stepKeep$stepRun $(( SECONDS + controlPostBound ))"
-			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: what was to be posted about it failed${stepError:+: $stepError} -- it is tried again in ${controlPostBound}s"
-		else
+			controlPostWait="$stepKeep$stepRun $(( SECONDS + stepUntil ))"
+			stepUntil=""
+		fi
+		if [ -n "$stepFailed" ] ; then
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: what was to be done about it failed${stepError:+: $stepError} -- it is tried again in ${controlPostBound}s"
+		elif [ -n "$stepNot" ] ; then
+			case " $deathsLine " in *" failed="*) ;; *) deathsLine="$deathsLine failed=$stepStamp" ;; esac
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its answer was not carried out: $stepNot -- nothing more is tried by itself, and the death stays unsettled"
+		elif [ -z "$stepWait" ] ; then
 			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: ${deathsLine#* }"
 		fi
 	fi
-	case " $deathsLine " in *" settled="*) return 0 ;; esac
-	stepValue="$( AgentsToolsSessionControlDeathMark "$deathsLine" asked )" || stepValue=""
-	case "$stepValue" in ''|none) ;; *) return 0 ;; esac
-	while IFS= read -r stepOne ; do
-		[ "${stepOne##*/}" != "$stepRun.md" ] || { stepRecord="$stepOne" ; break ; }
-	done <<< "$controlRowsNames"
-	if [ -z "$stepRecord" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$stepRecord" status )" != "spawn-started" ] ; then
-		deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere"
-		AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its record was closed by another closer, which told its end -- nothing more is told or asked here"
-		return 0
-	fi
+	case " $deathsLine " in *" settled="*|*" failed="*) return 0 ;; esac
+	stepAsked="$( AgentsToolsSessionControlDeathMark "$deathsLine" asked )" || stepAsked=""
+	case "$stepAsked" in
+		''|none)
+			while IFS= read -r stepOne ; do
+				[ "${stepOne##*/}" != "$stepRun.md" ] || { stepRecord="$stepOne" ; break ; }
+			done <<< "$controlRowsNames"
+			if [ -z "$stepRecord" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$stepRecord" status )" != "spawn-started" ] ; then
+				deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere"
+				AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its record was closed by another closer, which told its end -- nothing more is told or asked here"
+				return 0
+			fi
+		;;
+		*)
+			if ! AgentsToolsSessionControlDeathMark "$deathsLine" answer > /dev/null ; then
+				stepStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$stepAsked.md" status )"
+				case "$stepStatus" in
+					reply-pending) stepQuiet="quiet" ;;
+					reply-received)
+						stepAnswer="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$stepAsked.md" verdict )"
+						stepAnswer="${stepAnswer%%[!abcdefghijklmnopqrstuvwxyz]*}"
+						if AgentsToolsSessionControlDeathOption "$stepAnswer" ; then
+							deathsLine="$deathsLine answer=$stepAnswer answered=$stepStamp"
+							AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question is answered: $stepAnswer"
+						else
+							deathsLine="$deathsLine failed=$stepStamp"
+							AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question was closed with an answer that is none of its options -- nothing is done about it by itself, and the death stays unsettled"
+							return 0
+						fi
+					;;
+					withdrawn)
+						deathsLine="$deathsLine settled=$stepStamp how=withdrawn"
+						AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question was withdrawn -- it is not asked again, and nothing more is done about it"
+						return 0
+					;;
+					*)
+						deathsLine="$deathsLine failed=$stepStamp"
+						AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: the record of its question, $stepAsked, is gone or was closed with no answer (${stepStatus:-no status}) -- nothing is done about it by itself, and the death stays unsettled"
+						return 0
+					;;
+				esac
+			fi
+		;;
+	esac
 	while read -r stepOne stepValue ; do
 		[ "$stepOne" != "$stepRun" ] || stepUntil="$stepValue"
 	done <<< "$controlPostWait"
 	case "$stepUntil" in ''|*[!0123456789]*) ;; *) [ "$SECONDS" -ge "$stepUntil" ] || return 0 ;; esac
-	AgentsToolsSessionControlDeathStart "$stepRun"
+	AgentsToolsSessionControlDeathStart "$stepRun" "$stepQuiet"
 	return 0
 }
 
@@ -840,10 +916,11 @@ case "$1" in
 		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"
 
-		## WHAT IS POSTED ABOUT ONE DEATH: the one bounded call, in this process of its own, which
-		## the thread started and does not wait for. It takes no lock and is no thread: it tells
-		## and asks what is due about the death of one run, leaves what it did for the next tick
-		## in control/post.<run id>.result, and ends.
+		## WHAT IS DONE ABOUT ONE DEATH: the one bounded call, in this process of its own, which
+		## the thread started and does not wait for. It takes no lock and is no thread: it does
+		## what is due about the death of one run, one thing a call, to tell it and ask about it,
+		## to read the thread of its question, or to carry out its answer, leaves what it did
+		## for the next tick in control/post.<run id>.result, and ends.
 		if [ "$controlMode" = "--death" ] ; then
 			case "$controlDeathRun" in
 				''|.|..|*/*|*[[:space:]]*)
@@ -1003,7 +1080,7 @@ case "$1" in
 		## post about a death, which is also how long a failed one waits for its next try. Each
 		## is read once, at the first tick that needs it: a thread whose session has no run that
 		## is gone reads neither, and its first tick comes as soon as it did before.
-		local controlClosing="" controlPostBound="" controlDeadOpen=0 controlPostWait=""
+		local controlClosing="" controlPostBound="" controlReadPeriod="" controlDeadOpen=0 controlPostWait=""
 
 		while : ; do
 			controlWoken=""

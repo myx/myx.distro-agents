@@ -379,7 +379,7 @@ rigAssert "under how to answer the plain answers and the folder line stand as be
 	"yes:yes:yes:yes"
 rigAssert "the project stands on the post once, by its place, and no path of this machine is shown" \
 	"$( rigTextCount "$rigScenarioDir/post.1" 'rig-ws:source/rig/proj-a/**' ):$( rigTextCount "$rigScenarioDir/post.1" "$rigTmp" )" "1:0"
-rigAssert "the project emoji is placed after the folder one, by the bot, and the one mark after them is that it is answered" "$( rigEmoji 1 )" "x one repeat file_folder building_construction white_check_mark|"
+rigAssert "the project emoji is placed after the folder one, by the bot; answered, it gets the answered mark, and the bot takes its own answer emoji off it" "$( rigEmoji 1 )" "x one repeat file_folder building_construction white_check_mark|x one repeat file_folder building_construction"
 rigAssert "the request is still a single permission, closed with that verdict" "$( rigRecordCount ):$( rigRecordField kind ):$( rigRecordField status ):$( rigRecordField verdict )" "1:permission:reply-received:allow-project"
 rigAssert "what was granted is one entry of a set of the session, for the member whose call was refused: the tool for that project" \
 	"$( rigLines "$( rigSetFile )" 'scope: session' ):$( rigLines "$( rigSetFile )" "session-id: $rigSession" ):$( rigLines "$( rigSetFile )" "participants: $rigMember" ):$( rigStarts "$( rigSetFile )" 'entry: ' ):$( rigLines "$( rigSetFile )" "entry: Write:$rigA/**" )" \
