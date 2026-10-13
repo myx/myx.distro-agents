@@ -154,7 +154,7 @@ get esc
 said escLine
 cells escKeys 37 1 83
 RIGSCRIPT
-rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS1 [keys: k kill  l log]"
+rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS1 [keys: k kill]"
 rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to kill ' ) $( rigBoxHas b '[ Kill ]  [ Cancel ]' )" "[kill:word|] [Kill the session] 1 1"
 rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║ KILL the session daily of Monday ' ) $( rigBoxHas b "║ session $rigS1 " )" "1 1"
 rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║ Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║   magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║   magic-tester       running working  $rigR2 " )" "1 1 1"
@@ -162,7 +162,7 @@ rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxH
 rigAssert "how many are left as they are, and how to back out"     "$( rigBoxHas b '║ 2 other agents are not alive on this host: they are left as they are. ' ) $( rigBoxHas b '║ The word yes, typed whole, and Kill or Enter: that kills. Cancel and Esc ' )" "1 1"
 rigAssert "the pane of the session stays above it, and nothing spills" "[$( rigPane d 3 )] $( rigVal asked.spills )" "[ state     running] 0"
 rigAssert "what is typed shows in the field"                       "[$( rigVal typing.dialog )] $( rigBoxHas t '║ ye ' )" "[kill:word|ye] 1"
-rigAssert "Esc closes the line: the bottom line is empty again, and the keys of the item are back" "[$( rigVal esc.dialog )] [$( rigVal esc.notice )] [$( rigVal escLine )] [$( rigVal escKeys )]" "[] [] [] [keys: k kill  l log]"
+rigAssert "Esc closes the line: the bottom line is empty again, and the keys of the item are back" "[$( rigVal esc.dialog )] [$( rigVal esc.notice )] [$( rigVal escLine )] [$( rigVal escKeys )]" "[] [] [] [keys: k kill]"
 rigAssert "and no operation was called but the list"                 "$( rigKills ) $( rigOthers ) $( rigVal esc.calls ) [$( rigVal esc.reading )]" "0 0 0 []"
 
 echo "-- the typed word kills the selected session, and the answer is shown --"
@@ -199,7 +199,7 @@ rigAssert "and one that was not signalled, with why"                 "[$( rigPan
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
 rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 9 )]" \
 	"$rigS1 [>daily of Monday          finished] [ the kill, answered 02:30:00:][ state     finished]"
-rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[keys: l log]"
+rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[]"
 
 echo "-- on an agent the kill takes the agent's own id, with --run --"
 rigCase agent
@@ -220,7 +220,7 @@ get answered
 show a
 said answeredLine
 RIGSCRIPT
-rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigVal onKeys )]" "sessions/$rigS1 $rigR2 [keys: k kill  l log]"
+rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigVal onKeys )]" "sessions/$rigS1 $rigR2 [keys: k kill]"
 rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )]" "[kill:word|] [Kill the agent magic-tester]"
 rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║ KILL the agent magic-tester alone ' ) $( rigBoxHas b "║ run $rigR2, running working " ) $( rigBoxHas b "║ of the session daily of Monday ($rigS1) " )" "1 1 1"
 
@@ -326,9 +326,9 @@ RIGSCRIPT
 rigHere="k: nothing to kill here: k kills a session or an agent"
 rigAssert "on a section, and on the row that goes up, there is nothing to kill" "[$( rigVal section.dialogHolds )][$( rigVal up.dialogHolds )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[$rigHere][$rigHere] [message:ok|message:ok|]"
 rigAssert "on Launch / Spawn there is nothing to kill, and no word is asked for" "$( rigVal launch.selected ) [$( rigVal launch.dialog )] [$( rigVal launch.dialogHolds )]" "launch [message:ok|] [$rigHere]"
-rigAssert "a session that has ended names no kill key"               "$( rigVal lone.selected ) [$( rigVal loneKeys )]" "$rigS2 [keys: l log]"
+rigAssert "a session that has ended names no kill key"               "$( rigVal lone.selected ) [$( rigVal loneKeys )]" "$rigS2 []"
 rigAssert "and k on it says that no agent of it is alive, asking nothing" "[$( rigVal ended.dialog )] [$( rigVal ended.dialogHolds )]" "[message:ok|] [k: nothing to kill: no agent of this session is alive]"
-rigAssert "an agent that has ended names no kill key, and k says that it is not alive" "$( rigVal keeper.selected ) [$( rigVal keeperKeys )] [$( rigVal gone.dialog )] [$( rigVal gone.dialogHolds )]" "$rigR3 [keys: l log] [message:ok|] [k: nothing to kill: this agent is not alive]"
+rigAssert "an agent that has ended names no kill key, and k says that it is not alive" "$( rigVal keeper.selected ) [$( rigVal keeperKeys )] [$( rigVal gone.dialog )] [$( rigVal gone.dialogHolds )]" "$rigR3 [] [message:ok|] [k: nothing to kill: this agent is not alive]"
 rigAssert "neither is a run with no id of its own"                   "$( rigVal noId.selected ) [$( rigVal noId.dialog )] [$( rigVal noId.dialogHolds )]" "-3 [message:ok|] [k: nothing to kill: this agent is not alive]"
 rigAssert "the operation was never called"                           "$( rigKills ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
 

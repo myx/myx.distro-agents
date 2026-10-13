@@ -304,6 +304,26 @@ if [ "$DAGC_MANAGER" = "true" ] || { [ "$1" = "--non-interactive" ] && [ "${2:-}
 	fi
 	exec "$DAGC_MANAGER_TOOLS" --intern-manager
 fi
+## THE DEFAULT OF AN INTERACTIVE START is the manager screen as well, in every setup, one whose
+## CLI service is a vendor CLI among them: a start that is no spawn (no --non-interactive),
+## names no CLI (no --cli) and has a terminal on its input and on its output, which is the
+## screen's own test of one. --cli-auto and --cli-configured name no CLI, so Agents
+## --start-console, which puts --cli-auto first, opens the screen as a plain start does. A
+## vendor's own console is started only where it is named: --cli claude-native here, Agents
+## --start-console --cli claude-native there. Taken here, ahead of the selection, as --manager
+## is: the screen needs no CLI, so nothing of one is read, and a setup with no service, or with
+## one that cannot start, opens it too. Words after the flags are not handed on, as for a leg
+## below. With no terminal this is not taken and the start goes on as it always did: the
+## selection, then the leg's screen entry, which says in one line that it needs a terminal, or
+## the vendor CLI that is configured.
+if [ "$1" != "--non-interactive" ] && [ "$DAGC_CLI_GIVEN" != "true" ] && [ -t 0 ] && [ -t 1 ] ; then
+	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: a start on a terminal that names no CLI (no --cli) is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started. A vendor CLI's own console is started by its name: --cli <name>." >&2
+		exit 1
+	fi
+	exec "$DAGC_MANAGER_TOOLS" --intern-manager
+fi
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
 # which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
@@ -376,8 +396,10 @@ esac
 ## why in one line and ends with status 1 where it cannot start (no terminal, a Python
 ## with no curses module): no root harness, no vendor binary and no bash console is
 ## started in its place. Words after the flags are not handed on: the screen takes none,
-## as the root harness took none. A vendor CLI, a -native name, stays what an interactive
-## start runs, and a spawn (--non-interactive) runs its leg as before.
+## as the root harness took none. A vendor CLI, a -native name, is what an interactive
+## start runs where --cli names it, and where a start with no terminal has it configured
+## (THE DEFAULT OF AN INTERACTIVE START, above); a spawn (--non-interactive) runs its leg
+## as before.
 if [ "$1" != "--non-interactive" ] && DagcCliIsLeg "$DAGC_CLI" ; then
 	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then

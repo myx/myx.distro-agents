@@ -224,6 +224,9 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]" >&2

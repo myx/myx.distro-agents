@@ -267,7 +267,6 @@ get R
 keys ESC
 keys l
 get l
-keys ESC
 keys n
 get n
 keys ESC
@@ -277,9 +276,9 @@ get handled
 keys TAB k
 get handledLeft
 RIGSCRIPT
-rigAssert "each key of an action has its place, and says so in a box until its handler is built; k, l and n, which are, say that a section is nothing to kill, has no log and is no member to start" \
+rigAssert "each key of an action has its place, and says so in a box until its handler is built; k and n, which are, say that a section is nothing to kill and is no member to start; l, the key of a mode of the left window, opens nothing on a section, which has no log" \
 	"[$( rigVal k.dialogHolds )][$( rigVal p.dialogHolds )][$( rigVal r.dialogHolds )][$( rigVal s.dialogHolds )][$( rigVal R.dialogHolds )][$( rigVal l.dialogHolds )][$( rigVal n.dialogHolds )]" \
-	"[k: nothing to kill here: k kills a session or an agent][p: pause is not built yet][r: resume is not built yet][s: stop is not built yet][R: restart is not built yet][l: this item has no feed and no log][n: nothing to start here: n starts a team member with a prompt]"
+	"[k: nothing to kill here: k kills a session or an agent][p: pause is not built yet][r: resume is not built yet][s: stop is not built yet][R: restart is not built yet][][n: nothing to start here: n starts a team member with a prompt]"
 rigAssert "none of them moved or quit anything"                      "$( rigVal l.index ) $( rigVal l.quit ) $( rigVal l.focus )" "0 no list"
 rigAssert "with a handler, the key goes to it with the row that is selected" "[$( rigVal handled.notice )]" "[handled kill on pending]"
 rigAssert "also while the left pane has the focus"                   "$( rigVal handledLeft.focus ) [$( rigVal handledLeft.notice )]" "view [handled kill on pending]"
@@ -297,7 +296,6 @@ get none
 cells noneKeys 37 1 83
 cells noneBottom 39 0 120
 handler kill
-handler log
 handler start
 turn
 get built
@@ -320,9 +318,9 @@ get member
 cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
-rigAssert "a session is selected: the pane names the one key whose handler is built, l" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [keys: l log]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  l Raw log  u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "with handlers built, the keys that act on a session stand under it, and only those" "[$( rigVal builtKeys )] $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^builtLooks|//p' | LC_ALL=C sed -n '38p' | LC_ALL=C cut -c1-12 )" "[keys: k kill  l log] .BBBBBBBBBBB"
+rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [line 036]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "with handlers built, the keys that act on a session stand under it, and only those" "[$( rigVal builtKeys )] $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^builtLooks|//p' | LC_ALL=C sed -n '38p' | LC_ALL=C cut -c1-12 )" "[keys: k kill] .BBBBBBBBBBB"
 rigAssert "the content of the pane ends one line above them"         "[$( rigVal builtLast )]" "[line 035]"
 rigAssert "and scrolls in the lines it has left"                     "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "65 [line 100]"
 rigAssert "Launch / Spawn has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"

@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerConsole.include -- the --manager-console-* operations: the consoles that
+## can be started from this workspace. Sourced from the `--manager-console-*)` arm of
+## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## A console is a command of its own, and nothing here starts one. The list gives each its
+## command word by word, so whoever reads a row, a manager screen, starts it as a child on its
+## own terminal with no shell between them, and has the terminal back when the child ends.
+## No registry holds the consoles: the list is made at each call from what is there, and a
+## console that could not be started is no row of it.
+##
+
+## One row. Its first five fields follow the family's habit: a blank in the label is `_`, and
+## an absent value is `-`. The folder and the words of the command are exact, since a command
+## is no text to show: they go out as they are, a blank among them. So a console whose folder
+## or command holds an empty word, a TAB or a line end, which a row cannot carry, is left out
+## with a note, and never listed with a command that is not its own.
+AgentsToolsManagerConsoleRow(){ ## the operation as it was called, key, group, label, `terminal` where it needs one, folder, the words of the command...
+	local rowOp="$1" rowKey="$2" rowGroup="$3" rowLabel="$4" rowTerminal="$5" rowWord rowLine rowTab=$'\t' rowEnd=$'\n'
+	shift 5
+	for rowWord in "$@" ; do
+		case "$rowWord" in
+			''|*"$rowTab"*|*"$rowEnd"*)
+				echo "# $MDSC_CMD $rowOp: the console $rowKey is left out: its folder or a word of its command is empty, or holds a TAB or a line end, which a row cannot carry" >&2
+				return 0
+			;;
+		esac
+	done
+	rowLine="console$rowTab$rowKey$rowTab$rowGroup$rowTab${rowLabel// /_}$rowTab${rowTerminal:--}"
+	for rowWord in "$@" ; do
+		rowLine="$rowLine$rowTab$rowWord"
+	done
+	printf '%s\n' "$rowLine"
+}
+
+## The rows --manager-console-list prints, in the order of a menu: the bash shell, the agent
+## CLIs, the other Distro consoles. Nothing is written and nothing is started.
+AgentsToolsManagerConsoleRows(){ ## the operation as it was called
+	local rowsOp="$1" rowsWorkspace="${MMDAPP%/}" rowsHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
+	local rowsBash rowsEnv rowsCommand rowsVendor rowsUsable rowsName rowsLabel rowsKey rowsFile rowsEnd=$'\n'
+
+	## THE BASH SHELL of the workspace, with what a console user gets: the rc file of the agents
+	## console, which Agents --start-agents-tools-console and the console's own fallback start
+	## bash with. It puts the tooling's functions in the shell and the tools of every installed
+	## package on its PATH. The workspace and the origin are words of the command, so the shell
+	## is this workspace's whatever the environment of whoever starts it names; and so is the
+	## reason that rc file prints, in place of its own, which speaks of a CLI that did not start.
+	rowsBash="$( command -v bash 2> /dev/null )" || rowsBash=""
+	rowsEnv="$( command -v env 2> /dev/null )" || rowsEnv=""
+	case "$rowsBash" in /*) ;; *) rowsBash="" ;; esac
+	case "$rowsEnv" in /*) ;; *) rowsEnv="" ;; esac
+	if [ -n "$rowsBash" ] && [ -n "$rowsEnv" ] && [ -f "$rowsHere/console-agents-bashrc.rc" ] ; then
+		AgentsToolsManagerConsoleRow "$rowsOp" bash shell "Bash Shell" terminal "$rowsWorkspace" \
+			"$rowsEnv" "MMDAPP=$rowsWorkspace" "MDLT_ORIGIN=$MDLT_ORIGIN" \
+			"MDAT_CONSOLE_FALLBACK_REASON=this is the bash shell of the workspace, started by its own name from the list of consoles." \
+			"$rowsBash" --rcfile "$rowsHere/console-agents-bashrc.rc" -i
+	fi
+
+	## THE AGENT CLIS that the workspace's console command starts by name, --cli <name>, which
+	## is what Agents --start-console --cli <name> runs: a vendor's own console. The names are
+	## read from that command itself, the generated one a row runs, never from the template it
+	## was made from, so a name it does not know yet is no row. Which of them is usable here is
+	## asked of the digest of the settings, and of no second test. A harness leg is no row: a
+	## start of one by name is the manager screen.
+	rowsCommand="$rowsWorkspace/DistroAgentsConsole.sh"
+	if [ -f "$rowsCommand" ] && [ -x "$rowsCommand" ] ; then
+		rowsVendor="$( LC_ALL=C sed -n 's/^DAGC_VENDOR_CLIS="\(.*\)"$/\1/p' "$rowsCommand" 2> /dev/null )" || rowsVendor=""
+		rowsUsable=""
+		[ -z "$rowsVendor" ] || rowsUsable="$( DistroAgentsTools --manager-config-digest cli 2> /dev/null < /dev/null | LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "cli" && $4 == "usable" && $5 == "set" && $6 == "yes" { print $3 ; }' )" || rowsUsable=""
+		for rowsName in $rowsVendor ; do
+			case "$rowsEnd$rowsUsable$rowsEnd" in
+				*"$rowsEnd$rowsName$rowsEnd"*) ;;
+				*) continue ;;
+			esac
+			## Its label by rule, the words of its name capitalised: `Claude Native Console`.
+			rowsLabel="$( printf '%s\n' "$rowsName" | LC_ALL=C awk -F'-' '{ for ( wordAt = 1 ; wordAt <= NF ; wordAt++ ) printf "%s%s ", toupper( substr( $wordAt, 1, 1 ) ), substr( $wordAt, 2 ) ; print "Console" ; }' )" || rowsLabel=""
+			AgentsToolsManagerConsoleRow "$rowsOp" "$rowsName" agents "${rowsLabel:-$rowsName}" terminal "$rowsWorkspace" "$rowsCommand" --cli "$rowsName"
+		done
+	fi
+
+	## THE OTHER DISTRO CONSOLES, each a command in the workspace root that is there only where
+	## its package is installed: a row where the command is a file and executable. Their keys,
+	## their commands and their labels have this one declaration; another console is one more
+	## line of it.
+	while IFS=' ' read -r rowsKey rowsFile rowsLabel ; do
+		[ -n "$rowsKey" ] || continue
+		rowsCommand="$rowsWorkspace/$rowsFile"
+		[ -f "$rowsCommand" ] && [ -x "$rowsCommand" ] || continue
+		AgentsToolsManagerConsoleRow "$rowsOp" "$rowsKey" distro "$rowsLabel" terminal "$rowsWorkspace" "$rowsCommand"
+	done <<- 'ROWS_DECLARATION'
+		source DistroSourceConsole.sh Source Console
+		local DistroLocalConsole.sh Local Tools Console
+		deploy DistroDeployConsole.sh Deploy Console
+		remote DistroRemoteConsole.sh Remote Console
+	ROWS_DECLARATION
+	return 0
+}
+
+case "$1" in
+
+	## Every console that can be started from this workspace right now, one TAB-separated row
+	## each, with its command word by word. Its form is the help entry's.
+	--manager-console-list)
+		local listOp="$1"
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerConsoleRows "$listOp" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

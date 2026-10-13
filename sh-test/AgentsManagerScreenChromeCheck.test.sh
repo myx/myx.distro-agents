@@ -127,7 +127,7 @@ rigAssert "the counters stand in the bottom border of the left window, and the l
 rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window] mhhhhhmmm"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔══════════════════════════════ Sessions / Activity ═══════════════════════════════╗┌────── Sessions / Activity ───────┐]"
 rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  l Raw log  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'

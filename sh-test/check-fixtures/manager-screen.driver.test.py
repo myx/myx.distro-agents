@@ -157,6 +157,8 @@ class TextSurface:
 ##   get <tag>                     the state, one `<tag>.<name>=<value>` a line
 ##   plain                         from here on the screen draws as for a terminal that is not UTF-8
 ##   style <name>                  from here on the screen draws in that style of its STYLES
+##   mode <name>                   the left window is in that mode of its VIEW_MODES, as if its key had been pressed
+##                                 earlier in the run of the screen
 ##   plaintext <tag> <text>        that text as such a terminal is given it, as `<tag>=<text>`
 def scriptRun(module):
     state = module.ManagerState("")
@@ -231,7 +233,7 @@ def scriptRun(module):
             ("filter", "active" if state.activeOnly else "all"),
             ("viewTop", state.view["top"]), ("viewLines", len(state.view["lines"])),
             ("viewHead", len(state.view["head"])), ("follow", "yes" if state.view["follow"] else "no"),
-            ("rawLog", "yes" if state.rawLog else "no"),
+            ("rawLog", "yes" if module.rawShown(state) else "no"), ("viewMode", state.viewMode),
             ("notice", state.notice),
             ("dialog", dialogValue()),
             ("dialogTitle", state.dialog["title"] if state.dialog else ""),
@@ -371,6 +373,8 @@ def scriptRun(module):
         elif command == "style":
             if not module.setStyle(rest):
                 print("style.refused=%s" % rest)
+        elif command == "mode":
+            state.viewMode = rest
         elif command == "plaintext":
             print("%s=%s" % (words[0], module.plainText(rest.partition(" ")[2])))
         elif command == "cells":

@@ -9,8 +9,10 @@
 ## up and the quit key ends it; with no terminal, or where the python3 first on PATH
 ## cannot load curses, one error line says so, nothing else starts in its place, and the
 ## status is 1; a word after the flags is not handed on. The vendor binary starts only
-## when the service is selected by name, claude-native / copilot-native, by the setting
-## or --cli, and then exports no stored key, and no screen starts. A spawn
+## when the service is selected by name, claude-native / copilot-native: by --cli, or by
+## the setting in a start with no terminal, which every such start of this check is (on a
+## terminal a start that names no CLI is the screen: AgentsConsoleDefaultStartCheck). It
+## then exports no stored key, and no screen starts. A spawn
 ## (--non-interactive) keeps running the harness leg. Each case has a sibling that
 ## differs from it in the one thing it is about. With --manager the console runs the
 ## same entry whatever service is configured, a vendor CLI too; with --non-interactive,
@@ -183,7 +185,7 @@ rigEntry
 rigAssert "the vendor claude is started"                    "$( rigStarted claude )" 1
 rigAssert "named claude-native, as selected"                "$( rigHolds "$rigDir/out" 'DISTRO_CONSOLE_EXEC=claude-native' )" yes
 rigAssert "the root harness is not called"                  "$( rigRootCalls )" 0
-rigAssert "and no manager screen: the vendor's console stays what a plain start runs" "$( rigManagerCalls )" 0
+rigAssert "and no manager screen: with no terminal the vendor's console stays what a plain start runs" "$( rigManagerCalls )" 0
 rigAssert "and the stored key is not exported to it"        "$( rigKey claude )" ""
 
 echo "-- the editor task entry, copilot (our harness leg) configured, the command copilot in PATH --"

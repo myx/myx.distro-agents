@@ -1,7 +1,7 @@
 echo "'Agents' command runs agents-stage distro commands in current Agents context." >&2
 echo "📘 syntax: Agents <distro-agents-command-name> [<arguments>...]" >&2
 echo "📘 syntax: Agents --help" >&2
-echo "📘 syntax: Agents --start-console [args...]" >&2
+echo "📘 syntax: Agents --start-console [--cli <name>] [args...]" >&2
 echo "📘 syntax: Agents --start-<subsystem>-tools-console [args...]" >&2
 echo "📘 syntax: Agents --completion-<mode>" >&2
 echo "📘 syntax: Agents --shell-prompt" >&2
@@ -9,7 +9,7 @@ echo >&2
 echo "	Options:" >&2
 echo "		--help  Print this help text." >&2
 echo "		--help-syntax  Alias for --help." >&2
-echo "		--start-console  Start agents interactive tools console." >&2
+echo "		--start-console  Start the agents console: its manager screen. With --cli <name>, that CLI's own console in its place, as --cli claude-native." >&2
 echo "		--start-agents-tools-console  Alias for --start-console." >&2
 echo "		--start-local-tools-console  Start local tools console from agents context." >&2
 echo "		--start-<subsystem>-tools-console  Start another installed subsystem console." >&2

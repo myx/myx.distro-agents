@@ -103,7 +103,7 @@ MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 ## of a menu, with its ends.
 MARKS = {"separator": "│", "cut": "…", "plain": False,
          "frame": "┌─┐│└┘", "frameOn": "╔═╗║╚╝", "rule": "├─┤", "shade": "░", "system": "≡",
-         "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■"}
+         "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•"}
 MARK_SELECTED = ">"
 MARK_READING = "~"
 MARK_OLD = "!"
@@ -283,6 +283,18 @@ WINDOWS = (
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
+## The modes of the left window for a thing that has a log, a session or an agent: one at
+## a time, never mixed. "label": what a mode shows as in a menu and in the status line;
+## "mark": what stands for it in the title of the window; "feed": whether it shows the
+## lines of the thing, read by the "feed" of READS, in place of its facts; "raw": whether
+## those lines are the raw log. The mode is the user's for the run of the screen: it is
+## kept whatever is selected, entered or read. A thing with no log has its summary alone.
+VIEW_MODES = (
+    ("summary", {"label": "Summary", "mark": "[summary]", "feed": False, "raw": False}),
+    ("log", {"label": "Log", "mark": "[log]", "feed": True, "raw": False}),
+    ("raw", {"label": "Raw log", "mark": "[raw]", "feed": True, "raw": True}),
+)
+VIEW_MODE_FIRST = "summary"
 
 ## The menus of the menu bar, in their order: the name of each and what it shows as, its hot
 ## letter between tildes. Alt with that letter opens it, and F10 opens the first.
@@ -312,7 +324,9 @@ MENUS = (
 ## asks first where it must and then calls the operations "calls" names in CALLS; while
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
 ## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
-## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit". A command comes
+## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit", and
+## ("mode", <name>), which takes the left window to that mode of VIEW_MODES, or to the
+## next one where it names none. A command comes
 ## to a menu, to the status line and to its key from this one place: adding one is adding
 ## an entry here. Where two commands share a key, the first that applies has it. "says":
 ## the word the left window names the key of an "only" command by, where it starts nothing.
@@ -359,8 +373,14 @@ COMMANDS = (
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
     {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art",
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
-    {"name": "log", "keys": ("l",), "menu": ("session", 1), "label": "~L~og: feed or raw", "status": ("Raw log", "Feed"), "toggle": "rawLog",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "log")},
+    {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
+    {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "summary")},
+    {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
+    {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "raw")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
     {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions / Activity",
@@ -518,8 +538,6 @@ ACTION_HANDLERS = {
     "resume": None,
     "stop": None,
     "restart": None,
-    ## switches the left pane between the feed and the raw log: switchLog, set where it is defined
-    "log": None,
     ## Enter on a routine of `Launch / Spawn`, and on its free prompt: askLaunch and askPrompt, set where they are defined
     "launch": None,
     "prompt": None,
@@ -563,8 +581,8 @@ class ManagerState:
         self.rows = {}
         ## the left pane: which item it shows, its lines, the first line in view (newView)
         self.view = newView(None, False)
-        ## whether the left pane of a session or an agent shows the raw log in place of the feed
-        self.rawLog = False
+        ## the mode of the left window of a session or an agent, of VIEW_MODES
+        self.viewMode = VIEW_MODE_FIRST
         ## the line to type in while it is open: {"prompt", "text", "onSubmit", "lines"}
         self.line = None
         ## the dialog that is open and has the keys (openDialog), and those that wait for it to close
@@ -701,7 +719,7 @@ def wrapToCells(text, width):
 ## For a terminal that is not UTF-8: marks of one byte, and plainText() for what is drawn.
 def plainMarks():
     MARKS.update({"separator": "|", "cut": "+", "plain": True, "frame": "+-+|++", "frameOn": "#=#|##", "rule": "+-+",
-                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#"})
+                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "on": "*"})
 
 
 ## A text for a terminal that is not UTF-8: what it cannot show becomes `?`, cell for cell.
@@ -1008,7 +1026,7 @@ def followSelection(state):
     viewKey = viewKeyOf(state)
     row = selectedRow(state)
     if viewKey != state.view["key"]:
-        state.view = newView(viewKey, viewReadOf(state, row, "feed") is not None)
+        state.view = newView(viewKey, logShown(state, row))
         ## a pane that is made new holds nothing of its item: its reads are due again,
         ## whenever they were last made
         for part in VIEW_PARTS:
@@ -1020,7 +1038,7 @@ def followSelection(state):
     if local is not None:
         state.view["lines"] = local
     state.view["head"] = viewHead(state, row)
-    if state.view["feed"] is not None and state.view["built"] != (state.viewWidth, state.rawLog):
+    if state.view["feed"] is not None and state.view["built"] != (state.viewWidth, state.viewMode):
         buildFeed(state, row)
 
 
@@ -1047,6 +1065,13 @@ def localView(state, row):
     if row is None:
         return None
     level = levelPattern(state.path)
+    if not logShown(state, row):
+        ## the summary of a session and of an agent: its facts, and nothing of its log;
+        ## one that has no log has its summary alone, whatever the mode
+        if level == "sessions" and row.get("session"):
+            return sessionLines(row["session"], state.viewWidth, state.view["info"])
+        if level == "sessions/*" and row.get("run"):
+            return runLines(row["run"], state.viewWidth, state.view["info"])
     if level == "pending" and row.get("ask"):
         ## set out again only when the ask, what is stored of it, the width or the minute has changed
         stamp = (row["ask"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
@@ -1131,24 +1156,16 @@ def viewScrollHeight(state, layout):
     return max(0, viewContentHeight(state, layout) - len(state.view["head"]))
 
 
-## The head of the left pane of a session or of an agent, which does not scroll: its facts
-## from the row of the list, with what the read of that one item adds once it has come,
-## and last where the lines under it come from. It takes half of the pane at most. What
-## an action answered on the selected item stands first, on any row (answerLines).
+## The head of the left pane, which does not scroll: what an action answered on the
+## selected item, on any row (answerLines), and, where the window shows a log, the one
+## line that says where its lines come from. It takes half of the pane at most. The facts
+## of a session and of an agent are its summary, which scrolls (localView).
 def viewHead(state, row):
     if row is None:
         return []
-    level = levelPattern(state.path)
     limit = max(4, state.viewHeight // 2) - 1
-    told = answerLines(state, limit)
-    own = max(1, limit - len(told))
-    if level == "sessions" and row.get("session"):
-        lines = told + sessionLines(row["session"], state.viewWidth, state.view["info"], own)
-    elif level == "sessions/*" and row.get("run"):
-        lines = told + runLines(row["run"], state.viewWidth, state.view["info"], own)
-    else:
-        return told
-    if viewReadOf(state, row, "feed") is not None:
+    lines = answerLines(state, limit)
+    if logShown(state, row) and (row.get("session") or row.get("run")):
         lines.extend(fieldLines([("lines", sourceText(state, row))], state.viewWidth))
     return lines
 
@@ -1560,6 +1577,7 @@ def sessionLines(session, width, info=None, limit=0):
         ("started", registryDate(session["started"])),
         ("ended", registryDate(session["stateAt"])),
         ("agents", "%s: %s" % (session["count"], tally) if tally else session["count"]),
+        ("tokens", tokensText(info["tokens"]) if info and info.get("tokens") else ""),
     ]
     more = [("session", session["id"])]
     dispatch = info["dispatch"] if info else None
@@ -1567,7 +1585,6 @@ def sessionLines(session, width, info=None, limit=0):
         if dispatch["founder"] == "no-record":
             pairs.append(("founded", "by a client, whose founder left no record"))
         else:
-            pairs.append(("for", cutToCells(" ".join(dispatch["description"].split()), 2 * max(10, width - 11)).rstrip()))
             pairs.append(("founded", ", ".join(word for word in (
                 "by " + dispatch["member"] if dispatch["member"] else "",
                 "routine " + dispatch["routine"] if dispatch["routine"] else "",
@@ -1576,25 +1593,59 @@ def sessionLines(session, width, info=None, limit=0):
             "session " + dispatch["sessionThread"] if dispatch["sessionThread"] else "",
             "tracking " + dispatch["trackingThread"] if dispatch["trackingThread"] else "") if word)))
     runs = info["runs"] if info and info["runs"] else session["runs"]
-    facts = fieldLines(pairs, width)
-    extra = fieldLines(more, width)
-    if limit and len(lines) + len(facts) + len(extra) + 1 + len(runs) > limit:
-        extra = []
-    lines.extend(facts + extra)
-    if limit and len(lines) >= limit:
-        return lines[:limit]
+    lines.extend(fieldLines(pairs, width) + fieldLines(more, width))
     lines.append("")
-    room = limit - len(lines) if limit else len(runs)
-    shown = runs
-    if len(runs) > room:
-        order = [run for run in runs if run["live"] == "running"] + [run for run in reversed(runs) if run["live"] != "running"]
-        kept = order[:max(0, room - 1)]
-        shown = [run for run in runs if run in kept]
-    for run in shown:
-        when = "since " + unspaced(run["started"]) if run["resolved"] == "-" else "until " + unspaced(run["resolved"])
-        lines.append("%-18s %-16s %s" % (run["member"], runStateText(run), when))
-    if len(shown) < len(runs):
-        lines.append("and %d more: Enter lists them all" % (len(runs) - len(shown)))
+    lines.extend(agentsTable(runs, width))
+    lines.extend(dispatchLines(dispatch, width))
+    return lines
+
+
+## The total of the tokens of a session, from the `tokens` row of its read: the four
+## figures in the short form the line of an agent uses, then whether that is the total of
+## a finished session or what was eaten so far, and how many runs are not counted in it.
+TOKEN_TOTALS = {"final": "total", "so-far": "so far"}
+
+
+def tokensText(tokens):
+    left = ", %s run%s not counted" % (tokens["unknown"], "" if tokens["unknown"] == "1" else "s") if tokens["unknown"] not in ("", "0", "-") else ""
+    if tokens["summed"] in ("", "0", "-"):
+        return "not known" + left
+    return "in %s, cache read %s, cache write %s, out %s, %s%s" % (
+        shortCount(tokens["in"]), shortCount(tokens["cacheRead"]), shortCount(tokens["cacheWrite"]), shortCount(tokens["out"]),
+        TOKEN_TOTALS.get(tokens["total"], tokens["total"]), left)
+
+
+## The columns of the table of the agents of a session, and what of a run stands in each:
+## the member always shows, and those after it in this order while the window has room.
+AGENT_COLUMNS = (
+    ("MEMBER", lambda run, store: run["member"]),
+    ("STATE", lambda run, store: runStateText(run)),
+    ("SINCE", lambda run, store: unspaced(run["started"]) if run["resolved"] == "-" else "until " + unspaced(run["resolved"])),
+    ("TOKENS", lambda run, store: shortCount(str(sum(int(store[name]) for name in ("in", "cacheRead", "cacheWrite", "out"))))
+     if all(store.get(name, "").isdigit() for name in ("in", "cacheRead", "cacheWrite", "out")) else ""),
+    ("CLI", lambda run, store: (run.get("headers") or {}).get("cli", "")),
+    ("MODEL", lambda run, store: unspaced(store.get("model", "-"))),
+)
+
+
+## The agents of a session as a table under a header, in the manner of the members' table
+## and by its rule: a column that does not fit is left out whole, never cut.
+def agentsTable(runs, width):
+    words = [[column[1](run, run.get("store") or {}) or "-" for column in AGENT_COLUMNS] for run in runs]
+    table = {"heads": [column[0] for column in AGENT_COLUMNS], "iconWidth": 0,
+             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
+                        for index, column in enumerate(AGENT_COLUMNS)]}
+    return [tableLineText(table, [""] + line, max(10, width - 1)) for line in [table["heads"]] + words]
+
+
+## What a session was started with, as far as its read gives it, under a line of its
+## own: the text of its dispatch, whole, broken to the window.
+def dispatchLines(dispatch, width):
+    if not dispatch or dispatch["founder"] == "no-record" or not dispatch["description"].strip():
+        return []
+    lines = ["", "dispatch"]
+    for paragraph in dispatch["description"].split("\n"):
+        lines.extend(wrapToCells(paragraph, max(10, width - 1)) if paragraph.strip() else [""])
     return lines
 
 
@@ -1628,6 +1679,7 @@ def runLines(run, width, info=None, limit=0):
         ("run", unspaced(run["spawn"])),
         ("session", run["session"]),
     ], width)
+    lines.extend(dispatchLines(info.get("dispatch") if info else None, width))
     return lines[:limit] if limit else lines
 
 
@@ -1677,19 +1729,23 @@ def isoEpoch(value):
 ## the row. `dispatch` is what the session was started for; a `run` row is followed by the
 ## `header` rows of its record and by its `store` row. The `session` row is the list's own.
 ## `control` is the control thread of the session: the state it stored and when, whether it
-## lives, and its pid. A read of before prints no such row, and leaves it None.
+## lives, and its pid. A read of before prints no such row, and leaves it None. `tokens` is
+## the total of the session: the four figures over its runs, how many runs are summed and
+## how many of them run, `final` or `so-far`, and how many runs are left out of it.
 STORE_NAMES = ("store", "model", "in", "cacheRead", "cacheWrite", "out", "asks", "marks",
                "milestoneAt", "milestone", "waits", "dismissedBy", "log", "transcript")
 
 
 def parseSessionRead(text):
-    info = {"dispatch": None, "control": None, "runs": [], "bySpawn": {}}
+    info = {"dispatch": None, "control": None, "tokens": None, "runs": [], "bySpawn": {}}
     for line in text.split("\n"):
         fields = line.split("\t")
         if fields[0] == "dispatch" and len(fields) >= 9:
             info["dispatch"] = {"founder": fields[2], "member": unspaced(fields[3]), "routine": unspaced(fields[4]),
                                 "item": unspaced(fields[5]), "sessionThread": unspaced(fields[6]),
                                 "trackingThread": unspaced(fields[7]), "description": unescaped(fields[8])}
+        elif fields[0] == "tokens" and len(fields) >= 10:
+            info["tokens"] = dict(zip(("in", "cacheRead", "cacheWrite", "out", "summed", "running", "total", "unknown"), fields[2:10]))
         elif fields[0] == "control" and len(fields) >= 6:
             info["control"] = {"stored": fields[2], "storedAt": fields[3], "control": fields[4], "pid": fields[5]}
         elif fields[0] == "run" and len(fields) >= 12:
@@ -1729,7 +1785,7 @@ def parseTranscriptRead(text):
 ## transcript gives its session log in its place, and the line says which of the two it is.
 def sourceText(state, row):
     feed = state.view["feed"]
-    what = "the raw log" if state.rawLog else "the feed"
+    what = "the raw log" if rawShown(state) else "the feed"
     if feed is None:
         return what + ", not read yet"
     kinds = {}
@@ -1740,16 +1796,16 @@ def sourceText(state, row):
         if kind == "transcript":
             return "the feed, from its transcript"
         if kind == "session-log":
-            return "the raw log, its session log" if state.rawLog else "its session log: this run has no transcript"
-        return "none: this run has no session log" if state.rawLog else "none: this run has neither a transcript nor a session log"
+            return "the raw log, its session log" if rawShown(state) else "its session log: this run has no transcript"
+        return "none: this run has no session log" if rawShown(state) else "none: this run has neither a transcript nor a session log"
     told = []
     if kinds.get("transcript"):
         told.append("%d from a transcript" % len(kinds["transcript"]))
-    if kinds.get("session-log") and not state.rawLog:
+    if kinds.get("session-log") and not rawShown(state):
         told.append("%d from a session log, having no transcript (%s)" % (len(kinds["session-log"]), ", ".join(kinds["session-log"])))
     if kinds.get("none"):
-        told.append("%d with %s (%s)" % (len(kinds["none"]), "no session log" if state.rawLog else "neither", ", ".join(kinds["none"])))
-    return "%s of %d run%s%s" % ("the raw logs" if state.rawLog else "the feed", len(feed["sources"]),
+        told.append("%d with %s (%s)" % (len(kinds["none"]), "no session log" if rawShown(state) else "neither", ", ".join(kinds["none"])))
+    return "%s of %d run%s%s" % ("the raw logs" if rawShown(state) else "the feed", len(feed["sources"]),
                                 "" if len(feed["sources"]) == 1 else "s", ": " + ", ".join(told) if told else "")
 
 
@@ -1809,26 +1865,41 @@ def buildFeed(state, row):
     view = state.view
     held = view["lineKeys"][view["top"]] if not view["follow"] and view["top"] < len(view["lineKeys"]) else None
     view["lines"], view["lineKeys"] = feedLines(view["feed"], state.viewWidth, bool(row and row.get("session")))
-    view["built"] = (state.viewWidth, state.rawLog)
+    view["built"] = (state.viewWidth, state.viewMode)
     if held is not None:
         places = [position for position, key in enumerate(view["lineKeys"]) if key == held]
         if places:
             view["top"] = min(places, key=lambda position: abs(position - view["top"]))
 
 
-## `l`: the left pane of a session or of an agent shows its feed, or the raw log of its
-## run, of every run for a session. What it showed is taken away, and the other is read.
-def switchLog(state, row):
-    if row is None or viewReadOf(state, row, "feed") is None:
-        return tell(state, "Log", "l: this item has no feed and no log")
-    state.rawLog = not state.rawLog
+## The mode of the left window now, its entry of VIEW_MODES; whether it shows the raw log;
+## and whether it shows the lines of that row, which only a row with a log has.
+def modeOf(state):
+    return dict(VIEW_MODES)[state.viewMode]
+
+
+def rawShown(state):
+    return modeOf(state)["raw"]
+
+
+def logShown(state, row):
+    return modeOf(state)["feed"] and viewReadOf(state, row, "feed") is not None
+
+
+## The left window goes to that mode: what it showed is taken away, it starts at its top,
+## or at its end where it shows a log, and the lines of a log are read; the facts of the
+## item are kept as they were read, and nothing else is asked for.
+def setViewMode(state, name):
+    if name == state.viewMode:
+        return
+    state.viewMode = name
     view = state.view
-    view["feed"], view["lines"], view["lineKeys"], view["top"], view["follow"] = None, [], [], 0, True
-    readNow(state)
-    return ""
+    view["feed"], view["lines"], view["lineKeys"], view["top"], view["built"] = None, [], [], 0, None
+    view["feeds"] = view["follow"] = modeOf(state)["feed"]
+    if view["feeds"] and view["key"] is not None:
+        state.forced.add("feed:" + view["key"])
 
 
-ACTION_HANDLERS["log"] = switchLog
 
 
 ## What the section of the sessions holds, for the left pane while the section itself or
@@ -3767,6 +3838,11 @@ def commandApplies(state, command):
         with shownLevel(state, not command.get("only")):
             row = selectedRow(state)
             return placeOf(state, row) in command["on"] and actionShown(state, row, does[1])
+    if does[0] == "mode":
+        ## a mode is of a thing that has a log: on any other the keys of the modes do nothing
+        with shownLevel(state):
+            row = selectedRow(state)
+            return placeOf(state, row) in command["on"] and viewReadOf(state, row, "feed") is not None
     if does[0] == "up":
         return bool(state.path)
     if does[0] == "open":
@@ -3795,6 +3871,10 @@ def runCommand(state, command, layout, key=None):
         setStyle(names[(names.index(STYLE["name"]) + 1) % len(names)])
         state.noticeOf = None
         state.notice = "interface style: %s" % STYLE["label"]
+    elif does[0] == "mode":
+        if commandApplies(state, command):
+            names = [name for name, mode in VIEW_MODES]
+            setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
     elif does[0] == "move":
         if state.focus == "list":
             moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
@@ -3894,7 +3974,7 @@ def readWords(entry, state, values, filtered=True):
     words = list(entry["operation"])
     if state.activeOnly and filtered:
         words.extend(entry.get("active", ()))
-    if state.rawLog:
+    if rawShown(state):
         words.extend(entry.get("log", ()))
     return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")) for word in words]
 
@@ -3918,7 +3998,7 @@ def shownReads(state):
     values = {"level": state.path[-1] if state.path else ""}
     for part in VIEW_PARTS:
         entry = viewReadOf(state, row, part)
-        if entry:
+        if entry and (part != "feed" or modeOf(state)["feed"]):
             values["id"] = row["id"]
             wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
     return wanted
@@ -4220,8 +4300,8 @@ def viewTitle(state):
         return ""
     marks = readMarks(state, "view:" + (viewKeyOf(state) or "")) + readMarks(state, "feed:" + (viewKeyOf(state) or ""))
     marks = "".join(mark for mark in (MARK_READING, MARK_OLD) if mark in marks)
-    ## the raw log in place of the feed, where the item has lines: the toggle shows in the title
-    form = " [log]" if state.rawLog and viewReadOf(state, row, "feed") is not None else ""
+    ## the mode of the window, where the item has a log: it shows in the title
+    form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
     return (marks + " " if marks else "") + row["label"] + form
 
 
@@ -4550,7 +4630,7 @@ def statusItems(state):
     own = []
     everywhere = []
     for command in COMMANDS:
-        if command.get("status") and commandApplies(state, command):
+        if command.get("status") and commandApplies(state, command) and command["does"] != ("mode", state.viewMode):
             wide = commandWindow(command) is None and "on" not in command
             (everywhere if wide else own).append((keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
@@ -4705,7 +4785,9 @@ def drawMenu(surface, state, layout):
         look = BAR_ON if on else BAR if commandApplies(state, command) else BAR_OFF
         hotLook = look if look == BAR_OFF else BAR_ON_HOT if on else BAR_HOT
         surface.put(line, left, frame[3], BAR)
-        column = putParts(surface, line, left + 1, hotParts(" " + command["label"], look, hotLook), width - 2)
+        ## the mode the left window is in is marked
+        lead = MARKS["on"] if command["does"] == ("mode", state.viewMode) else " "
+        column = putParts(surface, line, left + 1, hotParts(lead + command["label"], look, hotLook), width - 2)
         keyText = keyShown(commandKeys(command)[0])
         surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
         surface.put(line, left + width - 1, frame[3], BAR)

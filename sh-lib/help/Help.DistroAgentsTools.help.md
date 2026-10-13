@@ -163,6 +163,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>
+📘 syntax: DistroAgentsTools.fn.sh --manager-console-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
@@ -2884,6 +2887,111 @@
 			value but one the digest offers is ever saved, so no secret
 			reaches the file. Exit 1 too where the file does not hold the
 			value after the write.
+
+		--manager-console-list
+			One of the console's own operations (see Notes). Lists the
+			consoles that can be started from this workspace right now,
+			for a manager screen to start one as a child on its own
+			terminal and to have the terminal back when the child ends.
+			It only reads: nothing is started and nothing is written.
+			Prints rows of TAB-separated fields on stdout, the first
+			naming the row.
+			`console <key> <group> <label> <terminal> <directory> <word>...`
+			One row a console, in the order of a menu: <group> `shell`,
+			then `agents`, then `distro`. <key> names the console:
+			`bash`; the name of a vendor CLI, as `claude-native`;
+			`source`, `local`, `deploy`, `remote`. <label> is what a
+			screen calls it: capitalised words, more than one, their
+			blanks written `_`, as `Bash_Shell`, `Claude_Native_Console`,
+			`Source_Console`, `Local_Tools_Console`, `Deploy_Console`,
+			`Remote_Console`. <terminal> is `terminal` where the console
+			needs a terminal on its input and on its output, and `-`
+			where it needs none. <directory> is the folder to start it
+			in, the workspace root. Every field after it is one word of
+			the command, the first the program, by its absolute path.
+			<directory> and each <word> are exact, and not written as a
+			value is in the fields before them: a blank in one is a
+			blank of the path or of the word, `_` is `_`, `-` is `-`.
+			None of them is empty, and none holds a TAB or a line end.
+			So the command needs no shell: its words are handed to exec
+			as they are, in <directory>, with the environment of whoever
+			starts it, and what the console needs beyond that its own
+			words carry. No field holds a secret.
+			The row `bash` is a bash shell in the workspace with what a
+			console user gets, the tooling's functions and the tools of
+			every installed package on its PATH: bash with the rc file
+			of the agents console. A row of the group `agents` is a
+			vendor's own console, started as
+			`DistroAgentsConsole.sh --cli <name>`
+			which is what `Agents --start-console --cli <name>` runs. A
+			row of the group `distro` is one of `DistroSourceConsole.sh`,
+			`DistroLocalConsole.sh`, `DistroDeployConsole.sh` and
+			`DistroRemoteConsole.sh`. Nothing is listed that would not
+			start. A vendor CLI is a row only where the workspace's
+			console command is there, is executable and names it, and
+			where `--manager-config-digest` reads it usable. A Distro
+			console is a row only where its command is a file of the
+			workspace root and executable. A console whose folder or
+			command holds what a row cannot carry is left out, with a
+			note on stderr. A harness leg is never a row: a start of one
+			by name is the manager screen itself.
+
+		--manager-place-list
+			One of the console's own operations (see Notes). Lists the
+			places of this machine: the workspaces and the directories
+			the tooling knows by a name, as `--owner-workspace-list`
+			prints them, by the same reader and in its order: the two
+			built-in places, the places of this workspace, then those of
+			each other workspace. It only reads: no registry and no file
+			is written, and nothing is started. Prints one row for each
+			place, TAB-separated, on stdout. An absent value reads `-`,
+			and a value's own whitespace reads `_`, as in a registry.
+			`place <place> <label> <kind> <ceiling> <path> <state> <here> <sessions>`
+			<place> is the key of the place: its name, or
+			<name>@<workspace> for a name that another workspace gives
+			another path. It is what `--manager-place-read` takes.
+			<label> is the words of the key, capitalised. <kind> is
+			`workspace` or `directory`, <ceiling> `read-only` or
+			`read-write`. <state> is measured at the call, on this host:
+			`present` where <path> is a folder the user who runs the
+			call can enter and read, `unreadable` where something is
+			there that is not, `absent` where nothing is, `unknown`
+			where no path is known, since the workspace that declares
+			the place cannot be read. <here> is `yes` for the workspace
+			the call runs in, and `no` for every other place. <sessions>
+			is, for a workspace, how many sessions of this workspace's
+			registry `spawned-sessions` have a run that names it, as
+			that registry lies: it is not rebuilt here. It reads `-` for
+			a directory, and where the registry is not there. A registry
+			of places holds no host: a row of it is a path as it was
+			resolved for the host that wrote it. So no host is printed,
+			and a place is shown by what stands at its path here, now.
+
+		--manager-place-read <place>
+			One of the console's own operations (see Notes). Prints one
+			place by its key: its `place` row as `--manager-place-list`
+			has it, then what the registry holds of it beyond that row,
+			then what stands at its path. It only reads, and starts
+			nothing.
+			`info <name> <value>`
+			`stands <what> <name> <path>`
+			The `info` rows, in this order: `declared-by`, the project
+			that declares the place, or `workspace` for a workspace's own
+			row, `owner` for one `--owner-workspace-upsert` made,
+			`built-in` for a built-in place; `workspace`, the root of the
+			workspace that declares it; `registry`, the file that holds
+			its row, `-` for a built-in place. A registry of places
+			holds no more of a place: no host, nobody who registered it,
+			no date. The `stands` rows are printed for a place whose
+			<state> is `present`, and say what the tooling knows of at
+			its path: `console`, each console script at its root, by its
+			file name; `member-home`, each member whose home the machine
+			keeps there; `team-data-root`, the team data root of this
+			workspace where it lies in the place, under the name `-`.
+			Nothing is looked for at a path that is not there, and of a
+			file nothing is read but its name. Exit 1, nothing printed,
+			with one error line, for a name that is no place, and where
+			it is not given one name.
 
 		--manager-routine-list
 			One of the console's own operations (see Notes). Lists the

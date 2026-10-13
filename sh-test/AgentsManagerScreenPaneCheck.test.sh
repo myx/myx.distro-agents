@@ -5,10 +5,12 @@
 ## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture kept
 ## for those very arguments: rows in the forms `--manager-session-list`, `--manager-session-read` and
 ## `--manager-session-transcript-read` print. The time and the time zone are the case's own.
-## Held: a selected session is read by its id, its facts and its lines each as a call of its own, and only while
-## it is selected; the head of the pane, which does not scroll, shows its state, its dispatch (what it was started
-## for, by whom, the routine and the item), its threads, and one line for each participant with its state; under
-## it stands the feed of all its members, the newest at the bottom and in view, each line with its time, its
+## Held: the left pane has three modes, one at a time and never mixed, summary, log and raw log, chosen by a key and
+## kept for the run; a selected session is read by its id, its facts and, in a mode that shows a log, its lines,
+## each as a call of its own, and only while it is selected; its summary, which scrolls, shows its state, the total
+## of its tokens (so far, or the total of a finished one), its dispatch (by whom, the routine and the item), its
+## threads, its agents as a table, and what it was started for; its log shows, under one line that says where the
+## lines come from, the feed of all its members, the newest at the bottom and in view, each line with its time, its
 ## member and its text with its emoji, a long one broken under itself, the session log of a run with no transcript
 ## under a line that names that run, and the last head line says where the lines come from; a selected agent is
 ## read with --run, the founder too, whose id is its session's: its status, what it waits on, its open asks, its
@@ -16,7 +18,7 @@
 ## shows its session log and says so; a run with no id of its own is read by nothing; moving the selection replaces
 ## the pane, and an answer that comes for an item that is no longer selected is dropped; new lines come into view
 ## at the end; a pane that was scrolled up stays on the line it showed, and follows again once it is scrolled to
-## its end; `l` switches the pane to the raw log of the agent, or of every run of a session, and back, and another
+## its end; `g` switches the pane to the raw log of the agent, or of every run of a session, `l` back, and another
 ## item shows its feed again; the left pane names the keys of the selected item; a small pane keeps its head
 ## to half of itself; and the reads of one item start only once the selection has rested on it for a third of a
 ## second: a selection that runs over a row starts none for it, and the screen waits for its next key no longer
@@ -67,6 +69,9 @@ rigS2=22222222-0000-4000-8000-000000000002
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 rigSessionS1(){ rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 4 running=2,finished=2 ; }
 rigDispatchS1(){ rigRow dispatch "$rigS1" record magic-coordinator magic-coordinator.daily.routine.md dispatch-20261012T165700Z-daily-1 C0RIG:1791000000.000100 C0TRK:1791000000.000200 'The daily of Monday:\nwhat moved, what is stuck.' ; }
+## The total of the tokens of the first session, as its read gives it: the four figures summed over the three runs
+## that have a store, two of which run, what was eaten so far, and one run left out, the one with no id of its own.
+rigTokensS1(){ rigRow tokens "$rigS1" 1718 56165137 853380 127488 3 2 so-far 1 ; }
 rigRunS1(){ rigRow run "$rigS1" "$rigS1" magic-coordinator spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig waiting ; }
 rigRunR2(){ rigRow run "$rigS1" "$rigR2" magic-tester spawn-started running running 2026-10-12_17:05_+0000 - rig-host ws-rig working ; }
 rigRunR3(){ rigRow run "$rigS1" "$rigR3" keeper-myx spawn-succeeded no-process finished 2026-10-12_17:06_+0000 2026-10-12_18:00_+0000 rig-host ws-rig - ; }
@@ -88,13 +93,14 @@ rigLogR3(){ rigRow log "$rigR3" keeper-myx 'starting keeper-myx' ; rigRow log "$
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 	rigRow counters 1 0 1 1 3 0.42
 } > "$rigF/rows"
-{ rigSessionS1 ; rigDispatchS1 ; rigRunS1 ; rigStoreS1 ; rigRunR2 ; rigStoreR2 ; rigRunR3 ; rigStoreR3 ; rigRunR4 ; } > "$rigF/rows.--manager-session-read --session-id $rigS1"
+{ rigSessionS1 ; rigDispatchS1 ; rigTokensS1 ; rigRunS1 ; rigStoreS1 ; rigRunR2 ; rigStoreR2 ; rigRunR3 ; rigStoreR3 ; rigRunR4 ; } > "$rigF/rows.--manager-session-read --session-id $rigS1"
 { rigSessionS1 ; rigDispatchS1 ; rigRunS1 ; rigStoreS1 ; } > "$rigF/rows.--manager-session-read --session-id $rigS1 --run"
 { rigSessionS1 ; rigDispatchS1 ; rigRunR2 ; rigStoreR2 ; } > "$rigF/rows.--manager-session-read --session-id $rigR2 --run"
 { rigSessionS1 ; rigDispatchS1 ; rigRunR3 ; rigStoreR3 ; } > "$rigF/rows.--manager-session-read --session-id $rigR3 --run"
 {
 	rigRow session "$rigS2" - finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 1 finished=1
 	rigRow dispatch "$rigS2" no-record - - - - - -
+	rigRow tokens "$rigS2" 90 0 0 10 1 0 final 0
 	rigRow run "$rigS2" "$rigS2" magic-devops spawn-succeeded no-process finished 2026-10-11_14:28_+0000 2026-10-11_14:51_+0000 rig-host ws-rig -
 } > "$rigF/rows.--manager-session-read --session-id $rigS2"
 {
@@ -159,28 +165,36 @@ advance 1
 turn
 get asked
 wait view 30
-wait feed 30
 get s
 show s
+keys l
+get askedLog
+wait feed 30
+get sl
+show sl
 RIGSCRIPT
 rigAssert "nothing of one session is read until one is selected"     "[$( rigVal before.reading )]" "[]"
-rigAssert "selecting it reads its facts and its lines, each as a call of its own" "$( rigVal asked.reading )" "feed:sessions|record:$rigS1,view:sessions|record:$rigS1"
+rigAssert "selecting it reads its facts, and l, the key of the log, its lines, each as a call of its own" "$( rigVal asked.reading ) $( rigVal askedLog.reading ) $( rigVal s.viewMode ) $( rigVal sl.viewMode )" "view:sessions|record:$rigS1 feed:sessions|record:$rigS1 summary log"
 rigAssert "by its id, once each"                                     "$( rigCalled "--manager-session-read --session-id $rigS1" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1" ) $( rigCalls )" "1 1 3"
-rigAssert "the head shows its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ state     running][ control   -][ started   2026-10-12 16:57 +0000 (9h ago)][ agents    4: 2 running, 2 finished]"
-rigAssert "its dispatch: what it was started for, by whom, the routine and the item" "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )]" \
-	"[ for       The daily of Monday: what moved, what is stuck.][ founded   by magic-coordinator, routine magic-coordinator.daily.routine.md, item][           dispatch-20261012T165700Z-daily-1]"
-rigAssert "its id and its two threads"                               "[$( rigPane s 10 )][$( rigPane s 11 )]" "[ session   $rigS1][ threads   session C0RIG:1791000000.000100, tracking C0TRK:1791000000.000200]"
-rigAssert "one line for each participant, with its state"            "[$( rigPane s 13 )][$( rigPane s 14 )][$( rigPane s 15 )][$( rigPane s 16 )]" \
-	"[ magic-coordinator  running waiting  since 2026-10-12 16:57 +0000][ magic-tester       running working  since 2026-10-12 17:05 +0000][ keeper-myx         finished         until 2026-10-12 18:00 +0000][ magic-developer    finished         until 2026-10-12 17:11 +0000]"
-rigAssert "the last head line says where the lines come from, and which run has no transcript" "[$( rigPane s 17 )][$( rigPane s 18 )]" \
+rigAssert "the summary shows its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ state     running][ control   -][ started   2026-10-12 16:57 +0000 (9h ago)][ agents    4: 2 running, 2 finished]"
+rigAssert "the tokens the session has eaten so far, summed by its read, and how many runs are not counted in them" "[$( rigPane s 7 )][$( rigPane s 8 )]" \
+	"[ tokens    in 2K, cache read 56.2M, cache write 853K, out 127K, so far, 1 run not][           counted]"
+rigAssert "its dispatch: by whom, the routine and the item"          "[$( rigPane s 9 )][$( rigPane s 10 )]" \
+	"[ founded   by magic-coordinator, routine magic-coordinator.daily.routine.md, item][           dispatch-20261012T165700Z-daily-1]"
+rigAssert "its id and its two threads"                               "[$( rigPane s 11 )][$( rigPane s 12 )]" "[ session   $rigS1][ threads   session C0RIG:1791000000.000100, tracking C0TRK:1791000000.000200]"
+rigAssert "its agents as a table under a header: one line for each participant, with its state, since when or until when, the tokens of its store and its CLI" "[$( rigPane s 14 )][$( rigPane s 15 )][$( rigPane s 16 )][$( rigPane s 17 )][$( rigPane s 18 )]" \
+	"[ MEMBER            STATE           SINCE                        TOKENS CLI][ magic-coordinator running waiting 2026-10-12 16:57 +0000       4.6M   claude][ magic-tester      running working 2026-10-12 17:05 +0000       43.1M  claude][ keeper-myx        finished        until 2026-10-12 18:00 +0000 9.5M   copilot][ magic-developer   finished        until 2026-10-12 17:11 +0000 -      -]"
+rigAssert "under them what it was started for, its dispatch, whole"   "[$( rigPane s 20 )][$( rigPane s 21 )][$( rigPane s 22 )]" "[ dispatch][ The daily of Monday:][ what moved, what is stuck.]"
+rigAssert "the summary holds no line of the log, and the log no fact of the summary: the two are never mixed" "$( rigPaneHolds s 'wait going idle' ) $( rigPaneHolds s 'lines     ' ) $( rigPaneHolds sl 'state     running' ) $( rigPaneHolds sl 'MEMBER' ) [$( rigPane s 2 )] [$( rigPane sl 2 )]" "0 0 0 0 [ daily of Monday [summary]] [ daily of Monday [log]]"
+rigAssert "the head line of the log says where the lines come from, and which run has no transcript" "[$( rigPane sl 3 )][$( rigPane sl 4 )]" \
 	"[ lines     the feed of 3 runs: 2 from a transcript, 1 from a session log, having no][           transcript (keeper-myx)]"
-rigAssert "the session log of the run with no transcript stands under a line that names it" "[$( rigPane s 19 )][$( rigPane s 20 )][$( rigPane s 21 )][$( rigPane s 22 )]" \
+rigAssert "the session log of the run with no transcript stands under a line that names it" "[$( rigPane sl 5 )][$( rigPane sl 6 )][$( rigPane sl 7 )][$( rigPane sl 8 )]" \
 	"[ keeper-myx a3a3a3a3, its session log:][ starting keeper-myx][   -> tool: read the index — Read][   answering: done.]"
-rigAssert "then the feed of all its members by their times, each line with its member and its emoji" "[$( rigPane s 23 )][$( rigPane s 24 )][$( rigPane s 25 )][$( rigPane s 26 )]" \
+rigAssert "then the feed of all its members by their times, each line with its member and its emoji" "[$( rigPane sl 9 )][$( rigPane sl 10 )][$( rigPane sl 11 )][$( rigPane sl 12 )]" \
 	"[ 2026-10-12][ 16:57:10 magic-coordinator 🚀 start · claude-opus-5][ 17:05:30 magic-tester      🧠 round 1 · in 2 · cache 334K · out 0][ 2026-10-13]"
-rigAssert "a long line is broken under itself"                       "[$( rigPane s 27 )][$( rigPane s 28 )][$( rigPane s 29 )]" \
+rigAssert "a long line is broken under itself"                       "[$( rigPane sl 13 )][$( rigPane sl 14 )][$( rigPane sl 15 )]" \
 	"[ 02:00:05 magic-coordinator ✉️ to *magic-tester*: please run the named tests once][                            more against live and say exactly which ones you ran,][                            by name]"
-rigAssert "the newest line is the last"                              "[$( rigPane s 30 )][$( rigPane s 31 )][$( rigPane s 32 )] $( rigVal s.follow ) $( rigVal s.spills )" \
+rigAssert "the newest line is the last"                              "[$( rigPane sl 16 )][$( rigPane sl 17 )][$( rigPane sl 18 )] $( rigVal sl.follow ) $( rigVal sl.spills )" \
 	"[ 02:00:40 magic-tester      💻 run the named tests — execute job 7 · 31 s][ 02:10:00 magic-coordinator ⏳ wait going idle][] yes 0"
 
 echo "-- an agent selected: its status, what it waits on, its model and tokens, then its own lines only --"
@@ -190,14 +204,18 @@ keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN
 wait view 30
-wait feed 30
 get f
 show f
-keys DOWN
-wait view 30
+keys l
 wait feed 30
+keys b DOWN
+wait view 30
 get a
 show a
+keys l
+wait feed 30
+get al
+show al
 RIGSCRIPT
 rigAssert "the founder's own run is read with --run, since its id is its session's" "$( rigVal f.selected ) $( rigCalled "--manager-session-read --session-id $rigS1 --run" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1 --run" )" "$rigS1 1 1"
 rigAssert "the founder: what it waits on, and its open asks"         "[$( rigPane f 7 )][$( rigPane f 8 )]" "[ waits on  slack:C0RIG:1791000000.000100:conversation][ asks      2 open: q1, q2]"
@@ -205,14 +223,15 @@ rigAssert "its model, its token counts and its last milestone"       "[$( rigPan
 rigAssert "the tester is read by its own id, with --run"             "$( rigVal a.selected ) $( rigCalled "--manager-session-read --session-id $rigR2 --run" ) $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run" )" "$rigR2 1 1"
 rigAssert "its status"                                               "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )]" "[ state     running working][ status    spawn-started][ process   running][ started   2026-10-12 17:05 +0000 (9h ago)]"
 rigAssert "its model and token counts, shortened for the eye"        "[$( rigPane a 7 )][$( rigPane a 8 )][$( rigPane a 9 )]" "[ model     claude-sonnet-5, cli claude][ tokens    in 414, cache read 42.8M, cache write 308K, out 0][ last      tool call, 1m ago]"
-rigAssert "where its lines come from"                                "[$( rigPane a 14 )]" "[ lines     the feed, from its transcript]"
-rigAssert "its own lines only, with no member before them, the newest in view at the end" "[$( rigPane a 15 )][$( rigPane a 37 )] $( rigVal a.viewLines ) $( rigVal a.viewTop ) $( rigVal a.follow )" \
-	"[ 02:00:18 💻 step 18 of the tester — execute job 18 · 1 s][ 02:00:40 💻 step 40 of the tester — execute job 40 · 1 s] 41 18 yes"
-rigAssert "no line of another member of the session"                 "$( rigPaneHolds a 'magic-coordinator' ) $( rigPaneHolds a 'wait going idle' )" "0 0"
+rigAssert "l shows its log, whose head line says where its lines come from" "$( rigVal al.viewMode ) [$( rigPane al 2 )] [$( rigPane al 3 )]" "log [ magic-tester [log]] [ lines     the feed, from its transcript]"
+rigAssert "its own lines only, with no member before them, the newest in view at the end" "[$( rigPane al 4 )][$( rigPane al 37 )] $( rigVal al.viewLines ) $( rigVal al.viewTop ) $( rigVal al.follow )" \
+	"[ 02:00:07 💻 step 07 of the tester — execute job 7 · 1 s][ 02:00:40 💻 step 40 of the tester — execute job 40 · 1 s] 41 7 yes"
+rigAssert "no line of another member of the session"                 "$( rigPaneHolds al 'magic-coordinator' ) $( rigPaneHolds al 'wait going idle' )" "0 0"
 
 echo "-- moving the selection replaces the pane; a run with no transcript; a run with no id --"
 rigCase move
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
@@ -225,22 +244,28 @@ wait view 30
 wait feed 30
 get k
 show k
+keys b
+turn
+show ks
+keys l
+wait feed 30
 keys DOWN
 turn 3
 get d
 show d
 RIGSCRIPT
 rigAssert "the selection moves on: at once nothing of the item before is left" "$( rigVal asked.selected ) $( rigVal asked.viewLines ) $( rigPaneHolds early 'step' ) $( rigPaneHolds early 'claude-sonnet-5' )" "$rigR3 0 0 0"
-rigAssert "the next agent is shown: its marks, and who dismissed it" "[$( rigPane k 2 )][$( rigPane k 7 )][$( rigPane k 8 )][$( rigPane k 11 )]" "[ keeper-myx][ ended     2026-10-12 18:00 +0000 (8h ago)][ model     gpt-rig, cli copilot][ marks     dismissed, ended (dismissed by magic-coordinator)]"
-rigAssert "it has no transcript: its session log is shown, and the pane says so" "[$( rigPane k 16 )][$( rigPane k 17 )][$( rigPane k 18 )][$( rigPane k 19 )]" \
+rigAssert "the next agent is shown: its marks, and who dismissed it" "[$( rigPane ks 2 )][$( rigPane ks 7 )][$( rigPane ks 8 )][$( rigPane ks 11 )]" "[ keeper-myx [summary]][ ended     2026-10-12 18:00 +0000 (8h ago)][ model     gpt-rig, cli copilot][ marks     dismissed, ended (dismissed by magic-coordinator)]"
+rigAssert "it has no transcript: its session log is shown, and the pane says so" "[$( rigPane k 3 )][$( rigPane k 4 )][$( rigPane k 5 )][$( rigPane k 6 )]" \
 	"[ lines     its session log: this run has no transcript][ starting keeper-myx][   -> tool: read the index — Read][   answering: done.]"
 rigAssert "a run with no id of its own is read by nothing"           "$( rigVal d.selected ) [$( rigVal d.reading )] $( LC_ALL=C grep -c -- '--session-id -' "$MANAGER_SCREEN_RIG/calls" || : )" "-3 [] 0"
-rigAssert "it shows what the list holds of it, and no line about lines" "[$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )] $( rigPaneHolds d 'lines  ' )" "[ state     finished][ status    spawn-failed][ process   no-spawn-id] 0"
+rigAssert "it has no log, so it shows its summary alone, whatever the mode: what the list holds of it, no line about lines, and no mode in its title" "$( rigVal d.viewMode ) [$( rigPane d 2 )] [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )] $( rigPaneHolds d 'lines  ' )" "log [ magic-developer] [ state     finished][ status    spawn-failed][ process   no-spawn-id] 0"
 
 echo "-- a late answer for another item is dropped --"
 rigCase late
 echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--manager-session-transcript-read"
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER
@@ -256,11 +281,12 @@ get k
 show k
 RIGSCRIPT
 rigAssert "the read of the tester's lines is slow, and the selection moves on before it ends" "$( rigVal slow.selected ) $( rigVal moved.selected ) $( rigVal moved.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c "^feed:" )" "$rigR2 $rigR3 1"
-rigAssert "when the answers have come, the pane shows the item that is selected now" "[$( rigPane k 2 )] $( rigPaneHolds k 'step' ) $( rigPaneHolds k 'starting keeper-myx' )" "[ keeper-myx] 0 1"
+rigAssert "when the answers have come, the pane shows the item that is selected now" "[$( rigPane k 2 )] $( rigPaneHolds k 'step' ) $( rigPaneHolds k 'starting keeper-myx' )" "[ keeper-myx [log]] 0 1"
 
 echo "-- new lines come into view at the end; a pane that was scrolled up stays where it is --"
 rigCase follow
 rigScript <<RIGSCRIPT
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
@@ -276,12 +302,13 @@ keys TAB UP UP UP
 get up
 show up
 RIGSCRIPT
-rigAssert "the pane shows the end of the feed"                       "$( rigVal a.viewLines ) $( rigVal a.viewTop ) $( rigVal a.follow )" "41 18 yes"
+rigAssert "the pane shows the end of the feed"                       "$( rigVal a.viewLines ) $( rigVal a.viewTop ) $( rigVal a.follow )" "41 7 yes"
 rigAssert "the next read brings two more lines, and they are in view at the end" "$( rigVal b.viewLines ) $( rigVal b.viewTop ) [$( rigPane b 36 )][$( rigPane b 37 )]" \
-	"43 20 [ 02:00:41 💻 step 41 of the tester — execute job 41 · 1 s][ 02:00:42 💻 step 42 of the tester — execute job 42 · 1 s]"
-rigAssert "with the focus on the pane, Up three times scrolls it up, and it follows no more" "$( rigVal up.focus ) $( rigVal up.viewTop ) $( rigVal up.follow ) [$( rigPane up 15 )]" "view 17 no [ 02:00:17 💻 step 17 of the tester — execute job 17 · 1 s]"
+	"43 9 [ 02:00:41 💻 step 41 of the tester — execute job 41 · 1 s][ 02:00:42 💻 step 42 of the tester — execute job 42 · 1 s]"
+rigAssert "with the focus on the pane, Up three times scrolls it up, and it follows no more" "$( rigVal up.focus ) $( rigVal up.viewTop ) $( rigVal up.follow ) [$( rigPane up 15 )]" "view 6 no [ 02:00:17 💻 step 17 of the tester — execute job 17 · 1 s]"
 rigCase stay
 rigScript <<RIGSCRIPT
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
@@ -298,20 +325,21 @@ keys PGDN
 get end
 show end
 RIGSCRIPT
-rigAssert "the pane was scrolled up by three lines"                  "$( rigVal up.viewTop ) $( rigVal up.follow )" "15 no"
+rigAssert "the pane was scrolled up by three lines"                  "$( rigVal up.viewTop ) $( rigVal up.follow )" "4 no"
 rigAssert "the next read brings two more lines: the lines in view do not move" "$( rigVal b.viewLines ) $( rigVal b.viewTop ) $( rigVal b.follow ) [$( rigPane b 15 )][$( rigPane b 37 )]" \
-	"43 15 no [ 02:00:15 💻 step 15 of the tester — execute job 15 · 1 s][ 02:00:37 💻 step 37 of the tester — execute job 37 · 1 s]"
-rigAssert "scrolled to its end it follows the newest line again"     "$( rigVal end.viewTop ) $( rigVal end.follow ) [$( rigPane end 37 )]" "20 yes [ 02:00:42 💻 step 42 of the tester — execute job 42 · 1 s]"
+	"43 4 no [ 02:00:15 💻 step 15 of the tester — execute job 15 · 1 s][ 02:00:37 💻 step 37 of the tester — execute job 37 · 1 s]"
+rigAssert "scrolled to its end it follows the newest line again"     "$( rigVal end.viewTop ) $( rigVal end.follow ) [$( rigPane end 37 )]" "9 yes [ 02:00:42 💻 step 42 of the tester — execute job 42 · 1 s]"
 
-echo "-- l switches the left pane to the raw log and back --"
+echo "-- g switches the left pane to the raw log, and l back to the log --"
 rigCase log
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
 wait view 30
 wait feed 30
-keys l
+keys g
 get pressed
 show pressed
 wait feed 30
@@ -321,7 +349,7 @@ keys l
 wait feed 30
 get back
 show back
-keys l
+keys g
 wait feed 30
 keys UP
 get other
@@ -334,13 +362,13 @@ wait feed 30
 get s
 show s
 RIGSCRIPT
-rigAssert "l on an agent takes the feed away at once, and asks for the raw log of that run, each time it is pressed for it" "$( rigVal pressed.rawLog ) $( rigVal pressed.viewLines ) $( rigPaneHolds pressed 'step' ) $( rigVal pressed.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c '^feed:' ) $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run --log" )" "yes 0 0 1 2"
-rigAssert "the pane shows the end of the raw log, and says what it shows" "$( rigVal raw.viewLines ) $( rigVal raw.follow ) [$( rigPane raw 14 )][$( rigPane raw 37 )]" "30 yes [ lines     the raw log, its session log][   -> tool: log line 30]"
-rigAssert "l again shows the feed"                                   "$( rigVal back.rawLog ) [$( rigPane back 14 )][$( rigPane back 37 )]" "no [ lines     the feed, from its transcript][ 02:00:40 💻 step 40 of the tester — execute job 40 · 1 s]"
+rigAssert "g on an agent takes the feed away at once, and asks for the raw log of that run, each time it is pressed for it" "$( rigVal pressed.rawLog ) $( rigVal pressed.viewLines ) $( rigPaneHolds pressed 'step' ) $( rigVal pressed.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c '^feed:' ) $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run --log" )" "yes 0 0 1 2"
+rigAssert "the pane shows the end of the raw log, and says what it shows" "$( rigVal raw.viewLines ) $( rigVal raw.follow ) [$( rigPane raw 2 )][$( rigPane raw 3 )][$( rigPane raw 33 )]" "30 yes [ magic-tester [raw]][ lines     the raw log, its session log][   -> tool: log line 30]"
+rigAssert "l shows the feed again"                                   "$( rigVal back.rawLog ) [$( rigPane back 3 )][$( rigPane back 37 )]" "no [ lines     the feed, from its transcript][ 02:00:40 💻 step 40 of the tester — execute job 40 · 1 s]"
 rigAssert "the raw log is the choice of the user for the run of the screen: another item shows its raw log too" "$( rigVal other.selected ) $( rigVal other.rawLog )" "$rigS1 yes"
-rigAssert "l on a session shows the logs of its runs, each under a line that names its run" "$( rigVal s.selected ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1 --log" ) [$( rigPane s 18 )][$( rigPane s 19 )][$( rigPane s 20 )][$( rigPane s 21 )][$( rigPane s 22 )]" \
+rigAssert "the raw log of a session shows the logs of its runs, each under a line that names its run" "$( rigVal s.selected ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1 --log" ) [$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )][$( rigPane s 7 )][$( rigPane s 8 )]" \
 	"$rigS1 1 [ magic-coordinator 11111111, its session log:][ coordinator log 1][ coordinator log 2][ magic-tester a2a2a2a2, its session log:][ tester log 1]"
-rigAssert "and says which run has none"                              "[$( rigPane s 17 )][$( rigPane s 23 )]" "[ lines     the raw logs of 3 runs: 1 with no session log (keeper-myx)][]"
+rigAssert "and says which run has none"                              "[$( rigPane s 3 )][$( rigPane s 9 )]" "[ lines     the raw logs of 3 runs: 1 with no session log (keeper-myx)][]"
 
 echo "-- the left pane names the keys of the selected item --"
 rigCase keys
@@ -363,16 +391,21 @@ wait view 30
 wait feed 30
 get lone
 show lone
+keys l
+wait feed 30
+show loneLog
 RIGSCRIPT
-rigAssert "a running session is selected: the pane names the keys that act on it, kill and log" "$( rigVal session.selected ) [$( rigVal sessionKeys )]" "$rigS1 [keys: k kill  l log]"
-rigAssert "and the same with another handler in the place of the kill" "[$( rigVal builtKeys )]" "[keys: k kill  l log]"
+rigAssert "a running session is selected: the pane names the key that acts on it, kill; the keys of the modes stand in the status line alone" "$( rigVal session.selected ) [$( rigVal sessionKeys )]" "$rigS1 [keys: k kill]"
+rigAssert "and the same with another handler in the place of the kill" "[$( rigVal builtKeys )]" "[keys: k kill]"
 rigAssert "Launch / Spawn has neither"                               "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
-rigAssert "a session a client founded says that its founder left no record, and that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded   by a client, whose founder left no record' ) $( rigPaneHolds lone 'lines     the feed of 1 run: 1 with neither (magic-devops)' )" "$rigS2 1 1"
+rigAssert "a session a client founded says that its founder left no record, and its log that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded   by a client, whose founder left no record' ) $( rigPaneHolds loneLog 'lines     the feed of 1 run: 1 with neither (magic-devops)' )" "$rigS2 1 1"
+rigAssert "a finished session shows the total of the tokens it has eaten" "$( rigPaneHolds lone 'tokens    in 90, cache read 0, cache write 0, out 10, total' )" "1"
 
-echo "-- a small pane keeps its head to half of itself --"
+echo "-- a small pane: the head of a log is the line about its lines, and the summary scrolls --"
 rigCase small
 rigSize="120 16"
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN
@@ -380,15 +413,23 @@ wait view 30
 wait feed 30
 get s
 show s
+keys b
+turn
+get f
+show f
+keys TAB PGDN PGDN
+get e
+show e
 RIGSCRIPT
 rigSize=""
-rigAssert "the pane has twelve lines, and its head takes no more than half and the line about the lines" "$( rigVal s.viewHeight ) $( rigVal s.viewHead )" "12 7"
-rigAssert "what matters stays: the state, the line of its control thread, what it was started for" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 7 )]" "[ state     running][ control   -][ for       The daily of Monday: what moved, what is stuck.]"
+rigAssert "the pane has twelve lines, and the head of the log is the line about the lines alone, no more than half of it" "$( rigVal s.viewHeight ) $( rigVal s.viewHead )" "12 2"
+rigAssert "the summary starts with the state and the line of its control thread, has no head, and scrolls down to what the session was started for" "[$( rigPane f 3 )][$( rigPane f 4 )] $( rigVal f.viewHead ) $( rigPaneHolds f 'what moved, what is stuck.' ) $( rigPaneHolds e 'what moved, what is stuck.' )" "[ state     running][ control   -] 0 0 1"
 rigAssert "and the newest line of the feed is in view under it"      "[$( rigPane s 13 )] $( rigVal s.follow ) $( rigVal s.spills )" "[ 02:10:00 magic-coordinator ⏳ wait going idle] yes 0"
 
 echo "-- the reads of one item wait until the selection has rested on it --"
 rigCase rest
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 get up
@@ -415,6 +456,7 @@ rigAssert "once it has rested, its facts and its lines are read"     "$( rigVal 
 rigAssert "the session the selection ran over was never read"        "$( rigCalled "--manager-session-read --session-id $rigS1" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1" ) $( rigCalled "--manager-session-read --session-id $rigS2" )" "0 0 1"
 rigCase fro
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN DOWN UP DOWN UP DOWN UP
@@ -434,6 +476,7 @@ rigAssert "that one alone, once, for all those keys"                 "$( rigCall
 echo "-- an item selected again is read again, whenever it was last read --"
 rigCase again
 rigScript <<'RIGSCRIPT'
+mode log
 keys ENTER
 wait sessions 30
 keys DOWN DOWN
@@ -457,7 +500,7 @@ get later
 RIGSCRIPT
 rigAssert "a session is selected and read, then another"             "$( rigVal first.selected ) $( rigVal first.viewLines ) $( rigVal away.selected )" "$rigS1 13 $rigS2"
 rigAssert "the first is selected again, within the period of its read: its pane is new and empty" "$( rigVal back.selected ) $( rigVal back.viewLines )" "$rigS1 0"
-rigAssert "it is read again at once, and shows its lines"            "$( rigVal read.viewLines ) $( rigPaneHolds r 'wait going idle' ) $( rigPaneHolds r 'for       The daily of Monday' )" "13 1 1"
+rigAssert "it is read again at once, and shows its lines"            "$( rigVal read.viewLines ) $( rigPaneHolds r 'wait going idle' ) $( rigPaneHolds r 'lines     the feed of 3 runs' )" "13 1 1"
 rigAssert "each of its two reads was made twice, and no more while it stays selected inside the period" "$( rigCalled "--manager-session-read --session-id $rigS1" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1" ) [$( rigVal later.reading )]" "2 2 []"
 
 echo "-- a wider session row and a control row change nothing else the pane shows --"
@@ -509,7 +552,7 @@ rigDrawnEight="$( rigWideDrawn eight )"
 rigDrawnEleven="$( rigWideDrawn eleven wide )"
 rigAssert "control: the fixtures of the second case hold the wider session rows and a control row in each read of a session, and the first holds none" \
 	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } $1 == "control" && NF == 6 { control++ } END { print rows + 0 ":" wide + 0 ":" control + 0 }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ } $1 == "control" { control++ } END { print wide + 0 ":" control + 0 }' )" "7:7:5 0:0"
-rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'for       The daily of Monday' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
+rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'The daily of Monday:' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
 rigDrawnBut(){ ## a drawing -- its lines but for the line control of the pane of a session, and but for how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
 	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]|│control   ' -e '^[srn]\.frames='
 }

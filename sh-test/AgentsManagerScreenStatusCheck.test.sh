@@ -191,8 +191,8 @@ get pending
 cells pendingBottom 39 0 120
 RIGSCRIPT
 rigAssert "a running session is selected"                            "$( rigVal session.selected )" "11111111-0000-4000-8000-000000000001"
-rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ Enter Open  Left Up  a Active  k Kill  l Raw log  u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "the keys that act on the session stand in the left pane too" "[$( rigVal sessionKeys )]" "[keys: k kill  l log]"
+rigAssert "on a session the status line names the keys that act on it, and after them the keys of every window" "[$( rigVal sessionBottom )]" "[ Enter Open  Left Up  a Active  k Kill  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "the keys that act on the session stand in the left pane too" "[$( rigVal sessionKeys )]" "[keys: k kill]"
 rigAssert "on Launch / Spawn it names what the list takes there, then the keys of every window"        "$( rigVal launch.selected ) [$( rigVal launchBottom )]" "launch [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "and on another section"                                   "$( rigVal pending.selected ) [$( rigVal pendingBottom )]" "pending [$rigHints]"
 
