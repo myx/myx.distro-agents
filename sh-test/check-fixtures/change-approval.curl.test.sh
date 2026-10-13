@@ -4,7 +4,7 @@
 ## edit and each deleted message, and answers as that token's account. A thread read answers
 ## from the scenario directory: replies.<ts>.json for the thread of that ts, else that thread
 ## with its first message alone. A scenario that holds a file `post.fail` has every post
-## refused. Opens no socket.
+## refused, and one that holds a file `reply.fail` every post into a thread. Opens no socket.
 set -u
 rigHeader="$( cat )"
 rigToken="${rigHeader#Authorization: Bearer }"
@@ -39,11 +39,15 @@ case "$rigMethod" in
 			printf '{"ok":false,"error":"rig_post_refused"}\n'
 			exit 0
 		fi
+		rigThread="$( sed -n 's/.*"thread_ts":"\([0-9.]*\)".*/\1/p' "$rigBody" 2>/dev/null | head -1 )"
+		if [ -n "$rigThread" ] && [ -f "$RIG_SCENARIO/reply.fail" ] ; then
+			printf '{"ok":false,"error":"rig_reply_refused"}\n'
+			exit 0
+		fi
 		rigPost=$(( $( cat "$RIG_SCENARIO/posts" 2>/dev/null || echo 0 ) + 1 ))
 		printf '%s' "$rigPost" > "$RIG_SCENARIO/posts"
 		[ -z "$rigBody" ] || cp "$rigBody" "$RIG_SCENARIO/post.$rigPost"
 		printf '%s\n' "$rigToken" > "$RIG_SCENARIO/post.$rigPost.token"
-		rigThread="$( sed -n 's/.*"thread_ts":"\([0-9.]*\)".*/\1/p' "$rigBody" 2>/dev/null | head -1 )"
 		## The n-th post is 1700000001.<n>01 in six digits, so a scenario can place a reply between two posts.
 		rigPostTs="$( printf '1700000001.%06d' "$(( rigPost * 100 + 1 ))" )"
 		printf '{"ok":true,"channel":"CRIG00001","ts":"%s","message":{"ts":"%s","user":"%s"%s}}\n' \

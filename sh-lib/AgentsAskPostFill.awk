@@ -30,6 +30,9 @@
 # and the form keeps its one name. A heading may name more than one field, `<form>, with
 # <slot> and <slot>`: its block is taken only where every one of them has a value, and of the
 # blocks that can be taken the one that names the most fields is.
+# The post itself may have such a block too: `post, with <slot>` beside `## post` under
+# `# Skeleton`, taken the same way. So a post filled again from what its record keeps is the
+# post it was, where that record keeps a field the post of today no longer holds.
 # The number marks are fixed here, with the names the verdict reader takes a click by
 # (AgentsEscalationVerdict.awk): the keycaps one to ten. An option past the tenth is numbered
 # in plain digits and has no emoji.
@@ -127,7 +130,7 @@ BEGIN {
 	}
 	if ( want != "post" && want != "closed" ) { askFail( 3, "ASKP_WANT must be post, closed, reactions or block: " want ) ; }
 
-	postKey = "Skeleton" SUBSEP "post" ;
+	postKey = askFormKey( "Skeleton", "post" ) ;
 	if ( ! ( postKey in ttHas ) ) { askFail( 3, "the template has no `## post` block under `# Skeleton`: " template ) ; }
 	postText = ( skeletonPost != "" ) ? skeletonPost : ttBlock[postKey] ;
 

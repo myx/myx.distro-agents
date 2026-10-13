@@ -6,12 +6,14 @@
 ## Edit or a Write such a grant covers is neither refused nor applied, unless a grant given
 ## for the task, the session or the one call allows it. Its change is kept, shown to the
 ## human-owner by the team bot, and applied when he approves, exactly as it was shown. Covers:
-##    0. the template: the prompt, the prompt that takes no answer any more, its emoji;
+##    0. the template: the two posts of the prompt, the prompt that takes no answer any more, its
+##       emoji, and the one post a prompt was before its change moved to its thread;
 ##    1. held: the call returns at once, the file as it was, the change kept, the prompt posted
 ##       by the team bot in its conversation with the human-owner, its record in the session's
 ##       Wait; what the grant does not cover is refused as before, and a read is admitted;
-##    2. shown: who asks, what for, the task in words, the session, the file by its place name,
-##       the change as a diff;
+##    2. shown, in two posts: the message that opens the thread, a few lines -- who asks, the
+##       file by its place name, what for, how to answer -- and the first reply there, the
+##       change as a diff, the task in words, the session, who asked;
 ##    3. approved by click: applied as shown, once, and said in the prompt's thread;
 ##    4. rejected: dropped, the prompt closed as the post of a discarded permission set is;
 ##    5. a reply with words: back to the member as RETURNED with his whole text, the change
@@ -29,11 +31,14 @@
 ##   12. only his own verdict, in his own words: another account, a member through the team
 ##       operation, a plain agreement;
 ##   13. the call of a native client's own tool, put by its permission hook;
-##   14. a prompt that could not be posted: nothing is held;
+##   14. a prompt that could not be posted, or not whole: nothing is held, and what was posted of
+##       it is taken away again;
 ##   15. what the member holds, and what its grants list says;
 ##   16. the first use: the librarian's standing access to the skills of the team;
 ##   17. what comes ahead of an approval: a grant given for the task, and nothing the member
-##       holds standing or by the floor, its own directory neither.
+##       holds standing or by the floor, its own directory neither;
+##   18. a prompt posted before its change moved to its thread, one post that holds the change:
+##       read, answered, confirmed and closed as it was.
 ## Red recipe: leave the `approve)` row out of AgentsToolsGrantsSessionCheckRows
 ## (AgentsTools.Grants.include), and section 1 fails on its first call, refused.
 ## Offline: a Slack-shaped fake curl is first on PATH, and a ps beside it lists the rig's own
@@ -212,7 +217,9 @@ rigKeptDir(){ ## record n (default: the newest)
 	printf 'no-kept-change'
 }
 ## The prompt's own thread as Slack returns it: the prompt with the reactions a scenario puts
-## on it, then the replies. The tooling's own two emoji, placed by the bot, are always there.
+## on it, then the replies. The tooling's own two emoji, placed by the bot, are always there,
+## and so is its own reply under the prompt, the change: the post right after the prompt, by
+## the bot, its sender the member (rigThreadOwn, emptied for a prompt that has no such reply).
 rigSeeded='{"name":"+1","count":1,"users":["URIGBOT01"]},{"name":"x","count":1,"users":["URIGBOT01"]}'
 rigClick(){ ## emoji name, user
 	printf ',{"name":"%s","count":1,"users":["%s"]}' "$1" "$2"
@@ -220,11 +227,14 @@ rigClick(){ ## emoji name, user
 rigReply(){ ## ts suffix (after the prompt's), user, text as a JSON string body, record n
 	printf ',{"ts":"1700000001.%s","user":"%s","text":"%s","thread_ts":"%s"}' "$1" "$2" "$3" "$( rigField question-ts "${4:-}" )"
 }
+rigThreadOwn=1
 rigThread(){ ## clicks (rigClick words, may be empty), replies (rigReply words, may be empty), record n
-	local threadTs
+	local threadTs threadOwn=""
 	threadTs="$( rigField question-ts "${3:-}" )"
-	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the prompt","reactions":[%s%s]}%s],"has_more":false}\n' \
-		"$threadTs" "$rigSeeded" "$1" "$2" > "$rigDir/replies.$threadTs.json"
+	[ -z "$rigThreadOwn" ] || threadOwn="$( printf ',{"ts":"1700000001.%06d","user":"URIGBOT01","text":"**📝 The change**\\n```\\n-beta\\n+BETA\\n```","thread_ts":"%s","metadata":{"event_type":"magic_sender","event_payload":{"sender":"%s"}}}' \
+		"$(( 10#${threadTs#*.} + 100 ))" "$threadTs" "$rigMember" )"
+	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGBOT01","text":"the prompt","reactions":[%s%s]}%s%s],"has_more":false}\n' \
+		"$threadTs" "$rigSeeded" "$1" "$threadOwn" "$2" > "$rigDir/replies.$threadTs.json"
 }
 ## The read of the prompt's answer, as the Wait of the session that made the change makes it.
 rigRead(){ ## record n (default: the newest)
@@ -237,6 +247,22 @@ rigReadLine(){ ## prefix -- the first line of the read with it
 rigReacted(){ ## reactions|reactions.removed, record n
 	LC_ALL=C awk -v want="$( rigField question-ts "${2:-}" )" '$1 == want { out = out ( out == "" ? "" : " " ) $2 ; } END { print out ; }' "$rigDir/$1" 2> /dev/null
 }
+## The lines of a record's `.fields`, as the operation packs them.
+rigPack(){ ## slot, value, ...
+	local packValue
+	while [ $# -ge 2 ] ; do
+		if [ -n "$2" ] ; then
+			packValue="${2//\\/\\\\}"
+			printf '%s\t%s\n' "$1" "${packValue//$'\n'/\\n}"
+		fi
+		shift 2
+	done
+}
+## What a reminder of a prompt quotes of it (AgentsTools.PendingReplyRemind.include).
+rigRemindQuote(){ ## record n (default: the newest)
+	rigRun "$rigDir/remind-quote" bash -c '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.PendingReplyRemind.include" && AgentsToolsPendingReplyRemindQuestion "$1"' rig-remind "$( rigRecord "${1:-}" )"
+	cat "$rigDir/remind-quote"
+}
 rigFill(){ ## want -- the template filled straight, the slots from the caller's environment
 	ASKP_WANT="$1" ASKP_FORM=approve LC_ALL=C awk -f "$rigLib/AgentsToolingTemplateFill.awk" -f "$rigLib/AgentsAskPostFill.awk" "$rigTemplate" 2>&1
 }
@@ -247,19 +273,34 @@ rigHeldLine(){ ## file -- the first line of a held result for it
 	printf 'HELD: this change to %s is held for the approval of the human-owner, and nothing is written yet. It is shown to him as a diff, and is applied exactly as shown when he approves.' "$1"
 }
 
-echo "-- 0. the template: the prompt, the prompt that takes no answer any more, its emoji --"
+echo "-- 0. the template: the two posts of the prompt, the prompt that takes no answer any more, its emoji --"
 rigHow=$'**✅ How to answer**\n- click 👍 to approve: the change is then applied exactly as shown. Or click ❌ to reject it\n- or reply `approve` or `reject`\n- the word first; a comment after a comma, or on the next lines\n- any other reply is a comment: it goes back to the member that asked, and the change stays held'
-rigAssert "the prompt, whole" \
+rigAssert "the message that opens the thread, whole: who asks, the file, what it is for, how to answer" \
+	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_purpose='Raise a word' rigFill post )" \
+	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**💡 What it is for**\nRaise a word\n\n'"$rigHow"
+rigAssert "with no purpose its heading is left out" \
+	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' rigFill post )" \
+	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n'"$rigHow"
+rigAssert "with no file nothing is filled" \
+	"$( ASKP_F_member=keeper-myx ASKP_F_act=change rigFill post )" "AgentsAskPostFill.awk: the slot {{file}} is required and has no value"
+rigAssert "the first reply in its thread, whole: the change, the task, the session, who asked" \
+	"$( ASKP_BLOCK='Skeleton/detail' ASKP_F_task='The task' ASKP_F_session='`5e55104a`' ASKP_F_asked_by='keeper-myx · host / ws' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' rigFill block )" \
+	$'**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```\n\n**🗂 Task**\nThe task\n\n**🧵 Session**\n`5e55104a`\n\n**🙋 Asked by**\nkeeper-myx · host / ws'
+rigAssert "there a field with no value leaves its heading out, and a cut says so under the diff" \
+	"$( ASKP_BLOCK='Skeleton/detail' ASKP_F_asked_by='keeper-myx' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' ASKP_F_cut='CUT LINE' rigFill block )" \
+	$'**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```\nCUT LINE\n\n**🙋 Asked by**\nkeeper-myx'
+rigAssert "a prompt that takes no answer any more: its first post's same text without How to answer" \
+	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_purpose='Raise a word' rigFill closed )" \
+	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**💡 What it is for**\nRaise a word'
+## A prompt posted before its change moved to its thread was one post: what its record keeps
+## holds the diff, and filled from that it is the post it was.
+rigWhole=$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**💡 What it is for**\nRaise a word\n\n**🗂 Task**\nThe task\n\n**🧵 Session**\n`5e55104a`\n\n**🙋 Asked by**\nkeeper-myx · host / ws\n\n**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```'
+rigAssert "a prompt posted before the two, filled with its diff: the one post it was, whole" \
 	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_purpose='Raise a word' ASKP_F_task='The task' ASKP_F_session='`5e55104a`' ASKP_F_asked_by='keeper-myx · host / ws' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' rigFill post )" \
-	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**💡 What it is for**\nRaise a word\n\n**🗂 Task**\nThe task\n\n**🧵 Session**\n`5e55104a`\n\n**🙋 Asked by**\nkeeper-myx · host / ws\n\n**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```\n\n'"$rigHow"
-rigAssert "a field with no value leaves its heading out, and a cut says so under the diff" \
-	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' ASKP_F_cut='CUT LINE' rigFill post )" \
-	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```\nCUT LINE\n\n'"$rigHow"
-rigAssert "with no diff nothing is filled" \
-	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_fence='```' rigFill post )" "AgentsAskPostFill.awk: the slot {{diff}} is required and has no value"
-rigAssert "a prompt that takes no answer any more: the same text without How to answer" \
-	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' rigFill closed )" \
-	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `ws:held/notes.md`.\n\n**📝 The change**\n```\n@@ -1 +1 @@\n-a\n+b\n```'
+	"$rigWhole"$'\n\n'"$rigHow"
+rigAssert "and once it takes no answer: that one post without How to answer, its change and its cut line still in it" \
+	"$( ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file='ws:held/notes.md' ASKP_F_purpose='Raise a word' ASKP_F_task='The task' ASKP_F_session='`5e55104a`' ASKP_F_asked_by='keeper-myx · host / ws' ASKP_F_fence='```' ASKP_F_diff=$'@@ -1 +1 @@\n-a\n+b' ASKP_F_cut='CUT LINE' rigFill closed )" \
+	"$rigWhole"$'\nCUT LINE'
 rigAssert "its click answers, and neither the mark of an answered question" "$( rigFill reactions | LC_ALL=C tr '\n' ' ' )" "+1 x "
 rigAssert "the cut line" "$( ASKP_BLOCK='Lines/cut' ASKP_F_hidden=124 ASKP_F_total=184 ASKP_F_diff_file='ws:.local/x/change.diff' rigFill block )" \
 	'✂️ The diff is cut here: 124 more of its 184 lines are not shown. The whole diff is kept in `ws:.local/x/change.diff`.'
@@ -272,15 +313,20 @@ rigAssert "nothing is written: the file is byte for byte as it was" "$( rigBytes
 rigAssert "the result says a read sees the file as it is, how the verdict arrives, and how to take the change back" \
 	"$( rigHas "$rigDir/edit" 'a Read of it shows the file as it is now, without this change.' ):$( rigHas "$rigDir/edit" "His verdict comes to you on Wait, as pending reply $( rigId )" ):$( rigHas "$rigDir/edit" "AskQuestion pending_id=$( rigId ) withdraw=<why>" ):$( LC_ALL=C grep -c -x -F "WAIT-ID: ask:$( rigId )" "$rigDir/edit" )" "yes:yes:yes:1"
 rigAssert "it is no refusal and no error: the call ends well, nothing is recorded to ask for" "$( cat "$rigDir/edit.rc" ):$( LC_ALL=C grep -c 'REFUSAL-ID' "$rigDir/edit" )" "0:0"
-rigAssert "one post, by the team bot, in its own conversation with the human-owner, addressed to him" \
-	"$( rigPosts ):$( cat "$rigDir/post.1.token" 2> /dev/null ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigDir/post.1" 2> /dev/null ):$( rigHas "$rigDir/post.1" '<@URIGOWNER>' )" "1:rig-bot-token-TEAM:1:yes"
+rigAssert "two posts, by the team bot: the first a message of its own in its conversation with the human-owner, addressed to him" \
+	"$( rigPosts ):$( cat "$rigDir/post.1.token" 2> /dev/null ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigDir/post.1" 2> /dev/null ):$( rigHas "$rigDir/post.1" '<@URIGOWNER>' ):$( rigHas "$rigDir/post.1" '"thread_ts"' )" "2:rig-bot-token-TEAM:1:yes:no"
 rigAssert "its record: a change, asked of the human-owner by the member that made it, for its session and item" \
 	"$( rigRecordCount ):$( rigField kind ):$( rigField address-to ):$( rigField owner ):$( rigField session-id ):$( rigField item ):$( rigField ask-identity ):$( rigField status )" \
 	"1:change:human-owner:keeper-myx:$rigSpawn:$rigItem:bot:reply-pending"
 rigAssert "which names its thread, who may answer and who asked, so it is reminded and read as every ask is" \
 	"$( rigField channel ):$( rigField question-ts ):$( rigField thread-ts ):$( rigField addressees ):$( rigField asking-accounts | LC_ALL=C tr -d ' ' )" \
 	"CRIG00001:1700000001.000101:1700000001.000101:URIGOWNER:URIGBOT01"
-rigAssert "its click answers are placed under it" "$( rigReacted reactions )" "+1 x"
+rigAssert "the second is the first reply in the thread the first opens, addressed to him too" \
+	"$( cat "$rigDir/post.2.token" 2> /dev/null ):$( rigHas "$rigDir/post.2" "\"thread_ts\":\"$( rigField question-ts )\"" ):$( rigHas "$rigDir/post.2" '<@URIGOWNER>' )" "rig-bot-token-TEAM:yes:yes"
+rigAssert "its click answers are placed under the first, and none under the reply" \
+	"$( rigReacted reactions ):$( LC_ALL=C awk -v want="$( rigField question-ts )" '$1 != want { other++ ; } END { print other + 0 ; }' "$rigDir/reactions" 2> /dev/null )" "+1 x:0"
+rigAssert "what is kept of the first post beside its record is what it was filled with, and no diff" \
+	"$( LC_ALL=C cut -f1 "$rigWs/.local/agents/pending/$( rigId ).fields" 2> /dev/null | LC_ALL=C tr '\n' ' ' )" "member act file purpose "
 rigAssert "it is in the Wait of the session that made the change" "$( rigWaitSet )" 1
 rigKept="$( rigKeptDir )"
 rigAssert "the change is kept in the store of that session: the call, the file as it was, the file as the call leaves it, the diff" \
@@ -293,21 +339,30 @@ rigEdit other "$rigWs/other/notes.md" beta BETA
 rigAssert "a file no grant covers is refused as before, with its refusal id" "$( LC_ALL=C grep -c -e '^ERROR: path not in the allowed write-root set' -e '^REFUSAL-ID: refusal-' "$rigDir/other" ):$( rigRecordCount )" "2:1"
 rigEdit missing "$rigWs/held/notes.md" nope NOPE
 rigAssert "a call that cannot be applied is refused at once, in the tool's own words, and nothing is held" \
-	"$( rigFirst missing ):$( rigRecordCount ):$( rigPosts )" "ERROR: old_string not found in $rigWs/held/notes.md -- nothing was written:1:1"
+	"$( rigFirst missing ):$( rigRecordCount ):$( rigPosts )" "ERROR: old_string not found in $rigWs/held/notes.md -- nothing was written:1:2"
 rigEdit same "$rigWs/held/notes.md" beta beta
 rigAssert "a call that leaves the file as it is has nothing to hold" "$( rigFirst same ):$( rigRecordCount )" "OK: nothing is held or written: this call leaves $rigWs/held/notes.md exactly as it is:1"
 
 echo "-- 2. shown: who asks, what for, the task in words, the session, the file by its place name, the diff --"
 rigPlace="$( rigPromptBody | LC_ALL=C sed -n 's/^keeper-myx wants to change `\(.*\)`\.$/\1/p' )"
 rigAssert "the file is shown by its place name, never by its absolute path" "$rigPlace:$( rigPromptBody | LC_ALL=C grep -c -F "$rigWs/held" )" "rig-ws:held/notes.md:0"
-rigAssert "the prompt, whole" "$( rigPromptBody )" \
-	$'# ✏️ Change for approval\n\nkeeper-myx wants to change `rig-ws:held/notes.md`.\n\n**💡 What it is for**\nRaise the second word\n\n**🗂 Task**\nRework the rig widget\n`task-20261012T0000Z-held` · `dispatch-20261012T0100Z-held`\nThe widget drops its last line. Make it keep it.\n\n**🧵 Session**\nrework the rig widget · `5e55104a` · `CSES00001:1700000000.000100`\n\n**🙋 Asked by**\nkeeper-myx · '"$rigHost"$' / ws\n\n**📝 The change**\n```\n@@ -1,4 +1,4 @@\n alpha\n-beta\n+BETA\n gamma\n delta\n```\n\n'"$rigHow"
+rigShownFirst=$'# ✏️ Change for approval\n\nkeeper-myx wants to change `rig-ws:held/notes.md`.\n\n**💡 What it is for**\nRaise the second word\n\n'"$rigHow"
+rigShownReply=$'**📝 The change**\n```\n@@ -1,4 +1,4 @@\n alpha\n-beta\n+BETA\n gamma\n delta\n```\n\n**🗂 Task**\nRework the rig widget\n`task-20261012T0000Z-held` · `dispatch-20261012T0100Z-held`\nThe widget drops its last line. Make it keep it.\n\n**🧵 Session**\nrework the rig widget · `5e55104a` · `CSES00001:1700000000.000100`\n\n**🙋 Asked by**\nkeeper-myx · '"$rigHost"' / ws'
+rigAssert "the record keeps the two posts as they were shown: the message that opens the thread, then the change" "$( rigPromptBody )" "$rigShownFirst"$'\n\n'"$rigShownReply"
+rigAssert "the first post is the few lines: what it is for and how to answer, and no diff, task, session or asker block" \
+	"$( rigHas "$rigDir/post.1" 'What it is for' ):$( rigHas "$rigDir/post.1" 'How to answer' ):$( rigHas "$rigDir/post.1" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigDir/post.1" 'The change' ):$( rigHas "$rigDir/post.1" 'rig widget' ):$( rigHas "$rigDir/post.1" 'Session' ):$( rigHas "$rigDir/post.1" 'Asked by' )" "yes:yes:no:no:no:no:no"
+rigAssert "the reply under it holds the change, the task, the session and who asked, and no How to answer" \
+	"$( rigHas "$rigDir/post.2" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigDir/post.2" '+BETA' ):$( rigHas "$rigDir/post.2" 'Rework the rig widget' ):$( rigHas "$rigDir/post.2" '5e55104a' ):$( rigHas "$rigDir/post.2" 'Asked by' ):$( rigHas "$rigDir/post.2" 'How to answer' )" "yes:yes:yes:yes:yes:no"
+rigAssert "a reminder quotes the line it always did" "$( rigRemindQuote )" 'keeper-myx wants to change `rig-ws:held/notes.md`.'
 rigAssert "the kept diff is the diff shown" "$( cat "$rigKept/change.diff" 2> /dev/null )" $'@@ -1,4 +1,4 @@\n alpha\n-beta\n+BETA\n gamma\n delta'
 
 echo "-- 3. approved by click: applied as shown, once, and said in the prompt's thread --"
 rigThread "" ""
 rigRead
-rigAssert "the emoji the tooling placed are no answer" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) open:reply-pending:alpha\\nbeta\\ngamma\\ndelta\\n"
+rigAssert "the emoji the tooling placed, and its own reply under the prompt, are no answer" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) open:reply-pending:alpha\\nbeta\\ngamma\\ndelta\\n"
+rigThread "" "$( rigReply 000250 URIGBOT01 'approve' )"
+rigRead
+rigAssert "nor is any reply of the identity that posted, whatever it says" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) open:reply-pending:alpha\\nbeta\\ngamma\\ndelta\\n"
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead
 rigAssert "his 👍 is read as approve, and the change is applied" "$( rigReadLine 'ESCALATION: ' ):$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'ANSWERED-BY: ' ):$( rigReadLine 'CHANGE: ' )" \
@@ -316,16 +371,16 @@ rigAssert "the file is the file as it was shown" "$( rigBytes "$rigWs/held/notes
 rigAssert "the record closes with the verdict, who gave it and what was done" "$( rigField status ):$( rigField verdict ):$( rigField answered-by ):$( rigField change-outcome )" \
 	"reply-received:approve:URIGOWNER:applied -- OK: replaced one occurrence in $rigWs/held/notes.md"
 rigAssert "one confirmation reply under the prompt, by the team bot: what was read and what was done" \
-	"$( rigPosts ):$( cat "$rigDir/post.2.token" 2> /dev/null ):$( LC_ALL=C grep -c -F 'Read: `approve` by human-owner. The change is applied to `rig-ws:held/notes.md`, exactly as shown.' "$rigDir/post.2" 2> /dev/null )" "2:rig-bot-token-TEAM:1"
+	"$( rigPosts ):$( cat "$rigDir/post.3.token" 2> /dev/null ):$( LC_ALL=C grep -c -F 'Read: `approve` by human-owner. The change is applied to `rig-ws:held/notes.md`, exactly as shown.' "$rigDir/post.3" 2> /dev/null ):$( rigHas "$rigDir/post.3" "\"thread_ts\":\"$( rigField question-ts )\"" )" "3:rig-bot-token-TEAM:1:yes"
 rigAssert "the item's Decisions hold the verdict" "$( LC_ALL=C grep -c -F -- "-> approve" "$rigData/board/running/$rigItem.md" )" 1
 rigRead
 rigAssert "a second read reports the same, and applies and says nothing again" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigPosts ):$( rigBytes "$rigWs/held/notes.md" )" \
-	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:2:alpha\\nBETA\\ngamma\\ndelta\\n"
+	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:3:alpha\\nBETA\\ngamma\\ndelta\\n"
 
 echo "-- 4. rejected: dropped, nothing applied, the prompt closed as the post of a discarded permission set is --"
 rigStart rejected
 rigEdit edit "$rigWs/held/notes.md" beta BETA
-rigThread "$( rigClick x URIGOWNER )" "$( rigReply 000150 URIGOWNER 'not this word' )"
+rigThread "$( rigClick x URIGOWNER )" "$( rigReply 000250 URIGOWNER 'not this word' )"
 rigRead
 rigAssert "his ❌ is read as reject, and the change is dropped" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' )" "VERDICT: reject:CHANGE: dropped -- rejected, so nothing is applied to rig-ws:held/notes.md"
 rigAssert "what he wrote beside the click comes with it" "$( LC_ALL=C grep -c -F 'not this word' "$rigDir/read" )" 1
@@ -333,6 +388,8 @@ rigAssert "nothing is applied" "$( rigBytes "$rigWs/held/notes.md" ):$( rigField
 rigAssert "its click answers are taken off, and it is marked" "$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" "+1 x:no_entry_sign"
 rigAssert "its post is edited to the same text without How to answer" \
 	"$( LC_ALL=C grep -c -F 'wants to change' "$rigDir/edit.$( rigField question-ts )" 2> /dev/null ):$( LC_ALL=C grep -c -F 'How to answer' "$rigDir/edit.$( rigField question-ts )" 2> /dev/null )" "1:0"
+rigAssert "the reply under it, the change, is left as it is: the first post alone is edited, and nothing is deleted" \
+	"$( LC_ALL=C tr '\n' ' ' < "$rigDir/edited" ):$( [ -f "$rigDir/deleted" ] && printf deleted || printf none )" "$( rigField question-ts ) :none"
 rigAssert "and its thread is told what was read" "$( LC_ALL=C grep -l -F 'Read: `reject` by human-owner. The change is dropped: nothing is applied to `rig-ws:held/notes.md`.' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead
@@ -341,14 +398,14 @@ rigAssert "an approve under it afterwards applies nothing" "$( rigReadLine 'VERD
 echo "-- 5. a reply with words: back to the member as RETURNED with his whole text; then approved by reply --"
 rigStart words
 rigEdit edit "$rigWs/held/notes.md" beta BETA
-rigThread "" "$( rigReply 000150 URIGOWNER 'why BETA and not Beta? it shouts' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'why BETA and not Beta? it shouts' )"
 rigTool "$rigDir/wait1" Wait '{"timeout":30}'
 rigAssert "his reply arrives on the member's Wait as RETURNED, with his whole text" \
 	"$( LC_ALL=C grep -c -x -e 'ASK-RESULT: RECEIVED' -e 'VERDICT: RETURNED' "$rigDir/wait1" ):$( rigHas "$rigDir/wait1" 'why BETA and not Beta? it shouts' )" "2:yes"
 rigAssert "with what it is and the ways on, each with its call" \
 	"$( rigHas "$rigDir/wait1" 'This is the approval prompt of a change you made, which is held.' ):$( rigHas "$rigDir/wait1" "SendMessage to=CRIG00001:$( rigField question-ts )" ):$( rigHas "$rigDir/wait1" "AskQuestion pending_id=$( rigId ) withdraw=<why>" )" "yes:yes:yes"
 rigAssert "the change stays held, nothing applied, and the prompt in its Wait" "$( rigField status ):$( rigBytes "$rigWs/held/notes.md" ):$( rigWaitSet )" 'reply-pending:alpha\nbeta\ngamma\ndelta\n:1'
-rigThread "" "$( rigReply 000150 URIGOWNER 'why BETA and not Beta? it shouts' )$( rigReply 000160 URIGOWNER 'Approve: fine for now, soften it later' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'why BETA and not Beta? it shouts' )$( rigReply 000260 URIGOWNER 'Approve: fine for now, soften it later' )"
 rigTool "$rigDir/wait2" Wait '{"mode":"continue","timeout":30}'
 rigAssert "his approve by reply arrives on the next Wait as the verdict, applied, his words with it" \
 	"$( LC_ALL=C grep -c -x -e 'ASK-RESULT: RECEIVED' -e 'VERDICT: approve' -e 'VERDICT-TEXT: fine for now, soften it later' -e "CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md" "$rigDir/wait2" )" 4
@@ -403,6 +460,8 @@ rigAssert "the Write is held, and its result says how much of the diff is shown"
 rigAssert "the prompt says it rewrites the file, and shows the first 60 lines of the diff" \
 	"$( rigPromptBody | LC_ALL=C grep -c -x -F 'keeper-myx wants to rewrite the whole of `rig-ws:held/long.md`.' ):$( rigPromptBody | LC_ALL=C awk '$0 == "```" { inDiff = ! inDiff ; next ; } inDiff { lineCount++ ; } END { print lineCount + 0 ; }' )" "1:60"
 rigAssert "then the plain line: how much is not shown, and where the whole diff is kept, by its place name" "$( rigPromptBody | LC_ALL=C grep -c -x -F "✂️ The diff is cut here: 341 more of its 401 lines are not shown. The whole diff is kept in \`rig-ws:.local/agents/sessions/$rigSpawn/changes/${rigKept##*/}/change.diff\`." )" 1
+rigAssert "that line stands in the reply under the prompt, with the diff, and not in the first post" \
+	"$( rigHas "$rigDir/post.2" 'The diff is cut here: 341 more of its 401 lines are not shown.' ):$( rigHas "$rigDir/post.1" 'The diff is cut here' )" "yes:no"
 rigAssert "the whole diff is kept there" "$( LC_ALL=C awk 'END { print NR + 0 ; }' "$rigKept/change.diff" 2> /dev/null )" 401
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead
@@ -431,7 +490,7 @@ echo "-- 9. two held changes to one file by one member: two prompts, each by its
 rigStart two
 rigEdit edit1 "$rigWs/held/notes.md" beta BETA
 rigEdit edit2 "$rigWs/held/notes.md" delta DELTA
-rigAssert "each call is one change and one prompt, both held, the file as it was" "$( rigFirst edit1 | LC_ALL=C cut -c1-5 ):$( rigFirst edit2 | LC_ALL=C cut -c1-5 ):$( rigRecordCount ):$( rigPosts ):$( rigBytes "$rigWs/held/notes.md" )" 'HELD::HELD::2:2:alpha\nbeta\ngamma\ndelta\n'
+rigAssert "each call is one change and one prompt, both held, the file as it was" "$( rigFirst edit1 | LC_ALL=C cut -c1-5 ):$( rigFirst edit2 | LC_ALL=C cut -c1-5 ):$( rigRecordCount ):$( rigPosts ):$( rigBytes "$rigWs/held/notes.md" )" 'HELD::HELD::2:4:alpha\nbeta\ngamma\ndelta\n'
 rigAssert "the second is shown against the file as it is, without the first" "$( rigPromptBody 2 | LC_ALL=C grep -c -x -e ' beta' -e '-delta' -e '+DELTA' ):$( rigPromptBody 2 | LC_ALL=C grep -c -F BETA )" "3:0"
 rigThread "$( rigClick +1 URIGOWNER )" "" 2
 rigRead 2
@@ -463,7 +522,7 @@ rigStart write
 rigTool "$rigDir/create" Write '{"file_path":"'"$rigWs/held/deep/new.md"'","content":"one\ntwo\n","description":"A new note"}'
 rigAssert "a Write of a file that is not there is held, and nothing is created, not its folder either" "$( rigFirst create ):$( [ -e "$rigWs/held/deep" ] && printf there || printf none )" "$( rigHeldLine "$rigWs/held/deep/new.md" ):none"
 rigAssert "the prompt says it creates the file, and shows every line as added" "$( rigPromptBody | LC_ALL=C grep -c -x -e 'keeper-myx wants to create `rig-ws:held/deep/new.md`.' -e '@@ -0,0 +1,2 @@' -e '+one' -e '+two' )" 4
-rigThread "" "$( rigReply 000150 URIGOWNER 'approved' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'approved' )"
 rigRead
 rigAssert "approved, the file is created as shown" "$( rigReadLine 'CHANGE: ' ):$( rigBytes "$rigWs/held/deep/new.md" )" "CHANGE: applied -- OK: wrote $rigWs/held/deep/new.md:one\\ntwo\\n"
 rigTool "$rigDir/rewrite" Write '{"file_path":"'"$rigWs/held/notes.md"'","content":"all new\n"}'
@@ -476,17 +535,17 @@ rigAssert "a rewrite over a file that changed since is not applied: it would und
 echo "-- 12. only his own verdict, in his own words --"
 rigStart who
 rigEdit edit "$rigWs/held/notes.md" beta BETA
-rigThread "$( rigClick +1 URIGOTHER )" "$( rigReply 000150 URIGOTHER 'approve' )"
+rigThread "$( rigClick +1 URIGOTHER )" "$( rigReply 000250 URIGOTHER 'approve' )"
 rigRead
 rigAssert "a click and a reply by somebody else are no answer" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) open:reply-pending:alpha\\nbeta\\ngamma\\ndelta\\n"
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-other-session )
 rigOp "$rigDir/answer" --magic-escalation-answer magic-coordinator "$( rigId )" approve
 rigEnv=()
 rigAssert "no member answers it through the team operation, the coordinator neither" "$( cat "$rigDir/answer.rc" ):$( LC_ALL=C grep -c -F 'approve is not a verdict of this change, so nothing is applied' "$rigDir/answer" ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" '1:1:reply-pending:alpha\nbeta\ngamma\ndelta\n'
-rigThread "" "$( rigReply 000150 URIGOWNER 'ok, looks fine' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'ok, looks fine' )"
 rigRead
 rigAssert "a plain agreement approves nothing: it comes back as RETURNED" "$( rigReadLine 'VERDICT: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" 'VERDICT: RETURNED:reply-pending:alpha\nbeta\ngamma\ndelta\n'
-rigThread "" "$( rigReply 000150 URIGOWNER 'approve it if the tests pass' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'approve it if the tests pass' )"
 rigRead
 rigAssert "nor does the word with more words and no mark between: his line is a comment, whole" "$( rigReadLine 'VERDICT: ' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" 'VERDICT: RETURNED:reply-pending:alpha\nbeta\ngamma\ndelta\n'
 rigThread "$( rigClick +1 URIGOWNER )$( rigClick x URIGOWNER )" ""
@@ -494,7 +553,7 @@ rigRead
 rigAssert "both clicked by him: reject first, never an approve" "$( rigReadLine 'VERDICT: ' ):$( rigBytes "$rigWs/held/notes.md" )" 'VERDICT: reject:alpha\nbeta\ngamma\ndelta\n'
 rigStart word
 rigEdit edit "$rigWs/held/notes.md" beta BETA
-rigThread "" "$( rigReply 000150 URIGOWNER 'Rejected. Keep it lower case' )"
+rigThread "" "$( rigReply 000250 URIGOWNER 'Rejected. Keep it lower case' )"
 rigRead
 rigAssert "reject by reply, in any case, his words with it" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'VERDICT-TEXT: ' )" "VERDICT: reject:VERDICT-TEXT: Keep it lower case"
 rigStart mark
@@ -529,13 +588,30 @@ rigAssert "a call no grant covers is refused as before, with its refusal id" "$(
 rigHook hook5 Edit '{"file_path":"'"$rigWs/held/notes.md"'","old_string":"nope","new_string":"NOPE"}'
 rigAssert "a covered call that cannot be applied is denied in the tool's own words, and nothing is held" "$( rigHookSays hook5 ):$( rigRecordCount )" "deny: ERROR: old_string not:3"
 
-echo "-- 14. a prompt that could not be posted: nothing is held --"
+echo "-- 14. a prompt that could not be posted, or not whole: nothing is held --"
 rigStart unposted
 : > "$rigDir/post.fail"
 rigEdit edit "$rigWs/held/notes.md" beta BETA
 rigAssert "the call says the change is NOT held, and nothing was written" "$( rigFirst edit ):$( rigBytes "$rigWs/held/notes.md" )" \
 	"ERROR: Edit: a change to $rigWs/held/notes.md needs the approval of the human-owner, and it could not be shown to him, so it is NOT held and nothing was written. Make the call again once what stopped it is cleared. What the operation reported follows:"':alpha\nbeta\ngamma\ndelta\n'
 rigAssert "no record, nothing kept, nothing in its Wait" "$( rigRecordCount ):$( ls "$rigWs/.local/agents/sessions/$rigSpawn/changes" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" "0:0"
+rigStart unshown
+: > "$rigDir/reply.fail"
+rigEdit edit "$rigWs/held/notes.md" beta BETA
+rigAssert "the first post is posted and the change under it is not: the call says the change is NOT held, and nothing was written" "$( rigFirst edit ):$( rigBytes "$rigWs/held/notes.md" )" \
+	"ERROR: Edit: a change to $rigWs/held/notes.md needs the approval of the human-owner, and it could not be shown to him, so it is NOT held and nothing was written. Make the call again once what stopped it is cleared. What the operation reported follows:"':alpha\nbeta\ngamma\ndelta\n'
+rigAssert "with what the operation reported: the prompt is taken away again, and why" \
+	"$( rigHas "$rigDir/edit" "the prompt for the change to $rigWs/held/notes.md was posted, but the change itself could not be shown under it, so the prompt is taken away again and the change is not held" ):$( rigHas "$rigDir/edit" 'rig_reply_refused' )" "yes:yes"
+rigAssert "the first post is deleted, and no click answer was placed under it" \
+	"$( rigPosts ):$( LC_ALL=C tr '\n' ' ' < "$rigDir/deleted" ):$( [ -f "$rigDir/reactions" ] && printf placed || printf none )" "1:1700000001.000101 :none"
+rigAssert "no record, nothing kept, nothing in its Wait: a prompt whose change is not shown is never left to be answered" \
+	"$( rigRecordCount ):$( ls "$rigWs/.local/agents/sessions/$rigSpawn/changes" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( rigWaitSet )" "0:0:0"
+rigStart unrecorded
+: > "$rigWs/.local/agents/pending"
+rigEdit edit "$rigWs/held/notes.md" beta BETA
+rigAssert "both posted and the prompt not recorded: NOT held, nothing written, and both posts are taken away again, the reply first" \
+	"$( rigFirst edit | LC_ALL=C cut -c1-12 ):$( rigHas "$rigDir/edit" 'was shown, but its prompt could not be recorded' ):$( rigBytes "$rigWs/held/notes.md" ):$( rigPosts ):$( LC_ALL=C tr '\n' ' ' < "$rigDir/deleted" ):$( ls "$rigWs/.local/agents/sessions/$rigSpawn/changes" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" \
+	'ERROR: Edit::yes:alpha\nbeta\ngamma\ndelta\n:2:1700000001.000201 1700000001.000101 :0'
 
 echo "-- 15. what the member holds, and what its grants list says --"
 rigStart holds
@@ -590,12 +666,80 @@ rigAssert "though it holds that access: he approves the result, not the access" 
 printf -- '---\nstatus: set\nowner: keeper-myx\napproved-by: human-owner\nsession-id: %s\nkind: task\ntask: %s\n---\n\n# Permission set\n' "$rigSpawn" "$rigItem" > "$rigWs/.local/agents/sessions/$rigSpawn/set-rig1.md"
 printf 'task:Edit:%s:human-owner:20261012T0900Z:set-rig1\n' "$rigWs/held/notes.md" >> "$rigWs/.local/agents/sessions/$rigSpawn/grants"
 rigEdit task "$rigWs/held/notes.md" beta BETA
-rigAssert "a grant given for the task does: the call is applied at once, with no prompt" "$( rigFirst task ):$( rigBytes "$rigWs/held/notes.md" ):$( rigRecordCount ):$( rigPosts )" "OK: replaced one occurrence in $rigWs/held/notes.md:alpha\\nBETA\\ngamma\\ndelta\\n:2:2"
+rigAssert "a grant given for the task does: the call is applied at once, with no prompt" "$( rigFirst task ):$( rigBytes "$rigWs/held/notes.md" ):$( rigRecordCount ):$( rigPosts )" "OK: replaced one occurrence in $rigWs/held/notes.md:alpha\\nBETA\\ngamma\\ndelta\\n:2:4"
 rigHook hook-task Edit '{"file_path":"'"$rigWs/held/notes.md"'","old_string":"gamma","new_string":"GAMMA"}'
 rigAssert "and a native client's own call under it is allowed, not held" "$( rigHookSays hook-task ):$( rigRecordCount )" "allow:2"
 mv "$rigData/board/running/$rigItem.md" "$rigData/board/processed/$rigItem.md"
 rigEdit closed "$rigWs/held/notes.md" delta DELTA
 rigAssert "once that task is closed its grant is gone, and the call is held again" "$( rigFirst closed ):$( rigBytes "$rigWs/held/notes.md" )" "$( rigHeldLine "$rigWs/held/notes.md" ):alpha\\nBETA\\ngamma\\ndelta\\n"
+
+echo "-- 18. a prompt posted before its change moved to its thread: read, answered, confirmed and closed as it was --"
+## What the operation kept then, made here from a prompt of today: every slot of the one post
+## beside its record, the diff among them; the record's text that one post; and in its thread
+## no reply of the tooling under it.
+rigBefore(){ ## that prompt, the newest, made the one post it was
+	local beforeRecord beforeHead beforeTask beforeSession beforeBy beforeDiff
+	beforeRecord="$( rigRecord )"
+	beforeDiff="$( cat "$( rigKeptDir )/change.diff" )"
+	beforeTask=$'Rework the rig widget\n`task-20261012T0000Z-'"$rigName"'` · `'"$rigItem"$'`\nThe widget drops its last line. Make it keep it.'
+	beforeSession='rework the rig widget · `5e55104a` · `CSES00001:1700000000.000100`'
+	beforeBy="keeper-myx · $rigHost / ws"
+	rigPack member keeper-myx act change file rig-ws:held/notes.md purpose 'Raise the second word' task "$beforeTask" session "$beforeSession" asked-by "$beforeBy" fence '```' diff "$beforeDiff" > "${beforeRecord%.md}.fields"
+	beforeHead="$( LC_ALL=C awk '{ print ; } $0 == "# Question asked" { exit ; }' "$beforeRecord" )"
+	{
+		printf '%s\n\n' "$beforeHead"
+		ASKP_F_member=keeper-myx ASKP_F_act=change ASKP_F_file=rig-ws:held/notes.md ASKP_F_purpose='Raise the second word' ASKP_F_task="$beforeTask" ASKP_F_session="$beforeSession" \
+			ASKP_F_asked_by="$beforeBy" ASKP_F_fence='```' ASKP_F_diff="$beforeDiff" rigFill post
+	} > "$beforeRecord.rig" && mv -f "$beforeRecord.rig" "$beforeRecord"
+}
+rigThreadOwn=""
+rigStart before
+rigEdit edit "$rigWs/held/notes.md" beta BETA "Raise the second word"
+rigBefore
+rigAssert "its record keeps the one post whole, the diff among what it was filled with" \
+	"$( rigPromptBody | LC_ALL=C grep -c -x -e '\*\*📝 The change\*\*' -e '+BETA' -e '\*\*✅ How to answer\*\*' ):$( LC_ALL=C cut -f1 "$rigWs/.local/agents/pending/$( rigId ).fields" | LC_ALL=C tr '\n' ' ' )" "3:member act file purpose task session asked-by fence diff "
+rigAssert "a reminder quotes the line it always did" "$( rigRemindQuote )" 'keeper-myx wants to change `rig-ws:held/notes.md`.'
+rigThread "" ""
+rigRead
+rigAssert "it is read as every prompt is: nothing of his there, it is open" "$( rigReadLine 'ESCALATION: ' ):$( rigField status )" "ESCALATION: $( rigId ) open:reply-pending"
+rigThread "" "$( rigReply 000250 URIGOWNER 'why BETA and not Beta?' )"
+rigRead
+rigAssert "his words with no verdict come back as RETURNED, whole, and the change stays held" \
+	"$( rigReadLine 'VERDICT: ' ):$( rigHas "$rigDir/read" 'why BETA and not Beta?' ):$( rigField status ):$( rigBytes "$rigWs/held/notes.md" )" 'VERDICT: RETURNED:yes:reply-pending:alpha\nbeta\ngamma\ndelta\n'
+rigBeforePosts="$( rigPosts )"
+rigThread "$( rigClick +1 URIGOWNER )" "$( rigReply 000250 URIGOWNER 'why BETA and not Beta?' )"
+rigRead
+rigAssert "his 👍 approves it: the kept change is applied as it was shown, and the record closes" "$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigBytes "$rigWs/held/notes.md" ):$( rigField status )" \
+	"VERDICT: approve:CHANGE: applied -- OK: replaced one occurrence in $rigWs/held/notes.md:alpha\\nBETA\\ngamma\\ndelta\\n:reply-received"
+rigAssert "and it is confirmed with one reply in its thread" \
+	"$(( $( rigPosts ) - rigBeforePosts )):$( LC_ALL=C grep -c -F 'Read: `approve` by human-owner. The change is applied to `rig-ws:held/notes.md`, exactly as shown.' "$rigDir/post.$( rigPosts )" 2> /dev/null ):$( rigHas "$rigDir/post.$( rigPosts )" "\"thread_ts\":\"$( rigField question-ts )\"" )" "1:1:yes"
+rigStart before-rejected
+rigEdit edit "$rigWs/held/notes.md" beta BETA "Raise the second word"
+rigBefore
+rigThread "$( rigClick x URIGOWNER )" ""
+rigRead
+rigAssert "rejected: dropped, nothing applied, its click answers taken off, and it is marked" \
+	"$( rigReadLine 'VERDICT: ' ):$( rigReadLine 'CHANGE: ' ):$( rigBytes "$rigWs/held/notes.md" ):$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' )" \
+	'VERDICT: reject:CHANGE: dropped -- rejected, so nothing is applied to rig-ws:held/notes.md:alpha\nbeta\ngamma\ndelta\n:+1 x:no_entry_sign'
+rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
+rigAssert "its post is edited to the one post it was, without How to answer: the change, the task, the session and who asked stay in it" \
+	"$( rigHas "$rigBeforeEdit" 'wants to change' ):$( rigHas "$rigBeforeEdit" 'How to answer' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" '+BETA' ):$( rigHas "$rigBeforeEdit" 'Rework the rig widget' ):$( rigHas "$rigBeforeEdit" '5e55104a' ):$( rigHas "$rigBeforeEdit" 'Asked by' )" "yes:no:yes:yes:yes:yes:yes"
+rigAssert "and its thread is told what was read" "$( LC_ALL=C grep -l -F 'Read: `reject` by human-owner. The change is dropped: nothing is applied to `rig-ws:held/notes.md`.' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )" 1
+rigStart before-withdrawn
+rigEdit edit "$rigWs/held/notes.md" beta BETA "Raise the second word"
+rigBefore
+rigTool "$rigDir/withdraw" AskQuestion '{"pending_id":"'"$( rigId )"'","withdraw":"a better wording came up"}'
+rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
+rigAssert "taken back by its asker: closed and marked, its post the one post it was without How to answer" \
+	"$( LC_ALL=C grep -c -x 'ASK-RESULT: WITHDRAWN' "$rigDir/withdraw" ):$( rigField status ):$( rigReacted reactions.removed ):$( rigReacted reactions | LC_ALL=C awk '{ print $NF ; }' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" 'How to answer' )" "1:withdrawn:+1 x:no_entry_sign:yes:no"
+rigStart before-ended
+rigEdit edit "$rigWs/held/notes.md" beta BETA "Raise the second word"
+rigBefore
+rigOp "$rigDir/collect" --intern-op-pending-reply-collect --session-id "$rigSpawn" --mark-ended --context rig
+rigBeforeEdit="$rigDir/edit.$( rigField question-ts )"
+rigAssert "its session ended: dropped by the tooling, its thread told, its post the one post it was without How to answer" \
+	"$( LC_ALL=C grep -c "^DROPPED $( rigId ) " "$rigDir/collect" ):$( rigField status ):$( LC_ALL=C grep -l -F 'This change is dropped: the session that made it has ended. Nothing is applied, and the prompt above takes no answer any more.' "$rigDir"/post.[0-9] 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' ):$( rigHas "$rigBeforeEdit" '@@ -1,4 +1,4 @@' ):$( rigHas "$rigBeforeEdit" 'How to answer' )" "1:withdrawn:1:yes:no"
+rigThreadOwn=1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CHANGE APPROVAL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2

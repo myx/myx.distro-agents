@@ -11,6 +11,9 @@
 ## The change is kept, shown to the human-owner as a diff by the team bot in the bot's own
 ## conversation with him, and applied when he approves, exactly as it was shown. He approves
 ## the result, never the access. One call is one change, and one change is one prompt.
+## The prompt is two posts: a short message that opens a thread, takes the answer and carries
+## the answer emoji, and under it the change itself, the first reply in that thread. Both are
+## posted, or neither: a prompt whose change is not shown under it is taken away again.
 ##
 ## What is kept, in the store of the session that made the call:
 ##   $MMDAPP/.local/agents/sessions/<session>/changes/<change-id>/
@@ -242,7 +245,8 @@ case "$1" in
 	##   SHOWN <lines> <total>   how many lines of its diff the prompt shows, of how many
 	## or `NOCHANGE`, rc 0, where the call leaves the file exactly as it is: nothing to show.
 	## rc 1, said on stderr, where the change could not be kept, shown or recorded: then
-	## nothing is held, and what was kept or posted on the way is taken away again.
+	## nothing is held, and what was kept or posted on the way is taken away again. Shown is
+	## both posts of the prompt: the one that opens the thread, and the change itself under it.
 	--intern-op-change-hold)
 		shift
 		MDSC_CMD="$MDSC_CMD --intern-op-change-hold"
@@ -286,6 +290,7 @@ case "$1" in
 		AgentsChangeLoad
 		local holdId holdDir holdTotal=0 holdShown=0 holdCounts holdAct="change" holdDiff="" holdCut="" holdPurpose="" holdItem="" holdItemPath="" holdTask="" holdName holdNames="" holdTaskText=""
 		local holdRecord="" holdCandidate holdCow="" holdThread="" holdSessionText="" holdWhere holdByText holdFileShown holdBody holdOut holdChannel holdTs holdAddressees holdAsking holdPending holdFields
+		local holdDetail="" holdDetailOut="" holdDetailTs=""
 		holdId="$( uuidgen 2> /dev/null | LC_ALL=C tr 'ABCDEF' 'abcdef' )"
 		if [ -z "$holdId" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: no id could be generated, so the change is not held" >&2
@@ -350,9 +355,14 @@ case "$1" in
 		holdByText="$( ASKP_F_member="$holdMember" ASKP_F_host="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^host: //p' )" \
 			ASKP_F_workspace="$( printf '%s\n' "$holdWhere" | LC_ALL=C sed -n 's/^workspace: //p' )" AgentsChangeFill block "Lines/asked-by" 2> /dev/null )" || holdByText=""
 		holdAct="$( AgentsChangeFill block "Acts/$holdAct" 2> /dev/null )" || holdAct=""
-		holdBody="$( ASKP_F_member="$holdMember" ASKP_F_act="$holdAct" ASKP_F_file="$holdFileShown" ASKP_F_purpose="$holdPurpose" ASKP_F_task="$holdTaskText" \
-			ASKP_F_session="$holdSessionText" ASKP_F_asked_by="$holdByText" ASKP_F_fence='```' ASKP_F_diff="$holdDiff" ASKP_F_cut="$holdCut" AgentsChangeFill post 2> /dev/null )" || holdBody=""
-		if [ -z "$holdBody" ] ; then
+		## The two posts of the prompt, both filled before either is sent: the message that opens
+		## the thread, a few lines, and the change itself, the first reply there (`## detail`).
+		## The first is filled with no diff, said here whatever the environment holds: with one
+		## it would be the one post a prompt was before its change moved to that reply.
+		holdBody="$( ASKP_F_member="$holdMember" ASKP_F_act="$holdAct" ASKP_F_file="$holdFileShown" ASKP_F_purpose="$holdPurpose" ASKP_F_diff="" AgentsChangeFill post 2> /dev/null )" || holdBody=""
+		holdDetail="$( ASKP_F_task="$holdTaskText" ASKP_F_session="$holdSessionText" ASKP_F_asked_by="$holdByText" ASKP_F_fence='```' ASKP_F_diff="$holdDiff" ASKP_F_cut="$holdCut" \
+			AgentsChangeFill block "Skeleton/detail" 2> /dev/null )" || holdDetail=""
+		if [ -z "$holdBody" ] || [ -z "$holdDetail" ] ; then
 			rm -rf "$holdDir"
 			echo "$MDSC_CMD: ⛔ ERROR: the prompt for the change to $holdFile could not be filled from its template, so nothing was shown and the change is not held" >&2
 			set +e ; return 1
@@ -368,10 +378,18 @@ case "$1" in
 		holdAsking="$( printf '%s\n' "$holdOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || holdAsking=""
 		holdPending=""
 		if [ -n "$holdChannel" ] && [ -n "$holdTs" ] && [ -n "$holdAddressees" ] ; then
-			## What the prompt was filled with is kept beside its record, so it is filled again once it takes no answer.
-			holdFields="$( AgentsToolsAskPostFieldsPack member "$holdMember" act "$holdAct" file "$holdFileShown" purpose "$holdPurpose" task "$holdTaskText" \
-				session "$holdSessionText" asked-by "$holdByText" fence '```' diff "$holdDiff" cut "$holdCut" )"
-			holdPending="$( printf '%s\n' "$holdBody" | DistroAgentsTools --intern-op-pending-reply-open "$holdMember" --to "$holdChannel" --session-id "$holdSession" \
+			## The change itself, under the prompt at once: the first reply in its thread, by the
+			## identity that posted the prompt, to the same addressee. A reply of that identity is
+			## never read as an answer. Not posted, the prompt shows no change, so it takes none.
+			holdDetailOut="$( printf '%s\n' "$holdDetail" | DistroAgentsTools --intern-op-comms-slack-send-message "$holdMember" "$holdChannel:$holdTs" --identity-bot --address-to human-owner --from-stdin 2>&1 )" \
+				&& holdDetailTs="$( printf '%s\n' "$holdDetailOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )" || holdDetailTs=""
+		fi
+		if [ -n "$holdDetailTs" ] ; then
+			## What the first post was filled with is kept beside its record, so it is filled again
+			## once it takes no answer. The reply under it is never filled again, and its diff is
+			## kept whole with the change. The record holds the text of both, as they were shown.
+			holdFields="$( AgentsToolsAskPostFieldsPack member "$holdMember" act "$holdAct" file "$holdFileShown" purpose "$holdPurpose" )"
+			holdPending="$( printf '%s\n\n%s\n' "$holdBody" "$holdDetail" | DistroAgentsTools --intern-op-pending-reply-open "$holdMember" --to "$holdChannel" --session-id "$holdSession" \
 				--kind change --address-to human-owner --blocked-on "reply from human-owner" --channel "$holdChannel" --question-ts "$holdTs" --thread-ts "$holdTs" \
 				--addressees "$holdAddressees" ${holdAsking:+--asking-accounts " $holdAsking"} ${holdItem:+--item "$holdItem"} --ask-identity bot \
 				--fields "$holdFields" --context "$MDSC_CMD" 2> /dev/null )" || holdPending=""
@@ -379,10 +397,17 @@ case "$1" in
 		[ -z "$holdPending" ] || printf 'owner: %s\nsession-id: %s\ntool: %s\nfile: %s\nmatched: %s\nask: %s\nheld-at: %s\n' "$holdMember" "$holdSession" "$holdTool" "$holdFile" \
 			"$holdMatched" "$holdPending" "$( date +"%Y-%m-%d %H:%M %z" )" > "$holdDir/change" || holdPending=""
 		if [ -z "$holdPending" ] ; then
-			## A prompt nobody can answer is taken away again, as the identity that posted it.
+			## A prompt nobody can answer is taken away again, as the identity that posted it: the
+			## reply under it first, so the prompt leaves no thread behind.
+			[ -z "$holdDetailTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdDetailTs" --identity-bot > /dev/null 2>&1 \
+				|| echo "⚠️ WARNING: $MDSC_CMD: the reply $holdChannel:$holdDetailTs under the prompt $holdChannel:$holdTs could not be removed" >&2
 			[ -z "$holdChannel" ] || [ -z "$holdTs" ] || DistroAgentsTools --member-comms-slack-delete-message "$holdMember" "$holdChannel:$holdTs" --identity-bot > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: $MDSC_CMD: the prompt $holdChannel:$holdTs could not be removed, and stands with no change behind it" >&2
 			rm -rf "$holdDir"
+			if [ -n "$holdChannel" ] && [ -n "$holdTs" ] && [ -n "$holdAddressees" ] && [ -z "$holdDetailTs" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: the prompt for the change to $holdFile was posted, but the change itself could not be shown under it, so the prompt is taken away again and the change is not held: $( printf '%s\n' "$holdDetailOut" | LC_ALL=C grep -m1 'ERROR' )" >&2
+				set +e ; return 1
+			fi
 			echo "$MDSC_CMD: ⛔ ERROR: the change to $holdFile was shown, but its prompt could not be recorded, so its answer could not be read: it is not held" >&2
 			set +e ; return 1
 		fi

@@ -58,7 +58,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - `armed-mode` — the default, no loop.
    - `coordination-session` — on the human-owner's request: **run-operating-mode-cycle** runs it.
 4. **apply-harness-session-rules**: The root's standing rules:
-   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session — `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches — never assessed inline. It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps (`magic-coordinator.armed.md`'s "What to hand off").
+   - rule: any assess, investigate, analyse, validate or propose stage of work is spawned as a fresh one-time coworking session — `magic-librarian`, `magic-architect`, `magic-devops`, plus any `keeper-*` whose domain the change touches — never assessed inline. A disagreement inside that group is the no-quorum document, per "The ladder: one rung at a time". It gets the verbatim task and only current, verified context, never a narrative of prior attempts. It runs `magic-team.coworking.routine`'s Steps (`magic-coordinator.armed.md`'s "What to hand off").
    - rule: "propose-only", "addressed to me" or small-looking is no exemption.
    - rule: what happens in this conversation stays here. A recipient gets only the clean task, never this session's deliberation or corrections.
    - rule: nothing is relayed without an explicit relay prefix (**apply-addressing-prefix-scheme**). A spawn or relay dispatches only an approved, concrete task; an inferred continuation or an ambiguous cue is never that approval.
@@ -92,7 +92,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - rule: spawn one session per topic, each with a scope it can state in one sentence. A wider scope is two spawns. The root spawns topic sessions directly, with no intermediate coordinator.
     - rule: watch every spawned session while it runs: read each report as it arrives, reply, redirect. A session silent for a while is asked.
     - rule: answer only from what the team wrote down or from a spawned session's report. Anything else is said, in the same sentence, to be an unchecked reading. With neither source, say which is missing, then spawn or ask.
-    - rule: read every result back to the human-owner on his direct channel and wait for his reply (wait-never-quit). The read-back carries the result, not an account of the session. Until he approves, the work is not done, and no next round starts on the root's own judgement.
+    - rule: read back to the human-owner, on his direct channel, the result of what he asked for — not every spawned sub-stage inside it — and wait for his reply (wait-never-quit). The read-back carries the result, not an account of the session. Until he approves, the work is not done, and no next round starts on the root's own judgement.
     - rule: caption every message crossing between him and a session: "Relaying to <session>:" outbound, "From <session>, for you:" inbound. The report follows verbatim. A relay of his reply carries his words and the caption only; `Human-owner verbatim:` is part of the caption. On an inbound report, a root remark is a separate, labelled annotation. An uncaptioned message is the root's own words.
 11. **apply-addressing-prefix-scheme**: Who a human-owner message is for, and how literally it travels, rules:
     - rule: `Chat:` — for the root itself; not relayed. It routes; it widens nothing the root may do.
@@ -114,7 +114,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
     - Run the named routine as one iteration's payload.
     - Wait on the thread for instruction (wait-never-quit), act on what arrives, then run the next iteration.
     - Stop only on an explicit instruction in this thread.
-16. **run-non-interactive-harness-pass**: Run the named routine once, `headless`, keeping a Slack thread for escalation only. Report its status to the spawner, then hand back and end: the host loop is blocked on this pass (wait-never-quit's exception). It never runs the routine again; repetition is the host loop's.
+16. **run-non-interactive-harness-pass**: Run the named routine once, `headless`, keeping a Slack thread for escalation only. Report its status to the spawner, then hand back and end: the host loop is blocked on this pass (wait-never-quit's exception). The report states what was agreed this pass, per "The ladder: one rung at a time". It never runs the routine again; repetition is the host loop's.
 
 # Closure steps
 
