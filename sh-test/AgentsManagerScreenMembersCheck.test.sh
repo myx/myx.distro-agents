@@ -260,7 +260,7 @@ rigAssert "a pane of 36 cells shows the icon, the name and whether the member ru
 rigAssert "a pane at its smallest, 18 cells inside its frame, shows the icon and the name alone, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
 	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
 	"18 [    MEMBER][ ## magic-coordin…][ ## keeper-myx] 0"
-rigAssert "on the row that goes up the left pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 members, 1 with a live run.][ 2 of them are not started from here.]"
+rigAssert "on the row that goes up the left pane says what the section holds: how many, who runs now, who is not started from here and why" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )][$( rigPane u 6 )]" "[ 5 members, 1 with a live run.][ Running now: keeper-myx.][ 2 of them are not started from here.][   human-owner: its status is reference-only: nobody is started as this member]"
 rigAssert "k is no key of this view, and n on the row that goes up says in the status line what it is for" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[][Start: for a team member, not for what is selected] []"
 
 echo "-- a selected member is read once the selection has rested, and shown --"

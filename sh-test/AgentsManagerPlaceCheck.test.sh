@@ -64,7 +64,19 @@ chmod 000 "$rigTmp/closed"
 rigClosed="unreadable" ; [ ! -r "$rigTmp/closed" ] || rigClosed="present"
 ## What stands at the root of this workspace: two consoles, and a file that is none. The machine's member homes.
 : > "$rigWs/DistroAgentsConsole.sh" ; : > "$rigWs/DistroSourceConsole.sh" ; : > "$rigWs/NotAConsole.sh"
-printf 'keeper-rig\t%s\nkeeper-far\t%s\n' "$rigWs" "$rigFar" > "$rigShared/member-homes.registry"
+printf 'keeper-rig\t%s\nkeeper-far\t%s\nkeeper-two\t%s\n' "$rigWs" "$rigFar" "$rigFar" > "$rigShared/member-homes.registry"
+## THE MEMBERS, as the machine's registry of members has them: who belongs to which workspace, how each is set up
+## there and where its folder lies. Two belong to this workspace: one whose home the machine keeps here, one whose
+## home it keeps in the second workspace. Two belong to the second: one with its home there, one the machine keeps
+## no home of at all, linked from source. And in this workspace's own member set stands a folder of a member the
+## registry does not know.
+{
+	printf 'keeper-rig\t%s\tsource-symlink\trig/skills/keeper-rig\t%s\n' "$rigWs" "$rigTmp/skill-source/keeper-rig"
+	printf 'keeper-two\t%s\tlocal-copy\t-\t%s\n' "$rigWs" "$rigWs/.local/agents/members/keeper-two"
+	printf 'keeper-far\t%s\tsource-declared\trig/skills/keeper-far\t%s\n' "$rigFar" "$rigTmp/skill-source/keeper-far"
+	printf 'keeper-lone\t%s\tsource-symlink\trig/skills/keeper-lone\t%s\n' "$rigFar" "$rigTmp/skill-source/keeper-lone"
+} > "$rigShared/members.registry"
+mkdir -p "$rigWs/.local/agents/members/keeper-two" "$rigWs/.local/agents/members/odd-one"
 ## The registry of the sessions of this workspace, as an earlier call left it: two sessions name this workspace,
 ## one of them by two runs, one names the second workspace, and one names none.
 {
@@ -139,7 +151,7 @@ rigAssert "control: the registry of sessions names the session second and the wo
 
 echo "-- 2. the read of one place --"
 rigRun "$rigRead" ws-here
-rigAssert "the workspace the call runs in, byte for byte: its row as the list has it, what the registry holds of it, and what stands there: its consoles, the member whose home it is, the team data root" "$rigRc $( rigTroubles ) $( cat "$rigTmp/out" )" "0 0 $( {
+rigAssert "the workspace the call runs in, byte for byte: its row as the list has it, what the registry holds of it, what stands there, its consoles, the member whose home it is, the team data root, and then EVERY MEMBER THAT BELONGS TO IT by the registry of members: its kind, its home here where the machine keeps it here, how it is set up and its folder; one whose home is kept in another workspace says elsewhere; a folder of its member set that no row of the registry knows is shown, marked so" "$rigRc $( rigTroubles ) $( cat "$rigTmp/out" )" "0 0 $( {
 	LC_ALL=C awk -F'\t' '$2 == "ws-here"' "$rigTmp/list"
 	printf 'info\tdeclared-by\tworkspace\n'
 	printf 'info\tworkspace\t%s\n' "$rigWs"
@@ -148,6 +160,9 @@ rigAssert "the workspace the call runs in, byte for byte: its row as the list ha
 	printf 'stands\tconsole\tDistroSourceConsole.sh\t%s\n' "$rigWs/DistroSourceConsole.sh"
 	printf 'stands\tmember-home\tkeeper-rig\t%s\n' "$rigWs"
 	printf 'stands\tteam-data-root\t-\t%s\n' "$rigWs/.local/agents/team-data-root"
+	printf 'member\tkeeper-rig\tkeeper\t%s\tsource-symlink\t%s\n' "$rigWs" "$rigTmp/skill-source/keeper-rig"
+	printf 'member\tkeeper-two\tkeeper\telsewhere\tlocal-copy\t%s\n' "$rigWs/.local/agents/members/keeper-two"
+	printf 'member\todd-one\todd\t-\tnot-in-registry\t%s\n' "$rigWs/.local/agents/members/odd-one"
 } )"
 rigRun "$rigRead" docs
 rigAssert "a directory: its row, the project that declares it, the workspace and the file that hold its row, and nothing the tooling knows of stands there" "$rigRc $( cat "$rigTmp/out" )" "0 $( {
@@ -164,7 +179,11 @@ rigAssert "a place of another workspace by its key: declared by the owner there,
 	printf 'info\tregistry\t%s\n' "$rigFar/.local/agents/directories.registry"
 } )"
 rigRun "$rigRead" ws-far
-rigAssert "another workspace: the member whose home it is stands there, and no console, since none is at its root" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "stands" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/out" )" "0 stands member-home keeper-far $rigFar/"
+rigAssert "another workspace: the members whose home the machine keeps there stand there, one of them a member that belongs to this workspace, and no console, since none is at its root" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "stands" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/out" )" "0 stands member-home keeper-far $rigFar/stands member-home keeper-two $rigFar/"
+rigRun "$rigRead" ws-far
+rigAssert "a workspace shows a member that belongs to it though the machine has no row for its home and it has no folder there: it is linked from source there, so that workspace is its home, as it is of the one the machine has a row for" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "member" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/out" )" "0 member keeper-far keeper $rigFar source-declared $rigTmp/skill-source/keeper-far/member keeper-lone keeper $rigFar source-symlink $rigTmp/skill-source/keeper-lone/"
+rigRun "$rigRead" docs
+rigAssert "a place that is no workspace has no member" "$rigRc $( LC_ALL=C grep -c -e '^member' "$rigTmp/out" || : )" "0 0"
 rigRun "$rigRead" .skillset-.local
 rigAssert "a built-in place is no row of a registry: declared by none, for this workspace, in no file" "$rigRc $( LC_ALL=C awk -F'\t' '$1 != "place" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/out" )" "0 info declared-by built-in/info workspace $rigWs/info registry -/"
 rigRun "$rigRead" gone
@@ -172,7 +191,7 @@ rigAssert "of a place that is not there only what the registry holds is shown: n
 rigRun "$rigRead" lost
 rigAssert "of a place known by the pointers alone: its row, and the workspace that would declare it" "$rigRc $( LC_ALL=C awk -F'\t' '$1 != "place" { gsub( /\t/, " " ) ; printf "%s/", $0 }' "$rigTmp/out" )" "0 info declared-by -/info workspace $rigLost/info registry $rigLost/.local/agents/directories.registry/"
 rigRun "$rigRead" my.notes_2
-rigAssert "every row of a read has the fields of its kind, none empty and none with a blank" "$( for rigOne in ws-here my.notes_2 lost ; do rigRun "$rigRead" "$rigOne" ; LC_ALL=C awk -F'\t' '{ want = ( $1 == "place" ) ? 9 : ( $1 == "info" ) ? 3 : ( $1 == "stands" ) ? 4 : -1 ; if ( NF != want ) bad++ ; for ( at = 1 ; at <= NF ; at++ ) if ( $at == "" || $at ~ / / ) bad++ ; } END { printf "%s:%s ", ( NR > 3 ? "rows" : "few" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
+rigAssert "every row of a read has the fields of its kind, none empty and none with a blank" "$( for rigOne in ws-here my.notes_2 lost ; do rigRun "$rigRead" "$rigOne" ; LC_ALL=C awk -F'\t' '{ want = ( $1 == "place" ) ? 9 : ( $1 == "info" ) ? 3 : ( $1 == "stands" ) ? 4 : ( $1 == "member" ) ? 6 : -1 ; if ( NF != want ) bad++ ; for ( at = 1 ; at <= NF ; at++ ) if ( $at == "" || $at ~ / / ) bad++ ; } END { printf "%s:%s ", ( NR > 3 ? "rows" : "few" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
 
 echo "-- 3. what is refused --"
 rigRun "$rigRead" nonesuch
@@ -222,6 +241,7 @@ for rigOne in "$rigList" "$rigRead <place>" ; do
 done
 rigAssert "each of the two has its syntax echo, its syntax line and its entry, once each" "${rigPairBad:-each once}" "each once"
 rigAssert "the entry of the list gives the form of its row, and the entry of the read those of its two own rows" "$( rigForm "$rigList" place ) | $( rigForm "$rigRead <place>" info ) | $( rigForm "$rigRead <place>" stands )" "place <place> <label> <kind> <ceiling> <path> <state> <here> <sessions> | info <name> <value> | stands <what> <name> <path>"
+rigAssert "the entry of the read gives the form of a member's row" "$( rigForm "$rigRead <place>" member )" "member <member> <kind> <home> <setup> <folder>"
 rigAssert "and every row the two print has exactly the fields its form names" "$( LC_ALL=C awk -F'\t' -v wantFields="$( rigForm "$rigList" place | LC_ALL=C awk '{ print NF }' )" '{ rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/list" ; rigRun "$rigRead" ws-here ; for rigOne in info stands ; do LC_ALL=C awk -F'\t' -v wantKind="$rigOne" -v wantFields="$( rigForm "$rigRead <place>" "$rigOne" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
 rigAssert "the entry of the list names the four states, says that the registry holds no host, and that the call only reads" "$( for rigWord in present unreadable absent unknown ; do rigEntry "$rigList" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done ) $( rigEntry "$rigList" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'holds no host' || : ) $( rigEntry "$rigList" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e 'It only reads' || : )" "yyyy 1 1"
 rigRun --help-syntax

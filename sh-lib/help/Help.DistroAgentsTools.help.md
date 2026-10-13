@@ -3014,6 +3014,54 @@
 			reaches a file. Exit 1 too where the file does not hold the
 			value after the write.
 
+		--manager-console-list
+			One of the console's own operations (see Notes). Lists the
+			consoles that can be started from this workspace right now,
+			for a manager screen to start one as a child on its own
+			terminal and to have the terminal back when the child ends.
+			It only reads: nothing is started and nothing is written.
+			Prints rows of TAB-separated fields on stdout, the first
+			naming the row.
+			`console <key> <group> <label> <terminal> <directory> <word>...`
+			One row a console, in the order of a menu: <group> `shell`,
+			then `agents`, then `distro`. <key> names the console:
+			`bash`; the name of a vendor CLI, as `claude-native`;
+			`source`, `local`, `deploy`, `remote`. <label> is what a
+			screen calls it: capitalised words, more than one, their
+			blanks written `_`, as `Bash_Shell`, `Claude_Native_Console`,
+			`Source_Console`, `Local_Tools_Console`, `Deploy_Console`,
+			`Remote_Console`. <terminal> is `terminal` where the console
+			needs a terminal on its input and on its output, and `-`
+			where it needs none. <directory> is the folder to start it
+			in, the workspace root. Every field after it is one word of
+			the command, the first the program, by its absolute path.
+			<directory> and each <word> are exact, and not written as a
+			value is in the fields before them: a blank in one is a
+			blank of the path or of the word, `_` is `_`, `-` is `-`.
+			None of them is empty, and none holds a TAB or a line end.
+			So the command needs no shell: its words are handed to exec
+			as they are, in <directory>, with the environment of whoever
+			starts it, and what the console needs beyond that its own
+			words carry. No field holds a secret.
+			The row `bash` is a bash shell in the workspace with what a
+			console user gets, the tooling's functions and the tools of
+			every installed package on its PATH: bash with the rc file
+			of the agents console. A row of the group `agents` is a
+			vendor's own console, started as
+			`DistroAgentsConsole.sh --cli <name>`
+			which is what `Agents --start-console --cli <name>` runs. A
+			row of the group `distro` is one of `DistroSourceConsole.sh`,
+			`DistroLocalConsole.sh`, `DistroDeployConsole.sh` and
+			`DistroRemoteConsole.sh`. Nothing is listed that would not
+			start. A vendor CLI is a row only where the workspace's
+			console command is there, is executable and names it, and
+			where `--manager-config-digest` reads it usable. A Distro
+			console is a row only where its command is a file of the
+			workspace root and executable. A console whose folder or
+			command holds what a row cannot carry is left out, with a
+			note on stderr. A harness leg is never a row: a start of one
+			by name is the manager screen itself.
+
 		--manager-dashboard-read [<block>...]
 			One of the console's own operations (see Notes). Prints the
 			dashboard: the most vital figures of this workspace and of
@@ -3206,6 +3254,7 @@
 			nothing.
 			`info <name> <value>`
 			`stands <what> <name> <path>`
+			`member <member> <kind> <home> <setup> <folder>`
 			The `info` rows, in this order: `declared-by`, the project
 			that declares the place, or `workspace` for a workspace's own
 			row, `owner` for one `--owner-workspace-upsert` made,
@@ -3220,7 +3269,21 @@
 			keeps there; `team-data-root`, the team data root of this
 			workspace where it lies in the place, under the name `-`.
 			Nothing is looked for at a path that is not there, and of a
-			file nothing is read but its name. Exit 1, nothing printed,
+			file nothing is read but its name. The `member` rows come
+			last, for a workspace: every member that belongs to it, by
+			the machine's registry of members, whatever folders stand
+			there. <kind> is the first word of its name. A member's home
+			is a workspace, not a folder: the one its operations are run
+			from, which is the workspace the machine's row names for a
+			member that more than one workspace has, else the one it is
+			linked from source in. <home> is the path of this place where
+			this place is that workspace, and `elsewhere` where another
+			is. <setup> is how the member is set
+			up there, the link kind of its row, as
+			`--manager-team-member-read` gives it; <folder> is where its
+			skillset lies, a path whole. A folder of the place's own
+			member set that no row of the registry names is shown too,
+			its <setup> `not-in-registry` and its <home> `-`. Exit 1, nothing printed,
 			with one error line, for a name that is no place, and where
 			it is not given one name.
 

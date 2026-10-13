@@ -235,6 +235,8 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 table list:sessions none
 table view:sessions:launch --rig-view {id}
+# the row is a folder too, and a folder is read while it is selected: its own list is put off here, since this case is of the read of one item
+table list:sessions/launch none
 keys ENTER DOWN
 advance 1
 turn
@@ -257,6 +259,8 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 table list:sessions none
 table view:sessions:launch --rig-view {id}
+# the row is a folder too, and a folder is read while it is selected: its own list is put off here, since this case is of the read of one item
+table list:sessions/launch none
 keys ENTER DOWN
 advance 1
 turn

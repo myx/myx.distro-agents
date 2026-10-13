@@ -168,7 +168,7 @@ rigAssert "the first row under the row that goes up is the free prompt" "[$( rig
 rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
 rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
 rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )" "...DD"
-rigAssert "on the row that goes up the left pane says what the level holds" "[$( rigPane u 3 )]" "[ 5 routines: 3 can be started here, 2 cannot.]"
+rigAssert "on the row that goes up the left pane says what the level holds: how many are started here, how many with members named, how many are not" "[$( rigPane u 3 )]" "[ 5 routines: 3 can be started here, 0 with members named, 2 cannot.]"
 
 echo "-- the left pane shows the selected routine, and the keys that act on it --"
 rigCase pane

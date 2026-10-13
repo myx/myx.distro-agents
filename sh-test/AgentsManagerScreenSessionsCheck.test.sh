@@ -241,7 +241,7 @@ rigAssert "each agent with its state, in a table under its header"   "[$( rigPan
 	"[ MEMBER            STATE           SINCE                        TOKENS CLI MODEL][ magic-coordinator running waiting 2026-10-12 16:57 +0300       -      -   -][ magic-tester      running working 2026-10-12 17:05 +0300       -      -   -][ keeper-myx        finished        until 2026-10-12 18:00 +0300 -      -   -]"
 rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 5 )][$( rigPane t 8 )][$( rigPane t 9 )]" \
 	"[ one lone run with no name][ state     finished][ ended     2026-10-11 14:51 +0300 (35h ago)][ agents    1: 1 finished]"
-rigAssert "on the row that goes up the pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 sessions.][ In the workspace: sessions 1 running, 0 paused; agents 1 working, 1 waiting.]"
+rigAssert "on the row that goes up the pane says what the section holds: its sessions by their states, then the counters of the workspace" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 sessions: 1 running, 1 waiting, 1 unclosed, 1 finished, 1 unknown-foreign.][ In the workspace: sessions 1 running, 0 paused; agents 1 working, 1 waiting.]"
 
 echo "-- the list read again --"
 rigCase again five.rows five.rows moved.rows

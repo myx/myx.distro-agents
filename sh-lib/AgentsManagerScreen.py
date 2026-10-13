@@ -204,8 +204,10 @@ SUMMARIES = {
 ## selected, a folder that has the focus, as it would be on entering it (focusReads): once
 ## the selection has rested on that row (REST_SECONDS), so a selection that runs down a
 ## list starts none, and one such read at a time, as the kind "focus", beside the list
-## shown. "peek" is read so with no rest. One that is read on "demand" alone is never
-## started by the focus: its command asks for it there too.
+## shown, and once for each time the selection comes to rest there: while it stays, the
+## period reads that list no more, and coming back reads it again only when its period
+## has passed since. "peek" is read with no rest, and on the period. One that is read on
+## "demand" alone is never started by the focus: its command asks for it there too.
 VIEW_PARTS = ("view", "feed", "acts")
 READS = {
     ## The blocks of the dashboard, each with its figures, all from the one operation. It is
@@ -959,6 +961,8 @@ class ManagerState:
         ## when each read that is made on demand alone last answered, by its key: the clock
         ## of the screen then (applyResult)
         self.ran = {}
+        ## the item the reads of the focus were last made for, or found fresh (startDueReads)
+        self.focusSeen = None
         self.quit = False
 
 
@@ -2432,9 +2436,9 @@ def membersText(session):
 ## What `Sessions (Activity)` holds, for the left pane while the section itself or the row
 ## that goes up is selected: how many sessions, by their states, those its declaration
 ## counts first (SUMMARIES) and then every other state the rows hold; the counters of the
-## workspace; how many have a control thread that is gone; then, state by state as it
-## names them, the sessions one by one, each with its agents, its tokens and the members
-## that run in it. None until its read has answered.
+## workspace; then, state by state as it names them, the sessions one by one, each with
+## its agents, its tokens and the members that run in it; and last how many have a
+## control thread that is gone. None until its read has answered.
 def sessionsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -2449,10 +2453,6 @@ def sessionsSummary(state, path, row, form):
     if "running" in state.counters:
         lines.append("In the workspace: sessions %s running, %s paused; agents %s working, %s waiting." % tuple(
             state.counters.get(name, "-") for name in COUNTER_NAMES[:4]))
-    gone = len([one for one in held if one["session"].get("control") == "gone"])
-    if gone:
-        lines.append("%s a control thread that is gone (%s in the list)." % (
-            "1 session has" if gone == 1 else "%d sessions have" % gone, MARK_GONE))
     for name in form["named"]:
         named = [one for one in held if one["session"]["state"] == name]
         if not named:
@@ -2460,6 +2460,10 @@ def sessionsSummary(state, path, row, form):
         lines.extend(["", name] + summaryTable(("SESSION", "AGENTS", "TOKENS", "MEMBERS"), [
             [one["label"], agentsText(one["session"]), tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-",
              membersText(one["session"]) or "-"] for one in named], state.viewWidth))
+    gone = len([one for one in held if one["session"].get("control") == "gone"])
+    if gone:
+        lines.extend(([""] if len(lines) > 2 else []) + ["%s a control thread that is gone (%s in the list)." % (
+            "1 session has" if gone == 1 else "%d sessions have" % gone, MARK_GONE)])
     return lines
 
 
@@ -6100,6 +6104,8 @@ def restOf(state, now, focused):
     if selected != state.restKey:
         state.restKey = selected
         state.restSince = now
+        ## the selection has come to this item anew: the reads of its focus are due again
+        state.focusSeen = None
     row = selectedRow(state)
     if not focused and all(viewReadOf(state, row, part) is None for part in VIEW_PARTS):
         return 0.0
@@ -6118,22 +6124,29 @@ def keyWait(state, now):
 ## once: a read that is due while its kind runs waits for the turn after that one ends.
 ## The reads of one item, its facts and its lines, wait until the selection has rested on
 ## it (restLeft): a selection that runs down a list starts none of them on its way. So
-## does the read of a folder that has the focus and is not shown (focusOnly).
+## does the read of a folder that has the focus and is not shown (focusOnly), and that
+## one is made once for each time the selection comes to rest on its row: while the
+## selection stays there its period starts it no more.
 def startDueReads(state, reader, now):
     resting = restLeft(state, now) > 0
     focused = focusOnly(state)
+    came = state.restKey != state.focusSeen
+    held = False
     for kind, key, words in wantedReads(state):
         if reader.busy(kind) or (resting and (kind in VIEW_PARTS or key in focused)):
+            held = held or key in focused
             continue
         last = state.started.get(key)
         ## a read that is made once is not due again because its period has passed; neither
         ## is one that is read seldom, but while it is the list shown
-        once = readEntry(key).get("once") or seldomNow(state, key)
+        once = readEntry(key).get("once") or seldomNow(state, key) or (key in focused and not came)
         aged = now - last["at"] >= REFRESH_SECONDS and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
             state.forced.discard(key)
+    if not resting and not held:
+        state.focusSeen = state.restKey
 
 
 ## Starts the action that waits for its start, where none runs: one at a time, in the

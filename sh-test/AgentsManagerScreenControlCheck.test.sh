@@ -170,7 +170,7 @@ rigAssert "a running session whose thread is gone carries the mark ahead of its 
 rigAssert "one whose thread lives carries none"                      "[$( rigVal row4 )]" "[$( rigListRow "weekly review" "running" )]"
 rigAssert "nor does one that ended in order, nor one that never had a thread" "[$( rigVal row5 )][$( rigVal row6 )]" "[$( rigListRow "magic-devops 33333333" "finished" )][$( rigListRow "far work" "waiting" )]"
 rigAssert "a finished session whose thread died carries the mark too" "[$( rigVal row7 )]" "[$( rigListRow "broken one" "x finished" )]"
-rigAssert "on the row that goes up the pane says how many carry it"  "[$( rigPane u 3 )][$( rigPane u 5 )]" "[ 5 sessions.][ 2 sessions have a control thread that is gone (x in the list).]"
+rigAssert "on the row that goes up the pane says how many carry it, after its sessions by their states and one by one"  "[$( rigPane u 3 )] $( rigPaneHolds u '2 sessions have a control thread that is gone (x in the list).' )" "[ 5 sessions: 2 running, 1 waiting, 0 unclosed, 2 finished.] 1"
 
 echo "-- the left pane of a session says whether its control thread lives, and the state it stored --"
 rigCase pane

@@ -164,7 +164,7 @@ get early
 advance 2
 wait list 30
 RIGSCRIPT
-rigAssert "at the root nothing of the asks is read, and the pane of the section is empty" "$( rigVal first.selected ) [$( rigVal first.reading )] [$( rigVal firstLine )]" "pending [] []"
+rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read, and the pane says that it waits for them" "$( rigVal first.selected ) [$( rigVal first.reading )] [$( rigVal firstLine )]" "pending [] [Populating Pending Questions...]"
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
 rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane says how many wait, and how many have no asker" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 )] [$( rigVal line2 )]" \
@@ -485,6 +485,7 @@ wait list 30
 keys LEFT
 advance 11
 turn 3
+wait focus 30
 get up
 RIGSCRIPT
 rigAssert "on the row that goes up no ask is read by its id"          "$( rigVal in.selected ) [$( rigVal in.reading )]" ".. []"
@@ -492,7 +493,7 @@ rigAssert "selecting an ask reads it by its id, as a call of its own" "$( rigVal
 rigAssert "until that read has come, the pane shows the first line of the question" "$( rigPaneHolds early ' question, its first line:' ) $( rigPaneHolds early ' May this change to the routine be applied?' ) [$( rigPane early 2 | LC_ALL=C cut -c1-3 )]" "1 1 [ ~ ]"
 rigAssert "then the question stands whole in its place"               "$( rigPaneHolds c ' question, its first line:' ) $( rigPaneHolds c ' question:' ) $( rigPaneHolds c ' May this change to the routine be applied?' )" "0 1 1"
 rigAssert "each ask is read once when it is selected, and again on the period while it stays selected" "$( rigReadOf "$rigC" ) $( rigReadOf "$rigT" ) $( rigReadOf "$rigP" ) $( rigReadOf "$rigD" )" "1 1 1 2"
-rigAssert "with no ask selected none is read, whatever time passes"   "$( rigVal up.selected ) [$( rigVal up.reading )] $( rigOtherCalls )" "pending [] 5"
+rigAssert "with no ask selected no ask is read, whatever time passes: the list alone, once more, since the selection came to rest on its section"   "$( rigVal up.selected ) [$( rigVal up.reading )] $( rigOtherCalls )" "pending [] 5"
 
 echo "-- a held change: its fields, and its whole diff as it is --"
 rigAssert "what its post was filled with stands under the names of its slots" "$( rigPaneHolds c ' act Edit' ) $( rigPaneHolds c ' file skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' change store change-0005' )" "1 1 1"

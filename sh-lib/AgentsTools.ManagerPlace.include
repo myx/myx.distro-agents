@@ -24,6 +24,7 @@
 type AgentsToolsPlacesMergedText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
 type AgentsToolsRegistryFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 type AgentsToolsMemberHomesFile > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberHomes.include"
+type AgentsToolsTeamSharedMembers > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 
 ## The merged list of the places, each row with the state of its path as it is here, now:
 ## name, kind, ceiling, path, declaring root, declared-by, state, a TAB between them.
@@ -54,6 +55,57 @@ AgentsToolsManagerPlaceSource(){
 AgentsToolsManagerPlaceRows(){ ## key (may be empty)
 	MDAT_MANAGER_PLACE_HERE="${MMDAPP%/}" MDAT_MANAGER_PLACE_SESSIONS="$( AgentsToolsRegistryFile spawned-sessions )" \
 		LC_ALL=C awk -v wanted="${1:-}" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerPlaceRows.awk"
+}
+
+## THE MEMBERS THAT BELONG TO A WORKSPACE, a `member` row each, by the one fact the tooling
+## has of where a member belongs: the machine's registry of members
+## (AgentsToolsTeamSharedMembers), a row a member of a workspace, with how it is set up there
+## and where its folder lies. NOT by what folders happen to stand in the place: a member
+## linked from source has none of its own there, and belongs all the same. Each row: the
+## member, its kind, the first word of its name; its home; how it is set up, the link kind of
+## its row; and its folder, whole. A MEMBER'S HOME IS A WORKSPACE, not a folder: the one its
+## operations are run from, as the tooling resolves it (AgentsToolsMemberWorkspaceResolve):
+## the workspace the machine's row names for a member that more than one workspace has
+## (AgentsToolsMemberHomesFile), else the one it is linked from source in, else the first
+## that has it. The row gives the path of this place where this place is that workspace, and
+## `elsewhere` where another is: a member that one workspace alone has needs no row of the
+## machine's, and has its home there all the same. Then, for a place that is there, each
+## folder of its own member set (.local/agents/members) that no row of the registry names,
+## marked `not-in-registry`, with no home known.
+AgentsToolsManagerPlaceMembers(){ ## the path of the place, its state
+	local membersRows membersFolder membersName
+	membersRows="$( MDAT_MANAGER_PLACE_HOMES="$( AgentsToolsMemberHomesFile )" LC_ALL=C awk -F'\t' -v OFS='\t' -v place="${1%/}" '
+		BEGIN {
+			homes = ENVIRON["MDAT_MANAGER_PLACE_HOMES"]
+			while ( homes != "" && ( getline line < homes ) > 0 ) { split( line, part, "\t" ) ; sub( /\/+$/, "", part[2] ) ; home[part[1]] = part[2] }
+		}
+		function field( text ) { gsub( /[ \t]+/, "_", text ) ; return ( text == "" ) ? "-" : text }
+		NR == FNR {
+			if ( NF >= 3 && $1 != "" ) {
+				root = $2 ; sub( /\/+$/, "", root )
+				if ( !( $1 in first ) ) first[$1] = root
+				if ( $3 == "source-symlink" && !( $1 in linked ) ) linked[$1] = root
+			}
+			next
+		}
+		NF >= 3 && $1 != "" && !( $1 in seen ) {
+			root = $2 ; sub( /\/+$/, "", root )
+			if ( root != place ) next
+			seen[$1] = 1
+			kind = $1 ; sub( /-.*$/, "", kind )
+			at = ( $1 in home ) ? home[$1] : ( ( $1 in linked ) ? linked[$1] : first[$1] )
+			print "member", field( $1 ), field( kind ), ( at == place ) ? field( place ) : "elsewhere", field( $3 ), field( $5 )
+		}
+	' "$( AgentsToolsTeamSharedMembers )" "$( AgentsToolsTeamSharedMembers )" 2> /dev/null )" || membersRows=""
+	[ -z "$membersRows" ] || printf '%s\n' "$membersRows"
+	[ "$2" = "present" ] || return 0
+	for membersFolder in "${1%/}/.local/agents/members"/*/ ; do
+		[ -d "$membersFolder" ] || continue
+		membersFolder="${membersFolder%/}" ; membersName="${membersFolder##*/}"
+		case $'\n'"$membersRows" in *$'\n'"member"$'\t'"$membersName"$'\t'*) continue ;; esac
+		printf 'member\t%s\t%s\t-\tnot-in-registry\t%s\n' "$( AgentsToolsManagerPlaceField "$membersName" )" "$( AgentsToolsManagerPlaceField "${membersName%%-*}" )" "$( AgentsToolsManagerPlaceField "$membersFolder" )"
+	done
+	return 0
 }
 
 ## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
@@ -115,7 +167,10 @@ case "$1" in
 
 		## What stands there that the tooling knows, for a place that is there: nothing is
 		## looked for at a path that is not, and of a file nothing is read but its name.
-		[ "$readState" = "present" ] || return 0
+		if [ "$readState" != "present" ] ; then
+			[ "$readKind" != "workspace" ] || AgentsToolsManagerPlaceMembers "$readPath" "$readState"
+			return 0
+		fi
 		##   the consoles at its root, as a workspace has them
 		for readFile in "${readPath%/}"/Distro*Console.sh ; do
 			[ -f "$readFile" ] || continue
@@ -135,6 +190,8 @@ case "$1" in
 				"${readPath%/}"/*) printf 'stands\tteam-data-root\t-\t%s\n' "$( AgentsToolsManagerPlaceField "${MDAT_DATA_ROOT%/}" )" ;;
 			esac
 		fi
+		##   and, after them, every member that belongs to it, where it is a workspace
+		[ "$readKind" != "workspace" ] || AgentsToolsManagerPlaceMembers "$readPath" "$readState"
 		return 0
 	;;
 

@@ -14,8 +14,9 @@
 ## secret; a subject of the configuration with its missing lines first. Until the rows have come the window says
 ## `Populating <name>...`. The read of a folder starts only when the selection has rested on its row, so a selection
 ## that runs over the folders starts the read of the one it stops on alone; one such read runs at a time, and one
-## under way for a folder that was left never shows in another. Entering a folder afterwards reads nothing again
-## until its period has passed. The checks of the installation are never run by the focus: their folder says that
+## under way for a folder that was left never shows in another. While the selection stays on a folder the period
+## reads it no more; coming back to it reads it again once its period has passed. Entering a folder afterwards reads
+## nothing again until its period has passed. The checks of the installation are never run by the focus: their folder says that
 ## they were not run, and which key runs them, and that key runs them from the row of the folder, after which the
 ## folder says how they ended and when. A folder whose read fails says so in the left window.
 ## Offline: no operation of the real tooling is called.
@@ -206,7 +207,7 @@ wait focus 5
 show F
 get end
 RIGSCRIPT
-rigAssert "the sessions: by their states, then the running and the waiting ones one by one, with their agents, tokens and members" "$( rigLeft S )" "5 sessions: 1 running, 1 waiting, 1 unclosed, 2 finished. / In the workspace: sessions 1 running, 0 paused; agents 2 working, 2 waiting. / 1 session has a control thread that is gone (x in the list). / running /   SESSION         AGENTS                   TOKENS MEMBERS /   daily of Monday 3: 2 running, 1 finished 57.1M  magic-coordinator, keeper-myx / waiting /   SESSION             AGENTS       TOKENS MEMBERS /   review of the board 1: 1 waiting 1K+    magic-architect"
+rigAssert "the sessions: by their states, then the running and the waiting ones one by one, with their agents, tokens and members, and last the control threads that are gone" "$( rigLeft S )" "5 sessions: 1 running, 1 waiting, 1 unclosed, 2 finished. / In the workspace: sessions 1 running, 0 paused; agents 2 working, 2 waiting. / running /   SESSION         AGENTS                   TOKENS MEMBERS /   daily of Monday 3: 2 running, 1 finished 57.1M  magic-coordinator, keeper-myx / waiting /   SESSION             AGENTS       TOKENS MEMBERS /   review of the board 1: 1 waiting 1K+    magic-architect / 1 session has a control thread that is gone (x in the list)."
 rigAssert "the asks: how many, how many with no asker, for whom, the oldest, then the oldest few with who asks whom and the question" "$( rigLeft Q )" "3 asks wait for an answer. / 1 of them was asked by a run that is gone (x in the list): nobody is there to take / the answer. / They are for: human-owner 2, magic-coordinator 1. / The oldest waits 3d: magic-devops asks human-owner. / by age, the oldest first /   AGE WHO ASKS     WHOM /   3d  magic-devops human-owner /       May the old volume be removed now that the copy is proven on the second /       host? /   2h  keeper-acm   magic-coordinator /       Who owns the template of the report? /   10m keeper-myx   human-owner /       Which of the two layouts stays?"
 rigAssert "the members: how many, who runs now, who is not started from here and why" "$( rigLeft T )" "4 members, 1 with a live run. / Running now: magic-coordinator. / 2 of them are not started from here. /   human-owner: its status is reference-only: nobody is started as this member /   far-member: its workspace cannot be reached from this machine"
 rigAssert "the locations: how many, which is here, which are absent" "$( rigLeft P )" "3 locations: 2 workspace, 1 directory. / The console runs in ws-one. / 1 of them is not present on this machine. /   gone-work / In the other views a path inside one of them stands by its name."
@@ -292,6 +293,36 @@ rigAssert "the members are being read, as a read of the focus" "[$( rigVal team.
 rigAssert "two folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the members shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles (Tools)...] [0]"
 rigAssert "when it has ended the folder there is read and shown, and still nothing of the members" "$( rigHolds later '3 to start: 2 Distro, 1 System.' ) $( rigHolds later '4 members' ) $( rigCalls --manager-console-list )" "1 0 1"
 rigAssert "back on the members: what that read gave stands there at once, and it was made once" "$( rigHolds back '4 members, 1 with a live run.' ) $( rigCalls --manager-team-member-list )" "1 1"
+
+echo "-- while the selection stays on a folder its period reads it no more; coming back after the period reads it again --"
+rigCase stays
+rigScript <<RIGSCRIPT
+turn
+keys DOWN DOWN
+wait focus 5
+advance 10.5
+turn
+wait focus 5
+advance 10.5
+turn
+wait focus 5
+copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.stayed
+keys DOWN
+advance 0.1
+keys UP
+turn
+wait focus 5
+copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.back
+keys DOWN
+advance 0.1
+keys UP
+turn
+wait focus 5
+keys u
+turn
+wait focus 5
+RIGSCRIPT
+rigAssert "two periods on the row: read once; away and back after the period: once more; away and back at once: no more; and the key that reads now reads it" "$( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.stayed" ) $( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.back" ) $( rigCalls --member-pending-reply-read )" "1 2 3"
 
 echo "-- entering a folder afterwards uses what was read, and reads again when its period has passed --"
 rigCase enters
