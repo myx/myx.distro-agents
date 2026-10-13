@@ -85,21 +85,21 @@ cells sepBottom 39 83 84
 dialog Name:
 keys x
 get d
-cells input 38 0 83
-cells listAtInput 38 84 120
+cells input 38 1 83
+cells listAtInput 38 85 119
 RIGSCRIPT
 rigAssert "the screen is drawn"                                      "$( rigVal a.layout ) $( rigLines a )" "ok 40"
 rigAssert "the list on the right takes a quarter to a third (30 to 40)" "$( rigBetween "$( rigVal a.listWidth )" 30 40 )" yes
 rigAssert "the left pane has the rest, less the one column between"  "$(( $( rigVal a.viewWidth ) + 1 + $( rigVal a.listWidth ) ))" 120
 rigAssert "the list stands on the right of that column"              "$( rigVal a.separator ) $( rigVal a.listLeft )" "83 84"
-rigAssert "the column parts the panes from the titles down to the line to type in" "$( rigVal sepTitle )$( rigVal sepBody )$( rigVal sepInput )" "│││"
-rigAssert "the last line of the left pane is the line to type in"    "$( rigVal a.inputLine ) [$( rigVal input )] cursor $( rigVal d.cursor )" "38 [ Name: x] cursor 38,8"
-rigAssert "and the list goes on beside it"                           "$( rigVal a.listHeight ) $( rigVal a.viewHeight )" "37 36"
-rigAssert "the first line is a status line, across the whole width"  "$( rigLine k 1 )" "$( rigRepeat R 120 )"
-rigAssert "the last line is a status line, across the whole width"   "$( rigLine k 40 )" "$( rigRepeat R 120 )"
+rigAssert "the column parts the panes from the titles down to the line to type in" "$( rigVal sepTitle )$( rigVal sepBody )$( rigVal sepInput )" "┐│┘"
+rigAssert "the last line of the left pane is the line to type in"    "$( rigVal a.inputLine ) [$( rigVal input )] cursor $( rigVal d.cursor )" "38 [Name: x] cursor 38,8"
+rigAssert "and the two windows hold as many lines"                           "$( rigVal a.listHeight ) $( rigVal a.viewHeight )" "36 36"
+rigAssert "the first line is the menu bar, across the whole width, a hot letter in it apart"  "$( rigLine k 1 | LC_ALL=C tr H R ) $( rigLine k 1 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RRRRHRRRHR"
+rigAssert "the last line is the status line, across the whole width, a key in it apart"   "$( rigLine k 40 | LC_ALL=C tr H R ) $( rigLine k 40 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RHHHHHRRRR"
 rigAssert "the column between the panes does not cross them"         "[$( rigVal sepTop )][$( rigVal sepBottom )]" "[][]"
-rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ws-rig 12:34:56 "
-rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " q quit  Tab pane  Enter open  Left up  a all/active  F5 read"
+rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ≡ Go Session Member View Help ws-rig 12:34:56 "
+rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a All/active  F5 Read  F10 Menu  Alt-X Exit  Tab Window"
 rigAssert "nothing was drawn past the end of a line"                 "$( rigVal d.spills )" 0
 
 echo "-- at 80 columns by 24 lines --"
@@ -173,10 +173,10 @@ cells sep2 3 83 84
 cells sep3 4 83 84
 RIGSCRIPT
 rigAssert "a character of two cells that no longer fits is left out whole, and the line fills the pane" \
-	"[$( rigLine a 3 )]" "[ $( rigRepeat x 80 )… │ ..                                 ]"
+	"[$( rigLine a 3 )]" "[│$( rigRepeat x 80 )… │║ ..$( rigRepeat ' ' 31 )║]"
 rigAssert "one that fits stays, and the line is cut where the pane ends" \
-	"[$( rigLine a 4 )]" "[ $( rigRepeat x 40 )🚀$( rigRepeat y 39 )…│>$( rigRepeat 🚀 17 )…]"
-rigAssert "the list cuts its own line the same way"                  "[$( rigLine a 5 )]" "[ short 🚀 line$( rigRepeat ' ' 69 )│ $( rigRepeat y 34 )…]"
+	"[$( rigLine a 4 )]" "[│$( rigRepeat x 40 )🚀$( rigRepeat y 39 )…│║>$( rigRepeat 🚀 16 )…║]"
+rigAssert "the list cuts its own line the same way"                  "[$( rigLine a 5 )]" "[│short 🚀 line$( rigRepeat ' ' 69 )│║ $( rigRepeat y 32 )…║]"
 rigAssert "the column between the panes stands where it stood"       "$( rigVal sep1 )$( rigVal sep2 )$( rigVal sep3 )" "│││"
 rigAssert "nothing was drawn past the end of a line or into the other pane" "$( rigVal a.spills )" 0
 
@@ -186,11 +186,11 @@ size 60 12
 plain
 turn
 cells sep 3 41 42
-cells cut 2 42 60
+cells cut 2 43 59
 plaintext given a🚀b│c…
 get a
 RIGSCRIPT
-rigAssert "the column between the panes and the cut mark are drawn in one byte each" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [>Sessions / Activ+] 0"
+rigAssert "the column between the panes and the cut mark are drawn in one byte each" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [>Sessions / Act+] 0"
 rigAssert "what such a terminal cannot show is given as ?, cell for cell" "[$( rigVal given )]" "[a??b?c?]"
 
 echo "-- the real screen on a pseudo-terminal: the quit key --"

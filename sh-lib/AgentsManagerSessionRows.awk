@@ -6,7 +6,8 @@
 ## inputs, in this order: the pending-replies registry file, then the measured rows
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
 ## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
-## keeps the sessions with a live run; -v loadAverage is the figure of the counters row. In
+## keeps the sessions with a live run; -v loadAverage is the figure of the counters row, and
+## -v hostName the name of this host, which stands last in that row, `-` where none is given. In
 ## the environment, MDAT_MANAGER_WAITING is ` <spawn-id> <spawn-id> ... `: the live runs that
 ## sit inside a Wait; and MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
 ## each session whose control thread left a pid file or a lock, as it was measured for this
@@ -127,5 +128,5 @@ END {
 		print sessionStart[sessionKey], sessionPlace[sessionKey], 1, ( runMinutes[runAt] < 0 ? 99999999999 : runMinutes[runAt] ), runAt, "run", sessionKey, runRow[runAt], runActivity[runAt] ;
 	}
 	## Paused comes with the step of pause and resume: its place is kept, and reads 0 until then.
-	print -2, 0, 0, 0, 0, "counters", sessionsRunning + 0, 0, agentsWorking + 0, agentsWaiting + 0, pendingAnswers + 0, ( loadAverage == "" ? "-" : loadAverage ) ;
+	print -2, 0, 0, 0, 0, "counters", sessionsRunning + 0, 0, agentsWorking + 0, agentsWaiting + 0, pendingAnswers + 0, ( loadAverage == "" ? "-" : loadAverage ), ( hostName == "" ? "-" : hostName ) ;
 }

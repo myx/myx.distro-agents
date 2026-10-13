@@ -136,16 +136,16 @@ turn 3
 keys DOWN
 turn
 get first
-cells firstLine 2 0 139
+cells firstLine 2 1 139
 keys ENTER
 get asked
 wait list 30
 keys LEFT
 turn
 get on
-cells title 1 0 139
-cells line1 2 0 139
-cells line2 3 0 139
+border title 1 0 140
+cells line1 2 1 139
+cells line2 3 1 139
 keys ENTER
 advance 9
 turn 3
@@ -157,7 +157,7 @@ rigAssert "at the root nothing of the asks is read, and the pane of the section 
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
 rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C sed -n '1p' "$MANAGER_SCREEN_RIG/calls" )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane says how many wait, and how many have no asker" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 )] [$( rigVal line2 )]" \
-	"pending [ Pending Questions] [ 3 asks wait for an answer.] [ 1 of them was asked by a run that is gone (x in the list): nobody is there to take the answer.]"
+	"pending [Pending Questions] [3 asks wait for an answer.] [1 of them was asked by a run that is gone (x in the list): nobody is there to take the answer.]"
 rigAssert "it is read again on the period, and not before"           "[$( rigVal early.reading )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
 
 echo "-- each open ask is one row --"
@@ -167,26 +167,26 @@ size 200 40
 keys DOWN ENTER
 wait list 30
 get a
-cells title 1 140 200
-cells row1 2 140 200
-cells row2 3 140 200
-cells row3 4 140 200
-cells row4 5 140 200
-cells row5 6 140 200
-cells up1 2 0 139
+border title 1 140 200
+cells row1 2 141 199
+cells row2 3 141 199
+cells row3 4 141 199
+cells row4 5 141 199
+cells row5 6 141 199
+cells up1 2 1 139
 size 120 40
-cells narrow2 3 84 120
-cells narrow4 5 84 120
+cells narrow2 3 85 119
+cells narrow4 5 85 119
 get n
 RIGSCRIPT
-rigAssert "the level shows the three asks under the row that goes up" "$( rigVal a.path ) $( rigVal a.rows ) [$( rigVal title )] [$( rigVal row1 )] [$( rigVal row5 )]" "pending 4 [ Pending Questions] [>..] []"
+rigAssert "the level shows the three asks under the row that goes up" "$( rigVal a.path ) $( rigVal a.rows ) [$( rigVal title )] [$( rigVal row1 )] [$( rigVal row5 )]" "pending 4 [Pending Questions] [>..] []"
 rigAssert "the newest first: how long ago, the mark of its kind, who asks, of whom, the first line of the question" \
-	"[$( rigVal row2 )]" "[   25m ❓ magic-tester > human-owner  Which of the two runs…]"
-rigAssert "then the one of three hours"                              "[$( rigVal row3 )]" "[    3h 🔐 magic-librarian > human-owner  May I read inside …]"
+	"[$( rigVal row2 )]" "[   25m ❓ magic-tester > human-owner  Which of the two ru…]"
+rigAssert "then the one of three hours"                              "[$( rigVal row3 )]" "[    3h 🔐 magic-librarian > human-owner  May I read insid…]"
 rigAssert "last the one of eleven days, with the plain mark of an asker that is gone" \
-	"[$( rigVal row4 )]" "[ x 11d 🧭 keeper-myx > magic-coordinator  Fix B is approved…]"
-rigAssert "on the row that goes up the left pane says how many wait" "[$( rigVal up1 )]" "[ 3 asks wait for an answer.]"
-rigAssert "at 120 columns a row is cut to the list, the age, the kind and who asks first" "[$( rigVal narrow2 )] [$( rigVal narrow4 )] $( rigVal n.spills )" "[   25m ❓ magic-tester > human-owne…] [ x 11d 🧭 keeper-myx > magic-coordi…] 0"
+	"[$( rigVal row4 )]" "[ x 11d 🧭 keeper-myx > magic-coordinator  Fix B is approv…]"
+rigAssert "on the row that goes up the left pane says how many wait" "[$( rigVal up1 )]" "[3 asks wait for an answer.]"
+rigAssert "at 120 columns a row is cut to the list, the age, the kind and who asks first" "[$( rigVal narrow2 )] [$( rigVal narrow4 )] $( rigVal n.spills )" "[   25m ❓ magic-tester > human-ow…] [ x 11d 🧭 keeper-myx > magic-coor…] 0"
 rigAssert "only the read of the asks was called"                     "$( rigOtherCalls )" 0
 
 echo "-- the left pane shows the selected ask --"
@@ -208,7 +208,7 @@ turn
 show u
 RIGSCRIPT
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
 rigAssert "the oldest ask is selected, and the pane is titled by its row" "$( rigVal a.selected ) [$( rigPane s 2 | LC_ALL=C cut -c1-22 )]" "0d7affda-0000-4000-8000-000000000001 [ x 11d 🧭 keeper-myx]"
 rigAssert "its kind, with its mark and its tag"                      "[$( rigPane s 3 )]" "[ 🧭 decision Q11]"
@@ -239,7 +239,7 @@ wait list 30
 keys DOWN
 turn
 get on
-cells keysLine 37 0 83
+cells keysLine 37 1 83
 keys y e SPACE o ENTER
 turn
 get typed
@@ -258,16 +258,16 @@ size 120 40
 keys DOWN ENTER
 wait list 30
 get a
-cells row1 2 84 120
-cells row2 3 84 120
-cells line1 2 0 83
+cells row1 2 85 119
+cells row2 3 85 119
+cells line1 2 1 83
 keys LEFT
 turn
-cells rootLine1 2 0 83
+cells rootLine1 2 1 83
 RIGSCRIPT
 rigAssert "the level shows the row that goes up, and nothing more"   "$( rigVal a.rows ) [$( rigVal row1 )] [$( rigVal row2 )]" "1 [>..] []"
-rigAssert "the left pane says that nothing waits"                    "[$( rigVal line1 )]" "[ Nothing waits for an answer.]"
-rigAssert "on the section at the root the pane says the same"        "[$( rigVal rootLine1 )]" "[ Nothing waits for an answer.]"
+rigAssert "the left pane says that nothing waits"                    "[$( rigVal line1 )]" "[Nothing waits for an answer.]"
+rigAssert "on the section at the root the pane says the same"        "[$( rigVal rootLine1 )]" "[Nothing waits for an answer.]"
 
 echo "-- a read of the asks that fails --"
 rigCase fail three.asks rows rows fail rows
@@ -280,18 +280,18 @@ get good
 advance 11
 wait list 30
 get bad
-cells badTitle 1 84 120
-cells badLine 38 0 83
+border badTitle 1 84 120
+keys ESC
 advance 11
 wait list 30
 get mended
-cells mendedTitle 1 84 120
+border mendedTitle 1 84 120
 RIGSCRIPT
 rigAssert "the second read failed"                                   "$( rigCalls ) [$( rigVal bad.failed )]" "3 [list:pending]"
 rigAssert "the asks stay, and the selection with them"               "$( rigVal bad.rows ) $( rigVal bad.selected )" "4 0e0c1c26-0000-4000-8000-000000000002"
-rigAssert "the level is marked as old"                               "[$( rigVal badTitle )]" "[ ! Pending Questions]"
-rigAssert "and the error line of the read is shown"                  "[$( rigVal badLine )]" "[ --member-pending-reply-read: rig-tools: ⛔ ERROR: the rig said fail]"
-rigAssert "a good read takes the mark away"                          "[$( rigVal mended.failed )] [$( rigVal mendedTitle )]" "[] [ Pending Questions]"
+rigAssert "the level is marked as old"                               "[$( rigVal badTitle )]" "[! Pending Questions]"
+rigAssert "and what the read wrote is shown in a box"                  "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --member-pending-reply-read magic-coordinator --any-owner / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "a good read takes the mark away"                          "[$( rigVal mended.failed )] [$( rigVal mendedTitle )]" "[] [Pending Questions]"
 
 ## Four asks for the read of one ask by its id: the decision above, asked before its slots were kept; the
 ## permission above, with its slots and its refused call; a permission set with its entries; a held change with
@@ -425,7 +425,7 @@ rigCaseStored(){ ## name, what the stand-in does at every start, then what it do
 	cp "$rigTmp/stored"/* "$MANAGER_SCREEN_RIG/"
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigReadOf(){ ## id -- how many times that one ask was read by its id
 	LC_ALL=C grep -c -x -F -- "--member-pending-reply-read magic-coordinator $1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -474,7 +474,7 @@ rigAssert "with no ask selected none is read, whatever time passes"   "$( rigVal
 echo "-- a held change: its fields, and its whole diff as it is --"
 rigAssert "what its post was filled with stands under the names of its slots" "$( rigPaneHolds c ' act Edit' ) $( rigPaneHolds c ' file skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' change store change-0005' )" "1 1 1"
 rigAssert "the diff stands as it is, line for line"                   "$( rigPaneHolds c ' the diff:' ) $( rigPaneHolds c ' --- a/skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' @@ -3,2 +3,3 @@' ) $( rigPaneHolds c '  - step one' )" "1 1 1 1"
-rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
+rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/^c|│/c| /' -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
 rigAssert "the post itself comes after, and last the other fields of its record" "$( rigPaneHolds c ' as posted:' ) $( rigPaneHolds c ' # ✏️ Change for approval' ) $( rigPaneHolds c ' its record:' ) $( rigPaneHolds c ' host rig-host' )" "1 1 1 1"
 rigAssert "and it is still for viewing only"                          "$( rigPaneHolds c ' viewing only: an ask is answered where it was posted' )" 1
 
@@ -514,7 +514,7 @@ RIGSCRIPT
 rigAssert "the pane starts at the top of the ask, and does not follow its end" "$( rigVal c.viewTop ) $( rigVal c.follow ) [$( rigPane c 3 )]" "0 no [ ✏️ change]"
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' the diff:' )" "view 16 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' viewing only: an ask is answered where it was posted' ) $( rigVal end.spills )" "1 0"
-rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [s: stop is not built yet] pending $rigC"
+rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [] pending $rigC"
 rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' "$MANAGER_SCREEN_RIG/calls" || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
 
 if [ "$rigFailCount" -ne 0 ] ; then

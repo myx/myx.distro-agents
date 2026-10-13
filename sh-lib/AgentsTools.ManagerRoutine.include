@@ -12,7 +12,9 @@
 ## then those of the other workspaces of this machine). What it says of a routine it asks
 ## the session spawner's own functions (AgentsTools.SpawnRoutine.include), each as the
 ## spawner calls it: a routine reads startable exactly where --magic-spawn-session, given
-## its file name and no member, would start it.
+## its file name and no member, would start it. Where it would not for one cause alone,
+## that no member is named, the row says in its last field what a start of it needs: the
+## same operation starts it with members named after the selector.
 ##
 
 type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
@@ -20,16 +22,16 @@ type AgentsToolsTeamMemberReferenceOnly > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
 ## selector. Nothing is written. A value's own whitespace goes out as `_` and an absent one
-## as `-`, in one pass over the rows, so a row is always its nine fields.
+## as `-`, in one pass over the rows, so a row is always its ten fields.
 AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 	local rowsOp="$1" rowsMember rowsDir rowsFile rowsName rowsTab=$'\t' rowsLine rowsText=""
-	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor
+	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor rowsNeeds
 	while IFS=$'\t' read -r rowsMember rowsDir ; do
 		[ -n "$rowsDir" ] || continue
 		for rowsFile in "$rowsDir"/*.routine.md ; do
 			[ -f "$rowsFile" ] || continue
 			rowsName="${rowsFile##*/}"
-			rowsStart="startable" ; rowsReason="" ; rowsExecutors="" ; rowsSession=""
+			rowsStart="startable" ; rowsReason="" ; rowsExecutors="" ; rowsSession="" ; rowsNeeds=""
 			## The file's own title line, as the routine contract places it: the first `# `
 			## heading below the frontmatter block, where that is not `# Summary` already.
 			rowsTitle="$( LC_ALL=C awk '
@@ -54,7 +56,13 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				elif ! rowsWhy="$( AgentsToolsSpawnRoutineExecutorsRoster "$rowsExecutors" )" ; then
 					rowsStart="not-startable"
 					case "$rowsWhy" in
-						any-member) rowsReason="its executors, $rowsExecutors, is any member: the session spawner starts it only with members named" ;;
+						## The one cause a start itself lifts: its file is sound and selected, and
+						## the spawner takes it once members are named. A console reads that here,
+						## in the last field, and need not know the words of the reason.
+						any-member)
+							rowsReason="its executors, $rowsExecutors, is any member: the session spawner starts it only with members named"
+							rowsNeeds="members"
+						;;
 						empty-name) rowsReason="its executors holds an empty name" ;;
 						*) rowsReason="its executor ${rowsWhy#*"$rowsTab"} is no member of any workspace of this machine" ;;
 					esac
@@ -75,12 +83,13 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 				*[[:space:]]*)
 					rowsStart="broken"
 					rowsReason="its file name holds whitespace, which a row cannot carry as a selector"
+					rowsNeeds=""
 				;;
 			esac
 			## The place of its arguments is kept, and empty: no routine file says, in a form a
 			## program reads, whether it takes any. The routine contract has no key for it.
-			printf -v rowsLine 'routine\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "${rowsName//"$rowsTab"/ }" "${rowsMember//"$rowsTab"/ }" "$rowsStart" \
-				"${rowsExecutors//"$rowsTab"/ }" "$rowsSession" "" "${rowsTitle//"$rowsTab"/ }" "${rowsReason//"$rowsTab"/ }"
+			printf -v rowsLine 'routine\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "${rowsName//"$rowsTab"/ }" "${rowsMember//"$rowsTab"/ }" "$rowsStart" \
+				"${rowsExecutors//"$rowsTab"/ }" "$rowsSession" "" "${rowsTitle//"$rowsTab"/ }" "${rowsReason//"$rowsTab"/ }" "$rowsNeeds"
 			rowsText="$rowsText$rowsLine"$'\n'
 		done
 	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
@@ -90,11 +99,11 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 	fi
 	printf '%s' "$rowsText" \
 		| LC_ALL=C awk -F'\t' 'BEGIN { OFS = "\t" ; } {
-			for ( fieldAt = 1 ; fieldAt <= 9 ; fieldAt++ ) {
+			for ( fieldAt = 1 ; fieldAt <= 10 ; fieldAt++ ) {
 				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
 				if ( $fieldAt == "" ) $fieldAt = "-" ;
 			}
-			print $1, $2, $3, $4, $5, $6, $7, $8, $9 ;
+			print $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ;
 		}' \
 		| LC_ALL=C sort -t "$rowsTab" -k3,3 -k2,2
 }

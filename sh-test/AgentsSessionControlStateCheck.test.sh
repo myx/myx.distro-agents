@@ -258,7 +258,7 @@ rigWaitFor 20 rigHolds s-live "$rigLive" || rigRefuse "the thread of s-live did 
 rigWaitFor 10 rigStateIs s-live running
 rigLiveState="$rigStores/s-live/control/state"
 rigLivePrint="$( rigPrint "$rigLiveState" )"
-rigAssert "a thread over a session of two live runs sets running" "$( rigLives "$rigLive" ):$( rigState s-live ):$( rigControl s-live )" "1:running:lock log pid state"
+rigAssert "a thread over a session of two live runs sets running, and says what it takes of the console" "$( rigLives "$rigLive" ):$( rigState s-live ):$( rigControl s-live ):$( cat "$rigStores/s-live/control/takes" 2> /dev/null )" "1:running:lock log pid state takes:kill"
 rigRec live-b live-b s-live live-b "$rigHost" spawn-succeeded "$rigClosed"
 rigUnlist live-b
 sleep 3

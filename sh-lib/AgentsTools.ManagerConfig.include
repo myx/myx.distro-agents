@@ -6,7 +6,9 @@
 ## view of the settings of this workspace, as they are. Sourced from the `--manager-config-*)`
 ## arm of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
 ##
-## FOR VIEWING. Nothing here writes: no setting, no registry, no file. A value is read by
+## FOR VIEWING, but for one operation. The digest writes nothing: no setting, no registry,
+## no file. --manager-config-interface-set saves one interface setting of the user who runs
+## it, and nothing else (THE INTERFACE SETTINGS, below). A value is read by
 ## the setting reader of the sibling package, one key a call (LocalTools.Config.include, as
 ## AgentsContext.UseAgentsTools.include reads the team data directory), and the names of a
 ## scope's keys by the names-only reader (AgentsToolsScopeKeyNames). The form of the setting
@@ -33,7 +35,7 @@ type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 
 ## The subjects of the digest, in the order a person looks for them, which is the order
 ## they are printed in whatever the order they are asked in.
-agentsManagerConfigSubjects="workspace cli systems loop scopes"
+agentsManagerConfigSubjects="workspace cli systems loop scopes interface"
 
 ## The last word of the name of a key whose value is known to be no secret: a place, a name,
 ## a number or a switch. Asked only of a key the catalogue does not hold. A kind that is not
@@ -129,10 +131,11 @@ AgentsToolsManagerConfigScopeKeys(){ ## scope, key prefix (may be empty), `say` 
 }
 
 ## One `line` row. Every field is made one field: a run of whitespace in it reads `_`, and an
-## empty one reads `-`, as in a registry.
-AgentsToolsManagerConfigLine(){ ## subject, group, key, state, value (may be empty)
+## empty one reads `-`, as in a registry. What a subject adds to its lines stands after the
+## value, at the end of the row, so whoever reads the first six fields reads them as before.
+AgentsToolsManagerConfigLine(){ ## subject, group, key, state, value (may be empty), then the fields a subject adds at the end
 	local lineField lineRow="line"
-	for lineField in "$1" "$2" "$3" "$4" "${5:-}" ; do
+	for lineField in "$1" "$2" "$3" "$4" "${5:-}" "${@:6}" ; do
 		while : ; do
 			case "$lineField" in
 				*[[:space:]][[:space:]]*) lineField="${lineField//[[:space:]][[:space:]]/ }" ;;
@@ -407,6 +410,99 @@ AgentsToolsManagerConfigScopes(){
 	return 0
 }
 
+## THE INTERFACE SETTINGS of the user who runs the call: how the manager screen looks to that
+## user. One row a setting, on a line of its own, its fields parted by `|`:
+##   the group of its line in the digest, a short name of the setting;
+##   its key, which is also the name of the variable of the environment that sets it for a start;
+##   its default, the value where nothing sets it;
+##   the values that may be chosen, in the order they are offered, parted by commas, each
+##   `<value>=<label>`. No value holds a blank, and no value and no label a `,`, a `=` or a `|`.
+## Another interface setting is one more row here: the digest and the writer go by the rows
+## and know no setting by name. A value is saved under its key in the user's own settings of
+## this workspace, by the setting reader of the sibling package in its scope of the current
+## user. NO SECRET IS KEPT HERE: the writer saves nothing but a value that stands in a row,
+## so no text of a caller's reaches a file.
+## The styles are those the screen declares, with its labels (STYLES in
+## AgentsManagerScreen.py): AgentsManagerConfigInterfaceCheck holds the two against each other.
+agentsManagerConfigInterfaceSettings="style|MDAT_MANAGER_STYLE|tv|tv=Turbo Vision,mc=MC (Compact),bw=B/W"
+
+## The file the user who runs the call has for settings of their own in this workspace, where
+## the setting reader of the sibling package keeps its scope of the current user. rc 1, and
+## nothing printed, where the operating system gives that user no name.
+AgentsToolsManagerConfigUserFile(){
+	local userName
+	userName="$( id -un 2> /dev/null )" || userName=""
+	[ -n "$userName" ] || return 1
+	printf '%s\n' "${MMDAPP%/}/.local/home/$userName/MDLT.settings.env"
+}
+
+## One of the user's own settings in this workspace, by the setting reader of the sibling
+## package in its scope of the current user: the last line that sets the key, and nothing
+## where none does. The user is the one the operating system says runs the call, whatever
+## the environment names, so nobody else's settings are read. Reading makes no file.
+AgentsToolsManagerConfigUserValue(){ ## key
+	(
+		USER="$( id -un 2> /dev/null )" ; [ -n "$USER" ] || exit 0
+		set -- --custom-config-option --select "$1"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) 2> /dev/null || :
+}
+
+## Saves one of the user's own settings in this workspace, by the same reader in the same
+## scope for the same user: every line that set the key is replaced by one, and the other
+## lines stay. The reader writes a temp file beside the settings file, named by the id of
+## the shell, and puts it in place by a rename. It says nothing where that fails, so whoever
+## saves reads the value back.
+AgentsToolsManagerConfigUserSave(){ ## key, value
+	(
+		USER="$( id -un 2> /dev/null )" ; [ -n "$USER" ] || exit 1
+		set -- --custom-config-option --upsert "$1" "$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) > /dev/null 2>&1
+}
+
+## Whether a value is one an interface setting may take: rc 0 where it stands among the
+## choices of its row.
+AgentsToolsManagerConfigInterfaceOffers(){ ## choices, value
+	case "$2" in ''|*,*|*=*|*'|'*) return 1 ;; esac
+	case ",$1" in *",$2="*) return 0 ;; esac
+	return 1
+}
+
+## What an interface setting is now and where that comes from, `<value> <source>`: the first
+## of these that names one of its values. The variable of the environment that bears its
+## key, `environment`; what the user saved, `user`; else its default, `default`. A name that
+## is none of its values counts as not given, wherever it stands.
+AgentsToolsManagerConfigInterfaceNow(){ ## key, default, choices
+	local nowKey="$1" nowValue
+	nowValue="${!nowKey:-}"
+	if AgentsToolsManagerConfigInterfaceOffers "$3" "$nowValue" ; then
+		printf '%s %s\n' "$nowValue" environment
+		return 0
+	fi
+	nowValue="$( AgentsToolsManagerConfigUserValue "$nowKey" )" || nowValue=""
+	if AgentsToolsManagerConfigInterfaceOffers "$3" "$nowValue" ; then
+		printf '%s %s\n' "$nowValue" user
+		return 0
+	fi
+	printf '%s %s\n' "$2" default
+	return 0
+}
+
+## THE INTERFACE: one line for each of THE INTERFACE SETTINGS, in the group of its row: its
+## key, `set`, and what it is now. Then, at the end of the row, where that comes from,
+## `environment`, `user` or `default`, and the values that may be chosen with their labels,
+## as its row declares them: a screen draws the choice from the line and knows no setting.
+AgentsToolsManagerConfigInterface(){
+	local interfaceGroup interfaceKey interfaceDefault interfaceChoices interfaceNow
+	while IFS='|' read -r interfaceGroup interfaceKey interfaceDefault interfaceChoices ; do
+		[ -n "$interfaceKey" ] || continue
+		interfaceNow="$( AgentsToolsManagerConfigInterfaceNow "$interfaceKey" "$interfaceDefault" "$interfaceChoices" )" || interfaceNow=""
+		AgentsToolsManagerConfigLine interface "$interfaceGroup" "$interfaceKey" set "${interfaceNow%% *}" "${interfaceNow#* }" "$interfaceChoices"
+	done <<< "$agentsManagerConfigInterfaceSettings"
+	return 0
+}
+
 case "$1" in
 
 	## The settings of this workspace as they are, by subject: TAB-separated rows a screen
@@ -434,6 +530,7 @@ case "$1" in
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
 				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
+				interface) digestLines="$( AgentsToolsManagerConfigInterface )" || digestLines="" ;;
 			esac
 			digestCount=0
 			if [ -n "$digestLines" ] ; then
@@ -444,6 +541,45 @@ case "$1" in
 			printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
 			[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
 		done
+		return 0
+	;;
+
+	## Saves one interface setting for the user who runs the call, in this workspace: the one
+	## operation here that writes. One row a program reads. Its form is the help entry's.
+	--manager-config-interface-set)
+		local interfaceOp="$1" interfaceGroup interfaceKey interfaceDefault interfaceChoices interfaceKeys="" interfaceValues="" interfaceFile interfaceSaved
+		shift
+		if [ $# -ne 2 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: syntax is $interfaceOp <key> <value>, got $# argument(s) -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		while IFS='|' read -r interfaceGroup interfaceKey interfaceDefault interfaceChoices ; do
+			[ -n "$interfaceKey" ] || continue
+			interfaceKeys="$interfaceKeys${interfaceKeys:+, }$interfaceKey"
+			[ "$interfaceKey" != "$1" ] || interfaceValues="$interfaceChoices"
+		done <<< "$agentsManagerConfigInterfaceSettings"
+		## Nothing that was given is repeated in a refusal: a word that is no key and no value
+		## of a setting may be anything, a secret pasted by mistake among it.
+		if [ -z "$interfaceValues" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the key given is none of the interface settings -- nothing was saved. Its keys: $interfaceKeys" >&2
+			set +e ; return 1
+		fi
+		if ! AgentsToolsManagerConfigInterfaceOffers "$interfaceValues" "$2" ; then
+			interfaceValues="$( printf '%s\n' "$interfaceValues" | LC_ALL=C sed -e 's/=[^,]*//g' -e 's/,/, /g' )"
+			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the value given is none of the values of $1 -- nothing was saved. Its values: $interfaceValues" >&2
+			set +e ; return 1
+		fi
+		if ! interfaceFile="$( AgentsToolsManagerConfigUserFile )" ; then
+			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the operating system gives the user who runs this call no name, so there is no file to save in -- nothing was saved" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerConfigUserSave "$1" "$2" || :
+		interfaceSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || interfaceSaved=""
+		if [ "$interfaceSaved" != "$2" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: $1 could not be saved: $interfaceFile does not hold the value after the write" >&2
+			set +e ; return 1
+		fi
+		printf 'saved\t%s\t%s\t%s\n' "$1" "$interfaceSaved" "${interfaceFile//[[:space:]]/_}"
 		return 0
 	;;
 

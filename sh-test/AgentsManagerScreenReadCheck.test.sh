@@ -82,13 +82,13 @@ keys ENTER
 get asked
 wait list 30
 get a
-cells title 1 84 120
-cells row1 2 84 120
-cells row2 3 84 120
-cells row3 4 84 120
-cells row4 5 84 120
-cells row5 6 84 120
-cells row6 7 84 120
+border title 1 84 120
+cells row1 2 85 119
+cells row2 3 85 119
+cells row3 4 85 119
+cells row4 5 85 119
+cells row5 6 85 119
+cells row6 7 85 119
 RIGSCRIPT
 rigAssert "the root asks the tooling for nothing"                    "[$( rigVal root.reading )]" "[]"
 rigAssert "the level asks at once, and the call runs beside the screen" "$( rigVal asked.path ) $( rigVal asked.reading )" "sessions list:sessions"
@@ -96,7 +96,7 @@ rigAssert "the operation is --manager-session-list, started once"    "$( rigCall
 rigAssert "what it printed is rows under Launch / Spawn, a record a line, its fields split at each TAB" \
 	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" \
 	"[>..][ Launch / Spawn][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
-rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [ Sessions / Activity  [all]]"
+rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Sessions / Activity  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
 rigCase active rows
@@ -108,13 +108,13 @@ keys a
 get asked
 wait list 30
 get a
-cells title 1 84 120
+border title 1 84 120
 turn 3
 get later
 RIGSCRIPT
 rigAssert "a starts a read at once"                                  "$( rigVal asked.filter ) $( rigVal asked.reading )" "active list:sessions"
 rigAssert "with --active after the operation"                        "$( rigCalls ) [$( rigCall 2 )]" "2 [--manager-session-list --active]"
-rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[ Sessions / Activity  [active]]"
+rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[Sessions / Activity  [active]]"
 
 echo "-- a slow call does not hold a key --"
 rigCase slow "sleep 5"
@@ -125,15 +125,15 @@ keys ENTER
 get started
 keys DOWN
 get moved
-cells title 1 84 120
-cells row2 3 84 120
+border title 1 84 120
+cells row2 3 85 119
 keys TAB TAB UP
 get again
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
 rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:sessions 0"
 rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn]"
-rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[ ~ Sessions / Activity  [all]]"
+rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Sessions / Activity  [all]]"
 rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:sessions"
 rigAssert "none of that waited for the five seconds of the call"     "$( [ "$rigSecondsTaken" -lt 4 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
@@ -148,26 +148,26 @@ get good
 advance 11
 wait list 30
 get bad
-cells badTitle 1 84 120
-cells badRow3 4 84 120
-cells badRow5 6 84 120
-cells badLine 38 0 83
+border badTitle 1 84 120
+cells badRow3 4 85 119
+cells badRow5 6 85 119
+keys ESC
 advance 11
 wait list 30
 get worse
 advance 11
 wait list 30
 get mended
-cells mendedTitle 1 84 120
-cells mendedLine 38 0 83
+border mendedTitle 1 84 120
+said mendedLine
 RIGSCRIPT
 rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "5 s1 []"
 rigAssert "the second call failed, after the period"                 "$( rigCalls ) [$( rigVal bad.failed )]" "4 [list:sessions]"
 rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "5 s1 [>s1  alpha  running][ s3  gamma  finished]"
-rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[ ! Sessions / Activity  [all]]"
-rigAssert "the error line is shown, with its operation, and not the line of noise before it" "[$( rigVal badLine )]" "[ --manager-session-list: rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Sessions / Activity  [all]]"
+rigAssert "what the read wrote is shown in a box, whole, with its operation" "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "5 [list:sessions]"
-rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "5 [] [ Sessions / Activity  [all]] []"
+rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "5 [] [Sessions / Activity  [all]] []"
 
 echo "-- a second read is not started while the first runs --"
 rigCase once "sleep 5"
@@ -240,15 +240,15 @@ turn
 get asked
 wait view 30
 get a
-cells line1 2 0 83
-cells line2 3 0 83
-cells title 1 0 83
+cells line1 2 1 83
+cells line2 3 1 83
+border title 1 0 84
 keys UP
 get up
-cells upLine1 2 0 83
+cells upLine1 2 1 83
 RIGSCRIPT
 rigAssert "the operation of that view is asked with the id of the row" "$( rigVal asked.reading ) $( rigCalls ) [$( rigCall 1 )]" "view:sessions|launch:launch 1 [--rig-view launch]"
-rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [ the first line of the item][ its second line] [ Launch / Spawn]"
+rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [Launch / Spawn]"
 rigAssert "moving the selection replaces the pane"                   "$( rigVal up.selected ) $( rigVal up.viewLines ) [$( rigVal upLine1 )]" ".. 0 []"
 rigCase late "sleep 2"
 printf 'a line of the item that was left\n' > "$MANAGER_SCREEN_RIG/rows"
@@ -263,15 +263,15 @@ get asked
 keys UP
 wait view 30
 get a
-cells line1 2 0 83
+cells line1 2 1 83
 RIGSCRIPT
 rigAssert "the read for one item is slow, and the selection moves on before it ends" "$( rigVal asked.reading ) $( rigCalls )" "view:sessions|launch:launch 1"
 rigAssert "when the answer comes, the pane still shows the item that is selected now" "$( rigVal a.selected ) $( rigVal a.viewLines ) [$( rigVal line1 )] [$( rigVal a.reading )]" ".. 0 [] []"
 
 echo "-- a dispatcher that cannot be started --"
 rigCase gone rows
-rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:sessions --manager-session-list +active --active" "size 120 40" "keys ENTER" "turn" "get a" "cells line 38 0 83" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
-rigAssert "it is shown as a failed call, and the screen goes on"     "[$( rigVal a.failed )] $( rigVal a.quit ) $( rigVal line | LC_ALL=C grep -c -- '--manager-session-list: could not be started: ' )" "[list:sessions] no 1"
+rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:sessions --manager-session-list +active --active" "size 120 40" "keys ENTER" "turn" "get a" "said line" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+rigAssert "it is shown as a failed call, and the screen goes on"     "[$( rigVal a.failed )] $( rigVal a.quit ) $( rigVal a.dialogHolds | LC_ALL=C grep -c -- 'operation: --manager-session-list / could not be started: ' )" "[list:sessions] no 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN READ CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

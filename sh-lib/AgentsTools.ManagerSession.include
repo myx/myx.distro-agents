@@ -162,7 +162,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
 	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( hostname -s 2>/dev/null || echo unknown )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -469,7 +469,10 @@ AgentsToolsManagerKillWait(){ ## pids, space-separated
 ## Prints one row a run the id names, TAB-separated, in the form the help entry gives. rc 1
 ## with nothing printed where the registry cannot be rebuilt or the id names no record; rc 1
 ## after its rows where a run could not be ended.
-AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
+## Where the control thread of the session carries the kill out for a console, the name the
+## ending is recorded under is the one the request of that console gives
+## (AgentsTools.SessionControlRequest.include).
+AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), the name the ending is recorded under where the console's user is another's (may be empty)
 	local killOp="$1" killId="$2" killOwn="${3:-}" killTab=$'\t' killFile killUser killStamp killAt killPid killSeen=" "
 	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft
 	local killAny="" killHard="" killStuck=0
@@ -481,7 +484,8 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 		return 1
 	fi
 	AgentsToolsManagerSessionScope "$killOp" "$killId" "$killOwn" "nothing was signalled" || return 1
-	killUser="$( AgentsToolsManagerConsoleUser )"
+	killUser="${4:-}"
+	[ -n "$killUser" ] || killUser="$( AgentsToolsManagerConsoleUser )"
 	killStamp="$( date +"%Y-%m-%d %H:%M %z" )"
 	type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 	type AgentsReviewEndChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
@@ -762,7 +766,12 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run], got no --session-id" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsManagerSessionKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
+		## WHO CARRIES IT OUT. Where the control thread of the session lives, the thread does:
+		## it is asked by a request in its folder and woken, and what it did is printed here.
+		## Where none lives, or it does not take the request in time, this call does, as
+		## before, and says so in one line (AgentsToolsSessionControlRequestKill).
+		type AgentsToolsSessionControlRequestKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlRequest.include"
+		AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
 		return 0
 	;;
 

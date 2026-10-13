@@ -2,8 +2,11 @@
 ##
 ## AgentsManagerScreen.py -- the manager screen of the agents console: what
 ## `DistroAgentsConsole.sh --manager` shows, started by `DistroAgentsTools.fn.sh
-## --intern-manager`. Two panes between two status lines: the list on the right,
-## what is selected there on the left, and under that one line to type in.
+## --intern-manager`. It looks as a Turbo Vision program does: a menu bar, a desktop with
+## two windows tiled on it, the list on the right and what is selected there on the left,
+## a status line, and dialogs over them. What it is made of is declared as data, its
+## windows (WINDOWS), its menus (MENUS), its commands with their keys (COMMANDS) and its
+## dialogs (DIALOGS), and one small engine draws them and routes the keys.
 ##
 ## The screen only draws and takes keys. What it shows and what it does goes
 ## through operations of the tooling, each run as a process of its own (READS,
@@ -47,11 +50,60 @@ REFRESH_SECONDS = 10.0
 ## a key is held and the selection runs down a list, nothing is read for the rows it passes.
 REST_SECONDS = 1.0 / 3
 
-## How a text is drawn. A surface maps them to what its terminal has.
+## How a text is drawn. The first four are the looks every terminal has, and what the rows
+## and the lines of a window are drawn in. After them come the parts of the frame of the
+## screen. Each has in LOOKS, at its number: the letter a test reads a cell's look back
+## as; the look it takes on a terminal with no colours, "B" bold, "R" reverse, "D" dim,
+## two of them together where two are named; and where the terminal has eight colours its
+## text, its ground, and whether the text is bright. A surface maps them to what its
+## terminal has (CursesSurface).
 PLAIN, BOLD, REVERSE, DIM = 0, 1, 2, 3
+DESKTOP, BAR, BAR_HOT, BAR_AT, BAR_ON, BAR_ON_HOT, BAR_OFF, FRAME_ON, FRAME, SCROLL, SHADOW = 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+BOX, BOX_FRAME, BOX_FIELD, BOX_ON, BOX_BUTTON, BOX_BUTTON_ON, BOX_SAYS = 15, 16, 17, 18, 19, 20, 21
+LOOKS = (
+    ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
+    (".", "", "white", "blue", False),
+    ("B", "B", "white", "blue", True),
+    ("R", "R", "black", "cyan", False),
+    ("D", "D", "cyan", "blue", False),
+    ## the desktop under the windows
+    ("d", "D", "blue", "white", False),
+    ## the menu bar, the status line and a pull-down menu; a hot letter or a key in them;
+    ## the `@` between the workspace and the machine; the menu that is open and the item
+    ## the bar is on, and a hot letter there; an item that does not apply
+    ("m", "R", "black", "white", False),
+    ("h", "RB", "red", "white", False),
+    ("@", "RB", "blue", "white", False),
+    ("o", "", "black", "green", False),
+    ("O", "B", "red", "green", False),
+    ("x", "RD", "black", "white", True),
+    ## the frame of the active window, with its title, and of another; a scroll bar
+    ("F", "B", "white", "blue", True),
+    ("f", "", "white", "blue", False),
+    ("s", "", "blue", "cyan", False),
+    ## the shadow of what lies over the desktop: a menu, a dialog
+    ("w", "D", "black", "black", True),
+    ## a dialog: its text; its frame with its title; a field to type in or to pick from; the
+    ## control, or the item of one, that has the keys; a button, and the one that has the
+    ## keys; what the dialog refuses
+    ("g", "R", "black", "white", False),
+    ("G", "RB", "white", "white", True),
+    ("i", "", "white", "blue", False),
+    ("I", "B", "white", "cyan", True),
+    ("b", "R", "black", "green", False),
+    ("n", "B", "white", "green", True),
+    ("!", "RB", "red", "white", False),
+)
+## The letter a look without colours reads back as.
+MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 
 ## The marks of the drawing. plainMarks() changes them for a terminal that is not UTF-8.
-MARKS = {"separator": "│", "cut": "…", "plain": False}
+## A frame is its corner at the top left, its line across, its corner at the top right,
+## its line down, and its corners at the bottom; "rule" is the line that parts two groups
+## of a menu, with its ends.
+MARKS = {"separator": "│", "cut": "…", "plain": False,
+         "frame": "┌─┐│└┘", "frameOn": "╔═╗║╚╝", "rule": "├─┤", "shade": "░", "system": "≡",
+         "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■"}
 MARK_SELECTED = ">"
 MARK_READING = "~"
 MARK_OLD = "!"
@@ -141,21 +193,229 @@ CALL_NAME = "--session-name-or-comment"
 ## The word that confirms a kill, typed whole.
 KILL_WORD = "yes"
 
-## The key that reads now what is shown, without waiting for the period.
-KEY_READ_NOW = "F5"
-## The keys that act on what is selected: the key, and the name of its action.
-ACTION_KEYS = (
-    ("k", "kill"),
-    ("c", "control"),
-    ("p", "pause"),
-    ("r", "resume"),
-    ("s", "stop"),
-    ("R", "restart"),
-    ("l", "log"),
-    ("n", "start"),
+## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
+
+## The styles of the interface, in the order the screen offers them: the name of each, and
+## what it is. "label": what it shows as. "frames": the windows stand in frames on a desktop,
+## under a menu bar and over a status line; without them the screen is compact, two panes
+## between two status lines with one column between them and nothing spent on frames.
+## "colours": it is drawn in the colours of LOOKS where the terminal has them; without them,
+## and on a terminal that has none, in bold, reverse and dim alone. The same windows, menus,
+## commands and keys are drawn in every style: adding a style is adding an entry here.
+STYLES = (
+    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True}),
+    ("mc", {"label": "MC (Compact)", "frames": False, "colours": False}),
+    ("bw", {"label": "B/W", "frames": True, "colours": False}),
 )
+## The style a screen starts in where nothing names another, and the variable of the
+## environment that names one for a start.
+STYLE_FIRST = "tv"
+STYLE_VARIABLE = "MDAT_MANAGER_STYLE"
+## The style the screen is drawn in now: its entry of STYLES, and under "name" its name.
+STYLE = dict(dict(STYLES)[STYLE_FIRST], name=STYLE_FIRST)
+
+
+## Takes the style of that name for what is drawn from now on. Gives whether there is one.
+def setStyle(name):
+    if name not in dict(STYLES):
+        return False
+    STYLE.clear()
+    STYLE.update(dict(STYLES)[name], name=name)
+    return True
+
+
+
+## The windows of the desktop, tiled. Each is declared by its name; the function that gives
+## its title, which stands in the middle of its top border; its place, the side it stands
+## on and, for one that does not take the rest, how many tenths of the width; what it
+## shows; and the commands that apply in it alone. "shows" names the body the engine
+## draws in it, "rows" a list with a selection or "lines" what is selected there, and the
+## entries of READS it is filled from, by what their names begin with: the operation and
+## the form of its rows stand there. "foot" names the function whose text stands in its
+## bottom border, and "bar" says that its right border is a scroll bar while it holds more
+## than it shows. A command that no window names applies in every window.
+WINDOWS = (
+    {"name": "view", "title": "viewTitle", "place": {"side": "left"},
+     "shows": {"body": "lines", "reads": ("view", "feed")}, "foot": "countersText",
+     "commands": ()},
+    {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
+     "shows": {"body": "rows", "reads": ("list",)}, "foot": "loadText", "bar": True,
+     "commands": ("launch", "prompt", "open", "up", "filter")},
+)
+## The window the keys go to when the screen starts.
+WINDOW_FIRST = "list"
+
+## The menus of the menu bar, in their order: the name of each and what it shows as, its hot
+## letter between tildes. Alt with that letter opens it, and F10 opens the first.
+MENUS = (
+    ("go", "~G~o"),
+    ("session", "~S~ession"),
+    ("member", "~M~ember"),
+    ("view", "~V~iew"),
+    ("help", "~H~elp"),
+)
+
+## The commands, each declared once. "keys": its keys, the first being the one its menu and
+## the status line show. "menu": its menu and its group there, a line parting two groups,
+## and "label" what it shows as there, its hot letter between tildes. "status": its word in
+## the status line, shown while it applies. "on": the rows it acts on, by their level and
+## kind; with none it acts wherever its window has the keys. "only": its key is its own on
+## those rows alone, and another command's elsewhere. "does": what it does. ("action",
+## <name>) is the handler of that action (ACTION_HANDLERS) with the selected row, which
+## asks first where it must and then calls the operations "calls" names in CALLS; while
+## its handler is not built the command does not apply. ("go", <path>) takes the list to
+## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
+## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit". A command comes
+## to a menu, to the status line and to its key from this one place: adding one is adding
+## an entry here. Where two commands share a key, the first that applies has it.
+COMMANDS = (
+    {"name": "help", "keys": ("F1",), "menu": ("help", 1), "label": "~K~eys", "status": "Help",
+     "does": ("action", "help")},
+    {"name": "read", "keys": ("F5",), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
+     "does": ("read",)},
+    {"name": "menu", "keys": ("F10",), "status": "Menu", "does": ("menu",)},
+    {"name": "exit", "keys": ("ALT-x", "q"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
+     "does": ("quit",)},
+    {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
+     "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
+    {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start",
+     "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+    {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
+     "does": ("open",)},
+    {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
+     "does": ("up",)},
+    {"name": "focus", "keys": ("TAB", "F6"), "menu": ("view", 2), "label": "~N~ext window", "status": "Window",
+     "does": ("focus",)},
+    {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": "All/active",
+     "does": ("filter",)},
+    {"name": "style", "keys": ("F9",), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
+    {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
+    {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control",
+     "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
+    {"name": "pause", "keys": ("p",), "menu": ("session", 3), "label": "~P~ause",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
+    {"name": "resume", "keys": ("r",), "menu": ("session", 3), "label": "~R~esume",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
+    {"name": "stop", "keys": ("s",), "menu": ("session", 3), "label": "~S~top",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
+    {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
+    {"name": "log", "keys": ("l",), "menu": ("session", 1), "label": "~L~og: feed or raw", "status": "Log",
+     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "log")},
+    {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
+     "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
+    {"name": "sessions", "keys": ("ALT-1",), "menu": ("go", 1), "label": "~S~essions / Activity",
+     "does": ("go", ("sessions",))},
+    {"name": "pending", "keys": ("ALT-2",), "menu": ("go", 1), "label": "~P~ending Questions",
+     "does": ("go", ("pending",))},
+    {"name": "team", "keys": ("ALT-3",), "menu": ("go", 1), "label": "~T~eam Members",
+     "does": ("go", ("team",))},
+    {"name": "settings", "keys": ("ALT-4",), "menu": ("go", 1), "label": "Settings / ~C~onfiguration",
+     "does": ("go", ("settings",))},
+    {"name": "spawn", "keys": ("ALT-5",), "menu": ("go", 2), "label": "~L~aunch / Spawn",
+     "does": ("go", ("sessions", "launch"))},
+    {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
+    {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
+    {"name": "page-up", "keys": ("PGUP",), "does": ("move", 0, -1)},
+    {"name": "page-down", "keys": ("PGDN",), "does": ("move", 0, 1)},
+)
+## What the status line shows in place of the commands while something else has the keys:
+## a pull-down menu, the line to type in. Each a key and its word. A dialog names its own
+## keys, from CONTROL_KINDS. The status line names no key but those that act for what has
+## the keys now.
+STATUS_KEYS = {
+    "menu": (("Enter", "Choose"), ("Esc", "Close"), ("Left/Right", "Menus"), ("Up/Down", "Items")),
+    "line": (("Enter", "OK"), ("Esc", "Cancel")),
+}
+## How the name of a key shows in a menu and in the status line, where it is not its own name.
+KEY_WORDS = {"ENTER": "Enter", "TAB": "Tab", "ESC": "Esc", "LEFT": "Left", "RIGHT": "Right",
+             "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn"}
+
+## ---- the declaration of the dialogs ----
+
+## The kinds of control a dialog is made of. "focus": whether the keys go to one of that
+## kind. "keys": the keys it takes while they do, each as the status line names it, with
+## its word. Tab and Shift-Tab go to the next control and to the one before, Enter presses
+## the first button of the dialog, or the button the keys are on, and Esc closes it and
+## does nothing: those are every dialog's.
+CONTROL_KINDS = {
+    ## a text, broken to the dialog; one longer than its room scrolls
+    "text": {"focus": False, "keys": ()},
+    ## one line to type in
+    "input": {"focus": True, "keys": ()},
+    ## several lines to type in: Enter there is a new line, and a button is reached by Tab
+    "area": {"focus": True, "keys": (("Enter", "New line"),)},
+    ## boxes, any number of them checked: [X]
+    "checks": {"focus": True, "keys": (("Space", "Toggle"), ("Up/Down", "Move"))},
+    ## radio buttons, one of them chosen: (*)
+    "radios": {"focus": True, "keys": (("Space", "Choose"), ("Up/Down", "Move"))},
+    ## a list: the row its bar is on is the one picked
+    "list": {"focus": True, "keys": (("Up/Down", "Pick"),)},
+    ## a button of the dialog
+    "button": {"focus": True, "keys": (("Left/Right", "Buttons"),)},
+}
+## The dialogs, each declared once by its name. "title": what stands in its top border,
+## where the one that opens it gives no other. "controls": its controls from the top, each
+## with its name, its kind of CONTROL_KINDS and, for one that is not a text, its "label",
+## the line above it. "buttons": its buttons, the name of each and what it shows as between
+## brackets; the first is the one Enter presses, and one named "cancel" does what Esc does.
+## "feeds": the command of COMMANDS it asks for, or the commands, whose operations its
+## handler calls (DIALOG_HANDLERS); a dialog with none only says something. "first": the
+## control the keys are on when it opens, where that is not its first one. "reads": the entries of
+## READS that are read while it is open, since it offers what they give (DIALOG_FILLS).
+## A control of options may say under "empty" what stands in it while it has none. What a
+## dialog cannot know before it is opened, a text, the options of a list, comes from the
+## one that opens it (openDialog). One engine draws them all and gives them the keys, in every style: adding
+## a dialog is adding an entry here and, where it does something, its handler.
+DIALOGS = {
+    ## what the screen refuses, and what an operation answered when it failed, whole
+    "message": {"title": "Message", "controls": ({"name": "text", "kind": "text"},),
+                "buttons": (("ok", "OK"),)},
+    ## why something cannot be done with what is selected, set out by its facts
+    "information": {"title": "Information", "controls": ({"name": "text", "kind": "text"},),
+                    "buttons": (("ok", "OK"),)},
+    ## the members a routine that any member executes is started with, in one session, and
+    ## what that session is to work on
+    "members": {"title": "Start the routine with members", "feeds": "launch", "reads": ("list:team",),
+                "controls": ({"name": "about", "kind": "text"},
+                             {"name": "members", "kind": "checks", "label": "Members",
+                              "empty": "the members are being read"},
+                             {"name": "task", "kind": "input", "label": "What the session is to work on"}),
+                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## the start of a routine the spawner starts as its executors: what its session is to
+    ## work on, and the name of that session
+    "routine": {"title": "Start the routine", "feeds": "launch",
+                "controls": ({"name": "about", "kind": "text"},
+                             {"name": "task", "kind": "input", "label": "What the session is to work on"},
+                             {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
+                "buttons": (("start", "Start"), ("cancel", "Cancel"))},
+    ## a prompt and who runs it: the free prompt of `Launch / Spawn`, and the start of one
+    ## member; the keys are on the prompt first
+    "prompt": {"title": "Free prompt", "feeds": ("prompt", "start"), "reads": ("list:team",), "first": "prompt",
+               "controls": ({"name": "about", "kind": "text"},
+                            {"name": "who", "kind": "list", "label": "Who runs it"},
+                            {"name": "prompt", "kind": "area", "label": "Prompt"},
+                            {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
+               "buttons": (("start", "Start"), ("cancel", "Cancel"))},
+}
+## The handler of each dialog that does something: handler(state, dialog, button) is called
+## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
+## or it gives what it refuses, which then stands in the dialog, and the dialog stays open.
+## Set where each is defined.
+DIALOG_HANDLERS = {}
+## What fills a dialog from what was read, while it is open: fill(state, dialog), called at
+## every turn of the screen. Set where each is defined.
+DIALOG_FILLS = {}
+## The width a dialog takes at most, and how many lines of a list of options and of a
+## field of several lines it shows, where the terminal has them.
+DIALOG_COLUMNS = 72
+DIALOG_OPTIONS = 8
+DIALOG_AREA = 4
+
 ## The handler of each action: handler(state, row) gives the text for the bottom line, or
-## None. Where it must ask first it opens a dialog with openDialog(). None here: the task of
+## None. Where it must ask first it opens a dialog with openDialog(), and what it refuses it
+## says in a box (tell). None here: the task of
 ## that action has not built it.
 ACTION_HANDLERS = {
     ## asks for the typed word, then kills the selected session or agent: askKill, set where it is defined
@@ -173,27 +433,12 @@ ACTION_HANDLERS = {
     "prompt": None,
     ## starts the selected team member with a prompt: askStart, set where it is defined
     "start": None,
-}
-## The actions that act on a row, by its level and the kind of the row. The left pane names
-## the keys of those whose handler is built under the item; the bottom line keeps the keys
-## of the screen. An ask has none: no key answers one, and answering in the manager comes
-## to stand here.
-ITEM_ACTIONS = {
-    "sessions:record": ("kill", "control", "pause", "resume", "stop", "restart", "log"),
-    "sessions/*:record": ("kill", "pause", "resume", "stop", "restart", "log"),
-    "pending:record": (),
-    "team:record": ("start",),
-}
-## What Enter does on a row that is not dived into, by its level and the kind of the row:
-## the name of its action. The left pane names it `Enter start`.
-ENTER_ACTIONS = {
-    "sessions/launch:free": "prompt",
-    "sessions/launch:record": "launch",
+    ## shows the keys of the screen, from COMMANDS: the task of the help window builds it
+    "help": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
-## An action with no entry acts on every row ITEM_ACTIONS and ENTER_ACTIONS give it.
+## An action with no entry acts on every row COMMANDS gives it.
 ACTION_FITS = {}
-HINTS = "q quit  Tab pane  Enter open  Left up  a all/active  F5 read"
 
 
 ## Everything the screen knows between two keys. Nothing here is the terminal's.
@@ -205,8 +450,11 @@ class ManagerState:
         self.path = []
         ## the selection of each level: level key -> {"key", "index", "top"}
         self.cursors = {}
-        ## which pane the keys move in: "list" on the right, "view" on the left
-        self.focus = "list"
+        ## which window is active and has the keys: "list" on the right, "view" on the left
+        self.focus = WINDOW_FIRST
+        ## the pull-down menu that is open: {"menu", "item"}, its place in MENUS and the place
+        ## of the item its bar is on
+        self.menu = None
         self.activeOnly = False
         ## the rows the last good read of each level gave: level key -> rows
         self.rows = {}
@@ -214,8 +462,11 @@ class ManagerState:
         self.view = newView(None, False)
         ## whether the left pane of a session or an agent shows the raw log in place of the feed
         self.rawLog = False
-        ## the bottom line while something is typed: {"prompt", "text", "onSubmit", "lines"}
+        ## the line to type in while it is open: {"prompt", "text", "onSubmit", "lines"}
+        self.line = None
+        ## the dialog that is open and has the keys (openDialog), and those that wait for it to close
         self.dialog = None
+        self.waiting = []
         self.notice = ""
         self.noticeOf = None
         ## the reads: when each was last started and with which words, which failed last
@@ -338,9 +589,8 @@ def wrapToCells(text, width):
 
 ## For a terminal that is not UTF-8: marks of one byte, and plainText() for what is drawn.
 def plainMarks():
-    MARKS["separator"] = "|"
-    MARKS["cut"] = "+"
-    MARKS["plain"] = True
+    MARKS.update({"separator": "|", "cut": "+", "plain": True, "frame": "+-+|++", "frameOn": "#=#|##", "rule": "+-+",
+                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#"})
 
 
 ## A text for a terminal that is not UTF-8: what it cannot show becomes `?`, cell for cell.
@@ -351,18 +601,56 @@ def plainText(text):
 
 ## ---- the layout ----
 
-## Where everything stands at that size, or None where the terminal is too small. The list
-## takes three tenths of the width, between a quarter and a third; one column parts the
-## panes. The first and the last line are the status lines, the second holds the titles,
-## and the last line of the left pane is the line to type in.
+## Where each window of WINDOWS stands at that size, by its name: its left column, its top
+## line, its width and its height, its frame counted in. The windows fill the desktop, the
+## lines between the menu bar and the status line: one with tenths takes them of the
+## width, on its side, and the one without takes the rest.
+def windowBoxes(columns, lines):
+    boxes = {}
+    left, right = 0, columns
+    for window in WINDOWS:
+        if "tenths" in window["place"]:
+            width = columns * window["place"]["tenths"] // 10
+            if window["place"]["side"] == "right":
+                right -= width
+                boxes[window["name"]] = (right, 1, width, lines - 2)
+            else:
+                boxes[window["name"]] = (left, 1, width, lines - 2)
+                left += width
+    for window in WINDOWS:
+        if window["name"] not in boxes:
+            boxes[window["name"]] = (left, 1, right - left, lines - 2)
+    return boxes
+
+
+## Where everything stands at that size in the style of now, or None where the terminal
+## is too small. With frames: the
+## first line is the menu bar and the last the status line; between them is the desktop
+## with its windows, each in its frame: the list takes three tenths of the width, between
+## a quarter and a third, and the window on the left the rest. "viewWidth" is the left
+## window less its right border, which stands in the column "separator"; the list stands
+## from "listLeft", "listWidth" wide with its frame. Both hold as many lines as the
+## desktop has less their borders. "inputLine" is the line of the left window's bottom
+## border: the line to type in is drawn there while it is open.
 def layoutOf(columns, lines):
     if columns < MIN_COLUMNS or lines < MIN_LINES:
         return None
-    listWidth = columns * 3 // 10
-    viewWidth = columns - listWidth - 1
+    if not STYLE["frames"]:
+        ## the compact style: the first and the last line are the status lines, the second
+        ## holds the titles, one column parts the panes, and the last line of the left pane
+        ## is the line to type in, beside which the list goes on
+        listWidth = columns * 3 // 10
+        viewWidth = columns - listWidth - 1
+        return {"columns": columns, "lines": lines, "boxes": None, "viewWidth": viewWidth, "separator": viewWidth,
+                "listLeft": viewWidth + 1, "listWidth": listWidth, "topLine": 0, "titleLine": 1, "bodyTop": 2,
+                "viewHeight": lines - 4, "listHeight": lines - 3, "inputLine": lines - 2, "bottomLine": lines - 1}
+    boxes = windowBoxes(columns, lines)
+    listWidth = boxes["list"][2]
+    viewWidth = boxes["view"][2] - 1
     return {
         "columns": columns,
         "lines": lines,
+        "boxes": boxes,
         "viewWidth": viewWidth,
         "separator": viewWidth,
         "listLeft": viewWidth + 1,
@@ -371,7 +659,7 @@ def layoutOf(columns, lines):
         "titleLine": 1,
         "bodyTop": 2,
         "viewHeight": lines - 4,
-        "listHeight": lines - 3,
+        "listHeight": lines - 4,
         "inputLine": lines - 2,
         "bottomLine": lines - 1,
     }
@@ -627,20 +915,30 @@ def localView(state, row):
     return None
 
 
-## The keys that act on the selected row, as the left pane names them under the item: the
-## actions ITEM_ACTIONS gives its level and kind, and ahead of them Enter where it starts
-## something there (ENTER_ACTIONS), each once its handler is built and while it acts on
-## the row as it is now.
+## The level and the kind of a row, as COMMANDS names the rows a command acts on.
+def placeOf(state, row):
+    return levelPattern(state.path) + ":" + row["kind"] if row is not None else ""
+
+
+## The keys that act on the selected row, as the left window names them under the item:
+## the actions COMMANDS gives its level and kind, in their order, and ahead of them the
+## key that starts something there and is another command's elsewhere, each once its
+## handler is built and while it acts on the row as it is now.
 def itemKeysText(state):
     row = selectedRow(state)
     if row is None:
         return ""
-    place = levelPattern(state.path) + ":" + row["kind"]
-    actions = ITEM_ACTIONS.get(place, ())
-    keys = ["%s %s" % (key, actionName) for key, actionName in ACTION_KEYS
-            if actionName in actions and actionShown(state, row, actionName)]
-    if place in ENTER_ACTIONS and actionShown(state, row, ENTER_ACTIONS[place]):
-        keys.insert(0, "Enter start")
+    place = placeOf(state, row)
+    keys = []
+    for command in COMMANDS:
+        if command["does"][0] != "action" or place not in command.get("on", ()):
+            continue
+        if not actionShown(state, row, command["does"][1]):
+            continue
+        if command.get("only"):
+            keys.insert(0, "%s start" % keyShown(command["keys"][0]))
+        else:
+            keys.append("%s %s" % (command["keys"][0], command["does"][1]))
     return "keys: " + "  ".join(keys) if keys else ""
 
 
@@ -656,7 +954,7 @@ def actionShown(state, row, actionName):
 ## How many lines of the left pane its content has: one less where the keys of the item
 ## stand under it; and while a line is typed in, less by what that line says above itself.
 def viewContentHeight(state, layout):
-    said = dialogSays(state, layout["viewWidth"], layout["viewHeight"])
+    said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
     if said:
         return layout["viewHeight"] - len(said)
     return layout["viewHeight"] - (1 if itemKeysText(state) else 0)
@@ -784,8 +1082,9 @@ def parsePendingRows(text):
 
 ## The counters a read carries, for the status lines: the last row of the list of the
 ## sessions, `counters` and then the sessions running and paused, the agents working and
-## waiting, the asks that wait and the load average of the host, each as it is printed.
-COUNTER_NAMES = ("running", "paused", "working", "waiting", "pending", "load")
+## waiting, the asks that wait, the load average of the host and last the name of that
+## host, each as it is printed. A row of an earlier form ends before the name.
+COUNTER_NAMES = ("running", "paused", "working", "waiting", "pending", "load", "host")
 
 
 def readCounters(form, text):
@@ -1354,7 +1653,7 @@ def buildFeed(state, row):
 ## run, of every run for a session. What it showed is taken away, and the other is read.
 def switchLog(state, row):
     if row is None or viewReadOf(state, row, "feed") is None:
-        return "l: this item has no feed and no log"
+        return tell(state, "Log", "l: this item has no feed and no log")
     state.rawLog = not state.rawLog
     view = state.view
     view["feed"], view["lines"], view["lineKeys"], view["top"], view["follow"] = None, [], [], 0, True
@@ -1398,11 +1697,19 @@ def routineName(selector, owner):
     return name
 
 
+## Whether a routine is started only with members named: the list says so in the last
+## field of its row, of a routine that is not startable for that cause alone, its
+## executors being any member.
+def routineAsksMembers(routine):
+    return routine["start"] == "not-startable" and routine.get("needs") == "members"
+
+
 ## What `--manager-routine-list` printed, as rows: `routine` rows of TAB-separated fields,
 ## in the order they come, by owner and then by selector. A routine shows by its selector
 ## without `.routine.md`. One the session spawner would not start with no member named
 ## shows plainer: dimmed, with what the operation says of it, `not-startable` or `broken`,
-## at the end of its row. Why stands in the left pane, and Enter does not start it. The id
+## at the end of its row. Why stands in the left pane, and Enter does not start it. One
+## that is started only with members named shows `members` there, and Enter asks for them. The id
 ## of a row is the owner and the selector, since two folders may hold a file of one name.
 def parseRoutineRows(text):
     rows = []
@@ -1414,9 +1721,13 @@ def parseRoutineRows(text):
                    "session": unspaced(fields[5]), "title": unspaced(fields[7]), "reason": unspaced(fields[8]),
                    "name": routineName(fields[1], fields[2])}
         label = fields[1][:-len(ROUTINE_SUFFIX)] if fields[1].endswith(ROUTINE_SUFFIX) else fields[1]
+        routine["label"] = label
+        routine["needs"] = fields[9] if len(fields) > 9 else "-"
         row = newRow(fields[2] + "/" + fields[1], label, "record", False, fields)
         row["routine"] = routine
-        if routine["start"] != "startable":
+        if routineAsksMembers(routine):
+            row["tail"] = "members"
+        elif routine["start"] != "startable":
             row["tail"] = routine["start"]
             row["look"] = DIM
         rows.append(row)
@@ -1435,17 +1746,18 @@ def routineLines(routine, width):
         ("executors", routine["executors"]),
         ("session", "coworking: the spawner adds magic-coordinator to it" if routine["session"] == "coworking" else routine["session"]),
         ("start", "Enter starts it, as its executors, whoever is at the console" if startable
+         else "Enter asks for the members to start it with, in one session" if routineAsksMembers(routine)
          else "%s: Enter does not start it" % routine["start"]),
         ("name", "%s, the name its session takes unless another is typed" % routine["name"] if startable else ""),
         ("why", "" if startable else routine["reason"]),
     ], width)
 
 
-## The free prompt for the left pane: what a line typed there starts.
+## The free prompt for the left pane: what a prompt typed there starts.
 def freePromptLines(width):
     lines = []
-    for text in ("A line typed here starts a new coworking session, opened by the coordinator, with that line as its brief.",
-                 "Enter opens the line to type in. An empty line starts nothing."):
+    for text in ("A prompt typed here starts a new coworking session, opened by the coordinator, with that prompt as its brief.",
+                 "Enter opens its dialog: who runs it, the prompt, the name of the session. An empty prompt starts nothing."):
         lines.extend(wrapToCells(text, max(10, width - 1)))
     return lines
 
@@ -1467,18 +1779,18 @@ def routinesSummary(state):
 ## the line then shows, or None; Esc closes the line and calls nothing. `text` stands in
 ## the line from the start, to be typed over. `lines` is what the line says of itself:
 ## it is shown above the line, at the foot of the left pane, while the line is open.
-def openDialog(state, prompt, onSubmit, text="", lines=None):
-    state.dialog = {"prompt": prompt, "text": text, "onSubmit": onSubmit, "lines": list(lines or ())}
+def openLine(state, prompt, onSubmit, text="", lines=None):
+    state.line = {"prompt": prompt, "text": text, "onSubmit": onSubmit, "lines": list(lines or ())}
 
 
 ## What the open line says above itself, as lines of the left pane: a line longer than the
 ## pane is broken, and there are no more of them than the pane has lines. Empty with no
 ## line open, and for a line that says nothing of itself.
-def dialogSays(state, width, height):
-    if state.dialog is None or not state.dialog.get("lines"):
+def lineSays(state, width, height):
+    if state.line is None or not state.line.get("lines"):
         return []
     lines = []
-    for text in state.dialog["lines"]:
+    for text in state.line["lines"]:
         if textWidth(text) <= width - 1:
             lines.append(text)
         else:
@@ -1486,14 +1798,14 @@ def dialogSays(state, width, height):
     return lines[:max(0, height)]
 
 
-def dialogKey(state, key):
-    dialog = state.dialog
+def lineKey(state, key):
+    dialog = state.line
     if key == "ESC":
-        state.dialog = None
+        state.line = None
         state.notice = ""
         state.noticeOf = None
     elif key == "ENTER":
-        state.dialog = None
+        state.line = None
         state.notice = dialog["onSubmit"](state, dialog["text"]) or ""
         state.noticeOf = None
     elif key == "BACKSPACE":
@@ -1501,6 +1813,346 @@ def dialogKey(state, key):
     elif len(key) == 1:
         ## a key that has a name is longer than one character: this one was typed
         dialog["text"] += key
+
+
+## ---- the dialogs ----
+
+## Opens the dialog of that name of DIALOGS over the screen: it has the keys until it is
+## closed. `fill` gives its controls what the declaration cannot know, by their names:
+## under "lines" the paragraphs of a text, each a text, or a pair of a name and its value,
+## which are set out as the facts of the left window are; under "options" the boxes, the
+## radio buttons or the rows of a list, the id of each and what it shows as; under "value"
+## what a control holds at first, a text, the id that is chosen, or the ids that are
+## checked. `about` is kept for its handler. `title` stands in place of the declared one.
+## A dialog opened while another is open waits for that one to close.
+def openDialog(state, name, fill=None, about=None, title=None):
+    declared = DIALOGS[name]
+    controls = []
+    for control in declared["controls"]:
+        held = dict(control, lines=[], options=[], value=[] if control["kind"] == "checks" else "", top=0, at=0)
+        held.update((fill or {}).get(control["name"], {}))
+        ids = [option[0] for option in held["options"]]
+        if control["kind"] == "checks":
+            held["value"] = list(held["value"])
+        elif control["kind"] in ("radios", "list") and ids:
+            if held["value"] not in ids:
+                held["value"] = ids[0]
+            held["at"] = ids.index(held["value"])
+        controls.append(held)
+    dialog = {"name": name, "title": title or declared["title"], "controls": controls,
+              "buttons": list(declared["buttons"]), "about": about or {}, "says": "", "focus": 0, "plan": None}
+    for place, (sort, index) in enumerate(dialogStops(dialog)):
+        if sort == "control" and controls[index]["name"] == declared.get("first"):
+            dialog["focus"] = place
+    if state.dialog is None:
+        state.dialog = dialog
+        state.menu = None
+    else:
+        state.waiting.append(dialog)
+    return dialog
+
+
+## Closes the dialog that is open: the next one that waits opens, or the keys go back to
+## the windows.
+def closeDialog(state):
+    state.dialog = state.waiting.pop(0) if state.waiting else None
+
+
+## The message box: what the screen refuses, or what an operation answered when it failed,
+## with its whole text under that title. `text` is one paragraph, or several as openDialog
+## takes them. Gives an empty text, for a handler of an action to give back: the status
+## line then says nothing, the box has said it.
+def tell(state, title, text, name="message"):
+    openDialog(state, name, {"text": {"lines": [text] if isinstance(text, str) else list(text)}}, title=title)
+    return ""
+
+
+## Where the keys of a dialog can be: its controls that take them, from the top, and after
+## them its buttons. Each as its sort, "control" or "button", and its place among those.
+def dialogStops(dialog):
+    stops = [("control", index) for index, control in enumerate(dialog["controls"])
+             if CONTROL_KINDS[control["kind"]]["focus"]]
+    return stops + [("button", index) for index in range(len(dialog["buttons"]))]
+
+
+## What has the keys in a dialog: its kind of CONTROL_KINDS, its place among the controls
+## or among the buttons, and the control itself, or None for a button.
+def dialogFocus(dialog):
+    sort, index = dialogStops(dialog)[dialog["focus"]]
+    if sort == "button":
+        return "button", index, None
+    return dialog["controls"][index]["kind"], index, dialog["controls"][index]
+
+
+## The control of that name of a dialog, and what it holds.
+def dialogControl(dialog, name):
+    for control in dialog["controls"]:
+        if control["name"] == name:
+            return control
+    return None
+
+
+def dialogValue(dialog, name):
+    control = dialogControl(dialog, name)
+    return control["value"] if control else None
+
+
+## A button of the open dialog is pressed. "cancel", and any button of a dialog that only
+## says something, closes it. Any other goes to its handler: what that refuses stays in
+## the dialog, which stays open; else the dialog closes.
+def pressButton(state, buttonName):
+    dialog = state.dialog
+    handler = DIALOG_HANDLERS.get(dialog["name"])
+    if buttonName == "cancel" or handler is None:
+        closeDialog(state)
+        return
+    dialog["says"] = handler(state, dialog, buttonName) or ""
+    if not dialog["says"] and state.dialog is dialog:
+        closeDialog(state)
+
+
+## One key while a dialog is open. Tab and Shift-Tab move between its controls and its
+## buttons, around at the ends. Enter presses its first button, or the button the keys are
+## on; in a field of several lines it is a new line. Esc closes it and does nothing. Space
+## toggles a box, chooses a radio button and presses the button the keys are on; Up and
+## Down move among boxes and radio buttons and pick in a list; Left and Right go from
+## button to button. In a field what is typed is added and Backspace takes the last of it
+## away. PgUp and PgDn scroll a text longer than its room, and so do Up and Down wherever
+## they mean nothing else. No key of a window, of a menu or of the screen works here.
+def dialogKey(state, key):
+    dialog = state.dialog
+    what, index, control = dialogFocus(dialog)
+    stops = dialogStops(dialog)
+    if key == "ESC":
+        closeDialog(state)
+    elif key in ("TAB", "BACKTAB"):
+        dialog["focus"] = (dialog["focus"] + (1 if key == "TAB" else -1)) % len(stops)
+    elif key == "ENTER" and what == "area":
+        control["value"] += "\n"
+    elif key == "ENTER" or (key == " " and what == "button"):
+        pressButton(state, dialog["buttons"][index if what == "button" else 0][0])
+    elif what == "button" and key in ("LEFT", "RIGHT"):
+        dialog["focus"] = len(stops) - len(dialog["buttons"]) + (index + (1 if key == "RIGHT" else -1)) % len(dialog["buttons"])
+    elif what in ("input", "area") and key == "BACKSPACE":
+        control["value"] = control["value"][:-1]
+    elif what in ("input", "area") and len(key) == 1:
+        ## a key that has a name is longer than one character: this one was typed
+        control["value"] += key
+    elif what in ("checks", "radios", "list") and key in ("UP", "DOWN") and control["options"]:
+        control["at"] = max(0, min(len(control["options"]) - 1, control["at"] + (1 if key == "DOWN" else -1)))
+        if what == "list":
+            control["value"] = control["options"][control["at"]][0]
+    elif what == "checks" and key == " " and control["options"]:
+        chosen = control["options"][control["at"]][0]
+        if chosen in control["value"]:
+            control["value"].remove(chosen)
+        else:
+            control["value"].append(chosen)
+    elif what == "radios" and key == " " and control["options"]:
+        control["value"] = control["options"][control["at"]][0]
+    elif key in ("UP", "DOWN", "PGUP", "PGDN"):
+        page = max(1, (dialog["plan"] or {}).get("page", 1))
+        step = (1 if key in ("DOWN", "PGDN") else -1) * (page if key.startswith("PG") else 1)
+        for held in dialog["controls"]:
+            if held["kind"] == "text":
+                ## its end is held where it is drawn, which knows how many lines it shows
+                held["top"] = max(0, held["top"] + step)
+                break
+
+
+## The keys the status line names while a dialog is open: those of the control that has
+## the keys, from CONTROL_KINDS, then what Enter presses, Tab where there is more than one
+## place for the keys, what scrolls a text longer than its room, and Esc.
+def dialogStatus(dialog):
+    what, index, control = dialogFocus(dialog)
+    items = [item for item in CONTROL_KINDS[what]["keys"] if what != "button" or len(dialog["buttons"]) > 1]
+    if what != "area":
+        items.append(("Enter", dialog["buttons"][index if what == "button" else 0][1]))
+    if len(dialogStops(dialog)) > 1:
+        items.append(("Tab", "Next"))
+    if (dialog["plan"] or {}).get("long"):
+        items.append(("Up/Down" if what in ("input", "area", "button") else "PgUp/PgDn", "Scroll"))
+    items.append(("Esc", "Cancel" if "cancel" in [button[0] for button in dialog["buttons"]] else "Close"))
+    return items
+
+
+## The paragraphs of a text of a dialog as lines of that width: a text is broken between
+## words, and pairs that follow one another are set out as facts, their names in a column.
+def dialogTextLines(control, width):
+    lines = []
+    pairs = []
+    for paragraph in list(control["lines"]) + [None]:
+        if isinstance(paragraph, tuple):
+            pairs.append(paragraph)
+            continue
+        if pairs:
+            lines.extend(fieldLines(pairs, width))
+            pairs = []
+        if paragraph is not None:
+            lines.extend(wrapToCells(paragraph, width))
+    return lines
+
+
+## What was typed into a field of several lines, as lines of that width: a new line where
+## one was typed, and where a line is full.
+def areaLines(text, width):
+    lines = []
+    for typed in text.split("\n"):
+        line = ""
+        used = 0
+        for cluster, clusterWidth in textCells(typed):
+            if used + clusterWidth > width:
+                lines.append(line)
+                line = ""
+                used = 0
+            line += cluster
+            used += clusterWidth
+        lines.append(line)
+    return lines
+
+
+## Where a dialog stands on a terminal of that size, and each of its parts in it: its box,
+## in the middle of the desktop, as wide as what it holds asks for, between forty cells
+## and DIALOG_COLUMNS, and never wider than the terminal less two cells at each side; how
+## wide its inside is; each control with the line of its label, its first line and how
+## many lines it has; the lines of what it refuses and the line of its buttons, the last
+## inside its frame. Where the terminal has not the lines for all of it, a text gives its
+## lines first, down to one, then a list of options, then a field of several lines, and
+## last the empty lines between the controls: what is cut there scrolls. "long" says that
+## a text holds more than it shows, and "page" how many lines of it show.
+def dialogPlan(dialog, columns, lines):
+    wanted = max(textWidth(dialog["title"]) + 2, sum(textWidth(label) + 6 for name, label in dialog["buttons"]))
+    for control in dialog["controls"]:
+        wanted = max(wanted, textWidth(control.get("label", "")))
+        if control["kind"] in ("input", "area"):
+            wanted = max(wanted, 52)
+        for paragraph in control["lines"]:
+            wanted = max(wanted, 11 + textWidth(paragraph[1]) if isinstance(paragraph, tuple) else textWidth(paragraph))
+        for optionId, label in control["options"]:
+            wanted = max(wanted, textWidth(label) + 4)
+    width = min(columns - 4, max(40, min(wanted + 4, DIALOG_COLUMNS)))
+    inner = width - 4
+    room = lines - 4
+    parts = []
+    for index, control in enumerate(dialog["controls"]):
+        kind = control["kind"]
+        holds = len(dialogTextLines(control, inner)) if kind == "text" else len(control["options"])
+        height = 1 if kind == "input" else DIALOG_AREA if kind == "area" else max(1, holds) if kind == "text" else max(1, min(holds, DIALOG_OPTIONS))
+        parts.append({"index": index, "kind": kind, "label": 1 if control.get("label") else 0, "height": height, "holds": holds})
+    says = wrapToCells(dialog["says"], inner)[:2] if dialog["says"] else []
+    gap = 1
+    over = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + 1 - room
+    for kinds in (("text",), ("checks", "radios", "list"), ("area",)):
+        for part in parts:
+            if over > 0 and part["kind"] in kinds:
+                cut = min(over, part["height"] - 1)
+                part["height"] -= cut
+                over -= cut
+    if over > 0:
+        gap = 0
+    inside = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + 1
+    height = max(1, min(inside, room)) + 2
+    left = (columns - width) // 2
+    top = 1 + max(0, (lines - 2 - height) // 2)
+    line = top + 1
+    for part in parts:
+        part["labelLine"] = line if part["label"] else None
+        part["line"] = line + part["label"]
+        line += part["label"] + part["height"] + gap
+    texts = [part for part in parts if part["kind"] == "text"]
+    return {"box": (left, top, width, height), "inner": inner, "parts": parts, "says": says, "saysLine": line,
+            "buttonsLine": top + height - 2,
+            "long": any(part["holds"] > part["height"] for part in texts),
+            "page": texts[0]["height"] if texts else 1}
+
+
+## The open dialog, drawn over the screen from its declaration and its plan: its frame
+## with its title, in the style with colours its shadow, each control, what it refuses,
+## and its buttons. The control that has the keys, or the item of it they are on, stands
+## in a look of its own, and a field that has them shows the cursor after what was typed.
+## A mark at the right says that a text, or a list of options, goes on above or below.
+def drawDialog(surface, state, columns, lines):
+    dialog = state.dialog
+    plan = dialog["plan"]
+    left, top, width, height = plan["box"]
+    inner = plan["inner"]
+    marks = MARKS["frameOn"]
+    surface.put(top, left, marks[0] + marks[1] * (width - 2) + marks[2], BOX_FRAME)
+    title = " " + fitToCells(dialog["title"], width - 6) + " "
+    surface.put(top, left + (width - textWidth(title)) // 2, title, BOX_FRAME)
+    for offset in range(1, height - 1):
+        surface.put(top + offset, left, marks[3], BOX_FRAME)
+        surface.put(top + offset, left + 1, " " * (width - 2), BOX)
+        surface.put(top + offset, left + width - 1, marks[3], BOX_FRAME)
+    surface.put(top + height - 1, left, marks[4] + marks[1] * (width - 2) + marks[5], BOX_FRAME)
+    if STYLE["colours"]:
+        for offset in range(1, height):
+            surface.put(top + offset, left + width, "  ", SHADOW)
+        if top + height <= lines - 2:
+            surface.put(top + height, left + 2, " " * width, SHADOW)
+    what, focusIndex, focused = dialogFocus(dialog)
+    column = left + 2
+    last = plan["buttonsLine"]
+    for part in plan["parts"]:
+        control = dialog["controls"][part["index"]]
+        on = control is focused
+        kind = part["kind"]
+        if part["labelLine"] is not None and part["labelLine"] < last:
+            surface.put(part["labelLine"], column, cutToCells(control["label"], inner), BOX)
+        rows = max(0, min(part["height"], last - part["line"]))
+        if not rows:
+            continue
+        if kind == "input":
+            typed, typedWidth = tailToCells(control["value"], inner - 1)
+            surface.put(part["line"], column, cutToCells(typed, inner), BOX_ON if on else BOX_FIELD)
+            if on:
+                surface.cursor(part["line"], column + typedWidth)
+            continue
+        if kind == "area":
+            held = areaLines(control["value"], inner - 1)[-rows:]
+            for offset in range(rows):
+                surface.put(part["line"] + offset, column, cutToCells(held[offset] if offset < len(held) else "", inner),
+                            BOX_ON if on else BOX_FIELD)
+            if on:
+                surface.cursor(part["line"] + len(held) - 1, column + textWidth(held[-1]))
+            continue
+        if kind == "text":
+            held = [(line, BOX) for line in dialogTextLines(control, inner)]
+        else:
+            if control["at"] < control["top"]:
+                control["top"] = control["at"]
+            if control["at"] >= control["top"] + rows:
+                control["top"] = control["at"] - rows + 1
+            held = []
+            for position, (optionId, label) in enumerate(control["options"]):
+                if kind == "checks":
+                    mark = "[X] " if optionId in control["value"] else "[ ] "
+                elif kind == "radios":
+                    mark = "(*) " if optionId == control["value"] else "( ) "
+                else:
+                    mark = (MARK_SELECTED if optionId == control["value"] else " ") + " "
+                held.append((mark + label, BOX_ON if on and position == control["at"] else BOX_FIELD if kind == "list" else BOX))
+            if not held:
+                held.append((control.get("empty", ""), BOX))
+        control["top"] = max(0, min(control["top"], len(held) - rows))
+        for offset in range(rows):
+            if control["top"] + offset < len(held):
+                text, look = held[control["top"] + offset]
+                surface.put(part["line"] + offset, column, cutToCells(text, inner), look)
+        if control["top"] > 0:
+            surface.put(part["line"], left + width - 2, MARKS["barUp"], BOX_FRAME)
+        if control["top"] + rows < len(held):
+            surface.put(part["line"] + rows - 1, left + width - 2, MARKS["barDown"], BOX_FRAME)
+    for offset, text in enumerate(plan["says"]):
+        if plan["saysLine"] + offset < last:
+            surface.put(plan["saysLine"] + offset, column, cutToCells(text, inner), BOX_SAYS)
+    labels = ["[ %s ]" % label for name, label in dialog["buttons"]]
+    column = left + max(2, (width - sum(textWidth(label) + 2 for label in labels) + 2) // 2)
+    for index, label in enumerate(labels):
+        if column + textWidth(label) > left + width - 2:
+            break
+        surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BOX_BUTTON)
+        column += textWidth(label) + 2
 
 
 ## ---- the actions: a kill, a start ----
@@ -1595,15 +2247,15 @@ def killSays(target):
 
 ## `k`: asks for the confirmation of the kill of the selected session or agent, in the
 ## line to type in, and says above it exactly what will be killed. A row that is no
-## session and no agent, and one with no live run, says that there is nothing to kill,
-## and nothing is asked.
+## session and no agent, and one with no live run, says in a box that there is nothing to
+## kill, and nothing is asked.
 def askKill(state, row):
     target = killTargetOf(state, row)
     if target is None:
-        return "k: nothing to kill here: k kills a session or an agent"
+        return tell(state, "Kill", "k: nothing to kill here: k kills a session or an agent")
     if not target["runs"]:
-        return "k: nothing to kill: %s" % ("no agent of this session is alive" if target["kind"] == "session"
-                                           else "this agent is not alive")
+        return tell(state, "Kill", "k: nothing to kill: %s" % ("no agent of this session is alive" if target["kind"] == "session"
+                                                                else "this agent is not alive"))
     if target["kind"] == "session":
         prompt = "kill the session, %d agent%s? type %s:" % (
             len(target["runs"]), "" if len(target["runs"]) == 1 else "s", KILL_WORD)
@@ -1612,7 +2264,7 @@ def askKill(state, row):
     state.answer = None
     ## the answer belongs to the item the key was pressed on, whatever is selected when it comes
     target["viewKey"] = viewKeyOf(state)
-    openDialog(state, prompt, lambda dialogState, text: submitKill(dialogState, target, text), "", killSays(target))
+    openLine(state, prompt, lambda dialogState, text: submitKill(dialogState, target, text), "", killSays(target))
     return ""
 
 
@@ -1678,14 +2330,15 @@ def controlFits(state, row):
 
 ## `c`: asks the tooling to start the control thread of the selected session again. No
 ## confirmation is asked: the operation ends nothing, and starts nothing where a thread
-## lives or none is needed. A row that is no session says that there is nothing to control
-## there. A start that was asked for and is not answered yet is not asked for a second time.
+## lives or none is needed. A row that is no session says in a box that there is nothing to
+## control there. A start that was asked for and is not answered yet is not asked for a
+## second time, and a box says so.
 def askControl(state, row):
     session = controlTargetOf(state, row)
     if session is None:
-        return "c: nothing to control here: c starts the control thread of a session"
+        return tell(state, "Control thread", "c: nothing to control here: c starts the control thread of a session")
     if "action:control:" + session["id"] in state.asked:
-        return "c: the control thread of this session is asked for already, and its answer has not come"
+        return tell(state, "Control thread", "c: the control thread of this session is asked for already, and its answer has not come")
     askCall(state, "control", session["id"], callWords("control", session["id"]), None)
     return "control thread asked of the tooling: the session %s" % row["label"]
 
@@ -1722,74 +2375,172 @@ def controlAnswer(text, width):
     return lines, "control: " + ("; ".join(said) if said else "the operation named no session")
 
 
-## Enter on a routine of `Launch / Spawn`. One the session spawner would not start says
-## why, and nothing is asked. For another the line to type in opens with the name the
-## session takes from its routine, to be typed over: Enter there starts the routine, and
-## Esc starts nothing.
+## Enter on a routine of `Launch / Spawn`. One the session spawner would not start gets
+## the information box: the routine, who executes it, and why it is not started; nothing
+## is asked. One that is started only with members named gets the dialog of its members.
+## For another its dialog opens: what the session is to work on, and the name the session
+## takes from its routine, to be typed over. Start there starts the routine, Cancel and
+## Esc start nothing.
 def askLaunch(state, row):
     routine = row.get("routine") if row else None
     if routine is None:
         return ""
+    if routineAsksMembers(routine):
+        state.answer = None
+        openDialog(state, "members", {"about": {"lines": [
+            ("routine", routine["selector"]),
+            ("executors", "any member: the ones checked below start it, in one session"),
+            ("session", "coworking: the spawner adds magic-coordinator to it" if routine["session"] == "coworking" else routine["session"]),
+        ]}}, {"routine": routine, "viewKey": viewKeyOf(state)})
+        return ""
     if routine["start"] != "startable":
-        return "not started: %s is %s: %s" % (routine["selector"], routine["start"], routine["reason"] or "the operation says no more")
+        return tell(state, "The routine is not started", [
+            "%s cannot be started from here." % routine["label"],
+            ("routine", routine["selector"]),
+            ("owner", routine["owner"]),
+            ("executors", routine["executors"] or "none are named"),
+            ("start", routine["start"]),
+            ("why", routine["reason"] or "the operation says no more"),
+        ], "information")
     state.answer = None
-    shownOn = viewKeyOf(state)
-    openDialog(state, "name:", lambda dialogState, text: submitLaunch(dialogState, routine, text, shownOn), routine["name"], [
-        "START the routine %s" % routine["selector"],
-        "It runs as its executors, whoever is at the console: %s" % routine["executors"],
-        "The line below is the name of its session: type over it, or leave it.",
-        "With no name the session shows by its id. Enter starts it. Esc starts nothing.",
-    ])
+    openDialog(state, "routine", {
+        "about": {"lines": [
+            ("routine", routine["selector"]),
+            ("executors", "%s: it runs as its executors, whoever is at the console" % routine["executors"]),
+            "With no name the session shows by its id.",
+        ]},
+        "name": {"value": routine["name"]},
+    }, {"routine": routine, "viewKey": viewKeyOf(state)})
     return ""
 
 
-## Whether Enter starts the routine of that row: one the session spawner would start.
+## Whether Enter starts the routine of that row: one the session spawner would start, with
+## no member named or with the members its dialog asks for.
 def launchFits(state, row):
-    return bool(row and row.get("routine") and row["routine"]["start"] == "startable")
+    return bool(row and row.get("routine") and (row["routine"]["start"] == "startable" or routineAsksMembers(row["routine"])))
 
 
-## The name of the session was left or typed: the routine is started through the
-## operation, once, by its selector, under that name, or under none where it was emptied.
-def submitLaunch(state, routine, text, shownOn):
-    name = text.strip()
-    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"], name), None,
-            {"name": name, "viewKey": shownOn})
-    return "start asked of the tooling: %s, %s" % (routine["selector"], "named " + name if name else "with no name")
+## The members that can be started from here, as the options of a dialog that offers them:
+## those of the list of the team that are not refused (memberRefusal), in its order. None
+## until that list was read.
+def memberOptions(state):
+    if "team" not in state.rows:
+        return None
+    return [(row["member"]["name"], row["member"]["name"]) for row in state.rows["team"]
+            if row.get("member") and not memberRefusal(row["member"])]
 
 
-## Enter on the free prompt of `Launch / Spawn`: the line to type in opens for one line of
-## text, the brief of a new coworking session the coordinator opens.
-def askPrompt(state, row):
+## The dialog of a routine's members gets its boxes once the list of the team was read:
+## one for each member that can be started from here.
+def fillMembers(state, dialog):
+    control = dialogControl(dialog, "members")
+    options = memberOptions(state)
+    if control["options"] or options is None:
+        return
+    control["options"] = options
+    if not options:
+        control["empty"] = "no member can be started from here"
+
+
+## OK in the dialog of a routine's members. With no member checked it is refused there.
+## Else the routine is started through the operation, once: ONE session with all the
+## members checked, in the order of the list, named after the routine by the operation,
+## and what was typed as what the session is to work on goes on its standard input.
+def submitMembers(state, dialog, button):
+    control = dialogControl(dialog, "members")
+    members = [name for name, label in control["options"] if name in control["value"]]
+    if not members:
+        return "no member is checked: check one at least, with Space"
+    routine = dialog["about"]["routine"]
+    task = dialogValue(dialog, "task").strip()
+    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"]) + members,
+            task + "\n" if task else None, {"name": "", "viewKey": dialog["about"]["viewKey"]})
+    state.notice = "start asked of the tooling: %s, with %s" % (routine["selector"], ", ".join(members))
+    state.noticeOf = None
+    return None
+
+
+DIALOG_FILLS["members"] = fillMembers
+DIALOG_HANDLERS["members"] = submitMembers
+
+
+## Start in the dialog of a routine: the routine is started through the operation, once,
+## by its selector, under the name that was left or typed, or under none where it was
+## emptied; what was typed as what the session is to work on goes on its standard input,
+## and nothing goes there where nothing was typed.
+def submitRoutine(state, dialog, button):
+    routine = dialog["about"]["routine"]
+    name = dialogValue(dialog, "name").strip()
+    task = dialogValue(dialog, "task").strip()
+    askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"], name),
+            task + "\n" if task else None, {"name": name, "viewKey": dialog["about"]["viewKey"]})
+    state.notice = "start asked of the tooling: %s, %s" % (routine["selector"], "named " + name if name else "with no name")
+    state.noticeOf = None
+    return None
+
+
+## Who a prompt is run by, as the list of its dialog offers it: first what the free prompt
+## starts where nobody is named, a new coworking session the coordinator opens by the
+## default routine, and after it each member that can be started from here, which is then
+## started alone with the prompt, in a session of its own.
+PROMPT_DEFAULT = ("", "magic-coordinator: a new coworking session, by the default routine")
+
+
+## Opens the dialog of a prompt, its list on that member, or on the default where none is
+## named, under that title.
+def openPrompt(state, who, title):
     state.answer = None
-    shownOn = viewKeyOf(state)
-    openDialog(state, "prompt:", lambda dialogState, text: submitPromptLine(dialogState, text, shownOn), "", [
-        "FREE PROMPT: a new coworking session, opened by the coordinator",
-        "The line typed below is its brief, given to the operation on its standard input.",
-        "Enter goes on to the name of the session. Esc starts nothing.",
-    ])
+    openDialog(state, "prompt", {
+        "about": {"lines": [
+            "The prompt is the brief of a new session. It goes to the operation on its standard input.",
+            "No secret belongs in it: a brief shows on the command line of the CLI.",
+        ]},
+        "who": {"options": [PROMPT_DEFAULT] + (memberOptions(state) or []), "value": who},
+    }, {"viewKey": viewKeyOf(state), "filled": memberOptions(state) is not None}, title)
     return ""
 
 
-## The line of a free prompt was typed. An empty one is refused here, since the operation
-## would start a session on its brief block alone. Else the line opens again, for the name
-## of the session, which may be left empty.
-def submitPromptLine(state, text, shownOn):
-    if not text.strip():
-        return "nothing was started: the line was empty"
-    openDialog(state, "name:", lambda dialogState, name: submitPrompt(dialogState, text, name, shownOn), "", [
-        "FREE PROMPT: %s" % text,
-        "The line below is the name of its session, or none: it then shows by its id.",
-        "Enter starts it. Esc starts nothing.",
-    ])
-    return ""
+## The dialog of a prompt gets the members of its list once the list of the team was read.
+def fillPrompt(state, dialog):
+    options = memberOptions(state)
+    if dialog["about"]["filled"] or options is None:
+        return
+    dialog["about"]["filled"] = True
+    dialogControl(dialog, "who")["options"].extend(options)
 
 
-## The name of the session of a free prompt was typed, or left empty: the session is
-## started through the operation, once, with the line as its task text on standard input.
-def submitPrompt(state, line, text, shownOn):
-    name = text.strip()
-    askCall(state, "prompt", "free", callWords("prompt", "", name), line + "\n", {"name": name, "viewKey": shownOn})
-    return "start asked of the tooling: a free prompt, %s" % ("named " + name if name else "with no name")
+## Enter on the free prompt of `Launch / Spawn`: its dialog opens, who runs it, the prompt,
+## and the name of the session.
+def askPrompt(state, row):
+    return openPrompt(state, "", "Free prompt")
+
+
+## Start in the dialog of a prompt. An empty prompt is refused there, since the operation
+## would start a session on its brief block alone. Else the session is started through
+## the operation, once, with the prompt on its standard input and no word of it among its
+## arguments: by the default routine where the list stands on its first row, as the free
+## prompt always was; or the member the list stands on, alone, as `n` starts one.
+def submitPrompt(state, dialog, button):
+    prompt = dialogValue(dialog, "prompt").rstrip("\n")
+    if not prompt.strip():
+        return "nothing is started: the prompt is empty"
+    who = dialogValue(dialog, "who")
+    name = dialogValue(dialog, "name").strip()
+    named = "named " + name if name else "with no name"
+    if who:
+        askCall(state, "start", who, callWords("start", who, name), prompt + "\n", {"viewKey": dialog["about"]["viewKey"]})
+        state.notice = "start asked of the tooling: the member %s, %s" % (who, named)
+    else:
+        askCall(state, "prompt", "free", callWords("prompt", "", name), prompt + "\n",
+                {"name": name, "viewKey": dialog["about"]["viewKey"]})
+        state.notice = "start asked of the tooling: a free prompt, %s" % named
+    state.noticeOf = None
+    return None
+
+
+DIALOG_HANDLERS["routine"] = submitRoutine
+DIALOG_HANDLERS["prompt"] = submitPrompt
+DIALOG_FILLS["prompt"] = fillPrompt
 
 
 ## What `--magic-spawn-session` printed: `SESSION_ID=`, `ROUTINE=` and `MEMBERS=`, a line
@@ -1817,10 +2568,11 @@ def startAnswer(text, name, width):
 
 ## The answer of an action, taken into the state. What the operation printed is set out
 ## for the left pane, where it stands while the item it was asked on stays selected; one
-## line of it stands in the bottom line; and what is shown is read again, the list of the
-## sessions with it. A call that failed shows its error line in both places, in the pane
-## after the rows it printed. The start of a control thread that printed its row and failed
-## keeps the words of that row in the bottom line: the row says why none was started.
+## line of it stands in the status line; and what is shown is read again, the list of the
+## sessions with it. A call that failed shows what it wrote, whole, in a box, and its error
+## line in the pane after the rows it printed. The start of a control thread that printed
+## its row and failed has the words of that row first in the box: the row says why none
+## was started.
 def applyCall(state, result):
     about = state.asked.pop(result["key"], None) or {"action": "", "viewKey": None}
     if about["action"] == "kill":
@@ -1838,9 +2590,8 @@ def applyCall(state, result):
         lines, summary = startAnswer(result["text"], about.get("name", ""), state.viewWidth)
     if result["status"] != 0:
         what += " failed"
-        operation = result["words"][0] if result["words"] else ""
-        if not (about["action"] == "control" and lines):
-            summary = result["error"] if operation.lstrip("-") in result["error"] else "%s: %s" % (operation, result["error"])
+        tell(state, what[0].upper() + what[1:], ([summary] if about["action"] == "control" and lines else []) + failureLines(result))
+        summary = ""
         lines = lines + wrapToCells(result["error"], max(10, state.viewWidth - 1))
     title = "%s, answered %s:" % (what, time.strftime("%H:%M:%S", time.localtime(nowEpoch())))
     state.notice = summary
@@ -2094,49 +2845,17 @@ def memberFits(state, row):
     return bool(row and row.get("member") and not memberRefusal(row["member"]))
 
 
-## `n`: starts the selected team member with a prompt. A row that is no member says that
-## there is nothing to start, and a member that is not started says why; nothing is asked.
-## Else the line to type in opens for one line of text, the member's prompt.
+## `n`: starts the selected team member with a prompt. A row that is no member says in a
+## box that there is nothing to start, and a member that is not started why; nothing is asked.
+## Else the dialog of a prompt opens, its list on that member.
 def askStart(state, row):
     member = row.get("member") if row else None
     if member is None:
-        return "n: nothing to start here: n starts a team member with a prompt"
+        return tell(state, "Start a member", "n: nothing to start here: n starts a team member with a prompt")
     refusal = memberRefusal(member)
     if refusal:
-        return "n: %s is not started: %s" % (member["name"], refusal)
-    state.answer = None
-    shownOn = viewKeyOf(state)
-    openDialog(state, "prompt:", lambda dialogState, text: submitStartLine(dialogState, member, text, shownOn), "", [
-        "START the member %s with a prompt, in a new session of its own" % member["name"],
-        "It runs as that member, whoever is at the console.",
-        "The line typed below is its prompt, given to the operation on its standard input.",
-        "No secret belongs in it: a brief shows on the command line of the CLI.",
-        "Enter goes on to the name of the session. Esc starts nothing.",
-    ])
-    return ""
-
-
-## The prompt of a member's start was typed. An empty one is refused here, as the
-## operation refuses it. Else the line opens again, for the name of the session, which may
-## be left empty.
-def submitStartLine(state, member, text, shownOn):
-    if not text.strip():
-        return "nothing was started: the line was empty"
-    openDialog(state, "name:", lambda dialogState, name: submitStart(dialogState, member, text, name, shownOn), "", [
-        "START %s: %s" % (member["name"], text),
-        "The line below is the name of its session, or none: it then shows by its id.",
-        "Enter starts it. Esc starts nothing.",
-    ])
-    return ""
-
-
-## The name of the session was typed, or left empty: the member is started through the
-## operation, once, by its name, with the line as its prompt on standard input.
-def submitStart(state, member, line, text, shownOn):
-    name = text.strip()
-    askCall(state, "start", member["name"], callWords("start", member["name"], name), line + "\n",
-            {"viewKey": shownOn})
-    return "start asked of the tooling: the member %s, %s" % (member["name"], "named " + name if name else "with no name")
+        return tell(state, "The member is not started", "n: %s is not started: %s" % (member["name"], refusal))
+    return openPrompt(state, member["name"], "Start the member %s" % member["name"])
 
 
 ## What `--manager-spawn-member` printed: one `spawn` row, with the id of the new session,
@@ -2258,86 +2977,189 @@ def digestSummary(state):
 
 ## ---- what a key does ----
 
-## One key, on the state alone. With a line open the key goes to that line. Otherwise:
-## the keys of the screen, the keys that act on what is selected, then the keys of the
-## pane that has the focus.
+## One key, on the state alone. With a dialog open the key goes to that dialog, with a
+## menu open to that menu, and with a line open to that line. Otherwise Alt with the hot letter of a menu opens it, and any
+## other key is the key of a command of COMMANDS, or of none.
 def handleKey(state, key, layout):
     if key is None or key == "RESIZE":
         return
     if layout is None:
-        if key == "q":
+        if key in commandNamed("exit")["keys"]:
             state.quit = True
         return
     if state.dialog is not None:
         dialogKey(state, key)
         return
-    if key == "q":
-        state.quit = True
-    elif key == "TAB":
-        state.focus = "view" if state.focus == "list" else "list"
-    elif key == "ESC":
+    if state.menu is not None:
+        menuKey(state, key, layout)
         return
-    elif key == KEY_READ_NOW:
+    if state.line is not None:
+        lineKey(state, key)
+        return
+    if key.startswith("ALT-") and menuOfLetter(key[4:]) is not None:
+        openMenu(state, menuOfLetter(key[4:]))
+        return
+    command = commandOfKey(state, key)
+    if command is not None:
+        runCommand(state, command, layout, key)
+
+
+def commandNamed(name):
+    for command in COMMANDS:
+        if command["name"] == name:
+            return command
+    return None
+
+
+## The window a command applies in alone, or None for one that applies in every window.
+def commandWindow(command):
+    for window in WINDOWS:
+        if command["name"] in window["commands"]:
+            return window["name"]
+    return None
+
+
+## The command a key means now, or None: the first of COMMANDS that has the key, applies
+## in the window that has the keys, and, where the key is its own on some rows alone, is
+## on such a row with its handler built.
+def commandOfKey(state, key):
+    place = placeOf(state, selectedRow(state))
+    for command in COMMANDS:
+        if key not in command["keys"] or commandWindow(command) not in (None, state.focus):
+            continue
+        if command.get("only") and (place not in command["on"] or ACTION_HANDLERS.get(command["does"][1]) is None):
+            continue
+        return command
+    return None
+
+
+## Whether a command applies now: a menu shows one that does not as greyed and does not
+## choose it, and the status line leaves it out. Its key is taken all the same wherever
+## its window has the keys: the handler of an action says itself why it does nothing.
+def commandApplies(state, command):
+    if commandWindow(command) not in (None, state.focus):
+        return False
+    does = command["does"]
+    row = selectedRow(state)
+    if does[0] == "action":
+        if ACTION_HANDLERS.get(does[1]) is None:
+            return False
+        return "on" not in command or (placeOf(state, row) in command["on"] and actionShown(state, row, does[1]))
+    if does[0] == "up":
+        return bool(state.path)
+    if does[0] == "open":
+        return row is not None and (row["dive"] or row["kind"] == "up")
+    return True
+
+
+## What a command does, on the state alone. `key` is the key it came by, or None where a
+## menu gave it.
+def runCommand(state, command, layout, key=None):
+    does = command["does"]
+    if does[0] == "quit":
+        state.quit = True
+    elif does[0] == "focus":
+        names = [window["name"] for window in WINDOWS]
+        state.focus = names[(names.index(state.focus) + 1) % len(names)]
+    elif does[0] == "read":
         readNow(state)
-    elif key in dict(ACTION_KEYS):
-        actionKey(state, key)
-    elif state.focus == "list":
-        listKey(state, key, listRowsHeight(state, layout))
-    else:
-        viewKey(state, key, viewScrollHeight(state, layout))
-
-
-def listKey(state, key, height):
-    if key == "UP":
-        moveSelection(state, height, -1)
-    elif key == "DOWN":
-        moveSelection(state, height, 1)
-    elif key == "PGUP":
-        moveSelection(state, height, 0, -1)
-    elif key == "PGDN":
-        moveSelection(state, height, 0, 1)
-    elif key == "ENTER" and enterActionOf(state) is not None:
-        state.noticeOf = None
-        state.notice = ACTION_HANDLERS[enterActionOf(state)](state, selectedRow(state)) or ""
-    elif key in ("ENTER", "RIGHT"):
-        diveIn(state, height)
-    elif key == "LEFT":
-        goUp(state)
-    elif key == "a":
+    elif does[0] == "filter":
         state.activeOnly = not state.activeOnly
         readNow(state)
+    elif does[0] == "menu":
+        openMenu(state, 0)
+    elif does[0] == "style":
+        names = [name for name, style in STYLES]
+        setStyle(names[(names.index(STYLE["name"]) + 1) % len(names)])
+        state.noticeOf = None
+        state.notice = "interface style: %s" % STYLE["label"]
+    elif does[0] == "move":
+        if state.focus == "list":
+            moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
+        else:
+            scrollView(state, viewScrollHeight(state, layout), does[1], does[2])
+    elif does[0] == "open":
+        diveIn(state, listRowsHeight(state, layout))
+    elif does[0] == "up":
+        goUp(state)
+    elif does[0] == "go":
+        state.path = list(does[1])
+        state.focus = "list"
+    elif does[0] == "action":
+        ## the handler of the action, with the row that is selected
+        handler = ACTION_HANDLERS.get(does[1])
+        state.noticeOf = None
+        if handler is None:
+            state.notice = tell(state, command["name"].capitalize(), "%s: %s is not built yet" % (key or command["keys"][0], does[1]))
+        else:
+            state.notice = handler(state, selectedRow(state)) or ""
 
 
-def viewKey(state, key, height):
-    if key == "UP":
-        scrollView(state, height, -1)
-    elif key == "DOWN":
-        scrollView(state, height, 1)
-    elif key == "PGUP":
-        scrollView(state, height, 0, -1)
-    elif key == "PGDN":
-        scrollView(state, height, 0, 1)
+## ---- the menus ----
+
+## The items of a menu, in their order: the commands COMMANDS places in it, group after
+## group, and None where a line parts two groups.
+def menuItems(menuName):
+    listed = sorted((command for command in COMMANDS if command.get("menu", ("",))[0] == menuName),
+                    key=lambda command: command["menu"][1])
+    items = []
+    for command in listed:
+        if items and items[-1]["menu"][1] != command["menu"][1]:
+            items.append(None)
+        items.append(command)
+    return items
 
 
-## The key of an action goes to the handler of that action, with the row that is selected.
-def actionKey(state, key):
-    actionName = dict(ACTION_KEYS)[key]
-    handler = ACTION_HANDLERS.get(actionName)
-    state.noticeOf = None
-    if handler is None:
-        state.notice = "%s: %s is not built yet" % (key, actionName)
-        return
-    state.notice = handler(state, selectedRow(state)) or ""
+## The place in MENUS of the menu with that hot letter, or None.
+def menuOfLetter(letter):
+    for index, (menuName, label) in enumerate(MENUS):
+        if hotLetter(label) == letter.lower():
+            return index
+    return None
 
 
-## The action Enter starts on the selected row, where its level and its kind have one whose
-## handler is built, or None: Enter then dives in.
-def enterActionOf(state):
-    row = selectedRow(state)
-    if row is None:
-        return None
-    actionName = ENTER_ACTIONS.get(levelPattern(state.path) + ":" + row["kind"])
-    return actionName if ACTION_HANDLERS.get(actionName) is not None else None
+## Opens the pull-down of that menu, its bar on its first item.
+def openMenu(state, index):
+    state.menu = {"menu": index, "item": 0}
+
+
+## One key while a menu is open. Left and Right go to the menu beside it, Up and Down move
+## the bar, over the lines that part the groups, and around at the ends. Enter chooses the
+## item the bar is on and the hot letter of an item chooses that one: the menu closes and
+## the command is done, as its key would do it; an item that does not apply is not chosen.
+## Esc and F10 close the menu. The key that ends the screen ends it from here too.
+def menuKey(state, key, layout):
+    menu = state.menu
+    items = menuItems(MENUS[menu["menu"]][0])
+    if key in ("ESC", "F10"):
+        state.menu = None
+    elif key in ("LEFT", "RIGHT"):
+        openMenu(state, (menu["menu"] + (1 if key == "RIGHT" else -1)) % len(MENUS))
+    elif key in ("UP", "DOWN"):
+        step = 1 if key == "DOWN" else -1
+        index = (menu["item"] + step) % len(items)
+        while items[index] is None:
+            index = (index + step) % len(items)
+        menu["item"] = index
+    elif key == "ENTER":
+        chooseItem(state, items[menu["item"]], layout)
+    elif key == commandNamed("exit")["keys"][0]:
+        state.quit = True
+    elif key.startswith("ALT-"):
+        if menuOfLetter(key[4:]) is not None:
+            openMenu(state, menuOfLetter(key[4:]))
+    elif len(key) == 1:
+        for index, command in enumerate(items):
+            if command is not None and hotLetter(command["label"]) == key.lower():
+                menu["item"] = index
+                chooseItem(state, command, layout)
+                break
+
+
+def chooseItem(state, command, layout):
+    if commandApplies(state, command):
+        state.menu = None
+        runCommand(state, command, layout)
 
 
 ## ---- reading through operations ----
@@ -2366,8 +3188,8 @@ def listReadOf(path):
 
 
 ## What the screen as it stands asks the tooling for: (kind, key, words) for the list of
-## the level shown, for every list that is read whatever is shown, and for the view of the
-## row selected, each where READS names an operation.
+## the level shown, for every list that is read whatever is shown, for the view of the
+## row selected, and for what the open dialog offers, each where READS names an operation.
 def wantedReads(state):
     wanted = []
     pattern = levelPattern(state.path)
@@ -2386,6 +3208,10 @@ def wantedReads(state):
         if entry:
             values["id"] = row["id"]
             wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
+    ## what the open dialog offers is read while it is open
+    for key in DIALOGS[state.dialog["name"]].get("reads", ()) if state.dialog is not None else ():
+        if READS.get(key) and key not in [wantedKey for kind, wantedKey, words in wanted]:
+            wanted.append((READS[key].get("kind", "list"), key, readWords(READS[key], state, {}, False)))
     return wanted
 
 
@@ -2471,9 +3297,17 @@ def firstErrorLine(errorText, outputText, status):
     return "ended with status %d and wrote nothing" % status
 
 
+## What a failed call wrote, whole, as the paragraphs of a box: the operation with its
+## words, and every line it wrote as an error, or the one line it is shown by where it
+## wrote none.
+def failureLines(result):
+    said = [line.strip() for line in result.get("said", "").splitlines() if line.strip()]
+    return [("operation", " ".join(result["words"]))] + (said or [result["error"]])
+
+
 ## One call that has ended, taken into the state. A good list becomes the rows of its
-## level. A failed call leaves what the last good one gave, marks it as old, and its error
-## line is shown. An answer for a view that is no longer selected is dropped, and so is one
+## level. A failed call leaves what the last good one gave, marks it as old, and what it
+## wrote is shown whole in a box, once while it fails in the same words. An answer for a view that is no longer selected is dropped, and so is one
 ## asked with other words than are wanted now, which is then asked again. The answer of
 ## an action goes to applyCall.
 def applyResult(state, result):
@@ -2488,10 +3322,10 @@ def applyResult(state, result):
         state.forced.add(key)
         return
     if result["status"] != 0:
+        ## a box says it once: a read that fails again in the same words is marked as old, no more
+        if state.failed.get(key) != result["error"]:
+            tell(state, "A read failed", failureLines(result))
         state.failed[key] = result["error"]
-        operation = result["words"][0] if result["words"] else ""
-        state.notice = result["error"] if operation in result["error"] else "%s: %s" % (operation, result["error"])
-        state.noticeOf = key
         return
     if state.failed.pop(key, None) is not None and state.noticeOf == key:
         state.notice = ""
@@ -2561,7 +3395,7 @@ class OperationReader:
             outputFile.close()
             errorFile.close()
             self.ended.append({"kind": kind, "key": key, "words": list(words), "status": 127,
-                               "text": "", "error": "could not be started: %s" % failure})
+                               "text": "", "said": "", "error": "could not be started: %s" % failure})
             return True
         finally:
             if inputFile is not None:
@@ -2582,7 +3416,7 @@ class OperationReader:
             outputText = self.textOf(call["output"])
             errorText = self.textOf(call["error"])
             results.append({"kind": kind, "key": call["key"], "words": call["words"], "status": status,
-                            "text": outputText,
+                            "text": outputText, "said": errorText,
                             "error": firstErrorLine(errorText, outputText, status) if status != 0 else ""})
         return results
 
@@ -2645,20 +3479,99 @@ def viewTitle(state):
     return (marks + " " if marks else "") + row["label"]
 
 
-## The top status line: the workspace by the name of its folder, the load average of the
-## host as the row of counters gives it, marked as old where that read last failed, and
-## the clock.
-def topLineText(state, columns):
-    right = state.clock + " "
-    if "load" in state.counters:
-        right = "load %s%s  %s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "", right)
-    rightWidth = textWidth(right)
-    if rightWidth >= columns:
-        return cutToCells(right, columns)
-    return cutToCells(" " + os.path.basename(state.workspace.rstrip("/")), columns - rightWidth) + right
+## A label with its hot letter between tildes, as parts to draw: the letter in the one
+## look and the rest in the other.
+def hotParts(label, look, hotLook):
+    return [(part, hotLook if index % 2 else look) for index, part in enumerate(label.split("~")) if part]
 
 
-## The counters of the bottom status line, from the row of counters: the sessions running
+def hotText(label):
+    return label.replace("~", "")
+
+
+def hotLetter(label):
+    parts = label.split("~")
+    return parts[1].lower() if len(parts) > 2 else ""
+
+
+## The name of a key as a menu and the status line show it.
+def keyShown(key):
+    if key.startswith("ALT-"):
+        return "Alt-" + key[4:].upper()
+    return KEY_WORDS.get(key, key)
+
+
+def partsWidth(parts):
+    return sum(textWidth(text) for text, look in parts)
+
+
+## Draws parts, each a text and its look, one after another from that column, in no more
+## than that many cells: the part that no longer fits is cut. Gives the column after them.
+def putParts(surface, line, column, parts, room):
+    for text, look in parts:
+        if room <= 0:
+            break
+        width = textWidth(text)
+        if width > room:
+            text, width = cutToCells(text, room), room
+        surface.put(line, column, text, look)
+        column += width
+        room -= width
+    return column
+
+
+## The end of parts in at most that many cells: what stands last stays whole.
+def tailParts(parts, room):
+    kept = []
+    for text, look in reversed(parts):
+        if room <= 0:
+            break
+        tail, used = tailToCells(text, room)
+        kept.insert(0, (tail, look))
+        room -= used
+        if used < textWidth(text):
+            break
+    return kept
+
+
+## A text in at most that many cells, cut with the cut mark where it is longer, and not
+## filled where it is shorter.
+def fitToCells(text, width):
+    return text if textWidth(text) <= width else cutToCells(text, width)
+
+
+## The menu bar, from its left: the system mark, then each menu of MENUS, its hot letter in
+## the look of one. The menu that is open stands in the look of the bar of a menu.
+def menuBarParts(state):
+    parts = [(" " + MARKS["system"] + " ", BAR)]
+    for index, (menuName, label) in enumerate(MENUS):
+        opened = state.menu is not None and state.menu["menu"] == index
+        parts.extend(hotParts(" " + label + " ", BAR_ON if opened else BAR, BAR_ON_HOT if opened else BAR_HOT))
+    return parts
+
+
+## The right end of the menu bar: the workspace by the name of its folder, `@` in a look of
+## its own, the machine the tooling runs on as the row of counters names it, and the
+## clock. Until that row was read, and from a row that names no machine, the workspace
+## stands alone.
+def whereParts(state):
+    parts = [(os.path.basename(state.workspace.rstrip("/")), BAR)]
+    if state.counters.get("host", "-") not in ("", "-"):
+        parts.extend([("@", BAR_AT), (state.counters["host"], BAR)])
+    parts.append(("  " + state.clock + " ", BAR))
+    return parts
+
+
+def drawMenuBar(surface, state, columns):
+    surface.put(0, 0, " " * columns, BAR)
+    after = putParts(surface, 0, 0, menuBarParts(state), columns)
+    ## where the bar is too narrow for all of it, the end of it stays: the clock
+    right = tailParts(whereParts(state), columns - after - 1)
+    if partsWidth(right) >= 10:
+        putParts(surface, 0, columns - partsWidth(right), right, columns)
+
+
+## The counters in the bottom border of the left window, from the row of counters: the sessions running
 ## and paused, the agents working and waiting, the asks that wait. Empty until that row
 ## was read; marked as old where its read last failed.
 def countersText(state):
@@ -2702,27 +3615,62 @@ def listRowText(row, chosen, width):
     return cutToCells(head, width - tailWidth - 1) + " " + cutToCells(tail, tailWidth)
 
 
-def bottomLineText(state, columns):
-    counters = countersText(state)
-    return cutToCells(" " + (counters + "  " if counters else "") + HINTS, columns)
+## ---- the compact style: two panes between two status lines, nothing spent on frames ----
+
+## The workspace by the name of its folder, and after an `@` the machine the tooling runs
+## on, as the row of counters names it; the workspace alone until that row names one.
+def whereText(state):
+    name = os.path.basename(state.workspace.rstrip("/"))
+    return name + "@" + state.counters["host"] if state.counters.get("host", "-") not in ("", "-") else name
 
 
-## The whole screen, drawn again from the state: every cell of every line, so nothing of
-## an earlier drawing or of an earlier size is left.
-def drawScreen(surface, state):
-    columns, lines = surface.size()
-    layout = layoutOf(columns, lines)
-    surface.clear()
-    surface.cursor(None, None)
-    if layout is None:
-        if columns > 0 and lines > 0:
-            surface.put(0, 0, cutToCells("Too small: %dx%d (needs %dx%d)" % (columns, lines, MIN_COLUMNS, MIN_LINES), columns), PLAIN)
-        surface.show()
+## The top status line of the compact style: the workspace by the name of its folder, the load average of the
+## host as the row of counters gives it, marked as old where that read last failed, and
+## the clock.
+def topLineText(state, columns):
+    right = state.clock + " "
+    if "load" in state.counters:
+        right = "load %s%s  %s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "", right)
+    rightWidth = textWidth(right)
+    if rightWidth >= columns:
+        return cutToCells(right, columns)
+    return cutToCells(" " + whereText(state), columns - rightWidth) + right
+
+
+## The top line of the compact style: its status line, or, while a menu is open, the menu
+## bar. The `@` between the workspace and the machine stands in a look of its own.
+def drawCompactTop(surface, state, columns):
+    if state.menu is not None:
+        drawMenuBar(surface, state, columns)
         return
+    text = topLineText(state, columns)
+    surface.put(0, 0, text, REVERSE)
+    name = os.path.basename(state.workspace.rstrip("/"))
+    if "@" in whereText(state) and text.startswith(" " + name + "@"):
+        surface.put(0, 1 + textWidth(name), "@", BOLD)
+
+
+## The bottom status line of the compact style: the counters, and after them the keys
+## that act for what has the keys now, each with its word, as the status line of the
+## other styles names them (statusItems), as many as fit whole.
+def bottomLineText(state, columns):
+    text = " " + countersText(state)
+    for key, word in statusItems(state):
+        item = ("  " if text.strip() else "") + key + " " + word
+        if textWidth(text) + textWidth(item) > columns:
+            break
+        text += item
+    return cutToCells(text, columns)
+
+
+## The whole screen in the compact style, between its two status lines: the titles, the
+## column between the panes, the list, what is selected there, and the line to type in.
+def drawCompact(surface, state, layout):
+    columns = layout["columns"]
     viewWidth = layout["viewWidth"]
     listLeft = layout["listLeft"]
     listWidth = layout["listWidth"]
-    surface.put(layout["topLine"], 0, topLineText(state, columns), REVERSE)
+    drawCompactTop(surface, state, columns)
     surface.put(layout["titleLine"], 0, cutToCells(" " + viewTitle(state), viewWidth),
                 REVERSE if state.focus == "view" else BOLD)
     surface.put(layout["titleLine"], listLeft, cutToCells(" " + listTitle(state), listWidth),
@@ -2758,21 +3706,260 @@ def drawScreen(surface, state):
         position = state.view["top"] + offset
         text = " " + viewLines[position] if position < len(viewLines) else ""
         surface.put(layout["bodyTop"] + headHeight + offset, 0, cutToCells(text, viewWidth), PLAIN)
-    said = dialogSays(state, viewWidth, layout["viewHeight"])
+    said = lineSays(state, viewWidth, layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(layout["bodyTop"] + contentHeight + offset, 0, cutToCells(" " + text, viewWidth), BOLD if offset == 0 else PLAIN)
     if not said and contentHeight < layout["viewHeight"]:
         surface.put(layout["bodyTop"] + contentHeight, 0, cutToCells(" " + itemKeysText(state), viewWidth), BOLD)
-    if state.dialog is not None:
-        prompt = " " + state.dialog["prompt"] + " "
+    if state.line is not None:
+        prompt = " " + state.line["prompt"] + " "
         promptWidth = min(textWidth(prompt), max(0, viewWidth - 2))
-        typed, typedWidth = tailToCells(state.dialog["text"], viewWidth - promptWidth - 1)
+        typed, typedWidth = tailToCells(state.line["text"], viewWidth - promptWidth - 1)
         surface.put(layout["inputLine"], 0, cutToCells(prompt, promptWidth), BOLD)
         surface.put(layout["inputLine"], promptWidth, cutToCells(typed, viewWidth - promptWidth), PLAIN)
         surface.cursor(layout["inputLine"], promptWidth + typedWidth)
     else:
         surface.put(layout["inputLine"], 0, cutToCells(" " + state.notice, viewWidth), PLAIN)
     surface.put(layout["bottomLine"], 0, bottomLineText(state, columns), REVERSE)
+
+
+## The load average of the host as the row of counters gives it, marked as old where that
+## read last failed: what stands in the bottom border of the list. Empty until that row
+## was read.
+def loadText(state):
+    if "load" not in state.counters:
+        return ""
+    return "load %s%s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "")
+
+
+## The keys the status line names now, each with its word: only those that act for what
+## has the keys. While a dialog is open, the keys of that dialog and of the control they
+## are on, and no other; while a menu is open, or the line to type in, the keys of that.
+## Else the commands of COMMANDS that have a word there and apply in the active window to
+## what is selected: first those that are that window's own or act on the selected row,
+## in their order, and after them those that work in every window, the menu, the exit,
+## the other window, which are so the first to be left out where the line is too short.
+def statusItems(state):
+    if state.dialog is not None:
+        return dialogStatus(state.dialog)
+    if state.menu is not None:
+        return list(STATUS_KEYS["menu"])
+    if state.line is not None:
+        return list(STATUS_KEYS["line"])
+    own = []
+    everywhere = []
+    for command in COMMANDS:
+        if command.get("status") and commandApplies(state, command):
+            wide = commandWindow(command) is None and "on" not in command
+            (everywhere if wide else own).append((keyShown(command["keys"][0]), command["status"]))
+    return own + everywhere
+
+
+## The status line: the keys that work now, each in the look of a hot letter and followed
+## by its word, as many as fit; and after a mark what the screen says, the outcome of the
+## last action. What the screen says has its room first, up to two thirds of the line, and
+## the keys that do not fit beside it are left out, the last ones first.
+def drawStatusLine(surface, state, line, columns):
+    surface.put(line, 0, " " * columns, BAR)
+    notice = state.notice if state.line is None and state.dialog is None else ""
+    reserved = min(textWidth(notice) + 4, columns * 2 // 3) if notice else 0
+    column = 1
+    for key, word in statusItems(state):
+        width = textWidth(key) + 1 + textWidth(word)
+        if column + width > columns - reserved:
+            break
+        surface.put(line, column, key, BAR_HOT)
+        surface.put(line, column + textWidth(key) + 1, word, BAR)
+        column += width + 2
+    if notice and columns - column > 2:
+        surface.put(line, column, MARKS["separator"] + " " + cutToCells(notice, columns - column - 2), BAR)
+
+
+## The frame of a window: double for the active one and single for another, its title in
+## the middle of the top border, `foot` in the bottom border from its left, and its right
+## border a scroll bar where `bar` says that it holds more than it shows: how many it
+## holds, the first one shown, how many it shows.
+def drawFrame(surface, box, title, active, foot="", bar=None):
+    left, top, width, height = box
+    marks = MARKS["frameOn" if active else "frame"]
+    look = FRAME_ON if active else FRAME
+    room = width - 2
+    bottom = top + height - 1
+    surface.put(top, left, marks[0] + marks[1] * room + marks[2], look)
+    if title and room >= 6:
+        text = " " + fitToCells(title, room - 4) + " "
+        surface.put(top, left + 1 + (room - textWidth(text)) // 2, text, look)
+    rows = height - 2
+    barred = bar is not None and bar[0] > bar[2] and rows >= 3
+    thumb = 1 + bar[1] * (rows - 3) // max(1, bar[0] - bar[2]) if barred else 0
+    for offset in range(rows):
+        surface.put(top + 1 + offset, left, marks[3], look)
+        if barred:
+            mark = "barUp" if offset == 0 else "barDown" if offset == rows - 1 else "barThumb" if offset == thumb else "barTrack"
+            surface.put(top + 1 + offset, left + width - 1, MARKS[mark], SCROLL)
+        else:
+            surface.put(top + 1 + offset, left + width - 1, marks[3], look)
+    surface.put(bottom, left, marks[4] + marks[1] * room + marks[5], look)
+    if foot and room >= 6:
+        surface.put(bottom, left + 2, " " + fitToCells(foot, room - 4) + " ", look)
+
+
+## The body of a window that shows lines: what is selected in the list. Its head, which
+## does not scroll; under it its lines; and at its foot the keys of the item, or, while a
+## line is typed in, what that line says of itself.
+def drawLinesBody(surface, state, layout, box):
+    column = box[0] + 1
+    top = box[1] + 1
+    room = box[2] - 2
+    contentHeight = viewContentHeight(state, layout)
+    headHeight = min(len(state.view["head"]), contentHeight)
+    for offset in range(headHeight):
+        surface.put(top + offset, column, cutToCells(state.view["head"][offset], room), PLAIN)
+    scrollView(state, contentHeight - headHeight, 0)
+    viewLines = state.view["lines"]
+    for offset in range(contentHeight - headHeight):
+        position = state.view["top"] + offset
+        surface.put(top + headHeight + offset, column, cutToCells(viewLines[position] if position < len(viewLines) else "", room), PLAIN)
+    said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
+    for offset, text in enumerate(said):
+        surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)
+    if not said and contentHeight < layout["viewHeight"]:
+        surface.put(top + contentHeight, column, cutToCells(itemKeysText(state), room), BOLD)
+    return None
+
+
+## The body of a window that shows rows: the level of the list, its selection in the look
+## of the bar while the window is active. Gives what its scroll bar goes by.
+def drawRowsBody(surface, state, layout, box):
+    column = box[0] + 1
+    top = box[1] + 1
+    room = box[2] - 2
+    rows = levelRows(state)
+    rowsHeight = listRowsHeight(state, layout)
+    table = listTableOf(state)
+    if table:
+        surface.put(top, column, listHeadText(table, room), PLAIN)
+        top += 1
+    cursor = cursorOf(state, rows, rowsHeight)
+    for offset in range(rowsHeight):
+        position = cursor["top"] + offset
+        text = " " * room
+        look = PLAIN
+        if position < len(rows):
+            chosen = position == cursor["index"]
+            text = listRowText(rows[position], chosen, room)
+            look = rows[position].get("look", PLAIN)
+            if chosen:
+                look = REVERSE if state.focus == "list" else BOLD
+        surface.put(top + offset, column, text, look)
+    return (len(rows), cursor["top"], rowsHeight)
+
+
+## The bodies the engine draws, by the name a window of WINDOWS gives under "shows".
+BODIES = {"lines": drawLinesBody, "rows": drawRowsBody}
+
+
+## One window of WINDOWS, drawn from its declaration: its body, then its frame around it.
+def drawWindow(surface, state, layout, window):
+    box = layout["boxes"][window["name"]]
+    held = BODIES[window["shows"]["body"]](surface, state, layout, box)
+    foot = globals()[window["foot"]](state) if window.get("foot") else ""
+    drawFrame(surface, box, globals()[window["title"]](state), state.focus == window["name"], foot,
+              held if window.get("bar") else None)
+
+
+## The pull-down of the menu that is open, under its name in the menu bar: a frame, its
+## items with their hot letters and at the right their keys, a line between two groups,
+## an item that does not apply greyed, the bar on one item, and its shadow.
+def drawMenu(surface, state, layout):
+    menu = state.menu
+    items = menuItems(MENUS[menu["menu"]][0])
+    listed = [command for command in items if command is not None]
+    labelWidth = max(textWidth(hotText(command["label"])) for command in listed)
+    keyWidth = max(textWidth(keyShown(command["keys"][0])) for command in listed)
+    width = labelWidth + keyWidth + 6
+    left = 3 + sum(textWidth(hotText(label)) + 2 for menuName, label in MENUS[:menu["menu"]])
+    left = max(0, min(left, layout["columns"] - width - 2))
+    frame = MARKS["frame"]
+    last = layout["lines"] - 2
+    surface.put(1, left, frame[0] + frame[1] * (width - 2) + frame[2], BAR)
+    line = 1
+    for index, command in enumerate(items):
+        if line + 1 >= last:
+            break
+        line += 1
+        if command is None:
+            surface.put(line, left, MARKS["rule"][0] + MARKS["rule"][1] * (width - 2) + MARKS["rule"][2], BAR)
+            continue
+        on = index == menu["item"]
+        look = BAR_ON if on else BAR if commandApplies(state, command) else BAR_OFF
+        hotLook = look if look == BAR_OFF else BAR_ON_HOT if on else BAR_HOT
+        surface.put(line, left, frame[3], BAR)
+        column = putParts(surface, line, left + 1, hotParts(" " + command["label"], look, hotLook), width - 2)
+        keyText = keyShown(command["keys"][0])
+        surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
+        surface.put(line, left + width - 1, frame[3], BAR)
+        surface.put(line, left + width, "  ", SHADOW)
+    line += 1
+    surface.put(line, left, frame[4] + frame[1] * (width - 2) + frame[5], BAR)
+    surface.put(line, left + width, "  ", SHADOW)
+    if line + 1 <= last:
+        surface.put(line + 1, left + 2, " " * width, SHADOW)
+
+
+## The whole screen, drawn again from the state in the style of now: every cell of every
+## line, so nothing of an earlier drawing, of an earlier size or of another style is left.
+## The compact style has a drawing of its own (drawCompact). With frames: the desktop first, then each window
+## of WINDOWS on it, the line to type in where it is open, the menu bar, the dialog that
+## is open, drawn over the windows in every style, the status line, and the menu that is open.
+def drawScreen(surface, state):
+    columns, lines = surface.size()
+    layout = layoutOf(columns, lines)
+    surface.clear()
+    surface.cursor(None, None)
+    if layout is not None and state.dialog is not None:
+        state.dialog["plan"] = dialogPlan(state.dialog, columns, lines)
+    if layout is None:
+        if columns > 0 and lines > 0:
+            surface.put(0, 0, cutToCells("Too small: %dx%d (needs %dx%d)" % (columns, lines, MIN_COLUMNS, MIN_LINES), columns), PLAIN)
+        surface.show()
+        return
+    if not STYLE["frames"]:
+        drawCompact(surface, state, layout)
+        if state.dialog is not None:
+            drawDialog(surface, state, columns, lines)
+        if state.menu is not None:
+            drawMenu(surface, state, layout)
+        surface.show()
+        return
+    ## the desktop shows where no window stands
+    for line in range(1, lines - 1):
+        column = 0
+        for left, top, width, height in sorted(layout["boxes"].values()):
+            if top <= line < top + height:
+                if left > column:
+                    surface.put(line, column, MARKS["shade"] * (left - column), DESKTOP)
+                column = max(column, left + width)
+        if column < columns:
+            surface.put(line, column, MARKS["shade"] * (columns - column), DESKTOP)
+    for window in WINDOWS:
+        drawWindow(surface, state, layout, window)
+    if state.line is not None:
+        ## the line to type in, over the bottom border of the left window: what it asks for,
+        ## and the field with what was typed, its end in view
+        viewWidth = layout["viewWidth"]
+        prompt = " " + state.line["prompt"] + " "
+        promptWidth = min(textWidth(prompt), max(0, viewWidth - 2))
+        typed, typedWidth = tailToCells(state.line["text"], viewWidth - promptWidth - 1)
+        surface.put(layout["inputLine"], 1, cutToCells(prompt[1:], promptWidth - 1), BOLD)
+        surface.put(layout["inputLine"], promptWidth, cutToCells(typed, viewWidth - promptWidth), REVERSE)
+        surface.cursor(layout["inputLine"], promptWidth + typedWidth)
+    drawMenuBar(surface, state, columns)
+    if state.dialog is not None:
+        drawDialog(surface, state, columns, lines)
+    drawStatusLine(surface, state, layout["bottomLine"], columns)
+    if state.menu is not None:
+        drawMenu(surface, state, layout)
     surface.show()
 
 
@@ -2792,6 +3979,8 @@ def screenTurn(surface, state, reader, now, key):
         startCalls(state, reader)
         startDueReads(state, reader, now)
         state.reading = reader.runningKeys()
+    if state.dialog is not None and state.dialog["name"] in DIALOG_FILLS:
+        DIALOG_FILLS[state.dialog["name"]](state, state.dialog)
     followSelection(state)
     drawScreen(surface, state)
 
@@ -2803,26 +3992,61 @@ def screenTurn(surface, state, reader, now, key):
 class CursesSurface:
     def __init__(self, window):
         self.window = window
-        self.looks = {PLAIN: curses.A_NORMAL, BOLD: curses.A_BOLD, REVERSE: curses.A_REVERSE, DIM: curses.A_DIM}
+        self.plain, self.coloured = self.looksOf()
         self.keyNames = {
             curses.KEY_UP: "UP", curses.KEY_DOWN: "DOWN", curses.KEY_LEFT: "LEFT", curses.KEY_RIGHT: "RIGHT",
             curses.KEY_PPAGE: "PGUP", curses.KEY_NPAGE: "PGDN", curses.KEY_ENTER: "ENTER",
-            curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_F5: "F5",
+            curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_BTAB: "BACKTAB",
+            curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
         }
         self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE"}
+
+    ## What each look of LOOKS is on this terminal, twice: in bold, reverse and dim alone,
+    ## and in its colours, or None where the terminal has not eight of them.
+    def looksOf(self):
+        flags = {"B": curses.A_BOLD, "R": curses.A_REVERSE, "D": curses.A_DIM}
+        plain = []
+        for letter, mono, text, ground, bright in LOOKS:
+            attribute = curses.A_NORMAL
+            for flag in mono:
+                attribute |= flags[flag]
+            plain.append(attribute)
+        try:
+            if not (curses.has_colors() and curses.COLORS >= 8):
+                return plain, None
+            ## what is drawn with no colour stands in the terminal's own two, not in white on black
+            curses.use_default_colors()
+            coloured = []
+            pairs = {}
+            for letter, mono, text, ground, bright in LOOKS:
+                if (text, ground) not in pairs:
+                    curses.init_pair(len(pairs) + 1, getattr(curses, "COLOR_" + text.upper()), getattr(curses, "COLOR_" + ground.upper()))
+                    pairs[(text, ground)] = len(pairs) + 1
+                coloured.append(curses.color_pair(pairs[(text, ground)]) | (curses.A_BOLD if bright else 0))
+            return plain, coloured
+        except (curses.error, AttributeError):
+            return plain, None
 
     def size(self):
         lines, columns = self.window.getmaxyx()
         return columns, lines
 
+    ## The looks of the style of now: its colours where it has them and the terminal too.
+    def looks(self):
+        return self.coloured if STYLE["colours"] and self.coloured is not None else self.plain
+
     def clear(self):
+        try:
+            self.window.bkgdset(" ", self.looks()[PLAIN])
+        except curses.error:
+            pass
         self.window.erase()
 
     def put(self, line, column, text, look):
         if MARKS["plain"]:
             text = plainText(text)
         try:
-            self.window.addstr(line, column, text, self.looks[look])
+            self.window.addstr(line, column, text, self.looks()[look])
         except curses.error:
             ## the last cell of the screen: it is written, and the cursor has nowhere to go
             pass
@@ -2840,12 +4064,18 @@ class CursesSurface:
     def show(self):
         self.window.refresh()
 
-    ## The next key by its name, or None when none came within that time.
+    def read(self):
+        try:
+            return self.window.get_wch() if hasattr(self.window, "get_wch") else self.window.getch()
+        except curses.error:
+            return None
+
+    ## The next key by its name, or None when none came within that time. Alt with a key
+    ## comes from a terminal as Esc and that key at once, and is named `ALT-` and the key.
     def key(self, seconds):
         self.window.timeout(int(seconds * 1000))
-        try:
-            got = self.window.get_wch() if hasattr(self.window, "get_wch") else self.window.getch()
-        except curses.error:
+        got = self.read()
+        if got is None:
             return None
         if isinstance(got, int):
             if got in self.keyNames:
@@ -2853,6 +4083,12 @@ class CursesSurface:
             if got < 0 or got > 255:
                 return None
             got = chr(got)
+        if got == "\x1b":
+            self.window.timeout(0)
+            after = self.read()
+            if isinstance(after, str) and len(after) == 1 and after.isprintable() and after != " ":
+                return "ALT-" + after.lower()
+            return "ESC"
         if got in self.charNames:
             return self.charNames[got]
         return got if got.isprintable() else None
@@ -2882,11 +4118,11 @@ def endOnSignal(signalNumber, stackFrame):
 
 
 def main(arguments):
-    options = {"--workspace": "", "--tools": ""}
+    options = {"--workspace": "", "--tools": "", "--style": ""}
     position = 0
     while position < len(arguments):
         if arguments[position] not in options or position + 1 >= len(arguments):
-            sys.stderr.write("%s expects: --workspace <path> --tools <dispatcher>, got: %s\n" % (PREFIX, " ".join(arguments)))
+            sys.stderr.write("%s expects: --workspace <path> --tools <dispatcher> [--style <name>], got: %s\n" % (PREFIX, " ".join(arguments)))
             return 1
         options[arguments[position]] = arguments[position + 1]
         position += 2
@@ -2911,6 +4147,9 @@ def main(arguments):
         plainMarks()
     ## A lone Esc is told from the start of a longer key at once, not after a second.
     os.environ.setdefault("ESCDELAY", "25")
+    ## The style of this start: the one it is given, else the one the environment names, else
+    ## the first; a name that is no style leaves the first.
+    setStyle(options["--style"] or os.environ.get(STYLE_VARIABLE, "") or STYLE_FIRST)
     state = ManagerState(options["--workspace"])
     reader = OperationReader([options["--tools"]])
     signal.signal(signal.SIGTERM, endOnSignal)

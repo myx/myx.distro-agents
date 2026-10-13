@@ -21,7 +21,8 @@
 
 case "$1" in
 
-	## The settings of this workspace, as they are.
+	## The settings of this workspace, as they are, and the interface settings of the user
+	## who runs the console, which one operation saves.
 	--manager-config-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerConfig.include"
 		return $?

@@ -129,13 +129,13 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen hold the text
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e 's/│.*$//' | LC_ALL=C grep -c -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C sed -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigListRow(){ ## what a row shows as, its tail -- that row of the list as it is drawn in its 36 cells, not selected
-	printf ' %-*s %s' "$(( 34 - ${#2} ))" "$1" "$2"
+rigListRow(){ ## what a row shows as, its tail -- that row of the list as it is drawn in its 34 cells, not selected
+	printf ' %-*s %s' "$(( 32 - ${#2} ))" "$1" "$2"
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -158,11 +158,11 @@ keys ENTER
 wait sessions 30
 turn 3
 get a
-cells row3 4 84 120
-cells row4 5 84 120
-cells row5 6 84 120
-cells row6 7 84 120
-cells row7 8 84 120
+cells row3 4 85 119
+cells row4 5 85 119
+cells row5 6 85 119
+cells row6 7 85 119
+cells row7 8 85 119
 show u
 RIGSCRIPT
 rigAssert "the screen asked for the list of the sessions, once, and for nothing more" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal a.rows )" "1 0 0 7"
@@ -181,33 +181,33 @@ keys DOWN DOWN
 turn
 get s1
 show s1
-cells keys1 37 0 83
+cells keys1 37 1 83
 keys DOWN
 turn
 show s2
-cells keys2 37 0 83
+cells keys2 37 1 83
 keys DOWN
 turn
 show s3
-cells keys3 37 0 83
+cells keys3 37 1 83
 keys DOWN
 turn
 show s4
-cells keys4 37 0 83
+cells keys4 37 1 83
 keys DOWN
 turn
 get s5
 show s5
-cells keys5 37 0 83
+cells keys5 37 1 83
 RIGSCRIPT
 rigAssert "a thread that is gone: the line control stands under the state, with the state the thread stored and when" "$( rigVal s1.selected ) [$( rigPane s1 3 )][$( rigPane s1 4 )][$( rigPane s1 5 )]" \
 	"$rigS1 [ state     running][ control   gone; $rigStored][ started   2026-10-12 16:57 +0000 (9h ago)]"
-rigAssert "and the pane names the key that starts it again"          "[$( rigVal keys1 )]" "[ keys: k kill  c control  l log]"
-rigAssert "a thread that lives: the pane says so, and names no such key" "[$( rigPane s2 4 )] [$( rigVal keys2 )]" "[ control   alive; stored running, set 2026-10-12 15:01 +0000 (11h ago)] [ keys: k kill  l log]"
-rigAssert "a session that ended in order: no thread, the stored state finished, and no key" "[$( rigPane s3 5 )][$( rigPane s3 6 )] [$( rigVal keys3 )]" "[ state     finished][ control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)] [ keys: l log]"
-rigAssert "a session that is not finished and never had a thread: nothing stored, and the key is named" "[$( rigPane s4 3 )][$( rigPane s4 4 )] [$( rigVal keys4 )]" "[ state     waiting][ control   none; stored -] [ keys: c control  l log]"
+rigAssert "and the pane names the key that starts it again"          "[$( rigVal keys1 )]" "[keys: k kill  c control  l log]"
+rigAssert "a thread that lives: the pane says so, and names no such key" "[$( rigPane s2 4 )] [$( rigVal keys2 )]" "[ control   alive; stored running, set 2026-10-12 15:01 +0000 (11h ago)] [keys: k kill  l log]"
+rigAssert "a session that ended in order: no thread, the stored state finished, and no key" "[$( rigPane s3 5 )][$( rigPane s3 6 )] [$( rigVal keys3 )]" "[ state     finished][ control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)] [keys: l log]"
+rigAssert "a session that is not finished and never had a thread: nothing stored, and the key is named" "[$( rigPane s4 3 )][$( rigPane s4 4 )] [$( rigVal keys4 )]" "[ state     waiting][ control   none; stored -] [keys: c control  l log]"
 rigAssert "where the stored state and the derived one differ, each is shown as it is" "$( rigVal s5.selected ) [$( rigPane s5 3 )][$( rigPane s5 4 )]" "$rigS5 [ state     finished][ control   gone; stored running, set 2026-10-12 09:40 +0000 (16h ago)]"
-rigAssert "a finished session names no such key, whatever its thread" "[$( rigVal keys5 )]" "[ keys: l log]"
+rigAssert "a finished session names no such key, whatever its thread" "[$( rigVal keys5 )]" "[keys: l log]"
 rigAssert "all of it came with the one list: nothing more was called" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal s5.spills )" "1 0 0 0"
 
 echo "-- the read of one session adds the pid of a thread that lives --"
@@ -240,27 +240,27 @@ keys DOWN DOWN
 copy $rigTmp/start/after.rows $rigTmp/start/rows
 keys c
 get asked
-cells askedLine 38 0 83
+said askedLine
 wait action 30
 get answered
 show a
-cells answeredLine 38 0 83
+said answeredLine
 wait sessions 30
 turn
 get after
 show z
-cells afterRow 4 84 120
-cells afterKeys 37 0 83
+cells afterRow 4 85 119
+cells afterKeys 37 1 83
 RIGSCRIPT
-rigAssert "c opens no line to type in: the start is asked of the tooling at once" "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal askedLine )]" "[] action:control:$rigS1 [ control thread asked of the tooling: the session daily of Monday]"
+rigAssert "c opens no line to type in: the start is asked of the tooling at once" "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal askedLine )]" "[] action:control:$rigS1 [control thread asked of the tooling: the session daily of Monday]"
 rigAssert "the operation is called once, with the id of that session and nothing more" "$( rigStarts ) [$( rigStartWords )]" "1 [[--manager-session-control-start][--session-id][$rigS1]]"
 rigAssert "nothing goes to its standard input, and nothing else is called" "$( [ -e "$MANAGER_SCREEN_RIG/stdin.--manager-session-control-start" ] && printf input || printf none ) $( rigElse )" "none 0"
-rigAssert "the bottom line says the outcome in words: started, with the pid" "[$( rigVal answeredLine )]" "[ control: started, pid 4321]"
+rigAssert "the bottom line says the outcome in words: started, with the pid" "[$( rigVal answeredLine )]" "[control: started, pid 4321]"
 rigAssert "the same stands at the head of the left pane"             "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )] $( rigVal answered.answer )" "[ the control start, answered 02:30:00:][   started, pid 4321][] 2"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
 rigAssert "and shows the session as it is now, still selected: the mark is gone, and the thread lives" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 6 )][$( rigPane z 7 )]" \
 	"$rigS1 [>$( rigListRow "daily of Monday" "running" | LC_ALL=C cut -c2- )] [ state     running][ control   alive; $rigStored]"
-rigAssert "the pane names the key no more"                           "[$( rigVal afterKeys )]" "[ keys: k kill  l log]"
+rigAssert "the pane names the key no more"                           "[$( rigVal afterKeys )]" "[keys: k kill  l log]"
 
 echo "-- the other outcomes, each in words from its row --"
 rigCase outcomes
@@ -312,17 +312,18 @@ keys c
 wait action 30
 get refused
 show f
+keys ENTER
 wait sessions 30
 turn
 get after
-cells afterRow 4 84 120
-cells afterKeys 37 0 83
+cells afterRow 4 85 119
+cells afterKeys 37 1 83
 RIGSCRIPT
-rigAssert "not started, with the reason of the row in the bottom line, its backslash and its TAB read back" "[$( rigVal refused.notice )]" "[control: not started: its open records are runs of another host (far\\host), which cannot be watched from here]"
+rigAssert "not started, with the reason of the row first in the box, its backslash and its TAB read back" "[$( rigVal refused.dialogTitle )] [$( rigVal refused.dialogHolds )]" "[The control start failed] [control: not started: its open records are runs of another host (far\\host), which cannot be watched from here / operation: --manager-session-control-start --session-id $rigS1 / rig-tools: ⛔ ERROR: the rig said fail, after its rows]"
 rigAssert "the pane says that the start failed, then the row, then the error line of the operation" "[$( rigPane f 3 )] $( rigPaneHolds f '   not started: its open records are runs of another host (far\host), which' ) [$( rigPane f 6 )][$( rigPane f 7 )]" \
 	"[ the control start failed, answered 02:30:00:] 1 [ rig-tools: ⛔ ERROR: the rig said fail, after its rows][]"
 rigAssert "the list is read again all the same: the row keeps its mark, and the pane its key" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) [$( rigVal afterRow )] [$( rigVal afterKeys )]" \
-	"2 $rigS1 [>$( rigListRow "daily of Monday" "x running" | LC_ALL=C cut -c2- )] [ keys: k kill  c control  l log]"
+	"2 $rigS1 [>$( rigListRow "daily of Monday" "x running" | LC_ALL=C cut -c2- )] [keys: k kill  c control  l log]"
 rigCase fail
 echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-session-control-start"
 rigScript <<'RIGSCRIPT'
@@ -333,13 +334,13 @@ keys c
 wait action 30
 get failed
 show f
-cells failedLine 38 0 83
+keys ENTER
 wait sessions 30
 turn
 get after
-cells afterRow 4 84 120
+cells afterRow 4 85 119
 RIGSCRIPT
-rigAssert "a start that ends with status 1 and one error line, and no row: the line stands in the bottom line" "[$( rigVal failedLine )]" "[ --manager-session-control-start: rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "a start that ends with status 1 and one error line, and no row: what it wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The control start failed] [operation: --manager-session-control-start --session-id $rigS1 / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "and in the left pane, which says that the start failed"   "[$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" "[ the control start failed, answered 02:30:00:][ rig-tools: ⛔ ERROR: the rig said fail][]"
 rigAssert "the row keeps its mark"                                   "$( rigCalled --manager-session-list ) [$( rigVal afterRow )] [$( rigVal after.failed )]" "2 [>$( rigListRow "daily of Monday" "x running" | LC_ALL=C cut -c2- )] []"
 
@@ -348,26 +349,29 @@ rigCase cannot
 rigScript <<'RIGSCRIPT'
 keys c
 get section
+keys ESC
 keys ENTER
 wait sessions 30
 keys c
 get up
+keys ESC
 keys DOWN c
 get launch
-cells launchLine 38 0 83
+keys ESC
 keys DOWN ENTER DOWN
 turn
 get agent
-cells agentKeys 37 0 83
+cells agentKeys 37 1 83
 keys c
 get onAgent
+keys ESC
 turn 3
 get end
 RIGSCRIPT
 rigHere="c: nothing to control here: c starts the control thread of a session"
-rigAssert "on a section, and on the row that goes up, there is nothing to control" "[$( rigVal section.notice )][$( rigVal up.notice )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[$rigHere][$rigHere] []"
-rigAssert "on Launch / Spawn there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launchLine )]" "launch [ $rigHere]"
-rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigVal agentKeys )] [$( rigVal onAgent.notice )]" "sessions/$rigS1 $rigS1 [ keys: k kill  l log] [$rigHere]"
+rigAssert "on a section, and on the row that goes up, there is nothing to control" "[$( rigVal section.dialogHolds )][$( rigVal up.dialogHolds )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[$rigHere][$rigHere] [message:ok|message:ok|]"
+rigAssert "on Launch / Spawn there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.dialogHolds )]" "launch [$rigHere]"
+rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigVal agentKeys )] [$( rigVal onAgent.dialogHolds )]" "sessions/$rigS1 $rigS1 [keys: k kill  l log] [$rigHere]"
 rigAssert "the operation was never called"                           "$( rigStarts ) $( rigElse ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
 
 echo "-- c pressed again before the answer has come asks nothing a second time --"
@@ -379,13 +383,14 @@ wait sessions 30
 keys DOWN DOWN
 keys c c
 get twice
+keys ESC
 wait action 30
 get once
 keys c
 wait action 30
 get again
 RIGSCRIPT
-rigAssert "the second c says that the start is asked for already"   "[$( rigVal twice.notice )] $( rigVal twice.reading )" "[c: the control thread of this session is asked for already, and its answer has not come] action:control:$rigS1"
+rigAssert "the second c says that the start is asked for already"   "[$( rigVal twice.dialogHolds )] $( rigVal twice.reading )" "[c: the control thread of this session is asked for already, and its answer has not come] action:control:$rigS1"
 rigAssert "one call was made, and its answer is shown"               "[$( rigVal once.notice )]" "[control: started, pid 4321]"
 rigAssert "once the answer has come, c asks again"                   "$( rigStarts ) [$( rigVal again.notice )]" "2 [control: started, pid 4321]"
 
@@ -410,7 +415,7 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
 get a
-cells row3 4 84 120
+cells row3 4 85 119
 show u
 keys DOWN DOWN
 turn
@@ -419,7 +424,7 @@ wait view 30
 turn
 get s
 show s
-cells sKeys 37 0 83
+cells sKeys 37 1 83
 keys c
 wait action 30
 get asked
@@ -428,7 +433,7 @@ rigReads=""
 rigAssert "a session row of eight fields draws as it did: no mark, and the section says nothing of a thread" "$( rigVal a.rows ) [$( rigVal row3 )] $( rigPaneHolds u 'control thread' )" "3 [$( rigListRow "daily of Monday" "running" )] 0"
 rigAssert "the line control says - of what the row does not tell, before the read of the session and after it, which prints no control row" "[$( rigPane early 3 )][$( rigPane early 4 )] [$( rigPane s 3 )][$( rigPane s 4 )] $( rigPaneHolds s 'for       The daily of Monday.' )" \
 	"[ state     running][ control   -] [ state     running][ control   -] 1"
-rigAssert "the pane names no key for what it cannot tell, and nothing failed" "[$( rigVal sKeys )] [$( rigVal s.failed )] $( rigVal s.spills ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -e 'DRIVER-FAILED' -e 'Traceback' )" "[ keys: k kill  l log] [] 0 0"
+rigAssert "the pane names no key for what it cannot tell, and nothing failed" "[$( rigVal sKeys )] [$( rigVal s.failed )] $( rigVal s.spills ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -e 'DRIVER-FAILED' -e 'Traceback' )" "[keys: k kill  l log] [] 0 0"
 rigAssert "c still asks the operation, whose answer it is"           "$( rigStarts ) [$( rigVal asked.notice )]" "1 [control: started, pid 4321]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

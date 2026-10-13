@@ -138,10 +138,10 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigScreenHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -190,7 +190,7 @@ rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or th
 }
 rigTableHead="$( rigTableLine '' MEMBER RUN STATUS KIND WHERE )"
 rigCase list
-rigSize="220 40"
+rigSize="227 40"
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 30
@@ -203,62 +203,64 @@ wait list 30
 turn
 get in
 show u
-cells title 1 154 220
-cells head 2 154 220
-cells row1 3 154 220
-cells row2 4 154 220
-cells row3 5 154 220
-cells row4 6 154 220
-cells row5 7 154 220
-cells row6 8 154 220
-cells row7 9 154 220
+border title 1 159 227
+cells head 2 160 226
+cells row1 3 160 226
+cells row2 4 160 226
+cells row3 5 160 226
+cells row4 6 160 226
+cells row5 7 160 226
+cells row6 8 160 226
+cells row7 9 160 226
 looks k
 keys k
 get kill
+keys ESC
 keys n
 get start
-size 147 40
+keys ESC
+size 154 40
 get mid
-cells midHead 2 103 147
-cells midRow2 4 103 147
-cells midRow4 6 103 147
-cells midRow6 8 103 147
-size 120 40
+cells midHead 2 109 153
+cells midRow2 4 109 153
+cells midRow4 6 109 153
+cells midRow6 8 109 153
+size 127 40
 get narrow
-cells narrowHead 2 84 120
-cells narrowRow2 4 84 120
-cells narrowRow3 5 84 120
-cells narrowRow4 6 84 120
-cells narrowRow5 7 84 120
-cells narrowRow6 8 84 120
-size 40 40
+cells narrowHead 2 90 126
+cells narrowRow2 4 90 126
+cells narrowRow3 5 90 126
+cells narrowRow4 6 90 126
+cells narrowRow5 7 90 126
+cells narrowRow6 8 90 126
+size 47 40
 get tiny
-cells tinyHead 2 28 40
-cells tinyRow3 5 28 40
-cells tinyRow4 6 28 40
+cells tinyHead 2 34 46
+cells tinyRow3 5 34 46
+cells tinyRow4 6 34 46
 RIGSCRIPT
 rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
 rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "team list:team 1 0"
 rigAssert "the members stand in a table: a header that names its columns, under it the row that goes up, then every member in the order of the operation, with its icon, its name, whether it runs now, its status, its kind and where it is set up" \
 	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal head )][$( rigVal row1 )][$( rigIconCells row3 )][$( rigIconCells row4 )][$( rigVal row7 )]" \
-	"[ Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
+	"[Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
 rigAssert "each column starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
 	"[$( rigIconCells row2 )][$( rigIconCells row5 )][$( rigIconCells row6 )]" \
 	"[$( rigTableLine '##' human-owner - reference-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
 rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
-rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 156 156 )$( rigLooks k 5 156 156 )$( rigLooks k 9 156 156 )$( rigLooks k 3 156 160 )$( rigLooks k 6 156 156 )" "BDD......"
+rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 162 162 )$( rigLooks k 5 162 162 )$( rigLooks k 9 162 162 )$( rigLooks k 3 162 166 )$( rigLooks k 6 162 162 )" "BDD......"
 rigAssert "a pane of 44 cells has room for the status, to the cell, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
-	"$( rigVal mid.listWidth ) [$( rigVal midHead )][$( rigIconCells midRow2 )][$( rigIconCells midRow4 )][$( rigVal midRow6 )]" \
+	"$(( $( rigVal mid.listWidth ) - 2 )) [$( rigVal midHead )][$( rigIconCells midRow2 )][$( rigIconCells midRow4 )][$( rigVal midRow6 )]" \
 	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - reference-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
 rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
-	"$( rigVal narrow.listWidth ) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
+	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
 	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
 rigAssert "a pane with no room for a whole name shows the icon and the name alone, the name cut with the mark of a cut text; nothing was drawn past a pane at any width" \
-	"$( rigVal tiny.listWidth ) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
+	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
 	"12 [    MEMBER][ ## magic-c…][ ## keeper-…] 0"
 rigAssert "on the row that goes up the left pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 members, 1 with a live run.][ 2 of them are not started from here.]"
-rigAssert "k and n on the row that goes up find nothing to act on"   "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] []"
+rigAssert "k and n on the row that goes up find nothing to act on"   "[$( rigVal kill.dialogHolds )][$( rigVal start.dialogHolds )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] [message:ok|]"
 
 echo "-- a selected member is read once the selection has rested, and shown --"
 rigCase member
@@ -277,7 +279,7 @@ get asked
 wait view 30
 get m
 show m
-cells keysLine 37 0 83
+cells keysLine 37 1 83
 RIGSCRIPT
 rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
 rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ its information, its sessions, its grants and its settings: not read yet]"
@@ -295,7 +297,7 @@ rigAssert "its grants, a long one going on under itself"             "[$( rigPan
 rigAssert "its settings: a secret only as configured or not, a plain one by its value, a missing one marked" "[$( rigPane m 32 )][$( rigPane m 33 )][$( rigPane m 34 )][$( rigPane m 35 )][$( rigPane m 36 )]" \
 	"[ its settings: 5][     SLACK_BOT_TOKEN   configured][   ! SLACK_USER_TOKEN  not configured][     EMAIL_USER        keeper_myx@rig.example][   ! TRELLO_BOARD      missing]"
 rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-myx" )" "0 0 1"
-rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigVal keysLine )] $( rigVal m.spills )" "[ keys: n start] 0"
+rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigVal keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
 
 echo "-- the pane of a member scrolls, and a member set up elsewhere says so --"
 rigCase scroll
@@ -315,16 +317,17 @@ show end
 keys TAB DOWN
 wait view 30
 show far
-cells farKeys 17 0 83
+cells farKeys 17 1 83
 RIGSCRIPT
 rigSize=""
 rigAssert "the pane starts at the top of the member"                 "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 35 no"
 rigAssert "with the focus on it, PageDown shows its next page"       "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' its workspace:' )" "view 15 1"
 rigAssert "and reaches its last line, a setting read in another workspace" "$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigVal end.spills )" "1 0"
-rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigVal farKeys )]" "1 1 [ keys: n start]"
+rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigVal farKeys )]" "1 1 [keys: n start]"
 
 echo "-- n, a prompt and a name start that member --"
 rigCase start
+rigBoxHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || : ; } ## tag, text -- how many lines of that drawing of a dialog hold the text
 rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
@@ -333,40 +336,40 @@ wait view 30
 copy $rigTmp/start/after.rows $rigTmp/start/rows
 keys n
 get asked
-show d
+box d
 keys$( rigType 'fix the index, please' )
 get typed
-keys ENTER
+keys TAB
 get name
-show n
+box n
 turn 3
 get waiting
 keys$( rigType 'the index' ) ENTER
 get started
-cells startedLine 38 0 83
+said startedLine
 wait action 30
 get answered
 show a
-cells answeredLine 38 0 83
+said answeredLine
 wait sessions 30
 turn
 keys LEFT UP UP ENTER
 get up
-cells upRow3 4 84 120
-cells upRow4 5 84 120
+cells upRow3 4 85 119
+cells upRow4 5 85 119
 RIGSCRIPT
-rigAssert "n opens the line for the prompt"                          "[$( rigVal asked.dialog )] [$( rigPane d 34 )][$( rigPane d 35 )]" "[prompt:|] [ START the member keeper-myx with a prompt, in a new session of its own][ It runs as that member, whoever is at the console.]"
-rigAssert "and says where the line goes, and that no secret belongs in it" "[$( rigPane d 36 )][$( rigPane d 37 )][$( rigPane d 38 )]" \
-	"[ The line typed below is its prompt, given to the operation on its standard input.][ No secret belongs in it: a brief shows on the command line of the CLI.][ Enter goes on to the name of the session. Esc starts nothing.]"
-rigAssert "the prompt is typed, and Enter goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] [$( rigPane n 36 )][$( rigPane n 37 )]" \
-	"[prompt:|fix the index, please] [name:|] [ START keeper-myx: fix the index, please][ The line below is the name of its session, or none: it then shows by its id.]"
-rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[name:|] 0 []"
-rigAssert "Enter starts it, beside the screen"                       "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:start:keeper-myx [ start asked of the tooling: the member keeper-myx, named the index]"
+rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ > keeper-myx ' ) $( rigBoxHas d '║   magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
+rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d '[ Start ]  [ Cancel ]' )" "1 1 1"
+
+rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║ fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
+
+rigAssert "until the name is entered nothing is started"             "[$( rigVal waiting.dialog )] $( rigVal waiting.calls ) [$( rigVal waiting.reading )]" "[prompt:name|] 0 []"
+rigAssert "Enter starts it, beside the screen"                       "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:start:keeper-myx [start asked of the tooling: the member keeper-myx, named the index]"
 rigAssert "the operation is called once, for that member, with the name as one word and no word of the prompt" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--manager-spawn-member][keeper-myx][--session-name-or-comment][the index]]"
 rigAssert "the prompt is on its standard input, whole, with a line end" "$( rigInput 'fix the index, please' ) $( rigOthers )" "same 0"
 rigAssert "what the operation printed is shown: the session, the member, the name, the item" "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
-	"[ started: keeper-myx, session $rigNew] [ the start, answered 02:30:00:][ session   $rigNew][ member    keeper-myx][ name      the index][ item      dispatch-20261013T023000Z-spawn-proxy-1][]"
-rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ the index                   running][ daily of Monday             running]"
+	"[started: keeper-myx, session $rigNew] [ the start, answered 02:30:00:][ session   $rigNew][ member    keeper-myx][ name      the index][ item      dispatch-20261013T023000Z-spawn-proxy-1][]"
+rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ the index                 running][ daily of Monday           running]"
 
 echo "-- no name, an empty prompt, Esc --"
 rigCase bare
@@ -374,7 +377,7 @@ rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN
-keys n$( rigType 'look at the index' ) ENTER ENTER
+keys n$( rigType 'look at the index' ) TAB ENTER
 wait action 30
 RIGSCRIPT
 rigAssert "with no name the member is started under none"            "$( rigStarts ) [$( rigStartWords 1 )] $( rigInput 'look at the index' )" "1 [[--manager-spawn-member][keeper-myx]] same"
@@ -384,7 +387,7 @@ rigScript <<RIGSCRIPT
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN
-keys n$( rigType "$rigOdd" ) ENTER ENTER
+keys n$( rigType "$rigOdd" ) TAB ENTER
 wait action 30
 RIGSCRIPT
 rigAssert "a prompt with quotes, a percent sign, a backslash, a dollar and a first word that starts with a dash arrives unchanged" "$( rigInput "$rigOdd" ) [$( rigStartWords 1 )]" "same [[--manager-spawn-member][keeper-myx]]"
@@ -393,20 +396,20 @@ rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN
-keys n ENTER
+keys n TAB ENTER
 get empty
-cells emptyLine 38 0 83
-keys n SPACE SPACE ENTER
+said emptyLine
+keys BACKTAB SPACE SPACE TAB ENTER
 get spaces
-keys n x ESC
+keys ESC n x ESC
 get esc
-keys n x ENTER y ESC
+keys n x TAB y ESC
 get escName
 turn 3
 get end
 RIGSCRIPT
-rigAssert "Enter with no text starts nothing, and says so"           "[$( rigVal empty.dialog )] [$( rigVal emptyLine )]" "[] [ nothing was started: the line was empty]"
-rigAssert "spaces alone are no text; Esc at the prompt and Esc at the name start nothing" "[$( rigVal spaces.notice )] [$( rigVal esc.dialog )$( rigVal esc.notice )] [$( rigVal escName.dialog )$( rigVal escName.notice )]" "[nothing was started: the line was empty] [] []"
+rigAssert "Start with no prompt starts nothing, and the dialog says so" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )]" "[prompt:name|] [nothing is started: the prompt is empty]"
+rigAssert "spaces alone are no text; Esc at the prompt and Esc at the name start nothing" "[$( rigVal spaces.dialogSays )] [$( rigVal esc.dialog )$( rigVal esc.notice )] [$( rigVal escName.dialog )$( rigVal escName.notice )]" "[nothing is started: the prompt is empty] [] []"
 rigAssert "the operation that starts a member was never called"      "$( rigStarts ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
 
 echo "-- a member that is not to be started cannot be started here --"
@@ -418,25 +421,26 @@ keys DOWN
 wait view 30
 get owner
 show o
-cells ownerKeys 37 0 83
+cells ownerKeys 37 1 83
 keys n
 get refused
-cells refusedLine 38 0 83
+keys ESC
 keys DOWN DOWN DOWN DOWN
 advance 1
 turn 3
 get gone
 show g
-cells goneKeys 37 0 83
+cells goneKeys 37 1 83
 keys n
 get unreachable
+keys ESC
 turn 3
 get end
 RIGSCRIPT
 rigAssert "the identity record is selected: the pane says why it is not started, and names no key" "$( rigVal owner.selected ) $( rigPaneHolds o ' start     not started from here: its status is reference-only: nobody is started' )$( rigPaneHolds o '           as this member' ) [$( rigVal ownerKeys )]" "human-owner 11 []"
-rigAssert "n on it opens no line, and the bottom line says that this member is not started" "[$( rigVal refused.dialog )] [$( rigVal refusedLine )]" "[] [ n: human-owner is not started: its status is reference-only: nobody is started as…]"
-rigAssert "a member whose workspace cannot be reached is not started either" "$( rigVal gone.selected ) $( rigPaneHolds g ' start     not started from here: its workspace cannot be reached from this machine' ) [$( rigVal goneKeys )] [$( rigVal unreachable.dialog )] [$( rigVal unreachable.notice )]" \
-	"keeper-gone 1 [] [] [n: keeper-gone is not started: its workspace cannot be reached from this machine]"
+rigAssert "n on it starts nothing, and a box says that this member is not started" "[$( rigVal refused.dialog )] [$( rigVal refused.dialogTitle )] [$( rigVal refused.dialogHolds )]" "[message:ok|] [The member is not started] [n: human-owner is not started: its status is reference-only: nobody is started as this member]"
+rigAssert "a member whose workspace cannot be reached is not started either" "$( rigVal gone.selected ) $( rigPaneHolds g ' start     not started from here: its workspace cannot be reached from this machine' ) [$( rigVal goneKeys )] [$( rigVal unreachable.dialog )] [$( rigVal unreachable.dialogHolds )]" \
+	"keeper-gone 1 [] [message:ok|] [n: keeper-gone is not started: its workspace cannot be reached from this machine]"
 rigAssert "and it is not read, since its read would be refused: the pane says so" "[$( rigVal gone.reading )] $( rigCalled '--manager-team-member-read keeper-gone' ) $( rigPaneHolds g ' nothing more is read of it: its workspace cannot be reached from this machine' )" "[] 0 1"
 rigAssert "the operation that starts a member was never called"      "$( rigStarts ) $( rigVal end.calls )" "0 0"
 
@@ -447,13 +451,13 @@ rigScript <<'RIGSCRIPT'
 keys DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN
-keys n x ENTER ENTER
+keys n x TAB ENTER
 wait action 30
 get failed
 show f
-cells failedLine 38 0 83
+said failedLine
 RIGSCRIPT
-rigAssert "the error line of the operation stands in the bottom line" "[$( rigVal failedLine )]" "[ --manager-spawn-member: rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --manager-spawn-member keeper-myx / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "and in the left pane, which says that the start failed"   "[$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" "[ the start failed, answered 02:30:00:][ rig-tools: ⛔ ERROR: the rig said fail][]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

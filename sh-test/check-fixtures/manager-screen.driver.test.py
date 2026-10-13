@@ -23,6 +23,7 @@ import fcntl
 import importlib.util
 import os
 import pty
+import re
 import select
 import shutil
 import struct
@@ -111,8 +112,9 @@ class TextSurface:
     def textLines(self):
         return ["".join(lineCells) for lineCells in self.cells]
 
-    def lookLines(self):
-        return ["".join(".BRD"[look] for look in lineLooks) for lineLooks in self.looks]
+    ## How each cell is drawn, a letter a cell: `letters` gives the letter of a look.
+    def lookLines(self, letters):
+        return ["".join(letters(look) for look in lineLooks) for lineLooks in self.looks]
 
 
 ## script: one command a line, `#` starts a comment.
@@ -131,11 +133,25 @@ class TextSurface:
 ##   rowsgen <level> <count>       the same, <count> generated rows r001.. labelled `row 001`..
 ##   view <count>                  <count> lines in the left pane;  viewline <text>  one more line
 ##   dialog <prompt>               opens the line to type in; what is submitted shows as `submitted: <text>`
+##   rigdialog [<text>]            opens a dialog of the rig's own, declared here with a control of every kind: a text,
+##                                 the field `name`, the field of several lines `notes`, the boxes `who`, the radio
+##                                 buttons `how`, the list `pick`, and the buttons OK and Cancel. OK says what each
+##                                 control holds, as `pressed ok: ...`, and refuses the name `no` inside the dialog
+##   tell <title> | <paragraph> [/ <paragraph>...]   opens the message box with that title and that text
+##   box <tag> [roles|looks]       the open dialog as drawn, line by line, with the two cells at its right and the line
+##                                 under it, where its shadow falls: as text, or as show, roles and looks give a screen
 ##   handler <action>              gives that action a handler that says `handled <action> on <row id>`, on every row
-##   show <tag>   looks <tag>   fresh <tag>   the screen as text; how each cell is drawn (. plain, B bold, R reverse, D dim); the same state drawn on a new terminal
+##   show <tag>   looks <tag>   fresh <tag>   the screen as text; how each cell is drawn on a terminal with no colours
+##                                 (. plain, B bold, R reverse, D dim, H reverse and bold, d reverse and dim); the same
+##                                 state drawn on a new terminal
+##   roles <tag>                   which part of the drawing each cell is, by the letter LOOKS of the screen gives it
 ##   cells <tag> <line> <from> <to>   those cells of one line, counted from 0, as `<tag>=<text>` without the spaces at its end
+##   border <tag> <line> <from> <to>  the same of a border of a window, without the lines and the corners of the frame
+##                                 at its ends: its title, or what stands in its bottom border
+##   said <tag>                    what the status line says after its keys, as it is drawn, as `<tag>=<text>`
 ##   get <tag>                     the state, one `<tag>.<name>=<value>` a line
 ##   plain                         from here on the screen draws as for a terminal that is not UTF-8
+##   style <name>                  from here on the screen draws in that style of its STYLES
 ##   plaintext <tag> <text>        that text as such a terminal is given it, as `<tag>=<text>`
 def scriptRun(module):
     state = module.ManagerState("")
@@ -150,6 +166,47 @@ def scriptRun(module):
 
     def setRows(level, rows):
         state.rows[level] = rows
+
+    ## What has the keys besides the windows and the menu: the line to type in as
+    ## `<what it asks for>|<what was typed>`, or the open dialog as `<its name>:<the control
+    ## or the button the keys are on>|<what that control holds>`, a new line as `\n`, the
+    ## checked boxes with commas between them.
+    def dialogValue():
+        if state.line is not None:
+            return state.line["prompt"] + "|" + state.line["text"]
+        if state.dialog is None:
+            return ""
+        what, index, control = module.dialogFocus(state.dialog)
+        if control is None:
+            return "%s:%s|" % (state.dialog["name"], state.dialog["buttons"][index][0])
+        value = control["value"]
+        return "%s:%s|%s" % (state.dialog["name"], control["name"], ",".join(value) if isinstance(value, list) else value.replace("\n", "\\n"))
+
+    def rigDialog(text):
+        module.DIALOGS["rig"] = {"title": "A dialog of the rig", "controls": (
+            {"name": "about", "kind": "text"},
+            {"name": "name", "kind": "input", "label": "Name"},
+            {"name": "notes", "kind": "area", "label": "Notes"},
+            {"name": "who", "kind": "checks", "label": "Who"},
+            {"name": "how", "kind": "radios", "label": "How"},
+            {"name": "pick", "kind": "list", "label": "Pick"},
+        ), "buttons": (("ok", "OK"), ("cancel", "Cancel"))}
+
+        def pressed(dialogState, dialog, button):
+            if module.dialogValue(dialog, "name") == "no":
+                return "the rig refuses the name no"
+            dialogState.notice = "pressed %s: name=%s notes=%s who=%s how=%s pick=%s" % (
+                button, module.dialogValue(dialog, "name"), module.dialogValue(dialog, "notes").replace("\n", "\\n"),
+                ",".join(module.dialogValue(dialog, "who")), module.dialogValue(dialog, "how"), module.dialogValue(dialog, "pick"))
+            return None
+        module.DIALOG_HANDLERS["rig"] = pressed
+        module.openDialog(state, "rig", {
+            "about": {"lines": [text or "What the rig asks."]},
+            "name": {"value": "typed"},
+            "who": {"options": [("a", "alpha"), ("b", "beta"), ("c", "gamma")], "value": ["b"]},
+            "how": {"options": [("x", "one way"), ("y", "another")], "value": "y"},
+            "pick": {"options": [("p1", "first"), ("p2", "second"), ("p3", "third")]},
+        })
 
     def get(tag):
         columns, lines = surface.size()
@@ -171,8 +228,18 @@ def scriptRun(module):
             ("viewHead", len(state.view["head"])), ("follow", "yes" if state.view["follow"] else "no"),
             ("rawLog", "yes" if state.rawLog else "no"),
             ("notice", state.notice),
-            ("dialog", "" if state.dialog is None else state.dialog["prompt"] + "|" + state.dialog["text"]),
+            ("dialog", dialogValue()),
+            ("dialogTitle", state.dialog["title"] if state.dialog else ""),
+            ("dialogHolds", " / ".join(
+                "%s: %s" % paragraph if isinstance(paragraph, tuple) else paragraph
+                for control in (state.dialog["controls"] if state.dialog else ()) for paragraph in control["lines"])),
+            ("dialogSays", state.dialog["says"] if state.dialog else ""),
+            ("dialogBox", ",".join(str(value) for value in state.dialog["plan"]["box"]) if state.dialog and state.dialog["plan"] else ""),
+            ("waiting", len(state.waiting)),
+            ("menu", "" if getattr(state, "menu", None) is None else "%s:%s" % (
+                module.MENUS[state.menu["menu"]][0], module.menuItems(module.MENUS[state.menu["menu"]][0])[state.menu["item"]]["name"])),
             ("quit", "yes" if state.quit else "no"),
+            ("style", module.STYLE["name"] if hasattr(module, "STYLE") else ""),
             ("reading", ",".join(sorted(state.reading.values()))),
             ("calls", len(getattr(state, "calls", ()))),
             ("answer", len(state.answer["lines"]) if getattr(state, "answer", None) else 0),
@@ -252,7 +319,17 @@ def scriptRun(module):
             module.followSelection(state)
             state.view["lines"].append(rest)
         elif command == "dialog":
-            module.openDialog(state, rest, lambda dialogState, text: "submitted: " + text)
+            module.openLine(state, rest, lambda dialogState, text: "submitted: " + text)
+        elif command == "rigdialog":
+            rigDialog(rest)
+        elif command == "tell":
+            module.tell(state, rest.partition("|")[0].strip(), [paragraph.strip() for paragraph in rest.partition("|")[2].split(" / ")])
+        elif command == "box":
+            left, top, width, height = state.dialog["plan"]["box"]
+            letters = {"roles": lambda look: module.LOOKS[look][0], "looks": lambda look: module.MONO_LETTERS[module.LOOKS[look][1]]}
+            grid = surface.lookLines(letters[words[1]]) if words[1:] else surface.cells
+            for gridLine in grid[top:top + height + 1]:
+                print("%s|%s|" % (words[0], "".join(gridLine[left:left + width + 2])))
         elif command == "handler":
             module.ACTION_HANDLERS[words[0]] = (lambda action: lambda handlerState, row: "handled %s on %s" % (action, row["id"] if row else "nothing"))(words[0])
             getattr(module, "ACTION_FITS", {}).pop(words[0], None)
@@ -260,8 +337,17 @@ def scriptRun(module):
             for textLine in surface.textLines():
                 print("%s|%s|" % (rest, textLine))
         elif command == "looks":
-            for lookLine in surface.lookLines():
+            for lookLine in surface.lookLines(lambda look: module.MONO_LETTERS[module.LOOKS[look][1]]):
                 print("%s|%s|" % (rest, lookLine))
+        elif command == "roles":
+            for lookLine in surface.lookLines(lambda look: module.LOOKS[look][0]):
+                print("%s|%s|" % (rest, lookLine))
+        elif command == "border":
+            frameMarks = module.MARKS["frame"] + module.MARKS["frameOn"] + " "
+            print("%s=%s" % (words[0], "".join(surface.cells[int(words[1])][int(words[2]):int(words[3])]).strip(frameMarks)))
+        elif command == "said":
+            statusLine = "".join(surface.cells[surface.lines - 1])
+            print("%s=%s" % (words[0], statusLine.partition(module.MARKS["separator"])[2].strip(" ")))
         elif command == "fresh":
             other = TextSurface(surface.columns, surface.lines)
             module.drawScreen(other, state)
@@ -269,6 +355,9 @@ def scriptRun(module):
                 print("%s|%s|" % (rest, textLine))
         elif command == "plain":
             module.plainMarks()
+        elif command == "style":
+            if not module.setStyle(rest):
+                print("style.refused=%s" % rest)
         elif command == "plaintext":
             print("%s=%s" % (words[0], module.plainText(rest.partition(" ")[2])))
         elif command == "cells":
@@ -286,7 +375,8 @@ def scriptRun(module):
     return 0
 
 
-## pty: the command on a pseudo-terminal of that size. Once <wait-for> has been drawn the
+## pty: the command on a pseudo-terminal of that size, a terminal with colours, or the one the
+## environment names in MANAGER_SCREEN_PTY_TERM (colours says whether one was set). Once <wait-for> has been drawn the
 ## keys are written (`-`: none; \r \e \t are read as those keys). Printed: how it ended
 ## (rc), whether <wait-for> was drawn (frame), whether the terminal's mode was changed
 ## while it ran (modeTaken) and is afterwards what it was before (modeBack), whether the
@@ -301,7 +391,8 @@ def ptyRun(arguments):
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
     before = termios.tcgetattr(slave)
     environment = dict(os.environ)
-    environment["TERM"] = "xterm"
+    ## the terminal the command is told it has: one with colours, or the one a test names
+    environment["TERM"] = os.environ.get("MANAGER_SCREEN_PTY_TERM", "xterm")
     environment.pop("LINES", None)
     environment.pop("COLUMNS", None)
     process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=environment)
@@ -349,6 +440,8 @@ def ptyRun(arguments):
         errorLine = output[lineStart:lineEnd if lineEnd != -1 else len(output)].decode("utf-8", "replace")
     print("pty.rc=%s" % status)
     print("pty.frame=%s" % ("yes" if during is not None else "no"))
+    ## whether a colour was set on the terminal at any time: a text or a ground of the eight
+    print("pty.colours=%s" % ("yes" if re.search(rb"\x1b\[(?:[0-9]+;)*(?:3[0-7]|4[0-7])(?:;[0-9]+)*m", output) else "no"))
     print("pty.modeTaken=%s" % ("yes" if during is not None and during != before else "no"))
     print("pty.modeBack=%s" % ("yes" if modeOf(after) == modeOf(before) else "no"))
     print("pty.entered=%s" % ("yes" if entered != -1 else "no"))

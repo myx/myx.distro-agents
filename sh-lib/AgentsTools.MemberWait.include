@@ -201,9 +201,12 @@ AgentsWaitProbeSlack(){
 		[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
 		return 2
 	fi
+	## What a step wrote is there when the next one reads it, or the wait ends on it (AgentsWaitOwnFile).
+	AgentsWaitOwnFile "$probeOut.read" || return 2
 	## Rendered for a bare conversation too, so every message is one "<ts> | user | text" line and has an id.
 	LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackMessagesFormat.awk" \
 		< "$probeOut.read" > "$probeOut.rendered" 2>> "$probeOut.err" || probeRc=$?
+	AgentsWaitOwnFile "$probeOut.rendered" || return 2
 	if [ "$probeThread" = "false" ] ; then
 		if [ "$probeRc" != "0" ] ; then
 			[ ! -s "$probeOut.err" ] || cat "$probeOut.err" >&2
@@ -230,6 +233,7 @@ AgentsWaitProbeSlack(){
 		probeStanding="$( AgentsToolsAskThreadStanding "${probeTarget%:*}" "$probeSince" )"
 		[ "${probeStanding#*$'\t'}" = "0" ] || [ "${probeStanding#*$'\t'}" = "1" ] || probeOthers="$( AgentsToolsAskThreadOthers "${probeTarget%:*}" "$probeSince" )"
 	fi
+	AgentsWaitOwnFile "$probeOut.rendered" || return 2
 	if [ "$probeRc" = "0" ] ; then
 		## 0|1, never true|false: a bare digit needs no quoting -v could mangle, and
 		## the awk guard below reads it as the strnum truth value it already is.
@@ -498,6 +502,83 @@ AgentsWaitRemind(){ ## session id (may be empty), sources, the wait's working di
 		echo "# --member-wait-for-input: $remindLine" >&2
 	done < "$3/remind.out"
 	return 0
+}
+
+## THE WORKING DIRECTORY OF A WAIT, AND WHOSE IT IS. Every wait makes one of its own (mktemp,
+## below) and removes it as it ends, and nothing else removes it while that wait lives. A wait
+## that was killed leaves its directory behind, so the next wait of that member sweeps on its
+## way in: by whose a directory is, never by how old it looks. A directory holds `owner`, the
+## host and the process its wait runs in with when that process began, as the one reading of
+## that gives it (AgentsToolsRegistryProcessesBegan), and it goes only once that process is no
+## process of this host any more; the same pid begun at another time is another process. So a
+## wait that stands for days keeps its directory, and so do several waits of one member at
+## once, in as many sessions. A directory another host made is never touched, and none is
+## while the process list cannot be read: this shell is a process, and a reading that does not
+## hold it read nothing. One with no whole record was made before records were kept, or is
+## being made this instant: it goes once it stood a day untouched, its age taken from its own
+## modification time and compared here, never by a -mtime of find, which one find rounds up
+## to whole days and another down.
+## A directory its wait kept for whoever looks into it (`kept`, AgentsWaitLost below) stands that
+## same day, whoever owned it.
+AgentsWaitFolderSweep(){ ## member -- keeps this shell's own `<pid> <start>` for the record (agentsWaitFolderShell)
+	local sweepDir sweepOwner sweepHere sweepSelf sweepBegan sweepNow sweepAged sweepList=""
+	agentsWaitFolderShell=""
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	sweepHere="$( hostname -s 2>/dev/null )" || sweepHere="unknown"
+	## This shell's own process, which `$$` does not name in a subshell: what a command it starts has as its parent.
+	sweepSelf="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || sweepSelf=""
+	case "$sweepSelf" in ''|*[!0123456789]*) return 0 ;; esac
+	sweepNow="$( date +%s )"
+	for sweepDir in "$MMDAPP/.local/temp/mdat-member-wait.$1."* ; do
+		[ -d "$sweepDir" ] && [ ! -L "$sweepDir" ] || continue
+		sweepOwner="$( LC_ALL=C awk '
+			index( $0, "host: " ) == 1 { ownerHost = substr( $0, 7 ) ; }
+			index( $0, "process: " ) == 1 { ownerProcess = substr( $0, 10 ) ; }
+			END { if ( ownerHost != "" && ownerProcess ~ /^[0-9]+ [^ ]+$/ ) { print ownerHost "\t" ownerProcess ; } }
+		' "$sweepDir/owner" 2>/dev/null )" || sweepOwner=""
+		[ ! -f "$sweepDir/kept" ] || sweepOwner=""
+		if [ -z "$sweepOwner" ] ; then
+			sweepAged="$( stat -c %Y "$sweepDir" 2>/dev/null || stat -f %m "$sweepDir" 2>/dev/null )" || sweepAged=""
+			case "$sweepAged" in ''|*[!0123456789]*) continue ;; esac
+			[ $(( sweepNow - sweepAged )) -lt 86400 ] || rm -rf "$sweepDir" 2>/dev/null || true
+			continue
+		fi
+		[ "${sweepOwner%%$'\t'*}" = "$sweepHere" ] || continue
+		sweepList="$sweepList${sweepOwner#*$'\t'}"$'\t'"$sweepDir"$'\n'
+	done
+	sweepBegan="$( { printf '%s\n' "$sweepSelf" ; printf '%s' "$sweepList" | LC_ALL=C awk '{ print $1 ; }' ; } | AgentsToolsRegistryProcessesBegan )" || sweepBegan=""
+	agentsWaitFolderShell="$( printf '%s\n' "$sweepBegan" | LC_ALL=C awk -v selfPid="$sweepSelf" '$1 == selfPid { print ; exit ; }' )" || agentsWaitFolderShell=""
+	[ -n "$agentsWaitFolderShell" ] || return 0
+	printf '%s' "$sweepList" | while IFS=$'\t' read -r sweepOwner sweepDir ; do
+		case $'\n'"$sweepBegan"$'\n' in *$'\n'"$sweepOwner"$'\n'*) continue ;; esac
+		rm -rf "$sweepDir" 2>/dev/null || true
+	done
+	return 0
+}
+## The record the sweep reads, written by the wait into the directory it just made. A shell the
+## process list did not give keeps no process there: its directory is then one with no whole record.
+AgentsWaitFolderOwn(){ ## the working directory
+	local ownHere
+	ownHere="$( hostname -s 2>/dev/null )" || ownHere="unknown"
+	printf 'host: %s\nprocess: %s\n' "$ownHere" "${agentsWaitFolderShell:-}" > "$1/owner"
+}
+## WHAT A STEP OF A WAIT WROTE IS THERE WHEN THE NEXT STEP READS IT. Where it is not -- the
+## directory was taken from under the wait, or one file of it was -- the wait cannot tell an
+## arrival from nothing: a rendering that is not there differs from every baseline, and was
+## returned as RECEIVED with nothing in it, or its probes failed round after round and the
+## wait stood deaf to its bound. So a step notes the first file it misses (AgentsWaitOwnFile),
+## and the wait ends at once on WAIT-RESULT: ERROR and one line that names it. Nothing that
+## arrived is taken as read by that: no floor moved, and the next wait reads from the same
+## place. A directory that still stands is not removed then: it is kept as it stands, with
+## `kept` saying what was missed and when, and its path is in that line.
+AgentsWaitOwnFile(){ ## a file a step of this wait wrote -- rc 0 while it is there
+	[ ! -f "$1" ] || return 0
+	agentsWaitLost="${agentsWaitLost:-$1}"
+	return 1
+}
+AgentsWaitLost(){ ## the working directory -- rc 0 once it, or a file a step noted, is not there
+	[ -d "$1" ] || agentsWaitLost="$1"
+	[ -n "${agentsWaitLost:-}" ]
 }
 
 case "$1" in
@@ -1119,18 +1200,27 @@ case "$1" in
 		## by one member then share a directory, and the first to finish removes the
 		## other's state mid-poll -- which surfaces as a missing base file, not as the
 		## collision it is. Coworking makes concurrent waits the normal case.
-		local waitDir
+		local waitDir waitDirWhy="" agentsWaitLost=""
 		mkdir -p "$MMDAPP/.local/temp" 2>/dev/null || true
 		## A unique name per call means an interrupted wait no longer has its directory
 		## overwritten by the next one, so they accumulate instead. An EXIT trap cannot
 		## clean up here -- this is a shell function inside a long-lived process, and its
 		## trap would silently replace the caller's -- so stale ones are swept on the way
-		## in. This member's own, and only those a running wait cannot still hold.
-		find "$MMDAPP/.local/temp" -maxdepth 1 -type d -name "mdat-member-wait.$memberName.*" -mtime +0 -exec rm -rf {} + 2>/dev/null || true
-		waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>/dev/null )"
-		if [ -z "$waitDir" ] || [ ! -d "$waitDir" ] ; then
+		## in. This member's own, and only those whose wait is proven gone (AgentsWaitFolderSweep).
+		AgentsWaitFolderSweep "$memberName"
+		## What mktemp says of a failure is kept and said: the wait then ends on one line, never on a
+		## name that is no directory. A directory its record cannot be written into holds no rendering either.
+		waitDir="$( mktemp -d "$MMDAPP/.local/temp/mdat-member-wait.$memberName.XXXXXX" 2>&1 )" || { waitDirWhy="${waitDir//$'\n'/ }" ; waitDir="" ; }
+		if [ -n "$waitDir" ] && [ ! -d "$waitDir" ] ; then
+			waitDirWhy="mktemp named ${waitDir//$'\n'/ }, which is no directory" ; waitDir=""
+		fi
+		if [ -n "$waitDir" ] && ! AgentsWaitFolderOwn "$waitDir" 2>/dev/null ; then
+			rm -rf "$waitDir" 2>/dev/null || true
+			waitDirWhy="the owner record could not be written into $waitDir" ; waitDir=""
+		fi
+		if [ -z "$waitDir" ] ; then
 			echo "WAIT-RESULT: ERROR"
-			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: could not create a working directory under $MMDAPP/.local/temp, so no probe could write a rendering. Nothing was waited on." >&2
+			echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: could not create a working directory under $MMDAPP/.local/temp (${waitDirWhy:-mktemp gave no reason}), so no probe could write a rendering. Nothing was waited on." >&2
 			set +e ; return 1
 		fi
 
@@ -1227,6 +1317,8 @@ case "$1" in
 		local waitProbeFailures="" waitReadSources="" waitRemindNext=0
 		while : ; do
 			waitRound=$(( waitRound + 1 ))
+			## A wait whose directory was taken from under it reads nothing any more: it ends here (AgentsWaitLost).
+			if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
 			local roundSource roundKind roundTarget roundFn roundIndex=0 roundRc roundEvery
 			for roundSource in $waitSources ; do
 				roundIndex=$(( roundIndex + 1 ))
@@ -1240,6 +1332,8 @@ case "$1" in
 				roundRc=0
 				"$roundFn" "$memberName" "$roundTarget" "${waitFloorOf[$roundIndex]}" "$waitDir/now.$roundIndex" "${waitAddressee% }" "$waitIncludeOwn" || roundRc=$?
 				if [ "$roundRc" != "0" ] ; then
+					## A probe that missed what this wait itself wrote is no unreachable source: the wait ends on it.
+					if AgentsWaitLost "$waitDir" ; then waitOutcome="LOST" ; break ; fi
 					## A probe that cannot run is reported, and the wait carries on
 					## over the sources that can: one unreachable source must not
 					## turn a multi-source wait into silence.
@@ -1255,6 +1349,8 @@ case "$1" in
 					*) waitReadSources="$waitReadSources[$roundSource] " ;;
 				esac
 
+				## A rendering that is not there differs from every baseline, and is no arrival.
+				AgentsWaitOwnFile "$waitDir/now.$roundIndex" || { waitOutcome="LOST" ; break ; }
 				if [ ! -f "$waitDir/base.$roundIndex" ] ; then
 					if [ "$waitBaselineMode" = "empty" ] || case " $agentsWaitKindEmptyBaseline " in *" $roundKind "*) true ;; *) false ;; esac ; then
 						: > "$waitDir/base.$roundIndex"
@@ -1274,6 +1370,7 @@ case "$1" in
 					waitHits="$waitHits$roundIndex=$roundSource "
 				fi
 			done
+			[ "$waitOutcome" != "LOST" ] || break
 			[ "$waitOutcome" != "RECEIVED" ] || break
 			## Unbounded, a first round that could read no source at all returns at once rather
 			## than wait forever on sources nothing is known about: TIMEOUT with WAIT-NEVER-READ.
@@ -1324,7 +1421,11 @@ case "$1" in
 				case "$settleSource" in slack:*) ;; *) continue ;; esac
 				settleRc=0
 				AgentsWaitProbeSlack "$memberName" "${settleSource#slack:}" "${waitFloorOf[$settleIndex]}" "$waitDir/settle.$settleIndex" "${waitAddressee% }" "$waitIncludeOwn" || settleRc=$?
-				[ "$settleRc" = "0" ] || continue
+				if [ "$settleRc" != "0" ] ; then
+					! AgentsWaitLost "$waitDir" || { waitOutcome="LOST" ; break ; }
+					continue
+				fi
+				AgentsWaitOwnFile "$waitDir/settle.$settleIndex" || { waitOutcome="LOST" ; break ; }
 				case " $settleRead " in *" $settleIndex "*) ;; *) settleRead="$settleRead $settleIndex" ;; esac
 				if [ -f "$waitDir/now.$settleIndex" ] && cmp -s "$waitDir/now.$settleIndex" "$waitDir/settle.$settleIndex" ; then
 					continue
@@ -1349,6 +1450,24 @@ case "$1" in
 				cmp -s "$waitDir/base.$settleIndex" "$waitDir/now.$settleIndex" || settleHits="$settleHits$settleIndex=$settleSource "
 			done
 			waitHits="$settleHits"
+		fi
+
+		## What is returned is read from the renderings, so each of them is there before a result is said.
+		if [ "$waitOutcome" = "RECEIVED" ] ; then
+			local waitLostHit
+			for waitLostHit in $waitHits ; do
+				AgentsWaitOwnFile "$waitDir/now.${waitLostHit%%=*}" || { waitOutcome="LOST" ; break ; }
+			done
+		fi
+		if [ "$waitOutcome" = "LOST" ] ; then
+			echo "WAIT-RESULT: ERROR"
+			if [ -d "$waitDir" ] ; then
+				printf 'missed: %s\nat: %s\n' "$agentsWaitLost" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$waitDir/kept" 2>/dev/null || true
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: $agentsWaitLost, which a step of this wait wrote, is not there to be read. The wait ended at once, and its working directory is kept as it stands for whoever looks into it: $waitDir. Nothing that arrived is taken as read: wait again." >&2
+			else
+				echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: the working directory of this wait, $waitDir, is gone: something other than this wait removed it. The wait ended at once. Nothing that arrived is taken as read: wait again." >&2
+			fi
+			set +e ; return 1
 		fi
 
 		local waitEnd waitElapsed

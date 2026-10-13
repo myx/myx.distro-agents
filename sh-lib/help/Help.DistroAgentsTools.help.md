@@ -162,6 +162,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
@@ -2816,6 +2817,55 @@
 			no key is left out, and a line that is a comment is no key.
 			A line whose name is not a setting's, capital letters, digits
 			and `_`, is never listed: a note on stderr counts them.
+			`interface`: the interface settings of the user who runs the
+			call, one line a setting, each with two more fields at the
+			end of its row:
+			`line interface <group> <key> <state> <value> <source> <choices>`
+			<group> is a short name of the setting and <key> its key, as
+			`--manager-config-interface-set` takes it. <state> is `set`
+			and <value> what the setting is now. <source> says where that
+			comes from: `environment`, the variable of the environment
+			that bears the key; `user`, what the user saved in this
+			workspace; `default`, where neither names one. The
+			environment comes first, and a name that is no value of the
+			setting counts as not given, wherever it stands. <choices>
+			are the values that may be chosen, in the order they are
+			offered, joined by commas, each `<value>=<label>`. One
+			setting now, the interface style of the manager screen:
+			group `style`, key `MDAT_MANAGER_STYLE`, value `tv`, `mc` or
+			`bw`.
+
+		--manager-config-interface-set <key> <value>
+			One of the console's own operations (see Notes). Saves one
+			interface setting for the user who runs the call, in this
+			workspace: the one operation of the settings that writes.
+			<key> is the key of a line of the subject `interface` of
+			`--manager-config-digest`, and <value> one of the values that
+			line offers. One setting now, the interface style of the
+			manager screen: `MDAT_MANAGER_STYLE`, with `tv`, `mc` or `bw`.
+			The value is saved in the user's own settings of this
+			workspace, `.local/home/<user>/MDLT.settings.env` under its
+			root, by the setting reader of the local tools in its scope
+			of the current user: every line that set the key is replaced
+			by one, and every other line of the file stays. <user> is the
+			name the operating system gives the user who runs the call,
+			whatever the environment names, so the settings of another
+			user are never read and never written. A start of the manager
+			screen takes the saved style where neither its command nor
+			the environment names one. Prints one row of TAB-separated
+			fields on stdout:
+			`saved <key> <value> <file>`
+			<value> is the value as it was read back from <file> after
+			the write, and whitespace in <file> reads `_`. Exit 1, with
+			one error line, nothing printed and nothing saved: where
+			<key> is no interface setting, in a line that lists the keys;
+			where <value> is none of the values of the setting, in a line
+			that lists them; where it is not given one key and one value,
+			in a line with its syntax. Every such line ends `nothing was
+			saved`. Nothing that was given is repeated in it, and no
+			value but one the digest offers is ever saved, so no secret
+			reaches the file. Exit 1 too where the file does not hold the
+			value after the write.
 
 		--manager-routine-list
 			One of the console's own operations (see Notes). Lists the
@@ -2826,7 +2876,7 @@
 			nothing. Prints rows of TAB-separated fields on stdout, the
 			first naming the row. An absent value reads `-`, and a
 			value's own whitespace reads `_`.
-			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason>`
+			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason> <needs>`
 			One row a routine, by <owner>, then by <selector>. <selector>
 			is the file's name, the selector
 			`--magic-spawn-session --routine <selector>`
@@ -2849,7 +2899,16 @@
 			to whose session the spawner adds `magic-coordinator`.
 			<arguments> is `-`, its place kept: no routine file says, in
 			a form a program reads, whether the routine takes arguments.
-			<title> is the file's own title line. With no routine file
+			<title> is the file's own title line. <needs>, the last
+			field, says what a start of a routine that is `not-startable`
+			needs, where that is all it lacks. It is `members` where the
+			one cause is that the executors are any member: the same
+			operation then starts the routine with members named after
+			the selector,
+			`--magic-spawn-session --routine <selector> <team-member>...`
+			and checks every name before it starts anyone. It is `-` for
+			every other row, so a console tells such a routine by this
+			field and not by the words of <reason>. With no routine file
 			at all, a note on stderr and no row.
 
 		--manager-session-list [--active]
@@ -2863,7 +2922,7 @@
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
 			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
-			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average>`
+			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
 			first. Sessions come by start date, the newest first, one with
 			no date last. The one `counters` row is the last line, always.
@@ -2891,7 +2950,10 @@
 			the `running` sessions; the counters count the whole workspace
 			either way. <sessions-paused> is 0 until sessions can be
 			paused. <pending-answers> is the open asks, <load-average> the
-			host's one-minute figure. With no session store, a note on
+			host's one-minute figure, and <host> the short name of the
+			host this call ran on, `unknown` where it cannot be read. A
+			reader takes a row that ends before <host> as one of an earlier
+			form. With no session store, a note on
 			stderr and the `counters` row alone. Exit 1, nothing printed,
 			where a registry cannot be rebuilt.
 
@@ -3054,7 +3116,16 @@
 			0. Exit 1, nothing printed and nothing signalled, with one
 			error line, where no record carries <id>, or the registry
 			cannot be rebuilt; exit 1 after its rows where a run could not
-			be ended.
+			be ended. Who carries it out: where the control thread of the
+			session lives, the thread does. This call puts a request into
+			`control/request` of the session's folder, wakes the thread
+			with USR1, waits for its outcome in `control/outcome`, and
+			prints the rows and notes the thread wrote there. Where no
+			thread lives, or it does not take the request within
+			SESSION_CONTROL_REQUEST_SECONDS (default 5), this call takes
+			its request back and carries the kill out itself, as before.
+			One line on stderr says who carried it out, and why where
+			this call did.
 
 		--manager-session-control-start (--session-id <id>|--all)
 			One of the console's own operations (see Notes). Starts the

@@ -1,0 +1,525 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionControlRequest.include -- how a control of the console reaches the
+## control thread of a coworking session (--intern-session-control,
+## AgentsTools.InternSessionControl.include), and how the thread answers it: by files of the
+## thread's own folder, sessions/<session id>/control/, and by one signal. No socket and no
+## FIFO. Sourced, never run. Functions only.
+##
+## THE KINDS. A request names its kind, and `kill` is the one kind taken now: the hard
+## control of the console, which interrupts at once (--manager-session-kill,
+## AgentsTools.ManagerSession.include). Pause, resume and stop are to come the same way,
+## and nothing of them is here: a request of any other kind is answered as refused, with
+## the reason, and nothing is done.
+##
+## THE FILES, each a few `key: value` lines:
+##   takes          what the thread takes, a kind a line. Written by the thread as it starts,
+##                  its trap of the wake set before; emptied before its shell is replaced
+##                  (AgentsToolsSessionControlAgain); removed at its end. A thread of the
+##                  step before this one keeps none, and is asked nothing.
+##   request        the one request that waits to be taken: `request`, its id; `kind`; `for`,
+##                  `session` or `run <run id>`; `session`; `by`, who asked, the name the
+##                  console's user has in the operating system; `at`, when, as a record
+##                  writes a date; `asked`, that moment in seconds since 1970; `wait`, for
+##                  how many seconds its console waits for it to be taken. Written aside and
+##                  put in place whole by ONE LINK, which is a rename but for one thing: it
+##                  never replaces a request that stands. A second console waits for the
+##                  place.
+##   request.taken  the request while it is carried out: the same file, moved there by one
+##                  rename by the call that carries it out. Of the console that takes its
+##                  request back and the call that takes it, only one moves the file.
+##   outcome        what became of the last requests, four at most, the newest last: the
+##                  lines of the request but `asked` and `wait`, then `result`, which is
+##                  `done`, `refused` or `failed`; `reason`; `status`, the status the
+##                  operation ended with; `done-at`; `process`, the pid that carried it out;
+##                  then `row: ` before each row the operation printed, and `note: ` before
+##                  each line it said on its standard error. Written aside and put in place
+##                  by one rename. A console finds its own by the id of its request, also
+##                  once a later request was answered.
+##
+## THE WAKE is USR1, which the thread holds from its first moment: there it ends nothing,
+## and makes the next tick come at once. In a process that does not hold it, it ends that
+## process. So it is sent ONLY TO A PROCESS SHOWN TO BE THAT THREAD, at that moment: the pid
+## file of the session names it, `<pid> <start>`; a process with that pid began at that
+## very time, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan),
+## asked again in the statement of the signal itself; its command line is the thread of
+## that session, `--intern-session-control --run --session-id <id>`, so a call of one tick,
+## which holds no trap, is never signalled; and `takes` names the kind, which a thread
+## writes only with its trap set and empties before its shell is replaced. A pid that is
+## gone, or that another process has taken, begun at another time, is never signalled.
+##
+## A KILL NEVER DEPENDS ON THE THREAD. Where no thread lives, or it takes no such request,
+## the console carries the kill out itself, as step one does, and writes no request. Where
+## the thread does not take the request within SESSION_CONTROL_REQUEST_SECONDS (default 5),
+## the console takes its request back, by one rename, and carries the kill out itself. So
+## it does where the thread refused the request or failed at it. Each time one line on its
+## standard error says that it did so, and why.
+## AND A REQUEST IS NEVER CARRIED OUT TWICE, NOR LATE. It is taken by one rename, by the
+## call or by its console, never by both. The call carries out no request that was asked
+## longer ago than its console waited: one left behind by a console that is gone is answered
+## as refused, by this thread or by one started later.
+##
+## THE THREAD STAYS A MONITOR. At a tick it asks two names of its folder and reads nothing
+## while neither stands (AgentsToolsSessionControlRequestStep). A request that stands is
+## carried out by one bounded call of the tooling, a process of its own that the thread
+## starts and never waits for (`--intern-session-control --request`,
+## AgentsToolsSessionControlRequestCarry). That call makes the kill by the operation's own
+## function, the one walk of step one, under the name the request gives, and ends its own
+## work at SESSION_CONTROL_KILL_SECONDS (default 30). The thread itself sends no signal.
+##
+
+type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+
+## How many outcomes the outcome file keeps, the newest last.
+agentsSessionControlOutcomesKept=4
+
+## One bound of a request, a number of seconds, of the scope magic-team: what is set, else
+## its default; a value that is no number above zero reads as the default. The reading the
+## thread has for its own bounds (AgentsToolsSessionControlSeconds), for a console too.
+AgentsToolsSessionControlRequestSeconds(){ ## key, default
+	local secondsValue
+	secondsValue="$( DistroAgentsTools --agents-config-option magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
+	case "$secondsValue" in ''|*[!0123456789]*|0|????????*) secondsValue="$2" ;; esac
+	printf '%s\n' "$secondsValue"
+}
+
+## One request, or one outcome, read from its file into the request* variables of the
+## caller. A request file holds one. Of the outcome file the one of the id given is read,
+## or its last where none is given. rc 1 where the file is not there or holds none such.
+AgentsToolsSessionControlRequestRead(){ ## file, the id of the request (may be empty)
+	local readLine readIn=""
+	requestId="" ; requestKind="" ; requestFor="" ; requestSession="" ; requestBy="" ; requestAt="" ; requestAsked="" ; requestWait=""
+	requestResult="" ; requestReason="" ; requestStatus="" ; requestDoneAt="" ; requestProcess=""
+	[ -f "$1" ] || return 1
+	{
+		while IFS= read -r readLine || [ -n "$readLine" ] ; do
+			case "$readLine" in
+				'request: '*)
+					readIn=""
+					if [ -n "${2:-}" ] && [ "${readLine#request: }" != "$2" ] ; then continue ; fi
+					readIn="yes"
+					requestId="${readLine#request: }" ; requestKind="" ; requestFor="" ; requestSession="" ; requestBy="" ; requestAt="" ; requestAsked="" ; requestWait=""
+					requestResult="" ; requestReason="" ; requestStatus="" ; requestDoneAt="" ; requestProcess=""
+				;;
+				'kind: '*) [ -z "$readIn" ] || requestKind="${readLine#kind: }" ;;
+				'for: '*) [ -z "$readIn" ] || requestFor="${readLine#for: }" ;;
+				'session: '*) [ -z "$readIn" ] || requestSession="${readLine#session: }" ;;
+				'by: '*) [ -z "$readIn" ] || requestBy="${readLine#by: }" ;;
+				'at: '*) [ -z "$readIn" ] || requestAt="${readLine#at: }" ;;
+				'asked: '*) [ -z "$readIn" ] || requestAsked="${readLine#asked: }" ;;
+				'wait: '*) [ -z "$readIn" ] || requestWait="${readLine#wait: }" ;;
+				'result: '*) [ -z "$readIn" ] || requestResult="${readLine#result: }" ;;
+				'reason: '*) [ -z "$readIn" ] || requestReason="${readLine#reason: }" ;;
+				'status: '*) [ -z "$readIn" ] || requestStatus="${readLine#status: }" ;;
+				'done-at: '*) [ -z "$readIn" ] || requestDoneAt="${readLine#done-at: }" ;;
+				'process: '*) [ -z "$readIn" ] || requestProcess="${readLine#process: }" ;;
+			esac
+		done < "$1"
+	} 2> /dev/null || :
+	[ -n "$requestId" ] || return 1
+	return 0
+}
+
+## What the operation printed and said for one request, out of the outcome file: its rows
+## on standard output and its notes on standard error, as the operation itself gave them.
+AgentsToolsSessionControlRequestSaid(){ ## the outcome file, the id of the request
+	local saidLine saidIn=""
+	[ -f "$1" ] || return 0
+	while IFS= read -r saidLine || [ -n "$saidLine" ] ; do
+		case "$saidLine" in
+			'request: '*) if [ "${saidLine#request: }" = "$2" ] ; then saidIn="yes" ; else saidIn="" ; fi ;;
+			'row: '*) [ -z "$saidIn" ] || printf '%s\n' "${saidLine#row: }" ;;
+			'note: '*) [ -z "$saidIn" ] || printf '%s\n' "${saidLine#note: }" >&2 ;;
+		esac
+	done < "$1" || :
+	return 0
+}
+
+## Whether the thread whose folder is given takes requests of that kind: its `takes` names it.
+AgentsToolsSessionControlRequestTakes(){ ## the control folder, the kind
+	local takesLine
+	[ -f "$1/takes" ] || return 1
+	{
+		while IFS= read -r takesLine || [ -n "$takesLine" ] ; do
+			[ "$takesLine" != "$2" ] || return 0
+		done < "$1/takes"
+	} 2> /dev/null || :
+	return 1
+}
+
+## The thread of a session that can be asked for that kind, into requestThread, as its pid
+## file names it, `<pid> <start>`: that process began at that very time, its command line is
+## the thread of that session, and it says that it takes the kind. rc 1 where there is none
+## such, and requestThreadWhy says in a few words what stands in its place.
+AgentsToolsSessionControlRequestThread(){ ## session id, the kind
+	local threadDir="$MMDAPP/.local/agents/sessions/$1/control" threadLine="" threadPid threadArgs
+	requestThread="" ; requestThreadWhy="session $1 has no control thread alive"
+	{ IFS= read -r threadLine < "$threadDir/pid" ; } 2> /dev/null || threadLine=""
+	threadPid="${threadLine%% *}"
+	case "$threadPid" in ''|*[!0123456789]*) return 1 ;; esac
+	case "$threadLine" in "$threadPid "?*) ;; *) return 1 ;; esac
+	[ "$( printf '%s\n' "$threadPid" | AgentsToolsRegistryProcessesBegan )" = "$threadLine" ] || return 1
+	threadArgs="$( LC_ALL=C ps -ww -o args= -p "$threadPid" 2> /dev/null )" || threadArgs=""
+	case " $threadArgs " in
+		*" --intern-session-control --run --session-id $1 "*) ;;
+		*) requestThreadWhy="pid $threadPid holds session $1 and is no control thread that runs" ; return 1 ;;
+	esac
+	if ! AgentsToolsSessionControlRequestTakes "$threadDir" "$2" ; then
+		requestThreadWhy="the control thread of session $1, pid $threadPid, takes no $2 request" ; return 1
+	fi
+	requestThread="$threadLine"
+	return 0
+}
+
+## THE WAKE: USR1 to the thread, which makes its next tick come at once. Sent only while the
+## thread still says that it takes the kind, and, asked in the statement of the signal
+## itself, only while its pid is still the process that began when its pid file says. rc 1
+## where nothing was sent: the request is then read at the next tick of the thread.
+AgentsToolsSessionControlRequestWake(){ ## the control folder, the kind, the thread as its pid file names it
+	local wakeLine="$3" wakePid="${3%% *}"
+	AgentsToolsSessionControlRequestTakes "$1" "$2" || return 1
+	[ "$( printf '%s\n' "$wakePid" | AgentsToolsRegistryProcessesBegan )" = "$wakeLine" ] && kill -USR1 "$wakePid" 2> /dev/null
+}
+
+## Writes what became of the request the caller's request* variables hold into the outcome
+## file of that folder, after the outcomes that stand there, of which the last three are
+## kept: aside, and put in place by one rename, readable as the other files of the folder
+## are (mktemp makes its file private, and a rename carries the mode over). rc 1 where it
+## could not be written.
+AgentsToolsSessionControlRequestAnswer(){ ## the control folder, result, reason, status, the file of its rows, the file of its notes, the process that carried it out (the last four may be empty)
+	local answerAside
+	answerAside="$( mktemp "$1/outcome.aside.XXXXXX" 2> /dev/null )" || return 1
+	{
+		[ ! -f "$1/outcome" ] || LC_ALL=C awk -v keptBefore="$(( agentsSessionControlOutcomesKept - 1 ))" '
+			/^request: / { blockNo++ ; }
+			{ blockOf[NR] = blockNo ; lineOf[NR] = $0 ; }
+			END { for ( lineNo = 1 ; lineNo <= NR ; lineNo++ ) if ( blockOf[lineNo] > 0 && blockOf[lineNo] > blockNo - keptBefore ) print lineOf[lineNo] ; }
+		' "$1/outcome"
+		printf 'request: %s\nkind: %s\nfor: %s\nsession: %s\nby: %s\nat: %s\nresult: %s\nreason: %s\nstatus: %s\ndone-at: %s\nprocess: %s\n' \
+			"$requestId" "$requestKind" "$requestFor" "$requestSession" "$requestBy" "$requestAt" "$2" "${3:--}" "${4:--}" "$( date +"%Y-%m-%d %H:%M %z" )" "${7:--}"
+		[ -z "${5:-}" ] || [ ! -s "$5" ] || LC_ALL=C sed 's/^/row: /' "$5"
+		[ -z "${6:-}" ] || [ ! -s "$6" ] || LC_ALL=C sed 's/^/note: /' "$6"
+	} > "$answerAside" 2> /dev/null && chmod 644 "$answerAside" 2> /dev/null && mv -f "$answerAside" "$1/outcome" 2> /dev/null || { rm -f "$answerAside" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## WHO CARRIES A KILL OUT, for --manager-session-kill: the control thread of the session
+## where one lives that takes it, else this call itself, as step one does. What is printed
+## is the same either way: the rows of the operation on standard output, what it says on
+## standard error, its status. One more line on standard error says who carried it out,
+## and, where this call did, why.
+## WHICH SESSION is read from the record of the id alone, with no registry rebuilt: the
+## session the record of that run names, or the id itself, which then is a session's. The
+## id of a session with no word `run` is for the whole session; every other is for that
+## one run.
+## THROUGH THE THREAD: the request is written aside and put in place by one link, waiting
+## for the place where another request stands; the thread is woken; the outcome of this
+## request is waited for, and printed. While the request is not taken the wake is sent
+## again each second: a thread at work on another request looks again once that is done.
+## NEVER HELD BY THE THREAD: a request that is not taken within its wait is taken back, by
+## one rename to a name of this call's own, and only where what was moved is this call's
+## own request; one that was taken and has no outcome after the bound of a kill and ten
+## seconds more is waited for no longer. The seconds of this shell are whole ones: the wait
+## is its full number of them, and up to one more.
+## THE THREAD'S OWN CALL, which carries a request out, comes here too, by the operation
+## itself: it says so in a variable of its own shell, agentsSessionControlCarried, the
+## session and the id of the request, which no other process is given. Only where that
+## request stands taken in the folder of that session is the kill made, by this call, under
+## the name the request gives; else nothing is signalled.
+AgentsToolsSessionControlRequestKill(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty)
+	local viaOp="$1" viaId="$2" viaOwn="${3:-}" viaKind="kill" viaSession="" viaRecord="" viaFor="" viaDir="" viaWhy="" viaBy="" viaMine="" viaAside="" viaBack=""
+	local viaWait=0 viaBound=0 viaFrom=0 viaTurns=0 viaPlaced="" viaTaken="" viaAnswered="" viaThreadPid=""
+	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
+	local requestResult="" requestReason="" requestStatus="" requestDoneAt="" requestProcess="" requestThread="" requestThreadWhy=""
+	if [ -n "${agentsSessionControlCarried:-}" ] ; then
+		viaSession="${agentsSessionControlCarried%% *}" ; viaMine="${agentsSessionControlCarried#* }"
+		case "$viaSession" in ''|-|.|..|*/*) viaSession="-" ;; esac
+		if ! AgentsToolsSessionControlRequestRead "$MMDAPP/.local/agents/sessions/$viaSession/control/request.taken" "$viaMine" || [ "$requestKind" != "$viaKind" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $viaOp: this call says that it carries out a request of a control thread, and no such request stands taken for session $viaSession -- nothing was signalled" >&2
+			return 1
+		fi
+		AgentsToolsManagerSessionKill "$viaOp" "$viaId" "$viaOwn" "${requestBy:-unknown}"
+		return $?
+	fi
+	viaRecord="$( AgentsToolsRegistrySpawnRecord "$viaId" < /dev/null )" || viaRecord=""
+	[ -z "$viaRecord" ] || viaSession="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$viaRecord" )" session-id )" || viaSession=""
+	case "$viaSession" in ''|-) viaSession="$viaId" ;; esac
+	case "$viaSession" in .|..|*/*|*[[:space:]]*) viaSession="" ;; esac
+	if [ -z "$viaOwn" ] && [ "$viaId" = "$viaSession" ] ; then viaFor="session" ; else viaFor="run $viaId" ; fi
+	viaDir="$MMDAPP/.local/agents/sessions/$viaSession/control"
+	if [ -z "$viaSession" ] ; then
+		viaWhy="'$viaId' names no session whose control thread could be asked"
+	elif ! AgentsToolsSessionControlRequestThread "$viaSession" "$viaKind" ; then
+		viaWhy="$requestThreadWhy"
+	fi
+	if [ -z "$viaWhy" ] ; then
+		viaThreadPid="${requestThread%% *}"
+		viaWait="$( AgentsToolsSessionControlRequestSeconds SESSION_CONTROL_REQUEST_SECONDS 5 )"
+		viaBound="$( AgentsToolsSessionControlRequestSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
+		viaBy="$( AgentsToolsManagerConsoleUser )"
+		viaFrom="$SECONDS"
+		viaAside="$( mktemp "$viaDir/request.aside.XXXXXX" 2> /dev/null )" || viaAside=""
+		if [ -n "$viaAside" ] ; then
+			viaMine="$( date -u +%Y%m%dT%H%M%SZ ).${viaAside##*.}"
+			if printf 'request: %s\nkind: %s\nfor: %s\nsession: %s\nby: %s\nat: %s\nasked: %s\nwait: %s\n' \
+				"$viaMine" "$viaKind" "$viaFor" "$viaSession" "$viaBy" "$( date +"%Y-%m-%d %H:%M %z" )" "$( date +%s )" "$viaWait" > "$viaAside" 2> /dev/null && chmod 644 "$viaAside" 2> /dev/null ; then
+				## Put in place whole, by one link: never over a request that stands.
+				while : ; do
+					if ln "$viaAside" "$viaDir/request" 2> /dev/null ; then viaPlaced="yes" ; break ; fi
+					[ -e "$viaDir/request" ] && [ "$(( SECONDS - viaFrom ))" -le "$viaWait" ] || break
+					sleep 0.2
+				done
+			fi
+			rm -f "$viaAside" 2> /dev/null
+		fi
+		if [ -z "$viaPlaced" ] ; then
+			if [ -e "$viaDir/request" ] ; then
+				viaWhy="another request stood before the control thread of session $viaSession, pid $viaThreadPid, for ${viaWait}s"
+			else
+				viaWhy="the request to the control thread of session $viaSession, pid $viaThreadPid, could not be put into $viaDir"
+			fi
+		fi
+	fi
+	if [ -n "$viaPlaced" ] ; then
+		AgentsToolsSessionControlRequestWake "$viaDir" "$viaKind" "$requestThread" || :
+		while : ; do
+			if AgentsToolsSessionControlRequestRead "$viaDir/outcome" "$viaMine" ; then viaAnswered="yes" ; break ; fi
+			if [ -z "$viaTaken" ] ; then
+				if AgentsToolsSessionControlRequestRead "$viaDir/request" && [ "$requestId" = "$viaMine" ] ; then
+					if [ "$(( SECONDS - viaFrom ))" -gt "$viaWait" ] ; then
+						## Taken back by one rename, to a name of this call's own: of this and
+						## the call of the thread only one moves the file.
+						viaBack="$( mktemp "$viaDir/request.back.XXXXXX" 2> /dev/null )" || viaBack=""
+						if [ -z "$viaBack" ] ; then
+							viaWhy="the control thread of session $viaSession, pid $viaThreadPid, did not take the request within ${viaWait}s, and the request, which could not be taken back, is one it carries out no more"
+							break
+						fi
+						if mv -f "$viaDir/request" "$viaBack" 2> /dev/null ; then
+							if AgentsToolsSessionControlRequestRead "$viaBack" && [ "$requestId" = "$viaMine" ] ; then
+								rm -f "$viaBack" 2> /dev/null
+								viaWhy="the control thread of session $viaSession, pid $viaThreadPid, did not take the request within ${viaWait}s and the request is taken back"
+								break
+							fi
+							## Another console's, put there in the moment after this one's was taken: put back.
+							ln "$viaBack" "$viaDir/request" 2> /dev/null || :
+						fi
+						rm -f "$viaBack" 2> /dev/null
+					else
+						viaTurns=$(( viaTurns + 1 ))
+						[ "$(( viaTurns % 5 ))" != 0 ] || AgentsToolsSessionControlRequestWake "$viaDir" "$viaKind" "$requestThread" || :
+					fi
+				elif AgentsToolsSessionControlRequestRead "$viaDir/request.taken" && [ "$requestId" = "$viaMine" ] ; then
+					viaTaken="yes"
+				elif AgentsToolsSessionControlRequestRead "$viaDir/outcome" "$viaMine" ; then
+					viaAnswered="yes" ; break
+				else
+					viaWhy="the request to the control thread of session $viaSession, pid $viaThreadPid, is gone from $viaDir with no outcome"
+					break
+				fi
+			elif [ "$(( SECONDS - viaFrom ))" -gt "$(( viaWait + viaBound + 10 ))" ] ; then
+				viaWhy="the control thread of session $viaSession, pid $viaThreadPid, took the request and gave no outcome within $(( viaWait + viaBound + 10 ))s"
+				break
+			fi
+			sleep 0.2
+		done
+	fi
+	if [ -n "$viaAnswered" ] ; then
+		if [ "$requestResult" = "done" ] ; then
+			AgentsToolsSessionControlRequestSaid "$viaDir/outcome" "$viaMine"
+			echo "# $MDSC_CMD $viaOp: carried out by the control thread of session $viaSession, pid $viaThreadPid" >&2
+			[ "$requestStatus" = "0" ] || return 1
+			return 0
+		fi
+		viaWhy="the control thread of session $viaSession, pid $viaThreadPid, did not carry the request out (${requestResult:-no result}: ${requestReason:-no reason given})"
+	fi
+	echo "# $MDSC_CMD $viaOp: $viaWhy, so the kill is carried out directly" >&2
+	AgentsToolsManagerSessionKill "$viaOp" "$viaId" "$viaOwn"
+	return $?
+}
+
+## THE CARRYING OUT OF ONE REQUEST, by the thread's own call, a process apart from its tick
+## (`--intern-session-control --request`). In order:
+## - the request that waits is taken by one rename, to request.taken; where none waits any
+##   more, its console took it back, and nothing is done;
+## - what it asks is looked at, and refused where it is not to be carried out: a kind that
+##   is not taken, a request of another session, one that does not say when it was asked or
+##   for what, and one that was asked longer ago than its console waited, which a console
+##   that is gone left behind: by more than a second longer, the one a console that lives
+##   may still take to take its request back;
+## - a kill is made by the operation itself (--manager-session-kill), in a process group of
+##   its own, and ended at its bound, given five seconds after the polite end: what it had
+##   done till then stands in its rows, and the result says that the bound was reached. This
+##   process ends its own job, which it started, probes at each turn of its wait and has not
+##   collected;
+## - the outcome is written, then request.taken is removed, in that order: the console
+##   finds its request waiting, in work or answered, at every moment.
+## One line of what became of it goes to the log of the thread, which is this call's output.
+AgentsToolsSessionControlRequestCarry(){ ## session id, the bound of a kill in seconds
+	local carrySession="$1" carryBound="$2" carryDir="$MMDAPP/.local/agents/sessions/$1/control" carryMe="" carryNow=0 carryResult="" carryReason="" carryStatus="-"
+	local carryOut="" carryErr="" carryPid="" carryFrom=0 carryGrace=0 carryMonitor="" carryWords=()
+	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
+	local requestResult="" requestReason="" requestStatus="" requestDoneAt="" requestProcess=""
+	local agentsSessionControlCarried=""
+	mv -f "$carryDir/request" "$carryDir/request.taken" 2> /dev/null || return 0
+	carryMe="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || carryMe=""
+	if ! AgentsToolsSessionControlRequestRead "$carryDir/request.taken" ; then
+		rm -rf "$carryDir/request.taken" 2> /dev/null
+		printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "session $carrySession: what stood as a request of the console names no request, and is removed -- nothing was done"
+		return 0
+	fi
+	requestKind="${requestKind:0:60}" ; requestFor="${requestFor:0:200}" ; requestBy="${requestBy//[[:space:]]/_}"
+	carryNow="$( date +%s )" || carryNow=0
+	case "$requestAsked" in ''|*[!0123456789]*|????????????*) requestAsked="" ;; esac
+	case "$requestWait" in ''|*[!0123456789]*|????????*) requestWait="" ;; esac
+	case "$requestKind" in
+		kill) ;;
+		*) carryResult="refused" ; carryReason="the kind '$requestKind' is not taken, and this thread takes no other than a kill -- nothing was done" ;;
+	esac
+	if [ -n "$carryResult" ] ; then
+		:
+	elif [ "$requestSession" != "$carrySession" ] ; then
+		carryResult="refused" ; carryReason="it names session '$requestSession', and this is the control thread of session $carrySession -- nothing was done"
+	elif [ -z "$requestAsked" ] || [ -z "$requestWait" ] ; then
+		carryResult="refused" ; carryReason="it does not say when it was asked and for how long its console waits, so it cannot be told from a request left behind -- nothing was done"
+	elif [ "$carryNow" -gt "$(( requestAsked + requestWait + 1 ))" ] ; then
+		carryResult="refused" ; carryReason="it was asked $(( carryNow - requestAsked ))s ago, and its console waited ${requestWait}s for it to be taken: a request left behind is not carried out -- nothing was done"
+	else
+		case "$requestFor" in
+			session) carryWords=( --session-id "$carrySession" ) ;;
+			'run '?*) carryWords=( --session-id "${requestFor#run }" --run ) ;;
+			*) carryResult="refused" ; carryReason="it does not say what it is for, the session or one run of it -- nothing was done" ;;
+		esac
+	fi
+	if [ -z "$carryResult" ] ; then
+		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+		carryOut="$( mktemp "$MMDAPP/.local/temp/mdat-session-control-rows.XXXXXX" 2> /dev/null )" || carryOut=""
+		carryErr="$( mktemp "$MMDAPP/.local/temp/mdat-session-control-notes.XXXXXX" 2> /dev/null )" || carryErr=""
+		if [ -z "$carryOut" ] || [ -z "$carryErr" ] ; then
+			carryResult="failed" ; carryReason="the files its rows are kept in could not be made under $MMDAPP/.local/temp -- nothing was done"
+		else
+			## Its own process group, so the end at the bound reaches every process of it.
+			carryMonitor="$BASH_SUBSHELL:$-"
+			set -m
+			( agentsSessionControlCarried="$carrySession $requestId" ; DistroAgentsTools --manager-session-kill "${carryWords[@]}" ) < /dev/null > "$carryOut" 2> "$carryErr" &
+			carryPid=$!
+			case "$carryMonitor" in 0:*m*) ;; *) set +m ;; esac
+			carryFrom="$SECONDS"
+			while kill -0 "$carryPid" 2> /dev/null ; do
+				if [ "$(( SECONDS - carryFrom ))" -ge "$carryBound" ] ; then
+					{
+						kill -TERM -- "-$carryPid" || :
+						carryGrace=5
+						while [ "$carryGrace" -gt 0 ] && kill -0 "$carryPid" ; do sleep 1 ; carryGrace=$(( carryGrace - 1 )) ; done
+						kill -KILL -- "-$carryPid" || :
+					} 2> /dev/null
+					carryResult="failed" ; carryReason="it did not end within its bound of $carryBound seconds, and was ended: what it had done till then stands in its rows"
+					break
+				fi
+				sleep 0.2
+			done
+			{ wait "$carryPid" ; carryStatus=$? ; } 2> /dev/null
+			[ -n "$carryResult" ] || carryResult="done"
+		fi
+	fi
+	AgentsToolsSessionControlRequestAnswer "$carryDir" "$carryResult" "$carryReason" "$carryStatus" "$carryOut" "$carryErr" "$carryMe" \
+		|| printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "session $carrySession: the outcome of the request $requestId could not be written to $carryDir/outcome"
+	rm -f "$carryDir/request.taken" 2> /dev/null
+	[ -z "$carryOut" ] || rm -f "$carryOut" 2> /dev/null
+	[ -z "$carryErr" ] || rm -f "$carryErr" 2> /dev/null
+	if [ "$carryResult" = "done" ] ; then carryReason="with status $carryStatus" ; fi
+	printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "session $carrySession: the request $requestId, $requestKind for $requestFor, asked by $requestBy: $carryResult, $carryReason"
+	return 0
+}
+
+## WHAT THE THREAD DOES ABOUT A REQUEST, started apart from its tick: its own operation as a
+## process of its own, `--request`, which carries out the request that waits
+## (AgentsToolsSessionControlRequestCarry). It is never waited for and never signalled, and
+## what it says goes to the log of the thread. The process is kept in controlRequestCall, as
+## `<pid> <start>`: while that is still that process no second call is started. Called by
+## the thread alone: it reads and sets the thread's own variables.
+AgentsToolsSessionControlRequestStart(){
+	local startPid="" startBegan=""
+	[ -n "$controlRequestBound" ] || controlRequestBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
+	(
+		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --request --session-id "$controlSession"
+	) < /dev/null >> "$controlDir/log" 2>&1 &
+	startPid="$!"
+	case "$startPid" in
+		''|*[!0123456789]*)
+			AgentsToolsSessionControlSay event "session $controlSession: a request of the console stands, and the process that is to carry it out could not be started -- its console carries it out itself once its wait is over"
+			return 0
+		;;
+	esac
+	disown "$startPid" 2> /dev/null || :
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	controlRequestCall="${startBegan:-$startPid}"
+	AgentsToolsSessionControlSay event "session $controlSession: a request of the console stands, and is carried out by pid $startPid, apart from the tick, within ${controlRequestBound}s"
+	return 0
+}
+
+## ONE LOOK AT THE REQUESTS OF THE SESSION, at a tick where one of the two names stands. The
+## thread's own: it reads and sets the thread's variables.
+## - a request in work, request.taken, is left to its call, by looking and never by waiting;
+## - one whose call has ended and whose outcome stands is cleared, where the call did not;
+## - one whose call has ended and left no outcome is answered as failed, said in the log,
+##   and cleared: its console then carries the kill out itself. A request that the call of
+##   a thread before this one took has the bound of a kill first, from the first look of
+##   this thread: that call may be at work still. What stands there and names no request
+##   is removed, and said;
+## - a request that waits, with none in work, is carried out by a call apart.
+AgentsToolsSessionControlRequestStep(){
+	local stepRc=0 stepId=""
+	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
+	local requestResult="" requestReason="" requestStatus="" requestDoneAt="" requestProcess=""
+	if [ -e "$controlDir/request.taken" ] ; then
+		if [ -n "$controlRequestCall" ] ; then
+			AgentsToolsSessionControlHolderLives "$controlRequestCall" ; stepRc=$?
+			[ "$stepRc" = 1 ] || return 0
+		fi
+		AgentsToolsSessionControlRequestRead "$controlDir/request.taken" ; stepId="$requestId"
+		if [ -z "$stepId" ] ; then
+			rm -rf "$controlDir/request.taken" 2> /dev/null
+			AgentsToolsSessionControlSay event "session $controlSession: what stood as a request in work names no request, and is removed"
+		elif AgentsToolsSessionControlRequestRead "$controlDir/outcome" "$stepId" ; then
+			rm -f "$controlDir/request.taken" 2> /dev/null
+		else
+			if [ -z "$controlRequestCall" ] ; then
+				[ -n "$controlRequestBound" ] || controlRequestBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
+				[ -n "$controlRequestSeen" ] || controlRequestSeen="$SECONDS"
+				[ "$(( SECONDS - controlRequestSeen ))" -ge "$controlRequestBound" ] || return 0
+			fi
+			AgentsToolsSessionControlRequestRead "$controlDir/request.taken"
+			AgentsToolsSessionControlRequestAnswer "$controlDir" failed "the process that took it ended and left no outcome: what it did is not known" "-" "" "" "$controlPid" || :
+			rm -f "$controlDir/request.taken" 2> /dev/null
+			AgentsToolsSessionControlSay event "session $controlSession: the request ${stepId:-of no id} was taken, and the process that took it ended with no outcome -- it is answered as failed, and its console carries it out itself"
+		fi
+		controlRequestCall=""
+	fi
+	controlRequestSeen=""
+	[ -e "$controlDir/request" ] || return 0
+	if [ -n "$controlRequestCall" ] ; then
+		AgentsToolsSessionControlHolderLives "$controlRequestCall" ; stepRc=$?
+		[ "$stepRc" = 1 ] || return 0
+	fi
+	AgentsToolsSessionControlRequestStart
+	return 0
+}
+
+## Whether the session was killed whole by the console, by the last outcome of its thread:
+## that is a kill of the whole session that was carried out, and no state of the session
+## was set since, so that a session started again after its kill, which ends by itself, is
+## not called killed. rc 0 it was: who asked into controlKilled, when into controlKilledAt.
+## The thread's own, called where it writes that its session is finished.
+AgentsToolsSessionControlRequestKilled(){
+	local requestId="" requestKind="" requestFor="" requestSession="" requestBy="" requestAt="" requestAsked="" requestWait=""
+	local requestResult="" requestReason="" requestStatus="" requestDoneAt="" requestProcess=""
+	controlKilled="" ; controlKilledAt=""
+	[ -f "$controlDir/outcome" ] || return 1
+	[ ! "$controlDir/state" -nt "$controlDir/outcome" ] || return 1
+	AgentsToolsSessionControlRequestRead "$controlDir/outcome" || return 1
+	[ "$requestKind" = "kill" ] && [ "$requestFor" = "session" ] && [ "$requestResult" = "done" ] || return 1
+	controlKilled="${requestBy:-unknown}" ; controlKilledAt="${requestAt:-at no known time}"
+	return 0
+}

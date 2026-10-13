@@ -367,6 +367,9 @@ rigToolingList(){
 		'sh-lib/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
 		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -TERM -- "-$postPid"|@probed' \
 		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
+		'sh-lib/AgentsTools.SessionControlRequest.include|1|= "$wakeLine" ] && kill -USR1 "$wakePid"|the wake of a control thread, which holds USR1 and ends nothing on it: the pid its pid file names, kept there with when it began by one rename, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal; before it the command line of that process is read as the thread of that session, never a call of one tick, and its file of what it takes names the kind, which a thread empties before its shell is replaced' \
+		'sh-lib/AgentsTools.SessionControlRequest.include|1|kill -TERM -- "-$carryPid"|@probed' \
+		'sh-lib/AgentsTools.SessionControlRequest.include|1|kill -KILL -- "-$carryPid"|@probed' \
 		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
 		'sh-lib/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
 		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \

@@ -676,7 +676,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   existing members -- with the reason in words where it is not. No registry or index holds the
   routines: it reads the files at each call. The spawner's own rule for a start with no member named is
   the same one function now, `AgentsToolsSpawnRoutineExecutorsRoster`, that the spawner and this list
-  both ask. Its code is `sh-lib/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
+  both ask. A row's tenth and last field, `<needs>`, reads `members` where the routine is `not-startable`
+  for one cause alone -- its executors are any member (`magic-team` or `*`) -- and `-` on every other
+  row, such a routine started by `--magic-spawn-session --routine <selector> <team-member>...`. Its code
+  is `sh-lib/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
   its test.
 - **`--manager-spawn-member <team-member>`** starts one member with a prompt, in a new coworking session
   of its own, and does not wait. The prompt comes on stdin or from a file, never as an argument. It
@@ -695,7 +698,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the founder alone. The ending is recorded first, under the name the console's user has in the
   operating system -- the record carries `killed-by` and `killed-at`, reason `manager-kill` -- then a
   polite end goes to the run's own processes, and the hard kill to what is still there two seconds
-  later. The handback retry never resumes a record that carries `killed-at`. Its own bound ends with its
+  later. Who carries it out: the session's control thread, where one lives, by `control/request` and a
+  `USR1` wake, its own `control/outcome` read back; else the call itself, directly, each ending printed
+  on stderr. The handback retry never resumes a record that carries `killed-at`. Its own bound ends with its
   own sleep, and the lines of a missing handback are said only after the record is closed
   (`AgentsToolsSpawnProxyHandbackNotice`). A killed run is told as killed, by `killed-by` and at
   `killed-at`, in the thread of the session that requested it, in place of the line of a missing
@@ -716,10 +721,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   entry counting only while its pid is still the process that began then; the file is removed when
   nothing of it is left. `TaskStop` with force now ends a started process that ignores the polite end.
   Neither a stop nor a kill ever reaches a session's control thread: it is no child of a run, and walking
-  from a run's own processes never finds it. `AgentsSessionControlStopKillCheck` is the test.
+  from a run's own processes never finds it. `AgentsSessionControlStopKillCheck` is the test. A
+  `--manager-session-kill` asking the thread to carry out a kill is the thread acting, by request, never
+  a signal sent to it.
 - **`--manager-team-member-list` and `--manager-team-member-read <team-member>`**: the list has one row
   per member -- its mark, names, alias, kind, workspace, where it is set up, its status, and whether a
-  run of it is alive, a member set up only in another workspace of this machine included; the read adds
+  run of it is alive, a member set up only in another workspace of this machine included, and, last, its
+  icon, the one the installer's own member table shows (`AgentsToolsTeamMemberKindIcon`); the read adds
   its description, its sessions, its grants and its settings, a secret setting reading only as set or
   missing. Their code is `sh-lib/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
   is their test.
@@ -864,7 +872,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   there counts as session activity for the advance pass. `sessions/<id>/control/` falls under this
   too: a start of its control thread and a change of its `state` are such activity, a tick is none. A
   start now writes one line into `control/log` before the thread's own. `dead`, `gone` and the post
-  files (`post.<run id>`, `post.<run id>.result`) are writes under `control/` too.
+  files (`post.<run id>`, `post.<run id>.result`) are writes under `control/` too, and so are `takes`
+  (a start of the thread), `request`, `request.taken` and `outcome` (a kill through the thread).
 - **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call, the same
   rebuild `--make-harness-indices` also runs. Sixteen stored columns now (the first seven unchanged for
   position readers; `started-at`, `resolved-at` and `session-comment` were the three before these two:
@@ -924,7 +933,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   its test. Once a death is answered, six more lines of the same template say what was carried out --
   `death-resumed`, `death-fresh`, `death-new-process`, `death-closed`, `death-killed`, `death-failed` --
   posted by the control thread's own call, in the thread of the question and in the thread of the
-  session that requested the run.
+  session that requested the run. `death-failed` names the item put back in review, if any, and says
+  the reviewer is asked again what to do; nothing is tried a second time by itself.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -1065,10 +1075,22 @@ contracts are here.
   death already told and asked, one thing a call: it reads the thread of its question, every
   `SESSION_CONTROL_ANSWER_READ_SECONDS` (default 60), and carries out the answer once one comes, started
   with the signals the thread ignores at their defaults. `control/` also holds `post.<run id>.sent`; a
-  line of `control/dead` gains `answer=<option> answered=<moment>`, `failed=<moment>`, and
-  `settled=<moment> how=resume|fresh|close|kill|withdrawn`. A question is recorded with
+  line of `control/dead` is a history, and gains `answer=<option> answered=<moment>`, and
+  `settled=<moment> how=resume|fresh|close|kill|withdrawn`; `asked=` and `answer=` may each stand more
+  than once, read as they stand last. An answer that could not be carried out gains
+  `not=<answer>,<moment>,<item put back in review, or ->,<why>` instead of settling, and the same
+  reviewer is asked again, once for each failure, by the same place and under a new question key
+  (`death:<run id>:<number>`); no try is made without a new answer. An item a failed restart left in
+  running with no run is put back in review. A question is recorded with
   `question-key: death:<run id>` and is asked once, whatever ends the post that asks it.
   `AgentsSessionControlDeathAnswerCheck` and `AgentsSessionControlStopKillCheck` are its tests.
+  A fourth mode, `--request`, is the thread's own second call apart from its tick: it takes a kill
+  request the console placed, carries it out, and answers. `control/` also keeps `takes` (what kind of
+  request the thread is open to, written as it starts, emptied before a put-back), `request`,
+  `request.taken` and `outcome`; `AgentsTools.SessionControlRequest.include` says what each holds. Two
+  more settings: `SESSION_CONTROL_REQUEST_SECONDS` (5, how long the thread has to take a request) and
+  `SESSION_CONTROL_KILL_SECONDS` (30, the bound of the call's own work). The state's `finished` reason
+  names a kill of the whole session and who asked it, where that is how the session ended.
 
 ## 13. The `myx.distro` MCP server
 

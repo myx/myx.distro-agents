@@ -100,10 +100,10 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigScreenHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -130,14 +130,14 @@ wait list 30
 turn
 get in
 show u
-cells title 1 84 120
-cells row1 2 84 120
-cells row2 3 84 120
-cells row3 4 84 120
-cells row4 5 84 120
-cells row5 6 84 120
-cells row6 7 84 120
-cells row7 8 84 120
+border title 1 84 120
+cells row1 2 85 119
+cells row2 3 85 119
+cells row3 4 85 119
+cells row4 5 85 119
+cells row5 6 85 119
+cells row6 7 85 119
+cells row7 8 85 119
 advance 11
 wait list 30
 keys LEFT
@@ -149,9 +149,9 @@ show r
 RIGSCRIPT
 rigAssert "until the section is entered the digest is not read, whatever time passes" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "settings [] 0"
 rigAssert "entering it asks the operation that prints the digest"    "$( rigVal asked.path ) $( rigVal asked.reading )" "settings list:settings"
-rigAssert "the subjects are listed under the row that goes up, in the order of the operation" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row5 )][$( rigVal row7 )]" "[ Settings / Configuration] 6 [>..][ loop][]"
+rigAssert "the subjects are listed under the row that goes up, in the order of the operation" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row5 )][$( rigVal row7 )]" "[Settings / Configuration] 6 [>..][ loop][]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row6 )]" \
-	"[ workspace                 1 missing][ cli                       3 missing][ systems                   2 missing][ scopes                    2 missing]"
+	"[ workspace               1 missing][ cli                     3 missing][ systems                 2 missing][ scopes                  2 missing]"
 rigAssert "on the row that goes up the left pane says what the digest holds, and that it is for viewing" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 subjects, 61 lines, 8 missing.][ Viewing only: no key changes a setting here.]"
 rigAssert "the digest is read with no argument, once on entering and once more when its period has passed" "$( rigCalled --manager-config-digest ) $( rigOthers )" "2 0"
 rigAssert "back at the root it is not read again, and the section says what it held" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] settings [ 5 subjects, 61 lines, 8 missing.]"
@@ -165,7 +165,7 @@ keys DOWN
 turn
 get w
 show w
-cells wKeys 37 0 83
+cells wKeys 37 1 83
 keys DOWN
 turn
 show c
@@ -229,15 +229,17 @@ keys RIGHT
 get dived
 keys k
 get kill
+keys ESC
 keys n
 get start
+keys ESC
 keys TAB y ENTER TAB
 turn 3
 get end
 RIGSCRIPT
 rigAssert "a text is typed on a subject and Enter is pressed: no line opens, and nothing is submitted" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.selected ) $( rigVal typed.quit )" "[] [] cli no"
 rigAssert "Enter and Right dive nowhere"                             "$( rigVal dived.path ) $( rigVal dived.selected )" "settings cli"
-rigAssert "the keys of the actions find nothing to act on"           "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] []"
+rigAssert "the keys of the actions find nothing to act on"           "[$( rigVal kill.dialogHolds )][$( rigVal start.dialogHolds )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] [message:ok|]"
 rigAssert "no operation was called but the two reads, and the digest never with an argument" "$( rigOthers ) $( rigCalled --manager-config-digest ) $( rigVal end.calls ) [$( rigVal end.dialog )]" "0 1 0 []"
 
 if [ "$rigFailCount" -ne 0 ] ; then

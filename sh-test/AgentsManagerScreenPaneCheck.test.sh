@@ -136,10 +136,10 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/│.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen hold the text
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e 's/│.*$//' | LC_ALL=C grep -c -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C sed -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' | LC_ALL=C grep -c -F -- "$2" || :
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -350,22 +350,22 @@ wait sessions 30
 keys DOWN DOWN
 wait feed 30
 get session
-cells sessionKeys 37 0 83
+cells sessionKeys 37 1 83
 handler kill
 turn
-cells builtKeys 37 0 83
+cells builtKeys 37 1 83
 keys UP
 turn
 get launch
-cells launchKeys 37 0 83
+cells launchKeys 37 1 83
 keys DOWN DOWN
 wait view 30
 wait feed 30
 get lone
 show lone
 RIGSCRIPT
-rigAssert "a running session is selected: the pane names the keys that act on it, kill and log" "$( rigVal session.selected ) [$( rigVal sessionKeys )]" "$rigS1 [ keys: k kill  l log]"
-rigAssert "and the same with another handler in the place of the kill" "[$( rigVal builtKeys )]" "[ keys: k kill  l log]"
+rigAssert "a running session is selected: the pane names the keys that act on it, kill and log" "$( rigVal session.selected ) [$( rigVal sessionKeys )]" "$rigS1 [keys: k kill  l log]"
+rigAssert "and the same with another handler in the place of the kill" "[$( rigVal builtKeys )]" "[keys: k kill  l log]"
 rigAssert "Launch / Spawn has neither"                               "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
 rigAssert "a session a client founded says that its founder left no record, and that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded   by a client, whose founder left no record' ) $( rigPaneHolds lone 'lines     the feed of 1 run: 1 with neither (magic-devops)' )" "$rigS2 1 1"
 
@@ -511,10 +511,10 @@ rigAssert "control: the fixtures of the second case hold the wider session rows 
 	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } $1 == "control" && NF == 6 { control++ } END { print rows + 0 ":" wide + 0 ":" control + 0 }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ } $1 == "control" { control++ } END { print wide + 0 ":" control + 0 }' )" "7:7:5 0:0"
 rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'for       The daily of Monday' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
 rigDrawnBut(){ ## a drawing -- its lines but for the line control of the pane of a session, and but for how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
-	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]| control   ' -e '^[srn]\.frames='
+	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]|│control   ' -e '^[srn]\.frames='
 }
-rigAssert "without them the line control of a session says - of what no row tells, and an agent has no such line" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s| control   -  ' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^n| control   -  ' ) $( printf '%s\n' "$rigDrawnEight" "$rigDrawnEleven" | LC_ALL=C grep -c -e '^r| control ' )" "1 1 0"
-rigAssert "with them it says what the read of the session gave: a thread that lives with its pid, one that ended in order, and the state each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's| control   alive, pid 4242; stored running, set 2026-10-12 16:58 +0000 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'n| control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)  ' )" "1 1"
+rigAssert "without them the line control of a session says - of what no row tells, and an agent has no such line" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│control   -  ' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^n|│control   -  ' ) $( printf '%s\n' "$rigDrawnEight" "$rigDrawnEleven" | LC_ALL=C grep -c -e '^r| control ' )" "1 1 0"
+rigAssert "with them it says what the read of the session gave: a thread that lives with its pid, one that ended in order, and the state each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│control   alive, pid 4242; stored running, set 2026-10-12 16:58 +0000 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'n|│control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)  ' )" "1 1"
 rigAssert "nothing else changes: but for that one line of the pane of a session, the screen asks the same reads and draws and reports cell for cell what it did without them" "$( [ "$( rigDrawnBut "$rigDrawnEleven" )" = "$( rigDrawnBut "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigDrawnBut "$rigDrawnEight" ) <( rigDrawnBut "$rigDrawnEleven" ) | head -6 ; } ) $( cmp -s "$rigTmp/eight/calls" "$rigTmp/eleven/calls" && echo same-calls ) $( LC_ALL=C grep -c -e '--manager-session-read' "$rigTmp/eleven/calls" | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "reads" : "no reads: " $1 }' )" "same same-calls reads"
 
 if [ "$rigFailCount" -ne 0 ] ; then

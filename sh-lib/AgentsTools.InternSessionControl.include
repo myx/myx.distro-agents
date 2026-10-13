@@ -34,6 +34,9 @@
 ##          once, not at every such tick). It is bounded: see AgentsToolsSessionControlLogBound.
 ##   dead, gone, post.<run id>   what the thread keeps of the death of a run, and of what is
 ##          posted about it: AgentsTools.SessionControlDeath.include says what each holds.
+##   takes, request, request.taken, outcome   how a control of the console reaches the
+##          thread, and what became of it: AgentsTools.SessionControlRequest.include says
+##          what each holds.
 ## The words of the state: `running` while a run of the session is alive on this host,
 ## `finished` once none is and every record of the session is closed, and `member-dead`
 ## while a run of it has died and what is done about that is not settled, whatever its other
@@ -96,6 +99,17 @@
 ## and said in the log. The tick itself reads the answer from the record of the question, a
 ## file. Once no death is unsettled the state is what the runs say again.
 ##
+## A CONTROL OF THE CONSOLE REACHES IT BY A FILE AND A WAKE, and is carried out apart from
+## the tick. The console puts its request into control/request and sends USR1, which makes
+## the next tick come at once. A tick asks two names of its folder, the cheap tick too, and
+## reads nothing while neither stands. A request that stands is carried out by one bounded
+## call of the tooling, a process of its own that the thread starts and never waits for
+## (`--request`, AgentsToolsSessionControlRequestStart): it takes the request by one rename,
+## carries it out, and writes control/outcome, which the console reads. A kill is the one
+## kind taken now. The kill of its session does not end the thread, which is no run: it
+## lives on to see the runs end, and writes that the session is finished, killed and by
+## whom. What it takes it says in control/takes, once the trap of its wake is set.
+##
 ## It runs as no member: whatever session it is started from, nothing of that session
 ## reaches what it does or what it starts.
 ##
@@ -111,6 +125,10 @@
 ## the fifth such end in a row is not answered, so a fault that comes back at once ends.
 AgentsToolsSessionControlAgain(){
 	[ -n "${agentsSessionControlStay:-}" ] || return 0
+	## It takes no request until it is in place again: the shell that comes holds the trap
+	## of the wake only once it has set it, and says then what it takes. Emptied by this
+	## shell itself, with no process started.
+	{ : > "$MMDAPP/.local/agents/sessions/$agentsSessionControlStay/control/takes" ; } 2> /dev/null
 	if [ "$SECONDS" -lt 5 ] ; then agentsSessionControlRounds=$(( agentsSessionControlRounds + 1 )) ; else agentsSessionControlRounds=1 ; fi
 	export MDAT_SESSION_CONTROL_AGAIN="$agentsSessionControlRounds"
 	exec "$BASH" "$agentsSessionControlScript" --intern-session-control --run --session-id "$agentsSessionControlStay"
@@ -231,6 +249,7 @@ AgentsToolsSessionControlLockTake(){
 AgentsToolsSessionControlLeave(){
 	local leaveLine=""
 	{ IFS= read -r leaveLine < "$controlDir/pid" ; } 2> /dev/null || :
+	[ "${controlMode:-}" != "--run" ] || [ "$( readlink "$controlLock" 2> /dev/null )" != "$controlMe" ] || rm -f "$controlDir/takes" 2> /dev/null
 	[ "$leaveLine" != "$controlMe" ] || rm -f "$controlDir/pid" 2> /dev/null
 	[ "$( readlink "$controlLock" 2> /dev/null )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
 	rm -f "$controlRowsFile" 2> /dev/null
@@ -760,7 +779,13 @@ AgentsToolsSessionControlTick(){
 		if [ "$tickLine" != "$controlMe" ] ; then
 			! AgentsToolsSessionControlPidWrite || AgentsToolsSessionControlSay event "session $controlSession: the pid file of the thread was not its own and is written again, pid $controlPid"
 		fi
+		## And what it takes is said again where that is gone, or was emptied.
+		[ "$controlMode" != "--run" ] || [ -s "$controlDir/takes" ] || AgentsToolsSessionControlKeep takes "$controlTakes" || :
 	fi
+	## A REQUEST OF THE CONSOLE is looked for at every tick, the cheap one too: two names are
+	## asked of the folder, and nothing is read while neither stands
+	## (AgentsToolsSessionControlRequestStep, AgentsTools.SessionControlRequest.include).
+	[ ! -e "$controlDir/request" ] && [ ! -e "$controlDir/request.taken" ] || AgentsToolsSessionControlRequestStep
 	## NOTHING CHANGED: a process that ran as a run of the session at the last read is still
 	## that process, and the state file says running. The session is running, and no more is read.
 	if [ -z "$tickFull" ] ; then
@@ -802,6 +827,9 @@ AgentsToolsSessionControlTick(){
 		;;
 		finished)
 			tickWord="finished" ; tickReason="no run of the session is alive and every record of it is closed"
+			## A session the console killed whole says so, and by whom: the last outcome of
+			## the thread, where no state was set since (AgentsToolsSessionControlRequestKilled).
+			! AgentsToolsSessionControlRequestKilled || tickReason="the session was killed by $controlKilled, asked $controlKilledAt: $tickReason"
 		;;
 		foreign)
 			AgentsToolsSessionControlOnce foreign "no run of it is alive on this host, and every record still open is a run of another host ($controlForeignHosts), which cannot be measured from here -- it is not called finished, and the state is left as it is${controlStateWord:+, $controlStateWord}"
@@ -848,6 +876,8 @@ case "$1" in
 			--one) controlMode='--one' ;;
 			## The thread's own call, apart from its tick: what is posted about one death.
 			--death) controlMode='--death' ;;
+			## And its other: the carrying out of a request of the console.
+			--request) controlMode='--request' ;;
 		esac
 		if [ -z "$controlMode" ] ; then
 			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
@@ -932,6 +962,20 @@ case "$1" in
 
 		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"
+		type AgentsToolsSessionControlRequestStep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlRequest.include"
+
+		## THE CARRYING OUT OF A REQUEST OF THE CONSOLE: the one bounded call, in this process of
+		## its own, which the thread started and does not wait for. It takes no lock and is no
+		## thread: it takes the request that waits by one rename, carries it out or refuses it,
+		## writes control/outcome for the console that asked, and ends.
+		if [ "$controlMode" = "--request" ] ; then
+			if [ ! -d "$MMDAPP/.local/agents/sessions/$controlSession/control" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-control: --request is the thread's own call, and session $controlSession has no control folder, so no request of it waits -- nothing was done" >&2
+				return 1
+			fi
+			AgentsToolsSessionControlRequestCarry "$controlSession" "$( AgentsToolsSessionControlSeconds SESSION_CONTROL_KILL_SECONDS 30 )"
+			return 0
+		fi
 
 		## WHAT IS DONE ABOUT ONE DEATH: the one bounded call, in this process of its own, which
 		## the thread started and does not wait for. It takes no lock and is no thread: it does
@@ -995,6 +1039,7 @@ case "$1" in
 		local controlDir="" controlLock="" controlHolder="" controlHolderTold=0 controlTookOver="" controlStateWord="" controlStateAt=""
 		local controlLife="event" controlSaid="" controlLeave="" controlRc=0 controlOwn="" controlWrote="" controlTicks=0 controlWaitRc=0 controlWaitFrom=0 controlWaitLeft=0 controlWaitPiece=0
 		local controlWitness="" controlFullAt=0 controlWoken="" controlEarly=0 controlSleepSaid=""
+		local controlTakes="kill" controlRequestCall="" controlRequestSeen="" controlRequestBound="" controlKilled="" controlKilledAt=""
 		[ "$controlMode" != "--one" ] || controlLife="note"
 		controlHost="$( hostname -s 2> /dev/null )" || controlHost=""
 		[ -n "$controlHost" ] || controlHost="unknown"
@@ -1057,7 +1102,7 @@ case "$1" in
 			;;
 		esac
 		## What a thread that was ended the hard way left half made is nobody's now.
-		rm -f "$controlDir"/state.*.aside "$controlDir"/pid.*.aside "$controlDir"/log.*.aside "$controlDir"/dead.*.aside "$controlDir"/gone.*.aside "$controlDir"/post.*.aside 2> /dev/null
+		rm -f "$controlDir"/state.*.aside "$controlDir"/pid.*.aside "$controlDir"/log.*.aside "$controlDir"/dead.*.aside "$controlDir"/gone.*.aside "$controlDir"/post.*.aside "$controlDir"/takes.*.aside 2> /dev/null
 		if ! AgentsToolsSessionControlPidWrite ; then
 			AgentsToolsSessionControlLeave
 			AgentsToolsSessionControlRefuse "could not write $controlDir/pid -- nothing was started"
@@ -1065,6 +1110,8 @@ case "$1" in
 		fi
 
 		if [ "$controlMode" = "--run" ] ; then
+			## What it takes of the console, said now: the trap of its wake is set from its first moment.
+			AgentsToolsSessionControlKeep takes "$controlTakes" || :
 			[ "$agentsSessionControlRounds" != 0 ] || echo "# $MDSC_CMD --intern-session-control: the control thread of session $controlSession runs as pid $controlPid: its log is $controlDir/log, and TERM ends it in order" >&2
 			## IT INHERITS NOTHING THAT CAN END IT FROM ITS STARTER. From here on its input is
 			## /dev/null and its output and its errors are its own log; the descriptors 3 to 9 it
