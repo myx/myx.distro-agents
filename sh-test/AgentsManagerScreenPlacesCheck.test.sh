@@ -12,7 +12,8 @@
 ## the mark of the one the console runs in ahead of it, and no column of a host; the one the console runs in stands
 ## out, one that is not present shows plainer; a line that is no row of a location is left out; the left window
 ## shows what the folder holds, and of the selected location its facts, and, once `--manager-place-read` was
-## called with its key exactly as it is, what declares it and what stands in it; in the table, in the summary of a
+## called with its key exactly as it is, what declares it, what stands in it, each path as it stands under the path
+## of the location, and the members that belong to it, by the way they are set up; in the table, in the summary of a
 ## location, in the subject of the workspace's paths and in what is started with the whole terminal a path stands
 ## as it is; in every other view a path inside a location is drawn as the key of that location and what follows,
 ## the longest location winning, the key in the palette entry of a folder, and a path that only begins as one
@@ -72,6 +73,10 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow info registry /rig/Workspaces/ws-one/.local/agents/directories.registry
 	rigRow stands console DistroAgentsConsole.sh /rig/Workspaces/ws-one/source/deep/DistroAgentsConsole.sh
 	rigRow stands team-data-root - /rig/Workspaces/ws-one/source/deep/team-data
+	rigRow stands home keeper-far /rig/elsewhere/homes/keeper-far
+	rigRow member magic-linked magic elsewhere origin-symlink /rig/origin/skillset/magic-linked
+	rigRow member keeper-own keeper none source-symlink /rig/Workspaces/ws-one/source/deep/skillset/keeper-own
+	rigRow member stray-one keeper none not-in-registry /rig/Workspaces/ws-one/source/deep/.local/agents/members/stray-one
 } > "$rigF/rows.--manager-place-read deep"
 {
 	rigRow block data Team_Data 2
@@ -156,6 +161,7 @@ turn
 wait view 5
 get deep
 show d
+looks dl
 border deepTitle 1 0 140
 keys DOWN DOWN
 turn
@@ -176,7 +182,9 @@ rigAssert "what is not known of one is a dash, and its key stands as the operati
 rigAssert "the one the console runs in stands out, one that is not present shows plainer, another is plain" "$( rigLookAt t tr '• ws-one' 140 ) $( rigLookAt t tr 'gone-work' 140 ) $( rigLookAt t tr 'deep' 140 )" "BBBBBBBB DDDDDDDDD ...."
 rigAssert "on the row that goes up the left window shows what the folder holds" "[$( rigVal inTitle )] $( rigHolds t '5 locations: 3 directory, 2 workspace.' ) $( rigHolds t 'The console runs in ws-one.' ) $( rigHolds t '2 of them are not present on this machine.' )" "[Locations (Places) [wrap]] 1 1 1"
 rigAssert "a location selected: its read is called with its key, once, and the left window shows its facts" "$( rigVal deep.selected ) [$( rigVal deepTitle )] $( rigCalled '--manager-place-read deep' ) $( rigHolds d '│place     Deep ' ) $( rigHolds d '│kind      directory ' ) $( rigHolds d '│ceiling   read-only ' ) $( rigHolds d '│state     present ' )" "deep [deep [wrap]] 1 1 1 1 1"
-rigAssert "in the summary of a location every path stands as it is: its own, what declares it, what stands in it" "$( rigHolds d '│path      /rig/Workspaces/ws-one/source/deep ' ) $( rigHolds d '│registry  /rig/Workspaces/ws-one/.local/agents/directories.registry ' ) $( rigHolds d 'console DistroAgentsConsole.sh  /rig/Workspaces/ws-one/source/deep/DistroAgentsConsole.sh' ) $( rigHolds d 'team-data-root  /rig/Workspaces/ws-one/source/deep/team-data' ) $( rigHolds d 'declared-by a-project' ) $( rigVal deep.spills )" "1 1 1 1 1 0"
+rigAssert "in the summary of a location its own path and what declares it stand as they are" "$( rigHolds d '│path      /rig/Workspaces/ws-one/source/deep ' ) $( rigHolds d '│registry  /rig/Workspaces/ws-one/.local/agents/directories.registry ' ) $( rigHolds d 'declared-by a-project' ) $( rigVal deep.spills )" "1 1 1 0"
+rigAssert "what stands in it is a table of what, its name and where, each path as it stands under the path of the location, which is said once, at the top; a thing that lies elsewhere keeps its whole path" "$( rigHolds d '│  WHAT           NAME                   WHERE ' ) $( rigHolds d '│  console        DistroAgentsConsole.sh DistroAgentsConsole.sh ' ) $( rigHolds d '│  team-data-root -                      team-data ' ) $( rigHolds d '│  home keeper-far  /rig/elsewhere/homes/keeper-far ' ) $( rigHolds d '/rig/Workspaces/ws-one/source/deep' )" "1 1 1 1 1"
+rigAssert "its members stand under that, a table for each way they are set up as their rows say it, those whose folder lies in the location first, a folder under its path where it lies there; one that no registry names shows plainer, with that word" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^d|' | LC_ALL=C grep -o -e '│Its members: ' -e '│  source-symlink ' -e '│    keeper-own keeper skillset/keeper-own ' -e '│  not-in-registry ' -e '│    stray-one keeper .local/agents/members/stray-one ' -e '│  origin-symlink ' -e '│    magic-linked magic /rig/origin/skillset/magic-linked ' | LC_ALL=C tr -d '│' | LC_ALL=C sed 's/^ *//;s/ *$//' | LC_ALL=C tr '\n' '|' ) $( rigLookAt d dl 'stray-one keeper' ) $( rigLookAt d dl 'keeper-own keeper' )" "Its members:|source-symlink|keeper-own keeper skillset/keeper-own|not-in-registry|stray-one keeper .local/agents/members/stray-one|origin-symlink|magic-linked magic /rig/origin/skillset/magic-linked| DDDDDDDDDDDDDDDD ................."
 rigAssert "a key with a mark in it is given to the read as it is" "$( rigVal odd.selected ) $( rigCalled '--manager-place-read nowhere@ws-two' ) $( rigHolds o '│key       nowhere@ws-two ' ) $( rigHolds o '│path ' )" "nowhere@ws-two 1 1 0"
 rigAssert "Left goes back to the root, onto its row, where the left window says the same of the folder" "[$( rigVal out.path )] $( rigVal out.selected ) $( rigHolds s '5 locations: 3 directory, 2 workspace.' )" "[] places 1"
 rigAssert "no operation of the locations was called but the list with no argument and the read of one key" "$( rigPlaceCalls )" "3 0"

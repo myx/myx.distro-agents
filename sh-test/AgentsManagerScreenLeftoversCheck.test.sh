@@ -4,7 +4,9 @@
 ## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
 ## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture.
 ## Held: the title of the left window always says how its long lines are shown, `[wrap]` or `[cut]`, beside the
-## mode of a thing that has a log, in every style, and the choice is kept as the selection moves.
+## mode of a thing that has a log, in every style, and the choice is kept as the selection moves; the status line
+## names the key of the help, last of the keys that work in every window; a kill whose plan could not be read is
+## not asked for: its dialog says so, takes no word and has Cancel alone, and no kill reaches the tooling.
 ## Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -47,11 +49,11 @@ rigRow(){ ## the fields of one row, joined by TAB
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 {
 	rigRow session s-run daily_of_Monday running 2026-10-13T01:00:00Z - 3 running=2,finished=1 running 2026-10-13T01:00:05Z alive 57100000
-	rigRow run s-run sp-1 magic-coordinator done live running 2026-10-13T01:00:00Z - righost ws-one working
-	rigRow run s-run sp-2 keeper-myx done live running 2026-10-13T01:01:00Z - righost ws-one waiting
+	rigRow run s-run sp-1 magic-coordinator done running running 2026-10-13T01:00:00Z - righost ws-one working
+	rigRow run s-run sp-2 keeper-myx done running running 2026-10-13T01:01:00Z - righost ws-one waiting
 	rigRow run s-run sp-3 keeper-myx done ended finished 2026-10-13T01:02:00Z 2026-10-13T01:05:00Z righost ws-one -
 	rigRow session s-wait review_of_the_board waiting 2026-10-13T00:00:00Z - 1 waiting=1 waiting 2026-10-13T00:00:05Z gone 1200+
-	rigRow run s-wait sp-4 magic-architect done live waiting 2026-10-13T00:00:00Z - righost ws-one waiting
+	rigRow run s-wait sp-4 magic-architect done running waiting 2026-10-13T00:00:00Z - righost ws-one waiting
 	rigRow session s-open - unclosed 2026-10-12T00:00:00Z - 0 - - - none 0
 	rigRow session s-done old_work finished 2026-10-11T00:00:00Z 2026-10-11T01:00:00Z 2 finished=2 - - none 900
 	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
@@ -196,6 +198,40 @@ rigAssert "wrapped, as the screen starts: the title says so, on every row" "[$( 
 rigAssert "w in the left window: the title says cut, and still does when the selection has moved" "[$( rigVal t2 )] [$( rigVal t3 )]" "[Sessions (Activity) [cut]] [Pending Questions [cut]]"
 rigAssert "a thing that has a log: the wrap state stands beside its mode, cut and then wrapped again" "[$( rigVal t4 )] [$( rigVal t5 )]" "[daily of Monday [summary] [cut]] [daily of Monday [summary] [wrap]]"
 rigAssert "with no colours and in the compact style too" "[$( rigVal t6 )] $( rigHolds m 'daily of Monday [summary] [wrap]' )" "[daily of Monday [summary] [wrap]] 1"
+
+echo "-- Help has its word in the status line --"
+rigCase help
+rigScript <<'RIGSCRIPT'
+turn
+wait sessions 5
+cells status 35 0 120
+keys TAB
+cells statusLeft 35 0 120
+keys ?
+get h
+RIGSCRIPT
+rigAssert "the status line names the key of the help, last of the keys that work in every window, whichever window has the keys; the key opens the box of the keys" "[$( rigVal status )] [$( rigVal statusLeft )] [$( rigVal h.dialogTitle )]" "[ Enter Open  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help] [ w Cut  u Read  m Menu  ^X Exit  Tab Window  ? Help] [Keys]"
+
+echo "-- a kill whose plan cannot be read is not asked for --"
+rigCase unread
+echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
+rigScript <<'RIGSCRIPT'
+turn
+wait sessions 5
+keys DOWN ENTER DOWN DOWN
+turn
+keys k
+wait plan 5
+turn
+get k
+box kb
+keys y e s ENTER
+turn
+wait action 5
+get after
+RIGSCRIPT
+rigAssert "the dialog says that the plan could not be read and that nothing is done, takes no word, and has Cancel alone" "[$( rigVal k.selected )] [$( rigVal k.dialog )] $( rigVal k.dialogHolds | LC_ALL=C grep -c -F 'What its kill would do could not be read: rig-tools: ⛔ ERROR: the rig said fail / So it is not asked for: nothing is killed, dismissed or closed.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -F '[ Cancel ]' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -e 'Kill \]' -e 'Close \]' -e 'Type yes' )" "[s-run] [kill:cancel|] 1 1 0"
+rigAssert "the word typed and Enter leave it: no kill was asked of the tooling, only its plan was read" "[$( rigVal after.dialog )] $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run' "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run --plan' "$MANAGER_SCREEN_RIG/calls" )" "[] 0 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LEFTOVERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

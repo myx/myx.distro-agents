@@ -9,7 +9,7 @@
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of
 ## the list stays; `a` switches all and active only while the list has the focus; rows that come again in another
 ## order keep the selection on the same item, and where that item is gone the selection takes the row at its place;
-## `q` quits; a line that is typed in takes every key until Enter or Esc, and Esc calls nothing; each key of an
+## `q` quits; each key of an
 ## action goes to the handler of that action, with the row that is selected, or says that it is not built; and the
 ## left pane names, under the item, the keys that act on the selected row, once their handlers are built, while the
 ## bottom line keeps the keys of the screen.
@@ -227,23 +227,12 @@ rigAssert "in another order, with a row above it gone, the selection stays on th
 rigAssert "when that item itself is gone, the selection takes the row at the same place" "$( rigVal c.selected ) $( rigVal c.index )" "b 2"
 rigAssert "and the last row where that place is gone too"            "$( rigVal d.selected ) $( rigVal d.index )" "d 1"
 
-echo "-- q, Esc and the line that is typed in --"
+echo "-- q and Esc --"
 rigScript <<'RIGSCRIPT'
 size 120 40
 root sessions
 keys ESC
 get esc
-dialog Name:
-keys q TAB a DOWN
-get typing
-cells typingLine 38 1 83
-keys ESC
-get closed
-said closedLine
-dialog Name:
-keys h i SPACE x BACKSPACE o ENTER
-get sent
-said sentLine
 advance 2
 keys q
 get bare
@@ -251,10 +240,6 @@ keys ESC x
 get quit
 RIGSCRIPT
 rigAssert "Esc with nothing open does nothing"                       "$( rigVal esc.quit ) $( rigVal esc.selected ) $( rigVal esc.focus )" "no sessions list"
-rigAssert "a key typed into the line is text: nothing quits, moves or switches" "$( rigVal typing.dialog ) $( rigVal typing.quit ) $( rigVal typing.focus ) $( rigVal typing.filter ) $( rigVal typing.selected )" "Name:|qa no list all sessions"
-rigAssert "the line shows what is asked and what was typed"          "[$( rigVal typingLine )] $( rigVal typing.cursor )" "[Name: qa] 38,9"
-rigAssert "Esc backs out: the line is empty again, and nothing was submitted" "[$( rigVal closed.dialog )] [$( rigVal closed.notice )] [$( rigVal closedLine )]" "[] [] []"
-rigAssert "Enter submits what was typed, as it was corrected"        "[$( rigVal sent.dialog )] [$( rigVal sent.notice )] [$( rigVal sentLine )]" "[] [submitted: hi o] [submitted: hi o]"
 rigAssert "a bare q does nothing in the Turbo Vision key map; Esc and then x ends the screen, as Alt-X does" "$( rigVal bare.quit ) $( rigVal quit.quit )" "no yes"
 
 echo "-- the keys of the actions --"
@@ -333,14 +318,14 @@ cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [line 036]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 rigAssert "with handlers built, the keys that act on a session stand under it, and only those" "[$( rigVal builtKeys )] $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^builtLooks|//p' | LC_ALL=C sed -n '38p' | LC_ALL=C cut -c1-12 )" "[keys: k kill] .BBBBBBBBBBB"
 rigAssert "the content of the pane ends one line above them"         "[$( rigVal builtLast )]" "[line 035]"
 rigAssert "and scrolls in the lines it has left"                     "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "65 [line 100]"
 rigAssert "Launch / Spawn has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member has the key that starts it"                 "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "team m1 [keys: n start]"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ Left Up  a Active  n Start  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ Left Up  a Active  n Start  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

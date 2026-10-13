@@ -154,7 +154,6 @@ class TextSurface:
 ##                                 makes its row one that Enter dives into
 ##   rowsgen <level> <count>       the same, <count> generated rows r001.. labelled `row 001`..
 ##   view <count>                  <count> lines in the left pane;  viewline <text>  one more line
-##   dialog <prompt>               opens the line to type in; what is submitted shows as `submitted: <text>`
 ##   rigdialog [<text>]            opens a dialog of the rig's own, declared here with a control of every kind: a text,
 ##                                 the field `name`, the field of several lines `notes`, the boxes `who`, the radio
 ##                                 buttons `how`, the list `pick`, and the buttons OK and Cancel. OK says what each
@@ -211,13 +210,10 @@ def scriptRun(module):
     def setRows(level, rows):
         state.rows[level] = rows
 
-    ## What has the keys besides the windows and the menu: the line to type in as
-    ## `<what it asks for>|<what was typed>`, or the open dialog as `<its name>:<the control
-    ## or the button the keys are on>|<what that control holds>`, a new line as `\n`, the
-    ## checked boxes with commas between them.
+    ## What has the keys besides the windows and the menu: the open dialog as `<its name>:<the
+    ## control or the button the keys are on>|<what that control holds>`, a new line as `\n`,
+    ## the checked boxes with commas between them.
     def dialogValue():
-        if state.line is not None:
-            return state.line["prompt"] + "|" + state.line["text"]
         if state.dialog is None:
             return ""
         what, index, control = module.dialogFocus(state.dialog)
@@ -380,8 +376,6 @@ def scriptRun(module):
         elif command == "viewline":
             module.followSelection(state)
             state.view["lines"].append(rest)
-        elif command == "dialog":
-            module.openLine(state, rest, lambda dialogState, text: "submitted: " + text)
         elif command == "mouse":
             turn("MOUSE:%s:%s:%s" % (words[0], words[1], words[2]))
         elif command == "mousekey":

@@ -172,7 +172,7 @@ cells stDialog 39 0 120
 mouse click 24 39
 get cancelled
 RIGSCRIPT
-rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 rigAssert "a click on a key of a command does that command"          "$( rigVal filtered.filter ) $( rigVal menu.menu )" "active go:dashboard"
 rigAssert "with a menu open a click on Esc closes it"                "[$( rigVal stMenu )] [$( rigVal closed.menu )]" "[ Enter Choose  Esc Close  Left/Right Menus  Up/Down Items] []"
 rigAssert "a click on Left goes up one level"                        "[$( rigVal up.path )]" "[]"

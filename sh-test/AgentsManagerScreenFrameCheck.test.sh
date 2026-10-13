@@ -3,7 +3,7 @@
 ## screen's own code draws through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py),
 ## which keeps the cells it is given, so each case reads the screen back as text; the cases at the end start the real
 ## screen, on a pseudo-terminal the driver makes. Held: at 120 and at 80 columns the list on the right takes a quarter
-## to a third of the width and the left pane the rest, and the last line of the left pane is the line to type in; the
+## to a third of the width and the left pane the rest, and the last line of the left pane is the line of its bottom border, where nothing is typed; the
 ## first and the last line are the status lines, each across the whole width, with the panes between them; a terminal
 ## that is too small gets one line that says so, and the screen goes on until it is resized or quit; a change of size
 ## draws everything again at the new widths and leaves nothing of the old drawing; a line that holds a character of
@@ -83,24 +83,20 @@ cells sepBody 20 83 84
 cells sepInput 38 83 84
 cells sepTop 0 83 84
 cells sepBottom 39 83 84
-dialog Name:
-keys x
 get d
-cells input 38 1 83
-cells listAtInput 38 85 119
 RIGSCRIPT
 rigAssert "the screen is drawn"                                      "$( rigVal a.layout ) $( rigLines a )" "ok 40"
 rigAssert "the list on the right takes a quarter to a third (30 to 40)" "$( rigBetween "$( rigVal a.listWidth )" 30 40 )" yes
 rigAssert "the left pane has the rest, less the one column between"  "$(( $( rigVal a.viewWidth ) + 1 + $( rigVal a.listWidth ) ))" 120
 rigAssert "the list stands on the right of that column"              "$( rigVal a.separator ) $( rigVal a.listLeft )" "83 84"
-rigAssert "the column parts the panes from the titles down to the line to type in" "$( rigVal sepTitle )$( rigVal sepBody )$( rigVal sepInput )" "┐│┘"
-rigAssert "the last line of the left pane is the line to type in"    "$( rigVal a.inputLine ) [$( rigVal input )] cursor $( rigVal d.cursor )" "38 [Name: x] cursor 38,8"
+rigAssert "the column parts the panes from the titles down to the bottom border" "$( rigVal sepTitle )$( rigVal sepBody )$( rigVal sepInput )" "┐│┘"
+rigAssert "the last line of the left pane is the line of its bottom border, and no cursor stands there: the screen has no line to type in" "$( rigVal a.inputLine ) cursor [$( rigVal d.cursor )]" "38 cursor []"
 rigAssert "and the two windows hold as many lines"                           "$( rigVal a.listHeight ) $( rigVal a.viewHeight )" "36 36"
 rigAssert "the first line is the menu bar, across the whole width, a hot letter in it apart"  "$( rigLine k 1 | LC_ALL=C tr H R ) $( rigLine k 1 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RRRRHRRRHR"
 rigAssert "the last line is the status line, across the whole width, a key in it apart"   "$( rigLine k 40 | LC_ALL=C tr H R ) $( rigLine k 40 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RHHHHHRRRR"
 rigAssert "the column between the panes does not cross them"         "[$( rigVal sepTop )][$( rigVal sepBottom )]" "[][]"
 rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ≡ Go View Help ws-rig 12:34:56 "
-rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a Active  u Read  m Menu  ^X Exit  Tab Window"
+rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help"
 rigAssert "nothing was drawn past the end of a line"                 "$( rigVal d.spills )" 0
 
 echo "-- at 80 columns by 24 lines --"

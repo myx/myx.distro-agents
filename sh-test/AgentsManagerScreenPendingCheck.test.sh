@@ -589,13 +589,13 @@ keys ESC TAB
 turn
 cells sView 39 0 120
 RIGSCRIPT
-rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 rigAssert "the left window names the same keys under it"              "[$( rigVal k3 )]" "[keys: Enter answer  d dismiss  o link]"
-rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ Enter Answer  j Reject  d Dismiss  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ Enter Answer  j Reject  d Dismiss  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         Enter │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
 rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c18-23 )" "xxxxxx"
-rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 
 echo "-- Enter on a decision: the dialog of its answer, a digit chooses, words go with it, one call --"
 rigCase answer three.asks rows

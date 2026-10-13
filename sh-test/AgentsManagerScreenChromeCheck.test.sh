@@ -126,10 +126,10 @@ rigAssert "each window carries its title in the middle of its top border" "[$( r
 rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────── Sessions (Activity) [wrap] ───────────────────────────┐╔══════ Sessions (Activity) ═══════╗]"
 rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
 rigAssert "the bottom borders of the two windows are plain: the counters and the load are the dashboard's" "[$( rigVal foot )] [$( rigVal load )] $( rigVal a.counters | LC_ALL=C grep -c 'load=0.42' )" "[] [] 1"
-rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window] mhhhhhmmm"
+rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help] mhhhhhmmm"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═══════════════════════════ Sessions (Activity) [wrap] ═══════════════════════════╗┌────── Sessions (Activity) ───────┐]"
-rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'

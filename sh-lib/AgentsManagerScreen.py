@@ -330,11 +330,13 @@ KILL_WORD = "yes"
 SESSION_FINISHED = "finished"
 ## What the confirmation of a kill says in its own line between the press of its button
 ## and the deed: while its plan is read once more; where the plan was not read yet; and
-## where the plan read then is not the one the confirmation showed.
+## where the plan read then is not the one the confirmation showed. And, in the text of
+## the confirmation itself, what it says where the plan could not be read at all.
 KILL_SAYS = {
     "checking": "its plan is read once more: it is done if nothing of it has changed",
     "unread": "nothing is done yet: its plan is still being read",
     "changed": "nothing was done: its plan changed while this stood open. It stands above as it is now: type the word again",
+    "unreadable": "So it is not asked for: nothing is killed, dismissed or closed. Cancel and Esc close this. The key of the kill asks again, and reads its plan anew.",
 }
 
 ## What the root `Consoles (Tools)` holds: the things that are started with the whole
@@ -380,6 +382,9 @@ DASHBOARD = {
 PLACES = {
     "fields": ("key", "label", "kind", "ceiling", "path", "state", "here", "sessions"),
     "here": "yes", "present": "present",
+    ## the fields of a `member` row of the read of one location, after the first; and what
+    ## the row of a member says in <setup> where no registry names it: such a one shows plainer
+    "member": ("name", "kind", "home", "setup", "folder"), "unlisted": "not-in-registry",
 }
 ## The rule of the locations: a path that lies in a registered location shows as the key
 ## of that location and what follows it there, `<place key>/rest`, the longest location
@@ -562,8 +567,6 @@ MENUS = (
 ## "enters": Enter on a row it acts on enters that row, so the row is drawn as a folder is,
 ## as a row that dives into a level of its own is (rowEnters).
 COMMANDS = (
-    {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys",
-     "does": ("action", "help")},
     {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
      "does": ("read",)},
     {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
@@ -597,6 +600,8 @@ COMMANDS = (
      "does": ("up",)},
     {"name": "focus", "keys": ("TAB", "F6"), "menu": ("view", 2), "label": "~N~ext window", "status": "Window",
      "does": ("focus",)},
+    {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys", "status": "Help",
+     "does": ("action", "help")},
     {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
      "does": ("filter",)},
     ## the left window's own: its long lines wrapped at words, or cut and scrolled sideways
@@ -655,12 +660,11 @@ COMMANDS = (
     {"name": "page-down", "keys": ("PGDN",), "does": ("move", 0, 1)},
 )
 ## What the status line shows in place of the commands while something else has the keys:
-## a pull-down menu, the line to type in. Each a key and its word. A dialog names its own
+## a pull-down menu. Each a key and its word. A dialog names its own
 ## keys, from CONTROL_KINDS. The status line names no key but those that act for what has
 ## the keys now.
 STATUS_KEYS = {
     "menu": (("Enter", "Choose"), ("Esc", "Close"), ("Left/Right", "Menus"), ("Up/Down", "Items")),
-    "line": (("Enter", "OK"), ("Esc", "Cancel")),
 }
 ## How the name of a key shows in a menu and in the status line, where it is not its own name.
 KEY_WORDS = {"ENTER": "Enter", "TAB": "Tab", "ESC": "Esc", "LEFT": "Left", "RIGHT": "Right",
@@ -909,8 +913,6 @@ class ManagerState:
         ## by a button that is down, "held" by a click, until the next one
         self.split = None
         self.splitHeld = None
-        ## the line to type in while it is open: {"prompt", "text", "onSubmit", "lines"}
-        self.line = None
         ## the dialog that is open and has the keys (openDialog), and those that wait for it to close
         self.dialog = None
         self.waiting = []
@@ -1546,7 +1548,7 @@ def localView(state, row):
     if level == "dashboard" and row.get("block"):
         return blocksView(state, row["id"])
     if level == "places" and row.get("place"):
-        return placeLines(row["place"], state.viewWidth, state.view["info"])
+        return placeLines(state, row["place"], state.viewWidth, state.view["info"])
     return None
 
 
@@ -1620,11 +1622,8 @@ def actionShown(state, row, actionName):
 
 
 ## How many lines of the left pane its content has: one less where the keys of the item
-## stand under it; and while a line is typed in, less by what that line says above itself.
+## stand under it.
 def viewContentHeight(state, layout):
-    said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
-    if said:
-        return layout["viewHeight"] - len(said)
     return layout["viewHeight"] - (1 if itemKeysText(state) else 0)
 
 
@@ -2572,48 +2571,6 @@ def routinesSummary(state, path, row, form):
     return lines
 
 
-## ---- the bottom line: what is typed, and what the screen says ----
-
-## Opens the line to type in. onSubmit(state, text) is called on Enter and gives the text
-## the line then shows, or None; Esc closes the line and calls nothing. `text` stands in
-## the line from the start, to be typed over. `lines` is what the line says of itself:
-## it is shown above the line, at the foot of the left pane, while the line is open.
-def openLine(state, prompt, onSubmit, text="", lines=None):
-    state.line = {"prompt": prompt, "text": text, "onSubmit": onSubmit, "lines": list(lines or ())}
-
-
-## What the open line says above itself, as lines of the left pane: a line longer than the
-## pane is broken, and there are no more of them than the pane has lines. Empty with no
-## line open, and for a line that says nothing of itself.
-def lineSays(state, width, height):
-    if state.line is None or not state.line.get("lines"):
-        return []
-    lines = []
-    for text in state.line["lines"]:
-        if textWidth(text) <= width - 1:
-            lines.append(text)
-        else:
-            lines.extend(wrapToCells(text, max(10, width - 1)))
-    return lines[:max(0, height)]
-
-
-def lineKey(state, key):
-    dialog = state.line
-    if key == "ESC":
-        state.line = None
-        state.notice = ""
-        state.noticeOf = None
-    elif key == "ENTER":
-        state.line = None
-        state.notice = dialog["onSubmit"](state, dialog["text"]) or ""
-        state.noticeOf = None
-    elif key == "BACKSPACE":
-        dialog["text"] = dialog["text"][:-1]
-    elif len(key) == 1:
-        ## a key that has a name is longer than one character: this one was typed
-        dialog["text"] += key
-
-
 ## ---- the dialogs ----
 
 ## Opens the dialog of that name of DIALOGS over the screen: it has the keys until it is
@@ -3281,12 +3238,26 @@ def killChecked(state, dialog):
 ## says, from the plan once that was read; and where nothing of the session lives, the
 ## title, the button and the word of a close (the dialog "close") in place of a kill's.
 ## The plan is read when the dialog opens and not again while it stands, so its text does
-## not change under the word; after its button was pressed, see killChecked.
+## not change under the word; after its button was pressed, see killChecked. A kill whose
+## plan could not be read is not asked for: its dialog says that, and has Cancel alone.
 def fillKill(state, dialog):
     target = dialog["about"]["target"]
     if dialog["about"].get("pressed") is not None and not killChecked(state, dialog):
         return
     rows, note = killPlanOf(state, target)
+    key, words = killPlanRead(state, target)
+    plan = state.plans.get(key)
+    if words is not None and plan is not None and plan["words"] == words and plan["error"]:
+        ## its plan could not be read: the kill is not asked for. The dialog says so, takes
+        ## no word, and offers nothing but to leave it
+        dialog["buttons"] = [button for button in DIALOGS[dialog["name"]]["buttons"] if button[0] == "cancel"]
+        dialog["controls"] = [control for control in dialog["controls"] if control["name"] == "about"]
+        dialog["focus"] = 0
+        dialogControl(dialog, "about")["lines"] = [
+            "The %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"]),
+            "%s %s" % ("session" if target["kind"] == "session" else "run", target["id"]),
+            "What its kill would do could not be read: %s" % plan["error"], KILL_SAYS["unreadable"]]
+        return
     declared = DIALOGS["kill" if killLives(target, rows) else "close"]
     dialog["name"] = "kill" if killLives(target, rows) else "close"
     dialog["buttons"] = list(declared["buttons"])
@@ -4994,8 +4965,8 @@ def runChild(surface, state):
 
 ## ---- what a key does ----
 
-## One key, on the state alone. With a dialog open the key goes to that dialog, with a
-## menu open to that menu, and with a line open to that line. Else Esc and then a key
+## One key, on the state alone. With a dialog open the key goes to that dialog, and with a
+## menu open to that menu. Else Esc and then a key
 ## within META_SECONDS is Alt with that key. Otherwise Alt with the hot letter of a menu opens it, and any
 ## other key is the key of a command of COMMANDS, or of none.
 ## ---- the dashboard: blocks of figures ----
@@ -5232,24 +5203,45 @@ def parsePlaceRows(text):
 
 
 ## What `--manager-place-read` printed of one location, after its own row: `info` rows, a
-## name and its value, and `stands` rows, what stands in it, each with its name and its path.
+## name and its value, `stands` rows, what stands in it, each with its name and its path,
+## and, of a workspace, `member` rows, the members that belong to it (PLACES). A read of
+## before prints no `member` row.
 def parsePlaceRead(text):
-    info = {"info": [], "stands": []}
+    info = {"info": [], "stands": [], "members": []}
     for line in text.split("\n"):
         fields = line.split("\t")
         if fields[0] == "info" and len(fields) >= 3:
             info["info"].append((fields[1], absent(fields[2])))
         elif fields[0] == "stands" and len(fields) >= 4:
             info["stands"].append((fields[1], absent(fields[2]), fields[3]))
+        elif fields[0] == "member" and len(fields) > len(PLACES["member"]):
+            info["members"].append(dict(zip(PLACES["member"], fields[1:])))
     return info
+
+
+## A path as it stands under a folder: what follows that folder in it, `.` for the folder
+## itself, or None where it does not lie under it.
+def pathUnder(path, folder):
+    folder = folder.rstrip("/")
+    if not folder or folder == "-":
+        return None
+    if path.rstrip("/") == folder:
+        return "."
+    return path[len(folder) + 1:] if path.startswith(folder + "/") else None
 
 
 ## The selected location for the left pane, from its row: its label, its key, its kind,
 ## its ceiling, its path as it is, its state, whether the console runs in it, and how many
 ## sessions name it. Once the read of that one location has come (info): what declares
-## it, and what stands in it, each with its path as it is. This is the summary of a
-## location: no path in it is shown by a location's name.
-def placeLines(place, width, info=None):
+## it; what stands in it, as a table of what, its name and where, the path of each as it
+## stands under the path of the location, which is said once, at the top, and a thing
+## that does not lie under it after the table with its whole path; and the members that
+## belong to it, a table for each way they are set up, as the rows say it, those whose
+## folder lies in the location first: the icon and the name of each as the table of the
+## members draws them (tableLineText), its kind, and its folder, under the location's
+## path where it lies there. One that no registry names shows plainer, with that word.
+## This is the summary of a location: no path in it is shown by a location's name.
+def placeLines(state, place, width, info=None):
     lines = fieldLines([
         ("place", unspaced(place["label"]) or place["key"]),
         ("key", place["key"]),
@@ -5261,13 +5253,40 @@ def placeLines(place, width, info=None):
         ("sessions", "%s with a run that names it, of the sessions this workspace keeps" % place["sessions"]
          if absent(place["sessions"]) else ""),
     ], width)
+    state.view["looks"] = {}
     if not isinstance(info, dict) or "stands" not in info:
         return lines
     lines.extend(fieldLines(info["info"], width))
     if info["stands"]:
         lines.extend(["", "What stands in it:"])
+        inside = [[what, name or "-", pathUnder(path, place["path"])] for what, name, path in info["stands"]
+                  if pathUnder(path, place["path"]) is not None]
+        if inside:
+            lines.extend(summaryTable(("WHAT", "NAME", "WHERE"), inside, width))
         for what, name, path in info["stands"]:
-            lines.extend(hangLines("%s  %s" % (what + " " + name if name else what, path), width))
+            if pathUnder(path, place["path"]) is None:
+                lines.extend(hangLines("%s  %s" % (what + " " + name if name else what, path), width))
+    members = info.get("members") or []
+    if members:
+        icons = dict((row["member"]["name"], row["member"]["icon"]) for row in state.rows.get("team", ()) if row.get("member"))
+        setups = []
+        for member in sorted(members, key=lambda member: pathUnder(member["folder"], place["path"]) is None):
+            if member["setup"] not in setups:
+                setups.append(member["setup"])
+        lines.extend(["", "Its members:"])
+        room = max(10, width - 3)
+        for setup in setups:
+            words = [[icons.get(member["name"], ""), member["name"], member["kind"],
+                      pathUnder(member["folder"], place["path"]) or member["folder"]] for member in members if member["setup"] == setup]
+            table = {"heads": ["MEMBER", "KIND", "FOLDER"], "iconWidth": max([textWidth(line[0]) for line in words] + [0]),
+                     "widths": [max([textWidth(head)] + [textWidth(line[index + 1]) for line in words])
+                                for index, head in enumerate(("MEMBER", "KIND", "FOLDER"))]}
+            first = len(lines)
+            lines.append("  " + setup)
+            lines.extend("    " + tableLineText(table, line, room - 2) for line in [[""] + table["heads"]] + words)
+            if setup == PLACES["unlisted"]:
+                for number in range(first, len(lines)):
+                    state.view["looks"][number] = [(0, textWidth(lines[number]), DIM)]
     return lines
 
 
@@ -5401,14 +5420,11 @@ def handleKey(state, key, layout):
     if state.dialog is not None:
         dialogKey(state, key)
         return
-    if key in OPTION_KEYS and state.line is None:
+    if key in OPTION_KEYS:
         ## what the Option key of a Mac types: Alt with that key
         key = "ALT-" + OPTION_KEYS[key]
     if state.menu is not None:
         menuKey(state, key, layout)
-        return
-    if state.line is not None:
-        lineKey(state, key)
         return
     if key == "ESC":
         state.metaAt = state.now
@@ -6729,20 +6745,9 @@ def drawCompact(surface, state, layout):
         putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1, placing)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(layout["bodyTop"] + headHeight, 0, cutToCells(" " + viewWaits(state), viewWidth), DIM)
-    said = lineSays(state, viewWidth, layout["viewHeight"])
-    for offset, text in enumerate(said):
-        surface.put(layout["bodyTop"] + contentHeight + offset, 0, cutToCells(" " + text, viewWidth), BOLD if offset == 0 else PLAIN)
-    if not said and contentHeight < layout["viewHeight"]:
+    if contentHeight < layout["viewHeight"]:
         surface.put(layout["bodyTop"] + contentHeight, 0, cutToCells(" " + itemKeysText(state), viewWidth), BOLD)
-    if state.line is not None:
-        prompt = " " + state.line["prompt"] + " "
-        promptWidth = min(textWidth(prompt), max(0, viewWidth - 2))
-        typed, typedWidth = tailToCells(state.line["text"], viewWidth - promptWidth - 1)
-        surface.put(layout["inputLine"], 0, cutToCells(prompt, promptWidth), BOLD)
-        surface.put(layout["inputLine"], promptWidth, cutToCells(typed, viewWidth - promptWidth), PLAIN)
-        surface.cursor(layout["inputLine"], promptWidth + typedWidth)
-    else:
-        surface.put(layout["inputLine"], 0, cutToCells(" " + state.notice, viewWidth), PLAIN)
+    surface.put(layout["inputLine"], 0, cutToCells(" " + state.notice, viewWidth), PLAIN)
     surface.put(layout["bottomLine"], 0, bottomLineText(state, columns), REVERSE)
 
 
@@ -6767,8 +6772,6 @@ def statusItems(state):
         return dialogStatus(state.dialog)
     if state.menu is not None:
         return list(STATUS_KEYS["menu"])
-    if state.line is not None:
-        return list(STATUS_KEYS["line"])
     if metaPending(state):
         ## after Esc: the keys that are Alt with a letter, each by its letter alone
         return ([(hotLetter(MENUS[index][1]), hotText(MENUS[index][1])) for index in menusShown(state)]
@@ -6789,7 +6792,7 @@ def statusItems(state):
 ## the keys that do not fit beside it are left out, the last ones first.
 def drawStatusLine(surface, state, line, columns):
     surface.put(line, 0, " " * columns, BAR)
-    notice = state.notice if state.line is None and state.dialog is None else ""
+    notice = state.notice if state.dialog is None else ""
     reserved = min(textWidth(notice) + 4, columns * 2 // 3) if notice else 0
     column = 1
     for key, word in statusItems(state):
@@ -6896,10 +6899,7 @@ def drawLinesBody(surface, state, layout, box):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
-    said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
-    for offset, text in enumerate(said):
-        surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)
-    if not said and contentHeight < layout["viewHeight"]:
+    if contentHeight < layout["viewHeight"]:
         surface.put(top + contentHeight, column, cutToCells(itemKeysText(state), room), BOLD)
     return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
 
@@ -7038,16 +7038,6 @@ def drawScreen(surface, state):
     if state.splitHeld is not None:
         for line in range(2, lines - 2):
             surface.put(line, layout["listLeft"], MARKS["frame"][3], REVERSE)
-    if state.line is not None:
-        ## the line to type in, over the bottom border of the left window: what it asks for,
-        ## and the field with what was typed, its end in view
-        viewWidth = layout["viewWidth"]
-        prompt = " " + state.line["prompt"] + " "
-        promptWidth = min(textWidth(prompt), max(0, viewWidth - 2))
-        typed, typedWidth = tailToCells(state.line["text"], viewWidth - promptWidth - 1)
-        surface.put(layout["inputLine"], 1, cutToCells(prompt[1:], promptWidth - 1), BOLD)
-        surface.put(layout["inputLine"], promptWidth, cutToCells(typed, viewWidth - promptWidth), REVERSE)
-        surface.cursor(layout["inputLine"], promptWidth + typedWidth)
     drawMenuBar(surface, state, columns)
     if state.dialog is not None:
         drawDialog(surface, state, columns, lines)

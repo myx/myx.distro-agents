@@ -479,7 +479,8 @@ rigAssert "once, by the id of the session; and the plan was read three times in 
 
 echo "-- a kill that fails shows its error line --"
 rigCase fail
-echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
+## the kill itself fails, by its own words: its plan is read, since a kill whose plan cannot be read is not asked for
+echo fail > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
@@ -501,7 +502,7 @@ rigAssert "and in the left pane, which says that the kill failed"    "[$( rigPan
 rigAssert "the list is read again all the same, and the session is as it was" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) [$( rigVal after.failed )]" "2 $rigS1 []"
 rigCase stuck
 cp "$MANAGER_SCREEN_RIG/stuck.rows" "$MANAGER_SCREEN_RIG/rows.$rigKillSession"
-echo fail-rows > "$MANAGER_SCREEN_RIG/mode.--manager-session-kill"
+echo fail-rows > "$MANAGER_SCREEN_RIG/mode.$rigKillSession"
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30

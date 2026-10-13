@@ -6,7 +6,8 @@
 ## standard input is kept byte for byte in $MANAGER_SCREEN_RIG/stdin.<its first argument>, where
 ## anything came. A start that comes to its own end, and is not ended from outside, appends its
 ## arguments to $MANAGER_SCREEN_RIG/ended. Then it does what the rig says for that start: the file
-## $MANAGER_SCREEN_RIG/mode.<n> for the n-th start, else mode.<its first argument>, else mode:
+## $MANAGER_SCREEN_RIG/mode.<n> for the n-th start, else mode.<its arguments, a space between them>,
+## else mode.<its first argument>, else mode:
 ##   rows          prints $MANAGER_SCREEN_RIG/rows.<n> for the n-th start, else rows.<its arguments, a
 ##                 space between them>, else rows.<its first argument>, else rows, and ends with
 ##                 status 0 (also where no file says anything)
@@ -34,7 +35,7 @@ rigInput="$MANAGER_SCREEN_RIG/stdin.$$"
 cat > "$rigInput"
 [ ! -s "$rigInput" ] || cat "$rigInput" >> "$MANAGER_SCREEN_RIG/stdin.${1:-}"
 rm -f "$rigInput"
-rigMode="$( cat "$MANAGER_SCREEN_RIG/mode.$rigStart" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode.${1:-}" 2> /dev/null || { [ -n "$rigOwn" ] && echo rows ; } || cat "$MANAGER_SCREEN_RIG/mode" 2> /dev/null )"
+rigMode="$( cat "$MANAGER_SCREEN_RIG/mode.$rigStart" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode.$*" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode.${1:-}" 2> /dev/null || { [ -n "$rigOwn" ] && echo rows ; } || cat "$MANAGER_SCREEN_RIG/mode" 2> /dev/null )"
 case "$rigMode" in
 	sleep\ *)
 		sleep "${rigMode#sleep }"
