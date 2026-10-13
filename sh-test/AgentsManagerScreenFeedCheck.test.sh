@@ -99,7 +99,7 @@ rigBody(){ ## the tags of the lines of one body, in their order -- its lines joi
 echo "-- the log of a session: every entry a head line and its body under it --"
 rigCase session
 rigScript <<'RIGSCRIPT'
-keys ENTER
+keys 1
 wait sessions 30
 keys DOWN DOWN l
 wait feed 30
@@ -136,7 +136,7 @@ rigAssert "a head is drawn paler than a body, and the day line as a body is" "[$
 echo "-- the indent is the same at another width of the window --"
 rigCase narrow
 rigSize="80 24" rigScript <<'RIGSCRIPT'
-keys ENTER
+keys 1
 wait sessions 30
 keys DOWN DOWN l
 wait feed 30
@@ -161,7 +161,7 @@ rigAssert "and holds every word"                                     "[$( rigBod
 echo "-- the log of one agent names its member in the head too --"
 rigCase agent
 rigScript <<'RIGSCRIPT'
-keys ENTER
+keys 1
 wait sessions 30
 keys DOWN DOWN l ENTER DOWN
 wait feed 30
@@ -175,7 +175,7 @@ rigAssert "its entry is a head with its member and a body"           "[$( rigVal
 echo "-- the raw mode shows the raw lines as they are --"
 rigCase raw
 rigScript <<'RIGSCRIPT'
-keys ENTER
+keys 1
 wait sessions 30
 keys DOWN DOWN g
 wait feed 30

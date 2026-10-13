@@ -40,8 +40,11 @@ rigMake "$rigMdci/.ssh/id_ed25519" ed25519 rig-generated
 rigMake "$rigTmp/named-key" ed25519 rig-named
 rigMake "$rigHost/ssh_host_ed25519_key" ed25519 rig-host
 rigMake "$rigHost/ssh_host_ecdsa_key" ecdsa rig-host
+mkdir -p "$rigHome/.ssh"
+rigMake "$rigHome/.ssh/id_ed25519" ed25519 rig-out-second
+rigMake "$rigHome/.ssh/id_ecdsa" ecdsa rig-out-first
 rigNumber=0
-for rigOne in "$rigMdci/deploy-keys/$rigAccount" "$rigMdci/.ssh/id_ed25519" "$rigTmp/named-key" "$rigHost/ssh_host_ed25519_key" "$rigHost/ssh_host_ecdsa_key" ; do
+for rigOne in "$rigMdci/deploy-keys/$rigAccount" "$rigMdci/.ssh/id_ed25519" "$rigTmp/named-key" "$rigHost/ssh_host_ed25519_key" "$rigHost/ssh_host_ecdsa_key" "$rigHome/.ssh/id_ed25519" "$rigHome/.ssh/id_ecdsa" ; do
 	rigNumber=$(( rigNumber + 1 ))
 	printf 'RIGPRIVATE-%s-NEVER-TO-BE-READ\n' "$rigNumber" > "$rigOne"
 done
@@ -68,21 +71,23 @@ rigWhole(){ LC_ALL=C grep -c -x -F -- "$2" "$1" 2> /dev/null || : ; }
 rigRow(){ ## key -- its row in the last output, TAB written |
 	LC_ALL=C awk -F'\t' -v wantKey="$1" '$1 == "key" && $2 == wantKey { gsub( /\t/, "|" ) ; print }' "$rigTmp/out"
 }
-rigWant(){ ## key, label, group, what it is for, public file -- the row a present key of that file must have, by the real ssh-keygen and the file itself
+rigWant(){ ## key, label, group, what it is for, public file -- the row a present key of that file must have, by the real ssh-keygen and the file itself: its last field the whole public line as one pastes it, blanks written _
 	local wantType wantText
 	wantType="$( cut -d ' ' -f 1 "$5" )" ; wantText="$( cut -d ' ' -f 2 "$5" )"
-	printf 'key|%s|%s|%s|%s|%s|%s|%s|%s|present' "$1" "$2" "$3" "$4" "$wantType" "$( "$rigKeygen" -l -f "$5" | LC_ALL=C awk '{ print $2 }' )" "$( printf '%s' "$wantText" | LC_ALL=C awk '{ print ( length( $0 ) > 24 ) ? substr( $0, 1, 12 ) "..." substr( $0, length( $0 ) - 7 ) : $0 }' )" "$5"
+	printf 'key|%s|%s|%s|%s|%s|%s|%s|%s|present|%s' "$1" "$2" "$3" "$4" "$wantType" "$( "$rigKeygen" -l -f "$5" | LC_ALL=C awk '{ print $2 }' )" "$( printf '%s' "$wantText" | LC_ALL=C awk '{ print ( length( $0 ) > 24 ) ? substr( $0, 1, 12 ) "..." substr( $0, length( $0 ) - 7 ) : $0 }' )" "$5" "$( if [ "$3" = "trust-on-connect" ] ; then printf '%s_%s_%s' "$( hostname )" "$wantType" "$wantText" ; else LC_ALL=C tr ' ' '_' < "$5" ; fi )"
 }
 rigDeployFor="the_deploy_key_of_this_server,_to_list_as_a_deploy_key_on_each_git_repository_it_reads"
 rigHostFor="an_ssh_host_key_of_this_server,_for_the_known_hosts_of_those_who_connect_to_it"
 
 echo "-- 1. the list: the keys mdci-public-keys prints, in its two kinds --"
 rigRun "$rigList"
-rigAssert "the call ends 0 with no error, and the keys come in that command's order: the key for git, the generated default, each host key" "$rigRc $( LC_ALL=C grep -c -E 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 1 ) ? "errors" : "clean" }' ) $( LC_ALL=C awk -F'\t' '{ printf "%s:%s ", $2, $4 ; if ( $1 != "key" || NF != 10 ) bad++ } END { print "/ " bad + 0 }' "$rigTmp/out" )" "0 clean deploy:add-to-git generated:add-to-git host-ecdsa:trust-on-connect host-ed25519:trust-on-connect / 0"
+rigAssert "the call ends 0 with no error, and the keys come in that command's order, then the key the tools connect out with: the key for git, the generated default, each host key, the outgoing key; every key row has its eleven fields" "$rigRc $( LC_ALL=C grep -c -E 'ERROR|WARNING' "$rigTmp/err" | LC_ALL=C awk '{ print ( $1 > 1 ) ? "errors" : "clean" }' ) $( LC_ALL=C awk -F'\t' '$1 == "key" { printf "%s:%s ", $2, $4 ; if ( NF != 11 ) bad++ } $1 != "key" && $1 != "group" { bad++ } END { print "/ " bad + 0 }' "$rigTmp/out" )" "0 clean deploy:add-to-git generated:add-to-git host-ecdsa:trust-on-connect host-ed25519:trust-on-connect outgoing:add-to-authorized-keys / 0"
+rigAssert "each group has a row of its own ahead of its keys: its name, how many keys it has, its label in words, and no note where a key of it can be read" "$( LC_ALL=C awk -F'\t' '$1 == "group" { gsub( /\t/, "|" ) ; printf "%s/", $0 }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '$1 == "group" { now = $2 ; next } $1 == "key" && $4 != now { bad++ } END { print bad + 0 }' "$rigTmp/out" )" "group|add-to-git|2|Keys_To_Add_To_Git|-/group|trust-on-connect|2|Keys_To_Trust_When_Connecting|-/group|add-to-authorized-keys|1|Our_Keys_For_Targets'_Authorized_Keys|-/ 0"
+rigAssert "the key the tools connect out with is the first that is there of their five names in the ssh home of the one who runs them, here id_ecdsa ahead of id_ed25519: its label, what it is for, and the line exactly as it goes into an authorized keys file, the type, the key and the comment, nothing added" "$( rigRow outgoing )" "$( rigWant outgoing "Our_Key_For_Targets'_Authorized_Keys" add-to-authorized-keys "the_key_the_deploy_and_remote_tools_of_this_workspace_connect_out_with,_as_the_user_who_runs_them,_to_a_target_that_lists_it_in_its_authorized_keys" "$rigHome/.ssh/id_ecdsa.pub" )"
 rigAssert "the deploy key of the account: its label, what it is for, its type, the fingerprint of its public file, the key in short, its file, present" "$( rigRow deploy )" "$( rigWant deploy Deploy_Key_To_Add_To_Git add-to-git "$rigDeployFor" "$rigMdci/deploy-keys/$rigAccount.pub" )"
 rigAssert "the generated default beside it, since it is another key" "$( rigRow generated )" "$( rigWant generated Generated_Key_Not_Used_For_Git add-to-git "another_key_the_account_generated,_not_used_for_git_unless_a_repository_is_set_up_with_it" "$rigMdci/.ssh/id_ed25519.pub" )"
 rigAssert "a host key by the name of its file, to trust on connecting" "$( rigRow host-ed25519 ) / $( rigRow host-ecdsa )" "$( rigWant host-ed25519 Host_Key_ED25519_To_Trust_On_Connect trust-on-connect "$rigHostFor" "$rigHost/ssh_host_ed25519_key.pub" ) / $( rigWant host-ecdsa Host_Key_ECDSA_To_Trust_On_Connect trust-on-connect "$rigHostFor" "$rigHost/ssh_host_ecdsa_key.pub" )"
-rigAssert "the whole key stands in no row of the list: its short form alone" "$( LC_ALL=C grep -c -F -e "$( cut -d ' ' -f 2 "$rigMdci/deploy-keys/$rigAccount.pub" )" "$rigTmp/out" || : )" "0"
+rigAssert "the whole public key stands in its row, nothing of it held back: the last field is the line as one pastes it, the public key line for git and the line of a known hosts file for a host key" "$( LC_ALL=C awk -F'\t' '$2 == "deploy" || $2 == "host-ed25519" { printf "%s ", $NF }' "$rigTmp/out" )" "$( LC_ALL=C tr ' ' '_' < "$rigMdci/deploy-keys/$rigAccount.pub" ) $( hostname )_$( cut -d ' ' -f 1,2 "$rigHost/ssh_host_ed25519_key.pub" | LC_ALL=C tr ' ' '_' ) "
 
 echo "-- 2. the read of one key --"
 rigRun "$rigRead" deploy
@@ -93,7 +98,7 @@ rigAssert "a host key: its row, and the line of a known hosts file, the name of 
 echo "-- 3. no private key is opened --"
 mv "$rigMdci/deploy-keys/$rigAccount.pub" "$rigTmp/deploy.pub.kept"
 rigRun "$rigList"
-rigAssert "where the public file of the deploy key is gone, the case in which mdci-public-keys derives it from the private key, the row reads absent, with no type, no fingerprint and no key" "$rigRc $( rigRow deploy )" "0 key|deploy|Deploy_Key_To_Add_To_Git|add-to-git|$rigDeployFor|-|-|-|$rigMdci/deploy-keys/$rigAccount.pub|absent"
+rigAssert "where the public file of the deploy key is gone, the case in which mdci-public-keys derives it from the private key, the row reads absent, with no type, no fingerprint and no key" "$rigRc $( rigRow deploy )" "0 key|deploy|Deploy_Key_To_Add_To_Git|add-to-git|$rigDeployFor|-|-|-|$rigMdci/deploy-keys/$rigAccount.pub|absent|-"
 rigRun "$rigRead" deploy
 rigAssert "and its read prints its row alone: nothing to paste" "$rigRc $( wc -l < "$rigTmp/out" | LC_ALL=C tr -d ' ' )" "0 1"
 mv "$rigTmp/deploy.pub.kept" "$rigMdci/deploy-keys/$rigAccount.pub"
@@ -103,9 +108,18 @@ rigAssert "the key the ssh command of the account names is the key for git, ahea
 rm -f "$rigHome/.gitconfig"
 mkdir -p "$rigTmp/etc-none"
 rigPre=( "MDAT_MANAGER_KEYS_HOST_DIR=$rigTmp/etc-none" ) ; rigRun "$rigList" ; rigPre=()
-rigAssert "a place with no host key says so: one row for the host keys, absent" "$rigRc $( rigRow host )" "0 key|host|Host_Key_To_Trust_On_Connect|trust-on-connect|$rigHostFor|-|-|-|$rigTmp/etc-none/ssh_host_key.pub|absent"
+rigAssert "a place with no host key says so: one row for the host keys, absent" "$rigRc $( rigRow host )" "0 key|host|Host_Key_To_Trust_On_Connect|trust-on-connect|$rigHostFor|-|-|-|$rigTmp/etc-none/ssh_host_key.pub|absent|-"
+mv "$rigHome/.ssh/id_ecdsa.pub" "$rigTmp/out.pub.kept"
+rigRun "$rigList"
+rigAssert "where the identity the tools take has no public file beside it, the outgoing key reads absent, though a second identity with a public file stands there, and its group says why: the private one is not opened to make it" "$rigRc $( rigRow outgoing | LC_ALL=C cut -d'|' -f6-11 ) $( LC_ALL=C awk -F'\t' '$1 == "group" && $2 == "add-to-authorized-keys" { print $3, $5 }' "$rigTmp/out" )" "0 -|-|-|$rigHome/.ssh/id_ecdsa.pub|absent|- 1 the_identity_the_tools_take,_id_ecdsa,_has_no_public_file_beside_it"
+mv "$rigTmp/out.pub.kept" "$rigHome/.ssh/id_ecdsa.pub"
+mkdir -p "$rigTmp/home-bare"
+rigPre=( "HOME=$rigTmp/home-bare" ) ; rigRun "$rigList" ; rigPre=()
+rigAssert "a host with no identity of the tools says so: one absent row, and the reason on the row of its group" "$rigRc $( rigRow outgoing | LC_ALL=C cut -d'|' -f9-11 ) $( LC_ALL=C awk -F'\t' '$1 == "group" && $2 == "add-to-authorized-keys" { print $5 }' "$rigTmp/out" )" "0 $rigTmp/home-bare/.ssh/id_ed25519.pub|absent|- no_identity_of_the_tools_stands_in_$rigTmp/home-bare/.ssh:_none_of_client.key,_id_ecdsa,_id_ed25519,_id_rsa,_client.rsa"
+rigRun "$rigRead" outgoing
+rigAssert "its read gives the line to paste into an authorized keys file, blanks kept, as the public file has it" "$rigRc $( LC_ALL=C sed -n '2,$p' "$rigTmp/out" | LC_ALL=C tr '\t' '|' )" "0 paste|$( cat "$rigHome/.ssh/id_ecdsa.pub" )"
 rigAssert "in every call so far ssh-keygen was given a public file and no other, the private files among them never" "$( LC_ALL=C awk '{ calls++ ; if ( $0 !~ /^-l -f .*\.pub$/ ) bad++ } END { print ( calls > 8 ? "calls" : "few" ) ":" bad + 0 }' "$rigTmp/keygen.calls" )" "calls:0"
-rigAssert "no mark of a private file stands anywhere in what any call printed, each private file is as it was written, and nothing was asked of another host" "$( LC_ALL=C grep -c -F -e 'RIGPRIVATE' "$rigTmp/all" || : ) $( LC_ALL=C grep -l -F -e 'NEVER-TO-BE-READ' "$rigMdci/deploy-keys/$rigAccount" "$rigMdci/.ssh/id_ed25519" "$rigTmp/named-key" "$rigHost/ssh_host_ed25519_key" "$rigHost/ssh_host_ecdsa_key" | wc -l | LC_ALL=C tr -d ' ' ) $( [ -e "$rigTmp/remote.calls" ] && echo asked || echo not-asked )" "0 5 not-asked"
+rigAssert "no mark of a private file stands anywhere in what any call printed, each private file is as it was written, and nothing was asked of another host" "$( LC_ALL=C grep -c -F -e 'RIGPRIVATE' "$rigTmp/all" || : ) $( LC_ALL=C grep -l -F -e 'NEVER-TO-BE-READ' "$rigMdci/deploy-keys/$rigAccount" "$rigMdci/.ssh/id_ed25519" "$rigTmp/named-key" "$rigHost/ssh_host_ed25519_key" "$rigHost/ssh_host_ecdsa_key" "$rigHome/.ssh/id_ed25519" "$rigHome/.ssh/id_ecdsa" | wc -l | LC_ALL=C tr -d ' ' ) $( [ -e "$rigTmp/remote.calls" ] && echo asked || echo not-asked )" "0 7 not-asked"
 rigInclude="$rigHere/AgentsTools.ManagerKeys.include"
 rigAssert "the include opens a file in two places alone, a public key by the one reader that refuses a name that is no .pub, and the rig's list of repositories; and it never asks ssh-keygen to derive a key" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -E -e '[^<]< "' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -F -e 'case "$1" in *.pub) ;; *) return 1 ;; esac' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigInclude" | LC_ALL=C grep -c -e 'ssh-keygen -y' -e 'cat ' || : )" "2 1 0"
 
@@ -125,7 +139,7 @@ done
 rigAssert "from inside a member's session both are refused by the one rule of the family" "${rigCallerBad:-each refused}" "each refused"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
 rigEntry(){ LC_ALL=C awk -v head="$( printf '\t\t%s' "$1" )" '$0 == head { on = 1 ; next } on && /^\t\t--/ { exit } on { print }' "$rigHelpMd" ; }
-rigAssert "each of the two has its syntax echo, its syntax line and its entry, and the entries give the three row forms" "$( for rigOne in "$rigList" "$rigRead <key>" ; do printf '%s%s%s ' "$( LC_ALL=C grep -c -x -F -- "echo \"📘 syntax: DistroAgentsTools.fn.sh $rigOne\" >&2" "$rigHere/help/Help.DistroAgentsTools.include" || : )" "$( LC_ALL=C grep -c -x -F -- "📘 syntax: DistroAgentsTools.fn.sh $rigOne" "$rigHelpMd" || : )" "$( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigOne" )" "$rigHelpMd" || : )" ; done )$( rigEntry "$rigList" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(key <.*>\)`$/\1/p' ) | $( rigEntry "$rigRead <key>" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(paste <.*>\)`$/\1/p' -e 's/^[[:space:]]*`\(register <.*>\)`$/\1/p' | LC_ALL=C tr '\n' '|' )" "111 111 key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state> | paste <line>|register <project> <address>|"
+rigAssert "each of the two has its syntax echo, its syntax line and its entry, and the entries give the three row forms" "$( for rigOne in "$rigList" "$rigRead <key>" ; do printf '%s%s%s ' "$( LC_ALL=C grep -c -x -F -- "echo \"📘 syntax: DistroAgentsTools.fn.sh $rigOne\" >&2" "$rigHere/help/Help.DistroAgentsTools.include" || : )" "$( LC_ALL=C grep -c -x -F -- "📘 syntax: DistroAgentsTools.fn.sh $rigOne" "$rigHelpMd" || : )" "$( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigOne" )" "$rigHelpMd" || : )" ; done )$( rigEntry "$rigList" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(key <.*>\)`$/\1/p' ) | $( rigEntry "$rigRead <key>" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\(paste <.*>\)`$/\1/p' -e 's/^[[:space:]]*`\(register <.*>\)`$/\1/p' | LC_ALL=C tr '\n' '|' )" "111 111 key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state> <public> | paste <line>|register <project> <address>|"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER KEYS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

@@ -2340,6 +2340,16 @@ AgentsHarnessDismissedAfter(){ ## tool name
 AgentsHarnessToolWait(){
 	local toolSources="$1" toolTimeout="$2" toolPoll="$3" toolSince="$4" toolAddressee="$5" toolIncludeOwn="$6" waitRc=0 waitSource waitStateful="false" waitSession waitName waitThread
 	local toolMode="${7:-}" toolSeen="${8:-}" toolNote="${9:-}" toolDone="${10:-}" toolWaitIds="${11:-}"
+	## unwait names one source to drop from the stored wait on demand -- the same
+	## kind:target (or slack:session-current/slack:session-parent alias) `sources`
+	## takes, resolved the identical way, below, before this becomes a drop call
+	## instead of a wait. Takes no timeout/poll/since/addressee/include-own: a
+	## drop runs once and returns, like --wait-close already does.
+	local toolUnwait="${13:-}" waitUnwaitMode="false"
+	if [ -n "$toolUnwait" ] ; then
+		waitUnwaitMode="true"
+		toolSources="$toolUnwait"
+	fi
 	if [ $# -ge 7 ] ; then
 		waitStateful="true"
 		[ -n "$toolMode" ] || toolMode="default"
@@ -2443,6 +2453,24 @@ AgentsHarnessToolWait(){
 			;;
 		esac
 	done
+	## unwait's own target was resolved by the same alias loop above (slack:session-
+	## current/-parent included), so it reaches --unwait exactly as a plain source
+	## would. One call, its own result printed as it comes back, never the rest of
+	## this function's wait/mode handling below.
+	if [ "$waitUnwaitMode" = "true" ] ; then
+		waitSession="$( AgentsHarnessSessionKey )"
+		set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent" --unwait "$toolSources"
+		[ -z "$waitSession" ] || set -- "$@" --wait-session-id "$waitSession"
+		"$@" >"$harnessScratch/wait.out" 2>"$harnessScratch/wait.err" || waitRc=$?
+		if [ "$waitRc" != "0" ] ; then
+			printf 'ERROR: the unwait could not be performed (rc=%s). What the operation reported follows:\n' "$waitRc"
+			cat "$harnessScratch/wait.err"
+			return 0
+		fi
+		[ ! -s "$harnessScratch/wait.err" ] || cat "$harnessScratch/wait.err" >&2
+		cat "$harnessScratch/wait.out"
+		return 0
+	fi
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
 	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
@@ -6058,7 +6086,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		WebFetch)  harnessResult="$( AgentsHarnessToolWebFetch "${harnessArgV_url}" "${harnessArgV_prompt}" )" ;;
 		SendMessage) harnessResult="$( AgentsHarnessToolSendMessage "${harnessArgV_to}" "${harnessArgV_message}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" "" "" reply )" ;;
 		ListAgents) harnessResult="$( AgentsHarnessToolListAgents "${harnessArgV_view}" "${harnessArgV_session_id}" "${harnessArgV_state}" )" ;;
-		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" )" ;;
+		Wait)      harnessResult="$( AgentsHarnessToolWait "${harnessArgV_sources}" "${harnessArgV_timeout}" "${harnessArgV_poll_interval}" "${harnessArgV_since_utime}" "${harnessArgV_addressee}" "${harnessArgV_include_own}" "${harnessArgV_mode}" "${harnessArgV_seen}" "${harnessArgV_note}" "${harnessArgV_done}" "${harnessArgV_wait}" "" "${harnessArgV_unwait}" )" ;;
 		SubagentHandback) harnessResult="$( AgentsHarnessToolSubagentHandback "${harnessArgV_to}" "${harnessArgV_task}" "${harnessArgV_outcome}" "${harnessArgV_findings}" "${harnessArgV_unfinished}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
 		ReportFindings) harnessResult="$( AgentsHarnessToolReportFindings "${harnessArgV_to}" "${harnessArgV_subject}" "${harnessArgV_findings}" "${harnessArgV_evidence}" "${harnessArgV_confidence}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;
 		PushNotification) harnessResult="$( AgentsHarnessToolPushNotification "${harnessArgV_to}" "${harnessArgV_severity}" "${harnessArgV_headline}" "${harnessArgV_detail}" "${harnessArgV_action_required}" "${harnessArgV_as_bot}" "${harnessArgV_address_to}" )" ;;

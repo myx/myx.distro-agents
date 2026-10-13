@@ -161,7 +161,7 @@ class TextSurface:
 ##                                 control `about`, as the screen's own handlers open one; a paragraph `<name> :: <value>`
 ##                                 is a pair of a name and its value
 ##   mouse <what> <column> <line>  one event of the mouse at that cell, counted from 0, as one turn of the screen:
-##                                 click, double, up or down (the wheel)
+##                                 click, double, up or down (the wheel), or press (the first button going down)
 ##   mousekey <column> <line> <bit...>   what the screen makes of what curses reports of the mouse, the bits by their
 ##                                 names in curses, as `mousekey=<key>`, empty where it makes nothing of it
 ##   box <tag> [roles|looks]       the open dialog as drawn, line by line, with the two cells at its right and the line
@@ -238,7 +238,7 @@ def scriptRun(module):
 
     def get(tag):
         columns, lines = surface.size()
-        layout = module.layoutOf(columns, lines)
+        layout = module.layoutOf(columns, lines, state.split)
         rows = module.levelRows(state)
         cursor = module.cursorOf(state, rows, layout["listHeight"] if layout else 0)
         selected = rows[cursor["index"]] if rows else None
@@ -255,6 +255,8 @@ def scriptRun(module):
             ("viewTop", state.view["top"]), ("viewLines", len(state.view["lines"])),
             ("viewHead", len(state.view["head"])), ("follow", "yes" if state.view["follow"] else "no"),
             ("rawLog", "yes" if module.rawShown(state) else "no"), ("viewMode", state.viewMode),
+            ("wrap", "yes" if state.wrap else "no"), ("viewLeft", state.view.get("left", 0)),
+            ("split", "" if state.split is None else "%.4f" % state.split), ("splitHeld", state.splitHeld or ""),
             ("notice", state.notice),
             ("dialog", dialogValue()),
             ("dialogTitle", state.dialog["title"] if state.dialog else ""),

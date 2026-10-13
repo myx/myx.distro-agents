@@ -150,7 +150,7 @@ cells oldSep 20 83 84
 cells newSep 20 62 63
 RIGSCRIPT
 rigAssert "the change came as a key, and the frame was drawn again"  "$( rigVal a.frames ) $( rigVal b.frames )" "1 2"
-rigAssert "the panes are drawn at the new widths"                    "$( rigVal b.columns ) $( rigVal b.viewWidth ) $( rigVal b.listWidth ) [$( rigVal newSep )]" "90 62 27 [│]"
+rigAssert "the panes are drawn at the new widths, the scroll bar of the left window in the column between them" "$( rigVal b.columns ) $( rigVal b.viewWidth ) $( rigVal b.listWidth ) [$( rigVal newSep )]" "90 62 27 [▒]"
 rigAssert "the list still takes a quarter to a third (23 to 30)"     "$( rigBetween "$( rigVal b.listWidth )" 23 30 )" yes
 rigAssert "the old column between the panes is gone"                 "[$( rigVal oldSep )]" "[]"
 rigAssert "nothing of the old drawing is left: the screen is what a new terminal of that size shows" \
@@ -185,12 +185,12 @@ rigScript <<'RIGSCRIPT'
 size 60 12
 plain
 turn
-cells sep 3 41 42
-cells cut 2 43 59
+cells sep 3 39 40
+cells cut 2 41 59
 plaintext given a🚀b│c…
 get a
 RIGSCRIPT
-rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [>Sessions (A+...] 0"
+rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [>Sessions (Act+...] 0"
 rigAssert "what such a terminal cannot show is given as ?, cell for cell" "[$( rigVal given )]" "[a??b?c?]"
 
 echo "-- the real screen on a pseudo-terminal: the quit key --"

@@ -178,7 +178,7 @@ rigAssert "with a dialog open a click on Esc cancels it"             "[$( rigVal
 
 echo "-- what curses reports of the mouse --"
 rigOut="$( printf '%s\n' 'mousekey 5 7 BUTTON1_RELEASED' 'mousekey 5 7 BUTTON1_CLICKED' 'mousekey 5 7 BUTTON1_DOUBLE_CLICKED' 'mousekey 5 7 BUTTON4_PRESSED' 'mousekey 5 7 BUTTON5_PRESSED' 'mousekey 5 7 BUTTON1_PRESSED' 'mousekey 5 7 BUTTON3_PRESSED' | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
-rigAssert "the first button let go, and its click, are a click, a double click is one, the wheel is up and down, and a press alone and another button are nothing" "$( rigVals mousekey )" "MOUSE:click:5:7 MOUSE:click:5:7 MOUSE:double:5:7 MOUSE:up:5:7 MOUSE:down:5:7  "
+rigAssert "the first button let go, and its click, are a click, a double click is one, the wheel is up and down, a press alone is a press, which is nothing but on the border between the windows, and another button is nothing" "$( rigVals mousekey )" "MOUSE:click:5:7 MOUSE:click:5:7 MOUSE:double:5:7 MOUSE:up:5:7 MOUSE:down:5:7 MOUSE:press:5:7 "
 
 echo "-- the real screen, on a terminal that reports the mouse and on one that reports none --"
 rigPty 100 30 "Sessions (Activity)" '\e[M %!\e[M#%!x' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"

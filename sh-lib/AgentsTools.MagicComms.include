@@ -418,6 +418,11 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 ## roster widened to channel types names the channels this identity is IN,
 ## not the workspace directory. DMs and group DMs carry no is_member and are
 ## kept as before: a conversation of that kind exists only with us in it.
+##
+## A HANDLE NEVER COSTS THE WHOLE DIRECTORY. The counterparty of each
+## conversation conversations.list already named is looked up by its own
+## users.info call, one per distinct id this scan actually saw -- never a
+## users.list fetch of the whole workspace to label a handful of rows.
 AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print-required-scopes
 	local MDSC_CMD='DistroAgentsTools'
 	if [ "$1" = "--print-required-scopes" ] ; then

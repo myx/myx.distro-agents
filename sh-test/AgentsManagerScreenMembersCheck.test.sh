@@ -138,10 +138,10 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigScreenHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -235,9 +235,9 @@ cells narrowRow5 7 90 126
 cells narrowRow6 8 90 126
 size 47 40
 get tiny
-cells tinyHead 2 34 46
-cells tinyRow3 5 34 46
-cells tinyRow4 6 34 46
+cells tinyHead 2 28 46
+cells tinyRow3 5 28 46
+cells tinyRow4 6 28 46
 RIGSCRIPT
 rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
@@ -256,9 +256,9 @@ rigAssert "a pane of 44 cells has room for the status, shown by its short word, 
 rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
 	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
 	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
-rigAssert "a pane with no room for a whole name shows the icon and the name alone, the name cut with the mark of a cut text; nothing was drawn past a pane at any width" \
+rigAssert "a pane at its smallest, 18 cells inside its frame, shows the icon and the name alone, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
 	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
-	"12 [    MEMBER][ ## magic-c…][ ## keeper-…] 0"
+	"18 [    MEMBER][ ## magic-coordin…][ ## keeper-myx] 0"
 rigAssert "on the row that goes up the left pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 members, 1 with a live run.][ 2 of them are not started from here.]"
 rigAssert "k is no key of this view, and n on the row that goes up says in the status line what it is for" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[][Start: for a team member, not for what is selected] []"
 

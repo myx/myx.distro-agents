@@ -218,7 +218,7 @@ turn
 show u
 RIGSCRIPT
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//'
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'
 }
 rigAssert "the oldest ask is selected, and the pane is titled by its row" "$( rigVal a.selected ) [$( rigPane s 2 | LC_ALL=C cut -c1-22 )]" "0d7affda-0000-4000-8000-000000000001 [ x 11d 🧭 keeper-myx]"
 rigAssert "its kind, with its mark and its tag"                      "[$( rigPane s 3 )]" "[ 🧭 decision Q11]"
@@ -435,7 +435,7 @@ rigCaseStored(){ ## name, what the stand-in does at every start, then what it do
 	cp "$rigTmp/stored"/* "$MANAGER_SCREEN_RIG/"
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigReadOf(){ ## id -- how many times that one ask was read by its id
 	LC_ALL=C grep -c -x -F -- "--member-pending-reply-read magic-coordinator $1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -484,7 +484,7 @@ rigAssert "with no ask selected none is read, whatever time passes"   "$( rigVal
 echo "-- a held change: its fields, and its whole diff as it is --"
 rigAssert "what its post was filled with stands under the names of its slots" "$( rigPaneHolds c ' act Edit' ) $( rigPaneHolds c ' file skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' change store change-0005' )" "1 1 1"
 rigAssert "the diff stands as it is, line for line"                   "$( rigPaneHolds c ' the diff:' ) $( rigPaneHolds c ' --- a/skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' @@ -3,2 +3,3 @@' ) $( rigPaneHolds c '  - step one' )" "1 1 1 1"
-rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/^c|│/c| /' -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
+rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/^c|│/c| /' -e 's/│.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
 rigAssert "the post itself comes after, and last the other fields of its record" "$( rigPaneHolds c ' as posted:' ) $( rigPaneHolds c ' # ✏️ Change for approval' ) $( rigPaneHolds c ' its record:' ) $( rigPaneHolds c ' host rig-host' )" "1 1 1 1"
 rigAssert "and it says where it is answered"                         "$( rigPaneHolds c ' an ask is answered where it was posted, or from here by its keys' )" 1
 
@@ -579,7 +579,7 @@ rigAssert "a permission with no link: it takes a reject, and no key shows a link
 rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         Enter │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
 rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c18-23 )" "xxxxxx"
-rigAssert "with the keys in the left window the status line names none of them" "[$( rigVal sView )]" "[ u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window]"
 
 echo "-- Enter on a decision: the dialog of its answer, a digit chooses, words go with it, one call --"
 rigCase answer three.asks rows

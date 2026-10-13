@@ -802,8 +802,11 @@
 		--magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 			Read-only: which conversations exist for that member
 			RIGHT NOW, per identity, asked of Slack fresh every call
-			-- `conversations.list` paged to exhaustion, joined with
-			`users.list` for a handle per row.
+			-- `conversations.list` paged to exhaustion. A handle per
+			row comes from one `users.info` call per distinct
+			counterparty id this scan actually saw, never a
+			`users.list` fetch of the whole workspace: the directory
+			is not the answer to "who is this conversation with".
 
 			Default --identity both reports the user-token persona
 			and the bot identity; --types defaults to `im,mpim`, any
@@ -3125,17 +3128,34 @@
 			run. It only reads, and reaches no other host. Prints one
 			row for each key, TAB-separated, on stdout, an absent value
 			`-`, a value's whitespace `_`:
-			`key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state>`
+			`group <group> <keys> <label> <note>`
+			`key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state> <public>`
+			A group row stands ahead of its keys, which it counts, with
+			what a screen calls the group; <note> says why, where none of
+			its keys can be read, and reads `-` else.
 			<group> is `add-to-git`, a key an owner lists on a git host
 			as a deploy or user key: `deploy`, the key the account uses
 			for git, and `generated`, the default it made where that is
 			another one. Or `trust-on-connect`, an ssh host key of this
 			server, which whoever connects to it checks and accepts:
-			`host-<type>` for each. <fingerprint> is that of the public
+			`host-<type>` for each. Or `add-to-authorized-keys`, the key
+			the deploy and remote tools of this workspace connect out
+			with, which the owner of a target puts into its authorized
+			keys: `outgoing`, the first that is there of `client.key`,
+			`id_ecdsa`, `id_ed25519`, `id_rsa` and `client.rsa` in the
+			ssh home of the one who runs the tools, as their own ssh
+			takes it; an ssh home a command names itself is not listed. <fingerprint> is that of the public
 			file, as ssh-keygen gives it, and <short> the key itself in
 			short, its first twelve and its last eight letters. <state>
 			is `present`, or `absent` where no public key can be read at
-			<file>: the other three read `-` then.
+			<file>: the other three read `-` then, and so does <public>.
+			<public>, the last field, is the whole public line as one
+			pastes it, nothing of it held back, its blanks written `_`:
+			for a key of `add-to-git` the public key line of its file,
+			for one of `trust-on-connect` the line of a known hosts file,
+			the name of this host, the type and the key; for one of
+			`add-to-authorized-keys` the public key line as it goes into
+			an authorized keys file, with nothing added.
 
 		--manager-keys-read <key>
 			One of the console's own operations (see Notes). Prints one

@@ -16,6 +16,15 @@
 ##       else the generated default; and that default beside it where it is another key;
 ##   trust-on-connect   the ssh host keys of this server, which whoever connects to it
 ##       checks and accepts: /etc/ssh/ssh_host_*_key.pub.
+## And a third kind, which that command does not print, found as the family's own outgoing
+## ssh finds its identity (myx.distro-deploy/sh-lib/lib.distro-image.include, what
+## DistroSshConnect is given): in the ssh home of the one who runs the tools, ~/.ssh where a
+## command names no other, the first that is there of client.key, id_ecdsa, id_ed25519,
+## id_rsa, client.rsa:
+##   add-to-authorized-keys   the key the deploy and remote tools of this workspace connect
+##       out with, which the owner of a target puts into its authorized keys.
+## An ssh home a command names itself (--ssh-home, a folder of the workspace's source) is not
+## known here: only the default one is listed.
 ## THAT COMMAND IS NOT RUN HERE: where a public file is missing it derives the key from the
 ## private one, and it asks every git repository whether the key reads it. Here ONLY A PUBLIC
 ## FILE IS EVER OPENED, a file whose name ends `.pub`, and ssh-keygen is given no other. Of a
@@ -48,9 +57,11 @@ AgentsToolsManagerKeysDeploy(){
 	fi
 }
 
-## The keys, one a line, `<key>|<label>|<group>|<what it is for>|<public file>`, in the order
-## mdci-public-keys prints them: the key for git, the generated default where it is another,
-## then each host key by the name of its file, or one line for the host keys where none is.
+## The keys, one a line, `<key>|<label>|<group>|<what it is for>|<public file>|<why none>`, in
+## the order mdci-public-keys prints them: the key for git, the generated default where it is
+## another, then each host key by the name of its file, or one line for the host keys where
+## none is; then the key the tools connect out with. <why none> says, for a key that may not
+## be there, why no public key is read at its file where none is.
 AgentsToolsManagerKeysDeclared(){
 	local declaredDeploy declaredHome declaredHost="${MDAT_MANAGER_KEYS_HOST_DIR:-/etc/ssh}" declaredFile declaredName declaredAny=""
 	declaredHome="$( AgentsToolsManagerKeysHome )"
@@ -66,8 +77,32 @@ AgentsToolsManagerKeysDeclared(){
 		declaredAny="yes"
 		printf '%s\n' "host-$declaredName|Host Key $( printf '%s' "$declaredName" | LC_ALL=C tr 'a-z' 'A-Z' ) To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredFile"
 	done
-	[ -n "$declaredAny" ] || printf '%s\n' "host|Host Key To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredHost/ssh_host_key.pub"
+	[ -n "$declaredAny" ] || printf '%s\n' "host|Host Key To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredHost/ssh_host_key.pub|no ssh host key file stands in $declaredHost"
+	## The key the tools connect out with: the first identity of their five names in the ssh
+	## home of the one who runs them. Whether each is there is asked, as the tools ask it;
+	## none is opened.
+	declaredHome="${HOME%/}/.ssh" ; declaredAny=""
+	for declaredName in client.key id_ecdsa id_ed25519 id_rsa client.rsa ; do
+		[ -f "$declaredHome/$declaredName" ] || continue
+		declaredAny="$declaredName"
+		break
+	done
+	if [ -n "$declaredAny" ] ; then
+		printf '%s\n' "outgoing|Our Key For Targets' Authorized Keys|add-to-authorized-keys|the key the deploy and remote tools of this workspace connect out with, as the user who runs them, to a target that lists it in its authorized keys|$declaredHome/$declaredAny.pub|the identity the tools take, $declaredAny, has no public file beside it"
+	else
+		printf '%s\n' "outgoing|Our Key For Targets' Authorized Keys|add-to-authorized-keys|the key the deploy and remote tools of this workspace connect out with, as the user who runs them, to a target that lists it in its authorized keys|$declaredHome/id_ed25519.pub|no identity of the tools stands in $declaredHome: none of client.key, id_ecdsa, id_ed25519, id_rsa, client.rsa"
+	fi
 	return 0
+}
+
+## What a group of keys is called on a screen, by its name.
+AgentsToolsManagerKeysGroupLabel(){ ## group
+	case "$1" in
+		add-to-git) printf '%s\n' "Keys To Add To Git" ;;
+		trust-on-connect) printf '%s\n' "Keys To Trust When Connecting" ;;
+		add-to-authorized-keys) printf '%s\n' "Our Keys For Targets' Authorized Keys" ;;
+		*) printf '%s\n' "$1" ;;
+	esac
 }
 
 ## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
@@ -91,18 +126,36 @@ AgentsToolsManagerKeysPublic(){ ## public file
 	return 0
 }
 
-## The `key` row of one declared key: `present` with its type, its fingerprint and its key in
-## short, the first twelve and the last eight letters; `absent`, with `-` for these, where no
-## public key can be read at its file. The fingerprint is ssh-keygen's, of the public file.
+## The line of a public key as one pastes it: for a key to add to git the public key line as
+## its file has it, whole; for a host key the line of a known hosts file, the name of this
+## host ahead of the type and the key, as mdci-public-keys prints it. From what
+## AgentsToolsManagerKeysPublic set.
+AgentsToolsManagerKeysPaste(){ ## group
+	local pasteHost
+	if [ "$1" = "trust-on-connect" ] ; then
+		pasteHost="$( hostname 2> /dev/null )" || pasteHost=""
+		printf '%s %s %s\n' "${pasteHost:-localhost}" "$keysType" "$keysText"
+	else
+		printf '%s\n' "$keysLine"
+	fi
+}
+
+## The `key` row of one declared key: `present` with its type, its fingerprint, its key in
+## short, the first twelve and the last eight letters, and, the last field, THE WHOLE PUBLIC
+## LINE as one pastes it, its blanks written as every field has them: a public key is public,
+## and nothing of it is held back. `absent`, with `-` for these, where no public key can be
+## read at its file. The fingerprint is ssh-keygen's, of the public file. The short form
+## stays where it stood for whoever reads the row by its places.
 AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
-	local rowPrint="" rowShort="-" rowState="absent" keysLine keysType keysText
+	local rowPrint="" rowShort="-" rowState="absent" rowPaste="" keysLine keysType keysText
 	if AgentsToolsManagerKeysPublic "$5" ; then
 		rowState="present"
+		rowPaste="$( AgentsToolsManagerKeysPaste "$3" )"
 		rowPrint="$( ssh-keygen -l -f "$5" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || rowPrint=""
 		rowShort="$keysText"
 		[ "${#keysText}" -le 24 ] || rowShort="${keysText:0:12}...${keysText: -8}"
 	fi
-	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$3" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState"
+	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$3" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState" "$( AgentsToolsManagerKeysField "$rowPaste" )"
 }
 
 case "$1" in
@@ -110,16 +163,25 @@ case "$1" in
 	## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
 	## form is the help entry's.
 	--manager-keys-list)
-		local listOp="$1" listKey listLabel listGroup listFor listFile
+		local listOp="$1" listKey listLabel listGroup listFor listFile listWhy listAll listNow="" listRows listNote keysLine keysType keysText
 		shift
 		if [ $# -gt 0 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2
 			set +e ; return 1
 		fi
-		while IFS='|' read -r listKey listLabel listGroup listFor listFile ; do
+		## A group at a time, in the order its first key stands: one `group` row, with how many
+		## keys it has, its label, and, where none of them can be read, why; then its keys.
+		listAll="$( AgentsToolsManagerKeysDeclared )"
+		while IFS='|' read -r listKey listLabel listGroup listFor listFile listWhy ; do
 			[ -n "$listKey" ] || continue
-			AgentsToolsManagerKeysRow "$listKey" "$listLabel" "$listGroup" "$listFor" "$listFile"
-		done <<< "$( AgentsToolsManagerKeysDeclared )"
+			if [ "$listGroup" != "$listNow" ] ; then
+				[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
+				listNow="$listGroup" ; listRows="" ; listNote="none"
+			fi
+			if AgentsToolsManagerKeysPublic "$listFile" ; then listNote="" ; elif [ "$listNote" = "none" ] ; then listNote="${listWhy:-no public key can be read at $listFile}" ; fi
+			listRows="$listRows${listRows:+$'\n'}$( AgentsToolsManagerKeysRow "$listKey" "$listLabel" "$listGroup" "$listFor" "$listFile" )"
+		done <<< "$listAll"
+		[ -z "$listNow" ] || { printf 'group\t%s\t%s\t%s\t%s\n' "$listNow" "$( printf '%s\n' "$listRows" | LC_ALL=C grep -c . )" "$( AgentsToolsManagerKeysField "$( AgentsToolsManagerKeysGroupLabel "$listNow" )" )" "$( AgentsToolsManagerKeysField "$listNote" )" ; printf '%s\n' "$listRows" ; }
 		return 0
 	;;
 
@@ -136,7 +198,7 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <key>, and the word given is no name of a key -- nothing is shown" >&2
 			set +e ; return 1
 		;; esac
-		while IFS='|' read -r readKey readLabel readGroup readFor readFile ; do
+		while IFS='|' read -r readKey readLabel readGroup readFor readFile readHost ; do
 			[ "$readKey" = "$1" ] || continue
 			readFound="yes"
 			break
@@ -150,12 +212,7 @@ case "$1" in
 		## The line as one pastes it, its blanks kept: for git the public key line as its file
 		## has it; for those who connect the line of a known hosts file, the name of this host
 		## ahead of the type and the key, as mdci-public-keys prints it.
-		if [ "$readGroup" = "trust-on-connect" ] ; then
-			readHost="$( hostname 2> /dev/null )" || readHost=""
-			printf 'paste\t%s %s %s\n' "${readHost:-localhost}" "$keysType" "$keysText"
-		else
-			printf 'paste\t%s\n' "$keysLine"
-		fi
+		printf 'paste\t%s\n' "$( AgentsToolsManagerKeysPaste "$readGroup" )"
 		## Where the key for git is to be listed: the repositories the rig declares, which it
 		## keeps for that command, a project and an address a line. None is asked anything.
 		if [ "$readKey" = "deploy" ] && [ -r "$( AgentsToolsManagerKeysHome )/.mdci-source-repos.txt" ] ; then

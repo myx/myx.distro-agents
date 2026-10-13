@@ -164,6 +164,8 @@ FIXED_ROWS = {
 ## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
 ## because it was not read yet or its period has passed, and "said" is what the status
 ## line says of it then.
+## "each": a read that is made for every row of the level it is named by that carries what
+## it "needs", by the id of that row; its key is its name and, after a `|`, that id (readEntry).
 VIEW_PARTS = ("view", "feed", "acts")
 READS = {
     ## The blocks of the dashboard, each with its figures, all from the one operation. It is
@@ -203,6 +205,11 @@ READS = {
     ## One of those keys whole: the line to paste, and where the deploy key is registered.
     ## Read when its box opens, by the name of the key, and never before (askKeyLine).
     "full:key": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True},
+    ## The same read for each key of the list whose public file can be read, by its name:
+    ## once when the folder is opened and when it is asked for, never on the period. It
+    ## gives the whole line of a key where its row of the list does not carry it, and
+    ## where the key is to be registered.
+    "each:configuration/keys": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True, "needs": "readable"},
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
@@ -415,14 +422,33 @@ def setStyle(name):
 ## in every window.
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
-     "shows": {"body": "lines", "reads": VIEW_PARTS},
-     "commands": ()},
+     "shows": {"body": "lines", "reads": VIEW_PARTS}, "bar": True,
+     "commands": ("wrap", "pan")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
      "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
+## The split between the two windows, which the user moves for the run of the screen: by
+## the keys of the commands that do ("split", ...), and with the mouse on the border
+## between the windows. It is kept as a ratio, the share of the width the right window
+## takes, so it holds when the terminal changes its size: None, the share its place
+## declares, until it is moved. "step": the share one press of a key moves it by.
+## "least" and "most": the limits, absolute numbers of cells, its frame counted in, and of
+## the RIGHT window alone, which cannot scroll sideways; the left window takes the rest,
+## and wraps or scrolls. A limit bounds what is drawn at the width of now, and never
+## rewrites the ratio that is kept.
+SPLIT = {"step": 0.05, "least": 20, "most": 80}
+## How the left window shows a line longer than itself when the screen starts: wrapped at
+## words (True), or cut with the cut mark and scrolled sideways. The choice is the user's
+## for the run of the screen, whatever is selected. What stands for the cut lines in the
+## title of the window; how wide a line is set out while lines are not wrapped; and how
+## many cells one press scrolls sideways.
+WRAP_FIRST = True
+CUT_MARK = "[cut]"
+UNWRAPPED_WIDTH = 1000
+PAN_STEP = 8
 ## The modes of the left window for a thing that has a log, a session or an agent: one at
 ## a time, never mixed. "label": what a mode shows as in a menu and in the status line;
 ## "mark": what stands for it in the title of the window; "feed": whether it shows the
@@ -529,6 +555,15 @@ COMMANDS = (
      "does": ("focus",)},
     {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
      "does": ("filter",)},
+    ## the left window's own: its long lines wrapped at words, or cut and scrolled sideways
+    ## ("shown": what the status line names its keys by, a pair of keys as one); and the
+    ## split between the windows, a step at a time ("split", towards a wider right window
+    ## or a narrower one)
+    {"name": "wrap", "keys": ("w",), "menu": ("view", 5), "label": "Wra~p~ or cut long lines", "status": ("Wrap", "Cut"), "toggle": "wrap",
+     "does": ("wrap",)},
+    {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "Left/Right", "does": ("pan",)},
+    {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
+    {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     {"name": "style", "keys": ("i", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
      "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
@@ -602,6 +637,7 @@ REFUSALS = {
     "mode": "%s: what is selected has no log",
     "up": "%s: this is the top level",
     "open": "%s: this row has nothing to open",
+    "wrapped": "%s: the lines are wrapped, none is cut",
 }
 
 ## ---- the declaration of the dialogs ----
@@ -822,6 +858,13 @@ class ManagerState:
         self.view = newView(None, False)
         ## the mode of the left window of a session or an agent, of VIEW_MODES
         self.viewMode = VIEW_MODE_FIRST
+        ## whether the left window wraps its long lines, or cuts them and scrolls sideways
+        self.wrap = WRAP_FIRST
+        ## the split between the windows as the user moved it, the share of the width the
+        ## right one takes, or None; and how the mouse holds its border: None, "pressed"
+        ## by a button that is down, "held" by a click, until the next one
+        self.split = None
+        self.splitHeld = None
         ## the line to type in while it is open: {"prompt", "text", "onSubmit", "lines"}
         self.line = None
         ## the dialog that is open and has the keys (openDialog), and those that wait for it to close
@@ -932,6 +975,28 @@ def tailToCells(text, width):
     return "".join(reversed(kept)), used
 
 
+## A text as exactly that many cells from its cell `left` on: what a window that is
+## scrolled sideways shows of a line. Where the text stands to the left of it, the cut
+## mark stands in its first cell; where it goes on past its last, cutToCells puts it there.
+def panToCells(text, left, width):
+    if left <= 0 or width <= 0:
+        return cutToCells(text, width)
+    before = []
+    rest = []
+    used = 0
+    for cluster, clusterWidth in textCells(text):
+        if used + clusterWidth <= left + 1:
+            before.append(cluster)
+        elif used < left + 1:
+            ## a character of two cells that the edge parts: a blank stands for its half
+            before.append(cluster)
+            rest.append(" " * (used + clusterWidth - left - 1))
+        else:
+            rest.append(cluster)
+        used += clusterWidth
+    return (MARKS["cut"] if "".join(before).strip() else " ") + cutToCells("".join(rest), width - 1)
+
+
 ## A text as lines of at most that many cells, broken between words; a word longer than a
 ## line is broken where the line ends.
 def wrapToCells(text, width):
@@ -978,16 +1043,52 @@ def plainText(text):
 
 ## ---- the layout ----
 
+## How many cells the right window takes of that width at that ratio, or, at None, at
+## the share its place declares: within its own limits (SPLIT), and never so many that
+## the left window is none, which keeps half of the smallest terminal.
+def splitWidth(columns, ratio=None):
+    if ratio is None:
+        width = columns * [window["place"]["tenths"] for window in WINDOWS if "tenths" in window["place"]][0] // 10
+    else:
+        width = int(columns * ratio + 1e-9)
+    width = max(SPLIT["least"], min(SPLIT["most"], width))
+    return max(1, min(width, columns - MIN_COLUMNS // 2))
+
+
+## The split moves by one step, towards a wider right window or a narrower one, from
+## where it is drawn now, and the ratio that is kept becomes the new one. At a limit
+## nothing moves and nothing is kept. Gives what the status line says of it.
+def moveSplit(state, columns, direction):
+    now = splitWidth(columns, state.split)
+    ratio = now / float(columns) + direction * SPLIT["step"]
+    moved = splitWidth(columns, ratio)
+    if moved == now:
+        return "the list is at its %s: %d cells" % ("widest" if direction > 0 else "narrowest", now)
+    state.split = ratio
+    return "the list takes %d of %d cells" % (moved, columns)
+
+
+## The border between the windows is put at that column, by the mouse: the right window
+## takes what stands from there on, within its limits, and that share of the width is kept.
+def placeSplit(state, layout, column):
+    columns = layout["columns"]
+    wanted = columns - column - (0 if layout["boxes"] else 1)
+    state.split = splitWidth(columns, max(1, wanted) / float(columns)) / float(columns)
+    state.noticeOf = None
+    state.notice = "the list takes %d of %d cells" % (splitWidth(columns, state.split), columns)
+
+
 ## Where each window of WINDOWS stands at that size, by its name: its left column, its top
 ## line, its width and its height, its frame counted in. The windows fill the desktop, the
 ## lines between the menu bar and the status line: one with tenths takes them of the
-## width, on its side, and the one without takes the rest.
-def windowBoxes(columns, lines):
+## width, on its side, and the one without takes the rest. `split` is the ratio the user
+## moved the split to, or None (splitWidth).
+def windowBoxes(columns, lines, split=None):
     boxes = {}
     left, right = 0, columns
     for window in WINDOWS:
         if "tenths" in window["place"]:
-            width = columns * window["place"]["tenths"] // 10
+            width = splitWidth(columns, split)
             if window["place"]["side"] == "right":
                 right -= width
                 boxes[window["name"]] = (right, 1, width, lines - 2)
@@ -1008,20 +1109,22 @@ def windowBoxes(columns, lines):
 ## window less its right border, which stands in the column "separator"; the list stands
 ## from "listLeft", "listWidth" wide with its frame. Both hold as many lines as the
 ## desktop has less their borders. "inputLine" is the line of the left window's bottom
-## border: the line to type in is drawn there while it is open.
-def layoutOf(columns, lines):
+## border: the line to type in is drawn there while it is open. `split` is the ratio the
+## user moved the split between the windows to, or None: the right window then takes
+## what splitWidth gives it, in every style, and the left one the rest.
+def layoutOf(columns, lines, split=None):
     if columns < MIN_COLUMNS or lines < MIN_LINES:
         return None
     if not STYLE["frames"]:
         ## the compact style: the first and the last line are the status lines, the second
         ## holds the titles, one column parts the panes, and the last line of the left pane
         ## is the line to type in, beside which the list goes on
-        listWidth = columns * 3 // 10
+        listWidth = splitWidth(columns, split)
         viewWidth = columns - listWidth - 1
         return {"columns": columns, "lines": lines, "boxes": None, "viewWidth": viewWidth, "separator": viewWidth,
                 "listLeft": viewWidth + 1, "listWidth": listWidth, "topLine": 0, "titleLine": 1, "bodyTop": 2,
                 "viewHeight": lines - 4, "listHeight": lines - 3, "inputLine": lines - 2, "bottomLine": lines - 1}
-    boxes = windowBoxes(columns, lines)
+    boxes = windowBoxes(columns, lines, split)
     listWidth = boxes["list"][2]
     viewWidth = boxes["view"][2] - 1
     return {
@@ -1272,10 +1375,11 @@ def viewKeyOf(state):
 ## "info" is what the read of the item's facts gave, "feed" what the read of its lines
 ## gave, and "lineKeys" says which entry of the feed each line belongs to. "looks": what
 ## of a line is drawn in a look of its own, by the number of the line, each as the cell
-## it starts at, how many cells it takes and its look (putViewLine).
+## it starts at, how many cells it takes and its look (putViewLine). "left" is its first
+## cell in view while its lines are cut and it is scrolled sideways.
 def newView(viewKey, feeds):
     return {"key": viewKey, "head": [], "lines": [], "top": 0, "feeds": feeds, "follow": feeds,
-            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}}
+            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}, "left": 0}
 
 
 ## The left pane follows the selection: another item is shown from its first line, and
@@ -1317,6 +1421,26 @@ def scrollView(state, height, step, pages=0):
     view["top"] = max(0, min(view["top"] + step + pages * height, last))
     if view["feeds"]:
         view["follow"] = view["top"] >= last
+
+
+## How wide the widest line of the left pane is, its head counted in, in cells, the blanks
+## at the end of a line aside: what a sideways scroll goes by. Counted when what the pane
+## holds has changed, not at every drawing.
+def viewWide(state):
+    view = state.view
+    stamp = (len(view["lines"]), sum(len(line) for line in view["lines"]), len(view["head"]), sum(len(line) for line in view["head"]))
+    if view.get("wideOf") != stamp:
+        view["wideOf"] = stamp
+        view["wide"] = max([textWidth(line.rstrip()) for line in view["head"] + view["lines"]] or [0])
+    return view["wide"]
+
+
+## Where the left pane stands sideways in that many cells: its first cell in view, never
+## past what its widest line needs, and the first one while its lines are wrapped.
+def panOf(state, room):
+    view = state.view
+    view["left"] = 0 if state.wrap else max(0, min(view.get("left", 0), viewWide(state) - room))
+    return view["left"]
 
 
 ## What the left pane shows with no read of its own, from what a list read already holds:
@@ -1375,7 +1499,9 @@ def localView(state, row):
     if (level == "configuration/checker" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "checker"):
         return checksSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
     if row.get("serverKey"):
-        return serverKeyLines(row["serverKey"], state.viewWidth)
+        return serverKeyLines(state, state.path, row["serverKey"], state.viewWidth)
+    if row.get("keyGroup"):
+        return keyGroupLines(state, state.path, [row["keyGroup"]], state.viewWidth)
     if (level == "configuration/keys" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "keys"):
         return serverKeysSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
     if level == "consoles" and row.get("start"):
@@ -4361,45 +4487,78 @@ def checksSummary(state, path):
 
 ## ---- the public keys of this server: `Server Keys` ----
 
-## The fields of a `key` row of `--manager-keys-list`, after its first. What each group
-## shows as, in the order the folder sets them out; a group that is not listed shows as
-## it is printed. And the state of a key whose public file can be read.
+## The fields of a `key` row of `--manager-keys-list`, after its first; a row that has more
+## fields than these ends with the whole public line of the key, as it is pasted, its
+## blanks kept. A public key is shown whole wherever the screen shows one, and its <short>
+## is never shown: only a secret is ever hidden or shortened. A `group` row names a group
+## and, as its last field, the label of that group: the groups stand in the order of the
+## operation, and the screen knows none by its name. And the state of a key whose public
+## file can be read.
 KEY_FIELDS = ("key", "label", "group", "purpose", "type", "fingerprint", "short", "file", "state")
-KEY_GROUPS = (
-    ("add-to-git", "Keys to add to git"),
-    ("trust-on-connect", "Keys to trust when connecting"),
-)
 KEY_PRESENT = "present"
-## What the box of a key says while its line is read, and where none came.
+## What the view and the box of a key say of its whole line.
 KEY_SAYS = {
     "reading": "Its public line is being read.",
     "failed": "Its public line could not be read:",
     "none": "The operation printed no line to paste for it.",
+    "line": "Its public line, whole, as it is pasted:",
     "copy": "The whole line, to copy as one line: where it is broken here it goes on with nothing between.",
-    "register": "It is listed as a deploy key on each of these repositories:",
+    "register": "It is to be registered on each of these repositories:",
 }
 
 
-## What `--manager-keys-list` printed, as rows, in the order they come: a key by its
-## label; one whose public file cannot be read has its state at the end of its row.
+## What a group shows as where no row of the operation names it: its word, the dashes as
+## blanks, capitalised.
+def keyGroupLabel(group):
+    return group.replace("-", " ").capitalize()
+
+
+## What `--manager-keys-list` printed, as rows: group after group in the order the
+## operation gives them, by its `group` rows, and a group that only a key names where it
+## first stands. A group is a row of its own, by its label, and under it stand its keys, a
+## key by its label; one whose public file cannot be read has its state at the end of its
+## row, and one that can is read whole by its name (READS, "each").
 def parseKeyRows(text):
-    rows = []
+    groups = []
+    byGroup = {}
+
+    def groupOf(name):
+        if name not in byGroup:
+            byGroup[name] = {"key": name, "label": "", "keys": []}
+            groups.append(byGroup[name])
+        return byGroup[name]
+
     for printed in text.split("\n"):
         fields = printed.split("\t")
-        if fields[0] != "key" or len(fields) <= len(KEY_FIELDS):
-            continue
-        held = dict(zip(KEY_FIELDS, fields[1:]))
-        row = newRow(held["key"], unspaced(held["label"]) or held["key"], "record")
-        row["serverKey"] = held
-        if held["state"] != KEY_PRESENT:
-            row["tail"] = held["state"]
-            row["look"] = DIM
+        if fields[0] == "group" and len(fields) >= 3:
+            groupOf(fields[1])["label"] = unspaced(fields[-1])
+        elif fields[0] == "key" and len(fields) > len(KEY_FIELDS):
+            held = dict(zip(KEY_FIELDS, fields[1:]))
+            held["line"] = absent(fields[-1]) if len(fields) > len(KEY_FIELDS) + 1 else ""
+            groupOf(held["group"])["keys"].append(held)
+    rows = []
+    for group in groups:
+        group["label"] = group["label"] or keyGroupLabel(group["key"])
+        row = newRow("group " + group["key"], group["label"], "group")
+        row["keyGroup"] = group
+        row["look"] = BOLD
         rows.append(row)
+        for held in group["keys"]:
+            held["groupLabel"] = group["label"]
+            row = newRow(held["key"], unspaced(held["label"]) or held["key"], "record")
+            row["serverKey"] = held
+            row["indent"] = 2
+            if held["state"] == KEY_PRESENT:
+                row["readable"] = True
+            else:
+                row["tail"] = held["state"]
+                row["look"] = DIM
+            rows.append(row)
     return rows
 
 
 ## What `--manager-keys-read <key>` printed: the line to paste, with its blanks as they
-## are printed, and the repositories the deploy key is registered on, each a project and
+## are printed, and the repositories the key is to be registered on, each a project and
 ## its address.
 def parseKeyRead(text):
     read = {"paste": "", "registers": []}
@@ -4412,53 +4571,89 @@ def parseKeyRead(text):
     return read
 
 
-## The selected key for the left pane: its fingerprint and its key shortened first, or
-## that no public key can be read; what it is for; then its name, its group, its type,
-## its state and its public file; and the key that shows its whole line.
-def serverKeyLines(held, width):
-    present = held["state"] == KEY_PRESENT
-    if present:
-        lines = ["fingerprint %s" % held["fingerprint"], "short key   %s" % held["short"]]
+## The whole public line of a key, where it is to be registered, and what stands for the
+## line while there is none: the line from its row of the list where that carries it,
+## else from the read of that one key, which also gives where it is registered.
+def keyWholeOf(state, path, held):
+    plan = state.plans.get("each:%s|%s" % (levelPattern(path), held["key"]))
+    read = plan["rows"] if plan and not plan["error"] else None
+    line = held.get("line") or (read["paste"] if read else "")
+    if line:
+        note = ""
+    elif plan is None:
+        note = KEY_SAYS["reading"]
+    elif plan["error"]:
+        note = "%s %s" % (KEY_SAYS["failed"], plan["error"])
     else:
-        lines = ["%s: no public key can be read at its file" % held["state"]]
-    purpose = unspaced(held["purpose"]).strip()
-    if purpose:
-        lines.append("")
-        lines.extend(wrapToCells(purpose, max(10, width - 1)))
-    lines.append("")
-    lines.extend(fieldLines([("key", held["key"]), ("group", dict(KEY_GROUPS).get(held["group"], held["group"])),
-                             ("type", absent(held["type"])), ("state", held["state"]), ("file", absent(held["file"]))], width))
-    if present:
-        lines.extend(["", "%s shows its whole public line, in a box to copy." % commandKeys(commandNamed("keyline"))[0]])
+        note = KEY_SAYS["none"]
+    return line, (read["registers"] if read else []), note
+
+
+## A text whole in lines of the pane, set in by that much: broken between its words, a
+## word longer than a line where the line ends, and what goes on stands further in under
+## the first line. Nothing of it is cut.
+def wholeLines(text, width, indent):
+    parts = wrapToCells(text, max(10, width - len(indent) - 5))
+    return [indent + parts[0]] + [indent + "    " + part for part in parts[1:]]
+
+
+## Groups of keys for the left pane, each under its label: every key by its label, and
+## under that its fingerprint and its whole public line, or that none can be read.
+def keyGroupLines(state, path, groups, width):
+    lines = []
+    for group in groups:
+        lines.extend(([""] if lines else []) + [group["label"]])
+        if not group["keys"]:
+            lines.append("  no key")
+        for held in group["keys"]:
+            lines.append("  " + (unspaced(held["label"]) or held["key"]))
+            if held["state"] != KEY_PRESENT:
+                lines.extend(wholeLines("%s: %s" % (held["state"], absent(held["file"])), width, "      "))
+                continue
+            lines.extend(wholeLines(held["fingerprint"], width, "      "))
+            line, registers, note = keyWholeOf(state, path, held)
+            lines.extend(wholeLines(line or note, width, "      "))
     return lines
 
 
+## The selected key for the left pane: what it is for; its type, its fingerprint, its
+## public file, its group, its name and its state; its whole public line, as it is
+## pasted; where it is to be registered; and the key that shows it alone in a box. One
+## whose public file cannot be read says so in place of a line.
+def serverKeyLines(state, path, held, width):
+    lines = []
+    purpose = unspaced(held["purpose"]).strip()
+    if purpose:
+        lines.extend(wrapToCells(purpose, max(10, width - 1)) + [""])
+    for name, value in (("type", absent(held["type"])), ("fingerprint", absent(held["fingerprint"])),
+                        ("file", absent(held["file"])), ("group", held["groupLabel"]),
+                        ("key", held["key"]), ("state", held["state"])):
+        if value:
+            parts = wrapToCells(value, max(10, width - 13))
+            lines.append("%-11s %s" % (name, parts[0]))
+            lines.extend(" " * 12 + part for part in parts[1:])
+    if held["state"] != KEY_PRESENT:
+        return lines + ["", "No public key can be read at its file."]
+    line, registers, note = keyWholeOf(state, path, held)
+    lines.extend(["", KEY_SAYS["line"]] + wholeLines(line or note, width, "  "))
+    if registers:
+        lines.extend(["", KEY_SAYS["register"]])
+        for register in registers:
+            lines.extend(wholeLines("%s  %s" % register, width, "  "))
+    return lines + ["", "%s shows it alone, in a box to copy." % commandKeys(commandNamed("keyline"))[0]]
+
+
 ## What `Server Keys` holds, for the left pane while its row or the row that goes up
-## inside it is selected: the keys group by group, the groups of KEY_GROUPS first, each
-## key with its fingerprint and its key shortened. None until its read has answered.
+## inside it is selected: its groups in the order of the operation, each key with its
+## fingerprint and its whole public line. None until its read has answered.
 def serverKeysSummary(state, path):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
-    keys = [row["serverKey"] for row in rows if row.get("serverKey")]
-    if not keys:
+    groups = [row["keyGroup"] for row in rows if row.get("keyGroup")]
+    if not groups:
         return ["The operation listed no key of this server."]
-    groups = [group for group, label in KEY_GROUPS]
-    groups.extend(held["group"] for held in keys if held["group"] not in groups and not groups.append(held["group"]))
-    lines = []
-    for group in groups:
-        ofGroup = [held for held in keys if held["group"] == group]
-        if not ofGroup:
-            continue
-        lines.extend(([""] if lines else []) + [dict(KEY_GROUPS).get(group, group)])
-        for held in ofGroup:
-            lines.append("  " + (unspaced(held["label"]) or held["key"]))
-            if held["state"] == KEY_PRESENT:
-                lines.extend(["      " + held["fingerprint"], "      " + held["short"]])
-            else:
-                lines.append("      %s: %s" % (held["state"], absent(held["file"])))
-    return lines + [""] + wrapToCells("Public keys alone, as the operation gives them: the screen reads no file. "
-                                      "The whole line of a key is shown from its own row.", max(10, state.viewWidth - 1))
+    return keyGroupLines(state, path, groups, state.viewWidth)
 
 
 ## Whether the whole line of that row can be shown: a key whose public file can be read.
@@ -4466,8 +4661,8 @@ def keyLineFits(state, row):
     return bool(row and row.get("serverKey")) and row["serverKey"]["state"] == KEY_PRESENT
 
 
-## The whole public line of the selected key, in a box to copy: it is read anew for the
-## box, by the name of the key, and the box says so until it has come (fillKeyLine).
+## The whole public line of the selected key alone, in a box to copy: it is read anew
+## for the box, by the name of the key, and the box says so until it has come (fillKeyLine).
 def askKeyLine(state, row):
     if not keyLineFits(state, row):
         return ""
@@ -4482,7 +4677,7 @@ def askKeyLine(state, row):
 
 ## The box of a key as it stands now, at every turn while it is open: that its line is
 ## being read, that it could not be, or the line whole, set out so that it is broken only
-## where the box is full, and under it where the deploy key is registered.
+## where the box is full, and under it where the key is to be registered.
 def fillKeyLine(state, dialog):
     held = dialog["about"]["serverKey"]
     target = dialog["about"]["target"]
@@ -4495,7 +4690,7 @@ def fillKeyLine(state, dialog):
     elif not plan["rows"]["paste"]:
         lines = [KEY_SAYS["none"]]
     else:
-        lines = [("group", dict(KEY_GROUPS).get(held["group"], held["group"])), ("type", absent(held["type"])),
+        lines = [("group", held["groupLabel"]), ("type", absent(held["type"])),
                  "fingerprint " + held["fingerprint"], KEY_SAYS["copy"], " " + plan["rows"]["paste"]]
         if plan["rows"]["registers"]:
             lines.append(KEY_SAYS["register"])
@@ -5018,6 +5213,8 @@ def handleKey(state, key, layout):
         what, column, line = key.split(":")[1:4]
         mouseEvent(state, what, int(column), int(line), layout)
         return
+    ## a key lets go of the border between the windows, where the mouse holds it
+    state.splitHeld = None
     if state.dialog is not None:
         dialogKey(state, key)
         return
@@ -5104,12 +5301,13 @@ WHEEL_DOWN = 0x200000
 
 ## What the terminal reported of the mouse, as a key of the screen, `MOUSE:<what>:<column>:<line>`,
 ## or None for what the screen does not act on. The first button let go, or pressed and
-## let go as one click, is `click`: a press alone is nothing, so one click of the hand is
-## one click here however the terminal reports it. A double click is `double`, and the
-## wheel is `up` and `down`. `buttons` are the bits curses gives.
+## let go as one click, is `click`: a press alone is `press`, which is nothing but on the
+## border between the windows (splitMouse), so one click of the hand is one click here
+## however the terminal reports it. A double click is `double`, and the wheel is `up`
+## and `down`. `buttons` are the bits curses gives.
 def mouseKey(column, line, buttons):
     names = (("click", ("BUTTON1_RELEASED", "BUTTON1_CLICKED")), ("double", ("BUTTON1_DOUBLE_CLICKED",)),
-             ("up", ("BUTTON4_PRESSED",)), ("down", ("BUTTON5_PRESSED",)))
+             ("up", ("BUTTON4_PRESSED",)), ("down", ("BUTTON5_PRESSED",)), ("press", ("BUTTON1_PRESSED",)))
     for what, bits in names:
         if any(buttons & getattr(curses, bit, WHEEL_DOWN if bit == "BUTTON5_PRESSED" else 0) for bit in bits):
             return "MOUSE:%s:%d:%d" % (what, column, line)
@@ -5130,6 +5328,35 @@ def keyOfShown(shown):
     return None if "/" in shown else shown
 
 
+## The mouse on the border between the windows, with no dialog and no menu open. Gives
+## whether the event was the border's. A terminal that reports the button going down and
+## coming up drags it: pressed on the border and let go in another column, the border is
+## put there. One that reports clicks alone, and a click on the border that goes nowhere,
+## takes hold of it: the next click in a window puts it there, and a click on the border
+## again, or any key, lets it go where it was. A press anywhere else is nothing.
+def splitMouse(state, what, column, line, layout):
+    onBorder = spotAt(state, column, line, ("split",)) is not None
+    if what == "press":
+        if onBorder:
+            state.splitHeld = "pressed"
+        return True
+    if state.splitHeld is None and not onBorder:
+        return False
+    state.noticeOf = None
+    if onBorder and state.splitHeld != "held":
+        state.splitHeld = "held"
+        state.notice = "the border is held: click where it goes, or on it to let it go"
+        return True
+    state.splitHeld = None
+    if onBorder:
+        state.notice = ""
+        return True
+    if not 1 <= line <= layout["lines"] - 2:
+        return False
+    placeSplit(state, layout, column)
+    return True
+
+
 ## One event of the mouse, on the state alone. It does nothing the keys cannot do. A key
 ## of the status line does what that key does, in every state. With a dialog open: a button
 ## is pressed, a box toggled, a radio button or a row of a list chosen, a field given the
@@ -5140,6 +5367,11 @@ def keyOfShown(shown):
 ## selected already or the click is a double one; a half of the scroll bar pages; and the
 ## wheel moves in the window under the pointer.
 def mouseEvent(state, what, column, line, layout):
+    if (what in ("press", "click", "double") and state.dialog is None and state.menu is None
+            and splitMouse(state, what, column, line, layout)):
+        return
+    if what == "press":
+        return
     clicked = what in ("click", "double")
     step = 1 if what == "down" else -1
     key = spotAt(state, column, line, ("key",))
@@ -5203,8 +5435,12 @@ def mouseEvent(state, what, column, line, layout):
     elif hit[0] == "window":
         state.focus = hit[1]
     elif hit[0] == "bar":
-        state.focus = "list"
-        moveSelection(state, listRowsHeight(state, layout), 0, hit[1])
+        ## a half of the scroll bar of a window pages in that window
+        state.focus = hit[2]
+        if hit[2] == "list":
+            moveSelection(state, listRowsHeight(state, layout), 0, hit[1])
+        else:
+            scrollView(state, viewScrollHeight(state, layout), 0, hit[1])
     elif hit[0] == "row":
         height = listRowsHeight(state, layout)
         index = cursorOf(state, levelRows(state), height)["index"]
@@ -5304,6 +5540,9 @@ def commandRefusal(state, command):
             if placeOf(state, row) not in command["on"]:
                 return other
             return "" if viewReadOf(state, row, "feed") is not None else REFUSALS["mode"] % said
+    if does[0] == "pan":
+        ## wrapped lines hold nothing to the side
+        return REFUSALS["wrapped"] % said if state.wrap else ""
     if does[0] == "up":
         return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
@@ -5369,6 +5608,15 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "mode":
         names = [name for name, mode in VIEW_MODES]
         setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
+    elif does[0] == "wrap":
+        state.wrap = not state.wrap
+        state.view["left"] = 0
+    elif does[0] == "pan":
+        ## the pane is brought within what it holds when it is drawn (panOf)
+        state.view["left"] = max(0, state.view.get("left", 0) + (1 if key == "RIGHT" else -1) * PAN_STEP)
+    elif does[0] == "split":
+        state.noticeOf = None
+        state.notice = moveSplit(state, layout["columns"], does[1])
     elif does[0] == "move":
         if state.focus == "list":
             moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
@@ -5484,6 +5732,12 @@ def readWords(entry, state, values, filtered=True):
     return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")) for word in words]
 
 
+## The entry of READS a read is made by, from its key, or nothing: a read made for a row of
+## a level ("each") is named by its entry and, after a `|`, by the id of that row.
+def readEntry(key):
+    return READS.get(key) or READS.get(key.partition("|")[0]) or {}
+
+
 ## The read that fills the list of a level: its key and its entry in READS, or None. A
 ## level another read fills ("from") has that read.
 def listReadOf(path):
@@ -5539,6 +5793,12 @@ def wantedReads(state):
         if entry and entry.get("always") and not (shown and shown[0] == key):
             wanted.append((entry.get("kind", "list"), key, readWords(entry, state, {})))
     wanted.extend(shownReads(state))
+    ## every row of the level shown that carries what such a read needs is read by its id
+    each = READS.get("each:" + pattern)
+    for row in state.rows.get(levelKey(state.path), ()) if each else ():
+        if row.get(each["needs"]):
+            wanted.append((each.get("kind", "list"), "each:%s|%s" % (pattern, row["id"]),
+                           readWords(each, state, {"id": row["id"]}, False)))
     ## what the open dialog offers is read while it is open
     for key, values in dialogReads(state):
         if key not in [wantedKey for kind, wantedKey, words in wanted]:
@@ -5621,7 +5881,7 @@ def startDueReads(state, reader, now):
         last = state.started.get(key)
         ## a read that is made once is not due again because its period has passed; neither
         ## is one that is read seldom, but while it is the list shown
-        entry = READS.get(key) or {}
+        entry = readEntry(key)
         once = entry.get("once") or (entry.get("seldom") and key != (listReadOf(state.path) or ("",))[0])
         aged = now - last["at"] >= REFRESH_SECONDS and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
@@ -5685,8 +5945,8 @@ def applyResult(state, result):
         ## what was asked for on demand has answered: the status line no longer says it was asked
         state.notice = ""
         state.noticeOf = None
-    if (READS.get(key) or {}).get("rows") == "key-read":
-        ## a key whole is its box's own: that shows what was read, or that it could not be
+    if readEntry(key).get("rows") == "key-read":
+        ## a key whole is its box's and its view's own: they show what was read, or that it could not be
         state.plans[key] = {"words": result["words"], "rows": parseKeyRead(result["text"]),
                             "error": result["error"] if result["status"] != 0 else ""}
         return
@@ -5853,7 +6113,8 @@ def viewTitle(state):
     marks = "".join(mark for mark in (MARK_READING, MARK_OLD) if mark in marks)
     ## the mode of the window, where the item has a log: it shows in the title
     form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
-    return (marks + " " if marks else "") + row["label"] + form
+    ## and that its long lines are cut, not wrapped
+    return (marks + " " if marks else "") + row["label"] + form + ("" if state.wrap else " " + CUT_MARK)
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one
@@ -6031,7 +6292,7 @@ def rowEnters(state, row):
 ## mark of a folder after its name: a name too long for its room is cut ahead of that
 ## mark, which is never cut itself. Gives the text, and where in it the mark stands, or None.
 def listRowParts(row, chosen, width, enters=False):
-    shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else row["label"]
+    shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     tailWidth = textWidth(tail)
@@ -6123,12 +6384,13 @@ def drawCompact(surface, state, layout):
     panesHeight = layout["inputLine"] - layout["titleLine"] + 1
     spot(state, 0, layout["titleLine"], viewWidth, panesHeight, ("window", "view"))
     spot(state, listLeft, layout["titleLine"], listWidth, panesHeight, ("window", "list"))
+    spot(state, layout["separator"], layout["titleLine"], 1, panesHeight, ("split",))
     surface.put(layout["titleLine"], 0, cutToCells(" " + viewTitle(state), viewWidth),
                 REVERSE if state.focus == "view" else BOLD)
     surface.put(layout["titleLine"], listLeft, cutToCells(" " + listTitle(state), listWidth),
                 REVERSE if state.focus == "list" else BOLD)
     for line in range(layout["titleLine"], layout["inputLine"] + 1):
-        surface.put(line, layout["separator"], MARKS["separator"], PLAIN)
+        surface.put(line, layout["separator"], MARKS["separator"], PLAIN if state.splitHeld is None else REVERSE)
     rows = levelRows(state)
     listTop = layout["bodyTop"]
     listHeight = listRowsHeight(state, layout)
@@ -6147,6 +6409,7 @@ def drawCompact(surface, state, layout):
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
     placing = placedShown(state)
+    panOf(state, viewWidth - 1)
     for offset in range(headHeight):
         surface.put(layout["bodyTop"] + offset, 0, " ", PLAIN)
         putLooked(surface, state, layout["bodyTop"] + offset, 1, state.view["head"][offset], viewWidth - 1, PLAIN, (), placing)
@@ -6204,7 +6467,7 @@ def statusItems(state):
     for command in COMMANDS:
         if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", state.viewMode):
             wide = commandWindow(command) is None and "on" not in command
-            (everywhere if wide else own).append((keyShown(commandKeys(command)[0]), statusWord(state, command)))
+            (everywhere if wide else own).append((command.get("shown") or keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
 
 
@@ -6279,7 +6542,9 @@ def putLooked(surface, state, line, column, text, room, look, spans, placing):
         placed, keys = placedLine(state, text)
         if keys:
             text, spans = placed, keys
-    surface.put(line, column, cutToCells(text, room), look)
+    ## from the cell the pane stands at sideways (panOf, at the drawing of its body)
+    viewLeft = state.view["left"]
+    surface.put(line, column, panToCells(text, viewLeft, room), look)
     if not spans:
         return
     cells = []
@@ -6287,11 +6552,16 @@ def putLooked(surface, state, line, column, text, room, look, spans, placing):
     for cluster, clusterWidth in textCells(text):
         cells.append((total, cluster, clusterWidth))
         total += clusterWidth
-    limit = room if total <= room else room - 1
+    ## what the window shows of the line: from its first cell in view, or from the one
+    ## after the mark of what stands to its left, to its last, or to the one ahead of the
+    ## mark of a line that is cut
+    first = viewLeft + 1 if viewLeft else 0
+    limit = viewLeft + (room if total - viewLeft <= room else room - 1)
     for start, count, look in spans:
-        part = "".join(cluster for at, cluster, clusterWidth in cells if start <= at and at + clusterWidth <= min(start + count, limit))
-        if part:
-            surface.put(line, column + start, part, look)
+        shown = [(at, cluster) for at, cluster, clusterWidth in cells
+                 if max(start, first) <= at and at + clusterWidth <= min(start + count, limit)]
+        if shown:
+            surface.put(line, column + shown[0][0] - viewLeft, "".join(cluster for at, cluster in shown), look)
 
 
 ## The body of a window that shows lines: what is selected in the list. Its head, which
@@ -6304,6 +6574,7 @@ def drawLinesBody(surface, state, layout, box):
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
     placing = placedShown(state)
+    panOf(state, room)
     for offset in range(headHeight):
         putLooked(surface, state, top + offset, column, state.view["head"][offset], room, PLAIN, (), placing)
     scrollView(state, contentHeight - headHeight, 0)
@@ -6314,7 +6585,7 @@ def drawLinesBody(surface, state, layout, box):
         surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)
     if not said and contentHeight < layout["viewHeight"]:
         surface.put(top + contentHeight, column, cutToCells(itemKeysText(state), room), BOLD)
-    return None
+    return (len(state.view["lines"]), state.view["top"], contentHeight - headHeight)
 
 
 ## The body of a window that shows rows: the level of the list, its selection in the look
@@ -6355,8 +6626,8 @@ def drawWindow(surface, state, layout, window):
     rows = box[3] - 2
     if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
         ## the scroll bar: its upper half pages up, its lower half down
-        spot(state, box[0] + box[2] - 1, box[1] + 1, 1, rows // 2, ("bar", -1))
-        spot(state, box[0] + box[2] - 1, box[1] + 1 + rows // 2, 1, rows - rows // 2, ("bar", 1))
+        spot(state, box[0] + box[2] - 1, box[1] + 1, 1, rows // 2, ("bar", -1, window["name"]))
+        spot(state, box[0] + box[2] - 1, box[1] + 1 + rows // 2, 1, rows - rows // 2, ("bar", 1, window["name"]))
 
 
 ## The pull-down of the menu that is open, under its name in the menu bar: a frame, its
@@ -6412,7 +6683,7 @@ def drawMenu(surface, state, layout):
 ## is open, drawn over the windows in every style, the status line, and the menu that is open.
 def drawScreen(surface, state):
     columns, lines = surface.size()
-    layout = layoutOf(columns, lines)
+    layout = layoutOf(columns, lines, state.split)
     surface.clear()
     surface.cursor(None, None)
     state.spots = []
@@ -6443,6 +6714,12 @@ def drawScreen(surface, state):
             surface.put(line, column, MARKS["shade"] * (columns - column), DESKTOP)
     for window in WINDOWS:
         drawWindow(surface, state, layout, window)
+    ## the border between the windows, which the mouse takes hold of: the left border of
+    ## the list, shown in another look while it is held
+    spot(state, layout["listLeft"], 1, 1, lines - 2, ("split",))
+    if state.splitHeld is not None:
+        for line in range(2, lines - 2):
+            surface.put(line, layout["listLeft"], MARKS["frame"][3], REVERSE)
     if state.line is not None:
         ## the line to type in, over the bottom border of the left window: what it asks for,
         ## and the field with what was typed, its end in view
@@ -6466,8 +6743,9 @@ def drawScreen(surface, state):
 ## or None where it is too small to draw.
 def sizeTaken(surface, state):
     columns, lines = surface.size()
-    layout = layoutOf(columns, lines)
-    state.viewWidth = layout["viewWidth"] if layout else 0
+    layout = layoutOf(columns, lines, state.split)
+    ## lines that are not wrapped are set out wide, and the window shows a part of them
+    state.viewWidth = (layout["viewWidth"] if state.wrap else max(layout["viewWidth"], UNWRAPPED_WIDTH)) if layout else 0
     state.viewHeight = layout["viewHeight"] if layout else 0
     return layout
 
@@ -6481,6 +6759,9 @@ def screenTurn(surface, state, reader, now, key):
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now
     handleKey(state, key, layout)
+    if key is not None:
+        ## a key may have moved the split, or changed how the lines of the left window are set out
+        sizeTaken(surface, state)
     if state.child is not None:
         ## the terminal is another's until that ends: its size is taken again after it
         runChild(surface, state)
