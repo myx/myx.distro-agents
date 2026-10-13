@@ -715,6 +715,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `stop.left`: the next `TaskStop` or `--manager-session-kill` of that run ends what the file names, an
   entry counting only while its pid is still the process that began then; the file is removed when
   nothing of it is left. `TaskStop` with force now ends a started process that ignores the polite end.
+  Neither a stop nor a kill ever reaches a session's control thread: it is no child of a run, and walking
+  from a run's own processes never finds it. `AgentsSessionControlStopKillCheck` is the test.
 - **`--manager-team-member-list` and `--manager-team-member-read <team-member>`**: the list has one row
   per member -- its mark, names, alias, kind, workspace, where it is set up, its status, and whether a
   run of it is alive, a member set up only in another workspace of this machine included; the read adds
@@ -919,7 +921,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the shell at its own close, or else by the advance pass, never both -- or, for a death, by the control
   thread of its session, which then holds that run from the advance pass while it lives. A record that
   carries `death-told` is told by no other closer. `AgentsSpawnEndNoticeCheck` is
-  its test.
+  its test. Once a death is answered, six more lines of the same template say what was carried out --
+  `death-resumed`, `death-fresh`, `death-new-process`, `death-closed`, `death-killed`, `death-failed` --
+  posted by the control thread's own call, in the thread of the question and in the thread of the
+  session that requested the run.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -1056,7 +1061,14 @@ contracts are here.
   conditions holds (no process runs as it; its record still says `spawn-started`; it carries no
   `killed-by`/`killed-at`; its supervising shell reads `gone`, or `unknown` for at least the closing
   seconds; a second look agrees) -- each death is then told and asked apart from the tick.
-  `AgentsSessionControlDeathCheck` is the test.
+  `AgentsSessionControlDeathCheck` is the test. The `--death` call also does what is due about one
+  death already told and asked, one thing a call: it reads the thread of its question, every
+  `SESSION_CONTROL_ANSWER_READ_SECONDS` (default 60), and carries out the answer once one comes, started
+  with the signals the thread ignores at their defaults. `control/` also holds `post.<run id>.sent`; a
+  line of `control/dead` gains `answer=<option> answered=<moment>`, `failed=<moment>`, and
+  `settled=<moment> how=resume|fresh|close|kill|withdrawn`. A question is recorded with
+  `question-key: death:<run id>` and is asked once, whatever ends the post that asks it.
+  `AgentsSessionControlDeathAnswerCheck` and `AgentsSessionControlStopKillCheck` are its tests.
 
 ## 13. The `myx.distro` MCP server
 
@@ -1427,8 +1439,11 @@ contracts are here.
   return moves it to running, the same session, with comments; reject moves it to pending, for a fresh
   session. A dead run's own control thread asks its item's `review-by` a decision instead, kind
   `decision`, options `resume`, `fresh`, `close` and `kill`; where no reviewer is set there is no
-  question, and the record is simply closed. Until the tasks that read the answer are live, an answer
-  changes nothing by itself.
+  question, and the record is simply closed. The answer is carried out by the review's own operations:
+  `resume` and `fresh` by `--intern-op-review-return` (`AgentsReviewRestart`; `fresh` sets
+  `MDAT_REVIEW_RESTART_FRESH` to start a new process on purpose, taken out of the environment there),
+  `close` by `--intern-op-review-accept`, `kill` by `--manager-session-kill`; nothing is started while a
+  process still runs as the run it would replace.
 - **The approval cascade** (`AgentsToolsApprovalCascade`, `AgentsTools.ApprovalCascade.include`) fires
   when an `approval-*` arrives in `board-processed` carrying `approved-by` and `approved-at`. Each `blocks`
   item takes those values as `default` ops; a stamped `board-blocked` item whose every `blocked-by` is
@@ -1979,7 +1994,9 @@ op's own option arm.
 - **Review** (`AgentsTools.ReviewFlow.include`): only a `running` item enters `review` (handback, child
   ended without handback, `--wait` pass ended, `--member-review-request`). The review limit
   (`REVIEW_WAIT_LIMIT`, default 3600 s) is enforced by `Wait` itself, returning `DISMISSED`, so it needs
-  no main loop. Verdicts `--member-review-accept|return|reject|follow-up` (`--intern-op-review-*`); a
+  no main loop. It does not run while a question about the death of a run stands open in the session of
+  the waiting run (`AgentsReviewWaitLeft` asks `AgentsToolsSessionControlDeathQuestion`), and counts
+  again from that question's close. Verdicts `--member-review-accept|return|reject|follow-up` (`--intern-op-review-*`); a
   return restarts the session through the proxy's join path. Endings (`archived`, `trashed`,
   `shutdown`, `taskstop`, `review-wait-expired`) are recorded as `dismissed:` lines. A parent with no
   thread gets `parent-thread:` written on the child's record. The end of a run is told to the session

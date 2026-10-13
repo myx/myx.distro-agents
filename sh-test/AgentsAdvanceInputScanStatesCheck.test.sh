@@ -128,7 +128,15 @@ rigScan(){ ## result file -- one --magic-advance-input-scan pass
 }
 rigSnap(){ ## rig name -- every file of that rig's workspace and data root with its checksum, one line each
 	## But the folder control/ of a session: it is its control thread's own, which a scan starts and which writes on between two scans (AgentsSessionControlScanCheck holds what a scan does there).
-	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' | LC_ALL=C sort | while IFS= read -r snapFile ; do printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ; done )
+	## And, of the sessions registry, the two columns that store what that thread wrote there: session-state and session-state-at, the fifteenth and the sixteenth of a row. A thread a scan started writes the state
+	## of its session a moment after that scan, and whether that lands before the scan's own last rebuild of the registry is the load's, not the scan's. Every other column of every row stays in the snapshot,
+	## and every other file: what a second pass itself adds, drops or changes is still found (the two control rows after the first "a second pass changes nothing").
+	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' | LC_ALL=C sort | while IFS= read -r snapFile ; do
+		case "$snapFile" in
+			*/spawned-sessions.registry) printf '%s %s\n' "$snapFile" "$( LC_ALL=C awk 'NF >= 16 { $15 = "" ; $16 = "" } { print }' "$snapFile" | cksum )" ;;
+			*) printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ;;
+		esac
+	done )
 }
 rigSame(){ ## file, file -- same or different
 	cmp -s "$1" "$2" && printf same || printf different
@@ -283,6 +291,17 @@ rigCheck "control: the review digest row of a review item is there"     "$( rigH
 rigCheck "control: the spawned sessions heading is there"               "$( rigHasLine "$rigTmp/b1.s1" '## spawned sessions' )" yes
 echo "   second pass and the coordinator's own move"
 rigCheck "a second pass changes nothing"                                "$( rigSame "$rigTmp/b1.snap1" "$rigTmp/b1.snap2" )" same
+## The snapshot is not blind to the registry: a rig of two files, its registry one row of sixteen columns.
+mkdir -p "$rigTmp/snapctl/ws/.local/agents" "$rigTmp/snapctl/data"
+rigSnapRow(){ ## status, session-state, session-state-at -- the one row of that registry
+	printf 'rig-box rig-sess none rig-host keeper-rig %s 0 rig-run - - rigws 2026-10-13_09:00_+0300 - - %s %s\n' "$1" "$2" "$3" > "$rigTmp/snapctl/ws/.local/agents/spawned-sessions.registry"
+}
+rigSnapRow spawn-started - - ; rigSnap snapctl > "$rigTmp/snapctl.a"
+rigSnapRow spawn-started running 2026-10-13_09:01_+0300 ; rigSnap snapctl > "$rigTmp/snapctl.b"
+rigSnapRow spawn-ended-without-close running 2026-10-13_09:01_+0300 ; rigSnap snapctl > "$rigTmp/snapctl.c"
+: > "$rigTmp/snapctl/data/added-by-a-pass" ; rigSnap snapctl > "$rigTmp/snapctl.d"
+rigCheck "control: the state a control thread wrote, stored in the last two columns of a row, is all the snapshot leaves out of the registry" "$( rigSame "$rigTmp/snapctl.a" "$rigTmp/snapctl.b" )" same
+rigCheck "control: a row whose status a pass changed reads different, and so does a file a pass added" "$( rigSame "$rigTmp/snapctl.b" "$rigTmp/snapctl.c" ):$( rigSame "$rigTmp/snapctl.c" "$rigTmp/snapctl.d" )" different:different
 rigCheck "and prints no section either"                                 "$( rigHeadings "$rigTmp/b1.s2" )" 0
 rigCheck "an aged advance.routine item is still advance.routine after the second scan" "$( rigHeader "$rigD/board/review/task-rig-rv-advr.md" review-by )" advance.routine
 rigCheck "control: an aged item with an unregistered session id was rewritten, in the same two scans" "$( rigHeader "$rigD/board/review/task-rig-rv-aged.md" review-by )" magic-coordinator
