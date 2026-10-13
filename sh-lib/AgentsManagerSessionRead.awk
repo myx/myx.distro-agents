@@ -10,6 +10,9 @@
 ##                        AgentsToolsRegistryMeasureRows): where each run's record lies, its threads
 ##   MDAT_MANAGER_STORES  the spawn ids that have a store folder under sessions/, a line each
 ##   MDAT_MANAGER_RUN     the one run to show, by its own id; empty for every run of the session
+##   MDAT_MANAGER_CONTROL the control thread of the session where it left a pid file or a lock,
+##                        `<session-id> <alive|gone> <pid>`, as it was measured for this call
+##                        (AgentsToolsManagerSessionControls); empty for a session with none
 ##
 ## What a registry holds is taken from the rows given: nothing here measures, and no record is
 ## read for a column. A run's record is read for its headers, each as it stands, and its store,
@@ -18,7 +21,9 @@
 ## records and the stores of the runs given are opened, never another session's.
 ##
 ## Printed, TAB between the fields: the `session` row as given; one `dispatch` row, what the
-## session was started for, from its founder's record; then for each run its `run` row as
+## session was started for, from its founder's record; one `control` row, the three last
+## fields of the `session` row, the state its control thread stored, when, and whether that
+## thread lives, and the process it is said of; then for each run its `run` row as
 ## given, a `header` row for every header of its record, and one `store` row. A run with no
 ## spawn id has no record to find by name and no store: its `run` row alone.
 ##
@@ -139,7 +144,8 @@ BEGIN {
 	## 9 and 10, the founder's own first.
 	rowTotal = split(ENVIRON["MDAT_MANAGER_ROWS"], rowLines, "\n") ;
 	for (rowAt = 1 ; rowAt <= rowTotal ; rowAt++) {
-		if (split(rowLines[rowAt], rowWords, " ") != 16) continue ;
+		rowWidth = split(rowLines[rowAt], rowWords, " ") ;
+		if (rowWidth != 16 && rowWidth != 18) continue ;
 		if (rowWords[8] != "-" && !( rowWords[8] in trackingOf )) trackingOf[rowWords[8]] = rowWords[1] ;
 		if (rowWords[8] != "-" && rowWords[8] == rowWords[2]) { if (rowWords[9] != "-") trackingThread = rowWords[9] ; if (rowWords[10] != "-") sessionThread = rowWords[10] ; }
 		if (anyTracking == "" && rowWords[9] != "-") anyTracking = rowWords[9] ;
@@ -149,6 +155,10 @@ BEGIN {
 	if (sessionThread == "") sessionThread = anySession ;
 	storeTotal = split(ENVIRON["MDAT_MANAGER_STORES"], storeIds, "\n") ;
 	for (storeAt = 1 ; storeAt <= storeTotal ; storeAt++) { if (storeIds[storeAt] != "") storeSeen[storeIds[storeAt]] = 1 ; }
+	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
+	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
+		if (split(controlLines[controlAt], controlWords, " ") >= 3) controlPid[controlWords[1]] = controlWords[3] ;
+	}
 }
 
 ## The pending-replies registry: key source session-id owner status blocked-on channel. An
@@ -163,7 +173,11 @@ FILENAME == ARGV[1] {
 
 {
 	split($0, listedWords, "\t") ;
-	if (listedWords[1] == "session") { sessionRow = $0 ; sessionId = listedWords[2] ; next ; }
+	if (listedWords[1] == "session") {
+		sessionRow = $0 ; sessionId = listedWords[2] ;
+		sessionStored = ( listedWords[9] == "" ? "-" : listedWords[9] ) ; sessionStoredAt = ( listedWords[10] == "" ? "-" : listedWords[10] ) ; sessionControl = ( listedWords[11] == "" ? "none" : listedWords[11] ) ;
+		next ;
+	}
 	if (listedWords[1] != "run") next ;
 	runTotal++ ;
 	runRow[runTotal] = $0 ; runSpawn[runTotal] = listedWords[3] ; runMember[runTotal] = listedWords[4] ;
@@ -185,6 +199,8 @@ END {
 	## A session a client founded has no record of its founder, and says so.
 	if (founderAt > 0) print "dispatch", sessionId, "record", runMember[founderAt], columnText(recordHeader(founderAt, "routine")), columnText(recordHeader(founderAt, "spawns")), ( sessionThread == "" ? "-" : sessionThread ), ( trackingThread == "" ? "-" : trackingThread ), exactText(recordHeader(founderAt, "description")) ;
 	else print "dispatch", sessionId, "no-record", "-", "-", "-", ( sessionThread == "" ? "-" : sessionThread ), ( trackingThread == "" ? "-" : trackingThread ), "-" ;
+	## The control thread of the session: what the `session` row says of it, and its process.
+	print "control", sessionId, sessionStored, sessionStoredAt, sessionControl, ( sessionControl != "none" && ( sessionId in controlPid ) ? controlPid[sessionId] : "-" ) ;
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		if (onlyRun != "" && runSpawn[runAt] != onlyRun) continue ;
 		print runRow[runAt] ;

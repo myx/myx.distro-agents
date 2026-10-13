@@ -17,7 +17,7 @@
 ##       environment MDAT_MANAGER_STORE is `<store>/` and MDAT_MANAGER_ID the id asked for;
 ##       -v ownOnly=1 takes the id as a run's own alone. Prints `fresh` where the registry
 ##       has every folder the store has and no other, each with as many record rows as the
-##       folder has record files, and every row of fourteen columns; `stale` otherwise. Then,
+##       folder has record files, and every row of sixteen columns; `stale` otherwise. Then,
 ##       where a row carries the id: the run chosen (`-` for every run of the session), the
 ##       session, and the rows of that session as they stand in the file.
 ##   -v scopeMode=asks   the pending-replies registry, and the listing of <store>/*.md, the
@@ -43,7 +43,7 @@ scopeMode == "runs" && FILENAME == ARGV[1] {
 	if (NF < 11) next ;
 	rowText[++rowTotal] = $0 ;
 	rowKey[rowTotal] = ( $2 == "-" ? $1 : $2 ) "" ;
-	if (NF < 14) rowsOld = 1 ;
+	if (NF < 16) rowsOld = 1 ;
 	heldFolder[$1] = 1 ;
 	## The row of an empty sandbox is a folder with no record.
 	if (!( $6 == "no-session-record" && $2 == "-" && $8 == "-" )) heldRecords[$1]++ ;

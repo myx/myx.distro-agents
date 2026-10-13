@@ -867,7 +867,10 @@ DagcRunClaudeStreaming(){
 	## the otherwise-harmless `exec 3>&-` below -- so there is no window in
 	## which a TERM/INT arriving here would fall through to bash's default
 	## disposition and leave $claudePid running unsignaled.
-	trap 'kill -TERM "$claudePid" 2>/dev/null' TERM INT
+	## It signals the CLI only while that one is this script's to wait for: once it
+	## has been waited for, the variable is emptied below, since the number is then
+	## the system's to give again while this script may still wait for its formatter.
+	trap '[ -n "$claudePid" ] && kill -TERM "$claudePid" 2>/dev/null' TERM INT
 	exec 3>&-
 	claudeStatus=0
 	wait "$claudePid" || claudeStatus=$?
@@ -875,6 +878,7 @@ DagcRunClaudeStreaming(){
 		claudeStatus=0
 		wait "$claudePid" || claudeStatus=$?
 	done
+	claudePid=""
 	wait "$awkPid" 2>/dev/null || :
 	exit "$claudeStatus"
 }

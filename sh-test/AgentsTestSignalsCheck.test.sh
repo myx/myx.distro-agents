@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the one way a check of sh-test signals a process it kept for later
-## (sh-test/check-fixtures/rig-processes.include.test.sh), and the guard over every other signal of sh-test.
+## (sh-test/check-fixtures/rig-processes.include.test.sh), and the guard over every other signal of sh-test and
+## over every signal of the tooling itself (sh-lib, sh-scripts, builders).
 ## A process id is a number the system gives again, on a busy host within about a minute: a check that keeps the
 ## pid of a stand-in and signals it minutes later, in a cleanup or in a trap, signals whoever has that number then.
 ## Held here:
@@ -19,8 +20,17 @@
 ##      one is added to the list only with the reason its target cannot be gone and its number given again before
 ##      the signal. Not read as a signal: a probe (`kill -0`, perl `kill( 0, ... )`), which sends nothing; a
 ##      comment line; the word inside other text (the manager's kill key and operation, a row it prints).
+##   3. THE SAME GUARD OVER THE TOOLING. Every signal a file of sh-lib, sh-scripts or builders sends is on a list of
+##      its own, each with where its target comes from and why that is the process meant, or, where it is not
+##      shown to be, that it is LEFT so and why: a pid kept in a variable or a file and signalled later by the
+##      number alone is NOT SAFE, and the list says so of each that stands. A new signal in the tooling fails this
+##      check until it is listed; one sent after a wait keeps its process by when it began
+##      (AgentsToolsRegistryProcessesBegan), as the watchdogs do (AgentsHarnessHookWatchdogCheck,
+##      AgentsToolingWatchdogsCheck, AgentsMcpCallWatchdogCheck), and one read from a file is kept there with when
+##      it began (AgentsConsoleSessionSignalsCheck). The help texts (*.md) send nothing and are not read.
 ## Red: without the start time in the note (a helper that signals any pid it once noted), section 1 fails on the
-## number another process has taken; a `kill "$somePid"` added to any file of sh-test fails section 2.
+## number another process has taken; a `kill "$somePid"` added to any file of sh-test fails section 2, and one
+## added to any file of sh-lib fails section 3.
 ## Offline: stand-ins of this check alone (sleep, a shell that waits), all ended at its end; nothing is requested.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -199,7 +209,13 @@ echo "-- 2. the guard: every signal of sh-test outside the helper is on the list
 rigReasons(){
 	printf '%s\n' \
 		'@at-once|sent in the statement after its target was started, or was read from the process list or from the live state of a run the rig holds open: no time for the number to come round' \
-		'@probed|a job of this shell, in a group the rig made itself (set -m) where a group is signalled: a probe in the statement before, and at each turn of its wait since it was started, found it running; where a second signal follows it comes a second or two later, to what the first left' \
+		'@probed|a job of this shell, in a group it made itself (set -m) where a group is signalled: a probe in the statement before, and at each turn of its wait since it was started, found it running; where a second signal follows it comes a few seconds later, to what the first left' \
+		'@still-itself|after a wait, and only while its pid is still the process that began when its watchdog started, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal, so the signal without it is not on the list' \
+		'@file-start|a pid kept in a file with when its process began, the two written together by one rename as it was started, and signalled only while that pid is still the process that began then (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal, so the signal without it is not on the list, and a file that holds no start is not signalled by the number alone' \
+		'@own-group|a process group by its number, only where its leader is shown to be still the process that was kept as it was started (AgentsToolsRegistryGroupBegan, AgentsToolsRegistryProcessesBegan): the line of the list holds that showing with the signal, so the signal without it is not on the list' \
+		'@walk-now|to what the walk of a run gave at that moment (AgentsToolsRegistryRunProcesses), at once; the second signal only to what is still the process it was (AgentsToolsRegistryRunLeft)' \
+		'@waited-on|in a trap, to the one process this shell started and waits on then: the variable is empty before that process is started, and is emptied, or the trap taken off, once it has been waited for' \
+		'@live-sleep|the one sleep this shell waits on at that very moment' \
 		'@running-job|only while the shell lists it among its running jobs (jobs -pr), which no process of another has ever been, with what is under it read at that moment' \
 		'@kept-start|kept with when it began and signalled only while its pid is still that process: the keep this check made for itself before the shared helper' \
 		'@own-watch|the watch of this very call: it lives until the call returns and a second at most beyond, and is signalled in the statement after the call returned' \
@@ -208,7 +224,7 @@ rigReasons(){
 		'@own-path|a sweep by pattern that only the processes of this rig can match: the pattern is the path of a file in the temp folder this run made for itself (mktemp), which only the wait this rig started, and the reader of this very sweep, carry on their command lines; reached only when that wait did not come back' \
 		'@handed-on|no signal of the check: a stand-in for the `kill -0` of the tooling under test, which hands every other call of the tooling on as it came' \
 		'@text|no signal: the word is text, a row the kill operation of the manager prints, the form of such a row, or a pattern the check reads the code of the tooling with' \
-		'@kept-copy|NOT SAFE, AND LEFT: the kept copy of the previous hooks file, which its diff check holds as it was; its watchdog signals the pid of a hook sixty seconds later, as the present sh-lib/AgentsHarnessHooks.sh does, and both are for the owner of the tooling'
+		'@kept-copy|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the kept copy of the previous hooks file, which its diff check holds as it was; its watchdog signals the pid of a hook sixty seconds later by the number alone, which the present sh-lib/AgentsHarnessHooks.sh no longer does (AgentsHarnessHookWatchdogCheck)'
 }
 ## THE LIST. One line a signal: file, under sh-test|how many times it stands there|the text of the signal|its reason,
 ## by name (@...) or written out. The longest text of a file is taken first.
@@ -216,6 +232,11 @@ rigList(){
 	printf '%s\n' \
 		'AgentsAdvanceInputScanStatesCheck.test.sh|1|kill -TERM "$( cat "$rigTmp/b10/console.pid" )"|read from the pid file its stand-in console wrote seconds before, in the statement after the tooling'"'"'s own reading found that pid and its start to be the process the record names; the signal is what the check asserts on' \
 		'AgentsAdvanceInputScanStatesCheck.test.sh|1|kill "$rigMcpPid"|@probed' \
+		'AgentsConsoleSessionSignalsCheck.test.sh|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@text' \
+		'AgentsConsoleStreamTrapCheck.test.sh|1|kill(){|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
+		'AgentsConsoleStreamTrapCheck.test.sh|2|builtin kill "$@"|no signal of the check: the stand-in of the rig for the `kill` of the console under test, which keeps what is asked of it, hands a probe on as it came, and a signal only while the stub CLI of the rig has not ended' \
+		'AgentsConsoleStreamTrapCheck.test.sh|1|builtin kill -TERM "$$"|@self' \
+		'AgentsConsoleStreamTrapCheck.test.sh|1|kill -TERM \"\$claudePid\"|@text' \
 		'AgentsEscalationVerdictFirstLineCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'AgentsEscalationVerdictFirstLineCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
 		'AgentsHarnessAskCheck.test.sh|1|kill -TERM -- "-$askPid"|@probed' \
@@ -243,6 +264,7 @@ rigList(){
 		'AgentsHarnessAskVerdictWordsCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
 		'AgentsHarnessAskVerdictWordsCheck.test.sh|1|kill -KILL -- "-$callPid"|@probed' \
 		'AgentsHarnessEscalationEdgeCheck.test.sh|2|kill "$rigGonePid"|@at-once' \
+		'AgentsHarnessHookWatchdogCheck.test.sh|1|kill -TERM "$hookRunPid"|@text' \
 		'AgentsHarnessPermissionCheck.test.sh|1|kill -TERM -- "-$rigAskPid"|@probed' \
 		'AgentsHarnessPermissionCheck.test.sh|1|kill -KILL -- "-$rigAskPid"|@probed' \
 		'AgentsHarnessPermissionFolderCheck.test.sh|1|kill -TERM -- "-$callPid"|@probed' \
@@ -301,6 +323,54 @@ rigList(){
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookRunPid"|@kept-copy' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookWatchPid"|@kept-copy' \
 		'check-fixtures/manager-screen.driver.test.py|1|process.kill()|@uncollected'
+}
+rigToolingList(){
+	printf '%s\n' \
+		'sh-lib/AgentsConsoleShellScript.template.sh|1|[ -n "$claudePid" ] && kill -TERM "$claudePid"|@waited-on' \
+		'sh-lib/AgentsHarnessHooks.sh|1|= "$hookRunBegan" ] && kill -TERM "$hookRunPid"|@still-itself' \
+		'sh-lib/AgentsHarnessHooks.sh|1|kill -TERM "$hookWatchPid"|@own-watch' \
+		'sh-lib/AgentsHarnessMcpClient.sh|1|= "$runBegan" ] && kill -TERM "$runPid"|@still-itself' \
+		'sh-lib/AgentsHarnessMcpClient.sh|1|kill -TERM "$runWatchPid"|@own-watch' \
+		'sh-lib/AgentsManagerScreen.py|1|kill the session, %d agent%s? type %s:|@text' \
+		'sh-lib/AgentsManagerScreen.py|1|kill the agent %s? type %s:|@text' \
+		'sh-lib/AgentsManagerScreen.py|1|kill asked of the tooling: the %s %s|@text' \
+		'sh-lib/AgentsManagerScreen.py|1|call["process"].terminate()|@uncollected' \
+		'sh-lib/AgentsManagerScreen.py|1|call["process"].kill()|@uncollected' \
+		'sh-lib/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
+		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null'"'"' INT TERM|@waited-on' \
+		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid"|@probed' \
+		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -KILL -- "-$mainLoopSpawnPid"|@probed' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill "$beatSleep"|@live-sleep' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$3"|@probed' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill "$!"|@live-sleep' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -KILL -- "-$( AgentsMcpJobPid "$3" )"|the deadline of a job runs inside that job'"'"'s own process group, so the group it signals cannot have been given to another while it waits' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2"|@own-group' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$watchBegan" ] ; then kill -KILL -- "-$2"|@own-group' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -KILL $watchLeft|the hard end of a call whose leader the polite one has ended: the group of that number is no longer signalled, and this goes, at once, to what AgentsToolsRegistryGroupLeft gave at that moment, the members kept while the leader lived that are still the processes they were and what those started since' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -TERM "$warnRetryPid"|@still-itself' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -KILL "$warnRetryPid"|@still-itself' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchSleep"|@live-sleep' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchPid"|@own-watch' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$1" ] && kill "-${2:-TERM}" "${1%% *}"|a helper of a run, the reader of its log, the poster of its feed or the poller of its launch, kept with when it began as it was started and signalled only while its pid is still that process, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan): the line of the list holds that comparison with the signal' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
+		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
+		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
+		'sh-lib/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \
+		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
+		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
+		'sh-lib/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
+		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
+		'sh-lib/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
+		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \
+		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$afterPid"|after a wait, to the processes read at that moment by the one rule a run is recognised by: no pid is kept across the wait' \
+		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$stopPid"|@walk-now' \
+		'sh-lib/AgentsUniversalHarness.sh|1|kill -KILL "$stopPid"|@walk-now'
 }
 ## THE READER. A signal is the word of a command that sends one, where it stands as a command: first of its line,
 ## after what ends or opens a command, or after a word that takes a command; or a call of that name in perl or
@@ -373,7 +443,8 @@ rigGuardOut="$( cd "$rigTest" && rigGuard "$rigTmp/list" $( cat "$rigTmp/files" 
 rigAssert "every signal of sh-test outside the helper is on the list, and every line of the list stands in the code as often as it says (a signal to a pid that was kept goes through the helper, or is listed with the reason its target cannot be gone and its number given again)" "${rigGuardOut:-none}" "none"
 rigAssert "every line of the list gives its reason: one of the named ones, or one written out" \
 	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/list" )" "$( wc -l < "$rigTmp/list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
-rigAssert "and every named reason is used, and says why" "$( LC_ALL=C awk -F'|' 'FNR == NR { reasonUsed[$4] = 1 ; next ; } { if ( ! ( $1 in reasonUsed ) || length( $2 ) < 20 ) { bad++ ; } } END { print bad + 0 ; }' "$rigTmp/list" "$rigTmp/reasons" )" 0
+rigToolingList > "$rigTmp/tooling.list"
+rigAssert "and every named reason is used, by the list of the checks or by the list of the tooling below, and says why" "$( cat "$rigTmp/list" "$rigTmp/tooling.list" | LC_ALL=C awk -F'|' 'FILENAME == "-" { reasonUsed[$4] = 1 ; next ; } { if ( ! ( $1 in reasonUsed ) || length( $2 ) < 20 ) { bad++ ; } } END { print bad + 0 ; }' - "$rigTmp/reasons" )" 0
 ## CONTROL LINES: the reader does find a new signal, in each shape, takes a listed one, and reads no probe, no comment, no other text
 mkdir -p "$rigTmp/probe/check-fixtures"
 printf '%s\n' '	## a comment that says kill "$probePid" is not read' \
@@ -399,9 +470,23 @@ rigAssert "control: with each of them listed nothing is found, and a line of the
 ## END OF CONTROL LINES
 ## This check itself: what it sends goes through the helper, and nothing else does. Its list, its reasons and its
 ## control lines are texts of signals and are taken out before it is read.
-LC_ALL=C sed -e '/^rigList(){$/,/^}$/d' -e '/^rigReasons(){$/,/^}$/d' -e '/^## CONTROL LINES/,/^## END OF CONTROL LINES/d' "$0" > "$rigTmp/Self.test.sh"
+LC_ALL=C sed -e '/^rigList(){$/,/^}$/d' -e '/^rigToolingList(){$/,/^}$/d' -e '/^rigReasons(){$/,/^}$/d' -e '/^## CONTROL LINES/,/^## END OF CONTROL LINES/d' "$0" > "$rigTmp/Self.test.sh"
 printf '%s\n' 'Self.test.sh|0|nothing of this check is listed|whatever it signals goes through the helper' > "$rigTmp/self.list"
 rigAssert "this check itself sends no signal outside the helper" "$( cd "$rigTmp" && rigGuard "$rigTmp/self.list" Self.test.sh )$( LC_ALL=C grep -c 'rigProcSignal' "$rigTmp/Self.test.sh" | LC_ALL=C awk '{ print ( $1 > 5 ) ? "" : " and too few through the helper: " $1 ; }' )" ""
+
+echo "-- 3. the same guard over the tooling: every signal of sh-lib, sh-scripts and builders is on its own list --"
+( cd "$rigPackage" && find sh-lib sh-scripts builders -type f ! -name '*.md' | LC_ALL=C sort ) > "$rigTmp/tooling.files"
+rigAssert "control: the files of the tooling are read, the harness, the spawn proxy, the console template and the builders among them, and none has a space in its name" \
+	"$( [ "$( wc -l < "$rigTmp/tooling.files" | LC_ALL=C tr -d ' ' )" -ge 150 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'sh-lib/AgentsUniversalHarness.sh' -e 'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include' -e 'sh-lib/AgentsConsoleShellScript.template.sh' -e 'sh-scripts/DistroAgentsTools.fn.sh' -e 'builders/source-prepare/1201-agents-indices.sh' "$rigTmp/tooling.files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/tooling.files" || : )" "many 5 0"
+rigToolingOut="$( cd "$rigPackage" && rigGuard "$rigTmp/tooling.list" $( cat "$rigTmp/tooling.files" ) )"
+rigAssert "every signal of the tooling is on its list, and every line of the list stands in the code as often as it says (a signal sent after a wait keeps its process by when it began, or is listed with where its target comes from)" "${rigToolingOut:-none}" "none"
+rigAssert "every line of that list gives its reason: one of the named ones, or one written out" \
+	"$( LC_ALL=C awk -F'|' 'FNR == NR { reasonNamed[$1] = 1 ; next ; } { if ( substr( $4, 1, 1 ) == "@" ? ! ( $4 in reasonNamed ) : length( $4 ) < 20 ) { bad++ ; } } END { print FNR + 0 " lines, " bad + 0 " without a reason" ; }' "$rigTmp/reasons" "$rigTmp/tooling.list" )" "$( wc -l < "$rigTmp/tooling.list" | LC_ALL=C tr -d ' ' ) lines, 0 without a reason"
+## What is left unsafe in the tooling is said so on its line, and counted here: a place that is made safe changes its
+## text, so its line and this count go with it, and a new one cannot be added quietly as one more of them.
+rigAssert "what is left by the number alone says so: the places not safe, and those not proved, by their lines and how often they stand" \
+	"$( LC_ALL=C awk -F'|' 'index( $4, "NOT SAFE, LEFT: " ) == 1 { unsafeLines++ ; unsafePlaces += $2 ; } index( $4, "NOT PROVED, LEFT: " ) == 1 { unprovedLines++ ; unprovedPlaces += $2 ; } END { print "not safe " unsafeLines + 0 " lines " unsafePlaces + 0 " places, not proved " unprovedLines + 0 " lines " unprovedPlaces + 0 " places" ; }' "$rigTmp/tooling.list" )" \
+	"not safe 0 lines 0 places, not proved 0 lines 0 places"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ TEST SIGNALS CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

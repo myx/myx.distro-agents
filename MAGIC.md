@@ -83,7 +83,8 @@ that the code and docs do not readily tell you.
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
   `--intern-artifact-*` is one, approved for the Artifact publish (`AgentsTools.InternArtifact.include`).
   `--intern-manager` is another, approved for the console's manager screen: no argument, runs
-  `sh-lib/AgentsManagerScreen.py` with Python.
+  `sh-lib/AgentsManagerScreen.py` with Python. `--intern-session-control` is a third, approved for the
+  control thread of a session (`AgentsTools.InternSessionControl.include`).
 - **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
   even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
   for any member, the tooling checking access on its arguments; `--magic-*` for the coordinator only;
@@ -205,7 +206,10 @@ that the code and docs do not readily tell you.
 - **After `curl … | while read`, test `${PIPESTATUS[0]}`**, captured on the next line, not `$?`.
 - **`mkdir` is the lock primitive.** `flock` is not on bare FreeBSD or Darwin.
 - **A spin loop whose counter resets after each sleep is not bounded.**
-- **`kill` a job's process group, not its pid.** Fork under `set -m` and put the whole pipeline in the
+- **`kill` a job's process group, not its pid**, and only while its leader is still the process that was
+  kept as it was started (`AgentsToolsRegistryGroupBegan`); once the leader has ended, what is left is
+  ended one pid at a time (`AgentsToolsRegistryGroupLeft`), never the group by a number that is no
+  longer its own. Fork under `set -m` and put the whole pipeline in the
   backgrounded subshell, or `$!` names the last process while the group id is the first.
 - **`nohup` sets `SIGHUP` to ignored in the child.** Use `SIGUSR1` to signal a holder.
 - **`myx.common lib/catMarkdown` drops `_` everywhere**, backticks included (`ANTHROPIC_API_KEY` prints
@@ -280,7 +284,10 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   scans team-data locations only, plus `spawned/` folders linked to items it deletes. A new per-run
   directory under `.local/agents` needs its own named removal, decided before it is first written.
 - **A console channel dir holds fifo, log, pid and meta only.** `--console-stop` removes it whole. A
-  credential is sourced into the console environment, never staged there.
+  credential is sourced into the console environment, never staged there. `console.pid` and `holder.pid`
+  each hold one line, `<pid> <start>`, written with one rename as the process starts; `--console-stop`
+  and a start over a stale channel signal a process only while its pid is still that process, and a
+  file with no start is not signalled: the operation warns and names the pid.
 - **There is no file-drop queue**, by design. The FIFO plus a log sentinel is the queue for one producer.
   No queue/working/finished protocol exists in the family to follow.
 
@@ -649,9 +656,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
   coworking sessions with their runs, ending with one row of counters. It is the only one of the three
   session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
-  call.
+  call. Each `session` row now ends with three more fields, `<session-state> <session-state-at>
+  <control-thread>`: the stored state beside the one derived at this call, and the thread as `alive`,
+  `gone` or `none`, measured at the call and stored nowhere.
 - **`--manager-session-read --session-id <id> [--run]`** shows one session, or with `--run` one run of
-  it: its rows, its dispatch, each run's record headers and store.
+  it: its rows, its dispatch, each run's record headers and store. It now prints one more row after
+  `dispatch`: `control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`;
+  the stored state is read from the session's own folder at every call.
 - **`--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]`** gives the
   messages and tool use of a session's members as feed rows, newest last, made by the tracking post's
   own renderer, in a rows form that writes no post.
@@ -738,7 +749,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **Ctrl-C stops a run only if the trap chain is unbroken**: the console traps TERM/INT onto claude's pid
   right after capturing it; the spawn proxy's `--wait` traps onto the console; the main loop traps onto
   its pass and sends `kill -TERM -- "-$pid"` to the process group (the real proxy is one pipe deeper).
-  Each layer re-waits after `wait` returns early.
+  Each layer re-waits after `wait` returns early. The console's own trap names claude's pid only until
+  claude has been waited for; the variable is emptied then, and a later TERM signals nobody.
 - **Claude sign-in (claude-native).** The console asks `claude auth status`. Signed in: nothing is
   exported, even with a key configured, because Claude Code prefers a key and would move spawns onto API
   billing. Signed out, `--non-interactive` only: it exports the first configured `ANTHROPIC_API_KEY` or
@@ -814,33 +826,51 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `owner`, `parent-member` (the member whose own call made this spawn), `status`, `started-at`,
   `execution-receipt`, `output-file`, `agent-log-thread`, `cli-asked`
   (the service this one spawn was started on, where one was named for it), `session-thread`,
-  `spawns`/`spawned-by`. Beside it: `event-track.thread` and `session.thread`
+  `spawns`/`spawned-by`, `run-process` (`<pid> <start>`, the process the launch started, replaced by
+  each later launch), `supervisor-process` (`<pid> <start>`, the shell that supervises the run and
+  closes this record: the process the proxy starts for a run that is not waited for, the process the
+  call runs in for a waited one; the handback retry leaves it as it was; kept on the closed record).
+  Beside it: `event-track.thread` and `session.thread`
   (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id. The start post
   names `paying-workspace` and `member-workspace` only where either differs from the workspace the
   session runs from.
 - **Children lists.** The spawn op appends the child's record path to `.local/agents/children/<parent>`.
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
-  there counts as session activity for the advance pass.
+  there counts as session activity for the advance pass. `sessions/<id>/control/` falls under this
+  too: a start of its control thread and a change of its `state` are such activity, a tick is none.
 - **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call, the same
-  rebuild `--make-harness-indices` also runs. Fourteen stored columns now (the first seven unchanged for
-  position readers; `started-at`, `resolved-at` and `session-comment` are the three newest, appended
-  last: a registry may store the date a session started and the date a state was recorded, though
-  liveness itself is still measured live, never stored), plus `live` (checked during the call,
+  rebuild `--make-harness-indices` also runs. Sixteen stored columns now (the first seven unchanged for
+  position readers; `started-at`, `resolved-at` and `session-comment` were the three before these two:
+  `session-state` and `session-state-at`, the word and the date the session's own control thread wrote
+  in `sessions/<id>/control/state`, `-` in both where a session has none or the file names no state,
+  the same two on every row of a session. A caller gets them only by asking for sixteen
+  (`registryColumns=16`, the fourth word `16` of `AgentsToolsRegistryMeasureRows`); one that asks for
+  fourteen or none still gets what it knows. Whether the thread is alive is no column -- a registry may
+  store the date a session started and the date a state was recorded, though liveness itself is still
+  measured live, never stored), plus `live` (checked during the call,
   this host only) and `state` (`running`/`waiting`/`finished`/`unclosed`/`unknown-foreign`). `ListAgents`
   itself still prints exactly what it printed before. `live` is
   told by the spawn id. `waiting` reads the pending-replies registry instead, told by the session: an
   ask counts for the session of the run that asked it, not necessarily the current spawn's own id. Rows are one awk pass
-  (`AgentsRegistryHeaderRows.awk`), never a fork per file; `live` and `state` are derived without a fork
+  (`AgentsRegistryHeaderRows.awk`), the same pass reading each session's state file too, named to it by
+  the shell as a `T` entry -- the awk is never given a path the shell did not find to be a file -- never
+  a fork per file; `live` and `state` are derived without a fork
   per row. Filters (`view`, `session_id`, `state`) are in the tool description.
 - **A run is alive by one rule only, and every reader asks it.** A process of this host runs as a spawn
   when the value of its own `--session-id` or `--resume` argument -- the first of the two on its line --
   is that spawn's id, matched whole; an id standing anywhere else on the line is no run, and neither is
   a command line of the tooling itself (`DistroAgentsTools.fn.sh`, the command or its interpreter's
-  script). A run is alive by its own word this way, or else by the process its record names, while
-  that is still the same process. `TaskOutput`, the sandbox sweep and the ending of a dismissed run all
-  ask this one rule now; no reader keeps a match of its own. A line that only carries a run's id holds
-  no sandbox.
+  script) -- except that a line with an option of the interpreter before the script still reads as a
+  run. The control thread's own line, carrying `--session-id <session>`, is none, so it is never
+  mistaken for the run it watches. A run is alive by its own word this way, or else by the process its
+  record names, while that is still the same process. `TaskOutput`, the sandbox sweep and the ending of
+  a dismissed run all ask this one rule now; no reader keeps a match of its own. A line that only
+  carries a run's id holds no sandbox.
+- **`AgentsToolsRegistryRecordedSupervisor <record>`** (`AgentsTools.Registries.include`) says whether a
+  record's `supervisor-process` still lives: `alive`, `gone` or `unknown`, rc 0 for each -- a record
+  with no such header, of another host, or cut short reads `unknown`, never `gone`. No reader asks it
+  yet. `AgentsSpawnSupervisorRecordCheck` is its test.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -910,7 +940,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 
 ## 12. The main loop and the root harness
 
-`--intern-main-loop` and `--intern-root-harness` have no help; their contracts are here.
+`--intern-main-loop`, `--intern-root-harness` and `--intern-session-control` have no help; their
+contracts are here.
 
 - **`--intern-main-loop (--run|--one)`**, no member argument. Anything else prints syntax and exits 1, so
   a bare call never hangs. `--one` runs the iteration body once, without sleep or backoff state; it is
@@ -945,6 +976,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `--routine`. The brief is the static `root-harness-session-start.prompt-packet.verbatim.md` with an
   `INTERACTION-MODE:` line (and a `ROUTINE:` line) prepended; no templating inside it.
 - **The `🤖 AI service used:` line** is the spawn proxy's, read from the child's `DISTRO_CONSOLE_EXEC=`.
+- **`--intern-session-control (--run|--one) --session-id <id>`** is a plain monitor, one per live
+  session: no agent, no run. It keeps `control/` inside the session's folder: `lock` (a symlink naming
+  `<pid> <start>`), `pid`, `state` and `log`. `state` holds `state:` (`running` or `finished`), then
+  `state-at:` and `reason:`. A second start for the same session is refused while the first lives; a
+  dead thread's lock is taken over by the next start. `TERM` is its only ordered end. A `put-back`
+  re-execs the same thread in place when its own shell would otherwise die under it. The tick interval
+  is `SESSION_CONTROL_TICK_SECONDS` (default 5). Who reads `control/`: the sessions registry stores its
+  `state` at each rebuild, and the list and the read of a session measure the thread itself by its
+  `pid` and `lock` (`AgentsToolsManagerSessionControls`).
 
 ## 13. The `myx.distro` MCP server
 
@@ -972,8 +1012,12 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`$MMDAPP/.local/temp/agent-mcp.$$/`) is removed.
 - **`execute`**: `command` starts, `job` addresses an existing job (read first), so `required` is empty.
   Foreground `timeout` defaults to 600 s, capped at 3600; a bad value takes the default. On expiry the
-  partial output is kept at a named path. `background:true` returns job id, pid and log; `job` polls by
-  byte cursor; `action:"kill"` signals the process group. `rc` is written by the job; no `rc` means
+  partial output is kept at a named path, and the call's process group is ended by `AgentsMcpCallWatch`,
+  only while its leader is still the process that began when the watchdog started.
+  `background:true` returns job id, pid and log; `job` polls by
+  byte cursor; `action:"kill"` signals the job's group only while its leader is still the process
+  `jobs/<id>/pid` names (`<pid> <start>`), and answers `NOT signalled`, as an error, for a file with no
+  start. `rc` is written by the job; no `rc` means
   stopped, never an exit code.
 - **`workspace`** re-runs the call in a fresh process with `MMDAPP` moved and `MDLT_ORIGIN`,
   `MDLT_OPTION`, `MDLC_INMODE` unset, so that workspace resolves its own origin. Per-request isolation is
@@ -994,7 +1038,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The served `Monitor` is this server's own pull twin**, declared beside `execute`, never in
   `harnessToolsJson`. It is `execute`'s job store with the watch contract: stdout to `out`, stderr to
   `err`, whole lines per poll, `timeout_ms` default 300000, cap 1800000, watchdog inside the job's group
-  (TERM, KILL after 5 s). Pull only. Through another server only `execute` is served.
+  (TERM, KILL after 5 s). Its deadline reads the pid through `AgentsMcpJobPid`. Pull only. Through
+  another server only `execute` is served.
 - **The containment check reads the served set from the real `tools/list`** and also finds tools whose
   function runs `eval` or `bash -c` on a caller string, so renaming `command` does not evade it. The
   process-local-handle half is not instrumented.
@@ -1238,7 +1283,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (a symlink in `.local/agents/locks/<cksum>` naming the pid; dead holders broken; 30 busy polls then
   error), taken once for the whole call, list or single. Known limits: hard links break; a kill
   mid-way leaves `.<name>.mdat-write.<pid>`/`.<name>.mdat-edit.<pid>`; ownership changes to the
-  writer; two breakers can both win; a pid reuse keeps a lock looking held.
+  writer; two breakers can both win; a pid reuse keeps a lock looking held. A second kind of lock
+  exists beside this one: `sessions/<id>/control/lock`, a symlink naming `<pid> <start>`, held for a
+  control thread's whole life and never waited for -- it guards a session id against a second thread,
+  not a critical section, and tells its holder by pid and start together, never by pid alone.
 - **`Grep`** runs `grep -E` with `\d \s \w` (and negations) translated; a negated escape inside `[...]` and
   `multiline` are refused. `type` uses `AgentsHarnessGrepTypeGlobs`. **A search with no hits says so in
   words** (`No matches found`, `No files found`); the MCP server treats empty output as an error.
@@ -2085,6 +2133,16 @@ Each instrument states what it proves and its red recipe in its own header. What
   changed in its run folder for longer than the test timeout plus `--stall-margin` (120 seconds by
   default). `summary.txt` then gets a `STALLED` line, and `stalled.txt` in the run folder names what
   never ran and what never ended. `AgentsRunTestsStallCheck` is the test for both.
+- **`AgentsMcpCallWatchdogCheck`** is the test of the watchdog of a served call and of `execute`, of the
+  kill action of a job and of the two group functions; `AgentsConsoleSessionSignalsCheck` of the pid
+  files and signals of a console channel; `AgentsConsoleStreamTrapCheck` of the console's trap. The
+  tooling list of `AgentsTestSignalsCheck` names no place left by the number alone outside the spawn
+  proxy.
+- **A test signals a process it kept only through one helper**, `sh-test/check-fixtures/rig-processes.include.test.sh`:
+  the helper notes a process with when it began, and signals it later only while its pid is still that
+  same process -- process ids come round within about a minute here while tests run, so a kept number
+  can belong to a stranger by then. `AgentsTestSignalsCheck` holds the helper, and is also the guard
+  that fails on a new `kill`, `pkill` or `killall` in the tests that is not on its list.
 - **Wired into `--owner-setup-scaleway --check`**: `HARNESS_PARSES`, `AgentsHarnessSelfCheck.test.awk`
   (four sites per tool; text match, so it misses syntax and JSON breaks), `AgentsHarnessToolsJsonCheck`
   (parsed vs text counts; reads through `AgentsHarnessJsonSlice.awk`, not the consuming reader),

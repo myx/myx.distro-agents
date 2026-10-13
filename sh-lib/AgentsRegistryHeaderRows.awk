@@ -5,11 +5,15 @@
 ## print and one header awk per column per file. Called by AgentsTools.Registries.include
 ## with -v registryRows=spawned|pending. With -v registryColumns=14 a spawned row carries,
 ## after its eleven columns, the three appended to them: started-at, resolved-at and
-## session-comment; a caller that names no count gets the eleven, so one that loaded its
-## reader before they existed still counts its rows. stdin is one entry per line, in the
-## order the caller's own glob loops found them, so the row order is the shell's:
+## session-comment; with -v registryColumns=16 the two appended after those as well,
+## session-state and session-state-at, the state of the row's session (the T entries).
+## A caller that names no count gets the eleven, and one that names fourteen gets fourteen,
+## so one that loaded its reader before a column existed still counts its rows. stdin is one
+## entry per line, in the order the caller's own glob loops found them, so the row order is
+## the shell's:
 ##   D<tracking-name>  spawned: a sandbox root starts; its name is the tracking name
 ##   S<record path>    spawned: one record in the current sandbox
+##   T<state path>     spawned: the state file of one session, before every D and S
 ##   E                 spawned: the current sandbox held no record
 ##   A<record path>    pending: one ask record
 ##   B<board path>     pending: one board item, a row only while it carries blocked-on
@@ -81,13 +85,35 @@ function registryBaseName(pathText,    baseText) {
 	entryText = registryDecode(substr($0, 2)) ;
 }
 
+## The state of one session, as its control thread keeps it in the session's own folder
+## (AgentsTools.InternSessionControl.include): the file <sessions>/<session id>/control/state.
+## The caller names each one it found there as a file, so nothing but a file is opened
+## here: this awk ends on a folder it was given to read. The session is the folder the
+## file's `control` stands in. Its `state` line is the word and its `state-at` line the
+## date, each read as a header is read, so the date's spaces are written `_`. The word is
+## taken as the file holds it, whatever state it names, while it is written as a state
+## word is: lower-case letters, digits and `-`. Anything else is no state. A row of sixteen
+## columns carries the two of its session, and `-` in both where there is none: a session
+## with no such file, a file that cannot be read or names no state, a row with no session id.
+registryRows == "spawned" && entryKind == "T" {
+	stateSession = entryText ;
+	if (sub(/\/control\/state$/, "", stateSession) != 1) next ;
+	stateSession = registryBaseName(stateSession) ;
+	fmCount = 0 ;
+	while ((getline stateLine < entryText) > 0) fmLine[++fmCount] = stateLine ;
+	close(entryText) ;
+	stateWord = registryHeader("state") ;
+	if (stateWord ~ /^[a-z][a-z0-9-]*$/) { stateWordOf[stateSession] = stateWord ; stateDateOf[stateSession] = registryHeader("state-at") ; }
+	next ;
+}
+
 registryRows == "spawned" && entryKind == "D" {
 	sandboxTracking = entryText ;
 	next ;
 }
 
 registryRows == "spawned" && entryKind == "E" {
-	printf "%s - - - - no-session-record - - - - -%s\n", sandboxTracking, ( registryColumns >= 14 ? " - - -" : "" ) ;
+	printf "%s - - - - no-session-record - - - - -%s%s\n", sandboxTracking, ( registryColumns >= 14 ? " - - -" : "" ), ( registryColumns >= 16 ? " - -" : "" ) ;
 	next ;
 }
 
@@ -99,6 +125,11 @@ registryRows == "spawned" && entryKind == "S" {
 	if (recordTracking != "-") sandboxTracking = recordTracking ;
 	printf "%s %s %s %s %s %s %s %s %s %s %s", sandboxTracking, registryHeader("session-id"), registryHeader("parent-session-id"), registryHeader("host"), registryHeader("owner"), registryHeader("status"), registryHeader("exit-code"), registryHeader("spawn-id"), registryHeader("agent-log-thread"), registryHeader("session-thread"), registryHeader("workspace") ;
 	if ( registryColumns >= 14 ) printf " %s %s %s", registryHeader("started-at"), registryHeader("resolved-at"), registryHeader("session-comment") ;
+	if ( registryColumns >= 16 ) {
+		recordSession = registryHeader("session-id") ;
+		if ( recordSession != "-" && ( recordSession in stateWordOf ) ) printf " %s %s", stateWordOf[recordSession], stateDateOf[recordSession] ;
+		else printf " - -" ;
+	}
 	printf "\n" ;
 	next ;
 }

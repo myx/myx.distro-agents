@@ -204,7 +204,18 @@ AgentsHarnessMcpRun(){ ## server name, wall-clock bound in whole seconds, awaite
 				runPid=$!
 				## The >/dev/null is load-bearing: without it the orphaned `sleep` holds
 				## this block's own pipe open for the whole bound.
-				( sleep "$runBound" ; kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout" ) >/dev/null &
+				## The watchdog ends the server it was started for and no other process: at the
+				## bound the pid alone may name whoever was given that number since. So it keeps
+				## when the server began, read as the watchdog starts, and signals only while that
+				## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the
+				## one reading a process is kept by, loaded in the watchdog's own shell). Where no
+				## start can be read, nothing is signalled by the number alone.
+				(
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+					runBegan="$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					sleep "$runBound"
+					[ -n "$runBegan" ] && [ "$( printf '%s\n' "$runPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$runBegan" ] && kill -TERM "$runPid" 2>/dev/null && : > "$harnessScratch/mcp.timedout"
+				) >/dev/null &
 				runWatchPid=$!
 				wait "$runPid" || runRc=$?
 				kill -TERM "$runWatchPid" 2>/dev/null || :

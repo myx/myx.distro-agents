@@ -1,0 +1,786 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.InternSessionControl.include -- the control thread of one coworking session: a
+## shell process of the tooling, a simple controller and monitor, and no agent. Sourced from
+## DistroAgentsTools.fn.sh's `--intern-session-control` arm; needs $1/$@/$MDSC_CMD from
+## dot-sourcing. A sibling of --intern-main-loop: a usage blurb on no mode, the same
+## set +e/set -e discipline, `--run` stays and `--one` makes one tick and ends.
+##
+## A live session has one. What it keeps is in the session's own folder,
+## $MMDAPP/.local/agents/sessions/<session id>/control/:
+##   lock   a symlink whose target is `<pid> <start>`: the process that holds it and when
+##          that process began, as a spawn record names a process (run-process). `ln -s`
+##          creates it and names its holder in one step, as the one local lock of the
+##          tooling does (AgentsTools.LocalLock.include). That lock is a critical section
+##          under .local/agents/locks, waited for and given back within one call, its holder
+##          told by the pid alone. This one is held for the whole life of the thread and is
+##          the guard against a second thread of the same session: nobody waits for it, a
+##          second start is refused at once, and its holder is told by the pid and the time
+##          that process began, since a thread lives for days and a pid comes round in a
+##          minute. A lock whose holder is gone, or whose number another process has, is
+##          taken over, by a rename only one breaker can make.
+##   pid    the same two words in a file, written once the lock is held and removed before
+##          it is given back: what a reader asks whether the thread lives.
+##   state  the state of the session, three `key: value` lines: `state`, the word;
+##          `state-at`, when it was set, as a record writes a date; `reason`, in a few
+##          words. Written aside and put in place by one rename, and ONLY WHEN THE WORD
+##          CHANGES: the advance pass takes any file changed in a session's folder within
+##          fifteen minutes for activity of the session (AgentsToolsAdvanceSpawnHousekeeping),
+##          so a file written on every tick would keep it from ever closing a dead run.
+##   log    what the thread did, a line an event, never a line a tick: its start and its
+##          end, a lock taken over, a state set, a tick that could conclude nothing (said
+##          once, not at every such tick). It is bounded: see AgentsToolsSessionControlLogBound.
+## The words of the state: `running` while a run of the session is alive on this host,
+## `finished` once none is and every record of the session is closed. A session with no run
+## alive and a record still open is neither: nothing is written, and the state stays as it
+## was. That is the place of the word of a death, which a later task writes. The words of a
+## paused, a sleeping and a stopped session come with their steps.
+##
+## A tick reads the records of the session, the process list of this host and the state
+## file, and nothing else: no network, no tool of an agent, no registry. Which run is alive
+## is asked of the one place that says so (AgentsToolsRegistryMeasureRows,
+## AgentsTools.Registries.include), by the one rule a run is recognised by. The thread is no
+## run by that rule: its command line is the tooling's own. It refuses to start as a process
+## whose command line would read as a run.
+## A TICK IS CHEAP WHILE NOTHING CHANGES. A read that finds the session running keeps the
+## processes that ran as its runs, each with when it began. The ticks after it ask one
+## thing: is one of those still that process, and does the state file still say `running`.
+## While both hold the session is running and nothing more is read. The records and the
+## whole process list are read again at once when neither holds, and at every twelfth tick
+## whatever holds. So the end of the last run is seen at the tick after it, and a session
+## that is not running is read in full at every tick.
+##
+## THE THREAD DOES NOT END BY ITSELF, but for one case: its session is finished, and it has
+## written that. Else it ends on TERM, sent to it on purpose, in order: the tick it is in is
+## finished, its pid file and its lock are given back. Nothing else ends it:
+## - a hangup, an interrupt or a quit from a terminal, a stop from one, an alarm: ignored,
+##   by it and by what it starts. A broken pipe, USR1 and USR2 are taken and end nothing:
+##   each makes the next tick come at once.
+## - its starter: once the lock is held, its input is /dev/null, its output and its errors
+##   are its own log, the descriptors 3 to 9 it was handed are closed, and its working
+##   folder is `/`. So no pipe of the process that started it, no terminal that is closed
+##   and no folder that is removed can reach it. It is started detached, and holds when it
+##   is not.
+## - a tick that fails: a record that vanished or is half written, a process list that
+##   could not be read, a state that could not be written. Such a tick concludes nothing,
+##   changes no state, says so once in the log, and the next tick goes on. `finished` is
+##   believed only when two reads, one after the other, find the same records and say so.
+## - its own files: a control folder, a lock or a pid file that is gone is made again at
+##   the next tick.
+## - the end of its own shell: a signal it cannot ignore and has no care for (a limit of
+##   processor time or of file size, a fault of the shell), an error that unwinds the shell
+##   (a process that could not be started, once the shell's own tries are spent), an exit
+##   switched on by a function it called. The shell's last act is then to put the thread
+##   back in place: the same process, by exec, with no new process and so no change of its
+##   pid, of when it began, of its lock or of its pid file (AgentsToolsSessionControlAgain).
+## One more end is the lock's own rule and no failure: a thread that finds another LIVE
+## thread holding the lock of its session ends, touching nothing of the other's, so that a
+## session never has two. What is left can only be done to it: KILL, a stop that cannot be
+## ignored (STOP: it lives and does not tick), the machine going down, a put-back that
+## cannot be made because the interpreter or the script is gone, and a shell that ends
+## five times in a row within seconds of its start, which is not put back a sixth time. A
+## later task starts a dead thread again.
+##
+## It runs as no member: whatever session it is started from, nothing of that session
+## reaches what it does or what it starts.
+##
+
+## THE THREAD IS PUT BACK WHERE ITS SHELL ENDS WITHOUT ITS DOING. The EXIT trap of a
+## thread: while agentsSessionControlStay names its session, the shell that is about to end
+## becomes the thread again, by exec: the same process, so its lock and its pid file, which
+## name the pid and when it began, are its own still, and no process has to be started,
+## which may be the very thing that failed. An ordered end, and a start that is refused,
+## empty that name first. Its three variables are the shell's own and no function's: when
+## the trap runs, the function that ran the thread is gone. A shell that ended within five
+## seconds of its start is counted, and the count travels to the next in the environment:
+## the fifth such end in a row is not answered, so a fault that comes back at once ends.
+AgentsToolsSessionControlAgain(){
+	[ -n "${agentsSessionControlStay:-}" ] || return 0
+	if [ "$SECONDS" -lt 5 ] ; then agentsSessionControlRounds=$(( agentsSessionControlRounds + 1 )) ; else agentsSessionControlRounds=1 ; fi
+	export MDAT_SESSION_CONTROL_AGAIN="$agentsSessionControlRounds"
+	exec "$BASH" "$agentsSessionControlScript" --intern-session-control --run --session-id "$agentsSessionControlStay"
+}
+
+## One refusal at the start, said to the caller in one line: such a start is no thread, and
+## is not put back.
+AgentsToolsSessionControlRefuse(){ ## text
+	agentsSessionControlStay=""
+	echo "⛔ ERROR: $MDSC_CMD --intern-session-control: $1" >&2
+	return 0
+}
+
+## Says one line. `event`: a line of the log of the thread, control/log, with its moment.
+## `note`: never written, so that a tick that changes nothing writes nothing. A call of
+## `--one` also says either to its caller, on standard error: it is a check by hand.
+AgentsToolsSessionControlSay(){ ## event or note, text
+	if [ "$1" = "event" ] && [ -n "${controlDir:-}" ] ; then
+		{ printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$2" >> "$controlDir/log" ; } 2> /dev/null && controlWrote="yes"
+	fi
+	[ "${controlMode:-}" != "--one" ] || echo "# $MDSC_CMD --intern-session-control: $2" >&2
+	return 0
+}
+
+## The same, for a tick that could conclude nothing, or found nothing to set: said when the
+## thread comes into that situation, and not again at every tick it lasts.
+AgentsToolsSessionControlOnce(){ ## the situation, one word; text
+	[ "$controlSaid" = "$1" ] || AgentsToolsSessionControlSay "$controlLife" "session $controlSession: $2"
+	controlSaid="$1"
+	return 0
+}
+
+## The input, the output and the errors of the thread: /dev/null and its own log, whatever
+## it was started with. Where the log cannot be opened they are /dev/null, never its starter's.
+AgentsToolsSessionControlRepoint(){
+	if { printf '' >> "$controlDir/log" ; } 2> /dev/null ; then
+		exec < /dev/null >> "$controlDir/log" 2>&1
+	else
+		exec < /dev/null > /dev/null 2>&1
+	fi
+	return 0
+}
+
+## THE LOG IS BOUNDED, so the thread never fills a disk with it: a log found over 128 KiB
+## is cut back to its last 64 KiB, from the first whole line, by one rename, and one line
+## says so. It is looked at after every line the thread writes and at every twelfth tick,
+## which also bounds what a command of a tick wrote there past the thread's own lines.
+AgentsToolsSessionControlLogBound(){
+	local boundSize
+	boundSize="$( { LC_ALL=C wc -c < "$controlDir/log" ; } 2> /dev/null )" || return 0
+	boundSize="${boundSize//[!0123456789]/}"
+	[ -n "$boundSize" ] || return 0
+	[ "$boundSize" -gt 131072 ] || return 0
+	{
+		LC_ALL=C tail -c 65536 "$controlDir/log" | LC_ALL=C sed 1d > "$controlDir/log.$controlPid.aside" \
+			&& mv -f "$controlDir/log.$controlPid.aside" "$controlDir/log"
+	} 2> /dev/null || { rm -f "$controlDir/log.$controlPid.aside" 2> /dev/null ; return 0 ; }
+	## Its own descriptors still name the file that was replaced: pointed at the new one.
+	[ "$controlMode" != "--run" ] || AgentsToolsSessionControlRepoint
+	{ printf '%s %s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "the log had grown over 128 KiB and holds its last 64 KiB now" >> "$controlDir/log" ; } 2> /dev/null
+	return 0
+}
+
+## Whether the process a lock or a pid file names, `<pid> <start>`, is still that process.
+## rc 0 it is. rc 1 it is not: no process has the number, or the one that has it began at
+## another time, or it has ended and is only not collected yet. rc 2 it cannot be told: a
+## process has the number and when it began could not be read; such a lock is left alone.
+AgentsToolsSessionControlHolderLives(){ ## `<pid> <start>`
+	local holderPid="${1%% *}" holderStart="${1#* }" holderNow
+	case "$holderPid" in ''|*[!0123456789]*) return 1 ;; esac
+	[ "$holderStart" != "$1" ] && [ -n "$holderStart" ] || return 1
+	holderNow="$( printf '%s\n' "$holderPid" | AgentsToolsRegistryProcessesBegan )" || holderNow=""
+	[ "$holderNow" != "$1" ] || return 0
+	[ -z "$holderNow" ] || return 1
+	kill -0 "$holderPid" 2> /dev/null || return 1
+	case "$( LC_ALL=C ps -o stat= -p "$holderPid" 2> /dev/null )" in *Z*) return 1 ;; esac
+	return 2
+}
+
+## Takes the lock of the session for this process. rc 0 held, and controlTookOver names the
+## holder it was taken over from, where it was. rc 1 another process holds it: controlHolder
+## names it, and controlHolderTold is 2 where it could not be told whether that is still the
+## thread. rc 2 the lock could not be made.
+AgentsToolsSessionControlLockTake(){
+	local takeTries=0 takeHolder takeStale takeMoved
+	controlHolder="" ; controlHolderTold=0 ; controlTookOver=""
+	while [ "$takeTries" -lt 5 ] ; do
+		takeTries=$(( takeTries + 1 ))
+		## Checked first: `ln -s` onto a directory creates the link inside it and succeeds.
+		[ ! -d "$controlLock" ] || [ -L "$controlLock" ] || return 2
+		ln -s "$controlMe" "$controlLock" 2> /dev/null && return 0
+		takeHolder="$( readlink "$controlLock" 2> /dev/null )" || takeHolder=""
+		[ -n "$takeHolder" ] || continue
+		[ "$takeHolder" != "$controlMe" ] || return 0
+		AgentsToolsSessionControlHolderLives "$takeHolder" ; controlHolderTold=$?
+		[ "$controlHolderTold" = 1 ] || { controlHolder="$takeHolder" ; return 1 ; }
+		## Claimed by rename, so of two breakers only one moves it, to a name of its own by
+		## mktemp (AgentsToolsLocalLockTake). The one that moved the dead lock takes the next
+		## pass; a fresh lock moved by mistake, taken between the read and the rename, is put
+		## back for its holder.
+		takeStale="$( mktemp "$controlLock.stale.XXXXXX" 2> /dev/null )" || continue
+		if mv -f "$controlLock" "$takeStale" 2> /dev/null ; then
+			takeMoved="$( readlink "$takeStale" 2> /dev/null )" || takeMoved=""
+			rm -f "$takeStale"
+			if [ "$takeMoved" = "$takeHolder" ] ; then
+				controlTookOver="$takeHolder"
+				continue
+			fi
+			[ -z "$takeMoved" ] || ln -s "$takeMoved" "$controlLock" 2> /dev/null || :
+		else
+			rm -f "$takeStale"
+		fi
+	done
+	return 2
+}
+
+## Gives back what is this thread's own, and only that: its pid file first, then its lock.
+AgentsToolsSessionControlLeave(){
+	local leaveLine=""
+	{ IFS= read -r leaveLine < "$controlDir/pid" ; } 2> /dev/null || :
+	[ "$leaveLine" != "$controlMe" ] || rm -f "$controlDir/pid" 2> /dev/null
+	[ "$( readlink "$controlLock" 2> /dev/null )" != "$controlMe" ] || rm -f "$controlLock" 2> /dev/null
+	rm -f "$controlRowsFile" 2> /dev/null
+	return 0
+}
+
+## The pid file of the thread, `<pid> <start>`, put in place by one rename.
+AgentsToolsSessionControlPidWrite(){
+	{ printf '%s\n' "$controlMe" > "$controlDir/pid.$controlPid.aside" && mv -f "$controlDir/pid.$controlPid.aside" "$controlDir/pid" ; } 2> /dev/null \
+		|| { rm -f "$controlDir/pid.$controlPid.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## The runs of one session, measured: every record of the store that names the id as its
+## session-id, read by the registry's own reader of a record (AgentsRegistryHeaderRows.awk)
+## and measured where a row's live and state are derived (AgentsToolsRegistryMeasureRows), so
+## the thread and the list of sessions never disagree on which run is alive. The records are
+## read as they are now, at every call: no registry file is read or rebuilt, so a member
+## that joined a moment ago is seen, and nothing is written but a rows file of this
+## thread's own under .local/temp. Into controlRows, sixteen words a row, and into
+## controlRowsNames, the record files they were read from; rc 1 where the rows could not
+## be made.
+AgentsToolsSessionControlRows(){ ## session id
+	local rowsStore="$MMDAPP/.local/agents/spawned" rowsFile rowsTracking
+	local measuredRows="" measuredDated="" measuredAny="false"
+	controlRows="" ; controlRowsNames=""
+	[ -d "$rowsStore" ] || return 0
+	## The names go to grep on a pipe, never as its arguments: a store of any size is read.
+	controlRowsNames="$( printf '%s\0' "$rowsStore"/*/*.md | LC_ALL=C xargs -0 grep -l -x -F -- "session-id: $1" 2> /dev/null )" || :
+	[ -n "$controlRowsNames" ] || return 0
+	[ -d "${controlRowsFile%/*}" ] || mkdir -p "${controlRowsFile%/*}" 2> /dev/null
+	{
+		while IFS= read -r rowsFile ; do
+			[ -f "$rowsFile" ] || continue
+			rowsTracking="${rowsFile%/*}"
+			AgentsToolsRegistryRowsEntry D "${rowsTracking##*/}"
+			AgentsToolsRegistryRowsEntry S "$rowsFile"
+		done <<< "$controlRowsNames" \
+			| LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistryHeaderRows.awk" > "$controlRowsFile"
+	} 2> /dev/null || return 1
+	AgentsToolsRegistryMeasureRows "$controlRowsFile" "$controlHost" "$1"
+	controlRows="$measuredDated"
+	return 0
+}
+
+## What the rows of the session say, into controlSeen: `running`, a run of it is alive on
+## this host, whatever its record says, as the list of sessions reads it; `finished`, none
+## is and every record is closed; `foreign`, none is and every record still open is of
+## another host, which nothing here can measure; `open`, none is and a record of this host,
+## or one that names no host or no spawn, is still open; `none`, no record carries the id.
+AgentsToolsSessionControlJudge(){
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
+	controlRuns=0 ; controlAlive=0 ; controlOpen=0 ; controlForeign=0 ; controlForeignHosts=""
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest ; do
+		[ -n "$rowTracking" ] || continue
+		controlRuns=$(( controlRuns + 1 ))
+		if [ "$rowLive" = "running" ] ; then
+			controlAlive=$(( controlAlive + 1 ))
+			continue
+		fi
+		case "$rowState" in
+			finished) ;;
+			unknown-foreign)
+				controlForeign=$(( controlForeign + 1 ))
+				case " $controlForeignHosts " in *" $rowHost "*) ;; *) controlForeignHosts="${controlForeignHosts:+$controlForeignHosts }$rowHost" ;; esac
+			;;
+			*) controlOpen=$(( controlOpen + 1 )) ;;
+		esac
+	done <<< "$controlRows"
+	if [ "$controlAlive" -gt 0 ] ; then controlSeen="running"
+	elif [ "$controlRuns" -eq 0 ] ; then controlSeen="none"
+	elif [ "$controlOpen" -gt 0 ] ; then controlSeen="open"
+	elif [ "$controlForeign" -gt 0 ] ; then controlSeen="foreign"
+	else controlSeen="finished"
+	fi
+	return 0
+}
+
+## One read of the session, judged, into controlSeen. rc 0 it is. A read that is not sure
+## judges nothing: rc 1 the records could not be read; rc 2 a record that was read before
+## is there and cannot be read now, half written or cut, its name in controlBroken; rc 3
+## the process list of this host could not be read, so no run can be told alive or gone.
+AgentsToolsSessionControlLook(){
+	local lookFile
+	controlSeen="" ; controlBroken=""
+	case "$( LC_ALL=C ps -o pid= -p "$controlPid" 2> /dev/null )" in *"$controlPid"*) ;; *) return 3 ;; esac
+	AgentsToolsSessionControlRows "$controlSession" || return 1
+	## A record of the session keeps its name and its session for good, and is closed by a
+	## rename or written in place. One that was read and is still there, and does not name
+	## the session now, is in the middle of such a write: a tick must not take the session
+	## for finished because its last open record is being written. A record that is gone is
+	## no record any more.
+	while IFS= read -r lookFile ; do
+		[ -n "$lookFile" ] || continue
+		case "
+$controlRowsNames
+" in *"
+$lookFile
+"*) continue ;; esac
+		[ ! -f "$lookFile" ] || { controlBroken="$lookFile" ; return 2 ; }
+	done <<< "$controlKnown"
+	controlKnown="$controlRowsNames"
+	AgentsToolsSessionControlJudge
+	return 0
+}
+
+## The state file as it lies: its word into controlStateWord, its date into controlStateAt;
+## both empty where there is none.
+AgentsToolsSessionControlStateRead(){
+	local stateLine
+	controlStateWord="" ; controlStateAt=""
+	[ -f "$controlDir/state" ] || return 0
+	{
+		while IFS= read -r stateLine || [ -n "$stateLine" ] ; do
+			case "$stateLine" in
+				'state: '*) [ -n "$controlStateWord" ] || controlStateWord="${stateLine#state: }" ;;
+				'state-at: '*) [ -n "$controlStateAt" ] || controlStateAt="${stateLine#state-at: }" ;;
+			esac
+		done < "$controlDir/state"
+	} 2> /dev/null
+	return 0
+}
+
+## Sets the state of the session: written aside and put in place by one rename, so a reader
+## never sees half a state. Called only where the word changes.
+AgentsToolsSessionControlStateWrite(){ ## state word, reason
+	{
+		printf 'state: %s\nstate-at: %s\nreason: %s\n' "$1" "$( date +"%Y-%m-%d %H:%M %z" )" "$2" > "$controlDir/state.$controlPid.aside" \
+			&& mv -f "$controlDir/state.$controlPid.aside" "$controlDir/state"
+	} 2> /dev/null || { rm -f "$controlDir/state.$controlPid.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## The processes that run as the runs of the session now, `<pid> <start>` a line, into
+## controlWitness: for each row the last read measured alive, the processes that run as that
+## spawn by their own word, or, where none does, the process its record names, each by the
+## one rule's own reading (AgentsToolsRegistryRunPids, AgentsToolsRegistryRecordedRun). Empty
+## where none could be named: every tick then reads in full.
+AgentsToolsSessionControlWitness(){
+	local witnessList witnessPids="" witnessFound witnessFile witnessSkip witnessSpawn witnessLive witnessRest
+	controlWitness=""
+	witnessList="$( ps -A -ww -o pid=,args= 2> /dev/null )" || witnessList=""
+	while read -r witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSkip witnessSpawn witnessSkip witnessSkip witnessSkip witnessLive witnessRest ; do
+		[ "$witnessLive" = "running" ] || continue
+		case "$witnessSpawn" in ''|-) continue ;; esac
+		witnessFound="$( printf '%s\n' "$witnessList" | AgentsToolsRegistryRunPids "$witnessSpawn" )" || witnessFound=""
+		if [ -z "$witnessFound" ] ; then
+			while IFS= read -r witnessFile ; do
+				[ "${witnessFile##*/}" = "$witnessSpawn.md" ] || continue
+				witnessFound="$( AgentsToolsRegistryRecordedRun "$witnessFile" )" || witnessFound=""
+				[ -z "$witnessFound" ] || break
+			done <<< "$controlRowsNames"
+		fi
+		witnessPids="$witnessPids $witnessFound"
+	done <<< "$controlRows"
+	case "$witnessPids" in *[0123456789]*) ;; *) return 0 ;; esac
+	controlWitness="$( printf '%s\n' $witnessPids | AgentsToolsRegistryProcessesBegan )" || controlWitness=""
+	return 0
+}
+
+## Whether one of those processes is still that process: the same pid, begun at the same
+## time. One read of the processes it names, and no other. rc 0 one is.
+AgentsToolsSessionControlWitnessLives(){
+	local witnessNow witnessLine
+	[ -n "$controlWitness" ] || return 1
+	witnessNow="$( printf '%s\n' "$controlWitness" | AgentsToolsRegistryProcessesBegan )" || witnessNow=""
+	[ -n "$witnessNow" ] || return 1
+	while IFS= read -r witnessLine ; do
+		[ -n "$witnessLine" ] || continue
+		case "
+$controlWitness
+" in *"
+$witnessLine
+"*) return 0 ;; esac
+	done <<< "$witnessNow"
+	return 1
+}
+
+## One tick: what the session is now, and the state set where its word changed. It leaves in
+## controlLeave why the thread ends, where it does. Every variable is the thread's own. No
+## command of a tick can end the thread: each failure is taken here, and concludes nothing.
+AgentsToolsSessionControlTick(){
+	local tickWord="" tickReason="" tickLine="" tickLock="" tickText="" tickNames="" tickFull="" tickRc=0
+	## Whatever a function called at an earlier tick left switched on.
+	set +e +u
+	controlTicks=$(( controlTicks + 1 ))
+	## A read in full: with no process kept from the last one, and at every twelfth tick.
+	[ -n "$controlWitness" ] && [ "$(( controlTicks - controlFullAt ))" -lt 12 ] || tickFull="yes"
+	## STILL THIS THREAD'S OWN. A control folder, a lock or a pid file that is gone is made
+	## again. A lock that names a process which is gone is taken over again. A lock that names
+	## another live thread ends this one, which touches nothing of the other's. The pid file
+	## and the lock's being there are looked at at every tick, and whom the lock names where
+	## either is not as it was, and at every read in full: a thread that takes a lock over
+	## writes its pid file too.
+	[ -d "$controlDir" ] || mkdir -p "$controlDir" 2> /dev/null
+	{ IFS= read -r tickLine < "$controlDir/pid" ; } 2> /dev/null || tickLine=""
+	if [ "$tickLine" != "$controlMe" ] || [ ! -L "$controlLock" ] || [ -n "$tickFull" ] ; then
+		tickLock="$( readlink "$controlLock" 2> /dev/null )" || tickLock=""
+		if [ "$tickLock" != "$controlMe" ] ; then
+			AgentsToolsSessionControlLockTake ; tickRc=$?
+			if [ "$tickRc" = 0 ] ; then
+				if [ -n "$tickLock" ] ; then tickText="named pid ${tickLock%% *}, which is no such process any more" ; else tickText="was gone" ; fi
+				AgentsToolsSessionControlSay event "session $controlSession: the lock of the thread $tickText, and is taken again by pid $controlPid"
+			elif [ "$tickRc" = 1 ] && [ "$controlHolderTold" = 0 ] ; then
+				controlLeave="another control thread holds the lock of its session now, pid ${controlHolder%% *}" ; controlRc=1
+				return 0
+			else
+				AgentsToolsSessionControlOnce nolock "the lock of the thread is not its own and could not be taken again at this tick -- nothing is concluded from it, and the state is left as it is"
+				return 0
+			fi
+		fi
+		if [ "$tickLine" != "$controlMe" ] ; then
+			! AgentsToolsSessionControlPidWrite || AgentsToolsSessionControlSay event "session $controlSession: the pid file of the thread was not its own and is written again, pid $controlPid"
+		fi
+	fi
+	## NOTHING CHANGED: a process that ran as a run of the session at the last read is still
+	## that process, and the state file says running. The session is running, and no more is read.
+	if [ -z "$tickFull" ] ; then
+		AgentsToolsSessionControlStateRead
+		if [ "$controlStateWord" = "running" ] && AgentsToolsSessionControlWitnessLives ; then
+			return 0
+		fi
+	fi
+	controlFullAt="$controlTicks" ; controlWitness=""
+	AgentsToolsSessionControlLook ; tickRc=$?
+	if [ "$tickRc" = 0 ] && [ "$controlSeen" = "finished" ] ; then
+		## FINISHED IS BELIEVED ON TWO READS, one after the other, that find the same records
+		## and both say so: it is the one word after which the thread ends.
+		tickNames="$controlRowsNames"
+		sleep 0.2 2> /dev/null
+		AgentsToolsSessionControlLook ; tickRc=$?
+		[ "$tickRc" != 0 ] || [ "$controlSeen" != "finished" ] || [ "$controlRowsNames" = "$tickNames" ] || tickRc=4
+	fi
+	case "$tickRc" in
+		0) ;;
+		1) AgentsToolsSessionControlOnce unread "the records of its runs could not be read at this tick -- nothing is concluded from it, and the state is left as it is" ; return 0 ;;
+		2) AgentsToolsSessionControlOnce broken "a record of it that was read before cannot be read now, half written or cut: $controlBroken -- nothing is concluded from it, and the state is left as it is" ; return 0 ;;
+		3) AgentsToolsSessionControlOnce nops "the process list of this host could not be read at this tick, so no run can be told alive or gone -- nothing is concluded from it, and the state is left as it is" ; return 0 ;;
+		*) AgentsToolsSessionControlOnce unsure "its records changed between two reads -- nothing is concluded from it, and the state is left as it is" ; return 0 ;;
+	esac
+	AgentsToolsSessionControlStateRead
+	case "$controlSeen" in
+		running)
+			tickWord="running" ; tickReason="a run of the session is alive on this host"
+			## What the next ticks ask after; a call of one tick has no next.
+			[ "$controlMode" != "--run" ] || AgentsToolsSessionControlWitness
+		;;
+		finished)
+			tickWord="finished" ; tickReason="no run of the session is alive and every record of it is closed"
+		;;
+		foreign)
+			AgentsToolsSessionControlOnce foreign "no run of it is alive on this host, and every record still open is a run of another host ($controlForeignHosts), which cannot be measured from here -- it is not called finished, and the state is left as it is${controlStateWord:+, $controlStateWord}"
+			return 0
+		;;
+		open)
+			## The place of the word of a death: nothing is written, and the thread stays.
+			AgentsToolsSessionControlOnce open "no run of it is alive on this host and $controlOpen record(s) are still open -- the state is left as it is${controlStateWord:+, $controlStateWord}"
+			return 0
+		;;
+		*)
+			AgentsToolsSessionControlOnce none "no record of a run carries it as its session-id, so there is nothing to watch yet -- no state is written"
+			return 0
+		;;
+	esac
+	if [ "$controlStateWord" = "$tickWord" ] ; then
+		if [ "$controlMode" = "--one" ] ; then
+			AgentsToolsSessionControlSay note "session $controlSession: $tickWord, as recorded ${controlStateAt:-at no known time} -- nothing is written"
+		elif [ -n "$controlSaid" ] && [ "$controlSaid" != "$tickWord" ] ; then
+			AgentsToolsSessionControlSay event "session $controlSession: read again: $tickWord, as recorded ${controlStateAt:-at no known time}"
+		fi
+	elif AgentsToolsSessionControlStateWrite "$tickWord" "$tickReason" ; then
+		AgentsToolsSessionControlSay event "session $controlSession: $tickWord: $tickReason"
+	else
+		AgentsToolsSessionControlOnce unwritten "the state $tickWord could not be written to $controlDir/state -- it is tried again at the next tick"
+		return 0
+	fi
+	controlSaid="$tickWord"
+	## The one end the thread makes by itself: its session is finished, and that is written.
+	[ "$tickWord" != "finished" ] || controlLeave="its session is finished"
+	return 0
+}
+
+case "$1" in
+
+	--intern-session-control)
+		shift
+
+		## Never run without a mode: an accidental invocation would stay for the life of a session.
+		local controlMode=''
+		case "${1:-}" in
+			--run) controlMode='--run' ;;
+			--one) controlMode='--one' ;;
+		esac
+		if [ -z "$controlMode" ] ; then
+			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-control --run --session-id <id>" >&2
+			printf '%s\n' "      The thread: takes the lock of the session, ticks every SESSION_CONTROL_TICK_SECONDS (default 5), and ends by itself only once the session is finished." >&2
+			printf '%s\n' "      A second start for the same session is refused while the first lives. TERM ends it in order; a hangup, an interrupt and the end of whatever started it do not." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "  $MDSC_CMD --intern-session-control --one --session-id <id>" >&2
+			printf '%s\n' "      One tick under the same lock, then the end: for a test, and for a check by hand." >&2
+			printf '%s\n' "" >&2
+			printf '%s\n' "Its files are in .local/agents/sessions/<id>/control/: pid, lock, state, log. The state is written only when its word changes: running while a run of the session is alive on this host, finished once none is and every record of it is closed." >&2
+			set +e ; return 1
+		fi
+		shift
+
+		local controlSession=""
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-session-control: --session-id needs an id -- syntax is (--run|--one) --session-id <id>" >&2
+						set +e ; return 1
+					fi
+					controlSession="$2" ; shift 2
+				;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-session-control: syntax is (--run|--one) --session-id <id>, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$controlSession" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --intern-session-control: syntax is (--run|--one) --session-id <id>, got no --session-id" >&2
+			set +e ; return 1
+		fi
+		case "$controlSession" in
+			.|..|*/*|*[[:space:]]*)
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-control: '$controlSession' is no id of a session: one name, with no '/' and no space -- nothing was started" >&2
+				set +e ; return 1
+			;;
+		esac
+
+		set +e +u
+
+		## NOTHING BUT TERM ENDS THE THREAD, from its first moment: what a terminal sends, to
+		## it and to what it starts, is ignored; a broken pipe and the two user signals are
+		## taken, and end nothing. A call of `--one` is a call like any other and takes none.
+		local controlEnd=""
+		if [ "$controlMode" = "--run" ] ; then
+			trap '' HUP INT QUIT TSTP TTIN TTOU ALRM VTALRM PROF
+			trap 'controlWoken="yes"' PIPE USR1 USR2
+			trap 'controlEnd="TERM"' TERM
+			## A thread that was put back in place is put back again from its first moment on,
+			## whatever ends its shell before it ticks; a fresh one once it holds its lock.
+			agentsSessionControlStay=""
+			agentsSessionControlScript="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+			agentsSessionControlRounds="${MDAT_SESSION_CONTROL_AGAIN:-0}"
+			case "$agentsSessionControlRounds" in ''|*[!0123456789]*|??????*) agentsSessionControlRounds=0 ;; esac
+			unset MDAT_SESSION_CONTROL_AGAIN
+			if [ "$agentsSessionControlRounds" -gt 0 ] && [ "$agentsSessionControlRounds" -lt 5 ] ; then
+				agentsSessionControlStay="$controlSession"
+				trap 'AgentsToolsSessionControlAgain' EXIT
+			fi
+		fi
+
+		## IT RUNS AS NO MEMBER. A start from inside a member's session carries that session in
+		## its environment: its spawn id, its member, its sandbox, the id of its client. Each is
+		## emptied here for as long as this operation runs, for what it calls and for every
+		## process it starts, and is the caller's own again once it returns.
+		local controlDrop
+		for controlDrop in ${!MDAT_SPAWN_@} harnessSessionId harnessAgent CLAUDE_CODE_SESSION_ID ; do
+			[ -z "${!controlDrop+set}" ] || local -x "$controlDrop="
+		done
+
+		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+
+		## This process, with when it began: the pid of the shell that runs these lines, also
+		## where that is a subshell, whose $$ is its starter's.
+		local controlPid controlMe controlLine
+		controlPid="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || controlPid=""
+		case "$controlPid" in ''|*[!0123456789]*) controlPid="" ;; esac
+		controlMe=""
+		[ -z "$controlPid" ] || controlMe="$( printf '%s\n' "$controlPid" | AgentsToolsRegistryProcessesBegan )" || controlMe=""
+		if [ -z "$controlMe" ] ; then
+			AgentsToolsSessionControlRefuse "could not read which process this is and when it began, so its lock would name nobody -- nothing was started"
+			return 1
+		fi
+		## THE THREAD IS NO RUN. By the one rule a run is recognised by, a command line of the
+		## tooling is none, whatever id it carries; a start that puts another word before the
+		## script, an option of the interpreter, would read as a run of the very session it
+		## watches, and that session would then never finish. Such a start is refused.
+		controlLine="$( LC_ALL=C ps -ww -o args= -p "$controlPid" 2> /dev/null )" || controlLine=""
+		if [ -n "$( printf '%s %s\n' "$controlPid" "$controlLine" | AgentsToolsRegistryRunWords )" ] ; then
+			AgentsToolsSessionControlRefuse "the command line of this process would read as a run of a session, by the rule a live run is told by: start the thread with the tooling script as the command itself, or as the first word after its interpreter -- nothing was started"
+			return 1
+		fi
+		## And it shows in the process list under its own command line: `--run` is a process of
+		## its own, never a call inside another operation's process.
+		if [ "$controlMode" = "--run" ] ; then
+			case " $controlLine " in
+				*" --intern-session-control --run --session-id $controlSession "*) ;;
+				*)
+					AgentsToolsSessionControlRefuse "--run is a process of its own, shown in the process list by this operation and the id of its session: start it as the tooling script with these arguments, not inside another operation's process -- nothing was started"
+					return 1
+				;;
+			esac
+		fi
+
+		local controlTick
+		controlTick="$( DistroAgentsTools --agents-config-option magic-team --select-default SESSION_CONTROL_TICK_SECONDS 5 2> /dev/null )" || controlTick=5
+		case "$controlTick" in ''|*[!0123456789]*) controlTick=5 ;; esac
+		[ "$controlTick" -gt 0 ] || controlTick=5
+
+		local controlHost controlRowsFile controlRows="" controlRowsNames="" controlKnown="" controlBroken="" controlSeen=""
+		local controlRuns=0 controlAlive=0 controlOpen=0 controlForeign=0 controlForeignHosts=""
+		local controlDir="" controlLock="" controlHolder="" controlHolderTold=0 controlTookOver="" controlStateWord="" controlStateAt=""
+		local controlLife="event" controlSaid="" controlLeave="" controlRc=0 controlOwn="" controlWrote="" controlTicks=0 controlWaitRc=0 controlWaitFrom=0 controlWaitLeft=0 controlWaitPiece=0
+		local controlWitness="" controlFullAt=0 controlWoken="" controlEarly=0 controlSleepSaid=""
+		[ "$controlMode" != "--one" ] || controlLife="note"
+		controlHost="$( hostname -s 2> /dev/null )" || controlHost=""
+		[ -n "$controlHost" ] || controlHost="unknown"
+		mkdir -p "$MMDAPP/.local/temp" 2> /dev/null
+		controlRowsFile="$MMDAPP/.local/temp/mdat-session-control.$controlPid.rows"
+
+		## The id names a session: a record carries it as its session-id, or a folder of a session
+		## has that name, as the session a client founded has before a member joined. The own id
+		## of a run that joined a session is none: the thread is its session's.
+		if ! AgentsToolsSessionControlRows "$controlSession" ; then
+			rm -f "$controlRowsFile" 2> /dev/null
+			AgentsToolsSessionControlRefuse "the records of session $controlSession could not be read under $MMDAPP/.local/agents/spawned -- nothing was started"
+			return 1
+		fi
+		if [ -z "$controlRows" ] ; then
+			controlOwn="$( AgentsToolsRegistrySpawnRecord "$controlSession" )" || controlOwn=""
+			[ -z "$controlOwn" ] || controlOwn="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$controlOwn" )" session-id )"
+			case "$controlOwn" in
+				''|-) ;;
+				*)
+					rm -f "$controlRowsFile" 2> /dev/null
+					AgentsToolsSessionControlRefuse "'$controlSession' is the own id of a run of session $controlOwn, and the control thread is a session's: give it $controlOwn -- nothing was started"
+					return 1
+				;;
+			esac
+			if [ ! -d "$MMDAPP/.local/agents/sessions/$controlSession" ] ; then
+				rm -f "$controlRowsFile" 2> /dev/null
+				AgentsToolsSessionControlRefuse "'$controlSession' names no session of this workspace: no record carries it as its session-id, and no folder of a session has that name -- nothing was started"
+				return 1
+			fi
+		fi
+
+		## The records it has read once are known from here on: see AgentsToolsSessionControlLook.
+		controlKnown="$controlRowsNames"
+
+		controlDir="$MMDAPP/.local/agents/sessions/$controlSession/control"
+		controlLock="$controlDir/lock"
+		if ! mkdir -p "$controlDir" 2> /dev/null ; then
+			rm -f "$controlRowsFile" 2> /dev/null
+			AgentsToolsSessionControlRefuse "could not make $controlDir -- nothing was started"
+			controlDir=""
+			return 1
+		fi
+		AgentsToolsSessionControlLockTake
+		case "$?" in
+			0) ;;
+			1)
+				rm -f "$controlRowsFile" 2> /dev/null
+				if [ "$controlHolderTold" = 2 ] ; then
+					AgentsToolsSessionControlRefuse "pid ${controlHolder%% *} holds the lock of session $controlSession, and it could not be read whether that is still its control thread -- a second one is not started"
+				else
+					AgentsToolsSessionControlRefuse "the control thread of session $controlSession already runs as pid ${controlHolder%% *}, begun ${controlHolder#* } -- a second one is not started"
+				fi
+				return 1
+			;;
+			*)
+				rm -f "$controlRowsFile" 2> /dev/null
+				AgentsToolsSessionControlRefuse "could not take the lock of session $controlSession at $controlLock -- nothing was started"
+				return 1
+			;;
+		esac
+		## What a thread that was ended the hard way left half made is nobody's now.
+		rm -f "$controlDir"/state.*.aside "$controlDir"/pid.*.aside "$controlDir"/log.*.aside 2> /dev/null
+		if ! AgentsToolsSessionControlPidWrite ; then
+			AgentsToolsSessionControlLeave
+			AgentsToolsSessionControlRefuse "could not write $controlDir/pid -- nothing was started"
+			return 1
+		fi
+
+		if [ "$controlMode" = "--run" ] ; then
+			[ "$agentsSessionControlRounds" != 0 ] || echo "# $MDSC_CMD --intern-session-control: the control thread of session $controlSession runs as pid $controlPid: its log is $controlDir/log, and TERM ends it in order" >&2
+			## IT INHERITS NOTHING THAT CAN END IT FROM ITS STARTER. From here on its input is
+			## /dev/null and its output and its errors are its own log; the descriptors 3 to 9 it
+			## was handed are closed; and its working folder is one that does not vanish.
+			AgentsToolsSessionControlRepoint
+			exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+			case "$MMDAPP:$MDLT_ORIGIN" in /*:/*) cd / 2> /dev/null ;; esac
+			if [ "$agentsSessionControlRounds" = 0 ] ; then
+				AgentsToolsSessionControlSay event "the control thread of session $controlSession runs as pid $controlPid, a tick every ${controlTick}s"
+			else
+				AgentsToolsSessionControlSay event "the control thread of session $controlSession is put back in place, pid $controlPid as before: its shell had ended without its doing ($agentsSessionControlRounds in a row within seconds of a start); a tick every ${controlTick}s"
+			fi
+			if [ "$agentsSessionControlRounds" -lt 5 ] ; then
+				agentsSessionControlStay="$controlSession"
+				trap 'AgentsToolsSessionControlAgain' EXIT
+			else
+				AgentsToolsSessionControlSay event "the shell of this thread ended five times in a row within seconds of its start: it is not put back another time"
+			fi
+		fi
+		if [ -n "$controlTookOver" ] ; then
+			if kill -0 "${controlTookOver%% *}" 2> /dev/null ; then
+				AgentsToolsSessionControlSay event "session $controlSession: took over the lock of pid ${controlTookOver%% *}: that number is another process's now, begun at another time than the lock says, ${controlTookOver#* }"
+			else
+				AgentsToolsSessionControlSay event "session $controlSession: took over the lock of pid ${controlTookOver%% *}, which is gone"
+			fi
+			controlTookOver=""
+		fi
+
+		while : ; do
+			controlWoken=""
+			AgentsToolsSessionControlTick
+			[ -z "$controlWrote" ] && [ "$(( controlTicks % 12 ))" != 0 ] || { AgentsToolsSessionControlLogBound ; controlWrote="" ; }
+			[ -z "$controlLeave" ] || break
+			[ "$controlMode" != "--one" ] || break
+			[ -z "$controlEnd" ] || break
+			## A signal that asked for a tick while this one was made is answered by the next, at once.
+			[ -z "$controlWoken" ] || continue
+			## THE WAIT BETWEEN TWO TICKS, waited for and never slept through: TERM ends it at
+			## once, and so does a signal that asks for a tick. It is made of sleeps of five
+			## seconds at most, and the thread SENDS NO SIGNAL, ever, to anything: the sleep it
+			## was waiting on when a signal came is left to run out, within five seconds, by
+			## itself. So no process id is kept to be signalled later, and none can be another's.
+			controlWaitLeft="$controlTick"
+			while [ "$controlWaitLeft" -gt 0 ] ; do
+				controlWaitPiece="$controlWaitLeft"
+				[ "$controlWaitPiece" -le 5 ] || controlWaitPiece=5
+				controlWaitFrom="$SECONDS"
+				sleep "$controlWaitPiece" &
+				{ wait "$!" ; } 2> /dev/null ; controlWaitRc=$?
+				[ -z "$controlEnd" ] && [ -z "$controlWoken" ] || break
+				if [ "$controlWaitRc" = 0 ] ; then
+					controlEarly=0
+				else
+					## A sleep that ended before its time and by no signal to this thread: the
+					## next comes early. The third in a row is a sleep that cannot be made at
+					## all: its time is waited out by the shell itself, so the loop never spins.
+					controlEarly=$(( controlEarly + 1 ))
+					if [ "$controlEarly" -ge 3 ] ; then
+						[ -n "$controlSleepSaid" ] || AgentsToolsSessionControlSay event "session $controlSession: the wait between two ticks cannot be made by sleep (status $controlWaitRc) and is waited out by the shell itself"
+						controlSleepSaid="yes"
+						while [ "$(( SECONDS - controlWaitFrom ))" -lt "$controlWaitPiece" ] && [ -z "$controlEnd" ] && [ -z "$controlWoken" ] ; do : ; done
+					fi
+				fi
+				controlWaitLeft=$(( controlWaitLeft - controlWaitPiece ))
+			done
+			[ -z "$controlEnd" ] || break
+		done
+
+		## An end in order: the thread is not put back.
+		if [ "$controlMode" = "--run" ] ; then
+			agentsSessionControlStay=""
+			trap - EXIT
+		fi
+		[ -n "$controlLeave" ] || [ -z "$controlEnd" ] || controlLeave="it was ended by $controlEnd"
+		[ "$controlMode" != "--run" ] || AgentsToolsSessionControlSay event "the control thread of session $controlSession, pid $controlPid, ends: $controlLeave"
+		AgentsToolsSessionControlLeave
+		return "$controlRc"
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+
+esac

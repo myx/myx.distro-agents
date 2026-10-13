@@ -22,6 +22,9 @@
 ## second: a selection that runs over a row starts none for it, and the screen waits for its next key no longer
 ## than that rest still lasts; and an item that is selected again, before the period of its last read has passed,
 ## is read again and shows its lines.
+## And rows the screen does not take change nothing it shows: a `session` row with three more fields at its end --
+## the state the control thread of a session stored, its date, whether that thread lives -- and a `control` row
+## after the `dispatch` row of a read. The pane of a session and of an agent is drawn cell for cell as before.
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -455,6 +458,58 @@ rigAssert "a session is selected and read, then another"             "$( rigVal 
 rigAssert "the first is selected again, within the period of its read: its pane is new and empty" "$( rigVal back.selected ) $( rigVal back.viewLines )" "$rigS1 0"
 rigAssert "it is read again at once, and shows its lines"            "$( rigVal read.viewLines ) $( rigPaneHolds r 'wait going idle' ) $( rigPaneHolds r 'for       The daily of Monday' )" "13 1 1"
 rigAssert "each of its two reads was made twice, and no more while it stays selected inside the period" "$( rigCalled "--manager-session-read --session-id $rigS1" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1" ) [$( rigVal later.reading )]" "2 2 []"
+
+echo "-- a wider session row and a control row change nothing the pane shows --"
+## What the operations print now: each `session` row with three more fields after its eight, and in a read one
+## `control` row after the `dispatch` row. Every other row of the fixtures is as it was.
+rigWiden(){ ## -- the fixtures of the case in place: the list and each read of a session
+	local widenFile
+	for widenFile in "$MANAGER_SCREEN_RIG/rows" "$MANAGER_SCREEN_RIG"/rows.--manager-session-read* ; do
+		[ -f "$widenFile" ] || continue
+		LC_ALL=C awk -F'\t' '
+			$1 == "session" { stored = ( $4 == "running" ? "running\t2026-10-12_16:58_+0000\talive" : "finished\t2026-10-11_14:51_+0000\tnone" ) ; print $0 "\t" stored ; sessionId = $2 ; next }
+			{ print }
+			$1 == "dispatch" { print "control\t" sessionId "\t" stored "\t" ( stored ~ /alive$/ ? "4242" : "-" ) }
+		' "$widenFile" > "$widenFile.wide" && mv -f "$widenFile.wide" "$widenFile"
+	done
+}
+rigWideDrawn(){ ## the case, "wide" for the wider rows -- what the screen draws of a session selected, then of an agent of it, then of a session with no record of its founder
+	rigCase "$1"
+	[ "${2:-}" != "wide" ] || rigWiden
+	rigScript <<'RIGSCRIPT'
+keys ENTER
+wait sessions 30
+keys DOWN DOWN
+advance 1
+turn
+wait view 30
+wait feed 30
+get s
+show s
+keys ENTER
+keys DOWN DOWN
+advance 1
+turn
+wait view 30
+wait feed 30
+get r
+show r
+keys LEFT DOWN
+advance 1
+turn
+wait view 30
+wait feed 30
+get n
+show n
+RIGSCRIPT
+	printf '%s\n' "$rigOut"
+}
+rigDrawnEight="$( rigWideDrawn eight )"
+rigDrawnEleven="$( rigWideDrawn eleven wide )"
+rigAssert "control: the fixtures of the second case hold the wider session rows and a control row in each read of a session, and the first holds none" \
+	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } $1 == "control" && NF == 6 { control++ } END { print rows + 0 ":" wide + 0 ":" control + 0 }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ } $1 == "control" { control++ } END { print wide + 0 ":" control + 0 }' )" "7:7:5 0:0"
+rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'for       The daily of Monday' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
+rigAssert "the screen reads the rows as before: with the three more fields at the end of each session row, and the control row in each read, it asks the same reads and draws and reports cell for cell what it did without them" "$( [ "$rigDrawnEleven" = "$rigDrawnEight" ] && echo same || { echo differs ; diff <( printf '%s\n' "$rigDrawnEight" ) <( printf '%s\n' "$rigDrawnEleven" ) | head -6 ; } ) $( cmp -s "$rigTmp/eight/calls" "$rigTmp/eleven/calls" && echo same-calls ) $( LC_ALL=C grep -c -e '--manager-session-read' "$rigTmp/eleven/calls" | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "reads" : "no reads: " $1 }' )" "same same-calls reads"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PANE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

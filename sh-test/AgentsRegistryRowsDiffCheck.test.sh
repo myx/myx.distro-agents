@@ -18,6 +18,10 @@
 ## Holds the three columns appended after workspace as well -- started-at, resolved-at and
 ## session-comment, each as the record holds it, `-` where it has none -- and that the render,
 ## and a reader of the render, still count thirteen columns.
+## And the two appended after those -- session-state and session-state-at, the state the control
+## thread of a row's session keeps in the session's own folder, `-` in both where the session has
+## none or the file cannot be read -- which the registry file holds after a rebuild, and which
+## only a caller that asks for sixteen columns gets: one that asks for fourteen still gets fourteen.
 ## Prints the time each side took per store.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -183,6 +187,13 @@ ln -s "$rigTmp/real-sandbox/r.md" "$rigSp/s-links/linked.md"
 ln -s "$rigTmp/nowhere.md" "$rigSp/s-links/dangling.md"
 ln -s "$rigTmp/nowhere" "$rigSp/s-dangling"
 printf 'x\n' > "$rigSp/not-a-dir.md"
+## The state of a session, kept in the session's own folder: of one session of this store, of one
+## whose id holds a backslash, and one file that names no state.
+rigSt="$rigWs/.local/agents/sessions"
+mkdir -p "$rigSt/s1/control" "$rigSt/bs\\x/control" "$rigSt/s2/control"
+printf 'state: running\nstate-at: 2026-10-13 10:21 +0300\nreason: a run of the session is alive on this host\n' > "$rigSt/s1/control/state"
+printf 'state: finished\nstate-at: 2026-10-13 11:00 +0300\nreason: every record of it is closed\n' > "$rigSt/bs\\x/control/state"
+printf 'state: No State\nstate-at: 2026-10-13 11:00 +0300\n' > "$rigSt/s2/control/state"
 
 printf -- '---\nstatus: reply-pending\nsession-id: a1\nowner: magic-coordinator\ncommunication-channel-id: C1\n---\nq\n' > "$rigPend/ask-1.md"
 printf -- '---\nstatus: received\nsession-id: a2\nblocked-on: human\n---\n' > "$rigPend/ask-2.md"
@@ -212,7 +223,9 @@ rigCompare "crafted stores, no blocked/ state" "$rigWs" "$rigData"
 rigNewRows="$rigTmp/out.SpawnedSessions.new"
 rigAssert "an empty sandbox is a no-session-record row" "$( grep -c '^s-empty - - - - no-session-record' "$rigNewRows" )" 1
 rigAssert "a record's tracking-name carries to later records of its sandbox" "$( grep -c '^renamed-x ' "$rigNewRows" )" 5
-rigAssert "the unreadable record is a row of dashes" "$( grep -c '^s-unread - - - - - - - - - - - - -$' "$rigNewRows" )" 1
+rigAssert "the unreadable record is a row of dashes" "$( grep -c '^s-unread - - - - - - - - - - - - - - -$' "$rigNewRows" )" 1
+rigAssert "the crafted store reaches the state of a session: the two last columns of its row hold it, also for an id with a backslash, and a file that names no state gives - in both" \
+	"$( LC_ALL=C awk '$2 == "s1" { print $15, $16 }' "$rigNewRows" ) / $( LC_ALL=C awk '$2 == "bs\\x" { print $15, $16 }' "$rigNewRows" ) / $( LC_ALL=C awk '$2 == "s2" { print $15, $16 }' "$rigNewRows" )" "running 2026-10-13_10:21_+0300 / finished 2026-10-13_11:00_+0300 / - -"
 
 rigRenderCompare "crafted stores" "$rigWs" "$rigData" s4
 
@@ -366,21 +379,104 @@ rigRun AgentsToolsRegistrySpawnedSessionsRows "$rigDWs" "" "$rigTmp/dated.rows" 
 rigDatedRow(){ ## tracking name -- its row of the rows function, whole
 	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/dated.rows"
 }
-rigAssert "a row of a closed run carries both dates after workspace, each with _ where the record has a space" "$( rigDatedRow d-closed )" "d-closed sd-closed - elsewhere o spawn-succeeded - pd-closed - - wsd 2026-10-12_16:57_+0300 2026-10-12_17:40_+0300 -"
-rigAssert "a row of a running run carries its start date, and - for the closing date" "$( rigDatedRow d-live )" "d-live sd-live - $rigHost o spawn-started - $rigDLive - - wsd 2026-10-13_09:05_+0300 - -"
-rigAssert "the row of an empty sandbox reads no-session-record, with - in each of the three new columns" "$( rigDatedRow d-empty )" "d-empty - - - - no-session-record - - - - - - - -"
+rigAssert "a row of a closed run carries both dates after workspace, each with _ where the record has a space" "$( rigDatedRow d-closed )" "d-closed sd-closed - elsewhere o spawn-succeeded - pd-closed - - wsd 2026-10-12_16:57_+0300 2026-10-12_17:40_+0300 - - -"
+rigAssert "a row of a running run carries its start date, and - for the closing date" "$( rigDatedRow d-live )" "d-live sd-live - $rigHost o spawn-started - $rigDLive - - wsd 2026-10-13_09:05_+0300 - - - -"
+rigAssert "the row of an empty sandbox reads no-session-record, with - in each of the three new columns" "$( rigDatedRow d-empty )" "d-empty - - - - no-session-record - - - - - - - - - -"
 rigAssert "a row carries the comment of its session in the last column, and a record with none gives -" "$( rigDatedRow d-named | LC_ALL=C awk '{ print $12, $13, $14 }' ) / $( rigDatedRow d-live | LC_ALL=C awk '{ print $14 }' )" "- - daily_of_Monday / -"
 ## The render rebuilds the registry file, with its new columns, and prints thirteen as before; a
 ## reader that counts thirteen still finds its rows. The live run is in the rig's own process list.
 printf '900011 claude --verbose --session-id %s --agent rig-member the brief\n' "$rigDLive" > "$rigTmp/ps.list"
 rigRender AgentsToolsRegistryRenderSpawnedSessions "$rigDWs" "" "$rigTmp/dated.render" agents "" "" > /dev/null
-rigDatedWhole(){ ## -- the rows of the registry file as it lies, and how many of them have fourteen columns
-	LC_ALL=C awk 'NF == 14 { whole++ } END { print NR ":" whole + 0 }' "$rigDWs/.local/agents/spawned-sessions.registry" 2> /dev/null
+rigDatedWhole(){ ## -- the rows of the registry file as it lies, and how many of them have sixteen columns
+	LC_ALL=C awk 'NF == 16 { whole++ } END { print NR ":" whole + 0 }' "$rigDWs/.local/agents/spawned-sessions.registry" 2> /dev/null
 }
-rigAssert "the registry file the render rebuilt has its new columns: fourteen in each of its four rows" "$( rigDatedWhole )" "4:4"
+rigAssert "the registry file the render rebuilt has its new columns: sixteen in each of its four rows" "$( rigDatedWhole )" "4:4"
 rigAssert "the render still prints thirteen columns for each of them, live and state last" "$( LC_ALL=C awk '$1 ~ /^d-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/dated.render" ) $( LC_ALL=C awk '$1 == "d-closed" || $1 == "d-live" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/dated.render" )" "4:4 wsd other-host finished wsd running running "
 rigAssert "a reader that counts thirteen columns still finds its rows: over that file, the collect of ended asks names the session of the live run as running" \
 	"$( ( MMDAPP="$rigDWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/AgentsTools.PendingReplyCollect.include" ; AgentsToolsPendingReplySessionsRunning ) 2> /dev/null | LC_ALL=C tr -d ' ' ) $( rigDatedWhole )" "sd-live 4:4"
+: > "$rigTmp/ps.list"
+
+## --- the state of a session: two columns appended after session-comment ---
+rigSWs="$rigTmp/stated/ws"
+rigSSp="$rigSWs/.local/agents/spawned"
+rigSSt="$rigSWs/.local/agents/sessions"
+rigSReg="$rigSWs/.local/agents/spawned-sessions.registry"
+rigSLive="rig-stated-live-$$"
+mkdir -p "$rigSSp/t-empty" "$rigSWs/.local/agents/pending"
+rigStatedRec(){ ## sandbox, record name, session id, spawn id, host, status
+	mkdir -p "$rigSSp/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nowner: o\nstatus: %s\nworkspace: wss\nstarted-at: 2026-10-13 10:00 +0300\nsession-comment: stated one\n---\n' "$3" "$4" "$5" "$6" > "$rigSSp/$1/$2.md"
+}
+rigStatedFile(){ ## session id, the text of its state file
+	mkdir -p "$rigSSt/$1/control" && printf '%s' "$2" > "$rigSSt/$1/control/state"
+}
+rigStatedRow(){ ## tracking name -- its row of the rows function, whole
+	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/stated.rows"
+}
+rigStatedRebuild(){ ## -- the rebuild of the registry file of this store; prints its rc and how many lines it said on stderr
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/AgentsTools.Registries.include" ; AgentsToolsRegistrySpawnedSessionsRebuild ) > /dev/null 2> "$rigTmp/stated.rebuild.err"
+	printf '%s:%s\n' "$?" "$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/stated.rebuild.err" )"
+}
+rigStatedOf(){ ## session id -- the two last columns of each of its rows in the registry file as it lies, a row a word pair
+	LC_ALL=C awk -v wantSession="$1" '$2 == wantSession { printf "%s%s %s", ( said++ ? " | " : "" ), $15, $16 }' "$rigSReg" 2> /dev/null
+}
+## A session of two runs with a state, one that never had a control thread, one whose thread
+## wrote a word this code does not know, and four whose file gives no state: a word that is none,
+## no word at all, a file that cannot be read, and a folder where the file would be.
+rigStatedRec t-founder "$rigSLive" st-run "$rigSLive" "$rigHost" spawn-started
+rigStatedRec t-member pt-member st-run pt-member "$rigHost" spawn-succeeded
+rigStatedRec t-none pt-none st-none pt-none elsewhere spawn-succeeded
+rigStatedRec t-word pt-word st-word pt-word elsewhere spawn-started
+rigStatedRec t-bad pt-bad st-bad pt-bad elsewhere spawn-succeeded
+rigStatedRec t-blank pt-blank st-blank pt-blank elsewhere spawn-succeeded
+rigStatedRec t-unread pt-unread st-unread pt-unread elsewhere spawn-succeeded
+rigStatedRec t-folder pt-folder st-folder pt-folder elsewhere spawn-succeeded
+rigStatedFile st-run "$( printf 'state: running\nstate-at: 2026-10-13 10:21 +0300\nreason: a run of the session is alive on this host' )"$'\n'
+rigStatedFile st-word "$( printf 'state: member-dead\nstate-at: 2026-10-13 10:30 +0300\nreason: a word a later task writes' )"$'\n'
+rigStatedFile st-bad "$( printf 'state: Not A State\nstate-at: 2026-10-13 10:40 +0300\nreason: none' )"$'\n'
+rigStatedFile st-blank "$( printf 'state-at: 2026-10-13 10:50 +0300\nreason: a file with no word' )"$'\n'
+rigStatedFile st-unread "$( printf 'state: running\nstate-at: 2026-10-13 10:55 +0300\nreason: not to be read' )"$'\n'
+chmod 000 "$rigSSt/st-unread/control/state"
+mkdir -p "$rigSSt/st-folder/control/state"
+rigRun AgentsToolsRegistrySpawnedSessionsRows "$rigSWs" "" "$rigTmp/stated.rows" > /dev/null
+rigAssert "a row carries the state of its session in the two last columns, the date with _ where the file has a space" "$( rigStatedRow t-founder )" "t-founder st-run - $rigHost o spawn-started - $rigSLive - - wss 2026-10-13_10:00_+0300 - stated_one running 2026-10-13_10:21_+0300"
+rigAssert "every row of that session carries the same two: the row of its other run too" "$( rigStatedRow t-member | LC_ALL=C awk '{ print NF, $15, $16 }' )" "16 running 2026-10-13_10:21_+0300"
+rigAssert "a session that never had a control thread has - in both columns, and so has the row of an empty sandbox" "$( rigStatedRow t-none | LC_ALL=C awk '{ print NF, $15, $16 }' ) / $( rigStatedRow t-empty )" "16 - - / t-empty - - - - no-session-record - - - - - - - - - -"
+rigAssert "the word is taken as the file holds it, whatever state it names: one a later task writes is stored as it stands" "$( rigStatedRow t-word | LC_ALL=C awk '{ print NF, $15, $16 }' )" "16 member-dead 2026-10-13_10:30_+0300"
+rigAssert "a state file that cannot be read gives - in both: a word that is no state, no word at all, a file that cannot be opened, a folder in its place" \
+	"$( for rigStatedBad in t-bad t-blank t-unread t-folder ; do rigStatedRow "$rigStatedBad" | LC_ALL=C awk '{ printf "%s:%s:%s ", NF, $15, $16 }' ; done )" "16:-:- 16:-:- 16:-:- 16:-:- "
+rigAssert "and the rows function said nothing of them on standard error" "$( LC_ALL=C awk 'END { print NR + 0 }' "$rigTmp/stated.rows.err" )" "0"
+rigAssert "the rebuild does not fail over them: it ends 0 and says nothing, and the file has sixteen columns in each of its nine rows" "$( rigStatedRebuild ) $( LC_ALL=C awk 'NF == 16 { whole++ } END { print NR ":" whole + 0 }' "$rigSReg" 2> /dev/null )" "0:0 9:9"
+## The registry stores the state at its rebuild: a state that moves is in the file after the next one.
+rigAssert "control: the registry file holds the state its rebuild read, in each row of the session" "$( rigStatedOf st-run )" "running 2026-10-13_10:21_+0300 | running 2026-10-13_10:21_+0300"
+rigStatedFile st-run "$( printf 'state: finished\nstate-at: 2026-10-13 10:58 +0300\nreason: no run of the session is alive and every record of it is closed' )"$'\n'
+rigAssert "the state file moves to finished, and the registry file as it lies still holds running" "$( LC_ALL=C sed -n 's/^state: //p' "$rigSSt/st-run/control/state" ) / $( rigStatedOf st-run )" "finished / running 2026-10-13_10:21_+0300 | running 2026-10-13_10:21_+0300"
+rigAssert "after the next rebuild it holds finished, with the new date" "$( rigStatedRebuild ) $( rigStatedOf st-run )" "0:0 finished 2026-10-13_10:58_+0300 | finished 2026-10-13_10:58_+0300"
+## Only a caller that asks for the wider row gets it: the awk of the rows, asked as a reader that
+## loaded its code before these columns asks it, over the same records and the same state file.
+rigStatedAwk(){ ## the count of columns asked for ("" for none) -- how many columns each row of the two records and the empty sandbox has, and the last column of the first
+	printf 'T%s\nDt-founder\nS%s\nDt-member\nS%s\nDt-empty\nE\n' "$rigSSt/st-run/control/state" "$rigSSp/t-founder/$rigSLive.md" "$rigSSp/t-member/pt-member.md" \
+		| LC_ALL=C awk -v registryRows=spawned ${1:+-v registryColumns="$1"} -f "$rigHere/AgentsRegistryHeaderRows.awk" \
+		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $NF } END { print last }'
+}
+rigAssert "a caller that asks for fourteen columns still gets fourteen, and no state: the comment of the session is its last column" "$( rigStatedAwk 14 )" "14 14 14 stated_one"
+rigAssert "a caller that names no count still gets its eleven" "$( rigStatedAwk "" )" "11 11 11 wss"
+rigAssert "and one that asks for sixteen gets the state last" "$( rigStatedAwk 16 )" "16 16 16 2026-10-13_10:58_+0300"
+## The measured rows: the render's thirteen, the sixteen words of a caller that names no count,
+## and eighteen, the state last, for the one that names sixteen.
+printf '900021 claude --verbose --session-id %s --agent rig-member the brief\n' "$rigSLive" > "$rigTmp/ps.list"
+rigStatedMeasured(){ ## the stored columns the caller counts ("" for none) -- the words of each measured row of the session, and the two last of the first
+	( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/AgentsTools.Registries.include" ; measuredRows="" ; measuredDated="" ; measuredAny=""
+		AgentsToolsRegistryMeasureRows "$rigSReg" "$rigHost" st-run ${1:+"$1"} ; printf '%s' "$measuredDated" ) 2> /dev/null \
+		| LC_ALL=C awk '{ printf "%s ", NF } NR == 1 { last = $( NF - 1 ) " " $NF } END { print last }'
+}
+rigAssert "a reader of the measured rows that names no count still gets sixteen words a row, the comment last" "$( rigStatedMeasured "" )" "16 16 - stated_one"
+rigAssert "and one that names sixteen stored columns gets eighteen, the stored state and its date last" "$( rigStatedMeasured 16 )" "18 18 finished 2026-10-13_10:58_+0300"
+rigRender AgentsToolsRegistryRenderSpawnedSessions "$rigSWs" "" "$rigTmp/stated.render" agents "" "" > /dev/null
+rigAssert "the render prints thirteen columns with the state stored, live and state last, as before" \
+	"$( LC_ALL=C awk '$1 ~ /^t-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/stated.render" ) $( LC_ALL=C awk '$1 == "t-founder" || $1 == "t-member" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/stated.render" )$( LC_ALL=C awk 'NF == 16 { whole++ } END { print NR ":" whole + 0 }' "$rigSReg" 2> /dev/null )" "9:9 wss running running wss no-process finished 9:9"
+rigAssert "a reader that counts thirteen columns finds its rows with the state stored: over that file, the collect of ended asks names the session of the live run as running" \
+	"$( ( MMDAPP="$rigSWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/AgentsTools.PendingReplyCollect.include" ; AgentsToolsPendingReplySessionsRunning ) 2> /dev/null | LC_ALL=C tr -s ' ' '\n' | LC_ALL=C grep -c -x -F -- 'st-run' ) $( rigStatedOf st-run )" "1 finished 2026-10-13_10:58_+0300 | finished 2026-10-13_10:58_+0300"
 : > "$rigTmp/ps.list"
 
 ## --- a copy of a live workspace's stores ---

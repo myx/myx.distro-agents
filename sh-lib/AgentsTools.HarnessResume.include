@@ -72,21 +72,24 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	## Recorded as soon as the harness says it loaded, so the line precedes the run's own.
+	## Each record in a subshell of its own, here and below: the tooling it calls leaves set -e
+	## behind, and this is the shell that supervises the run. With set -e on, it ended at its
+	## next command that failed, before it had closed the run's record.
 	while kill -0 "$runPid" 2>/dev/null ; do
 		if [ -z "$runSeen" ] && [ -e "$runMark" ] ; then
 			runSeen=yes
-			AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID"
+			( AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID" )
 		fi
 		sleep 1
 	done
 	wait "$runPid" 2>/dev/null || runRc=$?
 	if [ -n "$runSeen" ] || [ -e "$runMark" ] ; then
-		[ -n "$runSeen" ] || AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID"
+		[ -n "$runSeen" ] || ( AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed-context (from ${runFrom:-the kept context})" RESTART "$MDAT_SPAWN_SESSION_ID" )
 		rm -f "$runMark"
 		return "$runRc"
 	fi
 	echo "# $MDSC_CMD --intern-op-agent-spawn-proxy: the harness resume from $runContext exited $runRc before its first request -- starting a new process instead" >&2
-	AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the harness resume from the kept context exited $runRc before its first request)" RESTART "$MDAT_SPAWN_SESSION_ID"
+	( AgentsReviewRecord "$runWho" "$runItem" review "restart: new-process (the harness resume from the kept context exited $runRc before its first request)" RESTART "$MDAT_SPAWN_SESSION_ID" )
 	## Started in the background and waited for, so that the process it becomes is known, and
 	## kept on the spawn's record (AgentsToolsSpawnProxyRunRecord). Nothing else of the run
 	## changes: its stdin and its streams are the same, its exit status is what this returns,

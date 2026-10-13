@@ -808,13 +808,17 @@ esac
 exit 0
 RIGCONSOLE
 chmod +x "$rigWork/ws-here/DistroAgentsConsole.sh"
-rigRetrySpawn(){ ## close mode -- one async spawn of keeper-there, invited into ws-here, then up to 30 s for its own close to stamp the record
+rigRetrySpawn(){ ## close mode -- one async spawn of keeper-there, invited into ws-here, then up to 30 s for its own close to stamp the record, and as long again for the rest of that close
 	rm -f "$rigTmp"/start.* "$rigTmp/record.path" "$rigTmp/transcript.seen" ; : > "$rigTmp/calls" ; : > "$rigTmp/bodies"
 	rigRc=0
 	( cd "$rigWork/ws-here" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWork/ws-here" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_SCENARIO="$rigTmp" RIG_CLOSE="$1" \
 		bash "$rigTool" --intern-op-agent-spawn-proxy keeper-there --spawn-cli-service rig-service --dispatch-doc:none --context rig-ws-invited ) > "$rigTmp/out" 2> "$rigTmp/err" <<< "RIG-TASK-TEXT" || rigRc=$?
 	rigRetryLeft=30
 	while [ "$rigRetryLeft" -gt 0 ] && ! { [ -s "$rigTmp/record.path" ] && LC_ALL=C grep -q '^resolved-at: ' "$( cat "$rigTmp/record.path" )" 2> /dev/null ; } ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
+	## The record is closed first, and what is said of the end follows it: so the rest of the close is waited for too, until the shell that makes it (PID= of the receipt) has ended.
+	rigRetryShell="$( LC_ALL=C sed -n 's/^PID=//p' "$rigTmp/out" | head -1 )"
+	rigRetryLeft=30
+	while [ "$rigRetryLeft" -gt 0 ] && [ -n "$rigRetryShell" ] && kill -0 "$rigRetryShell" 2> /dev/null ; do sleep 1 ; rigRetryLeft=$(( rigRetryLeft - 1 )) ; done
 	rigRecordStatus="$( [ ! -s "$rigTmp/record.path" ] || LC_ALL=C sed -n 's/^status: //p' "$( cat "$rigTmp/record.path" )" 2> /dev/null | head -1 )"
 	rigSessionLog="$( LC_ALL=C sed -n 's/^OUTPUT_FILE=//p' "$rigTmp/out" | head -1 )"
 }

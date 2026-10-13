@@ -18,6 +18,10 @@
 ## stores of one session, never of all.
 ## One operation acts: the kill ends the runs an id names, found in those same rows, with
 ## the registry of the runs rebuilt first, so that no run of the session is missed.
+## A session shows two more things, at the end of its row: the state its control thread
+## stored for it, with when, as the registry holds them (session-state, session-state-at),
+## beside the state that is derived here at each call; and whether that thread lives, which
+## no registry holds: it is measured at each call (AgentsToolsManagerSessionControls).
 ##
 
 type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
@@ -69,6 +73,67 @@ AgentsToolsManagerLoadAverage(){
 	printf '%s\n' "$loadText"
 }
 
+## THE CONTROL THREAD OF A SESSION, WHETHER IT LIVES: measured now, at every call, and never
+## stored. A thread keeps two things in the session's own folder, sessions/<session id>/control/,
+## for as long as it lives: a pid file and a lock, which is a link. Each names it as
+## `<pid> <start>`, its process and when that process began (AgentsTools.InternSessionControl.include).
+## Prints one line for each session that has either, `<session id> <word> <pid>`:
+##   alive  the process one of the two names is still that process: that pid, begun then;
+##   gone   neither names such a process: no process has the pid, or another has taken it,
+##          begun at another time, or it has ended and is only not collected yet.
+## A session with neither has no line: it has no control thread. <pid> is the process the word
+## is said of: the live one, else the one the pid file names, else the lock's; `-` where what
+## stands there names none.
+## The folders are listed by the shell, once, and the processes all of them name are asked of
+## the process list in ONE read (AgentsToolsRegistryProcessesBegan), never one a session; a
+## link is read only where a session has one. With an id, that one session alone is looked at.
+AgentsToolsManagerSessionControls(){ ## session id (every session of the workspace where not given)
+	local controlsRoot="$MMDAPP/.local/agents/sessions" controlsFile controlsId controlsLine controlsNamed="" controlsFound="" controlsTab=$'\t' controlsNl=$'\n'
+	case "${1:-}" in
+		'') set -- "$controlsRoot"/*/control/pid "$controlsRoot"/*/control/lock ;;
+		-|.|..|*/*) return 0 ;;
+		*) set -- "$controlsRoot/$1/control/pid" "$controlsRoot/$1/control/lock" ;;
+	esac
+	for controlsFile in "$@" ; do
+		controlsLine=""
+		case "$controlsFile" in
+			*/pid)
+				[ -f "$controlsFile" ] || continue
+				{ IFS= read -r controlsLine < "$controlsFile" ; } 2> /dev/null || :
+			;;
+			*)
+				[ -L "$controlsFile" ] || continue
+				controlsLine="$( readlink "$controlsFile" 2> /dev/null )" || controlsLine=""
+			;;
+		esac
+		controlsId="${controlsFile%/control/*}" ; controlsId="${controlsId##*/}"
+		## One line a pid file or a lock, the pid files first: what it names stays one field.
+		controlsLine="${controlsLine//"$controlsTab"/ }"
+		controlsFound="$controlsFound$controlsId$controlsTab$controlsLine$controlsNl"
+		controlsNamed="$controlsNamed$controlsLine$controlsNl"
+	done
+	[ -n "$controlsFound" ] || return 0
+	{ printf '%s' "$controlsNamed" | AgentsToolsRegistryProcessesBegan ; printf '=\n%s' "$controlsFound" ; } | LC_ALL=C awk -F "$controlsTab" '
+		$0 == "=" { controlsRead = 1 ; next ; }
+		! controlsRead { controlsNow[$0] = 1 ; next ; }
+		{
+			if (!( $1 in sessionAt )) { sessionAt[$1] = ++sessionTotal ; sessionOf[sessionTotal] = $1 ; }
+			namedPid = $2 ; sub( / .*/, "", namedPid ) ;
+			if (namedPid !~ /^[0-9]+$/) namedPid = "-" ;
+			if ($2 in controlsNow) { if (!( $1 in livePid )) livePid[$1] = namedPid ; }
+			else if (!( $1 in namedOf ) || namedOf[$1] == "-") namedOf[$1] = namedPid ;
+		}
+		END {
+			for (sessionNo = 1 ; sessionNo <= sessionTotal ; sessionNo++) {
+				sessionId = sessionOf[sessionNo] ;
+				if (sessionId in livePid) print sessionId, "alive", livePid[sessionId] ;
+				else print sessionId, "gone", namedOf[sessionId] ;
+			}
+		}
+	' || :
+	return 0
+}
+
 ## The rows --manager-session-list prints: both session registries rebuilt, every row
 ## measured, then grouped, sorted and counted. Fails, printing nothing, where a registry
 ## cannot be rebuilt: a stale file is never listed as though it were fresh.
@@ -82,7 +147,7 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 		return 1
 	fi
 	[ -d "$MMDAPP/.local/agents/spawned" ] || echo "# $MDSC_CMD $rowsOp: no spawn sandbox root exists yet, so no session has run in this workspace" >&2
-	AgentsToolsRegistryMeasureRows "$rowsFile"
+	AgentsToolsRegistryMeasureRows "$rowsFile" "" "" 16
 	if stat -f '%m' / > /dev/null 2>&1 ; then
 		rowsStat="bsd"
 	elif stat -c '%Y' / > /dev/null 2>&1 ; then
@@ -92,9 +157,9 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	while IFS= read -r rowsSpawn ; do
 		[ -n "$rowsSpawn" ] || continue
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
-	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 16 && $12 == "running" { print $8 ; }' )"
+	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -129,10 +194,11 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 ## them. The id is a session's, or a run's own: a session's id shows the session, and the own
 ## id of a run that joined one shows the session that run belongs to, with that run chosen.
 ## The founder's own id is its session's, so "run" as the third word takes the id as a run's
-## own alone. Into four variables of the caller: scopeSession, the session; scopeRun, the one
+## own alone. Into five variables of the caller: scopeSession, the session; scopeRun, the one
 ## run chosen, `-` for every run of the session; scopeMeasured, the measured rows of the
 ## session (measuredDated of AgentsToolsRegistryMeasureRows); scopeListed, its `session` row
-## and its `run` rows in the form and the order of the list.
+## and its `run` rows in the form and the order of the list; scopeControl, its control thread
+## as it was measured for that row (AgentsToolsManagerSessionControls), empty where it has none.
 ##
 ## A registry stores what the tooling needs to work fast, so the registries are read as they
 ## lie, and only one session's rows are measured. A reader that passes by still updates what
@@ -140,12 +206,13 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 ## is taken as it lies only while it holds its store as the store is now, and is rebuilt
 ## first, once, where it does not (AgentsManagerSessionScope.awk). spawned-sessions: every
 ## sandbox folder the store has and no other, each with as many record rows as it has record
-## files, every row of fourteen columns, and a row of the id. pending-replies: every ask by
+## files, every row of sixteen columns, and a row of the id. pending-replies: every ask by
 ## its name and no other, and of each ask of the session the status its record says now. No
 ## time is compared: a record added to a folder the session already has moves no time a row
 ## names, and the shell's newer-than test counts whole seconds. What a record of the session
 ## says is then read from the record itself, at every call, so a status that moved is never
-## old, and no registry is rebuilt for it. The cost: the names in the store are listed, one
+## old, and no registry is rebuilt for it; the state its control thread stored is read with
+## it, from the session's own folder. The cost: the names in the store are listed, one
 ## folder a sandbox, and the records of the one session are read; no other record is opened.
 ## A board item that starts or stops waiting on a reply is the one change not seen here: its
 ## row is rebuilt by the next reader that rebuilds pending-replies, as the list does. Fails,
@@ -154,9 +221,9 @@ AgentsToolsManagerSessionRecordEntries(){ ## the store, spawned; entries or kept
 AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), what is not done on a failure (may be empty)
 	local scopeOp="$1" scopeId="$2" scopeOwn="${3:-}" scopeNot="${4:-nothing is shown}" scopeFile scopePending scopeStore scopePicked="" scopeRows="" scopeAge="" scopeFresh=""
 	local scopeLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" scopeIds scopeReread
-	local scopeTracking scopeSkip scopeSpawn scopeLive scopeRest scopeTemp scopeStat="" scopeWaiting=" " scopeTab=$'\t' scopeNl=$'\n'
+	local scopeTracking scopeSkip scopeSpawn scopeLive scopeRest scopeTemp scopeStat="" scopeWaiting=" " scopeState="" scopeTab=$'\t' scopeNl=$'\n'
 	local measuredRows="" measuredDated="" measuredAny="false"
-	scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed=""
+	scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
 	scopeFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	scopePending="$( AgentsToolsRegistryFile pending-replies )"
 	scopeStore="$MMDAPP/.local/agents/spawned"
@@ -208,8 +275,14 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	## place of what its row said when the registry was built: a status that moved, a date
 	## set, a name given since. A row with no record to find by its name, its spawn id unknown
 	## or its file gone, stands as the registry has it.
-	scopeReread="$( AgentsToolsManagerSessionRecordEntries "$scopeStore" entries <<< "$scopeRows" \
-		| LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$scopeLib/AgentsRegistryHeaderRows.awk" )"
+	## The state its control thread stored is read with them, from the session's own folder,
+	## where it is a file.
+	scopeState="$MMDAPP/.local/agents/sessions/$scopeSession/control/state"
+	case "$scopeSession" in -|.|..|*/*) scopeState="" ;; esac
+	scopeReread="$( {
+			[ -z "$scopeState" ] || [ ! -f "$scopeState" ] || AgentsToolsRegistryRowsEntry T "$scopeState"
+			AgentsToolsManagerSessionRecordEntries "$scopeStore" entries <<< "$scopeRows"
+		} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=16 -f "$scopeLib/AgentsRegistryHeaderRows.awk" )"
 	scopeRows="$( AgentsToolsManagerSessionRecordEntries "$scopeStore" kept <<< "$scopeRows" )$scopeNl$scopeReread"
 	## The one measuring of a row takes a registry file: the rows of this session alone, in a
 	## file of this call's own, so that no other session is measured for it.
@@ -218,7 +291,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 		return 1
 	}
 	printf '%s\n' "$scopeRows" > "$scopeTemp"
-	AgentsToolsRegistryMeasureRows "$scopeTemp"
+	AgentsToolsRegistryMeasureRows "$scopeTemp" "" "" 16
 	rm -f "$scopeTemp"
 	scopeMeasured="$measuredDated"
 	## The store of a live run is read, never of an ended one.
@@ -231,8 +304,9 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	done <<< "$scopeMeasured"
 	## Grouped, ordered and named as the list does it, by the list's own awk; its counters row,
 	## the last, counts this session alone and is no row of a read.
+	scopeControl="$( AgentsToolsManagerSessionControls "$scopeSession" )"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
-		| MDAT_MANAGER_WAITING="$scopeWaiting" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$scopePending" - \
+		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}
@@ -397,7 +471,7 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	local killKind killSession killSpawn killMember killStatus killLive killRest killRecord killFound killLeft
 	local killAny="" killHard="" killStuck=0
 	local killSessions=() killSpawns=() killMembers=() killStatuses=() killOutcomes=() killPids=() killItems=() killBegan=()
-	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed=""
+	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 	if [ -d "$MMDAPP/.local/agents/spawned" ] && ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
 		killFile="$( AgentsToolsRegistryFile spawned-sessions )"
 		echo "⛔ ERROR: $MDSC_CMD $killOp: the session registries could not be rebuilt in ${killFile%/*} -- nothing was signalled" >&2
@@ -523,7 +597,7 @@ case "$1" in
 	## form is the help entry's. It reads one session's records and stores, never another's.
 	--manager-session-read)
 		local readOp="$1" readId="" readOwn="" readStores="" readSkip readSpawn readRest
-		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed=""
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 		shift
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -553,7 +627,7 @@ case "$1" in
 		done <<< "$scopeMeasured"
 		[ "$scopeRun" != "-" ] || scopeRun=""
 		printf '%s\n' "$scopeListed" \
-			| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" \
+			| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
 				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
 		return 0
 	;;
@@ -569,7 +643,7 @@ case "$1" in
 		local transcriptLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" transcriptTab=$'\t' transcriptNl=$'\n' transcriptBs='\'
 		local transcriptSources="" transcriptLogs="" transcriptFeed="" transcriptFrom=""
 		local runKind runSession runSpawn runMember runRest runSource runPath runShown runLines runCut runRows runFrom
-		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed=""
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
 		shift
 		while [ $# -gt 0 ] ; do
 			case "$1" in

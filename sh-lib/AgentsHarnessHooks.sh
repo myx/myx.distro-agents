@@ -232,11 +232,23 @@ AgentsHarnessHooksRefusal(){
 		if [ -n "$harnessTimeoutCmd" ] ; then
 			printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$harnessTimeoutCmd" 60 bash -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" || hookRc=$?
 		else
-			## Watchdog where no `timeout` exists, the shape Bash already uses here.
+			## Watchdog where no `timeout` exists, the shape Bash already uses here. It ends the
+			## hook it was started for and no other process: sixty seconds on, the pid alone may
+			## name whoever was given that number since. So it keeps when the hook began, read as
+			## the watchdog starts, and signals only while that pid is still the process that
+			## began then, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan).
+			## Loaded and read in the watchdog's own shell: the hook is waited for at once, and
+			## what is loaded is gone with the watchdog. Where no start can be read, nothing is
+			## signalled by the number alone.
 			{
 				printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" bash -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" &
 				hookRunPid=$!
-				( sleep 60 ; kill -TERM "$hookRunPid" 2>/dev/null ) >/dev/null &
+				(
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+					hookRunBegan="$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					sleep 60
+					[ -n "$hookRunBegan" ] && [ "$( printf '%s\n' "$hookRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$hookRunBegan" ] && kill -TERM "$hookRunPid" 2>/dev/null
+				) >/dev/null &
 				hookWatchPid=$!
 				wait "$hookRunPid" || hookRc=$?
 				kill -TERM "$hookWatchPid" 2>/dev/null || :

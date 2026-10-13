@@ -18,6 +18,7 @@ managing blast radius when the run itself has real consequences.
 - A probe answers its own predicate, not the question it was asked
 - A measurement carries its timestamp
 - A guard that fires is evidence; a guard that stays silent carries none
+- A check that leaves a process running signals it only while it is still that process
 - Establish which way a check errs before deciding whether it needs a fallback
 - An oracle settles what opinions divide
 - Test the inputs the design is silent about
@@ -284,6 +285,14 @@ postcondition directly instead of the command's status — that the destination 
 holds what was moved, that the returned count sits below the cap rather than
 equal to it. A result whose size equals the cap is a signal to re-run with a
 larger one before quoting it.
+
+## A check that leaves a process running signals it only while it is still that process
+
+A check that signals a process it kept from an earlier step sources the one shared helper for this,
+`sh-test/check-fixtures/rig-processes.include.test.sh` (`AgentsTestSignalsCheck` holds it and guards
+against a new `kill`, `pkill` or `killall` outside it). Process ids come round quickly while tests run,
+so a kept number can belong to a different process by the time it is signalled; the helper notes a
+process together with when it began, and signals it later only while its pid is still that same one.
 
 ## Establish which way a check errs before deciding whether it needs a fallback
 

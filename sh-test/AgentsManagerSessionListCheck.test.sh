@@ -15,7 +15,16 @@
 ## line or was never written, and as working otherwise; an ended run is not counted. The open asks are counted
 ## from the store, the paused sessions read 0. The call rebuilds both session registries, a record written after
 ## the last rebuild among them, and writes nothing else. A workspace with no session store prints the counters
-## row alone and one note. THE CALLER RULE, asked once where the family is dispatched: a call from no member's
+## row alone and one note. THE STATE A CONTROL THREAD STORED, AND WHETHER THAT THREAD LIVES: three more fields at
+## the end of each `session` row, after the eight of step one, which stand where they stood. The stored state and
+## its date are what control/state in the session's folder holds, as the registry stored them at this rebuild, `-`
+## in both for a session with none; it stands beside the state derived here, and where the two differ neither is
+## changed. The control thread reads `alive` while the process its pid file or its lock names is still that
+## process, `gone` where one of the two stands and names no such process -- one that is no more, or a pid
+## another process has taken, begun at another time -- and `none` where neither stands. It is measured at each
+## call and is in no registry: a thread that ends between two calls reads gone at the second, with the registry's
+## state as it was. The stand-ins of a thread are processes of this rig's own, noted with when they began and
+## ended through the rig's process helper. THE CALLER RULE, asked once where the family is dispatched: a call from no member's
 ## session runs, and one from inside a member's session, magic-coordinator's among them, is refused in one line
 ## and changes nothing. The second word of a --manager-* operation is never taken for a member to bring. And the
 ## help pair, with the three row forms the output is checked against. A fake `curl` first on PATH would log a
@@ -31,9 +40,14 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$rigPackage/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsManagerSessionListCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+## Every stand-in of a control thread this check starts: at its end each is ended, while it is still itself.
+rigStarted=""
+trap 'rigProcSignal KILL $rigStarted ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'exit 1' INT TERM
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 rigAgents="$rigWs/.local/agents"
 rigSp="$rigAgents/spawned" ; rigPend="$rigAgents/pending" ; rigStores="$rigAgents/sessions"
@@ -204,14 +218,18 @@ rigWant="$( {
 	printf 'counters\t2\t0\t3\t2\t3\t3.25\n'
 } )"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the whole output, byte for byte: each session with its runs, the sessions by start date, the newest first, and the counters last" "$( cat "$rigTmp/out" )" "$rigWant"
+rigStepOne(){ ## -- the last output with each `session` row cut to the eight fields step one printed, and every other row as it is
+	LC_ALL=C awk -F'\t' '$1 == "session" { print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" $6 "\t" $7 "\t" $8 ; next } { print }' "$rigTmp/out"
+}
+rigAssert "the fields of step one stand where they stood: the first eight fields of each session row, and every run row and the counters row, byte for byte -- each session with its runs, the sessions by start date, the newest first, and the counters last" "$( rigStepOne )" "$rigWant"
+rigAssert "each session row ends with three more fields: the stored state and its date, - in both for a session with no state file, and its control thread, none where it never had one" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 && $9 == "-" && $10 == "-" && $11 == "none" ) plain++ } END { print rows + 0 ":" plain + 0 }' "$rigTmp/out" )" "9:9"
 rigAssert "a session with one running run reads running: its row, with a count of 3, and its run rows read running, running and finished" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $4, $7 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-run" { printf "%s ", $7 }' )" "running 3 running running finished "
 rigAssert "a session whose runs are all closed reads finished: its start is the earliest of its runs and the date of its state the latest closing, by their times and not by their text" "$( rigRowOf session sess-fin | LC_ALL=C awk '{ print $4, $5, $6 }' )" "finished 2026-10-12_16:57_+0300 2026-10-12_17:30_+0200"
 rigAssert "a session shows its name, the first session-comment among its records, and one with none shows -" "$( rigRowOf session sess-run | LC_ALL=C awk '{ print $3 }' ) $( rigRowOf session sess-fin | LC_ALL=C awk '{ print $3 }' )" "daily_of_Monday -"
 rigAssert "a session with an open ask and no live process reads waiting; so does one whose ask was asked by a run of it, under that run's own id" "$( rigRowOf session sess-ask | LC_ALL=C awk '{ print $4 }' ) $( rigRowOf session sess-askrun | LC_ALL=C awk '{ print $4 }' )" "waiting waiting"
 rigAssert "a session of another host is not called finished: it reads unknown-foreign, and so does each of its runs" "$( rigRowOf session sess-foreign | LC_ALL=C awk '{ print $4 }' ) $( rigRows run | LC_ALL=C awk '$2 == "sess-foreign" { printf "%s ", $7 }' )" "unknown-foreign unknown-foreign unknown-foreign "
 rigAssert "a record with no spawn id is still a row, with no-spawn-id in live, and its session is listed" "$( rigRows run | LC_ALL=C awk '$2 == "sess-nospawn" { print $3, $6 }' ) $( rigRows session | LC_ALL=C awk '$2 == "sess-nospawn" { n++ } END { print n + 0 }' )" "- no-spawn-id 1"
-rigAssert "every row has the fields of its kind: 8 of a session, 12 of a run, 7 of the counters, and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 8 : ( $1 == "run" ) ? 12 : ( $1 == "counters" ) ? 7 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "26:0"
+rigAssert "every row has the fields of its kind: 11 of a session, 12 of a run, 7 of the counters, and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 11 : ( $1 == "run" ) ? 12 : ( $1 == "counters" ) ? 7 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "26:0"
 
 echo "-- 2. the counters --"
 rigAssert "the counter of running sessions agrees with the rows: two read running" "$( rigRows counters | LC_ALL=C awk '{ print $2 }' ) $( rigRows session | LC_ALL=C awk '$4 == "running" { n++ } END { print n + 0 }' ) $( rigRows session | LC_ALL=C awk '$4 == "finished" { n++ } END { print n + 0 }' )" "2 2 2"
@@ -245,7 +263,7 @@ rigLive sess-run sess-run2 run-c run-d run-e
 
 echo "-- 4. a reader that passes by updates the registries, and writes nothing else --"
 rigRun "$rigOp"
-rigAssert "the two session registries are written, the first with fourteen columns in each of its 16 rows" "$( LC_ALL=C awk 'NF == 14 { whole++ } END { print NR ":" whole + 0 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk 'END { print NR + 0 }' "$rigAgents/pending-replies.registry" )" "16:16 7"
+rigAssert "the two session registries are written, the first with sixteen columns in each of its 16 rows" "$( LC_ALL=C awk 'NF == 16 { whole++ } END { print NR ":" whole + 0 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk 'END { print NR + 0 }' "$rigAgents/pending-replies.registry" )" "16:16 7"
 rigAssert "nothing else of the workspace was written by any call so far: every other file is as it was" "$( rigOthers )" "$rigOthersBefore"
 ## The registry file is made older than a record written now.
 TZ=UTC touch -t 202610010000.00 "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry"
@@ -253,7 +271,7 @@ rigRec sess-late sess-late sess-late sess-late "$rigHost" magic-coordinator spaw
 rigAsk ask-late sess-late reply-pending
 rigAssert "control: a record and an ask are newer than the registries, which hold no row of them" "$( [ "$rigSp/sess-late/sess-late.md" -nt "$rigAgents/spawned-sessions.registry" ] && echo newer ) $( LC_ALL=C grep -c -e 'sess-late' "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C tr '\n' ' ' )" "newer $rigAgents/spawned-sessions.registry:0 $rigAgents/pending-replies.registry:0 "
 rigRun "$rigOp"
-rigAssert "a record written after the last rebuild has its row in the output: its session waits on the ask written with it" "$( rigRowOf session sess-late )" "session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1"
+rigAssert "a record written after the last rebuild has its row in the output: its session waits on the ask written with it" "$( rigRowOf session sess-late )" "session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none"
 rigAssert "and in the registry files, which the call rebuilt: the row with its dates and its comment, the ask, and the counter of open asks one more" "$( LC_ALL=C awk '$2 == "sess-late" { print $12, $13, $14 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk '$1 == "ask-late.md" { print $5 }' "$rigAgents/pending-replies.registry" ) $( rigRows counters | LC_ALL=C awk '{ print $6 }' )" "2026-10-07_06:00_+0300 2026-10-07_06:30_+0300 late_one reply-pending 4"
 
 echo "-- 5. a workspace with no session store --"
@@ -324,7 +342,7 @@ rigForm(){ ## row kind -- the form line of that row in the entry, its back quote
 	rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$1"' <.*>\)`$/\1/p'
 }
 rigAssert "its entry gives the form of each of the three rows" "$( rigForm session ) | $( rigForm run ) | $( rigForm counters )" \
-	"session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average>"
+	"session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average>"
 rigRun "$rigOp"
 rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session run counters ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 "
 rigAssert "the entry names the two registries it rebuilds, each state of a session, and the two words of an agent's activity" "$( for rigWord in spawned-sessions pending-replies running waiting unknown-foreign unclosed finished working ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyy"
@@ -334,7 +352,74 @@ rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 rigAssert "no member's help lists the family: the member help names no --manager prefix" "$( LC_ALL=C grep -c -e '--manager' "$rigHere/AgentsTools.MemberHelp.include" || : )" "0"
 
-echo "-- 9. nothing was posted --"
+echo "-- 9. the state a control thread stored for a session, and whether that thread lives --"
+## A stand-in of a control thread: a process of this rig's own that only waits, noted with when it began.
+## Sets rigStandPid, and rigStandNamed: `<pid> <start>`, as a thread names itself in its pid file and its lock.
+rigStandPid="" ; rigStandNamed=""
+rigStand(){
+	sleep 600 > /dev/null 2>&1 < /dev/null &
+	rigStandPid=$!
+	rigProcNote "$rigStandPid" ; rigStarted="$rigStarted $rigStandPid"
+	disown "$rigStandPid" 2> /dev/null || :
+	rigStandNamed="$( rigProcBegan "$rigStandPid" )"
+}
+rigGone(){ ## pid -- ends that stand-in, and waits until it is no process any more; prints gone or still-there
+	local goneLeft=50
+	rigProcSignal KILL "$1"
+	while [ -n "$( rigProcBegan "$1" )" ] && [ "$goneLeft" -gt 0 ] ; do sleep 0.2 ; goneLeft=$(( goneLeft - 1 )) ; done
+	if [ -z "$( rigProcBegan "$1" )" ] ; then echo gone ; else echo still-there ; fi
+}
+rigControl(){ ## session id, the state word ("" for no state file), its date, what the pid file names ("" for no pid file), what the lock names ("" for no lock)
+	mkdir -p "$rigStores/$1/control"
+	[ -z "$2" ] || printf 'state: %s\nstate-at: %s\nreason: said by the rig\n' "$2" "$3" > "$rigStores/$1/control/state"
+	[ -z "$4" ] || printf '%s\n' "$4" > "$rigStores/$1/control/pid"
+	[ -z "$5" ] || ln -s "$5" "$rigStores/$1/control/lock"
+}
+rigStand ; rigLivePid="$rigStandPid" ; rigLiveNamed="$rigStandNamed"
+rigStand ; rigDeadPid="$rigStandPid" ; rigDeadNamed="$rigStandNamed"
+rigAssert "control: the two stand-ins are processes of this rig, each named by its pid and when it began" "$( [ "${rigLiveNamed%% *}" = "$rigLivePid" ] && [ "${rigLiveNamed#* }" != "$rigLiveNamed" ] && echo named ) $( [ "${rigDeadNamed%% *}" = "$rigDeadPid" ] && [ "${rigDeadNamed#* }" != "$rigDeadNamed" ] && echo named )" "named named"
+## Seven sessions: a thread that lives; one that was killed; one whose pid another process has taken; one that
+## never had a thread; one that ended in order; one whose thread holds its lock and has no pid file yet; and one
+## with no live run, an open record, a stored `running` and a lock left by a thread that is no more.
+rigRec ctl-alive ctl-alive ctl-alive ctl-alive "$rigHost" magic-coordinator spawn-started '2026-10-06 10:01 +0300' '' ''
+rigRec ctl-killed ctl-killed ctl-killed ctl-killed "$rigHost" magic-coordinator spawn-started '2026-10-06 10:02 +0300' '' ''
+rigRec ctl-taken ctl-taken ctl-taken ctl-taken "$rigHost" magic-coordinator spawn-started '2026-10-06 10:03 +0300' '' ''
+rigRec ctl-never ctl-never ctl-never ctl-never "$rigHost" magic-coordinator spawn-succeeded '2026-10-06 10:04 +0300' '2026-10-06 10:30 +0300' ''
+rigRec ctl-ended ctl-ended ctl-ended ctl-ended "$rigHost" magic-coordinator spawn-succeeded '2026-10-06 10:05 +0300' '2026-10-06 10:40 +0300' ''
+rigRec ctl-ended ended-b ctl-ended ended-b "$rigHost" keeper-rig spawn-succeeded '2026-10-06 10:06 +0300' '2026-10-06 10:41 +0300' ''
+rigRec ctl-lock ctl-lock ctl-lock ctl-lock "$rigHost" magic-coordinator spawn-started '2026-10-06 10:07 +0300' '' ''
+rigRec ctl-stale ctl-stale ctl-stale ctl-stale "$rigHost" magic-coordinator spawn-started '2026-10-06 10:08 +0300' '' ''
+rigControl ctl-alive running '2026-10-13 10:21 +0300' "$rigLiveNamed" "$rigLiveNamed"
+rigControl ctl-killed running '2026-10-13 10:22 +0300' "$rigDeadNamed" "$rigDeadNamed"
+rigControl ctl-taken running '2026-10-13 10:23 +0300' "$rigLivePid Thu_Jan__1_00:00:00_1970" ''
+rigControl ctl-ended finished '2026-10-13 10:45 +0300' '' ''
+rigControl ctl-lock running '2026-10-13 10:27 +0300' '' "$rigLiveNamed"
+rigControl ctl-stale running '2026-10-13 10:28 +0300' '' "$rigDeadNamed"
+rigAssert "control: the stand-in of the killed thread is ended, and is no process any more" "$( rigGone "$rigDeadPid" )" "gone"
+rigLive sess-run sess-run2 run-c run-d run-e ctl-alive ctl-killed ctl-lock
+rigOthersBefore="$( rigOthers )"
+rigRun "$rigOp"
+rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
+rigAssert "a session with a live control thread reads alive: its pid file names a process that began when the file says, and its row ends with running, the date of that state, and alive" "$( rigRowOf session ctl-alive )" "session ctl-alive - running 2026-10-06_10:01_+0300 - 1 running=1 running 2026-10-13_10:21_+0300 alive"
+rigAssert "a control thread that was killed reads gone: its pid file and its lock name a process id that no process has" "$( rigRowOf session ctl-killed )" "session ctl-killed - running 2026-10-06_10:02_+0300 - 1 running=1 running 2026-10-13_10:22_+0300 gone"
+rigAssert "a process id another process has taken reads gone: the process lives, and began at another time than the pid file says" "$( rigProcBegan "$rigLivePid" | LC_ALL=C awk 'END { print NR + 0 }' ) $( rigRowOf session ctl-taken )" "1 session ctl-taken - unclosed 2026-10-06_10:03_+0300 - 1 unclosed=1 running 2026-10-13_10:23_+0300 gone"
+rigAssert "a session that never had a control thread reads -, - and none: it has no folder control/" "$( [ -e "$rigStores/ctl-never/control" ] && echo control || echo no-control ) $( rigRowOf session ctl-never )" "no-control session ctl-never - finished 2026-10-06_10:04_+0300 2026-10-06_10:30_+0300 1 finished=1 - - none"
+rigAssert "a session that ended in order reads finished twice and none: the derived state, the stored one with its date, and no pid file and no lock" "$( rigRowOf session ctl-ended )" "session ctl-ended - finished 2026-10-06_10:05_+0300 2026-10-06_10:41_+0300 2 finished=2 finished 2026-10-13_10:45_+0300 none"
+rigAssert "a thread that holds its lock and has no pid file yet reads alive by its lock" "$( rigRowOf session ctl-lock | LC_ALL=C awk '{ print $4, $9, $11 }' )" "running running alive"
+rigAssert "where the stored state and the derived one differ, each is shown as it is: a session with no live run and an open record reads unclosed, its stored state running, and its thread gone by the lock it left" "$( rigRowOf session ctl-stale )" "session ctl-stale - unclosed 2026-10-06_10:08_+0300 - 1 unclosed=1 running 2026-10-13_10:28_+0300 gone"
+rigAssert "the fields of step one stand where they stood here too: of every session row the first eight are those of a row with no state, and every row has the fields of its kind" "$( rigStepOne | LC_ALL=C awk -F'\t' '$1 == "session" && $2 == "ctl-alive" { print $3, $4, $5, $6, $7, $8 }' ) $( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 11 : ( $1 == "run" ) ? 12 : ( $1 == "counters" ) ? 7 : -1 ; if ( NF != want ) bad++ ; } END { print bad + 0 }' "$rigTmp/out" )" "- running 2026-10-06_10:01_+0300 - 1 running=1 0"
+rigAssert "the registry stores the state and its date, in the two last of its sixteen columns, and never whether a thread lives" "$( LC_ALL=C awk '$2 == "ctl-alive" { print NF, $15, $16 }' "$rigAgents/spawned-sessions.registry" ) $( LC_ALL=C awk '{ for ( wordAt = 1 ; wordAt <= NF ; wordAt++ ) { if ( $wordAt == "alive" || $wordAt == "gone" || $wordAt == "none" ) said++ } } END { print said + 0 }' "$rigAgents/spawned-sessions.registry" )" "16 running 2026-10-13_10:21_+0300 0"
+rigAssert "the list wrote nothing but the two registries: the folders control/ are as they were" "$( rigOthers )" "$rigOthersBefore"
+## Liveness is measured at each call: the thread ends between two calls, and nothing of the store changes.
+rigAssert "control: the stand-in of the live thread is ended" "$( rigGone "$rigLivePid" )" "gone"
+rigRun "$rigOp"
+rigAssert "a thread that ended since the last call reads gone at the next, by its pid file and by its lock alone, with the stored state as it was" "$( rigRowOf session ctl-alive | LC_ALL=C awk '{ print $9, $10, $11 }' ) / $( rigRowOf session ctl-lock | LC_ALL=C awk '{ print $9, $11 }' )" "running 2026-10-13_10:21_+0300 gone / running gone"
+rigRun "$rigOp" --active
+rigAssert "--active keeps the running sessions with the same three fields at the end of each row" "$rigRc $( rigRowOf session ctl-killed | LC_ALL=C awk '{ print $9, $10, $11 }' ) $( rigRows session | LC_ALL=C awk 'NF != 11 { bad++ } END { print NR ":" bad + 0 }' )" "0 running 2026-10-13_10:22_+0300 gone 5:0"
+rigAssert "the one function that says whether a control thread lives reads the process list through the registry's own reading of when a process began, and no process list of its own" "$( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'AgentsToolsRegistryProcessesBegan' || : ) $( LC_ALL=C awk '/^AgentsToolsManagerSessionControls\(\)\{/ { on = 1 } on { print } on && /^\}/ { exit }' "$rigHere/AgentsTools.ManagerSession.include" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -e 'ps -' -e 'pgrep' || : )" "1 0"
+rigLive sess-run sess-run2 run-c run-d run-e
+
+echo "-- 10. nothing was posted --"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

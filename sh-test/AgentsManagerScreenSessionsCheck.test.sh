@@ -17,6 +17,9 @@
 ## sessions PageDown reaches the last one, a drawing writes no more rows than with five, and four hundred keys are
 ## taken in a few seconds; and inside a session `a` throws nobody out: the level of that session is read without
 ## the filter and keeps its agents, whatever its state, while the list above it shows the active ones.
+## And a `session` row with more fields at its end than the eight the screen takes -- the state the control thread
+## of a session stored, its date, and whether that thread lives -- is read as the row it was: the list, the left
+## pane of a session and of an agent, and the level of a session are drawn cell for cell as from rows without them.
 ## The reads of one selected session or agent are taken out of the table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
 set -u
@@ -349,6 +352,46 @@ rigAssert "it can be dived into like the first"                      "$( rigVal 
 rigAssert "PageUp returns to the first row"                          "$( rigVal first.index ) $( rigVal first.top )" "0 0"
 rigAssert "a drawing writes no more than with five sessions: only the rows in view" "$( rigVal last.puts ) $( rigVal last.spills )" "$rigPutsFew 0"
 rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
+
+echo "-- a session row with more fields at its end is read as the row it was --"
+## The same five sessions, each `session` row with three more fields after its eight, as the operation prints them
+## now: one with a stored state and a live control thread, one whose thread is gone, one that ended in order, and
+## two that never had one. The `run` rows and the row of counters are as they were.
+LC_ALL=C awk -F'\t' '
+	$1 != "session" { print ; next }
+	{ sessionNo++ ; print $0 "\t" ( sessionNo == 1 ? "running\t2026-10-12_16:58_+0300\talive" : sessionNo == 2 ? "member-dead\t2026-10-12_09:40_+0300\tgone" : sessionNo == 3 ? "finished\t2026-10-11_14:51_+0300\tnone" : "-\t-\tnone" ) }
+' "$rigTmp/five.rows" > "$rigTmp/wide.rows"
+rigAssert "control: each of the five session rows of the fixture has eleven fields now, and every other row is as it was" "$( LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } END { print rows + 0 ":" wide + 0 }' "$rigTmp/wide.rows" ) $( LC_ALL=C grep -v '^session' "$rigTmp/wide.rows" | cmp -s - <( LC_ALL=C grep -v '^session' "$rigTmp/five.rows" ) && echo same )" "5:5 same"
+rigWideDrawn(){ ## the fixture -- what the screen draws of it: the list, the left pane of a session, its level, and the left pane of an agent
+	rigCase "wide-$1" "$1"
+	rigScript <<'RIGSCRIPT'
+size 120 40
+keys ENTER
+wait sessions 30
+get a
+show l
+keys DOWN DOWN
+turn
+get session
+show s
+keys ENTER
+get in
+show i
+keys DOWN DOWN
+turn
+get agent
+show t
+keys LEFT DOWN DOWN
+turn
+get third
+show u
+RIGSCRIPT
+	printf '%s\n' "$rigOut"
+}
+rigDrawnEight="$( rigWideDrawn five.rows )"
+rigDrawnEleven="$( rigWideDrawn wide.rows )"
+rigAssert "control: the screen was driven through the list, a session, its level and an agent, and drew each" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^l|' -e '^s|' -e '^i|' -e '^t|' -e '^u|' | LC_ALL=C awk '{ print ( $1 >= 200 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^a\.rows=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^in\.path=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn 7 sessions/$rigS1 0"
+rigAssert "the screen reads the rows by position as before: with the three more fields at the end of each session row it draws and reports cell for cell what it draws from the eight" "$( [ "$rigDrawnEleven" = "$rigDrawnEight" ] && echo same || { echo differs ; diff <( printf '%s\n' "$rigDrawnEight" ) <( printf '%s\n' "$rigDrawnEleven" ) | head -6 ; } )" "same"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SESSIONS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

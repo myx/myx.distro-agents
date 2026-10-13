@@ -107,6 +107,16 @@ AgentsMcpProgressBeat(){ ## raw token, seconds, pid, stop file
 	return 0
 }
 
+## The pid a job's pid file names: its first word. The file holds one line, `<pid> <start>`, the
+## leader of the job's process group and when it began, as AgentsToolsRegistryProcessesBegan read it
+## when the job was started, put in place together by one rename. A file written before start times
+## were kept, or for a job that had ended before its start could be read, holds the pid alone.
+AgentsMcpJobPid(){ ## job directory
+	local jobKept=""
+	[ ! -f "$1/pid" ] || IFS= read -r jobKept < "$1/pid" || :
+	printf '%s\n' "${jobKept%% *}"
+}
+
 ## A Monitor job's deadline. Run inside the job's own process group, so a kill action
 ## on the group ends it too, and the group it signals cannot be reused while it waits.
 AgentsMcpJobDeadline(){ ## seconds, milliseconds, job directory
@@ -116,9 +126,38 @@ AgentsMcpJobDeadline(){ ## seconds, milliseconds, job directory
 	[ ! -f "$3/rc" ] || return 0
 	printf '%s\n' "$2" > "$3/timedout"
 	trap '' TERM
-	kill -TERM -- "-$( cat "$3/pid" )" 2>/dev/null
+	kill -TERM -- "-$( AgentsMcpJobPid "$3" )" 2>/dev/null
 	sleep 5
-	kill -KILL -- "-$( cat "$3/pid" )" 2>/dev/null
+	kill -KILL -- "-$( AgentsMcpJobPid "$3" )" 2>/dev/null
+}
+
+## The watchdog of one call that is waited for, a served harness tool or a script of execute: a call
+## that does not come back is ended at its bound, so a wedged one cannot hold its handler for the
+## process's whole life. The call leads a process group of its own (set -m) and the whole group is
+## ended: TERM first, for a script with traps of its own, KILL five seconds later for what ignores
+## it. The kill file is written before the first signal, and only where one is sent, so the handler
+## tells a timeout from the call's own exit.
+## A WATCHDOG WHOSE HANDLER WAS ENDED HARD LIVES ON, and wakes at its bound, up to hours later, with
+## a number: by then the pid may be another process, and as a group it is every process of a
+## stranger's group. So it keeps when the call began, read as the watchdog starts by the one reading
+## a process is kept by (AgentsToolsRegistryProcessesBegan, loaded in the watchdog's own shell), and
+## signals the group by its number only while its leader is still that process: at the bound, where
+## the members are read too (AgentsToolsRegistryGroupBegan), and again before the KILL. Once the
+## TERM has ended the leader the number is no longer the call's, and what is left is ended one
+## process at a time: those members that are still the processes they were, and what they started
+## since (AgentsToolsRegistryGroupLeft). Where no start can be read, nothing is signalled by the
+## number alone.
+AgentsMcpCallWatch(){ ## seconds, pid of the call (the leader of its process group), kill file
+	local watchBegan watchMembers watchLeft
+	type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+	watchBegan="$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+	sleep "$1"
+	watchMembers="$( AgentsToolsRegistryGroupBegan "$watchBegan" 2> /dev/null )" && { : > "$3" ; kill -TERM -- "-$2" 2>/dev/null ; } || return 0
+	sleep 5
+	if [ "$( printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$watchBegan" ] ; then kill -KILL -- "-$2" 2>/dev/null ; return 0 ; fi
+	watchLeft="$( AgentsToolsRegistryGroupLeft "$2" "$watchMembers" 2> /dev/null )"
+	[ -z "$watchLeft" ] || kill -KILL $watchLeft 2>/dev/null
+	return 0
 }
 
 case "$1" in
@@ -367,14 +406,7 @@ case "$1" in
 					set -m
 					( printf '%s\n' "$mcpToolArgs" | MDAT_MCP_WAIT_SERVED_BOUND="$mcpWaitBound" MDAT_MCP_RESULT_HEAD_FILE="$mcpOutFile.head" MDAT_MCP_RESULT_IMAGE_FILE="$mcpOutFile.image" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$mcpToolName" ) > "$mcpOutFile" 3>&- &
 					mcpCmdPid=$!
-					(
-						sleep "$mcpToolWatch"
-						kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
-						: > "$mcpKillFile"
-						kill -TERM -- "-$mcpCmdPid" 2>/dev/null
-						sleep 5
-						kill -KILL -- "-$mcpCmdPid" 2>/dev/null
-					) 3>&- &
+					AgentsMcpCallWatch "$mcpToolWatch" "$mcpCmdPid" "$mcpKillFile" 3>&- &
 					mcpWatchPid=$!
 					set +m
 					## The heartbeat keeps fd 3: it is the one child that writes to the wire.
@@ -450,18 +482,31 @@ case "$1" in
 							if [ ! -d "$mcpJobsDir/$mcpJob" ] ; then
 								AgentsMcpSendError "$mcpId" -32602 "no such job in this server: $mcpJob"
 							else
-								mcpJobPid="$( cat "$mcpJobsDir/$mcpJob/pid" 2>/dev/null || true )"
+								## One line, `<pid> <start>`: the job's leader and when it began (AgentsMcpJobPid).
+								mcpJobKept="$( cat "$mcpJobsDir/$mcpJob/pid" 2>/dev/null || true )"
+								mcpJobPid="${mcpJobKept%% *}"
 								if [ "kill" = "$mcpAction" ] ; then
 									## Signals the job's whole process group: the pid is its leader, so
 									## the script and everything it forked go together. TERM to the pid
 									## alone kills the wrapper and leaves the real work running.
-									if [ -n "$mcpJobPid" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
-										kill -TERM -- "-$mcpJobPid" 2>/dev/null
+									## The file may be of any age and its pid a number the system has given
+									## again, so the group of that number is this job's only while its leader
+									## is still the process that began when the file says
+									## (AgentsToolsRegistryProcessesBegan). Where it is not, the job has ended,
+									## whoever has the number now. Where the file holds no start and a process
+									## has that number, nothing shows whose it is: nothing is signalled by the
+									## number alone, and the caller is told so.
+									mcpIsError='false'
+									type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+									if [ -n "$mcpJobPid" ] && [ "$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid" 2>/dev/null ; then
 										mcpOutput="[job $mcpJob: TERM sent to process group $mcpJobPid]"
+									elif [ -n "$mcpJobPid" ] && [ "$mcpJobPid" = "$mcpJobKept" ] && kill -0 "$mcpJobPid" 2>/dev/null ; then
+										mcpIsError='true'
+										mcpOutput="[job $mcpJob: NOT signalled. Its pid file names pid $mcpJobPid with no start time, and a process has that number now: nothing shows that it is this job, so nothing is signalled by the number alone. Check it (ps -o pid,pgid,lstart,command -p $mcpJobPid) and end it yourself if it is this job.]"
 									else
 										mcpOutput="[job $mcpJob: already finished, nothing to kill]"
 									fi
-									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
+									AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" "$mcpIsError" )"
 								else
 									## Only what is NEW since the last poll, so polling a long build does
 									## not re-deliver everything each time.
@@ -562,10 +607,16 @@ case "$1" in
 							[ -z "$mcpWatchSeconds" ] || kill "$mcpWatchPid" 2>/dev/null
 						) 3>&- &
 					fi
-					printf '%s\n' "$!" > "$mcpJobsDir/$mcpJobId/pid"
+					mcpJobPid=$!
 					set +m
+					## Kept with when it began, read here as the job starts, and put in place with the
+					## pid by one rename (the directory is this request's alone): the kill action signals
+					## the group of that number only while its leader is still that process.
+					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+					mcpJobKept="$( printf '%s\n' "$mcpJobPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+					printf '%s\n' "${mcpJobKept:-$mcpJobPid}" > "$mcpJobsDir/$mcpJobId/pid.aside" && mv -f "$mcpJobsDir/$mcpJobId/pid.aside" "$mcpJobsDir/$mcpJobId/pid"
 
-					mcpOutput="[job $mcpJobId started, pid $( cat "$mcpJobsDir/$mcpJobId/pid" )]"$'\n'"[poll it:  $mcpToolName with job=$mcpJobId]"$'\n'"[stop it:  $mcpToolName with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"
+					mcpOutput="[job $mcpJobId started, pid $mcpJobPid]"$'\n'"[poll it:  $mcpToolName with job=$mcpJobId]"$'\n'"[stop it:  $mcpToolName with job=$mcpJobId action=kill]"$'\n'"[log file: $mcpJobsDir/$mcpJobId/out]"
 					[ -z "$mcpWatchSeconds" ] || mcpOutput="$mcpOutput"$'\n'"[stderr file: $mcpErrFile]"$'\n'"[watching: $( cat "$mcpJobsDir/$mcpJobId/description" ) -- killed after ${mcpTimeoutMs}ms. Events do not arrive by themselves: poll with job=$mcpJobId]"
 					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":false}' "$( printf '%s' "$mcpOutput" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )" )"
 
@@ -598,14 +649,7 @@ case "$1" in
 					## Marks the kill before sending it, so the wait below tells a timeout
 					## from the script's own non-zero exit; TERM first for a script with
 					## traps of its own, KILL after a grace period for one that ignores it.
-					(
-						sleep "$mcpTimeout"
-						kill -0 "$mcpCmdPid" 2>/dev/null || exit 0
-						: > "$mcpKillFile"
-						kill -TERM -- "-$mcpCmdPid" 2>/dev/null
-						sleep 5
-						kill -KILL -- "-$mcpCmdPid" 2>/dev/null
-					) 3>&- &
+					AgentsMcpCallWatch "$mcpTimeout" "$mcpCmdPid" "$mcpKillFile" 3>&- &
 					mcpWatchPid=$!
 					set +m
 

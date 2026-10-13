@@ -222,6 +222,16 @@ rigAssert "the batch runs for it every test that has not passed on the state the
 rigAssert "its line counts every test of the copy: what ran now, and what had passed on this very state before" "$( rigLine "$rigTmp/d6b" "$rigIdB" )" "RETEST <id> PASS -- asked by rig-second about live: 1 passed, 2 passed on this very state before and not run again -- a library file was changed"
 rigOp "$rigTmp/r6" --member-retest-result "$rigIdB"
 rigAssert "and its outcome names each: the test that ran, the two that had passed, and the file" "[$( LC_ALL=C grep -e '^  passed ' -e '^  passed-before ' -e '^  file ' "$rigTmp/r6.out" | LC_ALL=C sed 's/ at [0-9TZ:-]*$/ at <when>/' | LC_ALL=C sort | LC_ALL=C tr '\n' '|' )]" "[  file sh-lib/AgentsTools.MemberWait.include|  passed RigThree|  passed-before RigOne at <when>|  passed-before RigTwo at <when>|]"
+## A fixture of the tests is no test, whatever its name ends in: it stands below sh-test, where the runner looks for
+## no test, so it is a changed file like any other that is no test.
+rigFixtures="$( rigRoot live )/myx/myx.distro-agents/sh-test/check-fixtures"
+mkdir -p "$rigFixtures" && printf '#!/bin/sh\nexit 7\n' > "$rigFixtures/rig-tool.curl.test.sh"
+rigAsk "$rigTmp/q6c" --by rig-third --why 'a fixture of the tests was changed' --file sh-test/check-fixtures/rig-tool.curl.test.sh ; rigIdC="$rigId"
+rigAssert "a changed fixture below sh-test, though its name ends as a test's does, is kept as the file and asked for as no test" "$rigRc [$( LC_ALL=C grep -e '^test: ' -e '^file: ' "$rigQueue/waiting/$rigIdC.request" | LC_ALL=C tr '\n' '|' )] $( LC_ALL=C grep -c -F -- 'changed file(s) no test is known to cover' "$rigTmp/q6c.err" )" "0 [file: sh-test/check-fixtures/rig-tool.curl.test.sh|] 1"
+rigOp "$rigTmp/d6c" --member-retest-drain
+rigAssert "the batch runs for it every test of the copy, whose state the changed fixture moved, each once more, and the request does not read as failed for a test that was never one" \
+	"$rigRc $( rigBegins RigOne ) $( rigBegins RigTwo ) $( rigBegins RigThree ) $( rigLine "$rigTmp/d6c" "$rigIdC" )" "0 2 2 2 RETEST <id> PASS -- asked by rig-third about live: 3 passed -- a fixture of the tests was changed"
+rm -rf "$rigFixtures"
 
 echo "-- 7. with nothing waiting, --rest runs only what has not passed on the state the copy is in --"
 rigFresh

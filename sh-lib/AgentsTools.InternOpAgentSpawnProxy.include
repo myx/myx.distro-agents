@@ -250,6 +250,47 @@ AgentsToolsSpawnProxySessionNotice(){ ## session thread, the member it is about,
 	return 0
 }
 
+## A SUPERVISING SHELL HOLDS UNTIL ITS CLOSE IS DONE. The shell that started a run waits on
+## it and then closes it: its record, its item, the lines that say how it ended. An end sent
+## to that shell before then -- a polite end, an interrupt, a quit; to it alone, or to the
+## process group it leads, where a command of its run signals its own group -- is no end of
+## the run and no reason to leave the run unclosed. So it is held: said here, in the run's
+## log, and the shell goes on. Nothing in the tooling sends one on purpose: a kill and a stop
+## end the run's own processes and never its supervising shell
+## (AgentsToolsRegistryRunProcesses), which then closes the run as it always does. An end
+## meant for the shell is therefore told from a stray one by where the shell stands, never by
+## who sent it: before its close is done every end that can be held is held, and whoever
+## wants the shell itself gone then has the one that cannot be; once its close is done the
+## hold is taken off, and what is left, the commit of the transcript's end and the push of
+## team data, which have no bound of their own, ends at any end the shell is sent.
+## Held by a trap and never by ignoring: what the shell starts after it, the run among them,
+## takes every signal as it always did. A wait such a signal cuts short is taken up again
+## by whoever waits.
+AgentsToolsSpawnProxyHeld(){ ## signal name
+	echo "# ${MDSC_CMD:-DistroAgentsTools} --intern-op-agent-spawn-proxy: the supervising shell of spawn ${MDAT_SPAWN_SESSION_ID:-} was sent $1 before its close was done -- held: it goes on to close the run, and ends once that is done" >&2 || :
+	return 0
+}
+
+## THE HELPERS OF A RUN, each a process the supervising shell starts beside the run, keeps for
+## its whole length and ends when the run has ended: the reader of its log, the poster of its
+## feed, the poller of its launch. A pid is a number the system gives again, and a helper may
+## have ended long before the run does: the poller ends by itself seconds into the run, once
+## the launch is seen, and hours later its number can be any process's of the same user. So
+## each is kept with when it began, read as it is started (AgentsToolsRegistryProcessesBegan,
+## the one reading a process is kept by), and is signalled only while its pid is still the
+## process that began then. One that has ended by itself, and one whose start could not be
+## read, is never signalled; and a helper that was not signalled is not waited for.
+AgentsToolsSpawnProxyHelperBegan(){ ## pid -- prints `<pid> <start>`, or nothing where it is no process now
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	printf '%s\n' "${1:-}" | AgentsToolsRegistryProcessesBegan 2> /dev/null
+	return 0
+}
+AgentsToolsSpawnProxyHelperEnd(){ ## what AgentsToolsSpawnProxyHelperBegan printed for it (may be empty), signal name (default TERM) -- rc 0 signalled
+	case "${1:-}" in *' '*) ;; *) return 1 ;; esac
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || return 1
+	[ "$( printf '%s\n' "${1%% *}" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$1" ] && kill "-${2:-TERM}" "${1%% *}" 2>/dev/null
+}
+
 ## A question, a finding needing confirmation or a refusal is never only left in a log --
 ## the member hands back instead. A spawn whose process ended with no SubagentHandback call
 ## at all leaves nothing in the session thread, so the tooling says so itself: the box that
@@ -269,6 +310,8 @@ AgentsToolsSpawnProxySessionNotice(){ ## session thread, the member it is about,
 ## this very spawn id, so it must never run on a session already closed (AgentsToolsSpawnProxyRetryClosed).
 AgentsToolsSpawnProxyHandbackWarn(){
 	local warnThread="$1" warnMember="$2" warnLog="$3" warnSessionId="$4" warnTrack="${5:-}" warnTell="${6:-}" warnClosed=""
+	## Whether a handback is still missing when this returns: what AgentsToolsSpawnProxyHandbackNotice says.
+	agentsSpawnProxyHandbackMissing=""
 	shift 6 2>/dev/null || shift $#
 	local warnCliArgs=( "$@" )
 	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
@@ -287,26 +330,75 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	## the console (AgentsConsoleShellScript.template.sh), so a resume that
 	## cannot really happen is never silently reported as one.
 	if [ -z "$warnClosed" ] && [ -x "$MMDAPP/DistroAgentsConsole.sh" ] ; then
-		local warnRetryPid warnWatchPid
-		( exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$MMDAPP/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
+		local warnRetryPid warnWatchPid warnRetryRc
+		## Started with the broken pipe at its default: a waiting shell ignores it while it closes
+		## its run, and what it starts must not take that over.
+		( trap - PIPE ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$MMDAPP/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
 				"Do not do new work first." )" >> "$warnLog" 2>&1 ) &
 		warnRetryPid=$!
 		AgentsToolsSpawnProxyRunRecord "$warnRetryPid"
-		( sleep 180 ; kill -TERM "$warnRetryPid" 2>/dev/null ; sleep 5 ; kill -KILL "$warnRetryPid" 2>/dev/null ) &
+		## The watchdog ends the retry it was started for and no other process: at the bound the
+		## pid alone may name whoever was given that number since. So it keeps when the retry
+		## began, read as the watchdog starts, and sends each of its two signals only while that
+		## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the one
+		## reading a process is kept by). Where no start can be read, nothing is signalled.
+		(
+			type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+			warnRetryBegan="$( printf '%s\n' "$warnRetryPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+			## It stands in a sleep of its own, which ends with it: ended by its shell once the retry
+			## is back, it would else leave that sleep behind for up to three minutes, holding this
+			## run's log open, and its caller's output where the caller waits. A sleep that did not
+			## end by itself is no bound reached: then nothing is signalled.
+			warnWatchSleep=""
+			trap '[ -z "$warnWatchSleep" ] || kill "$warnWatchSleep" 2>/dev/null ; exit 0' TERM
+			sleep 180 &
+			warnWatchSleep=$!
+			wait "$warnWatchSleep" 2>/dev/null || exit 0
+			warnWatchSleep=""
+			[ -n "$warnRetryBegan" ] && [ "$( printf '%s\n' "$warnRetryPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$warnRetryBegan" ] && kill -TERM "$warnRetryPid" 2>/dev/null || exit 0
+			sleep 5 &
+			warnWatchSleep=$!
+			wait "$warnWatchSleep" 2>/dev/null || exit 0
+			warnWatchSleep=""
+			[ "$( printf '%s\n' "$warnRetryPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$warnRetryBegan" ] && kill -KILL "$warnRetryPid" 2>/dev/null
+		) &
 		warnWatchPid=$!
 		wait "$warnRetryPid" 2>/dev/null || :
+		## Waited to its end: a signal the supervising shell holds (AgentsToolsSpawnProxyHeld) cuts
+		## a wait short. A wait that names no child of this shell any more ends it.
+		while kill -0 "$warnRetryPid" 2>/dev/null ; do
+			warnRetryRc=0
+			wait "$warnRetryPid" 2>/dev/null || warnRetryRc=$?
+			[ "$warnRetryRc" != 127 ] || break
+		done
 		kill "$warnWatchPid" 2>/dev/null || :
 		wait "$warnWatchPid" 2>/dev/null || :
 		LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
 	fi
-	[ -z "$warnTrack" ] || DistroAgentsTools --intern-op-event-track-post "$warnMember" "$warnTrack" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
+	## Still none. Said here, at once, unless the caller says it itself once it has closed the
+	## run's record (agentsSpawnProxyHandbackNoticeLater): a post that cannot be made must never
+	## hold a record open.
+	agentsSpawnProxyHandbackMissing="yes"
+	[ -n "${agentsSpawnProxyHandbackNoticeLater:-}" ] || AgentsToolsSpawnProxyHandbackNotice "$warnThread" "$warnMember" "$warnTrack" "$warnTell"
+	return 0
+}
+
+## The two lines that say a run ended with no handback, after its one retry: the box that
+## tracks it in the session's tracking thread, and one message in the session thread for the
+## member that brought this one in (AgentsToolsSpawnProxySessionNotice). Only where
+## AgentsToolsSpawnProxyHandbackWarn found none, and once for that finding.
+## Never fails the spawn: one stderr warning at most per Slack call.
+AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's tracking thread, the member that brought this one in (the last two may be empty)
+	[ "${agentsSpawnProxyHandbackMissing:-}" = "yes" ] || return 0
+	agentsSpawnProxyHandbackMissing=""
+	[ -z "${3:-}" ] || DistroAgentsTools --intern-op-event-track-post "$2" "$3" --kind handback --session-id "${MDAT_SPAWN_SESSION_ID:-}" \
 		--field handback="none posted -- no SubagentHandback call seen in its output" 2>&1 > /dev/null \
 	  | LC_ALL=C awk 'index( $0, "⛔" ) == 1 && ! warned { print "⚠️ WARNING: --intern-op-agent-spawn-proxy: handback-missing notice not posted " $0 > "/dev/stderr" ; warned = 1 ; }' \
 	  || :
-	AgentsToolsSpawnProxySessionNotice "$warnThread" "$warnMember" "$warnTell" handback-missing
+	AgentsToolsSpawnProxySessionNotice "$1" "$2" "${4:-}" handback-missing
 	return 0
 }
 
@@ -318,7 +410,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 ## The handback retry's own resume (MDAT_SPAWN_RESUME) is a different path, untouched.
 AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation threads, full prompt, resume from (may be empty), resume prompt, member, item, console CLI args...
 	local runSession="$1" runThread="$2" runConv="$3" runFull="$4" runFrom="$5" runResume="$6" runWho="$7" runItem="$8"
-	local runMark runPid runWatchPid runRc=0
+	local runMark runPid runWatchPid runRc=0 runWatchRc=0
 	shift 8
 	if [ -n "$runFrom" ] ; then
 		runMark="${MDAT_SPAWN_LAUNCH_MARKER:-$MMDAPP/.local/temp/mdat-$MDAT_SPAWN_SESSION_ID.launch}.resume-event"
@@ -341,7 +433,19 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 		) &
 		runWatchPid=$!
 		wait "$runPid" 2>/dev/null || runRc=$?
+		## Waited to its end, as the launch below is, and the watcher after it: a signal the
+		## supervising shell holds (AgentsToolsSpawnProxyHeld) cuts a wait short.
+		while kill -0 "$runPid" 2>/dev/null ; do
+			runRc=0
+			wait "$runPid" 2>/dev/null || runRc=$?
+			[ "$runRc" != 127 ] || break
+		done
 		wait "$runWatchPid" 2>/dev/null || :
+		while kill -0 "$runWatchPid" 2>/dev/null ; do
+			runWatchRc=0
+			wait "$runWatchPid" 2>/dev/null || runWatchRc=$?
+			[ "$runWatchRc" != 127 ] || break
+		done
 		if [ -e "$runMark" ] || [ "$runRc" = 0 ] ; then
 			## Each record in a subshell of its own: the tooling it calls leaves set -e behind.
 			[ -e "$runMark" ] || ( AgentsReviewRecord "$runWho" "$runItem" review "restart: resumed (from $runFrom)" RESTART "$MDAT_SPAWN_SESSION_ID" )
@@ -1741,7 +1845,7 @@ case "$1" in
 			## the caller can stop it the moment the child ends. Empty means
 			## neither was started -- the outputFile-less branches below already
 			## write straight to &2, so there is nothing to tail.
-			local tailPid="" batchPid="" launchedPid=""
+			local tailPid="" batchPid="" launchedPid="" tailBegan="" batchBegan="" launchedBegan="" agentsSpawnProxyHandbackNoticeLater="yes"
 			set +e
 			## 0, the default, is no bound: the wait lasts as long as the spawn does. A hung
 			## one stays visible to ListAgents and TaskOutput, and Ctrl-C still reaches it.
@@ -1754,6 +1858,9 @@ case "$1" in
 			## env prefix on its own invocation below, never a shell export: a caller
 			## running this op as a sourced function in its own long-lived shell
 			## carries nothing of this forward into its own next, unrelated call.
+			## Which shell supervises this run is read now, before the launch, so that the launch is
+			## kept on the record as soon after it as it always was (AgentsToolsSpawnProxyShellNote).
+			AgentsToolsSpawnProxyShellNote
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
@@ -1780,15 +1887,18 @@ case "$1" in
 			if [ -n "$outputFile" ] ; then
 				tail -n +1 -f "$outputFile" >&2 4>&- &
 				tailPid=$!
+				tailBegan="$( AgentsToolsSpawnProxyHelperBegan "$tailPid" )"
 				## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).
 				type AgentsEventTrackFeedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
 				AgentsEventTrackFeedOpen "$MDAT_SPAWN_SESSION_ID" "$eventTrackThread"
 				AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 				batchPid=$!
+				batchBegan="$( AgentsToolsSpawnProxyHelperBegan "$batchPid" )"
 			fi
 			## On its own, not gated by outputFile: what the launch showed, as a reply in the thread.
 			AgentsToolsSpawnProxyEventTrackLaunched "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" 4>&- &
 			launchedPid=$!
+			launchedBegan="$( AgentsToolsSpawnProxyHelperBegan "$launchedPid" )"
 			## An interactive Ctrl-C (or an external TERM sent to this call) must
 			## reach the real spawned console process immediately -- without this,
 			## only the timeout watcher below ever signals $spawnPid, so a live
@@ -1801,7 +1911,8 @@ case "$1" in
 			## not right after $spawnPid is reaped -- so it stays live for the gap
 			## that would otherwise leave them behind.
 			## A detached spawn (made from inside a session) is meant to outlive its caller's pass, so a TERM sent to the pass never reaches it.
-			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; [ -z "$tailPid" ] || kill -TERM "$tailPid" 2>/dev/null ; [ -z "$batchPid" ] || kill -TERM "$batchPid" 2>/dev/null ; [ -z "$launchedPid" ] || kill -TERM "$launchedPid" 2>/dev/null' INT TERM
+			## Each reader is signalled only while it is still the process this shell started (AgentsToolsSpawnProxyHelperEnd).
+			trap '[ -z "$spawnPid" ] || [ -n "$parentSessionId" ] || kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan" ; AgentsToolsSpawnProxyHelperEnd "$batchBegan" ; AgentsToolsSpawnProxyHelperEnd "$launchedBegan"' INT TERM
 			## The transcript's start milestone, now that an interrupt reaches the close.
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			## The bound, where SPAWN_WAIT_TIMEOUT_SECONDS sets one. TERM first so the CLI
@@ -1838,31 +1949,50 @@ case "$1" in
 			## own final content directly. The trap above is still live through
 			## this -- cleared only once both readers are confirmed stopped, so a
 			## signal landing in this exact gap still reaches them.
-			[ -z "$tailPid" ] || { kill "$tailPid" 2>/dev/null || : ; wait "$tailPid" 2>/dev/null || : ; }
-			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null || : ; wait "$batchPid" 2>/dev/null || : ; }
-			[ -z "$launchedPid" ] || { kill "$launchedPid" 2>/dev/null || : ; wait "$launchedPid" 2>/dev/null || : ; }
-			trap - INT TERM
-			## A launch the poller had no time to see, said now, before the end post.
-			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved"
+			## A reader is signalled only while it is still the process this shell started, and is
+			## waited for only where it was signalled (AgentsToolsSpawnProxyHelperEnd).
+			[ -z "$tailPid" ] || ! AgentsToolsSpawnProxyHelperEnd "$tailBegan" || wait "$tailPid" 2>/dev/null || :
+			[ -z "$batchPid" ] || ! AgentsToolsSpawnProxyHelperEnd "$batchBegan" || wait "$batchPid" 2>/dev/null || :
+			[ -z "$launchedPid" ] || ! AgentsToolsSpawnProxyHelperEnd "$launchedBegan" || wait "$launchedPid" 2>/dev/null || :
+			## THIS SHELL HOLDS UNTIL ITS CLOSE IS DONE (AgentsToolsSpawnProxyHeld). The interrupt and
+			## the polite end that reached its run until here are held from here on: the run is gone,
+			## and what is left is its close. A caller that is gone, its end of this call's output
+			## closed, does not end it either: a write there fails, and the close goes on. And each
+			## step is called so that its own failure never ends this shell before the record is closed.
+			local spawnPipeIgnored=""
+			case "$( trap -p PIPE )" in "trap -- '' "*) spawnPipeIgnored="yes" ;; esac
+			trap 'AgentsToolsSpawnProxyHeld TERM' TERM
+			trap 'AgentsToolsSpawnProxyHeld INT' INT
+			trap '' PIPE
 			local spawnOutcome
-			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )"
-			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )" || spawnOutcome="failed"
+			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## The handback retry first, before any close step: it resumes this very session, so it
-			## runs while the record still says started, and its tokens and posts precede the end.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}"
-			## The session's tokens onto its item first, so the closing post sums what is there now.
-			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
-			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart"
-			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode"
+			## runs while the record still says started.
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}" || :
+			## THE RECORD IS CLOSED FIRST, and then the item: both are files of this machine. Whatever
+			## is posted follows, in the order it always had, so a network that does not answer
+			## delays what is said about the end and never the close.
+			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$spawnOutcome" "$exitCode" || :
 			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$exitCode" "$outputFile" "$spawnOutcome" running review wait-pass-ended || :
 			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
 				## The item's own state, never `running`: closing a spawn must not move
 				## a caller's backlog or parked item into the running column. A running
 				## one enters review, as a created dispatch item does.
 				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$exitCode" "$outputFile" "$spawnOutcome" "$trackedItemState" \
-					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" wait-pass-ended || :
 			fi
+			## The session's tokens onto its item, so the closing post sums what is there now.
+			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
+			## A launch the poller had no time to see, said now, before the end post.
+			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
+			AgentsToolsSpawnProxyHandbackNotice "$sessionThread" "$callerName" "$eventTrackThread" "$spawnerMember" || :
+			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart" || :
+			## Its close is done: the hold is taken off, and the broken pipe is as its caller had
+			## it. What is left has no bound of its own.
+			trap - INT TERM
+			[ -n "$spawnPipeIgnored" ] || trap - PIPE
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$spawnOutcome" "$exitCode" || :
 			echo "RECEIPT_ID=$receiptId"
 			echo "SESSION_ID=$sessionId"
@@ -1918,7 +2048,14 @@ case "$1" in
 		set -m
 		(
 			trap '' HUP
+			## And it holds until its close is done (AgentsToolsSpawnProxyHeld): a polite end, an
+			## interrupt or a quit sent to it, or to the group it leads, never ends it before that.
+			trap 'AgentsToolsSpawnProxyHeld TERM' TERM
+			trap 'AgentsToolsSpawnProxyHeld INT' INT
+			trap 'AgentsToolsSpawnProxyHeld QUIT' QUIT
 			set +e
+			## Which shell this is, read before the launch (AgentsToolsSpawnProxyShellNote).
+			AgentsToolsSpawnProxyShellNote
 			## Handed off whole: nothing its caller had open stays open here. A caller that runs
 			## this op as a function under a redirect of its own -- a review return did, and so
 			## never came back -- has the stream it redirected saved in its shell, in a descriptor
@@ -1930,14 +2067,19 @@ case "$1" in
 			for (( detachFd = 3 ; detachFd < 64 ; detachFd++ )) ; do
 				eval "exec $detachFd>&-"
 			done
+			## Nor its caller's standard input: nothing this shell calls reads it, and a terminal
+			## held there would stop this whole group at the first that tried.
+			exec < /dev/null
 			## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).
 			type AgentsEventTrackFeedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
 			AgentsEventTrackFeedOpen "$MDAT_SPAWN_SESSION_ID" "$eventTrackThread"
 			AgentsEventTrackFeedRun "$MDAT_SPAWN_SESSION_ID" "$callerName" "$eventTrackThread" 4>&- &
 			batchPid=$!
+			batchBegan="$( AgentsToolsSpawnProxyHelperBegan "$batchPid" )"
 			## On its own, same as the wait-mode branch: not gated by outputFile.
 			AgentsToolsSpawnProxyEventTrackLaunched "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" 4>&- &
 			launchedPid=$!
+			launchedBegan="$( AgentsToolsSpawnProxyHelperBegan "$launchedPid" )"
 			[ -z "$transcriptRel" ] || AgentsTranscriptMilestone "$MDAT_SPAWN_SESSION_ID" "start" 2>/dev/null || :
 			if [ -n "$resumeContextFile" ] ; then
 				type AgentsToolsSpawnProxyHarnessResumeRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.HarnessResume.include"
@@ -1948,30 +2090,39 @@ case "$1" in
 				"$resumeFrom" "$resumeContext" "$callerName" "$trackedItemName" "${spawnCliArgs[@]}"
 			fi
 			bgExitCode=$?
-			[ -z "$batchPid" ] || { kill "$batchPid" 2>/dev/null ; wait "$batchPid" 2>/dev/null ; }
-			[ -z "$launchedPid" ] || { kill "$launchedPid" 2>/dev/null ; wait "$launchedPid" 2>/dev/null ; }
-			## A launch the poller had no time to see, said now, before the end post.
-			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved"
+			## Each helper is signalled only while it is still the process this shell started, and is
+			## waited for only where it was signalled (AgentsToolsSpawnProxyHelperEnd).
+			[ -z "$batchPid" ] || ! AgentsToolsSpawnProxyHelperEnd "$batchBegan" || wait "$batchPid" 2>/dev/null || :
+			[ -z "$launchedPid" ] || ! AgentsToolsSpawnProxyHelperEnd "$launchedBegan" || wait "$launchedPid" 2>/dev/null || :
+			## From here each step is called so that its own failure never ends this shell before
+			## the record is closed.
 			set -e
-			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER"
+			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## Measured once, so the event-track close, the sandbox record and the board item
 			## can never disagree. Nothing bounds this branch, so nothing timed out: 0 is the fact.
-			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )"
+			bgOutcome="$( AgentsToolsSpawnProxyOutcome "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" 0 )" || bgOutcome="failed"
 			## The handback retry before any close step, as in the waiting branch: the record still says started.
-			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}"
+			agentsSpawnProxyHandbackNoticeLater="yes"
+			AgentsToolsSpawnProxyHandbackWarn "$sessionThread" "$callerName" "$outputFile" "$sessionId" "$eventTrackThread" "$spawnerMember" "${spawnCliArgs[@]}" || :
+			## THE RECORD IS CLOSED FIRST, and then the item, as in the waiting branch: what is posted follows.
+			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode" || :
+			if [ "$dispatchDocMode" = "create" ] ; then
+				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review || :
+			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
+				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState" \
+					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )" || :
+			fi
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
-			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart"
-			AgentsToolsSpawnProxyCloseSandbox "$sandboxTracking" "$bgOutcome" "$bgExitCode"
+			## A launch the poller had no time to see, said now, before the end post.
+			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
+			AgentsToolsSpawnProxyHandbackNotice "$sessionThread" "$callerName" "$eventTrackThread" "$spawnerMember" || :
+			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart" || :
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \
 				--context --intern-op-agent-spawn-proxy 2>/dev/null )" || spawnCollected=""
-			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember"
-			if [ "$dispatchDocMode" = "create" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$dispatchItemName" "$dispatchBriefBody" "$bgExitCode" "$outputFile" "$bgOutcome" running review
-			elif [ "$dispatchDocMode" = "reuse" ] && [ -n "$trackedItemState" ] ; then
-				AgentsToolsSpawnProxyCloseDispatch "$trackedItemName" "$spawnContext" "$bgExitCode" "$outputFile" "$bgOutcome" "$trackedItemState" \
-					"$( [ "$trackedItemState" = running ] && echo review || echo "$trackedItemState" )"
-			fi
+			AgentsToolsSpawnProxyOpenQuestionWarn "$sessionThread" "$callerName" "$spawnCollected" "$eventTrackThread" "$spawnerMember" || :
+			## Its close is done: the hold is taken off. What is left has no bound of its own.
+			trap - TERM INT QUIT
 			AgentsTranscriptSpawnEnd "$MDAT_SPAWN_SESSION_ID" "$bgOutcome" "$bgExitCode" 2>/dev/null || :
 			rm -f "$MDAT_SPAWN_LAUNCH_MARKER" "$MDAT_SPAWN_LAUNCH_MARKER.noticed"
 			AgentsToolsSpawnSandboxCleanInput "$sandboxRoot"

@@ -484,17 +484,50 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 ## its command line (AgentsToolsRegistryRecordedRunAlive, AgentsTools.Registries.include):
 ## for every CLI alike, and the same pid begun at another time is another process. A later
 ## launch of the same spawn -- a resume, the handback retry -- replaces the one before it.
+## AND THE SHELL THAT SUPERVISES THE RUN, beside it and in the same form:
+## `supervisor-process: <pid> <start>`. That is the shell this is called in, the one that
+## started the console: it waits on the run and, once the run has ended, resumes it once for
+## a missing handback, posts the end and closes this record. It is the process the proxy
+## starts for a run that is not waited for (PID= of its receipt), and the process the call
+## itself runs in for a run its caller waits on. A later launch of the same spawn is made by
+## that same shell, and leaves the line as it was. It is how a run whose process is gone and
+## whose record is still open is told from one that nobody will close
+## (AgentsToolsRegistryRecordedSupervisor, AgentsTools.Registries.include). Kept also where
+## the console had ended before its own start could be read: `run-process` is then not written.
 ## Through this package's own header writer, aside and then one rename. Never fails the launch.
+## A record is read, changed and put back whole, and what another writer changes between those
+## two is lost. So the time a launch holds it is kept as short, and as soon after the launch,
+## as it was before the shell was named: which shell this is, is read before the launch
+## (AgentsToolsSpawnProxyShellNote) and only looked up here.
+AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is called in, for that shell (agentsSpawnProxyShellIs)
+	local noteShell noteStart
+	## Kept already, by this very shell: nothing is started to find that out. What a subshell
+	## has of the shell it came from was kept one level up (BASH_SUBSHELL), and names that one:
+	## read again. A process started anew has none of it.
+	case "${agentsSpawnProxyShellOf:-}" in "level-$BASH_SUBSHELL") return 0 ;; esac
+	agentsSpawnProxyShellIs="" ; agentsSpawnProxyShellOf="level-$BASH_SUBSHELL"
+	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	## This shell's own process, which `$$` does not name in a subshell: what a command it starts has as its parent.
+	noteShell="$( exec sh -c 'echo "$PPID"' 2> /dev/null )" || noteShell=""
+	case "$noteShell" in ''|*[!0123456789]*) return 0 ;; esac
+	noteStart="$( AgentsToolsRegistryProcessStart "$noteShell" )" || noteStart=""
+	agentsSpawnProxyShellIs="${noteStart:+$noteShell $noteStart}"
+	return 0
+}
 AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
 	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
 	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
 	runStart="$( AgentsToolsRegistryProcessStart "$1" )" || runStart=""
-	[ -n "$runStart" ] || return 0
+	AgentsToolsSpawnProxyShellNote
+	[ -n "$runStart${agentsSpawnProxyShellIs:-}" ] || return 0
 	runOps="$MMDAPP/.local/temp/mdat-session-run-ops.$$.$1"
 	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || return 0
-	printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart" > "$runOps" 2> /dev/null || return 0
+	{
+		[ -z "$runStart" ] || printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart"
+		[ -z "${agentsSpawnProxyShellIs:-}" ] || printf 'upsert\tsupervisor-process\t%s\n' "$agentsSpawnProxyShellIs"
+	} > "$runOps" 2> /dev/null || return 0
 	runBody="$( LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$runFile" 2> /dev/null )" || runBody=""
 	rm -f "$runOps"
 	[ -n "$runBody" ] || return 0
@@ -507,14 +540,18 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 ## own. The headers ARE the state, so a close is a header update and never a rewrite
 ## of the file. A failure leaves the file exactly as it was: a tracking record that
 ## still says started is recoverable by a rescan, where a truncated one is not.
-AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
-	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody
-	[ -f "$sandboxFile" ] || return 0
-	mkdir -p "$MMDAPP/.local/temp" || return 0
+## So the changed record is written aside and put in place by one rename, as a launch writes
+## it (AgentsToolsSpawnProxyRunRecord): a reader finds the record as it was or as it is, and so
+## does whoever comes after a closer that was ended half way; never a record cut short.
+## rc 0 closed; rc 1 where this try could not close it, the record as it was.
+AgentsToolsSpawnProxyCloseSandboxOnce(){ ## tracking file, outcome, exit code
+	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody sandboxAside
+	[ -f "$sandboxFile" ] || return 1
+	mkdir -p "$MMDAPP/.local/temp" || return 1
 	## A temp file of this close's own, by mktemp and never by $$: the members one call
 	## started (--magic-spawn-session) close in subshells of that one shell, which have its
 	## $$, so two closing at once met on one name, and one read no changes and stayed started.
-	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 0
+	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 1
 	{
 		## `status` carries the outcome, and `outcome` itself is deliberately absent:
 		## the entity model defines that name with a closed set of values for what an
@@ -537,11 +574,29 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 		else
 			printf 'upsert\tarmed\tunknown\n'
 		fi
-	} > "$sandboxOps" || return 0
+	} > "$sandboxOps" || { rm -f "$sandboxOps" ; return 1 ; }
 	sandboxBody="$( LC_ALL=C awk -v opsFile="$sandboxOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$sandboxFile" )" || sandboxBody=""
 	rm -f "$sandboxOps"
-	[ -n "$sandboxBody" ] || return 0
-	printf '%s\n' "$sandboxBody" > "$sandboxFile"
+	[ -n "$sandboxBody" ] || return 1
+	## Aside and then one rename, with the mode the record has: the name by mktemp, since its
+	## supervising shell and an advance pass may close one record at the same moment.
+	sandboxAside="$( mktemp "$sandboxFile.close.XXXXXX" 2> /dev/null )" || return 1
+	{ cp -p "$sandboxFile" "$sandboxAside" && printf '%s\n' "$sandboxBody" > "$sandboxAside" && mv -f "$sandboxAside" "$sandboxFile" ; } 2> /dev/null \
+		|| { rm -f "$sandboxAside" ; return 1 ; }
+	return 0
+}
+
+## The close as its callers ask for it. Where the first try could not close the record it is
+## tried once more, a moment later: what stopped it may have been of that moment, a signal to
+## the run's group that took the header writer with it, a temp folder that was full. Where
+## the second cannot either, that is said, on stderr: the record then still says what it
+## said, and a later advance pass closes it. Never fails its caller.
+AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
+	[ -f "$1" ] || return 0
+	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0
+	sleep 1 || :
+	AgentsToolsSpawnProxyCloseSandboxOnce "$@" && return 0
+	echo "⚠️ WARNING: ${MDSC_CMD:-DistroAgentsTools}: the spawn record $1 could not be closed as spawn-$2 (exit $3), tried twice: it still says what it said" >&2 || :
 	return 0
 }
 

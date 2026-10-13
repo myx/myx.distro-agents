@@ -313,6 +313,9 @@
 			Prints CHANNEL/CHANNEL_DIR/FIFO/LOG/CONSOLE/WORKSPACE/
 			HOLDER_PID/CONSOLE_PID to stdout. A channel dir that
 			exists with no live processes is wiped and recreated.
+			Starting over a stale channel kills what is left of it
+			the same way --console-stop does: each process only
+			while its pid is still the process its pid file names.
 
 			--override-workspace <path>
 				Target a workspace other than this tool's own
@@ -349,9 +352,11 @@
 		--console-stop <channel>
 			Sends `exit` into the channel, then kills the console and
 			FIFO-holder processes (TERM, then KILL after a 1s grace period if
-			still alive), and removes the channel directory. Safe to call on a
-			channel with already-dead processes — cleanup still runs through
-			to completion.
+			still alive), each only while its pid is still the process its pid
+			file names; one that cannot be shown to be the channel's own is
+			left, and named in a warning. Removes the channel directory. Safe
+			to call on a channel with already-dead processes — cleanup still
+			runs through to completion.
 
 		--console-list [--override-workspace <path>]
 			Lists channels belonging to one workspace (default: this tool's
@@ -2855,7 +2860,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average>`
 			A session row is followed by its runs, the earliest started
@@ -2869,7 +2874,17 @@
 			another host, else `unclosed` with any open record, else
 			`finished`. <state-at> is the date its last run closed, for a
 			`finished` session only. <state-tally> reads
-			`running=1,finished=2`. A run's <live> and <state> are those
+			`running=1,finished=2`. <session-state> and <session-state-at>
+			are the state the control thread of the session stored for it
+			and when, as `spawned-sessions` holds them after this rebuild:
+			`-` for a session that has none. That state stands beside
+			<state>, which is derived at this call, and where the two
+			differ each is shown as it is. <control-thread> is measured at
+			this call and stored nowhere: `alive` while the process that
+			the pid file or the lock of the session names is still that
+			process, `gone` where one of the two is there and names no
+			such process, `none` where neither is there.
+			A run's <live> and <state> are those
 			`ListAgents` shows. <activity> of a live run is `waiting`
 			inside a `Wait` call and `working` otherwise. `--active` keeps
 			the `running` sessions; the counters count the whole workspace
@@ -2901,12 +2916,14 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
+			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`header <spawn-id> <name> <value>`
 			`store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>`
-			The `session` row comes first, then `dispatch`, then each
+			The `session` row comes first, then `dispatch`, then
+			`control`, then each
 			run: its `run` row, a `header` row for each header of its
 			record, and its `store` row. The runs come the earliest
 			started first. The `session` and `run` rows are those of
@@ -2915,7 +2932,12 @@
 			member, its routine, its dispatch item and its description.
 			<founder> is `record`, or `no-record` for a session a client
 			founded, whose founder left none: the four then read `-`.
-			<tracking-thread> is the record's `agent-log-thread`. A
+			<tracking-thread> is the record's `agent-log-thread`.
+			`control` is the control thread of the session: the three
+			last fields of its `session` row, and <control-pid>, the
+			process <control-thread> is said of, `-` where that reads
+			`none`. <session-state> is read here from the folder of the
+			session at every call, with the records of the session. A
 			`header` row is one header of the run's record as it stands,
 			its `cli` among them. `store` is the run's own store. <store>
 			is `store`, or `no-store` for a run with no folder of its

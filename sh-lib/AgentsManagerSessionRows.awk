@@ -5,14 +5,20 @@
 ## runs, and one row of counters. Called by AgentsTools.ManagerSession.include with two
 ## inputs, in this order: the pending-replies registry file, then the measured rows
 ## (measuredDated of AgentsToolsRegistryMeasureRows: eleven stored columns, live, state,
-## started-at, resolved-at, session-comment). -v activeOnly=1 keeps the sessions with a live run;
-## -v loadAverage is the figure of the counters row; MDAT_MANAGER_WAITING, in the
-## environment, is ` <spawn-id> <spawn-id> ... `: the live runs that sit inside a Wait.
+## started-at, resolved-at, session-comment, session-state, session-state-at). -v activeOnly=1
+## keeps the sessions with a live run; -v loadAverage is the figure of the counters row. In
+## the environment, MDAT_MANAGER_WAITING is ` <spawn-id> <spawn-id> ... `: the live runs that
+## sit inside a Wait; and MDAT_MANAGER_CONTROL is a line `<session-id> <alive|gone> <pid>` for
+## each session whose control thread left a pid file or a lock, as it was measured for this
+## call (AgentsToolsManagerSessionControls): a session with no line there has none.
 ##
 ## A session is the rows that carry one session-id; a row with none (an empty sandbox, a
 ## record with no header) is a session of its own under its tracking name. Nothing here
 ## measures: live and state are the row's own, as the render derives them. A row that is
-## not sixteen words, a sandbox folder named with a space, cannot be read and is left out.
+## not eighteen words, a sandbox folder named with a space, cannot be read and is left out;
+## one of sixteen is a row of a caller that counts no state of a session, and reads `-` there.
+## The state its control thread stored for a session stands at the end of its row beside the
+## state derived here, each as it is: where the two differ, neither is changed.
 ##
 ## Every line goes out behind five sort keys and a TAB each, for
 ## `sort -t <TAB> -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n` and a cut of them: the session's
@@ -41,6 +47,10 @@ BEGIN {
 	OFS = "\t" ;
 	waitingSet = ENVIRON["MDAT_MANAGER_WAITING"] ;
 	stateTotal = split("running waiting unclosed unknown-foreign finished", stateOrder, " ") ;
+	controlTotal = split(ENVIRON["MDAT_MANAGER_CONTROL"], controlLines, "\n") ;
+	for (controlAt = 1 ; controlAt <= controlTotal ; controlAt++) {
+		if (split(controlLines[controlAt], controlWords, " ") >= 2) controlOf[controlWords[1]] = controlWords[2] ;
+	}
 }
 
 ## The pending-replies registry: key source session-id owner status blocked-on channel. An
@@ -51,7 +61,7 @@ FILENAME == ARGV[1] {
 	next ;
 }
 
-NF != 16 { next ; }
+NF != 16 && NF != 18 { next ; }
 
 {
 	sessionKey = ( $2 == "-" ? $1 : $2 ) ;
@@ -59,7 +69,14 @@ NF != 16 { next ; }
 		sessionPlace[sessionKey] = ++sessionTotal ;
 		sessionOf[sessionTotal] = sessionKey ;
 		sessionName[sessionKey] = "-" ; sessionStart[sessionKey] = -1 ; sessionEnd[sessionKey] = -1 ;
+		sessionStored[sessionKey] = "-" ; sessionStoredAt[sessionKey] = "-" ;
 	}
+	## The stored state of the session: every row of it carries the same two, and where a
+	## row was read from its record after the others, the later one is the newer.
+	if (NF == 18 && $17 != "-") { sessionStored[sessionKey] = $17 ; sessionStoredAt[sessionKey] = $18 ; }
+	## A row with no session id is a session under its tracking name, which is no id of a
+	## session: no control thread is its own.
+	if ($2 != "-") sessionById[sessionKey] = 1 ;
 	runTotal++ ;
 	runSession[runTotal] = sessionKey ;
 	runStart[runTotal] = $14 ; runEnd[runTotal] = $15 ;
@@ -100,7 +117,8 @@ END {
 			if ((sessionKey, stateOrder[stateAt]) in sessionStates) stateTally = stateTally ( stateTally == "" ? "" : "," ) stateOrder[stateAt] "=" sessionStates[sessionKey, stateOrder[stateAt]] ;
 		}
 		## The date of a state is on record for a finished session alone: when its last run closed.
-		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally ;
+		## Then, at the end of the row, what its control thread stored and whether that thread lives.
+		print sessionStart[sessionKey], sessionAt, 0, 0, 0, "session", sessionKey, sessionName[sessionKey], sessionState[sessionKey], ( sessionStart[sessionKey] < 0 ? "-" : sessionStartText[sessionKey] ), ( sessionState[sessionKey] == "finished" && sessionEnd[sessionKey] >= 0 ? sessionEndText[sessionKey] : "-" ), sessionRuns[sessionKey], stateTally, sessionStored[sessionKey], sessionStoredAt[sessionKey], ( ( sessionKey in sessionById ) && ( sessionKey in controlOf ) ? controlOf[sessionKey] : "none" ) ;
 	}
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		sessionKey = runSession[runAt] ;

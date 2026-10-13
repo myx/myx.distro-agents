@@ -1773,7 +1773,18 @@ AgentsHarnessToolBash(){
 			printf '%s\n' "$harnessRunPid" > "$harnessScratch/run.pid"
 			## The >/dev/null is load-bearing: without it the orphaned `sleep` holds this
 			## function's capture pipe open and every Bash call blocks for the full bound.
-			( sleep "$toolTimeout" ; kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout" ) >/dev/null &
+			## The watchdog ends the command it was started for and no other process: at the
+			## bound the pid alone may name whoever was given that number since. So it keeps
+			## when the command began, read as the watchdog starts, and signals only while that
+			## pid is still the process that began then (AgentsToolsRegistryProcessesBegan, the
+			## one reading a process is kept by, loaded in the watchdog's own shell). Where no
+			## start can be read, nothing is signalled by the number alone.
+			(
+				type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null
+				harnessRunBegan="$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )"
+				sleep "$toolTimeout"
+				[ -n "$harnessRunBegan" ] && [ "$( printf '%s\n' "$harnessRunPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$harnessRunBegan" ] && kill -TERM "$harnessRunPid" 2>/dev/null && : > "$harnessScratch/run.timedout"
+			) >/dev/null &
 			harnessWatchPid=$!
 			printf '%s\n' "$harnessWatchPid" > "$harnessScratch/watch.pid"
 			wait "$harnessRunPid" || toolStatus=$?

@@ -411,6 +411,13 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The control thread of one coworking session, a sibling of --intern-main-loop above: a
+		## shell process of the tooling that watches the runs of one session and keeps its state.
+		--intern-session-control)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternSessionControl.include"
+			return $?
+		;;
+
 		## Registered places: their registration and the tooling's resolvers.
 		--intern-directory-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternDirectory.include"
