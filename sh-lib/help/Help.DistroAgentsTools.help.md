@@ -203,7 +203,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-upsert <team-member> [--from-file <path>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-roster-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
-📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
+📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> [--wait-default|--wait-continue|--wait-close|--wait-add|--wait-drop|--unwait <kind>:<target> --wait-session-id <session-id>] [--wait-source <kind>:<target>]... [--wait-timeout <seconds>] [--wait-poll-interval <seconds>] [--wait-since-utime <epoch>] [--wait-addressee <slack-user-id>] [--wait-include-own] [--wait-react-seen <ids>] [--wait-react-note <ids>] [--wait-react-done <ids>] [--wait-react-wait <ids>]
 📘 syntax: DistroAgentsTools.fn.sh --member-wait-for-input <team-member> --wait-list-sources
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-read <team-member> <request-id>
 📘 syntax: DistroAgentsTools.fn.sh --member-escalation-answer <team-member> <request-id> <verdict> [text]
@@ -4196,6 +4196,26 @@
 			later message there arrives and is kept with the
 			answer as a clarification; a question withdrawn or
 			settled leaves it.
+
+			An answered `ask:` source quiet five minutes past its
+			own `follow-floor` leaves a `--wait-default` call's
+			stored sources on its own -- the same pointer a later
+			clarification shifts, read directly, no second
+			timestamp kept. Said, never silent:
+			`WAIT-DROPPED-EXPIRED: ask:<pending-id> ... -- quiet 5
+			minutes past its last update; name it again
+			explicitly to keep watching it`, right after
+			WAIT-NEVER-READ if any. Only a default call reaching
+			for it on its own is affected; naming it again with
+			--wait-source, any mode, is not.
+
+			--unwait <kind>:<target> is the same as --wait-drop
+			--wait-source <kind>:<target>, nothing more -- one
+			flag, its source inline, returning the same
+			`WAIT-RESULT: DROPPED`. Dropping a source, by either
+			of them or by expiry above, is never blocking it: a
+			later call naming it explicitly reaches it exactly as
+			if it had never been dropped.
 
 			--wait-react-seen, --wait-react-note,
 			--wait-react-done and --wait-react-wait each take
