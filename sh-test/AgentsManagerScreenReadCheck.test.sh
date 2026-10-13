@@ -249,7 +249,7 @@ get up
 cells upLine1 2 1 83
 RIGSCRIPT
 rigAssert "the operation of that view is asked with the id of the row" "$( rigVal asked.reading ) $( rigCalls ) [$( rigCall 1 )]" "view:sessions|launch:launch 1 [--rig-view launch]"
-rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [Launch / Spawn]"
+rigAssert "the pane shows what it printed"                           "$( rigVal a.viewLines ) [$( rigVal line1 )][$( rigVal line2 )] [$( rigVal title )]" "2 [the first line of the item][its second line] [Launch / Spawn [wrap]]"
 rigAssert "moving the selection replaces the pane"                   "$( rigVal up.selected ) $( rigVal up.viewLines ) [$( rigVal upLine1 )]" ".. 0 []"
 rigCase late "sleep 2"
 printf 'a line of the item that was left\n' > "$MANAGER_SCREEN_RIG/rows"

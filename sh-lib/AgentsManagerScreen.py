@@ -482,10 +482,11 @@ WINDOW_FIRST = "list"
 SPLIT = {"step": 0.05, "least": 20, "most": 80}
 ## How the left window shows a line longer than itself when the screen starts: wrapped at
 ## words (True), or cut with the cut mark and scrolled sideways. The choice is the user's
-## for the run of the screen, whatever is selected. What stands for the cut lines in the
-## title of the window; how wide a line is set out while lines are not wrapped; and how
-## many cells one press scrolls sideways.
+## for the run of the screen, whatever is selected. What stands for each of the two in
+## the title of the window, always, beside its mode; how wide a line is set out while
+## lines are not wrapped; and how many cells one press scrolls sideways.
 WRAP_FIRST = True
+WRAP_MARK = "[wrap]"
 CUT_MARK = "[cut]"
 UNWRAPPED_WIDTH = 1000
 PAN_STEP = 8
@@ -6404,8 +6405,8 @@ def viewTitle(state):
     marks = "".join(mark for mark in (MARK_READING, MARK_OLD) if mark in marks)
     ## the mode of the window, where the item has a log: it shows in the title
     form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
-    ## and that its long lines are cut, not wrapped
-    return (marks + " " if marks else "") + row["label"] + form + ("" if state.wrap else " " + CUT_MARK)
+    ## and whether its long lines are wrapped or cut: the title says it always
+    return (marks + " " if marks else "") + row["label"] + form + " " + (WRAP_MARK if state.wrap else CUT_MARK)
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one

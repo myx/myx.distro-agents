@@ -81,7 +81,7 @@ RIGSCRIPT
 rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions (Activity)  [all]]"
 rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVal inRow1 )] $( rigVal in.selected )" "[>..] .."
 rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn...]"
-rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity)]"
+rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity) [wrap]]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
 rigAssert "Right dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
 rigAssert "Left goes up and returns to the row it came from"         "[$( rigVal back.path )] $( rigVal back.selected )" "[] team"
@@ -100,7 +100,7 @@ border inTitle 1 84 120
 keys LEFT
 get back
 RIGSCRIPT
-rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launch / Spawn]"
+rigAssert "it can be selected, and the left pane follows"            "$( rigVal on.selected ) [$( rigVal onLeft )]" "launch [Launch / Spawn [wrap]]"
 rigAssert "Enter dives into it, and it holds the free prompt under the row that goes up" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) [$( rigVal inTitle )]" "sessions/launch 2 .. [Launch / Spawn]"
 rigAssert "Left returns to it"                                       "$( rigVal back.path ) $( rigVal back.selected )" "sessions launch"
 

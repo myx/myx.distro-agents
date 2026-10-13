@@ -168,7 +168,7 @@ rigAssert "at the root nothing of the asks is read, and the pane of the section 
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
 rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane says how many wait, and how many have no asker" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 )] [$( rigVal line2 )]" \
-	"pending [Pending Questions] [3 asks wait for an answer.] [1 of them was asked by a run that is gone (x in the list): nobody is there to take the answer.]"
+	"pending [Pending Questions [wrap]] [3 asks wait for an answer.] [1 of them was asked by a run that is gone (x in the list): nobody is there to take the answer.]"
 rigAssert "it is read again on the period, and not before"           "[$( rigVal early.reading )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
 
 echo "-- each open ask is one row --"

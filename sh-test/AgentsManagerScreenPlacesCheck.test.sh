@@ -97,19 +97,20 @@ rigVal(){ ## name -- the value of the first `<name>=` line
 rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigListLine(){ ## tag, text -- the list's part of the first line of that screen that holds the text, every run of blanks as one, without its frame
+rigListLine(){ ## tag, text -- the list's part of the first line of that screen whose list holds the text, every run of blanks as one, without its frame
 	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
 import os, re, sys
 show, text = sys.argv[1:3]
 for line in os.environ["RIG_OUT"].split("\n"):
-    if line.startswith(show + "|") and text in line:
+    if line.startswith(show + "|"):
         line = line[len(show) + 1:].rstrip("|").rstrip(" ")
         line = line[:-1] if line[-1:] in "║│▲▼■▒" else line
-        print(re.sub("  +", " ", re.split("[║│]", line)[-1]).rstrip(" "))
-        break
+        if text in re.split("[║│]", line)[-1]:
+            print(re.sub("  +", " ", re.split("[║│]", line)[-1]).rstrip(" "))
+            break
 ' "$1" "$2"
 }
-rigLookAt(){ ## tag of the screen as text, tag of the same screen as looks, text -- how the cells that text stands in are drawn, on the first line that holds it
+rigLookAt(){ ## tag of the screen as text, tag of the same screen as looks, text [, the first column to look from] -- how the cells that text stands in are drawn, on the first line that holds it from that column on
 	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
 import os, sys
 show, looks, text = sys.argv[1:4]
@@ -117,11 +118,11 @@ out = os.environ["RIG_OUT"].split("\n")
 shown = [line[len(show) + 1:] for line in out if line.startswith(show + "|")]
 drawn = [line[len(looks) + 1:] for line in out if line.startswith(looks + "|")]
 for number, line in enumerate(shown):
-    at = line.find(text)
+    at = line.find(text, int(sys.argv[4] or 0))
     if at >= 0:
         print(drawn[number][at:at + len(text)])
         break
-' "$1" "$2" "$3"
+' "$1" "$2" "$3" "${4:-0}"
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -172,9 +173,9 @@ rigAssert "9 goes there: the row that goes up and a row a location, in the order
 rigAssert "the table has a header: the key, the kind, the ceiling, the state, the sessions, and no column of a host" "[$( rigListLine t 'PLACE' )] $( rigHolds t 'HOST' )" "[ PLACE KIND CEILING STATE SESSIONS] 0"
 rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196] [ gone-work workspace read-write absent 0]"
 rigAssert "what is not known of one is a dash, and its key stands as the operation gives it" "[$( rigListLine t 'nowhere@ws-two' )]" "[ nowhere@ws-two directory - unknown -]"
-rigAssert "the one the console runs in stands out, one that is not present shows plainer, another is plain" "$( rigLookAt t tr '• ws-one' ) $( rigLookAt t tr 'gone-work' ) $( rigLookAt t tr 'deep' )" "BBBBBBBB DDDDDDDDD ...."
-rigAssert "on the row that goes up the left window shows what the folder holds" "[$( rigVal inTitle )] $( rigHolds t '5 locations: 3 directory, 2 workspace.' ) $( rigHolds t 'The console runs in ws-one.' ) $( rigHolds t '2 of them are not present on this machine.' )" "[Locations (Places)] 1 1 1"
-rigAssert "a location selected: its read is called with its key, once, and the left window shows its facts" "$( rigVal deep.selected ) [$( rigVal deepTitle )] $( rigCalled '--manager-place-read deep' ) $( rigHolds d '│place     Deep ' ) $( rigHolds d '│kind      directory ' ) $( rigHolds d '│ceiling   read-only ' ) $( rigHolds d '│state     present ' )" "deep [deep] 1 1 1 1 1"
+rigAssert "the one the console runs in stands out, one that is not present shows plainer, another is plain" "$( rigLookAt t tr '• ws-one' 140 ) $( rigLookAt t tr 'gone-work' 140 ) $( rigLookAt t tr 'deep' 140 )" "BBBBBBBB DDDDDDDDD ...."
+rigAssert "on the row that goes up the left window shows what the folder holds" "[$( rigVal inTitle )] $( rigHolds t '5 locations: 3 directory, 2 workspace.' ) $( rigHolds t 'The console runs in ws-one.' ) $( rigHolds t '2 of them are not present on this machine.' )" "[Locations (Places) [wrap]] 1 1 1"
+rigAssert "a location selected: its read is called with its key, once, and the left window shows its facts" "$( rigVal deep.selected ) [$( rigVal deepTitle )] $( rigCalled '--manager-place-read deep' ) $( rigHolds d '│place     Deep ' ) $( rigHolds d '│kind      directory ' ) $( rigHolds d '│ceiling   read-only ' ) $( rigHolds d '│state     present ' )" "deep [deep [wrap]] 1 1 1 1 1"
 rigAssert "in the summary of a location every path stands as it is: its own, what declares it, what stands in it" "$( rigHolds d '│path      /rig/Workspaces/ws-one/source/deep ' ) $( rigHolds d '│registry  /rig/Workspaces/ws-one/.local/agents/directories.registry ' ) $( rigHolds d 'console DistroAgentsConsole.sh  /rig/Workspaces/ws-one/source/deep/DistroAgentsConsole.sh' ) $( rigHolds d 'team-data-root  /rig/Workspaces/ws-one/source/deep/team-data' ) $( rigHolds d 'declared-by a-project' ) $( rigVal deep.spills )" "1 1 1 1 1 0"
 rigAssert "a key with a mark in it is given to the read as it is" "$( rigVal odd.selected ) $( rigCalled '--manager-place-read nowhere@ws-two' ) $( rigHolds o '│key       nowhere@ws-two ' ) $( rigHolds o '│path ' )" "nowhere@ws-two 1 1 0"
 rigAssert "Left goes back to the root, onto its row, where the left window says the same of the folder" "[$( rigVal out.path )] $( rigVal out.selected ) $( rigHolds s '5 locations: 3 directory, 2 workspace.' )" "[] places 1"

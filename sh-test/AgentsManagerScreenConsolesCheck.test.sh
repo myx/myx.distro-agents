@@ -143,7 +143,7 @@ rigAssert "the rows stand in the order of the operation, each by its label with 
 	"[>..][ Bash Shell                  shell][ Claude Native Console      agents][ Source Console             distro][ Plain Tool                 distro]"
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
 rigAssert "on the row that goes up the left window shows the folder itself: how many, group by group" "[$( rigPane u 2 )][$( rigPane u 3 )][$( rigPane u 4 )]" \
-	"[ Consoles (Tools)][ 4 to start: 1 shell, 1 agents, 2 distro.][ Enter starts one with the whole terminal; the screen is back when it ends.]"
+	"[ Consoles (Tools) [wrap]][ 4 to start: 1 shell, 1 agents, 2 distro.][ Enter starts one with the whole terminal; the screen is back when it ends.]"
 rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
 rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1
@@ -168,7 +168,7 @@ keys ESC DOWN DOWN DOWN
 turn
 show p
 RIGSCRIPT
-rigAssert "its title is its label, and under it its label, its key and its group" "[$( rigVal cTitle )][$( rigPane c 3 )][$( rigPane c 4 )][$( rigPane c 5 )]" "[Bash Shell][ console   Bash Shell][ key       bash][ group     shell]"
+rigAssert "its title is its label, and under it its label, its key and its group" "[$( rigVal cTitle )][$( rigPane c 3 )][$( rigPane c 4 )][$( rigPane c 5 )]" "[Bash Shell [wrap]][ console   Bash Shell][ key       bash][ group     shell]"
 rigAssert "the folder it is started in, as it is written"            "[$( rigPane c 6 )]" "[ directory /rig/ws rig]"
 rigAssert "its command as it will be run, word by word: a word with a blank stands between quotes" "[$( rigPane c 7 )][$( rigPane c 8 )][$( rigPane c 9 )]" \
 	"[ command   /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace, by][           its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][ terminal  it needs a terminal, on its input and on its output]"

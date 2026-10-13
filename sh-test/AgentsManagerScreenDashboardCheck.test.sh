@@ -135,7 +135,7 @@ border listFoot 38 84 120
 EOF
 rigAssert "the screen starts on the first row of the root, which is the dashboard" "$( rigVal first.index ) $( rigVal first.selected ) [$( rigVal first.selectedLabel )] [$( rigVal first.path )]" "0 dashboard [Dashboard (Monitor)] []"
 rigAssert "its operation is called at once, with no argument, though the root is not opened" "$( rigCalled --manager-dashboard-read ) $( rigArgued )" "1 0"
-rigAssert "the left window is titled by it, and nothing failed" "[$( rigVal title )] [$( rigVal a.failed )] [$( rigVal a.dialog )] $( rigVal a.spills )" "[Dashboard (Monitor)] [] [] 0"
+rigAssert "the left window is titled by it, and nothing failed" "[$( rigVal title )] [$( rigVal a.failed )] [$( rigVal a.dialog )] $( rigVal a.spills )" "[Dashboard (Monitor) [wrap]] [] [] 0"
 rigAssert "a block is a box with its label in its top border" "$( rigHolds a '┌─ Alpha Block ─' ) $( rigHolds a '┌─ Beta Block ─' ) $( rigHolds a '┌─ Gamma Block ─' )" "1 1 1"
 rigAssert "a figure is a line of its box: its label at the left, its value at the right" "$( rigHolds a '│ Plain Count ' ) $( rigHolds a ' 1.2M │' )" "1 1"
 rigAssert "a count, a size and a span of time show short; a word shows as it is" "$( rigBoth a 'Plain Count' ' 1.2M │' ) $( rigBoth a 'Warned Size' ' 123.0M │' ) $( rigBoth a 'Bad Age' ' 2h 27m │' ) $( rigBoth a 'Good One' ' yes │' )" "1 1 1 1"
@@ -212,8 +212,8 @@ get out
 EOF
 rigAssert "Enter opens the root: the row that goes up, then a row a block, in the order of the operation" "$( rigVal in.path ) $( rigVal in.rows ) $( rigVal in.selected ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^in|' | LC_ALL=C sed -n -e 's/^.*║.\(Alpha Block\).*$/\1/p' -e 's/^.*║.\(Beta Block\).*$/\1/p' -e 's/^.*║.\(Gamma Block\).*$/\1/p' | tr '\n' ',' )" "dashboard 4 .. Alpha Block,Beta Block,Gamma Block,"
 rigAssert "a block's row ends with the worst level of its figures, where one is worse than well" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^in|' | LC_ALL=C grep -c 'Alpha Block  *bad║' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^in|' | LC_ALL=C grep -c 'Beta Block  *║' )" "1 1"
-rigAssert "on the row that goes up the left window shows the dashboard itself, whole" "[$( rigVal inTitle )] $( rigHolds in '┌─ Alpha Block ─' ) $( rigHolds in '┌─ Beta Block ─' )" "[Dashboard (Monitor)] 1 1"
-rigAssert "on the row of a block it shows that block alone, as wide as the window" "$( rigVal alpha.selected ) [$( rigVal alphaTitle )] $( rigHolds alpha '┌─ Alpha Block ─' ) $( rigHolds alpha '┌─ Beta Block ─' ) $( rigVal alpha.viewLines )" "alpha [Alpha Block] 1 0 6"
+rigAssert "on the row that goes up the left window shows the dashboard itself, whole" "[$( rigVal inTitle )] $( rigHolds in '┌─ Alpha Block ─' ) $( rigHolds in '┌─ Beta Block ─' )" "[Dashboard (Monitor) [wrap]] 1 1"
+rigAssert "on the row of a block it shows that block alone, as wide as the window" "$( rigVal alpha.selected ) [$( rigVal alphaTitle )] $( rigHolds alpha '┌─ Alpha Block ─' ) $( rigHolds alpha '┌─ Beta Block ─' ) $( rigVal alpha.viewLines )" "alpha [Alpha Block [wrap]] 1 0 6"
 rigAssert "there a long value has the room to stand beside its label" "$( rigVal gamma.selected ) $( rigBoth gamma '│ Root Path ' ' /rig/some/where/far/away/a/long/path/that/fits/no/small/box/END │' ) $( rigVal gamma.spills )" "gamma 1 0"
 rigAssert "Left goes back to the root, onto its row" "[$( rigVal out.path )] $( rigVal out.selected )" "[] dashboard"
 

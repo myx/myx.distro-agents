@@ -235,7 +235,7 @@ turn
 show u
 RIGSCRIPT
 rigAssert "one read gave all of it"                                  "$( rigCalls ) $( rigVal a.selected )" "1 $rigS1"
-rigAssert "its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )]" "[ daily of Monday][ state     running][ control   -][ started   2026-10-12 16:57 +0300 (9h ago)]"
+rigAssert "its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )]" "[ daily of Monday [wrap]][ state     running][ control   -][ started   2026-10-12 16:57 +0300 (9h ago)]"
 rigAssert "how many agents it has, and in which states"              "[$( rigPane s 6 )][$( rigPane s 7 )]" "[ agents    3: 2 running, 1 finished][ session   $rigS1]"
 rigAssert "each agent with its state, in a table under its header"   "[$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
 	"[ MEMBER            STATE           SINCE                        TOKENS CLI MODEL][ magic-coordinator running waiting 2026-10-12 16:57 +0300       -      -   -][ magic-tester      running working 2026-10-12 17:05 +0300       -      -   -][ keeper-myx        finished        until 2026-10-12 18:00 +0300 -      -   -]"

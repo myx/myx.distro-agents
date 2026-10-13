@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+## Behavioural check on the leftovers of the manager screen (sh-lib/AgentsManagerScreen.py), the small things its
+## specification left for last, run rather than read. The screen's own code runs through the stand-in terminal of
+## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture.
+## Held: the title of the left window always says how its long lines are shown, `[wrap]` or `[cut]`, beside the
+## mode of a thing that has a log, in every style, and the choice is kept as the selection moves.
+## Offline: no operation of the real tooling is called.
+set -u
+: "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
+rigDriver="$rigFixtures/manager-screen.driver.test.py"
+rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigRefuse(){
+	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+}
+[ -f "$rigScreen" ] || rigRefuse "the screen is not at the origin: $rigScreen"
+[ -f "$rigDriver" ] || rigRefuse "the driver of the screen tests is missing: $rigDriver"
+[ -f "$rigTools" ] || rigRefuse "the stand-in for the dispatcher is missing: $rigTools"
+rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH"
+rigTmp="$( mktemp -d -t AgentsManagerScreenLeftoversCheck )" || exit 1
+rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+trap 'rm -rf -- "$rigTmp"' EXIT
+export TZ=UTC
+
+rigPassCount=0
+rigFailCount=0
+rigAssert(){ ## what is asserted, got, want
+	if [ "$2" = "$3" ] ; then
+		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
+	else
+		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
+	fi
+}
+rigRow(){ ## the fields of one row, joined by TAB
+	local rowText="$1" ; shift
+	while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done
+	printf '%s\n' "$rowText"
+}
+## What no machine has: five sessions, one running with three runs of two members, one waiting whose control thread
+## is gone, one unclosed, two finished; three asks, the oldest of a run that is gone; four members, one running, one
+## that is nobody to start and one whose workspace is not here; three locations, one absent; three things to start
+## in two groups; a subject of the settings and one of the configuration, with a secret that is set and one that is
+## missing; four routines, one started here, one with members named, one broken, one not for a hand; two groups of
+## server keys, a key whose row carries its whole line and one that is absent; two checks; one block.
+rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
+{
+	rigRow session s-run daily_of_Monday running 2026-10-13T01:00:00Z - 3 running=2,finished=1 running 2026-10-13T01:00:05Z alive 57100000
+	rigRow run s-run sp-1 magic-coordinator done live running 2026-10-13T01:00:00Z - righost ws-one working
+	rigRow run s-run sp-2 keeper-myx done live running 2026-10-13T01:01:00Z - righost ws-one waiting
+	rigRow run s-run sp-3 keeper-myx done ended finished 2026-10-13T01:02:00Z 2026-10-13T01:05:00Z righost ws-one -
+	rigRow session s-wait review_of_the_board waiting 2026-10-13T00:00:00Z - 1 waiting=1 waiting 2026-10-13T00:00:05Z gone 1200+
+	rigRow run s-wait sp-4 magic-architect done live waiting 2026-10-13T00:00:00Z - righost ws-one waiting
+	rigRow session s-open - unclosed 2026-10-12T00:00:00Z - 0 - - - none 0
+	rigRow session s-done old_work finished 2026-10-11T00:00:00Z 2026-10-11T01:00:00Z 2 finished=2 - - none 900
+	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
+	rigRow counters 1 0 2 2 3 0.42 righost
+} > "$rigF/rows.--manager-session-list"
+cat > "$rigF/rows.--member-pending-reply-read" <<'RIGROWS'
+PENDING-REPLY: ask-new
+asked-at: 2026-10-13 02:20 +0000
+kind: question
+owner: keeper-myx
+address-to: human-owner
+question: Which of the two layouts stays?
+asker-live: running
+
+PENDING-REPLY: ask-old
+asked-at: 2026-10-10 02:30 +0000
+kind: approval
+owner: magic-devops
+address-to: human-owner
+question: May the old volume be removed now that the copy is proven on the second host?
+asker-live: no-process
+
+PENDING-REPLY: ask-mid
+asked-at: 2026-10-13 00:30 +0000
+kind: question
+owner: keeper-acm
+address-to: magic-coordinator
+question: Who owns the template of the report?
+asker-live: running
+
+PENDING-REPLIES: 3
+RIGROWS
+{
+	rigRow member magic-coordinator MC Magic Coordinator Magic lead ws-one present active running -
+	rigRow member keeper-myx KM Keeper Myx - keeper ws-one present active idle -
+	rigRow member human-owner HO Human Owner - human ws-one present reference-only idle -
+	rigRow member far-member FM Far Member - keeper ws-far not-present active idle -
+} > "$rigF/rows.--manager-team-member-list"
+{
+	rigRow place ws-one Ws_One workspace read-write /rig/Workspaces/ws-one present yes 2
+	rigRow place gone-work Gone_Work workspace read-write /rig/Volumes/gone-work absent no 0
+	rigRow place deep Deep directory read-only /rig/Workspaces/ws-one/source/deep present no -
+} > "$rigF/rows.--manager-place-list"
+{
+	rigRow console agents Distro Agents_Console terminal /rig/Workspaces/ws-one bash DistroAgentsConsole.sh
+	rigRow console source Distro Source_Console terminal /rig/Workspaces/ws-one bash DistroSourceConsole.sh
+	rigRow console top System Top terminal /rig top
+} > "$rigF/rows.--manager-console-list"
+{
+	rigRow subject interface 2 Interface
+	rigRow subject slack 3 Slack
+	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,mc=MC /rig/conf settings
+	rigRow line interface screen period set 10 Period Seconds_between_reads yes number user file 1..60 /rig/conf settings
+	rigRow line slack app channel set C123 Channel The_channel no:set_at_deployment text workspace file - /rig/conf configuration
+	rigRow line slack app token secret-set hidden-value Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration
+	rigRow line slack hooks signing secret-missing - Signing_secret The_signing_secret no:set_at_deployment text workspace file - /rig/conf configuration
+} > "$rigF/rows.--manager-config-digest"
+{
+	rigRow routine magic-coordinator.daily.routine.md magic-coordinator startable any work - Daily_meeting - -
+	rigRow routine magic-coordinator.retro.routine.md magic-coordinator not-startable any work - Retro needs_members members
+	rigRow routine keeper-myx.sweep.routine.md keeper-myx broken - work - Sweep its_file_is_broken -
+	rigRow routine keeper-myx.audit.routine.md keeper-myx not-startable keeper-myx work - Audit not_for_a_hand -
+} > "$rigF/rows.--manager-routine-list"
+{
+	rigRow group git 1 To_add_to_git -
+	rigRow key deploy Deploy_key git outgoing ssh-ed25519 SHA256:abcdef short-marker /rig/keys/deploy.pub present ssh-ed25519_AAAAC3NzaWHOLEKEY_rig@host
+	rigRow group trust 1 To_trust_when_connecting -
+	rigRow key host Host_key trust incoming ssh-ed25519 SHA256:fedcba short-marker /rig/keys/host.pub absent
+} > "$rigF/rows.--manager-keys-list"
+{
+	rigRow check install tools bash Bash ok fine -
+	rigRow check slack app token Token fail the_token_is_missing set_the_token
+	rigRow summary 2 1 0 1 0 12
+} > "$rigF/rows.--manager-check-run"
+{
+	rigRow block data Team_Data 1
+	rigRow figure data root Team_Data_Root 12 count ok -
+} > "$rigF/rows.--manager-dashboard-read"
+## A fresh rig for one case: a copy of the fixtures, no call noted yet.
+rigCase(){ ## name
+	export MANAGER_SCREEN_RIG="$rigTmp/$1"
+	mkdir -p "$MANAGER_SCREEN_RIG"
+	cp "$rigF"/* "$MANAGER_SCREEN_RIG/"
+	: > "$MANAGER_SCREEN_RIG/calls"
+	: > "$MANAGER_SCREEN_RIG/words"
+	echo rows > "$MANAGER_SCREEN_RIG/mode"
+}
+rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
+	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+}
+rigVal(){ ## name -- the value of the first `<name>=` line
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
+}
+rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
+}
+rigLeft(){ ## tag -- what the left window of that screen holds: its lines that hold something, without the frame, a ` / ` between two
+	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
+import os, re, sys
+held = []
+for line in os.environ["RIG_OUT"].split("\n"):
+    found = re.match(r"^%s\|[│║](.*?)[│║▒▲▼■]" % re.escape(sys.argv[1]), line)
+    if found and found.group(1).strip():
+        held.append(found.group(1).rstrip())
+print(" / ".join(held))
+' "$1"
+}
+rigCalls(){ ## text -- how many starts of the stand-in name it in their words
+	LC_ALL=C grep -c -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
+}
+rigFolderCalls(){ ## how many starts were of the lists that only a folder asks for: not of those that are read whatever is shown
+	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' "$MANAGER_SCREEN_RIG/calls" || :
+}
+
+echo "-- the title of the left window always shows the wrap state --"
+rigCase title
+rigScript <<'RIGSCRIPT'
+turn
+wait sessions 5
+border t0 1 0 84
+keys DOWN
+turn
+border t1 1 0 84
+keys TAB w
+border t2 1 0 84
+keys TAB DOWN
+turn
+border t3 1 0 84
+keys UP ENTER DOWN DOWN
+turn
+border t4 1 0 84
+keys TAB w TAB
+border t5 1 0 84
+style bw
+turn
+border t6 1 0 84
+style mc
+turn
+show m
+RIGSCRIPT
+rigAssert "wrapped, as the screen starts: the title says so, on every row" "[$( rigVal t0 )] [$( rigVal t1 )]" "[Dashboard (Monitor) [wrap]] [Sessions (Activity) [wrap]]"
+rigAssert "w in the left window: the title says cut, and still does when the selection has moved" "[$( rigVal t2 )] [$( rigVal t3 )]" "[Sessions (Activity) [cut]] [Pending Questions [cut]]"
+rigAssert "a thing that has a log: the wrap state stands beside its mode, cut and then wrapped again" "[$( rigVal t4 )] [$( rigVal t5 )]" "[daily of Monday [summary] [cut]] [daily of Monday [summary] [wrap]]"
+rigAssert "with no colours and in the compact style too" "[$( rigVal t6 )] $( rigHolds m 'daily of Monday [summary] [wrap]' )" "[daily of Monday [summary] [wrap]] 1"
+
+if [ "$rigFailCount" -ne 0 ] ; then
+	echo "⛔ MANAGER SCREEN LEFTOVERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
+fi
+printf 'MANAGER_SCREEN_LEFTOVERS: OK (%d assertions, offline, stand-in terminal and stand-in dispatcher)\n' "$rigPassCount"
