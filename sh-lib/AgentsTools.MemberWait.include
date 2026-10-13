@@ -50,6 +50,11 @@
 ## shared by the whole stored wait, which a source joining it must not change.
 ## Message ids named in --wait-react-seen|note|done|wait are reacted to before anything else.
 ##
+## --unwait <kind>:<target> is a named shorthand for --wait-drop --wait-source <kind>:<target>:
+## nothing more than that, and returns the same WAIT-RESULT: DROPPED. Dropping a source from
+## the stored wait is never blocking it: a later call naming the same source explicitly,
+## whatever mode it uses, reaches it exactly as if it had never been dropped.
+##
 ## A source never read once during the wait is named on the line right after it:
 ##
 ##     WAIT-NEVER-READ: [<kind>:<target>] ...
@@ -57,6 +62,18 @@
 ## absent when every source was read at least once. It changes neither the outcome
 ## nor the return code; a caller watching one thread reads it to tell a quiet
 ## thread from one it could not see at all.
+##
+## AN ANSWERED ask: SOURCE QUIET FIVE MINUTES PAST ITS OWN LAST UPDATE LEAVES A DEFAULT
+## WAIT'S STORED SOURCES ON ITS OWN. "Its own last update" is the closed record's own
+## follow-floor -- the one pointer a later clarification already shifts -- read directly,
+## not the wait's own floor. The drop is said, never silent:
+##
+##     WAIT-DROPPED-EXPIRED: ask:<pending-id> ... -- quiet 5 minutes past its last update;
+##                            name it again explicitly to keep watching it
+##
+## This only ever withholds a source a DEFAULT call would otherwise reach for on its own,
+## through the stored wait alone -- a call naming it with --wait-source, in any mode, is
+## never affected by it: the same "dropping is not blocking" property --unwait has.
 ##
 ## RECEIVED on a thread source (slack:<channel>:<ts>, or its :conversation form)
 ## also names the newest message it just printed:
@@ -628,6 +645,24 @@ case "$1" in
 					waitMode="${1#--wait-}"
 					shift
 				;;
+				## One flag, its source inline -- the named shorthand for --wait-drop --wait-source
+				## <source>, nothing more. Dropping from the stored set is not blocking it: naming
+				## the same source again, explicitly, on a later call is unaffected by this.
+				--unwait)
+					if [ -n "$waitMode" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: modes are mutually exclusive, and this call names --wait-$waitMode and --unwait. Nothing was waited on." >&2
+						set +e ; return 1
+					fi
+					if [ -z "${2:-}" ] ; then
+						echo "WAIT-RESULT: ERROR"
+						echo "⛔ ERROR: $MDSC_CMD --member-wait-for-input: --unwait: value required (<kind>:<target> to drop from the stored wait)" >&2
+						set +e ; return 1
+					fi
+					waitMode="drop"
+					waitSources="$waitSources$2 "
+					shift 2
+				;;
 				--wait-session-id)
 					if [ -z "${2:-}" ] ; then
 						echo "WAIT-RESULT: ERROR"
@@ -873,12 +908,34 @@ case "$1" in
 		## default call too, while its record exists: it leaves by --wait-drop only once closed for
 		## good (an answered one keeps its thread watched), and a default call that dropped it
 		## would leave the answer with nothing waiting for it.
+		##
+		## FIVE QUIET MINUTES, FROM THE LATEST MATCHING UPDATE, DROPS IT ON ITS OWN. A closed
+		## record's own follow-floor already IS that update's own ts -- the same pointer a later
+		## clarification shifts (AgentsHarnessAskKeepClarifications) -- so no second timestamp is
+		## kept here. Explicit, never silent: said on WAIT-DROPPED-EXPIRED below, every call it
+		## happens on. This only stops a DEFAULT call from reaching for the source on its own --
+		## naming it again, explicitly, is unaffected.
+		local waitExpiredDrop=""
 		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
-			local carrySource
+			local carrySource carryRecord carryStatus carryFloor carryNow
+			carryNow="$( date +%s )"
 			for carrySource in $waitStoredSources ; do
 				case "$carrySource" in ask:*) ;; *) continue ;; esac
 				case " $waitSources" in *" $carrySource "*) continue ;; esac
-				[ -f "$MMDAPP/.local/agents/pending/${carrySource#ask:}.md" ] || continue
+				carryRecord="$MMDAPP/.local/agents/pending/${carrySource#ask:}.md"
+				[ -f "$carryRecord" ] || continue
+				carryStatus="$( LC_ALL=C sed -n 's/^status: //p' "$carryRecord" | head -1 )"
+				if [ "$carryStatus" != "reply-pending" ] ; then
+					carryFloor="$( LC_ALL=C sed -n 's/^follow-floor: //p' "$carryRecord" | head -1 )"
+					case "$carryFloor" in
+						*[0-9]*)
+							if [ "$(( carryNow - ${carryFloor%%.*} ))" -ge 300 ] ; then
+								waitExpiredDrop="$waitExpiredDrop$carrySource "
+								continue
+							fi
+						;;
+					esac
+				fi
 				waitSources="$waitSources$carrySource "
 			done
 		fi
@@ -1492,6 +1549,7 @@ case "$1" in
 		echo "WAIT-RESULT: $waitOutcome"
 		[ -z "$waitMode" ] || echo "WAIT-MODE: $waitMode"
 		[ -z "$waitNeverRead" ] || echo "WAIT-NEVER-READ: ${waitNeverRead% }"
+		[ -z "$waitExpiredDrop" ] || echo "WAIT-DROPPED-EXPIRED: ${waitExpiredDrop% } -- quiet 5 minutes past its last update; name it again explicitly to keep watching it"
 		if [ -n "$waitMode" ] ; then
 			echo "# filters: sources=${waitSources% } floors=${waitFloorsUsed% } addressee=${waitAddressee% } include-own=$waitIncludeOwn"
 			echo "# reactions: $reactSummary"
