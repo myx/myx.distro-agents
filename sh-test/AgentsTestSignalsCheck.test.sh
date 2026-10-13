@@ -358,6 +358,7 @@ rigToolingList(){
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
+		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \
 		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \

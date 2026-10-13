@@ -234,6 +234,7 @@ dialog Name:
 keys h i SPACE x BACKSPACE o ENTER
 get sent
 said sentLine
+advance 2
 keys q
 get bare
 keys ESC x
@@ -320,14 +321,14 @@ cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: the pane names the one key whose handler is built, l" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [keys: l log]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  l Raw log  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "with handlers built, the keys that act on a session stand under it, and only those" "[$( rigVal builtKeys )] $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^builtLooks|//p' | LC_ALL=C sed -n '38p' | LC_ALL=C cut -c1-12 )" "[keys: k kill  l log] .BBBBBBBBBBB"
 rigAssert "the content of the pane ends one line above them"         "[$( rigVal builtLast )]" "[line 035]"
 rigAssert "and scrolls in the lines it has left"                     "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "65 [line 100]"
 rigAssert "Launch / Spawn has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member has the key that starts it"                 "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "team m1 [keys: n start]"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ Left Up  a Active  n Start  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ Left Up  a Active  n Start  u Read  m Menu  ^X Exit  Tab Window]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

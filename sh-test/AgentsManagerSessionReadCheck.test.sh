@@ -177,8 +177,11 @@ printf 'magic-coordinator (the daily is over)\n' > "$rigStores/run-c/dismissed"
 : > "$rigStores/run-c/ended"
 printf '%s\n' "$rigData/audit/gone.log" > "$rigStores/run-c/transcript"
 
-rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\trunning=2,finished=1\t-\t-\tnone' )"
+rigSessionRow="$( printf 'session\tsess-a\tdaily_of_Monday\trunning\t2026-10-13_09:00_+0300\t-\t3\trunning=2,finished=1\t-\t-\tnone\t88076795+' )"
 rigControlRow="$( printf 'control\tsess-a\t-\t-\tnone\t-' )"
+## The tokens of the session: the figures of its founder alone, the one run of the three whose figures are known,
+## which runs still; the session runs, so it is a total so far, and two runs are left out of it.
+rigTokensRow="$( printf 'tokens\tsess-a\t608\t87390597\t685590\t0\t1\t1\tso-far\t2' )"
 rigDispatchRow="$( printf 'dispatch\tsess-a\trecord\tmagic-coordinator\tmagic-team.daily.routine\tdispatch-20261013T060000Z-spawn-proxy-1\tCSESS:2.000200\tCTRACK:1.000100\tRun the daily\\tof Monday, and keep C:\\\\notes.' )"
 rigFounderRows="$( {
 	printf 'run\tsess-a\tsess-a\tmagic-coordinator\tspawn-started\trunning\trunning\t2026-10-13_09:00_+0300\t-\t%s\trigws\twaiting\n' "$rigHost"
@@ -208,9 +211,10 @@ rigAssert "control: no registry is there before the first call" "$( rigPrint "$r
 rigOthersBefore="$( rigOthers )"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the whole output, byte for byte: the session, its dispatch, its control thread, then each run with the headers of its record and its store, the earliest started first" "$( cat "$rigTmp/out" )" "$rigSessionRow
+rigAssert "the whole output, byte for byte: the session, its dispatch, its control thread, its tokens, then each run with the headers of its record and its store, the earliest started first" "$( cat "$rigTmp/out" )" "$rigSessionRow
 $rigDispatchRow
 $rigControlRow
+$rigTokensRow
 $rigFounderRows
 $rigMemberRows
 $rigClosedRows"
@@ -221,7 +225,7 @@ rigAssert "each participant has its CLI, its model and its tokens: the CLI a hea
 rigAssert "what the session was started for is its founder's: the routine, the dispatch item, the session thread, the tracking thread, and the description, exact" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "dispatch" { print $3 "|" $4 "|" $5 "|" $6 "|" $7 "|" $8 "|" $9 }' "$rigTmp/out" )" 'record|magic-coordinator|magic-team.daily.routine|dispatch-20261013T060000Z-spawn-proxy-1|CSESS:2.000200|CTRACK:1.000100|Run the daily\tof Monday, and keep C:\\notes.'
 rigAssert "a free text is one field: the TAB of the description is written \\t and its backslash \\\\, so every row has the fields of its kind and no line is of another kind" \
-	"$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 11 : ( $1 == "dispatch" ) ? 9 : ( $1 == "control" ) ? 6 : ( $1 == "run" ) ? 12 : ( $1 == "header" ) ? 4 : ( $1 == "store" ) ? 16 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "49:0"
+	"$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "session" ) ? 12 : ( $1 == "dispatch" ) ? 9 : ( $1 == "control" ) ? 6 : ( $1 == "tokens" ) ? 10 : ( $1 == "run" ) ? 12 : ( $1 == "header" ) ? 4 : ( $1 == "store" ) ? 16 : -1 ; if ( NF != want ) bad++ ; } END { print NR ":" bad + 0 }' "$rigTmp/out" )" "50:0"
 rigAssert "a dismissed run shows its mark, and who dismissed it" "$( LC_ALL=C awk -F'\t' '$1 == "store" && $2 == "run-c" { print $10 " | " $14 }' "$rigTmp/out" )" "dismissed,dismissed.handback,ended | magic-coordinator (the daily is over)"
 rigAssert "a run shows its last milestone with its time, what its stored wait waits on, and the ids of its open asks; a closed ask is none" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "store" { printf "%s[%s|%s|%s|%s] ", $2, $11, $12, $13, $9 }' "$rigTmp/out" )" "sess-a[2026-10-13T07:15:19Z|wait going idle|slack:CSESS:2.000200:conversation inbox:magic-coordinator|ask-1] run-b[2026-10-13T07:20:00Z|message out|-|ask-2,ask-3] run-c[2026-10-13T06:39:58Z|end|-|-] "
@@ -233,22 +237,25 @@ rigRun "$rigOp" --session-id run-b
 rigAssert "the id of a member that joined a session shows that run alone -- its record, its state and its store -- under the rows of the session it belongs to" "$rigRc $( cat "$rigTmp/out" )" "0 $rigSessionRow
 $rigDispatchRow
 $rigControlRow
+$rigTokensRow
 $rigMemberRows"
 rigRun "$rigOp" --session-id sess-a --run
 rigAssert "--run takes the id as a run's own: the founder alone, whose id is its session's" "$rigRc $( cat "$rigTmp/out" )" "0 $rigSessionRow
 $rigDispatchRow
 $rigControlRow
+$rigTokensRow
 $rigFounderRows"
 rigRun "$rigOp" --run --session-id run-c
 rigAssert "and for a run that joined, --run changes nothing" "$rigRc $( cat "$rigTmp/out" )" "0 $rigSessionRow
 $rigDispatchRow
 $rigControlRow
+$rigTokensRow
 $rigClosedRows"
 
 echo "-- 3. a session whose founder has no record --"
 rigRun "$rigOp" --session-id sess-desk
 rigAssert "it ends 0 and prints the members, and one line says that the founder has no record; the threads are those its members carry" "$rigRc $( rigRows session ) / $( rigRows dispatch ) / $( rigRows run | LC_ALL=C awk '{ printf "%s:%s:%s ", $3, $4, $7 }' )" \
-	"0 session sess-desk - unclosed 2026-10-11_10:00_+0300 - 2 unclosed=1,finished=1 - - none / dispatch sess-desk no-record - - - CSESS:6.000600 CTRACK:5.000500 - / desk-b:keeper-rig:finished desk-c:magic-tester:unclosed "
+	"0 session sess-desk - unclosed 2026-10-11_10:00_+0300 - 2 unclosed=1,finished=1 - - none - / dispatch sess-desk no-record - - - CSESS:6.000600 CTRACK:5.000500 - / desk-b:keeper-rig:finished desk-c:magic-tester:unclosed "
 rigRun "$rigOp" --session-id sess-desk --run
 rigAssert "its id is no run's own: with --run it names nothing, one error line and status 1" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigOp: no record of this workspace carries 'sess-desk' as the own id of a run -- nothing is shown" ) $( rigTroubles )" "1 0 1 1"
 
@@ -257,7 +264,7 @@ rigRun "$rigOp" --session-id sess-n
 rigAssert "control: the record has no folder under sessions/" "$( [ -e "$rigStores/sess-n" ] && echo store || echo no-store )" "no-store"
 rigAssert "the fields of the record are printed, each header as it stands" "$rigRc $( rigRows header | LC_ALL=C awk '{ printf "%s=%s ", $3, $4 }' )" "0 session-id=sess-n spawn-id=sess-n host=$rigHost workspace=rigws owner=magic-librarian status=spawn-failed exit-code=3 started-at=2026-10-12 resolved-at=2026-10-12 "
 rigAssert "and - for the milestone, the sources of the wait and the marks, as for everything a store holds" "$( rigRows store )" "store sess-n no-store - - - - - - - - - - - - -"
-rigAssert "its session is itself, finished, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - finished 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 finished=1 - - none / dispatch sess-n record magic-librarian - - - - -"
+rigAssert "its session is itself, finished, and it has no founder but itself" "$( rigRows session ) / $( rigRows dispatch )" "session sess-n - finished 2026-10-12_08:00_+0300 2026-10-12_08:30_+0300 1 finished=1 - - none - / dispatch sess-n record magic-librarian - - - - -"
 
 echo "-- 5. an id that names nothing, and what the operation takes --"
 rigRun "$rigOp" --session-id no-such-id
@@ -283,6 +290,7 @@ rigRun "$rigOp" --session-id run-b
 rigAssert "the records of other sessions, and the store of another run, made unreadable, change nothing in the read of one run: no error, no warning" "$rigRc $( rigTroubles ) $( cat "$rigTmp/out" )" "0 0 $rigSessionRow
 $rigDispatchRow
 $rigControlRow
+$rigTokensRow
 $rigMemberRows"
 chmod 644 "$rigSp/sess-n/sess-n.md" "$rigSp/desk-c/desk-c.md" ; chmod 755 "$rigStores/run-c"
 
@@ -304,12 +312,12 @@ rigAsk ask-late sess-late reply-pending
 rigOld "$rigSp/sess-late/sess-late.md" "$rigSp/sess-late" "$rigSp" "$rigPend/ask-late.md" "$rigPend"
 rigAssert "control: nothing of the two stores is newer than its registry, and the registries hold no row of the new session or its ask" "$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-late" "$rigSp/sess-late/sess-late.md" ) $( rigNoneNewer "$rigAgents/pending-replies.registry" "$rigPend" "$rigPend/ask-late.md" ) $( cat "$rigAgents/spawned-sessions.registry" "$rigAgents/pending-replies.registry" | LC_ALL=C grep -c -e 'sess-late' || : )" "none-newer none-newer 0"
 rigRun "$rigOp" --session-id sess-late
-rigAssert "a session started after the last rebuild is read: a registry that does not hold a sandbox folder the store has now is rebuilt first, and the asks' one that does not hold an ask, so the session waits on the ask written with it" "$rigRc $( rigRows session ) / $( rigRows store | LC_ALL=C awk '{ print $9 }' )" "0 session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none / ask-late"
+rigAssert "a session started after the last rebuild is read: a registry that does not hold a sandbox folder the store has now is rebuilt first, and the asks' one that does not hold an ask, so the session waits on the ask written with it" "$rigRc $( rigRows session ) / $( rigRows store | LC_ALL=C awk '{ print $9 }' )" "0 session sess-late late_one waiting 2026-10-07_06:00_+0300 - 1 finished=1 - - none - / ask-late"
 ## A registry that reads newer than everything, by a time years ahead, and still does not hold a folder.
 printf 'session-id: sess-missed\nspawn-id: sess-missed\nhost: %s\nworkspace: rigws\nowner: magic-coordinator\nstatus: spawn-succeeded\nstarted-at: 2026-10-06 06:00 +0300\nresolved-at: 2026-10-06 06:30 +0300\n' "$rigHost" | rigRecord sess-missed sess-missed
 TZ=UTC touch -t 203001010000.00 "$rigAgents/spawned-sessions.registry"
 rigRun "$rigOp" --session-id sess-missed
-rigAssert "a registry years newer than the store by its time is not taken for that: it does not hold the folder, so it is rebuilt, and the session is read" "$rigRc $( rigRows session ) $( LC_ALL=C grep -c -e 'sess-missed' "$rigAgents/spawned-sessions.registry" || : )" "0 session sess-missed - finished 2026-10-06_06:00_+0300 2026-10-06_06:30_+0300 1 finished=1 - - none 1"
+rigAssert "a registry years newer than the store by its time is not taken for that: it does not hold the folder, so it is rebuilt, and the session is read" "$rigRc $( rigRows session ) $( LC_ALL=C grep -c -e 'sess-missed' "$rigAgents/spawned-sessions.registry" || : )" "0 session sess-missed - finished 2026-10-06_06:00_+0300 2026-10-06_06:30_+0300 1 finished=1 - - none - 1"
 ## A MEMBER JOINS A RUNNING SESSION: its record is added to the sandbox folder the session already has, which is
 ## where a spawn that joins a session by its id keeps it. No folder is new, and the id has its rows already.
 printf 'session-id: sess-a\nspawn-id: run-j\nparent-session-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-librarian\nstatus: spawn-started\nstarted-at: 2026-10-13 09:20 +0300\n' "$rigHost" | rigRecord sess-a run-j
@@ -372,10 +380,10 @@ rigAssert "the operation has its syntax echo, its syntax line and its entry, onc
 rigForm(){ ## row kind -- the form line of that row in the entry, its back quotes and its indent taken off
 	rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$1"' <.*>\)`$/\1/p'
 }
-rigAssert "its entry gives the form of each of the six rows" "$( rigForm session ) | $( rigForm dispatch ) | $( rigForm control ) | $( rigForm run ) | $( rigForm header ) | $( rigForm store )" \
-	"session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> | dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description> | control <session-id> <session-state> <session-state-at> <control-thread> <control-pid> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | header <spawn-id> <name> <value> | store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>"
+rigAssert "its entry gives the form of each of the seven rows" "$( rigForm tokens ) | $( rigForm session ) | $( rigForm dispatch ) | $( rigForm control ) | $( rigForm run ) | $( rigForm header ) | $( rigForm store )" \
+	"tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown> | session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens> | dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description> | control <session-id> <session-state> <session-state-at> <control-thread> <control-pid> | run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity> | header <spawn-id> <name> <value> | store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>"
 rigRun "$rigOp" --session-id sess-a
-rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session dispatch control run header store ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 "
+rigAssert "and every row printed has exactly the fields its form names" "$( for rigKind in session dispatch control tokens run header store ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 rows:0 "
 rigAssert "the session and run rows have the forms the entry of the list gives them, word for word" "$( rigForm session ) | $( rigForm run )" "$( LC_ALL=C sed -n -e 's/^[[:space:]]*`\(session <.*>\)`$/\1/p' -e 's/^[[:space:]]*`\(run <.*>\)`$/\1/p' "$rigHelpMd" | LC_ALL=C awk 'NR == 1 { first = $0 } NR == 2 { print first " | " $0 }' )"
 rigAssert "the entry says how a free text is written, what --run is for, and what is not told apart" "$( for rigWord in '\t' '\\' '--run' 'no-record' 'no-store' 'working' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyy"
 rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry | LC_ALL=C grep -c -F -- 'TAB-separated' || : ) $( rigEntry | LC_ALL=C grep -c -e '^		--' || : )" "1 0"
@@ -429,7 +437,50 @@ rm -rf "$rigStores/sess-a/control"
 rigRun "$rigOp" --session-id sess-a
 rigAssert "and with the folder control/ gone the session reads as one that never had a thread" "$rigRc $( rigControlRows ) / $( rigRows session | LC_ALL=C awk '{ print $9, $10, $11 }' )" "0 control sess-a - - none - / 1 / - - none"
 
-echo "-- 11. nothing was posted --"
+echo "-- 11. the tokens of a session: the total of its runs --"
+## Four sessions, each run with a store of its own. Two runs that run. One that runs and one that ended. Two
+## that ended. And three that ended, of which one keeps figures that are no four numbers and one has no store.
+rigTokRecord(){ ## session id, spawn id, owner, status, started-at, resolved-at ("" for none), the line of its tokens ("" for no store)
+	{
+		printf 'session-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: %s\n' "$1" "$2" "$rigHost" "$3" "$4" "$5"
+		[ -z "$6" ] || printf 'resolved-at: %s\n' "$6"
+	} | rigRecord "$2" "$2"
+	[ -z "$7" ] || { mkdir -p "$rigStores/$2" && printf '%s\n' "$7" > "$rigStores/$2/tokens" ; }
+}
+rigTokRecord tok-two tok-two magic-coordinator spawn-started '2026-10-05 09:00 +0300' '' '100 2000 30 4'
+rigTokRecord tok-two two-b keeper-rig spawn-started '2026-10-05 09:01 +0300' '' '1 2 3 4'
+rigTokRecord tok-mix tok-mix magic-coordinator spawn-started '2026-10-04 09:00 +0300' '' '10 20 30 40'
+rigTokRecord tok-mix mix-b keeper-rig spawn-succeeded '2026-10-04 09:01 +0300' '2026-10-04 09:30 +0300' '5 5 5 5'
+rigTokRecord tok-done tok-done magic-coordinator spawn-succeeded '2026-10-03 09:00 +0300' '2026-10-03 09:40 +0300' '7 0 0 3'
+rigTokRecord tok-done done-b keeper-rig spawn-failed '2026-10-03 09:01 +0300' '2026-10-03 09:30 +0300' '4000000000 4000000000 1 1'
+rigTokRecord tok-part tok-part magic-coordinator spawn-succeeded '2026-10-02 09:00 +0300' '2026-10-02 09:40 +0300' '9 9 9 9'
+rigTokRecord tok-part part-b keeper-rig spawn-succeeded '2026-10-02 09:01 +0300' '2026-10-02 09:30 +0300' '12 x 3 4'
+rigTokRecord tok-part part-c magic-tester spawn-succeeded '2026-10-02 09:02 +0300' '2026-10-02 09:20 +0300' ''
+rigLive tok-two two-b tok-mix
+rigTok(){ ## -- of the last output: its `tokens` rows, TAB written as a space, then the last field of its `session` row
+	printf '%s / %s' "$( rigRows tokens )" "$( rigRows session | LC_ALL=C awk '{ print $NF }' )"
+}
+rigRun "$rigOp" --session-id tok-two
+rigAssert "a session of two runs that both run: the four figures of the two added, two runs summed, two of them running, a total so far, none left out; and the session row ends with the four as one number" \
+	"$rigRc $( rigTroubles ) $( rigTok )" "0 0 tokens tok-two 101 2002 33 8 2 2 so-far 0 / 2144"
+rigAssert "the tokens row is one row, and stands after the control row and before the first run" "$( LC_ALL=C awk -F'\t' '{ printf "%s ", $1 } NR == 5 { exit }' "$rigTmp/out" ) $( rigRows tokens | LC_ALL=C awk 'END { print NR + 0 }' )" "session dispatch control tokens run  1"
+rigRun "$rigOp" --session-id tok-mix
+rigAssert "a session with one run that runs and one that ended: both are summed, one of them running, and it is a total so far" "$rigRc $( rigTok )" "0 tokens tok-mix 15 25 35 45 2 1 so-far 0 / 120"
+rigRun "$rigOp" --session-id mix-b
+rigAssert "the read of one run of it carries the total of the whole session, and that run's own figures in its store row" "$rigRc $( rigTok ) / $( LC_ALL=C awk -F'\t' '$1 == "store" { printf "%s=%s,%s,%s,%s ", $2, $5, $6, $7, $8 }' "$rigTmp/out" )" "0 tokens tok-mix 15 25 35 45 2 1 so-far 0 / 120 / mix-b=5,5,5,5 "
+rigRun "$rigOp" --session-id tok-done
+rigAssert "a session whose runs have all ended: the total is final, none of its runs running; figures above four thousand million are whole numbers" "$rigRc $( rigTok )" "0 tokens tok-done 4000000007 4000000000 1 4 2 0 final 0 / 8000000012"
+rigRun "$rigOp" --session-id tok-part
+rigAssert "a run whose figures are not known is left out of the sum and counted: one whose tokens are no four numbers, one with no store; the number of the session row says with + that it is not the whole" "$rigRc $( rigTok )" "0 tokens tok-part 9 9 9 9 1 0 final 2 / 36+"
+rigAssert "the total is the sum of exactly the figures the store rows of its runs show, each run's four known or none of them taken" \
+	"$( LC_ALL=C awk -F'\t' '$1 == "store" { printf "%s=%s,%s,%s,%s ", $2, $5, $6, $7, $8 ; if ( $5 $6 $7 $8 ~ /^[0-9]+$/ ) { sumIn += $5 ; sumRead += $6 ; sumWrite += $7 ; sumOut += $8 ; } } END { print "/ " sumIn + 0, sumRead + 0, sumWrite + 0, sumOut + 0 }' "$rigTmp/out" ) / $( rigRows tokens | LC_ALL=C awk '{ print $3, $4, $5, $6 }' )" \
+	"tok-part=9,9,9,9 part-b=12,-,3,4 part-c=-,-,-,- / 9 9 9 9 / 9 9 9 9"
+rigRun "$rigOp" --session-id sess-n
+rigAssert "a session none of whose runs has known figures: no figure, no run summed, and - in the session row" "$rigRc $( rigTok )" "0 tokens sess-n - - - - 0 0 final 1 / -"
+rigRun "$rigOp" --session-id sess-desk
+rigAssert "a session that is not finished, with no run that runs, is a total so far: final is said of a finished session alone" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $4 }' ) $( rigTok )" "0 unclosed tokens sess-desk - - - - 0 0 so-far 2 / -"
+
+echo "-- 12. nothing was posted --"
 rigAssert "no run of this check issued a request" "$( [ -e "$rigTmp/curl.calls" ] && wc -l < "$rigTmp/curl.calls" | LC_ALL=C tr -d ' ' || echo 0 )" "0"
 
 if [ "$rigFails" -ne 0 ] ; then

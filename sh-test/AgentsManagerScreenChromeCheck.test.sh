@@ -117,17 +117,17 @@ get row
 cells statusRow 39 0 120
 RIGSCRIPT
 rigAssert "the screen starts in the Turbo Vision style, and nothing is drawn past a line" "$( rigVal a.style ) $( rigVal a.layout ) $( rigLines a ) $( rigVal a.spills )" "tv ok 40 0"
-rigAssert "the first line is the menu bar: the system mark, the menus, and at its right end the workspace, the machine and the clock" "$( rigLine a 1 | rigSqueeze )" " ≡ Go Session Member View Help ws-rig@rig-host 12:34:56 "
+rigAssert "the first line is the menu bar: the system mark, the menus, and at its right end the workspace, the machine and the clock" "$( rigLine a 1 | rigSqueeze )" " ≡ Go Session Member View Question Help ws-rig@rig-host 12:34:56 "
 rigAssert "each menu has its hot letter in a look of its own"        "$( rigRole r 1 1 36 )" "mmmmhmmmhmmmmmmmmhmmmmmmmhmmmmmhmmmm"
 rigAssert "the @ between the workspace and the machine has a look of its own, apart from the two names, also with no colour" "[$( rigVal where )] $( rigRole r 1 95 110 ) $( rigRole k 1 95 110 )" "[ws-rig@rig-host  12:34:56] mmmmmm@mmmmmmmmm RRRRRRHRRRRRRRRR"
 rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[Sessions / Activity] [Sessions / Activity]"
 rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌────────────────────────────── Sessions / Activity ───────────────────────────────┐╔══════ Sessions / Activity ═══════╗]"
 rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
 rigAssert "the counters stand in the bottom border of the left window, and the load in that of the list" "[$( rigVal foot )] [$( rigVal load )]" "[running 2  paused 0  working 1  waiting 2  pending 3] [load 0.42]"
-rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  Alt-X Exit  Tab Window] mhhhhhmmm"
+rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window] mhhhhhmmm"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔══════════════════════════════ Sessions / Activity ═══════════════════════════════╗┌────── Sessions / Activity ───────┐]"
-rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ u Read  m Menu  Alt-X Exit  Tab Window]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  l Raw log  u Read  m Menu  ^X Exit  Tab Window]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'
@@ -156,7 +156,7 @@ keys ESC ALT-x
 get out
 RIGSCRIPT
 rigAssert "F10 opens the first menu, its bar on its first item"     "$( rigVal m.menu )" "go:sessions"
-rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions / Activity       Alt-1 │' ) $( rigHas m '│ Exit                      Alt-X │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 3 1"
+rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions / Activity           1 │' ) $( rigHas m '│ Exit                         ^X │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 3 1"
 rigAssert "the item the bar is on stands in the look of the bar, another has its hot letter in a look of its own, and the pull-down has a shadow" "$( rigRole mr 3 4 9 ) $( rigRole mr 4 4 9 ) $( rigRole mr 4 39 40 )" "moOooo mmhmmm ww"
 rigAssert "the status line names the keys of a menu"                 "$( rigLine m 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
 rigAssert "Down moves the bar"                                       "$( rigVal m2.menu )" "go:team"
@@ -194,7 +194,7 @@ rigAssert "the compact style has a status line on top: the workspace, the machin
 rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Left Up  a Active  u Read  m Menu  q Exit  Tab Window"
 rigAssert "it spends nothing on frames: one column parts the two panes, and the list has a line more" "$( rigHas c '║' ) $( rigHas c '┌' ) $( rigHas c '└' ) $( rigHas c '│' ) $( rigVal mc.listHeight ) $( rigVal mc.viewHeight )" "0 0 0 38 37 36"
 rigAssert "its @ stands apart too, in a line that is otherwise in one look" "$( rigLine ck 1 | LC_ALL=C tr -d R )" "B"
-rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-32 )] $( rigHas cmenu '│ Sessions / Activity       Alt-1 │' )" "go:sessions [ ≡ Go Session Member View Help] 1"
+rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions / Activity           1 │' )" "go:sessions [ ≡ Go Session Member View Question Help] 1"
 rigAssert "B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
 rigAssert "and after the last style comes the first again"          "$( rigVal back.style )" "tv"
 rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal style.refused ) $( rigVal still.style )" "nonsense tv"
@@ -208,6 +208,113 @@ rigPty 100 30 "Sessions / Activity" '\ex' "$rigPython" -I -B "$rigScreen" --work
 rigAssert "started in the style B/W it sets no colour on a terminal that has them" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
 MDAT_MANAGER_STYLE=mc rigPty 100 30 "a Active  u Read" q "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the environment names the style of a start: the compact one comes up, and q ends it" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
+
+echo "-- the machine's name stands whole: in a narrow top line the workspace gives way first, then the seconds, then the start of the machine's name --"
+mkdir -p "$rigTmp/long" ; : > "$rigTmp/long/calls" ; echo rows > "$rigTmp/long/mode"
+printf 'counters\t2\t0\t1\t2\t3\t0.42\tmagic-mac-studio.office.example.net\n' > "$rigTmp/long/rows.--manager-session-list"
+for rigStyle in tv mc ; do
+	MANAGER_SCREEN_RIG="$rigTmp/long" rigScript <<RIGSCRIPT
+style $rigStyle
+tools bash $MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.test.sh
+workspace /rig/workspace.mdci
+clock 12:34:56
+size 120 30
+wait sessions 30
+turn
+cells w120 0 46 120
+size 96 30
+turn
+cells w96 0 46 96
+size 90 30
+turn
+cells w90 0 46 90
+size 60 30
+turn
+cells w60 0 0 60
+roles r60
+RIGSCRIPT
+	[ "$rigStyle" = tv ] || break
+	rigAssert "with room for all of it the workspace, the machine by its full name, and the clock stand whole" "[$( rigVal w120 | LC_ALL=C sed -e 's/^ *//' )]" "[workspace.mdci@magic-mac-studio.office.example.net  12:34:56]"
+	rigAssert "the workspace's name is cut first, from its left, with the cut mark" "[$( rigVal w96 | LC_ALL=C sed -e 's/^ *//' )]" "[…i@magic-mac-studio.office.example.net  12:34:56]"
+	rigAssert "then the clock loses its seconds, and only then the machine's name its start, never its end" "[$( rigVal w90 | LC_ALL=C sed -e 's/^ *//' )] [$( rigVal w60 )]" "[…@…ic-mac-studio.office.example.net  12:34] [ ≡  Go  Session  Member  View  Question  Help  …@…et  12:34]"
+	rigAssert "the @ keeps its own look"                                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^r60|//p' | LC_ALL=C sed -n '1p' | LC_ALL=C tr -d -c '@' )" "@"
+done
+rigAssert "the compact style cuts in the same order: the workspace first, the machine's name whole beside the load and the clock" "[$( rigVal w60 )]" "[ …i@magic-mac-studio.office.example.net load 0.42  12:34:56]"
+
+echo "-- the exit: Esc and then x as a terminal sends it and as a hand types it, Ctrl-X, and what Option types on a Mac --"
+rigPty 100 30 "Sessions / Activity" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigAssert "Esc, and x a moment after it, typed by hand, ends the real screen in Turbo Vision" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
+rigPty 100 30 "Sessions / Activity" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
+rigAssert "and in B/W"                                                "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
+rigPty 100 30 "Sessions / Activity" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigAssert "Ctrl-X ends the real screen: the key every terminal delivers" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
+rigPty 100 30 "Sessions / Activity" 'm\p\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigAssert "with a menu open, Esc with x at once ends the real screen too, as the menu declares" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
+rigOut="$( "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Sessions / Activity" '?\p\ex' 3 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigAssert "with a dialog open it ends nothing: no key of the screen works in a dialog, and the screen runs on" "$( rigVal pty.frame ) $( rigVal pty.rc )" "yes timeout"
+rigScript <<'RIGSCRIPT'
+size 120 40
+turn
+cells tvStatus 39 0 120
+keys m
+turn
+show tvMenu
+keys ESC
+keys CTRL-x
+get tvOut
+RIGSCRIPT
+rigAssert "the status line of Turbo Vision names Ctrl-X as the exit, and so does the item of its menu" "$( rigVal tvStatus | LC_ALL=C grep -c -F '^X Exit' ) $( rigVal tvStatus | LC_ALL=C grep -c -F 'Alt-' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '│ Exit                         ^X │' )" "1 0 1"
+rigAssert "Ctrl-X ends the screen in Turbo Vision"                    "$( rigVal tvOut.quit )" "yes"
+for rigStyle in bw mc ; do
+	rigScript <<RIGSCRIPT
+style $rigStyle
+size 120 40
+turn
+cells status 39 0 120
+keys CTRL-x
+get out
+RIGSCRIPT
+	rigAssert "Ctrl-X ends the screen in the style $rigStyle"            "$( rigVal out.quit )" "yes"
+done
+rigAssert "the compact style names q, as before"                      "$( rigVal status | LC_ALL=C grep -c -F 'q Exit' )" "1"
+rigScript <<'RIGSCRIPT'
+size 120 40
+turn
+keys ©
+get g
+keys ESC ß
+get s
+keys ESC µ
+get m
+keys ESC √
+get v
+keys ESC ˙
+get h
+keys ESC ™
+get two
+keys ≈
+get x
+RIGSCRIPT
+rigAssert "what Option types on a Mac opens the menu of that letter: g, s, m, v, h" "$( rigVal g.menu ) $( rigVal s.menu ) $( rigVal m.menu ) $( rigVal v.menu ) $( rigVal h.menu )" "go:sessions session:kill member:start view:read help:help"
+rigAssert "Option with a digit goes to that section, and Option with x ends the screen" "$( rigVal two.path ) $( rigVal x.quit )" "pending yes"
+rigScript <<'RIGSCRIPT'
+size 120 40
+turn
+rigdialog
+keys ≈ ©
+get typed
+keys ALT-x
+get alt
+keys ESC x
+get apart
+keys m ESC x
+get menuApart
+keys m ≈
+get menuOut
+RIGSCRIPT
+rigAssert "in a field of a dialog what Option types is text, and ends nothing" "[$( rigVal typed.dialog )] $( rigVal typed.quit )" "[rig:name|typed≈©] no"
+rigAssert "Alt-X does nothing in a dialog; Esc closes it, and the x after it is a plain x" "[$( rigVal alt.dialog )] $( rigVal alt.quit ) [$( rigVal apart.dialog )] $( rigVal apart.quit )" "[rig:name|typed≈©] no [] no"
+rigAssert "Esc closes a menu, and the x after it is a plain x; with the menu open Option-x ends the screen" "[$( rigVal menuApart.menu )] $( rigVal menuApart.quit ) $( rigVal menuOut.quit )" "[] no yes"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN CHROME CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -390,7 +390,8 @@ def scriptRun(module):
 
 ## pty: the command on a pseudo-terminal of that size, a terminal with colours, or the one the
 ## environment names in MANAGER_SCREEN_PTY_TERM (colours says whether one was set). Once <wait-for> has been drawn the
-## keys are written (`-`: none; \r \e \t are read as those keys). Printed: how it ended
+## keys are written (`-`: none; \r \e \t are read as those keys, \x and two hex digits as that
+## byte, and \p is a pause of 0.4 seconds between two keys, as a hand types them). Printed: how it ended
 ## (rc), whether <wait-for> was drawn (frame), whether the terminal's mode was changed
 ## while it ran (modeTaken) and is afterwards what it was before (modeBack), whether the
 ## other screen of the terminal was entered and left again (entered, left), and where it
@@ -399,7 +400,11 @@ def scriptRun(module):
 def ptyRun(arguments):
     columns, lines, waitFor, keys, seconds = int(arguments[0]), int(arguments[1]), arguments[2], arguments[3], float(arguments[4])
     command = arguments[6:]
-    keyBytes = b"" if keys == "-" else keys.replace("\\r", "\r").replace("\\e", "\x1b").replace("\\t", "\t").encode("utf-8")
+    chunks = [] if keys == "-" else [
+        re.sub(r"\\x([0-9a-fA-F]{2})", lambda found: chr(int(found.group(1), 16)),
+               part.replace("\\r", "\r").replace("\\e", "\x1b").replace("\\t", "\t")).encode("utf-8")
+        for part in keys.split("\\p")]
+    nextAt = None
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
     before = termios.tcgetattr(slave)
@@ -421,8 +426,10 @@ def ptyRun(arguments):
                 pass
         if during is None and waitFor.encode("utf-8") in output:
             during = termios.tcgetattr(slave)
-            if keyBytes:
-                os.write(master, keyBytes)
+            nextAt = time.time()
+        if nextAt is not None and chunks and time.time() >= nextAt:
+            os.write(master, chunks.pop(0))
+            nextAt = time.time() + 0.4
         if process.poll() is not None:
             break
     status = process.poll()

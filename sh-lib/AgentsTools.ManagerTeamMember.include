@@ -205,7 +205,9 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 ## The `setting` rows of one member. The keys of its scope in this workspace are the lines
 ## the digest of settings prints for that scope, each with the state and the value the
 ## digest gives it: which key is a secret, and what is shown of it, is that operation's own
-## rule, and nothing of a secret reaches this shell. For a member set up elsewhere, then the
+## rule, and nothing of a secret reaches this shell. A line is read by its first six fields:
+## what the digest adds after them, its label, is the digest's own and is not carried here.
+## For a member set up elsewhere, then the
 ## keys of each system this workspace holds no setting of for it, which the tooling reads
 ## from the workspace it is set up in (the settings fallback,
 ## AgentsToolsConfigOptionElsewhere): by their names alone, from the names-only reader, as
@@ -215,7 +217,7 @@ AgentsToolsManagerTeamMemberSettingRows(){ ## member, set-up
 	settingsLines="$( DistroAgentsTools --manager-config-digest scopes )" || return 1
 	settingsName="${MMDAPP%/}" ; settingsName="${settingsName##*/}"
 	printf '%s\n' "$settingsLines" | LC_ALL=C awk -F'\t' -v OFS='\t' -v wantScope="$settingsMember" -v scopeWorkspace="${settingsName//[[:space:]]/_}" '
-		$1 == "line" && $2 == "scopes" && $3 == wantScope && NF == 6 { print "setting", $4, $5, $6, scopeWorkspace ; }
+		$1 == "line" && $2 == "scopes" && $3 == wantScope && NF >= 6 { print "setting", $4, $5, $6, scopeWorkspace ; }
 	'
 	[ "$2" = "elsewhere" ] || return 0
 	for settingsSystem in $agentsMemberSettingSystems ; do

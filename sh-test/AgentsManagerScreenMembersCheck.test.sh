@@ -183,7 +183,7 @@ rigIconCells(){ ## name -- that value with each icon of the fixture written as t
 }
 rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or three of them where the pane has room for no more -- one line of the table, in the columns the fixture gives it
 	case $# in
-		6) printf ' %-2s %-17s %-7s %-14s %-6s %s' "$@" ;;
+		6) printf ' %-2s %-17s %-7s %-8s %-6s %s' "$@" ;;
 		4) printf ' %-2s %-17s %-7s %s' "$@" ;;
 		3) printf ' %-2s %-17s %s' "$@" ;;
 	esac
@@ -247,12 +247,12 @@ rigAssert "the members stand in a table: a header that names its columns, under 
 	"[Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
 rigAssert "each column starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
 	"[$( rigIconCells row2 )][$( rigIconCells row5 )][$( rigIconCells row6 )]" \
-	"[$( rigTableLine '##' human-owner - reference-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
+	"[$( rigTableLine '##' human-owner - ref-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
 rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
 rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 162 162 )$( rigLooks k 5 162 162 )$( rigLooks k 9 162 162 )$( rigLooks k 3 162 166 )$( rigLooks k 6 162 162 )" "BDD......"
-rigAssert "a pane of 44 cells has room for the status, to the cell, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
+rigAssert "a pane of 44 cells has room for the status, shown by its short word, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
 	"$(( $( rigVal mid.listWidth ) - 2 )) [$( rigVal midHead )][$( rigIconCells midRow2 )][$( rigIconCells midRow4 )][$( rigVal midRow6 )]" \
-	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - reference-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
+	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - ref-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
 rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
 	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
 	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
@@ -459,6 +459,37 @@ said failedLine
 RIGSCRIPT
 rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --manager-spawn-member keeper-myx / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "and in the left pane, which says that the start failed"   "[$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" "[ the start failed, answered 02:30:00:][ rig-tools: ⛔ ERROR: the rig said fail][]"
+
+echo "-- a member whose row gives any other status word: shown with that word, plainer, and not offered for a start --"
+rigCase team
+rigSize="227 40"
+rigRow member magic-team :conclave: - - - team ws-rig here the-team no-process >> "$MANAGER_SCREEN_RIG/rows.--manager-team-member-list"
+rigScript <<'RIGSCRIPT'
+turn
+keys 3
+wait list 30
+keys DOWN DOWN DOWN DOWN DOWN DOWN
+turn
+get t
+keys n
+turn
+get no
+keys ENTER UP UP UP
+turn
+show u
+looks k
+get first
+keys n
+turn
+get dlg
+box pbox
+RIGSCRIPT
+rigSize=""
+rigTeamLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -n -F 'magic-team' | LC_ALL=C sed -e 's/:.*$//' | head -1 )"
+rigAssert "the row of the team itself is listed, with the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u 'magic-team        -       the-team team' )" "magic-team 1"
+rigAssert "it shows plainer, as every member that is not started from here" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n "${rigTeamLine:-1}p" | LC_ALL=C cut -c162-162 )" "D"
+rigAssert "n on it starts nothing: a box says why, in the words of its row" "[$( rigVal no.dialog )] [$( rigVal no.dialogHolds )] $( rigCalled '--manager-spawn-member magic-team' )" "[message:ok|] [n: magic-team is not started: its status is the-team: nobody is started as this member] 0"
+rigAssert "the dialog of a start, titled by the member and listing those that are started from here, does not offer that row" "$( rigVal first.selected ) [$( rigVal dlg.dialog )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'keeper-myx' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'magic-team' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'human-owner' )" "keeper-myx [prompt:prompt|] 2 0 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN MEMBERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

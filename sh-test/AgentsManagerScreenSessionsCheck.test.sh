@@ -271,6 +271,7 @@ rigAssert "the session that is gone from the list is gone from the screen" "$( r
 
 echo "-- inside a session, a throws nobody out --"
 rigCase inside five.rows
+cp "$rigTmp/active.rows" "$MANAGER_SCREEN_RIG/rows.--manager-session-list --active"
 rigScript <<'RIGSCRIPT'
 size 120 40
 keys ENTER
@@ -301,7 +302,7 @@ rigAssert "a switches to the active ones, and the person is still in that sessio
 rigAssert "its agents are all there"                                 "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[22222222-0000-4000-8000-00000…] [ ..][>magic-librarian          finished][ magic-developer          finished]"
 rigAssert "inside a session the list is read without the filter, also on the period" "$( LC_ALL=C grep -c -- '--active' "$MANAGER_SCREEN_RIG/calls" || : ) $( rigVal later.rows )" "1 3"
 rigAssert "Left returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( LC_ALL=C sed -n '$p' "$MANAGER_SCREEN_RIG/calls" )]" "sessions [--manager-session-list --active]"
-rigAssert "and shows the active ones only, whatever answer it holds" "$( rigVal up.rows ) $( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 3 [Sessions / Activity  [active]] [>daily of Monday           running][]"
+rigAssert "and shows what the operation gives as the active ones, once it has answered: which are active is the operation's to say" "$( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 [Sessions / Activity  [active]] [>daily of Monday           running][]"
 
 echo "-- five hundred sessions --"
 {

@@ -23,9 +23,17 @@
 ## Printed, TAB between the fields: the `session` row as given; one `dispatch` row, what the
 ## session was started for, from its founder's record; one `control` row, the three last
 ## fields of the `session` row, the state its control thread stored, when, and whether that
-## thread lives, and the process it is said of; then for each run its `run` row as
+## thread lives, and the process it is said of; one `tokens` row, the total of the session;
+## then for each run its `run` row as
 ## given, a `header` row for every header of its record, and one `store` row. A run with no
 ## spawn id has no record to find by name and no store: its `run` row alone.
+## THE `tokens` ROW is the sum over every run of the session, whichever runs are shown, of the
+## four figures its `store` row gives, by the same reading (tokensOfRun,
+## AgentsManagerSessionTokens.awk, loaded with -f before this file): in, cache read, cache
+## write, out; then how many runs are summed, and how many of those run still; then `so-far`,
+## or `final` for a session that reads `finished`, every run of it ended and closed; then how
+## many runs are left out, their figures not known. With no run summed the four read `-`. A
+## spawn id that two records carry is one run.
 ##
 
 ## A free text as one field, exact: its backslash written `\\`, a TAB `\t`, a carriage return
@@ -104,9 +112,7 @@ function storeRow(spawnId,    storeDir, tokenText, tokenWords, tokenAt, lineText
 	if (!( spawnId in storeSeen )) {
 		return "store" OFS spawnId OFS "no-store" OFS "-" OFS "-" OFS "-" OFS "-" OFS "-" OFS ( spawnId in asksOf ? asksOf[spawnId] : "-" ) OFS "-" OFS "-" OFS "-" OFS "-" OFS "-" OFS "-" OFS "-" ;
 	}
-	tokenText = firstLine(storeDir "/tokens") ;
-	if (split(tokenText, tokenWords, " ") < 4) { for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenWords[tokenAt] = "-" ; }
-	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) { if (tokenWords[tokenAt] !~ /^[0-9]+$/) tokenWords[tokenAt] = "-" ; }
+	tokensOfRun(agentsDir, spawnId, tokenWords) ;
 	## The last milestone, `<ISO UTC> <what>`, as the transcript writes one at each.
 	milestoneText = lastLine(storeDir "/milestones") ; milestoneAt = "-" ;
 	if (milestoneText ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z /) { milestoneAt = substr(milestoneText, 1, 20) ; milestoneText = substr(milestoneText, 22) ; }
@@ -174,13 +180,13 @@ FILENAME == ARGV[1] {
 {
 	split($0, listedWords, "\t") ;
 	if (listedWords[1] == "session") {
-		sessionRow = $0 ; sessionId = listedWords[2] ;
+		sessionRow = $0 ; sessionId = listedWords[2] ; sessionState = listedWords[4] ;
 		sessionStored = ( listedWords[9] == "" ? "-" : listedWords[9] ) ; sessionStoredAt = ( listedWords[10] == "" ? "-" : listedWords[10] ) ; sessionControl = ( listedWords[11] == "" ? "none" : listedWords[11] ) ;
 		next ;
 	}
 	if (listedWords[1] != "run") next ;
 	runTotal++ ;
-	runRow[runTotal] = $0 ; runSpawn[runTotal] = listedWords[3] ; runMember[runTotal] = listedWords[4] ;
+	runRow[runTotal] = $0 ; runSpawn[runTotal] = listedWords[3] ; runMember[runTotal] = listedWords[4] ; runLive[runTotal] = listedWords[6] ;
 }
 
 END {
@@ -201,6 +207,19 @@ END {
 	else print "dispatch", sessionId, "no-record", "-", "-", "-", ( sessionThread == "" ? "-" : sessionThread ), ( trackingThread == "" ? "-" : trackingThread ), "-" ;
 	## The control thread of the session: what the `session` row says of it, and its process.
 	print "control", sessionId, sessionStored, sessionStoredAt, sessionControl, ( sessionControl != "none" && ( sessionId in controlPid ) ? controlPid[sessionId] : "-" ) ;
+	## The tokens of the session: every run of it, shown or not, each by the figures of its own store.
+	tokenRuns = 0 ; tokenRunning = 0 ; tokenUnknown = 0 ;
+	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSum[tokenAt] = 0 ;
+	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
+		if (runSpawn[runAt] != "-" && ( runSpawn[runAt] in tokenTaken )) continue ;
+		tokenTaken[runSpawn[runAt]] = 1 ;
+		if (!tokensOfRun(agentsDir, runSpawn[runAt], tokenWords)) { tokenUnknown++ ; continue ; }
+		tokenRuns++ ;
+		if (runLive[runAt] == "running") tokenRunning++ ;
+		for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSum[tokenAt] += tokenWords[tokenAt] ;
+	}
+	for (tokenAt = 1 ; tokenAt <= 4 ; tokenAt++) tokenSaid[tokenAt] = ( tokenRuns > 0 ? tokensFigure(tokenSum[tokenAt]) : "-" ) ;
+	print "tokens", sessionId, tokenSaid[1], tokenSaid[2], tokenSaid[3], tokenSaid[4], tokenRuns, tokenRunning, ( sessionState == "finished" ? "final" : "so-far" ), tokenUnknown ;
 	for (runAt = 1 ; runAt <= runTotal ; runAt++) {
 		if (onlyRun != "" && runSpawn[runAt] != onlyRun) continue ;
 		print runRow[runAt] ;

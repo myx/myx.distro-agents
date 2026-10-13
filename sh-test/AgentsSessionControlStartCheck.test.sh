@@ -308,7 +308,7 @@ rigAssert "a finished session needs none: not-needed, status 0, no folder made a
 ## answers that the session needs none removes those two, and nothing else.
 rigListed(){ ## short name of a session -- the word the list of sessions shows for its control thread
 	rigRun --manager-session-list
-	LC_ALL=C awk -F'\t' -v wantId="$( rigId "$1" )" '$1 == "session" && $2 == wantId { print $NF }' "$rigTmp/out"
+	LC_ALL=C awk -F'\t' -v wantId="$( rigId "$1" )" '$1 == "session" && $2 == wantId { print $11 }' "$rigTmp/out"
 }
 rigStand '' ; rigLeftPid="$rigStandPid" ; rigLeft="$( rigProcBegan "$rigLeftPid" )"
 rigProcSignal KILL "$rigLeftPid" ; rigWaitFor 10 rigEnded "$rigLeftPid"

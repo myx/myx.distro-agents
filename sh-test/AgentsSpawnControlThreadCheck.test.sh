@@ -197,7 +197,7 @@ rigEnded(){ ## pid -- it is no process any more, collected by its starter or not
 rigNoThread(){ [ "$( rigThreads "$1" )" = "0" ] ; } ## session id
 rigListed(){ ## session id -- how the list of sessions shows it: its number of runs, their count by state, and its thread
 	( cd "$rigWs" && rigEnv "$rigTmp" bash "$rigTool" --manager-session-list ) 2> /dev/null \
-		| LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $7 ":" $8 ":" $NF }'
+		| LC_ALL=C awk -F'\t' -v wantId="$1" '$1 == "session" && $2 == wantId { print $7 ":" $8 ":" $11 }'
 }
 rigWarned(){ ## log file -- how many of its lines warn of a control thread
 	LC_ALL=C grep -c -F 'WARNING: the control thread of session ' "$1" 2> /dev/null || :

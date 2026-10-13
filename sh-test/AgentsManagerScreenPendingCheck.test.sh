@@ -19,7 +19,14 @@
 ## whole question, its options numbered as they were asked, what else its post was filled with under the names
 ## of its slots, the refused call of a permission, the entries of a permission set, numbered, and its own fields,
 ## a held change with its whole diff as it is, and last the other fields of its record; an ask made before its
-## slots were kept shows its post as the question; the pane scrolls, and still no key answers.
+## slots were kept shows its post as the question; the pane scrolls. And an ask is answered from here: while it is
+## selected the screen reads `--manager-pending-reply-read --id <id>`, and names in the status line, while the list
+## has the keys, only the keys that row says apply; Enter and y open the dialog of the answer, with who asked and of
+## whom, the question, its answers with their numbers and what each does, a digit choosing one, and a field for
+## words, or for a plain question the field of its answer, an empty one refused inside; j and d confirm a reject
+## and a dismissal in a small dialog; o shows the link in a box; each act is one call of its operation, the list is
+## read again after it, its success stands in the status line and its refusal whole in a box. Until that row was
+## read the keys open nothing.
 ## Offline: no operation of the real tooling is called, and no ask is read from this machine.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -113,10 +120,13 @@ rigCase(){ ## name, the fixture the stand-in prints, what it does at every start
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day, with the read of one ask taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable view:pending:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable view:pending:record none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+}
+rigScriptActs(){ ## the same with every read of one ask as the screen has it: what the stores hold of it, and what can be done with it
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigScriptWhole(){ ## the same with the read of one ask as the screen has it
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -220,7 +230,7 @@ rigAssert "where it was posted"                                      "[$( rigPan
 rigAssert "its status and its own id"                                "[$( rigPane s 11 )][$( rigPane s 12 )]" "[ status    reply-pending][ ask       0d7affda-0000-4000-8000-000000000001]"
 rigAssert "the first line of its question, broken to the width of the pane" "[$( rigPane s 14 )][$( rigPane s 15 )][$( rigPane s 16 )][$( rigPane s 17 )]" \
 	"[ question, its first line:][ Fix B is approved as correct and urgent, and the developer is still silent here][ after a second round of asking. What next?][]"
-rigAssert "and that it is for viewing only"                          "[$( rigPane s 18 )]" "[ viewing only: an ask is answered where it was posted]"
+rigAssert "and where it is answered"                                  "[$( rigPane s 18 )]" "[ an ask is answered where it was posted, or from here by its keys]"
 rigAssert "the ask above it replaces the pane: its item stands with its session" "$( rigVal b.selected ) [$( rigPane t 3 )][$( rigPane t 8 )][$( rigPane t 9 )][$( rigPane t 10 )]" \
 	"0e0c1c26-0000-4000-8000-000000000002 [ 🔐 permission][ asker     running: a process of this host runs as it][ session   59056eb9-0000-4000-8000-0000000000b2][ item      dispatch-20261012T185601Z-spawn-proxy-83268]"
 rigAssert "a field the read prints beyond those is shown under its own name: the place of the options" "[$( rigPane u 3 )][$( rigPane u 14 )]" \
@@ -228,7 +238,7 @@ rigAssert "a field the read prints beyond those is shown under its own name: the
 rigAssert "a field longer than the pane is broken, and goes on under its value" "[$( rigPane u 8 )][$( rigPane u 9 )][$( rigPane u 10 | LC_ALL=C cut -c1-10 )]" \
 	"[ asker     no-spawn-record: a session no spawn started, with no end recorded: not][           measured][ session  ]"
 
-echo "-- no key answers an ask --"
+echo "-- an ask that was not read for what can be done with it: no key opens anything --"
 rigCase nokey three.asks rows
 rigScript <<'RIGSCRIPT'
 size 120 40
@@ -247,7 +257,7 @@ keys RIGHT
 get dived
 RIGSCRIPT
 rigAssert "an ask is selected, and the left pane names no key for it" "$( rigVal on.selected ) [$( rigVal keysLine )]" "1f2e3d4c-0000-4000-8000-000000000003 []"
-rigAssert "a text is typed and Enter is pressed: no line opens, and nothing is submitted" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [] no"
+rigAssert "its keys are pressed: no dialog opens, nothing is submitted, and the status line says why" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [what can be done with this question is still being read] no"
 rigAssert "Enter and Right dive nowhere"                             "$( rigVal dived.path ) $( rigVal dived.selected )" "pending 1f2e3d4c-0000-4000-8000-000000000003"
 rigAssert "no operation that changes an ask is called: every start is the read" "$( rigOtherCalls ) $( [ "$( rigCalls )" -ge 1 ] && printf read )" "0 read"
 
@@ -476,7 +486,7 @@ rigAssert "what its post was filled with stands under the names of its slots" "$
 rigAssert "the diff stands as it is, line for line"                   "$( rigPaneHolds c ' the diff:' ) $( rigPaneHolds c ' --- a/skillset/rig/rig.routine.md' ) $( rigPaneHolds c ' @@ -3,2 +3,3 @@' ) $( rigPaneHolds c '  - step one' )" "1 1 1 1"
 rigAssert "a long line of it stays one line, cut where the pane ends, and a TAB keeps its place" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C sed -e 's/^c|│/c| /' -e 's/│.*$//' -e 's/  *$//' | LC_ALL=C grep -c '^c| +- step two, a line of the diff that goes on well past the width of the pane .*…$' ) $( rigPaneHolds c ' stays one line there' ) $( rigPaneHolds c '     - step three' )" "1 0 1"
 rigAssert "the post itself comes after, and last the other fields of its record" "$( rigPaneHolds c ' as posted:' ) $( rigPaneHolds c ' # ✏️ Change for approval' ) $( rigPaneHolds c ' its record:' ) $( rigPaneHolds c ' host rig-host' )" "1 1 1 1"
-rigAssert "and it is still for viewing only"                          "$( rigPaneHolds c ' viewing only: an ask is answered where it was posted' )" 1
+rigAssert "and it says where it is answered"                         "$( rigPaneHolds c ' an ask is answered where it was posted, or from here by its keys' )" 1
 
 echo "-- a permission set: its entries, numbered --"
 rigAssert "the entries stand numbered, in their order"                "$( rigPaneHolds t ' entries:' ) $( rigPaneHolds t '  1. Edit sh-lib/** in ws-rig' ) $( rigPaneHolds t '  2. execute make build in ws-rig' ) $( rigPaneHolds t '  3. Read /rig/other/**' )" "1 1 1 1"
@@ -513,9 +523,176 @@ get typed
 RIGSCRIPT
 rigAssert "the pane starts at the top of the ask, and does not follow its end" "$( rigVal c.viewTop ) $( rigVal c.follow ) [$( rigPane c 3 )]" "0 no [ ✏️ change]"
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' the diff:' )" "view 16 1"
-rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' viewing only: an ask is answered where it was posted' ) $( rigVal end.spills )" "1 0"
+rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' an ask is answered where it was posted, or from here by its keys' ) $( rigVal end.spills )" "1 0"
 rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [] pending $rigC"
 rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' "$MANAGER_SCREEN_RIG/calls" || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
+
+rigAsk1=0d7affda-0000-4000-8000-000000000001
+rigAsk2=0e0c1c26-0000-4000-8000-000000000002
+rigAsk3=1f2e3d4c-0000-4000-8000-000000000003
+rigActs(){ ## for the case made last: what `--manager-pending-reply-read --id` prints of each of the three asks, a decision with two numbered answers and no reject, a permission with a reject and no link, a plain question, and what an answer prints
+	printf 'question\t%s\treply-pending\tdecision\t-\tkeeper-myx\tmagic-coordinator\tmagic-coordinator\twords\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1790852505651369\nanswer\t1\tkeep\tsettles\tkeep the file\nanswer\t2\tdrop\tup-the-chain\tdrop it\n' "$rigAsk1" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk1"
+	printf 'question\t%s\treply-pending\tpermission\t-\tmagic-librarian\thuman-owner\tmagic-coordinator\twords\tdeny\tyes\t-\nanswer\t-\tallow\tup-the-chain\t-\nanswer\t-\tdeny\tsettles\t-\n' "$rigAsk2" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk2"
+	printf 'question\t%s\treply-pending\tquestion\t-\tmagic-tester\thuman-owner\tmagic-coordinator\tanswer\t-\tyes\thttps://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400\n' "$rigAsk3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-read --id $rigAsk3"
+	printf 'answered\t%s\t%s\tmagic-coordinator\tconsole:rig\t%s\n' "$1" "$2" "$3" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
+}
+rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
+}
+rigActCalls(){ ## how the stand-in was started for anything but a read, each start between its own brackets
+	LC_ALL=C grep -v -e '^\[--member-pending-reply-read\]' -e '^\[--manager-pending-reply-read\]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
+}
+
+echo "-- a question is selected: its keys in the status line, in the left window and in the menu, only where its row says they apply --"
+rigCase keysOf three.asks rows
+rigActs "$rigAsk1" drop -
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN
+wait acts 30
+turn
+cells s3 39 0 120
+cells k3 37 1 83
+keys DOWN
+wait acts 30
+turn
+cells s2 39 0 120
+keys DOWN
+wait acts 30
+turn
+cells s1 39 0 120
+keys ALT-q
+turn
+get menu
+show qm
+roles qr
+keys ESC TAB
+turn
+cells sView 39 0 120
+RIGSCRIPT
+rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "the left window names the same keys under it"              "[$( rigVal k3 )]" "[keys: Enter answer  d dismiss  o link]"
+rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ Enter Answer  j Reject  d Dismiss  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
+rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         Enter │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
+rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c35-40 )" "xxxxxx"
+rigAssert "with the keys in the left window the status line names none of them" "[$( rigVal sView )]" "[ u Read  m Menu  ^X Exit  Tab Window]"
+
+echo "-- Enter on a decision: the dialog of its answer, a digit chooses, words go with it, one call --"
+rigCase answer three.asks rows
+rigActs "$rigAsk1" drop "be sure"
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN DOWN DOWN
+wait acts 30
+wait view 30
+turn
+keys ENTER
+turn
+get dlg
+box abox
+cells sDlg 39 0 120
+keys 2
+get two
+keys TAB b e SPACE s u r e
+get typed
+keys ENTER
+get asked
+wait action 30
+wait list 30
+turn
+get done
+said doneSaid
+RIGSCRIPT
+rigAssert "the dialog opens on its answers, titled by the kind and who asked" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[answer:answers|1] [Answer the decision of keeper-myx]"
+rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║ asked by  keeper-myx' ) $( rigBoxHolds abox '║ asked of  magic-coordinator' ) $( rigBoxHolds abox '║ answer as magic-coordinator' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
+rigAssert "its answers stand with their numbers, and with what each does, as the rows say" "$( rigBoxHolds abox '║ > 1. keep: keep the file  --  settles it' ) $( rigBoxHolds abox '║   2. drop: drop it  --  goes up the chain, it stays open' )" "1 1"
+rigAssert "a field for words, and the buttons Answer and Cancel"      "$( rigBoxHolds abox '║ Words to go with it, or none' ) $( rigBoxHolds abox '[ Answer ]  [ Cancel ]' )" "1 1"
+rigAssert "the status line names the keys of the dialog, the digits among them" "[$( rigVal sDlg )]" "[ Up/Down Pick  1-2 Choose  Enter Answer  Tab Next  Esc Cancel]"
+rigAssert "a digit chooses the answer of that number"                 "[$( rigVal two.dialog )]" "[answer:answers|2]"
+rigAssert "words are typed into the field"                            "[$( rigVal typed.dialog )]" "[answer:words|be sure]"
+rigAssert "Enter answers: the dialog closes, and the operation is called once, with the number chosen and the words" "[$( rigVal asked.dialog )] $( rigActCalls )" "[] [--manager-pending-reply-answer][--id][$rigAsk1][--answer][2][--text][be sure]"
+rigAssert "its success stands in the status line"                     "[$( rigVal doneSaid )] [$( rigVal done.dialog )]" "[answered: drop, as magic-coordinator] []"
+rigAssert "and the list is read again after it"                       "$( LC_ALL=C sed -n '/^--manager-pending-reply-answer /,$p' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -x -F -- "$rigRead" | LC_ALL=C sed -e 's/^[1-9][0-9]*$/read/' )" "read"
+
+echo "-- y on a plain question: its words are the answer, an empty one is refused inside; o shows its link --"
+rigCase plain three.asks rows
+rigActs "$rigAsk3" "use it" -
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN
+wait acts 30
+wait view 30
+turn
+keys y
+turn
+get plain
+box pbox
+keys ENTER
+get empty
+keys u s e SPACE i t ENTER
+wait action 30
+get pdone
+keys o
+turn
+get link
+RIGSCRIPT
+rigAssert "the dialog of a plain question has the field of its answer, and no list" "[$( rigVal plain.dialog )] [$( rigVal plain.dialogTitle )] $( rigBoxHolds pbox '║ The answer' ) $( rigBoxHolds pbox 'Answers' ) $( rigBoxHolds pbox '║ Which of the two runs is the one to keep?' )" "[reply:words|] [Answer the question of magic-tester] 1 0 1"
+rigAssert "an empty answer is refused inside the dialog, which stays open" "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )]" "[reply:words|] [nothing is answered: the answer is empty]"
+rigAssert "the words typed are the answer: one call, with them after --answer" "[$( rigVal pdone.notice )] $( rigActCalls )" "[answered: use it, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk3][--answer][use it]"
+rigAssert "o shows the link of the message of the question in a box" "[$( rigVal link.dialog )] [$( rigVal link.dialogTitle )] [$( rigVal link.dialogHolds )]" "[information:ok|] [Link of the question of magic-tester] [The message of the question, where it was posted: /  https://rig.slack.example/archives/C0RIGCHAN01/p1791840000000400]"
+
+echo "-- j rejects and d dismisses, each confirmed in a small dialog; a refusal stands whole in a box --"
+rigCase reject three.asks rows
+rigActs "$rigAsk2" deny -
+printf 'rejected\t%s\tdeny\tmagic-coordinator\tconsole:rig\t-\n' "$rigAsk2" > "$MANAGER_SCREEN_RIG/rows.--manager-pending-reply-answer"
+printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-pending-reply-dismiss"
+rigScriptActs <<'RIGSCRIPT'
+size 120 40
+turn
+keys 2
+wait list 30
+keys DOWN DOWN
+wait acts 30
+turn
+keys o
+get nolink
+keys ENTER j
+turn
+get rej
+box rbox
+keys ENTER
+wait action 30
+get rdone
+keys d
+turn
+get dis
+box dbox
+keys n o SPACE n e e d ENTER
+wait action 30
+turn
+get dfail
+keys ENTER DOWN
+wait acts 30
+turn
+keys j
+get norej
+RIGSCRIPT
+rigAssert "o on a question whose row gives no link says so in a box"  "[$( rigVal nolink.dialogTitle )] [$( rigVal nolink.dialogHolds )]" "[Link] [the message of this permission has no link]"
+rigAssert "j asks for the confirmation, naming the answer a reject gives" "[$( rigVal rej.dialog )] [$( rigVal rej.dialogTitle )] $( rigBoxHolds rbox '║ REJECT the permission of magic-librarian: it is answered' ) $( rigBoxHolds rbox '[ Reject ]  [ Cancel ]' )" "[reject:words|] [Reject the permission of magic-librarian] 1 1"
+rigAssert "Enter rejects: its success in the status line; the reject is one call with --reject, the dismissal after it one call with its reason" "[$( rigVal rdone.notice )] $( rigActCalls )" "[rejected: deny, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk2][--reject] [--manager-pending-reply-dismiss][--id][$rigAsk2][--reason][no need]"
+rigAssert "d asks for the confirmation of the dismissal, with a field for its reason" "[$( rigVal dis.dialog )] [$( rigVal dis.dialogTitle )] $( rigBoxHolds dbox '║ Reason, or none' ) $( rigBoxHolds dbox '[ Dismiss ]  [ Cancel ]' )" "[dismiss:words|] [Dismiss the permission of magic-librarian] 1 1"
+rigAssert "the operation refuses: what it wrote stands whole in a box" "[$( rigVal dfail.dialogTitle )] [$( rigVal dfail.dialogHolds )]" "[The dismissal failed] [operation: --manager-pending-reply-dismiss --id $rigAsk2 --reason no need / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "j on a question that takes no reject opens no confirmation: a box says why" "[$( rigVal norej.dialog )] [$( rigVal norej.dialogHolds )]" "[message:ok|] [this decision has no negative answer of its own, so it takes no reject: answer it, or dismiss it]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PENDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

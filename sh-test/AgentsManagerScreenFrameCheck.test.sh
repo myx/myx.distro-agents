@@ -98,8 +98,8 @@ rigAssert "and the two windows hold as many lines"                           "$(
 rigAssert "the first line is the menu bar, across the whole width, a hot letter in it apart"  "$( rigLine k 1 | LC_ALL=C tr H R ) $( rigLine k 1 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RRRRHRRRHR"
 rigAssert "the last line is the status line, across the whole width, a key in it apart"   "$( rigLine k 40 | LC_ALL=C tr H R ) $( rigLine k 40 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RHHHHHRRRR"
 rigAssert "the column between the panes does not cross them"         "[$( rigVal sepTop )][$( rigVal sepBottom )]" "[][]"
-rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ≡ Go Session Member View Help ws-rig 12:34:56 "
-rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a Active  u Read  m Menu  Alt-X Exit  Tab Window"
+rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ≡ Go Session Member View Question Help ws-rig 12:34:56 "
+rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a Active  u Read  m Menu  ^X Exit  Tab Window"
 rigAssert "nothing was drawn past the end of a line"                 "$( rigVal d.spills )" 0
 
 echo "-- at 80 columns by 24 lines --"

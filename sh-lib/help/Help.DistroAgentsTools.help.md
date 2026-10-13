@@ -2989,7 +2989,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry: a date reads `2026-10-12_16:57_+0300`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average> <host>`
 			A session row is followed by its runs, the earliest started
@@ -3012,15 +3012,36 @@
 			this call and stored nowhere: `alive` while the process that
 			the pid file or the lock of the session names is still that
 			process, `gone` where one of the two is there and names no
-			such process, `none` where neither is there.
+			such process, `none` where neither is there. <tokens> is the
+			tokens of the session so far, one number: in, cache read,
+			cache write and out of each of its runs, all added, as the
+			store of each run holds them. A run whose figures are not
+			known is left out, and the number then ends with `+`; `-`
+			where none is known. A reader takes a row that ends before
+			<tokens> as one of an earlier form.
 			A run's <live> and <state> are those
 			`ListAgents` shows. <activity> of a live run is `waiting`
 			inside a `Wait` call and `working` otherwise. `--active` keeps
-			the `running` sessions; the counters count the whole workspace
+			every session that is not finished and can be acted on from
+			this host: those whose <state> is `running`, `waiting` or
+			`unclosed`, each with all its runs, as without it. It leaves
+			out the `finished` ones, and the `unknown-foreign`, which are
+			another host's: nothing can be done with those from here. The
+			counters count the whole workspace
 			either way. <sessions-paused> is 0 until sessions can be
 			paused. <pending-answers> is the open asks, <load-average> the
-			host's one-minute figure, and <host> the short name of the
-			host this call ran on, `unknown` where it cannot be read. A
+			host's one-minute figure, and <host> the full name of the
+			host this call ran on, for a reader's eye: what `hostname -f`
+			gives where that resolves, else the plain `hostname`, else
+			the short name, `unknown` where the host says none. It is
+			never empty. The <host> of a `run` row, like the `host` of a
+			record, stays the short name. The full name is asked of the
+			host once and kept for a day in
+			`$HOME/.agents/magic-team/host-full-name`, so a call reads
+			one line there; a lookup that has not answered within a
+			second is ended, and what stands in its place is kept for an
+			hour, so a slow resolver holds one call an hour by a second
+			and no other. A
 			reader takes a row that ends before <host> as one of an earlier
 			form. With no session store, a note on
 			stderr and the `counters` row alone. Exit 1, nothing printed,
@@ -3048,14 +3069,15 @@
 			measured in the same call. It writes nothing else. Prints
 			rows of TAB-separated fields on stdout, the first naming the
 			row. An absent value reads `-`.
-			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread>`
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally> <session-state> <session-state-at> <control-thread> <tokens>`
 			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
 			`control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`
+			`tokens <session-id> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <runs-summed> <runs-running> <total> <runs-unknown>`
 			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
 			`header <spawn-id> <name> <value>`
 			`store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>`
 			The `session` row comes first, then `dispatch`, then
-			`control`, then each
+			`control`, then `tokens`, then each
 			run: its `run` row, a `header` row for each header of its
 			record, and its `store` row. The runs come the earliest
 			started first. The `session` and `run` rows are those of
@@ -3069,7 +3091,16 @@
 			last fields of its `session` row, and <control-pid>, the
 			process <control-thread> is said of, `-` where that reads
 			`none`. <session-state> is read here from the folder of the
-			session at every call, with the records of the session. A
+			session at every call, with the records of the session.
+			`tokens` is the total of the session, over every run of it
+			whichever runs are shown: the four figures of the `store`
+			row of each run, added. <runs-summed> is how many runs that
+			is, <runs-running> how many of those run still, and
+			<runs-unknown> how many are left out, their figures not
+			known: a run with no store, or with no four numbers there.
+			<total> is `final` for a session whose <state> is
+			`finished`, and `so-far` for any other. With no run summed
+			the four figures read `-`. A
 			`header` row is one header of the run's record as it stands,
 			its `cli` among them. `store` is the run's own store. <store>
 			is `store`, or `no-store` for a run with no folder of its

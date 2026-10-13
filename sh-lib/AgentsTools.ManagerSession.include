@@ -76,6 +76,74 @@ AgentsToolsManagerLoadAverage(){
 	printf '%s\n' "$loadText"
 }
 
+## For how long the full name of this host is kept once it was read, and for how long what
+## stands in its place is kept where it could not be read, in seconds: a day, and an hour.
+agentsManagerHostFullSeconds=86400
+agentsManagerHostPlainSeconds=3600
+
+## THE FULL NAME OF THIS HOST, for the eye of whoever reads the counters of the list, and for
+## nothing else: the `host` of a record, the folder of a wait and every question whether a
+## run is of this host go by the short name, `hostname -s`, as before. One word, never empty:
+## what `hostname -f` gives where that resolves, else the plain `hostname`, else the short
+## name, `unknown` where the host says none.
+## ASKED ONCE, AND KEPT. The list is called every ten seconds, each time as a process of its
+## own, and the full name is a question to the resolver, which on a host whose resolver is
+## broken does not answer for many seconds. So the answer is kept in the machine's own folder,
+## $HOME/.agents/magic-team/host-full-name, one line, `<short name> <name> <asked, seconds
+## since 1970> <kept for, seconds>`, put in place by one rename, and a call reads that file
+## and asks the host nothing while the line is of this short name and not older than it says.
+## AND BOUNDED. Where it is asked, the lookup is a process of its own, given one second: one
+## that has not answered by then is ended, and so is no lookup that every later call would
+## start again, since what stands in its place is kept too, for an hour. A name that reads
+## `localhost` is no name of this host. With no folder to keep the answer in, the host is not
+## asked at all, and the plain name stands.
+## What a call costs more than the short name it read before: one reading of the time and
+## one of a file of one line; the lookup itself once a day.
+AgentsToolsManagerHostName(){
+	local hostShort="" hostDir="" hostKept="" hostFor="" hostFull="" hostAsked="" hostHeld="" hostNow="" hostAside="" hostPid="" hostTurns=0 hostPlain=""
+	hostShort="$( hostname -s 2> /dev/null )" || hostShort=""
+	hostShort="${hostShort%%[[:space:]]*}"
+	[ -n "$hostShort" ] || hostShort="unknown"
+	hostNow="$( date +%s 2> /dev/null )" || hostNow=""
+	case "$hostNow" in ''|*[!0123456789]*) hostNow=0 ;; esac
+	if [ -n "${HOME:-}" ] ; then hostDir="$HOME/.agents/magic-team" ; hostKept="$hostDir/host-full-name" ; fi
+	if [ -n "$hostKept" ] && [ -f "$hostKept" ] ; then
+		{ read -r hostFor hostFull hostAsked hostHeld < "$hostKept" ; } 2> /dev/null || :
+		case "$hostAsked" in ''|*[!0123456789]*|????????????*) hostFull="" ; hostAsked=0 ;; esac
+		case "$hostHeld" in ''|*[!0123456789]*|????????*) hostFull="" ; hostHeld=0 ;; esac
+		if [ -z "$hostFull" ] || [ "$hostFor" != "$hostShort" ] || [ "$hostNow" -lt "$hostAsked" ] || [ "$(( hostNow - hostAsked ))" -ge "$hostHeld" ] ; then hostFull="" ; fi
+	fi
+	if [ -z "$hostFull" ] ; then
+		hostHeld="$agentsManagerHostPlainSeconds"
+		if [ -n "$hostDir" ] && mkdir -p "$hostDir" 2> /dev/null && hostAside="$( mktemp "$hostDir/host-full-name.XXXXXX" 2> /dev/null )" ; then
+			( exec hostname -f ) > "$hostAside" 2> /dev/null < /dev/null &
+			hostPid=$!
+			while kill -0 "$hostPid" 2> /dev/null && [ "$hostTurns" -lt 20 ] ; do sleep 0.05 ; hostTurns=$(( hostTurns + 1 )) ; done
+			if kill -0 "$hostPid" 2> /dev/null ; then
+				## Ended, and its file left to it: what is kept is written to another.
+				kill -TERM "$hostPid" 2> /dev/null || :
+				rm -f "$hostAside" 2> /dev/null
+				hostAside="$( mktemp "$hostDir/host-full-name.XXXXXX" 2> /dev/null )" || hostAside=""
+			elif wait "$hostPid" 2> /dev/null ; then
+				{ IFS= read -r hostFull < "$hostAside" ; } 2> /dev/null || :
+				hostFull="${hostFull%%[[:space:]]*}" ; hostFull="${hostFull%.}"
+				case "$hostFull" in localhost|localhost.*) hostFull="" ;; esac
+				[ -z "$hostFull" ] || hostHeld="$agentsManagerHostFullSeconds"
+			fi
+		fi
+		if [ -z "$hostFull" ] ; then
+			hostPlain="$( hostname 2> /dev/null )" || hostPlain=""
+			hostFull="${hostPlain%%[[:space:]]*}"
+			[ -n "$hostFull" ] || hostFull="$hostShort"
+		fi
+		if [ -n "$hostAside" ] ; then
+			{ printf '%s %s %s %s\n' "$hostShort" "$hostFull" "$hostNow" "$hostHeld" > "$hostAside" && chmod 644 "$hostAside" && mv -f "$hostAside" "$hostKept" ; } 2> /dev/null || rm -f "$hostAside" 2> /dev/null || :
+		fi
+	fi
+	printf '%s\n' "$hostFull"
+	return 0
+}
+
 ## THE CONTROL THREAD OF A SESSION, WHETHER IT LIVES: measured now, at every call, and never
 ## stored. A thread keeps two things in the session's own folder, sessions/<session id>/control/,
 ## for as long as it lives: a pid file and a lock, which is a link. Each names it as
@@ -156,13 +224,15 @@ AgentsToolsManagerSessionRows(){ ## the operation as it was called, "active" for
 	elif stat -c '%Y' / > /dev/null 2>&1 ; then
 		rowsStat="gnu"
 	fi
-	## The store of a live run is read, never of an ended one.
+	## The store of a live run is read, never of an ended one: but for one small file of each
+	## run that has it, its tokens, which the awk of the rows reads for the total of a session
+	## (AgentsManagerSessionTokens.awk). No transcript and no record is opened for that.
 	while IFS= read -r rowsSpawn ; do
 		[ -n "$rowsSpawn" ] || continue
 		[ "$( AgentsToolsManagerRunActivity "$rowsSpawn" "$rowsStat" )" != "waiting" ] || rowsWaiting="$rowsWaiting$rowsSpawn "
 	done <<< "$( printf '%s' "$measuredDated" | LC_ALL=C awk 'NF == 18 && $12 == "running" { print $8 ; }' )"
 	printf '%s' "$measuredDated" \
-		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( hostname -s 2>/dev/null || echo unknown )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
+		| MDAT_MANAGER_WAITING="$rowsWaiting" MDAT_MANAGER_CONTROL="$( AgentsToolsManagerSessionControls )" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v activeOnly="${rowsActive:+1}" -v loadAverage="$( AgentsToolsManagerLoadAverage )" -v hostName="$( AgentsToolsManagerHostName )" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$rowsPending" - \
 		| LC_ALL=C sort -t "$rowsTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6-
 }
@@ -309,7 +379,7 @@ AgentsToolsManagerSessionScope(){ ## the operation as it was called, the id, "ru
 	## the last, counts this session alone and is no row of a read.
 	scopeControl="$( AgentsToolsManagerSessionControls "$scopeSession" )"
 	scopeListed="$( printf '%s' "$scopeMeasured" \
-		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$scopePending" - \
+		| MDAT_MANAGER_WAITING="$scopeWaiting" MDAT_MANAGER_CONTROL="$scopeControl" MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" LC_ALL=C awk -v loadAverage="-" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRows.awk" "$scopePending" - \
 		| LC_ALL=C sort -t "$scopeTab" -k1,1nr -k2,2n -k3,3n -k4,4n -k5,5n \
 		| LC_ALL=C cut -f6- )"
 	scopeListed=${scopeListed%counters"$scopeTab"*}
@@ -635,7 +705,7 @@ case "$1" in
 		[ "$scopeRun" != "-" ] || scopeRun=""
 		printf '%s\n' "$scopeListed" \
 			| MDAT_MANAGER_AGENTS="$MMDAPP/.local/agents" MDAT_MANAGER_ROWS="$scopeMeasured" MDAT_MANAGER_STORES="$readStores" MDAT_MANAGER_RUN="$scopeRun" MDAT_MANAGER_CONTROL="$scopeControl" \
-				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
+				LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionTokens.awk" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerSessionRead.awk" "$( AgentsToolsRegistryFile pending-replies )" -
 		return 0
 	;;
 

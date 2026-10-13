@@ -135,7 +135,9 @@ FIXED_ROWS = {
 ## of what a list operation prints (parseLevels). A level with "from" has no read of its
 ## own: the read named there fills it. Beside the "view" of a row, its facts, stands its
 ## "feed", its lines, read as a kind of its own; "log" is what `l` adds to it. "needs"
-## names what a row must carry for the read to be made at all.
+## names what a row must carry for the read to be made at all. "acts" is what can be done
+## with a row, read as one more part of it (VIEW_PARTS).
+VIEW_PARTS = ("view", "feed", "acts")
 READS = {
     ## The coworking sessions with their runs, and last the row of counters of the status lines.
     "list:sessions": {"operation": ["--manager-session-list"], "active": ["--active"],
@@ -167,6 +169,11 @@ READS = {
     ## One ask, whole: what the stores hold of it.
     "view:pending:record": {"operation": ["--member-pending-reply-read", "magic-coordinator", "{id}"],
                             "rows": "ask", "needs": "ask"},
+    ## What can be done with one ask from the console: the row of the question, with whether it
+    ## takes words, a reject and a dismissal and with the link of its message, and a row for
+    ## each answer it takes. Read as a part of its own, "acts", beside the view of the ask.
+    "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
+                            "rows": "ask-acts", "needs": "ask"},
     ## One member, whole: its information, the sessions it is in, its grants and its settings.
     "view:team:record": {"operation": ["--manager-team-member-read", "{id}"], "rows": "member-read", "needs": "member"},
 }
@@ -187,7 +194,17 @@ CALLS = {
     "launch": ["--magic-spawn-session", "--routine", "{id}"],
     "prompt": ["--magic-spawn-session", "--routine-default"],
     "start": ["--manager-spawn-member", "{id}"],
+    ## a pending question is answered, rejected by the negative answer of its kind, or
+    ## dismissed, by its id; the answer chosen or typed is the word after --answer
+    "answer": ["--manager-pending-reply-answer", "--id", "{id}", "--answer"],
+    "reject": ["--manager-pending-reply-answer", "--id", "{id}", "--reject"],
+    "dismiss": ["--manager-pending-reply-dismiss", "--id", "{id}"],
+    ## a setting that offers choices is saved for the user who runs the console, by its
+    ## key, the value chosen being the word after it
+    "set": ["--manager-config-interface-set", "{id}"],
 }
+## What each of those is given the words typed beside it with, where any were typed.
+CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}
 ## What a start names its session with, ahead of the name.
 CALL_NAME = "--session-name-or-comment"
 ## The word that confirms a kill, typed whole.
@@ -211,12 +228,20 @@ STYLES = (
 ## The key maps: the key map is the style's ("keys" there names it). Each gives the keys of
 ## the commands whose keys are not the same in every style, by the name of the command;
 ## every other command has the keys COMMANDS gives it. Turbo Vision's map ends the screen
-## with Alt-X and by the Exit item of its menu, and a bare `q` does nothing there; the
-## compact style keeps the map the screen had before it had styles, with `q`.
+## with Ctrl-X, which every terminal delivers with no setting and which is the key its
+## status line and its menu name, with Alt-X and by the Exit item of its menu, and a bare
+## `q` does nothing there; the compact style keeps the map the screen had before it had
+## styles, with `q`.
 KEYMAPS = {
-    "tv": {"exit": ("ALT-x",)},
-    "mc": {"exit": ("q", "ALT-x")},
+    "tv": {"exit": ("CTRL-x", "ALT-x")},
+    "mc": {"exit": ("q", "CTRL-x", "ALT-x")},
 }
+## What the Option key of a Mac types with a letter or a digit on a US layout, where the
+## terminal does not send Option as Meta: each counts as Alt with that key, for the keys
+## the screen takes with Alt, outside a dialog, where it is text. On another layout these
+## do not come, and nothing is taken for them.
+OPTION_KEYS = {"≈": "x", "©": "g", "ß": "s", "µ": "m", "√": "v", "˙": "h", "œ": "q",
+               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5"}
 ## Esc and then a key within this many seconds is Alt with that key, where no menu and no
 ## dialog is open: the Meta every terminal delivers, also one that sends no Alt and keeps
 ## the function keys for itself. Esc alone closes a menu and a dialog at once, as before.
@@ -250,11 +275,11 @@ def setStyle(name):
 ## than it shows. A command that no window names applies in every window.
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
-     "shows": {"body": "lines", "reads": ("view", "feed")}, "foot": "countersText",
+     "shows": {"body": "lines", "reads": VIEW_PARTS}, "foot": "countersText",
      "commands": ()},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "foot": "loadText", "bar": True,
-     "commands": ("launch", "prompt", "open", "up", "filter")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "open", "up", "filter")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -266,14 +291,16 @@ MENUS = (
     ("session", "~S~ession"),
     ("member", "~M~ember"),
     ("view", "~V~iew"),
+    ("question", "~Q~uestion"),
     ("help", "~H~elp"),
 )
 
 ## The commands, each declared once. "keys": its keys, the first being the one its menu and
 ## the status line show, where the key map of the style gives it no others (KEYMAPS). The
 ## first is always a key every terminal delivers: a function key and Alt with a letter do
-## not arrive from every terminal, so a function key stands second, behind a plain key,
-## and Alt with a letter is also Esc and then that letter (META_SECONDS). "menu": its menu and its group there, a line parting two groups,
+## not arrive from every terminal, so a function key and Alt with a key stand second,
+## behind a key that needs neither, and Alt with a letter is also Esc and then that letter
+## (META_SECONDS) and what the Option key of a Mac types with it (OPTION_KEYS). "menu": its menu and its group there, a line parting two groups,
 ## and "label" what it shows as there, its hot letter between tildes. "status": its word in
 ## the status line, shown while it applies; a command that toggles how a view shows names
 ## under "toggle" what it toggles in the state, which is kept for the run of the screen
@@ -287,19 +314,30 @@ MENUS = (
 ## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
 ## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit". A command comes
 ## to a menu, to the status line and to its key from this one place: adding one is adding
-## an entry here. Where two commands share a key, the first that applies has it.
+## an entry here. Where two commands share a key, the first that applies has it. "says":
+## the word the left window names the key of an "only" command by, where it starts nothing.
 COMMANDS = (
     {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys",
      "does": ("action", "help")},
     {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
      "does": ("read",)},
     {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
-    {"name": "exit", "keys": ("ALT-x",), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
+    {"name": "exit", "keys": ("CTRL-x", "ALT-x"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
      "does": ("quit",)},
     {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
      "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
     {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start",
      "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+    {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer",
+     "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
+    {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject",
+     "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
+    {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss",
+     "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
+    {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link",
+     "on": ("pending:record",), "does": ("action", "link")},
+    {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
+     "on": ("settings:record",), "only": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -325,15 +363,15 @@ COMMANDS = (
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "log")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
-    {"name": "sessions", "keys": ("ALT-1",), "menu": ("go", 1), "label": "~S~essions / Activity",
+    {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions / Activity",
      "does": ("go", ("sessions",))},
-    {"name": "pending", "keys": ("ALT-2",), "menu": ("go", 1), "label": "~P~ending Questions",
+    {"name": "pending", "keys": ("2", "ALT-2"), "menu": ("go", 1), "label": "~P~ending Questions",
      "does": ("go", ("pending",))},
-    {"name": "team", "keys": ("ALT-3",), "menu": ("go", 1), "label": "~T~eam Members",
+    {"name": "team", "keys": ("3", "ALT-3"), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
-    {"name": "settings", "keys": ("ALT-4",), "menu": ("go", 1), "label": "Settings / ~C~onfiguration",
+    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "Settings / ~C~onfiguration",
      "does": ("go", ("settings",))},
-    {"name": "spawn", "keys": ("ALT-5",), "menu": ("go", 2), "label": "~L~aunch / Spawn",
+    {"name": "spawn", "keys": ("5", "ALT-5"), "menu": ("go", 2), "label": "~L~aunch / Spawn",
      "does": ("go", ("sessions", "launch"))},
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
@@ -384,7 +422,9 @@ CONTROL_KINDS = {
 ## handler calls (DIALOG_HANDLERS); a dialog with none only says something. "first": the
 ## control the keys are on when it opens, where that is not its first one. "reads": the entries of
 ## READS that are read while it is open, since it offers what they give (DIALOG_FILLS).
-## A control of options may say under "empty" what stands in it while it has none. What a
+## A control of options may say under "empty" what stands in it while it has none, and
+## under "digits" that a digit typed while the keys are on it picks the option whose id is
+## that digit. What a
 ## dialog cannot know before it is opened, a text, the options of a list, comes from the
 ## one that opens it (openDialog). One engine draws them all and gives them the keys, in every style: adding
 ## a dialog is adding an entry here and, where it does something, its handler.
@@ -424,6 +464,32 @@ DIALOGS = {
                             {"name": "prompt", "kind": "area", "label": "Prompt"},
                             {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
                "buttons": (("start", "Start"), ("cancel", "Cancel"))},
+    ## the answer to a pending question that has answers of its own: the question as it was
+    ## posted, its answers with what each does, and words to go with the one picked
+    "answer": {"title": "Answer", "feeds": "answer", "first": "answers",
+               "controls": ({"name": "about", "kind": "text"},
+                            {"name": "answers", "kind": "list", "label": "Answers", "digits": True},
+                            {"name": "words", "kind": "input", "label": "Words to go with it, or none"}),
+               "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
+    ## the answer to a plain question: the words typed are its answer
+    "reply": {"title": "Answer", "feeds": "answer",
+              "controls": ({"name": "about", "kind": "text"},
+                           {"name": "words", "kind": "input", "label": "The answer"}),
+              "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
+    ## the confirmation of a reject, and of a dismissal, of a pending question
+    "reject": {"title": "Reject", "feeds": "reject",
+               "controls": ({"name": "about", "kind": "text"},
+                            {"name": "words", "kind": "input", "label": "Words to go with it, or none"}),
+               "buttons": (("reject", "Reject"), ("cancel", "Cancel"))},
+    "dismiss": {"title": "Dismiss", "feeds": "dismiss",
+                "controls": ({"name": "about", "kind": "text"},
+                             {"name": "words", "kind": "input", "label": "Reason, or none"}),
+                "buttons": (("dismiss", "Dismiss"), ("cancel", "Cancel"))},
+    ## a setting that offers choices: what it is now, and its choices, one of them chosen
+    "setting": {"title": "Setting", "feeds": "setting",
+                "controls": ({"name": "about", "kind": "text"},
+                             {"name": "choice", "kind": "radios", "label": "Choices"}),
+                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
 }
 ## The handler of each dialog that does something: handler(state, dialog, button) is called
 ## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
@@ -461,6 +527,14 @@ ACTION_HANDLERS = {
     "start": None,
     ## shows the keys of the screen, from COMMANDS: askHelp, set where it is defined
     "help": None,
+    ## a pending question: its answer, its reject, its dismissal, each asked in a dialog, and
+    ## the link of its message in a box: askAnswer, askReject, askDismiss, askLink, set where they are defined
+    "answer": None,
+    "reject": None,
+    "dismiss": None,
+    "link": None,
+    ## Enter on a subject of the settings that offers choices: askSetting, set where it is defined
+    "setting": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
@@ -482,6 +556,9 @@ class ManagerState:
         ## of the item its bar is on
         self.menu = None
         self.activeOnly = False
+        ## the rows the last answer of a list gave when it was asked with what its filter
+        ## adds: level key -> ids
+        self.activeOf = {}
         ## the rows the last good read of each level gave: level key -> rows
         self.rows = {}
         ## the left pane: which item it shows, its lines, the first line in view (newView)
@@ -736,9 +813,10 @@ def levelRowsAt(state, path):
     for rowId, label, kind, dive in FIXED_ROWS.get(levelPattern(path), ()):
         rows.append(newRow(rowId, label, kind, dive))
     listed = state.rows.get(levelKey(path), ())
-    if state.activeOnly and levelKey(path) == "sessions":
-        ## the filter shows what --active keeps, the running ones, also of an answer read without it
-        listed = [row for row in listed if not row.get("session") or row["session"]["state"] == "running"]
+    if state.activeOnly and levelKey(path) in state.activeOf:
+        ## the filter shows what the operation gave when it was last asked for the active
+        ## ones, also of an answer read without it: which are active is the operation's to say
+        listed = [row for row in listed if row["id"] in state.activeOf[levelKey(path)]]
     rows.extend(listed)
     return rows
 
@@ -917,7 +995,7 @@ def viewKeyOf(state):
 ## gave, and "lineKeys" says which entry of the feed each line belongs to.
 def newView(viewKey, feeds):
     return {"key": viewKey, "head": [], "lines": [], "top": 0, "feeds": feeds, "follow": feeds,
-            "info": None, "feed": None, "lineKeys": [], "built": None}
+            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None}
 
 
 ## The left pane follows the selection: another item is shown from its first line, and
@@ -933,7 +1011,7 @@ def followSelection(state):
         state.view = newView(viewKey, viewReadOf(state, row, "feed") is not None)
         ## a pane that is made new holds nothing of its item: its reads are due again,
         ## whenever they were last made
-        for part in ("view", "feed"):
+        for part in VIEW_PARTS:
             state.started.pop("%s:%s" % (part, viewKey), None)
         ## what an action answered stands on the item it was asked on, and goes with it
         if state.answer is not None and state.answer["key"] != viewKey:
@@ -1024,7 +1102,7 @@ def itemKeysText(state):
         if not actionShown(state, row, command["does"][1]):
             continue
         if command.get("only"):
-            keys.insert(0, "%s start" % keyShown(commandKeys(command)[0]))
+            keys.insert(0, "%s %s" % (keyShown(commandKeys(command)[0]), command.get("says", "start")))
         else:
             keys.append("%s %s" % (commandKeys(command)[0], command["does"][1]))
     return "keys: " + "  ".join(keys) if keys else ""
@@ -1190,7 +1268,7 @@ def readCounters(form, text):
 ## question as far as the read prints it, which is its first line, each broken to the
 ## width of the pane. The read prints no
 ## option of a decision and no entry of a permission set: once an operation prints them
-## they show here, under their own names. Viewing only: no key answers an ask.
+## they show here, under their own names. Its keys answer it from here (askAnswer).
 ## The read of that one ask by its id gives what the stores hold of it: once it has come,
 ## the whole question, its options, its entries, its fields and its diff stand in the
 ## place of the first line (storedLines).
@@ -1225,7 +1303,7 @@ def askLines(ask, width, stored=None):
         lines.append("question, its first line:")
         lines.extend(wrapToCells(values.get("question", ""), max(10, width - 1)))
     lines.append("")
-    lines.append("viewing only: an ask is answered where it was posted")
+    lines.append("an ask is answered where it was posted, or from here by its keys")
     return lines
 
 
@@ -2027,6 +2105,10 @@ def dialogKey(state, key):
     elif what in ("input", "area") and len(key) == 1:
         ## a key that has a name is longer than one character: this one was typed
         control["value"] += key
+    elif what in ("radios", "list") and control.get("digits") and key.isdigit() and key in [option[0] for option in control["options"]]:
+        ## the digit of an option picks it
+        control["at"] = [option[0] for option in control["options"]].index(key)
+        control["value"] = key
     elif what in ("checks", "radios", "list") and key in ("UP", "DOWN") and control["options"]:
         control["at"] = max(0, min(len(control["options"]) - 1, control["at"] + (1 if key == "DOWN" else -1)))
         if what == "list":
@@ -2055,6 +2137,9 @@ def dialogKey(state, key):
 def dialogStatus(dialog):
     what, index, control = dialogFocus(dialog)
     items = [item for item in CONTROL_KINDS[what]["keys"] if what != "button" or len(dialog["buttons"]) > 1]
+    digits = [option[0] for option in control["options"] if option[0].isdigit()] if control and control.get("digits") else []
+    if digits:
+        items.append((digits[0] + "-" + digits[-1] if len(digits) > 1 else digits[0], "Choose"))
     if what != "area":
         items.append(("Enter", dialog["buttons"][index if what == "button" else 0][1]))
     if len(dialogStops(dialog)) > 1:
@@ -2683,6 +2768,12 @@ def applyCall(state, result):
     elif about["action"] == "start":
         what = "the start"
         lines, summary = spawnAnswer(result["text"], state.viewWidth)
+    elif about["action"] == "setting":
+        what = "the save"
+        lines, summary = settingAnswer(result["text"], about.get("says", ""), state.viewWidth)
+    elif about["action"] in ASK_ACT_WORDS:
+        what = ASK_ACT_WORDS[about["action"]]
+        lines, summary = askActAnswer(result["text"], state.viewWidth)
     else:
         what = "the start"
         lines, summary = startAnswer(result["text"], about.get("name", ""), state.viewWidth)
@@ -2719,15 +2810,250 @@ ACTION_FITS["control"] = controlFits
 ACTION_FITS["launch"] = launchFits
 
 
+## ---- the pending questions: answer, reject, dismiss, link ----
+
+## The fields of the `question` row of `--manager-pending-reply-read --id`, after its first.
+## "text": whether it takes words; "reject": the word a reject gives; "dismiss": whether it
+## can be dismissed; "link": the link of its message. An absent one is `-`.
+ASK_ACT_FIELDS = ("id", "status", "kind", "form", "asker", "addressee", "standsAs", "text", "reject", "dismiss", "link")
+## What that row says where the question can be dismissed.
+ASK_ACT_YES = "yes"
+## What each <outcome> of an `answer` row shows as, beside the answer. One that is not
+## listed here shows as it is printed.
+ASK_OUTCOMES = {
+    "settles": "settles it",
+    "up-the-chain": "goes up the chain, it stays open",
+    "not-taken": "not taken from the console",
+}
+## What each act on a question is called where its answer is told.
+ASK_ACT_WORDS = {"answer": "the answer", "reject": "the reject", "dismiss": "the dismissal"}
+## The row each of them prints, by its first field: the names of the fields after the id,
+## and what the status line says of it.
+ASK_ACT_ROWS = {
+    "answered": (("verdict", "as", "by", "words"), "answered: %(verdict)s, as %(as)s"),
+    "rejected": (("verdict", "as", "by", "words"), "rejected: %(verdict)s, as %(as)s"),
+    "up-the-chain": (("asked of", "as", "by", "why"), "up the chain, still open: now asked of %(asked of)s"),
+    "dismissed": (("by", "reason"), "dismissed by %(by)s"),
+}
+
+
+## What `--manager-pending-reply-read --id <id>` printed: the row of the question, by the
+## names of ASK_ACT_FIELDS, and its answers, each with its number, its word, its outcome
+## and its label, an absent one empty.
+def parseAskActs(text):
+    acts = {"id": "", "question": None, "answers": []}
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "question" and len(fields) > len(ASK_ACT_FIELDS):
+            acts["question"] = dict(zip(ASK_ACT_FIELDS, fields[1:]))
+            acts["id"] = fields[1]
+        elif fields[0] == "answer" and len(fields) >= 5:
+            acts["answers"].append({"number": absent(fields[1]), "word": fields[2], "outcome": fields[3], "label": absent(fields[4])})
+    return acts
+
+
+## What can be done with the ask of that row, as it was read for it, or None: while it is
+## not read, and on a row that is no ask.
+def askActsOf(state, row):
+    acts = state.view.get("acts")
+    if row is None or not row.get("ask") or not acts or acts["id"] != row["id"] or not acts["question"]:
+        return None
+    return acts
+
+
+## Whether each act applies to the ask of that row, as its row of the read says.
+def answerFits(state, row):
+    acts = askActsOf(state, row)
+    return acts is not None and bool(absent(acts["question"]["text"]))
+
+
+def rejectFits(state, row):
+    acts = askActsOf(state, row)
+    return acts is not None and bool(absent(acts["question"]["reject"]))
+
+
+def dismissFits(state, row):
+    acts = askActsOf(state, row)
+    return acts is not None and acts["question"]["dismiss"] == ASK_ACT_YES
+
+
+def linkFits(state, row):
+    acts = askActsOf(state, row)
+    return acts is not None and bool(absent(acts["question"]["link"]))
+
+
+## What the status line says of a key of an ask pressed before the ask was read; on a row
+## that is no ask the key says nothing and does nothing.
+def askUnread(state, row):
+    if row is None or not row.get("ask"):
+        return ""
+    return "what can be done with this question is still being read"
+
+
+## What a dialog of an ask says of it: who asked and of whom, its kind, whose word an
+## answer from here is, and the question as it was posted, whole once the read of the ask
+## has come, until then its first line.
+def askSays(state, row, acts):
+    question = acts["question"]
+    lines = [pair for pair in (
+        ("asked by", question["asker"]), ("asked of", question["addressee"]),
+        ("kind", " ".join(word for word in (question["kind"], absent(question["form"])) if word)),
+        ("answer as", question["standsAs"])) if pair[1]]
+    stored = state.view["info"]
+    held = {}
+    if isinstance(stored, dict) and stored.get("id") == row["id"]:
+        for name, texts in stored.get("stored") or ():
+            held.setdefault(name, []).extend(texts)
+    asked = held.get("field-question") or held.get("posted") or [row["ask"]["values"].get("question", "")]
+    return lines + [" "] + [text if text.strip() else " " for text in asked]
+
+
+## What an answer shows as in the list of its dialog: its number where it has one, its
+## word, its label, and what it does.
+def answerOption(answer):
+    return (answer["number"] or answer["word"],
+            "%s%s%s  --  %s" % (answer["number"] + ". " if answer["number"] else "", answer["word"],
+                                ": " + answer["label"] if answer["label"] else "",
+                                ASK_OUTCOMES.get(answer["outcome"], answer["outcome"])))
+
+
+## Enter, `y`: the dialog of the answer to the selected question. One with answers of its
+## own offers them, each with what it does, and takes words to go with the one picked; a
+## plain question takes the words that are its answer.
+def askAnswer(state, row):
+    acts = askActsOf(state, row)
+    if acts is None:
+        return askUnread(state, row)
+    question = acts["question"]
+    if not absent(question["text"]):
+        return tell(state, "Answer", "this %s takes no answer any more: it is %s" % (question["kind"], question["status"]))
+    state.answer = None
+    fill = {"about": {"lines": askSays(state, row, acts)}}
+    if acts["answers"]:
+        fill["answers"] = {"options": [answerOption(answer) for answer in acts["answers"]]}
+    openDialog(state, "answer" if acts["answers"] else "reply", fill, {"id": row["id"], "viewKey": viewKeyOf(state)},
+               "Answer the %s of %s" % (question["kind"], question["asker"]))
+    return ""
+
+
+## Answer in the dialog of an answer: the operation is called once, with the answer picked,
+## by its number where it has one, and the words typed beside it; or, for a plain
+## question, with the words typed, which are refused there while they are empty.
+def submitAnswer(state, dialog, button):
+    askId = dialog["about"]["id"]
+    words = dialogValue(dialog, "words").strip()
+    if dialog["name"] == "reply":
+        if not words:
+            return "nothing is answered: the answer is empty"
+        call = callWords("answer", askId) + [words]
+    else:
+        call = callWords("answer", askId) + [dialogValue(dialog, "answers")] + ([CALL_WORDS["answer"], words] if words else [])
+    askCall(state, "answer", askId, call, None, {"viewKey": dialog["about"]["viewKey"]})
+    state.notice = "answer asked of the tooling"
+    state.noticeOf = None
+    return None
+
+
+## `j` and `d`: the confirmation of the reject, and of the dismissal, of the selected
+## question, each only where the row of the question says that it takes one.
+def askReject(state, row):
+    acts = askActsOf(state, row)
+    if acts is None:
+        return askUnread(state, row)
+    question = acts["question"]
+    if not absent(question["reject"]):
+        return tell(state, "Reject", "this %s has no negative answer of its own, so it takes no reject: answer it, or dismiss it" % question["kind"])
+    state.answer = None
+    openDialog(state, "reject", {"about": {"lines": [
+        "REJECT the %s of %s: it is answered `%s`, as %s." % (question["kind"], question["asker"], question["reject"], question["standsAs"]),
+        " ", row["ask"]["values"].get("question", "")]}}, {"id": row["id"], "viewKey": viewKeyOf(state)},
+        "Reject the %s of %s" % (question["kind"], question["asker"]))
+    return ""
+
+
+def askDismiss(state, row):
+    acts = askActsOf(state, row)
+    if acts is None:
+        return askUnread(state, row)
+    question = acts["question"]
+    if question["dismiss"] != ASK_ACT_YES:
+        return tell(state, "Dismiss", "this %s cannot be dismissed: it is %s" % (question["kind"], question["status"]))
+    state.answer = None
+    openDialog(state, "dismiss", {"about": {"lines": [
+        "DISMISS the %s of %s: it is withdrawn, and nothing is answered, granted or decided." % (question["kind"], question["asker"]),
+        " ", row["ask"]["values"].get("question", "")]}}, {"id": row["id"], "viewKey": viewKeyOf(state)},
+        "Dismiss the %s of %s" % (question["kind"], question["asker"]))
+    return ""
+
+
+## Reject, and Dismiss, in its confirmation: the operation is called once, by the id of
+## the question, with the words typed where any were.
+def submitAskAct(state, dialog, button):
+    askId = dialog["about"]["id"]
+    words = dialogValue(dialog, "words").strip()
+    askCall(state, dialog["name"], askId, callWords(dialog["name"], askId) + ([CALL_WORDS[dialog["name"]], words] if words else []),
+            None, {"viewKey": dialog["about"]["viewKey"]})
+    state.notice = "%s asked of the tooling" % dialog["name"]
+    state.noticeOf = None
+    return None
+
+
+## `o`: the link of the message of the selected question, in a box.
+def askLink(state, row):
+    acts = askActsOf(state, row)
+    if acts is None:
+        return askUnread(state, row)
+    question = acts["question"]
+    if not absent(question["link"]):
+        return tell(state, "Link", "the message of this %s has no link" % question["kind"])
+    return tell(state, "Link of the %s of %s" % (question["kind"], question["asker"]),
+                ["The message of the question, where it was posted:", " " + question["link"]], "information")
+
+
+## What an act on a question printed: its one row, set out for the left pane by the names
+## of ASK_ACT_ROWS, and what the status line says of it.
+def askActAnswer(text, width):
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] in ASK_ACT_ROWS:
+            names, says = ASK_ACT_ROWS[fields[0]]
+            told = dict(zip(names, [absent(value) for value in fields[2:]]))
+            told.update((name, "") for name in names if name not in told)
+            return fieldLines([(name, told[name]) for name in names], width), says % told
+    return [line for line in text.splitlines() if line.strip()], "the operation printed no row of what it did"
+
+
+ACTION_HANDLERS["answer"] = askAnswer
+ACTION_HANDLERS["reject"] = askReject
+ACTION_HANDLERS["dismiss"] = askDismiss
+ACTION_HANDLERS["link"] = askLink
+ACTION_FITS["answer"] = answerFits
+ACTION_FITS["reject"] = rejectFits
+ACTION_FITS["dismiss"] = dismissFits
+ACTION_FITS["link"] = linkFits
+DIALOG_HANDLERS["answer"] = submitAnswer
+DIALOG_HANDLERS["reply"] = submitAnswer
+DIALOG_HANDLERS["reject"] = submitAskAct
+DIALOG_HANDLERS["dismiss"] = submitAskAct
+
+
 ## ---- the team members: `Team Members` ----
 
+## The status of a member that is started from here, as its row of the list gives it. Any
+## other word there, whatever it is, says that nobody is started as that member.
+MEMBER_STARTS = "active"
+## What a status shows as in the column of the members' table, where the word is longer
+## than the column should be. The left window shows the word whole.
+MEMBER_STATUS_SHORT = {"reference-only": "ref-only"}
+
+
 ## Why a member is not started from here, in words, or nothing where it can be: one whose
-## status says that nobody is started as it, and one whose workspace cannot be reached.
+## status is not the one of a member that is started, and one whose workspace cannot be reached.
 def memberRefusal(member):
-    if member["status"] == "reference-only":
-        return "its status is reference-only: nobody is started as this member"
     if member["setUp"] == "not-present":
         return "its workspace cannot be reached from this machine"
+    if member["status"] != MEMBER_STARTS:
+        return "its status is %s: nobody is started as this member" % (member["status"] or "not given")
     return ""
 
 
@@ -2737,7 +3063,7 @@ def memberRefusal(member):
 MEMBER_COLUMNS = (
     ("MEMBER", lambda member: member["name"]),
     ("RUN", lambda member: "running" if member["live"] == "running" else ""),
-    ("STATUS", lambda member: member["status"]),
+    ("STATUS", lambda member: MEMBER_STATUS_SHORT.get(member["status"], member["status"])),
     ("KIND", lambda member: member["kind"]),
     ("WHERE", lambda member: member["setUp"]),
 )
@@ -2987,6 +3313,14 @@ SUBJECT_WORDS = {
     "systems": "each outside system, by the scopes that hold a setting of it",
     "loop": "the main loop and the heartbeat, as they last left their state",
     "scopes": "each scope that holds a key, with its keys",
+    "interface": "how this console looks, saved for the user who runs it",
+}
+## What each <source> of a line that offers choices shows as, after its value: where the
+## value comes from. One that is not listed here shows as it is printed.
+SOURCE_WORDS = {
+    "environment": "named by the environment",
+    "user": "saved for this user",
+    "default": "the default",
 }
 ## The states of a line that say that something is not there.
 STATES_MISSING = ("missing", "secret-missing")
@@ -2994,26 +3328,48 @@ STATES_MISSING = ("missing", "secret-missing")
 
 ## What `--manager-config-digest` printed, as rows: a `subject` row for each subject, in
 ## the order of the operation, followed by its `line` rows, which the row of the subject
-## keeps. A subject shows by its name, as the operation takes it, and with how many of
-## its lines are missing at the end of its row.
+## keeps. The last field of a row that has one more than its form is its label, with `_`
+## for a blank: a subject and a line show by it, and by the name or the key, as the
+## operation takes them, where a row has none. A line of nine fields offers choices: its
+## seventh says where its value comes from, its eighth lists them, <value>=<label> with
+## commas between. At the end of its row a subject shows how many of its lines are
+## missing, or else what its line that offers choices is set to.
 def parseDigestRows(text):
     rows = []
     bySubject = {}
     for line in text.splitlines():
         fields = line.split("\t")
         if fields[0] == "subject" and len(fields) >= 3:
-            row = newRow(fields[1], fields[1], "record", False, fields)
-            row["subject"] = {"name": fields[1], "lines": []}
+            label = unspaced(fields[-1]) if len(fields) >= 4 else ""
+            row = newRow(fields[1], label or fields[1], "record", False, fields)
+            row["subject"] = {"name": fields[1], "label": label, "lines": []}
             bySubject[fields[1]] = row
             rows.append(row)
         elif fields[0] == "line" and len(fields) >= 6 and fields[1] in bySubject:
-            bySubject[fields[1]]["subject"]["lines"].append({"group": absent(fields[2]), "key": absent(fields[3]),
-                                                             "state": fields[4], "value": absent(fields[5])})
+            held = {"group": absent(fields[2]), "key": absent(fields[3]), "state": fields[4], "value": absent(fields[5]),
+                    "label": unspaced(fields[-1]) if len(fields) >= 7 else "", "source": "", "choices": []}
+            if len(fields) >= 9:
+                held["source"] = absent(fields[6])
+                held["choices"] = [(choice.partition("=")[0], unspaced(choice.partition("=")[2]) or choice.partition("=")[0])
+                                   for choice in absent(fields[7]).split(",") if choice]
+            bySubject[fields[1]]["subject"]["lines"].append(held)
     for row in rows:
         missing = len([line for line in row["subject"]["lines"] if line["state"] in STATES_MISSING])
+        offered = settingOf(row)
         if missing:
             row["tail"] = "%d missing" % missing
+        elif offered is not None:
+            row["tail"] = dict(offered["choices"]).get(offered["value"], offered["value"])
     return rows
+
+
+## The line of a subject that offers choices, the first of them, or None: the setting
+## Enter changes on that row.
+def settingOf(row):
+    for line in (row.get("subject") or {}).get("lines", ()) if row else ():
+        if line.get("choices"):
+            return line
+    return None
 
 
 ## What one line of the digest reads as. A secret reads only as configured or not: the
@@ -3022,6 +3378,8 @@ def parseDigestRows(text):
 ## value, a missing one marked as that.
 def digestWords(subjectName, line):
     value = line["value"]
+    if line.get("choices"):
+        return dict(line["choices"]).get(value, value) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
     if line["state"] in ("secret-set", "secret-missing"):
         return settingWords(line["state"], "")
     if subjectName == "systems" and line["state"] == "set":
@@ -3037,13 +3395,17 @@ def digestWords(subjectName, line):
 
 ## The selected subject of the settings for the left pane: what it holds, how many lines
 ## and how many of them missing, then its lines group by group, each group under a line of
-## its own: the mark of a missing one, the key, and what it reads as. Viewing only.
+## its own: the mark of a missing one, its label, what it reads as, and after that its
+## key, the detail, where its label is not the key. A subject and a line with no label
+## show by the name and the key. Under the lines, what Enter changes where a line offers
+## choices, and the style this screen is drawn in where that is not what the line says.
 def subjectLines(subject, width):
     words = SUBJECT_WORDS.get(subject["name"], "")
     missing = len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
-    lines = wrapToCells(subject["name"] + (": " + words if words else ""), max(10, width - 1))
-    lines.append("%d line%s%s" % (len(subject["lines"]), "" if len(subject["lines"]) == 1 else "s",
-                                 ", %d missing, each marked %s" % (missing, MARK_MISSING) if missing else ""))
+    lines = wrapToCells((subject.get("label") or subject["name"]) + (": " + words if words else ""), max(10, width - 1))
+    lines.append("%s%d line%s%s" % ("subject %s, " % subject["name"] if subject.get("label") else "",
+                                   len(subject["lines"]), "" if len(subject["lines"]) == 1 else "s",
+                                   ", %d missing, each marked %s" % (missing, MARK_MISSING) if missing else ""))
     groups = []
     for line in subject["lines"]:
         if not groups or groups[-1][0] != line["group"]:
@@ -3051,13 +3413,72 @@ def subjectLines(subject, width):
         groups[-1][1].append(line)
     for group, groupLines in groups:
         lines.extend(["", group or "-"])
-        keyWidth = min(34, max(textWidth(line["key"] or "-") for line in groupLines))
+        keyWidth = min(34, max(textWidth(line.get("label") or line["key"] or "-") for line in groupLines))
         for line in groupLines:
-            key = line["key"] or ("no scope" if subject["name"] == "systems" else "-")
-            lines.extend(hangLines("%s %s  %s" % (
+            key = line.get("label") or line["key"] or ("no scope" if subject["name"] == "systems" else "-")
+            detail = "  (%s)" % line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
+            lines.extend(hangLines("%s %s  %s%s" % (
                 MARK_MISSING if line["state"] in STATES_MISSING else " ",
-                key + " " * max(0, keyWidth - textWidth(key)), digestWords(subject["name"], line)), width))
+                key + " " * max(0, keyWidth - textWidth(key)), digestWords(subject["name"], line), detail), width))
+    for line in subject["lines"]:
+        if line.get("choices"):
+            lines.extend(["", "Enter changes %s: %s." % (line.get("label") or line["key"], ", ".join(label for value, label in line["choices"]))])
+            if line["key"] == STYLE_VARIABLE and STYLE["name"] != line["value"]:
+                lines.append("This screen is drawn in %s now." % STYLE["label"])
     return lines
+
+
+## Whether Enter changes something on that row: a subject with a line that offers choices.
+def settingFits(state, row):
+    return settingOf(row) is not None
+
+
+## Enter on a subject of the settings: the dialog of its line that offers choices, with
+## what it is now and its choices as radio buttons. The style of the interface stands on
+## the one this screen is drawn in. A subject that offers none takes no Enter.
+def askSetting(state, row):
+    line = settingOf(row)
+    if line is None:
+        return ""
+    state.answer = None
+    own = line["key"] == STYLE_VARIABLE
+    openDialog(state, "setting", {
+        "about": {"lines": [("now", digestWords(row["subject"]["name"], line)), ("key", line["key"]),
+                            "OK saves it for the user who runs this console%s. Space chooses." % (
+                                ", and this screen takes it at once" if own else "")]},
+        "choice": {"options": list(line["choices"]), "value": STYLE["name"] if own else line["value"]},
+    }, {"line": line, "viewKey": viewKeyOf(state)}, line.get("label") or line["key"])
+    return ""
+
+
+## OK in the dialog of a setting: the style of the interface is taken by this screen at
+## once, and the choice is saved through the operation, once, by the key of the line.
+def submitSetting(state, dialog, button):
+    line = dialog["about"]["line"]
+    value = dialogValue(dialog, "choice")
+    says = "%s: %s" % (line.get("label") or line["key"], dict(line["choices"]).get(value, value))
+    if line["key"] == STYLE_VARIABLE:
+        setStyle(value)
+    askCall(state, "setting", line["key"], callWords("set", line["key"]) + [value], None,
+            {"viewKey": dialog["about"]["viewKey"], "says": says})
+    state.notice = "save asked of the tooling: %s" % says
+    state.noticeOf = None
+    return None
+
+
+## What the save of a setting printed: its row `saved`, the key, the value as it was read
+## back, and the file, set out for the left pane, and what the status line says of it.
+def settingAnswer(text, says, width):
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "saved" and len(fields) >= 4:
+            return fieldLines([("saved", fields[1]), ("value", fields[2]), ("in", fields[3])], width), "saved: %s" % says
+    return [line for line in text.splitlines() if line.strip()], "the save printed no row of what it saved"
+
+
+ACTION_HANDLERS["setting"] = askSetting
+ACTION_FITS["setting"] = settingFits
+DIALOG_HANDLERS["setting"] = submitSetting
 
 
 ## What the digest holds, for the left pane while the section itself or the row that goes
@@ -3070,7 +3491,7 @@ def digestSummary(state):
     missing = sum(len([line for line in subject["lines"] if line["state"] in STATES_MISSING]) for subject in subjects)
     return ["%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
                                                       total, "" if total == 1 else "s", missing),
-            "Viewing only: no key changes a setting here."]
+            "Enter changes a setting on a subject that offers choices; the others are for viewing."]
 
 
 ## ---- what a key does ----
@@ -3093,6 +3514,9 @@ def handleKey(state, key, layout):
     if state.dialog is not None:
         dialogKey(state, key)
         return
+    if key in OPTION_KEYS and state.line is None:
+        ## what the Option key of a Mac types: Alt with that key
+        key = "ALT-" + OPTION_KEYS[key]
     if state.menu is not None:
         menuKey(state, key, layout)
         return
@@ -3194,6 +3618,8 @@ def keyOfShown(shown):
         return " "
     if shown.startswith("Alt-"):
         return "ALT-" + shown[4:].lower()
+    if len(shown) == 2 and shown.startswith("^"):
+        return "CTRL-" + shown[1:].lower()
     return None if "/" in shown else shown
 
 
@@ -3440,7 +3866,7 @@ def menuKey(state, key, layout):
         menu["item"] = index
     elif key == "ENTER":
         chooseItem(state, items[menu["item"]], layout)
-    elif key == commandKeys(commandNamed("exit"))[0]:
+    elif key in commandKeys(commandNamed("exit")):
         state.quit = True
     elif key.startswith("ALT-"):
         if menuOfLetter(key[4:]) is not None:
@@ -3490,7 +3916,7 @@ def shownReads(state):
     wanted = []
     row = selectedRow(state)
     values = {"level": state.path[-1] if state.path else ""}
-    for part in ("view", "feed"):
+    for part in VIEW_PARTS:
         entry = viewReadOf(state, row, part)
         if entry:
             values["id"] = row["id"]
@@ -3561,7 +3987,7 @@ def restLeft(state, now):
         state.restKey = selected
         state.restSince = now
     row = selectedRow(state)
-    if viewReadOf(state, row, "view") is None and viewReadOf(state, row, "feed") is None:
+    if all(viewReadOf(state, row, part) is None for part in VIEW_PARTS):
         return 0.0
     return max(0.0, REST_SECONDS - (now - state.restSince))
 
@@ -3581,7 +4007,7 @@ def keyWait(state, now):
 def startDueReads(state, reader, now):
     resting = restLeft(state, now) > 0
     for kind, key, words in wantedReads(state):
-        if reader.busy(kind) or (resting and kind in ("view", "feed")):
+        if reader.busy(kind) or (resting and kind in VIEW_PARTS):
             continue
         last = state.started.get(key)
         due = key in state.forced or last is None or last["words"] != words or now - last["at"] >= REFRESH_SECONDS
@@ -3630,7 +4056,7 @@ def applyResult(state, result):
         applyCall(state, result)
         return
     wantedNow = dict((wantedKey, words) for kind, wantedKey, words in wantedReads(state))
-    if key.startswith(("view:", "feed:")) and key not in wantedNow:
+    if key.partition(":")[0] in VIEW_PARTS and key not in wantedNow:
         return
     if key in wantedNow and wantedNow[key] != result["words"]:
         state.forced.add(key)
@@ -3651,6 +4077,8 @@ def applyResult(state, result):
             state.rows.pop(gone, None)
         state.rows.update(levels)
         state.levelsOf[key] = list(levels)
+        if entry.get("active") and all(word in result["words"] for word in entry["active"]):
+            state.activeOf[key[len("list:"):]] = set(row["id"] for row in levels.get(key[len("list:"):], ()))
         state.counters.update(readCounters(entry.get("rows"), result["text"]))
     else:
         row, entry = shownRead(state, key[:4])
@@ -3658,6 +4086,8 @@ def applyResult(state, result):
             state.view["info"] = parseSessionRead(result["text"])
         elif entry.get("rows") == "ask":
             state.view["info"] = parseAskStored(result["text"])
+        elif entry.get("rows") == "ask-acts":
+            state.view["acts"] = parseAskActs(result["text"])
         elif entry.get("rows") == "member-read":
             state.view["info"] = parseMemberRead(result["text"])
         elif entry.get("rows") == "transcript":
@@ -3814,6 +4244,8 @@ def hotLetter(label):
 def keyShown(key):
     if key.startswith("ALT-"):
         return "Alt-" + key[4:].upper()
+    if key.startswith("CTRL-"):
+        return "^" + key[5:].upper()
     return KEY_WORDS.get(key, key)
 
 
@@ -3856,6 +4288,32 @@ def fitToCells(text, width):
     return text if textWidth(text) <= width else cutToCells(text, width)
 
 
+## The start of a text cut away, with the cut mark in its place, so that its end stands in
+## at most that many cells.
+def leftCut(text, room):
+    if textWidth(text) <= room:
+        return text
+    return MARKS["cut"] + tailToCells(text, room - 1)[0] if room > 0 else ""
+
+
+## The workspace, the machine and the clock as they show in that many cells, of which
+## `extra` are taken by what stands between and beside them. The machine's name and the
+## clock are the last to be cut: first the workspace's name loses its start, then the
+## clock its seconds, and only then the machine's name its start, never its end, which is
+## the short name of the machine.
+def whereShown(state, room, extra):
+    name = os.path.basename(state.workspace.rstrip("/"))
+    host = state.counters["host"] if state.counters.get("host", "-") not in ("", "-") else ""
+    clock = state.clock
+    for clock in (state.clock, state.clock[:5]):
+        left = room - extra - textWidth(clock) - (1 + textWidth(host) if host else 0)
+        if left >= min(textWidth(name), 2 if clock == state.clock else 1):
+            return leftCut(name, left), host, clock
+    if not host:
+        return leftCut(name, max(1, room - extra - textWidth(clock))), host, clock
+    return MARKS["cut"], leftCut(host, max(1, room - extra - textWidth(clock) - 2)), clock
+
+
 ## The menu bar, from its left: the system mark, then each menu of MENUS, its hot letter in
 ## the look of one. The menu that is open stands in the look of the bar of a menu.
 def menuBarParts(state):
@@ -3869,12 +4327,13 @@ def menuBarParts(state):
 ## The right end of the menu bar: the workspace by the name of its folder, `@` in a look of
 ## its own, the machine the tooling runs on as the row of counters names it, and the
 ## clock. Until that row was read, and from a row that names no machine, the workspace
-## stands alone.
-def whereParts(state):
-    parts = [(os.path.basename(state.workspace.rstrip("/")), BAR)]
-    if state.counters.get("host", "-") not in ("", "-"):
-        parts.extend([("@", BAR_AT), (state.counters["host"], BAR)])
-    parts.append(("  " + state.clock + " ", BAR))
+## stands alone. In that many cells: what is cut, and in which order, is whereShown's.
+def whereParts(state, room):
+    name, host, clock = whereShown(state, room, 3)
+    parts = [(name, BAR)]
+    if host:
+        parts.extend([("@", BAR_AT), (host, BAR)])
+    parts.append(("  " + clock + " ", BAR))
     return parts
 
 
@@ -3885,8 +4344,8 @@ def drawMenuBar(surface, state, columns):
     for index, (menuName, label) in enumerate(MENUS):
         spot(state, column, 0, textWidth(hotText(label)) + 2, 1, ("menu", index))
         column += textWidth(hotText(label)) + 2
-    ## where the bar is too narrow for all of it, the end of it stays: the clock
-    right = tailParts(whereParts(state), columns - after - 1)
+    ## where the bar is too narrow for all of it, the machine and the clock stay longest
+    right = tailParts(whereParts(state, columns - after - 1), columns - after - 1)
     if partsWidth(right) >= 10:
         putParts(surface, 0, columns - partsWidth(right), right, columns)
 
@@ -3948,13 +4407,16 @@ def whereText(state):
 ## host as the row of counters gives it, marked as old where that read last failed, and
 ## the clock.
 def topLineText(state, columns):
-    right = state.clock + " "
+    load = ""
     if "load" in state.counters:
-        right = "load %s%s  %s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "", right)
+        load = "load %s%s  " % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "")
+    ## the workspace gives way first, then the seconds of the clock, then the start of the machine's name
+    name, host, clock = whereShown(state, columns, textWidth(load) + 3)
+    right = load + clock + " "
     rightWidth = textWidth(right)
     if rightWidth >= columns:
         return cutToCells(right, columns)
-    return cutToCells(" " + whereText(state), columns - rightWidth) + right
+    return cutToCells(" " + name + ("@" + host if host else ""), columns - rightWidth) + right
 
 
 ## The top line of the compact style: its status line, or, while a menu is open, the menu
@@ -3965,8 +4427,9 @@ def drawCompactTop(surface, state, columns):
         return
     text = topLineText(state, columns)
     surface.put(0, 0, text, REVERSE)
-    name = os.path.basename(state.workspace.rstrip("/"))
-    if "@" in whereText(state) and text.startswith(" " + name + "@"):
+    load = "load %s%s  " % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "") if "load" in state.counters else ""
+    name, host, clock = whereShown(state, columns, textWidth(load) + 3)
+    if host and text.startswith(" " + name + "@"):
         surface.put(0, 1 + textWidth(name), "@", BOLD)
 
 
@@ -4348,7 +4811,8 @@ class CursesSurface:
             curses.KEY_BACKSPACE: "BACKSPACE", curses.KEY_RESIZE: "RESIZE", curses.KEY_BTAB: "BACKTAB",
             curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
         }
-        self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE"}
+        self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE",
+                          "\x18": "CTRL-x"}
         ## the mouse, where the terminal reports one: its first button at once, with no wait
         ## for a second click, and the wheel. A terminal that reports none changes nothing.
         ## Where the pointer was last, for a turn of the wheel that comes with no place.
