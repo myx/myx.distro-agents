@@ -54,7 +54,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - File anything material as an `inquiry-*` (`post-inquiry`) or a `note-*` in this member's own inbox, so a later session finds it.
    - Run `magic-team.coworking.routine`'s **close-session** group, its skill-update offer scoped to this member.
    - Dismiss the target member (`spawn-one-dispatch`'s **spawn-dismiss**).
-   - Report the final status to the root, then wait until it dismisses this instance.
+   - Report the final status to the root, then wait until it dismisses this instance. The report states what was agreed this session, per "The ladder: one rung at a time".
    Follow-on work is dispatched as its own fresh session, never continued here.
 
 # Routine's local procedures

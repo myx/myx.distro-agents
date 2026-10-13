@@ -600,6 +600,241 @@ AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	return 0
 }
 
+## What the tooling itself tells the participants of a session, in a thread, about the run of
+## one of them: one message, its text the note template's
+## (sh-lib/templates/tooling-note.post.format.md, `# Session`), sent through the member send
+## as the team bot in the name of the member it is about, and addressed to whoever it is
+## told, where that is known: the member that brought that one in, or the human-owner in his
+## own conversation. Never a tracking post: the box that tracks the same fact goes to the
+## tracking thread, by its caller. Silent with no thread. Never fails its caller: one stderr
+## warning at most; whether it posted is left in agentsSpawnProxyNoticePosted.
+## It stands here, with what closes a run, and not with the spawn proxy's own functions: a
+## closer that is no spawn proxy tells the end of a run too (AgentsToolsSpawnProxyEndNotice).
+AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it is about, whom it is told (may be empty), line (a heading under `# Session`), count (may be empty), the run it is about (this spawn's own where not given), then the further slots of the line, a name and its value each
+	local noticeThread="$1" noticeMember="$2" noticeTell="" noticeName="$4" noticeCount="${5:-}" noticeRun="${6:-${MDAT_SPAWN_SESSION_ID:-}}" noticeText="" noticeArgs
+	agentsSpawnProxyNoticePosted=""
+	[ -n "$noticeThread" ] || return 0
+	noticeArgs=( "$noticeMember" "$noticeThread" --identity-bot )
+	## Addressed to whom it is told, where the send can address it, and to nobody where there
+	## is none: never to the member it is about, whose run has ended.
+	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+	if [ -n "${3:-}" ] && [ "$3" != "$noticeMember" ] && AgentsToolsAssertBareName "$3" "the spawning member" agent-spawn-proxy 2> /dev/null \
+		&& AgentsToolsTeamMemberDirectory "$3" > /dev/null 2>&1 ; then
+		noticeTell="$3"
+		noticeArgs=( "${noticeArgs[@]}" --address-to "$noticeTell" )
+	fi
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+	shift 6 2> /dev/null || shift $#
+	noticeText="$(
+		export ASKP_BLOCK="Session/$noticeName" ASKP_F_member="$noticeMember" ASKP_F_run="${noticeRun:0:8}" ASKP_F_count="$noticeCount" ASKP_F_address_to="$noticeTell"
+		## A further slot travels as every slot does, under its own name: lower-case letters.
+		while [ $# -ge 2 ] ; do
+			[ -z "$1" ] || [ -n "${1//[abcdefghijklmnopqrstuvwxyz_]/}" ] || export "ASKP_F_$1=$2"
+			shift 2
+		done
+		AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null
+	)" || noticeText=""
+	if [ -z "$noticeText" ] ; then
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line could not be filled from sh-lib/templates/tooling-note.post.format.md, so $noticeThread was not told" >&2
+		return 0
+	fi
+	if printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > /dev/null 2>&1 ; then
+		agentsSpawnProxyNoticePosted="yes"
+	else
+		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not posted in $noticeThread, so it was not told there that the run ${noticeRun:0:8} of $noticeMember ended" >&2
+	fi
+	return 0
+}
+
+## WHETHER A RUN HANDED BACK, AND WHERE EACH HANDBACK WENT: the one reading of it, for the
+## close of a run, which resumes it once for a handback it has not given
+## (AgentsToolsSpawnProxyHandbackWarn, --intern-op-agent-spawn-proxy), and for the note of
+## its end (AgentsToolsSpawnProxyEndNotice). THE TRANSCRIPT OF THE RUN IS BELIEVED FIRST: it
+## holds a HANDBACK event for each handback that was delivered, with where it went
+## (AgentsTranscriptToolDone), whichever CLI ran and however its log shows a call. The
+## output of the run is read only where the transcript holds none, or the run has no
+## transcript: there the announce line of the call is all there is, and it says that the
+## call was made, not where it went. By the output alone the handbacks of a native CLI were
+## never seen: its log holds what a call is for first and the name of the tool on the next
+## line, which the pattern does not read.
+## Prints a line for each handback the transcript holds, `to:<target>` as its event names it,
+## `to:` where the call named none; and where the transcript gives none, the one line `seen`
+## where the output shows the call. Nothing where neither does. rc 0 always.
+AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output file (may be empty)
+	local handRun="${1:-}" handLog="${2:-}" handParts="" handPart handGave=""
+	type AgentsTranscriptParts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2> /dev/null || :
+	[ -z "$handRun" ] || handParts="$( AgentsTranscriptParts "$handRun" 2> /dev/null )" || handParts=""
+	if [ -n "$handParts" ] ; then
+		handGave="$( while IFS= read -r handPart ; do
+			[ -n "$handPart" ] && [ -f "$handPart" ] || continue
+			LC_ALL=C grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z HANDBACK( |$)' "$handPart" 2> /dev/null \
+				| LC_ALL=C awk '{ wentTo = "" ; if ( match( $0, / to=[^ ]+/ ) ) { wentTo = substr( $0, RSTART + 4, RLENGTH - 4 ) ; } gsub( /"/, "", wentTo ) ; print "to:" wentTo ; }'
+		done <<< "$handParts" )" || handGave=""
+	fi
+	if [ -n "$handGave" ] ; then
+		printf '%s\n' "$handGave"
+		return 0
+	fi
+	[ -z "$handLog" ] || [ ! -f "$handLog" ] || ! LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$handLog" 2> /dev/null || printf 'seen\n'
+	return 0
+}
+
+## THE END OF A RUN IS TOLD TO WHOEVER REQUESTED IT, by whoever closes its record: its
+## supervising shell, at the end of its close (--intern-op-agent-spawn-proxy), and, where
+## that shell is gone, the advance pass for a dead run that it closes as ended without close
+## (AgentsToolsAdvanceSpawnHousekeeping). One message for an end, a fact and no question:
+## that the run has ended, and how. Its caller calls it once the record and the item of the
+## run are closed, so a post that cannot be made holds neither open. An end is told once:
+## by the shell while it lives, and else by the one pass that closes the record.
+## WHERE. In the thread of the session that requested the run, addressed to the member that
+## brought it in: the thread a handback to its parent goes to, kept on its record as
+## `parent-thread` (AgentsToolsSpawnParentThread, AgentsTools.ReviewFlow.include), which is
+## the run's own session thread where it joined the session of its parent, and another one
+## where it opened a session of its own. Its own session thread where its record keeps none.
+## A run that no session requested, and whose item names no reviewer, is told to the
+## human-owner, in the bot's direct conversation, as a plain message: no question, and no
+## record of one. Three runs that no session requested stay where their note stood, in their
+## own session thread: a start its caller waits on, which that caller reads itself; a run
+## whose item names a reviewer; and any such run in a workspace that has no conversation
+## with the human-owner (SLACK_CHANNEL_HUMAN_OWNER).
+## HOW IT ENDED, each a line of its own under `# Session` of the note template:
+##   run-killed        its record says that the console killed it, by whom and when
+##                     (`killed-by`, `killed-at`, AgentsToolsManagerKillMark).
+##   run-stopped       its transcript holds the ordered ending of a member's TaskStop, which
+##                     is recorded before the run is signalled: by which member, and when.
+##   run-bound         the wait of its caller reached the bound of the tooling, which then
+##                     ended it (SPAWN_WAIT_TIMEOUT_SECONDS): the bound its closer gives.
+##   handback-missing  it ended by itself, and no handback of it was seen, after its one retry.
+##   run-ended         it ended by itself and handed back, and none of its handbacks went to
+##                     where its end is told.
+## A run that was killed, stopped or bounded is told as that, whatever it had handed back,
+## and never as a run that posted no handback. A run that ended by itself and whose handback
+## stands where its end would be told gets no message: the handback said it. Nor does one
+## whose handback was seen while nothing records where it went.
+## Where a handback went is read from the run's transcript, the `to` of its HANDBACK events
+## (AgentsTranscriptToolDone): none, and `session-parent`, are the thread kept as
+## `parent-thread`; `session-current` is the run's own session thread; a `<channel>:<ts>` is
+## itself; `human-owner` is his conversation; any other target is another place.
+## A DEATH is told by the control thread of the run's session, in a call of its own, with
+## `died` as what its closer saw (AgentsTools.SessionControlDeath.include): the line is then
+##   run-died          its process is gone, and nothing closed its record,
+## whatever else is recorded of its ending, and nothing where a handback of it stands where
+## its end would be told. That thread then keeps `death-told` on the record, and AN END THAT
+## WAS TOLD AS A DEATH IS TOLD BY NO OTHER CLOSER: for a record that carries it, a later
+## call says nothing. agentsSpawnProxyEndNoticeSaid is left for the caller that asks:
+## `posted`, `none` where nothing was due, `failed` where the line could not be posted.
+## Posted by the one function a note of a session is posted by
+## (AgentsToolsSpawnProxySessionNotice), which bounds it as every Slack call is bounded.
+## Never fails its caller: a post that cannot be made is that function's one warning on
+## stderr, which is the run's log for a run that is not waited for.
+AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a handback (`missing` or `seen`; read from the run's log where not given; `died` for a death, which the control thread of its session tells), the bound in seconds where the tooling's bound ended it (may be empty), `caller-waits` for a start its caller waits on (may be empty)
+	local endRecord="${1:-}" endSeen="${2:-}" endBound="${3:-}" endWaits="${4:-}"
+	local endRun endMember endParent endOwn endKept endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession=""
+	local endField endItem endState endReviewer="" endParts endPart endEvents="" endStop endWent endHeld="" endGave=""
+	agentsSpawnProxyEndNoticeSaid="none"
+	[ -n "$endRecord" ] && [ -f "$endRecord" ] || return 0
+	[ "$endSeen" = "died" ] || [ -z "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" death-told )" ] || return 0
+	endRun="${endRecord##*/}" ; endRun="${endRun%.md}"
+	endMember="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" owner )"
+	[ -n "$endMember" ] || return 0
+	endOwn="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-thread )"
+	AgentsToolsSpawnConversationThreadValid "$endOwn" || endOwn=""
+	endKept="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" parent-thread )"
+	AgentsToolsSpawnConversationThreadValid "$endKept" || endKept=""
+	## Where it is told, and to whom.
+	endParent="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" parent-session-id )"
+	case "$endParent" in
+		''|none)
+			endTo="$endOwn"
+			if [ "$endWaits" != "caller-waits" ] ; then
+				for endField in spawns spawned-by ; do
+					endItem="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" "$endField" )"
+					endItem="${endItem%%,*}" ; endItem="${endItem%% *}" ; endItem="${endItem%.md}"
+					[ -n "$endItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || continue
+					endState="$( AgentsToolsSpawnProxyBoardStateOf "$endItem.md" )"
+					[ -n "$endState" ] || continue
+					endReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$endState/$endItem.md" review-by )"
+					break
+				done
+				if [ -z "$endReviewer" ] && [ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" ] ; then
+					endTo="human-owner" ; endTell="human-owner"
+					endSession="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-comment )"
+					type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+					endUnrequested="$( ASKP_BLOCK="Session/unrequested" ASKP_F_session="$endSession" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || endUnrequested=""
+				fi
+			fi
+		;;
+		*)
+			endTo="${endKept:-$endOwn}"
+			endTell="$( MDAT_SPAWN_SESSION_ID="$endRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || endTell=""
+		;;
+	esac
+	[ -n "$endTo" ] || return 0
+	## What its transcript records of its ending and of its handbacks.
+	type AgentsTranscriptParts > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionTranscript.include" 2> /dev/null || :
+	endParts="$( AgentsTranscriptParts "$endRun" 2> /dev/null )" || endParts=""
+	while IFS= read -r endPart ; do
+		[ -n "$endPart" ] && [ -f "$endPart" ] || continue
+		endEvents="$endEvents$( LC_ALL=C grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z (ENDING|HANDBACK)( |$)' "$endPart" 2> /dev/null )"$'\n'
+	done <<< "$endParts"
+	## How it ended.
+	endAt="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" killed-at )"
+	endStop="$( printf '%s' "$endEvents" | LC_ALL=C awk '
+		$2 == "ENDING" && index( $0, " text=\"taskstop: " ) > 0 { stopBy = "" ; if ( match( $0, / by=[^ ]+/ ) ) { stopBy = substr( $0, RSTART + 4, RLENGTH - 4 ) ; } stopLine = $1 " " stopBy ; }
+		END { if ( stopLine != "" ) { print stopLine ; } }
+	' )" || endStop=""
+	if [ "$endSeen" = "died" ] ; then
+		endAt=""
+	elif [ -n "$endAt" ] ; then
+		endLine="run-killed"
+		endBy="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" killed-by )"
+	elif [ -n "$endStop" ] ; then
+		endLine="run-stopped"
+		endAt="${endStop%% *}" ; endBy="${endStop#* }"
+	else
+		case "$endBound" in ''|0|*[!0123456789]*) endBound="" ;; *) endLine="run-bound" ;; esac
+	fi
+	if [ -z "$endLine" ] ; then
+		## It ended by itself: whether a handback of it stands where its end would be told, by
+		## the one reading of what a run handed back (AgentsToolsSpawnProxyHandbacks).
+		endGave="$( AgentsToolsSpawnProxyHandbacks "$endRun" "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" output-file )" )" || endGave=""
+		while IFS= read -r endWent ; do
+			case "$endWent" in to:*) endWent="${endWent#to:}" ;; *) continue ;; esac
+			case "$endWent" in
+				''|session-parent)
+					endWent="$endKept"
+					[ -n "$endWent" ] || endWent="$( MDAT_SPAWN_SESSION_ID="$endRun" ; AgentsToolsSessionParentThreadFind 2> /dev/null )" || endWent=""
+					endWent="${endWent%% *}"
+				;;
+				session-current) endWent="$endOwn" ;;
+				human-owner) ;;
+				*) AgentsToolsSpawnConversationThreadValid "$endWent" || endWent="" ;;
+			esac
+			[ "$endWent" != "$endTo" ] || { endHeld="there" ; break ; }
+			endHeld="elsewhere"
+		done <<< "$endGave"
+		if [ -z "$endSeen" ] ; then
+			endSeen="missing"
+			[ -z "$endGave" ] || endSeen="seen"
+		fi
+		case "$endHeld:$endSeen" in
+			there:*) return 0 ;;
+			*:died) endLine="run-died" ;;
+			elsewhere:*) endLine="run-ended" ;;
+			:missing) endLine="handback-missing" ;;
+			*) return 0 ;;
+		esac
+	fi
+	## When, as each reader's own time; a moment that cannot be read stays as it is kept.
+	if [ -n "$endAt" ] ; then
+		type AgentsToolsSlackDateToken > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SlackDate.include" 2> /dev/null || :
+		endAt="$( AgentsToolsSlackDateToken "$endAt" date-time 2> /dev/null || printf '%s' "$endAt" )"
+	fi
+	AgentsToolsSpawnProxySessionNotice "$endTo" "$endMember" "$endTell" "$endLine" "" "$endRun" by "$endBy" at "$endAt" seconds "$endBound" unrequested "$endUnrequested"
+	agentsSpawnProxyEndNoticeSaid="failed" ; [ -z "$agentsSpawnProxyNoticePosted" ] || agentsSpawnProxyEndNoticeSaid="posted"
+	return 0
+}
+
 ## One line to the daemon output, never stdout: fd 4 where execute opened it (the request's own stderr, not the result), else stderr, which is the log in a console or harness run.
 ## The write that can fail is a redirection on a subshell, stderr silenced first, since a failed redirection on a special builtin ends a POSIX shell.
 ## fd 4 closed or not writable falls back to stderr.

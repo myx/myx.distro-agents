@@ -32,11 +32,12 @@ Always written `board-<state>`.
   - Deferred, not built: a `magic-coordinator.heartbeat.routine` session may move a backlog item straight to `board-running` when its restart is trivial.
 - **`board-running`** — dispatched and in progress, including its testing round and while waiting on an ask. An item reaches it only through dispatch, or by creation for `approval-*`, `dispatch-*` and `interview-*`.
   - When implementation is claimed complete, `magic-coordinator` dispatches `magic-tester` for a testing round, in place.
-  - Clean → `board-processed`; or `board-blocked` awaiting the human-owner's sign-off where the work needs it.
+  - Clean → `board-processed`; or `board-blocked` awaiting the human-owner's sign-off where the work needs it — where "The ladder: one rung at a time" climbs that far, not by default.
   - Concerns → an investigation `task-*`, `spawned-by` the parent, ending as **escalate** or **solve**; after a fix the round repeats.
 - **`board-review`** — a handback arrived, or the child ended with no verdict; it awaits its reviewer, named in `review-by` (`human-owner`, a member, a session, `<session-id>:<member>`, or a routine such as `grooming.routine`). The reviewer applies `magic-team.handback-review.routine`: accept (→ `board-processed`), return (→ `board-running`, the same session), reject (→ `board-pending`, for a fresh session), follow-up, or a combination. `magic-coordinator` reviews when `review-by` is itself or empty.
   - Built for `human-owner`: entering this state posts him one review prompt, once. 👍 accepts, ↩️ returns, ❌ rejects; a reply whose first line is just `accept`, `return` or `reject`, or that word followed by a mark and his comment, does the same, a return or a reject carrying his words on what to change. A review settled another way closes the open prompt. Every other `review-by` still posts no prompt.
-- **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item.
+  - The tooling also posts, in the thread of the session that requested the run, a fact-only note of how it ended: no handback; handed back in another thread; killed from the console, by whom; stopped by whose `TaskStop`; ended at the bound of a wait; or died (its process gone, nothing closed its record). The note decides nothing; the reviewer's own verdict does. For a death, the control thread of the session instead asks the item's own reviewer a decision: `resume`, `fresh`, `close` or `kill`; with no reviewer set, no question is asked and the record is simply closed. Until the tasks that read the answer are live, an answer changes nothing by itself.
+- **`board-blocked`** — could not proceed: a human-owner decision, an external dependency, or another item. Every review attempts something: a request, a chase, an alternative. An item needing the human-owner's go waits here, gated by an `approval-*` item, per "The ladder: one rung at a time".
 - **`board-parked`** — deliberately deferred until a condition arrives. Nothing is done; a recheck only asks whether the condition has arrived.
 - **`board-processed`** — resolved: completed or denied. The resolution is written into the item. An ignored item is removed instead.
 - **`board-archived`** — abandoned for good, or a processed item marked `archive: true`.
@@ -51,7 +52,7 @@ Every move into `board-blocked` carries an `execution-receipt`.
 ## General item lifecycle
 
 - An item is filed, routed to the inbox or board where it belongs, and processed when its holder's rules say so.
-- Processing either finishes it in one step, or moves it and splits it into subtasks routed the same way. A parent is reprocessed once its subtasks are done.
+- Processing either finishes it in one step, or moves it and splits it into subtasks routed the same way. A parent is reprocessed once its subtasks are done. A subtask's own result stays with that parent; only an escalation climbs further, per "The ladder: one rung at a time".
 - One-step finish only when no subtask and no hand-off is needed.
 - Denial can come at any stage: quickly, by an obvious rule, or after a full discussion.
 - New follow-on work is a new item linked by `spawned-by` or `blocked-by`; it never reopens a processed item. A processed item reopens only on an explicit new signal, back to `board-backlog`.

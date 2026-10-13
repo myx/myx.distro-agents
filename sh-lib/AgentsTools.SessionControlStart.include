@@ -94,6 +94,38 @@ AgentsToolsSessionControlLive(){ ## -- stdin: session ids, a line each
 	return 0
 }
 
+## WHAT A THREAD THAT DIED LEFT IN A SESSION THAT NEEDS NONE. A thread that ends in order
+## takes its pid file and its lock with it. One that was ended the hard way leaves both,
+## each naming a process that is no longer that process, and the list of sessions shows a
+## session by them as one whose thread is gone. Where the session needs a thread, the next
+## start takes the lock over and writes the pid file anew. Where it needs none, nothing
+## ever would: so the caller that answers that a session needs none removes them here, and
+## the session then reads as one that has no thread. Exactly those two files, and only
+## where neither names a thread that lives: each is read first, the process list is asked
+## after (AgentsToolsSessionControlLive), and a file is removed only while it still holds
+## what was read. A lock that is no link is no lock of a thread, and stays. Nothing else of
+## control/ is touched: the log of the thread and the state it kept stay as they are.
+## Prints nothing. rc 0 always: a file that cannot be removed stays, and reads as before.
+AgentsToolsSessionControlLeftovers(){ ## session id
+	local leftSession="${1:-}" leftDir leftPid="" leftLock="" leftNow=""
+	case "$leftSession" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	leftDir="$MMDAPP/.local/agents/sessions/$leftSession/control"
+	[ -f "$leftDir/pid" ] || [ -L "$leftDir/lock" ] || return 0
+	[ ! -f "$leftDir/pid" ] || { IFS= read -r leftPid < "$leftDir/pid" ; } 2> /dev/null || :
+	[ ! -L "$leftDir/lock" ] || leftLock="$( readlink "$leftDir/lock" 2> /dev/null )" || leftLock=""
+	[ -z "$( printf '%s\n' "$leftSession" | AgentsToolsSessionControlLive )" ] || return 0
+	if [ -f "$leftDir/pid" ] ; then
+		leftNow=""
+		{ IFS= read -r leftNow < "$leftDir/pid" ; } 2> /dev/null || :
+		[ "$leftNow" != "$leftPid" ] || rm -f "$leftDir/pid" 2> /dev/null || :
+	fi
+	if [ -L "$leftDir/lock" ] ; then
+		leftNow="$( readlink "$leftDir/lock" 2> /dev/null )" || leftNow=""
+		[ "$leftNow" != "$leftLock" ] || rm -f "$leftDir/lock" 2> /dev/null || :
+	fi
+	return 0
+}
+
 ## What measured rows of the sessions registry say of each session, a line a session in the
 ## order the sessions come: `<session id> <word> <hosts>`. `running`: a run of it is alive
 ## on this host, whatever its record says. `open`: none is, and the record of a run of this
@@ -241,6 +273,31 @@ AgentsToolsSessionControlStart(){ ## session id
 		fi >> "$startDir/log"
 	} 2> /dev/null || :
 	printf 'started %s\n' "$startPid"
+	return 0
+}
+
+## A START IN FLIGHT: the process that a start of the thread of this session made within the
+## last agentsSessionControlHoldSeconds, while it is still that process. It holds the lock of
+## its session in a moment, or is refused by it, and until then no pid file names it: so a
+## starter that comes right behind another, as the members of one session that are started
+## one after the other do, would start a second process for the lock to refuse. The spawner
+## asks this first and starts none while one is on its way. Read from the line every start
+## writes into the log of the thread, the last such line, with the time it carries; a
+## process that is still there after that time is no start in flight, and the next start is
+## made. Prints its pid; nothing where there is none. rc 0 always.
+AgentsToolsSessionControlStarting(){ ## session id
+	local flightLog flightLine="" flightAt="" flightPid="" flightBegan="" flightSince=""
+	case "${1:-}" in ''|-|.|..|*/*|*[[:space:]]*) return 0 ;; esac
+	flightLog="$MMDAPP/.local/agents/sessions/$1/control/log"
+	[ -f "$flightLog" ] || return 0
+	flightLine="$( LC_ALL=C tail -n 40 "$flightLog" 2> /dev/null | LC_ALL=C sed -n 's/^\([0-9TZ:-][0-9TZ:-]*\) a start of the control thread of session .* is made: pid \([0-9][0-9]*\), begun \([^ ]*\)$/\1 \2 \3/p' | LC_ALL=C tail -n 1 )" || flightLine=""
+	[ -n "$flightLine" ] || return 0
+	read -r flightAt flightPid flightBegan <<< "$flightLine" || :
+	flightSince="$( date -u -v-"$agentsSessionControlHoldSeconds"S +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$agentsSessionControlHoldSeconds seconds ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null )" || flightSince=""
+	## Both are the same form of a moment, so they are in order as texts are.
+	[ -n "$flightSince" ] && [[ "$flightAt" > "$flightSince" ]] || return 0
+	[ "$( printf '%s\n' "$flightPid" | AgentsToolsRegistryProcessesBegan )" = "$flightPid $flightBegan" ] || return 0
+	printf '%s\n' "$flightPid"
 	return 0
 }
 

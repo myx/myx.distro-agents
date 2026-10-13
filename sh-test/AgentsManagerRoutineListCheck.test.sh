@@ -28,9 +28,12 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerRoutineListCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp" 2> /dev/null || { sleep 3 ; rm -rf -- "$rigTmp" 2> /dev/null ; }' EXIT
+trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp" 2> /dev/null || { sleep 3 ; rm -rf -- "$rigTmp" 2> /dev/null ; }' EXIT
 rigWs="$rigTmp/ws-here" ; rigFar="$rigTmp/ws-far" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data"
 rigSkills="$rigWs/.local/agents/members"
 rigFarMember="$rigFar/source/myx/pkg/skillset/keeper-far"

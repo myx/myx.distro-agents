@@ -66,7 +66,7 @@ All statements apply at the same time, always. These rules override a participan
 - Real ambiguity keeps the questions going. A task written from a guess looks settled when it is not.
 - Urgency is not an instruction to execute inline. Inline execution in the root chat happens only under `magic-coordinator.root-harness.routine`'s **enforce-root-never-inline** exception: the human-owner's explicit instruction, for this one request.
 - Unclear which inbox it belongs in: `magic-coordinator`'s own, which routes it on.
-- A requester declining further questions is respected, and the filed task states plainly what remains ambiguous.
+- A requester declining further questions is respected, and the filed task states plainly what remains ambiguous. Where that requester is a group needing quorum, the unresolved part becomes the no-quorum document instead, per "The ladder: one rung at a time".
 - Keep `event-track` current as the routine runs.
 
 # Routine-specific tooling

@@ -365,6 +365,8 @@ rigToolingList(){
 		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -TERM -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/AgentsTools.MemberCommsSlackPresence.include|1|pkill -USR1 -f "$presenceMatch"|a sweep by the command line of the tooling'"'"'s own presence holder for one key, its script and that key: no pid is kept, and whatever else carries both on its command line is reached too' \
 		'sh-lib/AgentsTools.MemberCommsSlackSocket.include|1|pkill -TERM -f "$socketMatch"|a sweep by the command line of the tooling'"'"'s own socket receiver for one app: no pid is kept, and whatever else carries that on its command line is reached too' \
+		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -TERM -- "-$postPid"|@probed' \
+		'sh-lib/AgentsTools.SessionControlDeath.include|1|kill -KILL -- "-$postPid"|@probed' \
 		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$reapPid"|the one cleanup of the harness: a pid record stands in its scratch only while the process it names is in flight, and is removed as that process is waited for' \
 		'sh-lib/AgentsUniversalHarness.sh|1|= "$harnessRunBegan" ] && kill -TERM "$harnessRunPid"|@still-itself' \
 		'sh-lib/AgentsUniversalHarness.sh|1|kill -TERM "$harnessWatchPid"|@own-watch' \

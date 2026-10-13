@@ -108,13 +108,13 @@ Every `.basic.md`, `.armed.md` and `.routine.md` follows the contract for its ki
 - Oncall / Expert — `templates/oncall-expert.contract.format.md`
 - Human-owner — `templates/human-owner.contract.format.md`
 
-Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/contacts.document.format.md`. The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
+Document formats: `templates/escalation.document.format.md` (the `ConfirmReadback`, `EscalateDecision`, `RequestPermission` and `ProposeApprove` kinds), `templates/session-context.document.format.md` (the generated session sweep report), `templates/contacts.document.format.md`, `templates/no-quorum.document.format.md` (the agreed-and-dissent document "The ladder: one rung at a time" names). The templates of messages the tooling produces automatically, the spawn brief block and the tooling's own tracking posts, are the tooling's own (`myx.distro-agents/sh-lib/templates/`), not the skillset's.
 
 Every section a contract names is present, in contract order, with its lead-in, even when empty: write "none". Fix a gap when the file is next touched.
 
 ### Routine
 
-`# Steps`, with its direct synchronous sub-calls, completes before any extended, dispatched or spawned run begins. `# Closure steps` run after all of that finishes. A board-tracked dispatch counts as finished once tracked.
+`# Steps`, with its direct synchronous sub-calls, completes before any extended, dispatched or spawned run begins. `# Closure steps` run after all of that finishes. A board-tracked dispatch counts as finished once tracked; its result still climbs to its own parent only as "The ladder: one rung at a time" directs.
 
 ### Partner / Client (`partner-*`/`client-*`)
 
@@ -150,7 +150,7 @@ When a skillset file disagrees with what is on disk, the real source file is cor
 Binding on every member in every session.
 
 - No file carries his words verbatim, a `MAGIC.md` included. The exchange goes to a `transcript-*`; a standing statement to a `verbatim-*`; a live tracking document or hand-off may carry his words while it is worked. On approval, the approved document becomes the only verbatim and replaces the earlier working material.
-- Committing instruction text is what approves it. Quotation marks confer no authority.
+- Committing instruction text is what approves it, the one step "The ladder: one rung at a time" already counts. Quotation marks confer no authority.
 
 ## Recheck before reporting
 
@@ -185,13 +185,13 @@ Every new name — operation, flag, file, key, document type — and every new c
 
 ## Conflicts and ambiguities go to the human-owner
 
-A conflict or real ambiguity between instructions, or between an instruction and what is observed, is decided by him, both sides left intact until he rules. First check the instruction sources and consult the member whose domain it is: two rules in conflict are often two correct rules about two unnamed categories.
+A conflict or real ambiguity between instructions, or between an instruction and what is observed, first goes to the session's own group: check the instruction sources and consult the member whose domain it is. No quorum there: both sides stay intact, in one document, and it climbs by "The ladder: one rung at a time" until he rules. Two rules in conflict are often two correct rules about two unnamed categories.
 
 ## Readback-confirm and propose-approve, in any process
 
 - **Readback-confirm**: before asserting anything of its own — accepting a task, a blocking finding, an accident, a contradiction, a reframing, a pause — a member reads it back to whoever can confirm it, where the exchange already is. One needing an answer goes as a `ConfirmReadback` ask; a choice it cannot make, an `EscalateDecision` ask.
 - **Propose-approve**: a decision that outlives the exchange runs through `magic-team.proposal.routine`, as a `ProposeApprove` ask. It does not stop the work it arose from.
-- Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, consult the domain owner, then ask what remains.
+- Work its instructions cover: act. Seeing something better: proceed as instructed and file the better idea as an inquiry to `magic-coordinator`. Nothing covers it, or the options cannot be chosen: read back, check the instruction sources, consult the domain owner, then ask what remains — following "The ladder: one rung at a time".
 
 ## "later" has two gates
 
@@ -199,7 +199,7 @@ Deferred work starts only when the current step is released and he has said to s
 
 ## Anything needing the human-owner to act reaches him on his own direct channel
 
-A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Every member asks him directly with its own ask tool; no relay under a session's `magic-coordinator` stands between. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
+A question, link or blocking decision reaches him at once on his direct channel, never left in a session. It is asked with an ask tool, `AskQuestion` for a plain question, alone in its own message; a report or announcement never carries one. Confirming that the coordinator's relayed words really carry his intent is asked of him directly, with its own ask tool, no relay under a session's `magic-coordinator` standing between. That trust check is not a bypass of "The ladder: one rung at a time" for an ordinary ask. A follow-up goes into the same thread. Before re-asking, read the thread. A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`. Send path: `human-owner`'s `reach-human-owner` procedure.
 
 ## Nothing stops on its own: log, escalate, resolve
 

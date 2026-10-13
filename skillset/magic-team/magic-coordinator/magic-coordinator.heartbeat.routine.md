@@ -67,7 +67,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - later-today, `today-stage: grooming-dispatched`, and `grooming-today: finished`: dispatch `magic-coordinator.daily.routine` the same way, and set `today-stage: daily-dispatched`.
    - weekend, or nothing due: dispatch nothing.
 7. **send-test-report**: Run `--magic-heartbeat-test-report-send`, every branch. `NOT_DUE` is not a failure.
-8. **register-owner-decisions**: An open decision this pass found that only the human-owner can make becomes an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists. Advance asks and re-asks it.
+8. **register-owner-decisions**: An open decision this pass found that only the human-owner can make becomes an `approval-*` item in `board-running` (`--magic-board-create-running`, `blocks` set to the item it gates) unless one exists. Advance asks and re-asks it. Running unattended, nobody is present to work it out first — the "no parent present" branch of "The ladder: one rung at a time" applies.
 9. **update-heartbeat-state**: Rewrite the `heartbeat-state-note` (`--magic-heartbeat-state-upsert`) with this pass's `today-stage` and one short "Last iteration" paragraph replacing the previous one. Anything worth keeping beyond this pass goes to the session thread or a `reflection-*`, never into this note.
 10. **run-advance**: Run one `magic-coordinator.advance.routine` pass inline, every pass, last. This pass is not finished, and the lock is not released, until advance has finished.
 
@@ -75,7 +75,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **close-state-and-unlock**: Release the lock with `--magic-heartbeat-close-state-and-unlock`. Reached only after **run-advance** finished.
 2. **conclude-event-track-thread**: React ✅ on the pass's tracking thread root (`--member-comms-slack-react`).
-3. **report-status-to-spawner**: Report the pass status, advance's outcome included, to the spawner, then hand back and end: the host loop is blocked on this pass (`magic-team.armed.md`'s **wait-never-quit** exception).
+3. **report-status-to-spawner**: Report the pass status, advance's outcome included, to the spawner, then hand back and end: the host loop is blocked on this pass (`magic-team.armed.md`'s **wait-never-quit** exception). The report states what was agreed this pass, per "The ladder: one rung at a time".
 
 # Routine's local procedures
 

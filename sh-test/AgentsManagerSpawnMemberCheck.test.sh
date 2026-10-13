@@ -33,10 +33,13 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerSpawnMemberCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPassPid=""
-trap '[ -z "$rigPassPid" ] || rigProcGroupSignal KILL "$rigPassPid" ; rigProcSignalKept KILL "$rigTmp"/sc/began.* ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp" 2> /dev/null || { sleep 3 ; rm -rf -- "$rigTmp" 2> /dev/null ; }' EXIT
+trap '[ -z "$rigPassPid" ] || rigProcGroupSignal KILL "$rigPassPid" ; rigProcSignalKept KILL "$rigTmp"/sc/began.* ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp" 2> /dev/null || { sleep 3 ; rm -rf -- "$rigTmp" 2> /dev/null ; }' EXIT
 rigWs="$rigTmp/ws-here" ; rigThere="$rigTmp/ws-there" ; rigHome="$rigTmp/home" ; rigData="$rigTmp/data" ; rigSc="$rigTmp/sc"
 rigSkills="$rigWs/.local/agents/members"
 rigThereSkills="$rigThere/.local/agents/members"
@@ -170,6 +173,8 @@ rigRun "$rigTmp/prompt.two" "$rigOp" keeper-myx
 rigFirst="$rigId"
 rigAssert "the start ends 0 with no error, and prints one line: a spawn row of five fields that names the member" "$rigRc $( rigErrors ) $( LC_ALL=C awk -F'\t' 'END { print NR }' "$rigTmp/out" ) $( LC_ALL=C awk -F'\t' '{ print $1, NF, $3 }' "$rigTmp/out" )" "0 0 1 spawn 5 keeper-myx"
 rigWaitFor 30 test -s "$rigSc/done.$rigFirst" || rigRefuse "the stand-in console never ran for the first start: $( rigFirstError "$rigTmp/err" )"
+rigAssert "a member started alone from the console has a control thread: the spawner made one start of the thread of its session, which the log of that thread holds" \
+	"$( LC_ALL=C grep -c -E -- " a start of the control thread of session $rigFirst is made: pid [0-9]+" "$rigWs/.local/agents/sessions/$rigFirst/control/log" 2> /dev/null )" "1"
 rigAssert "the console was started as that member, in the workspace the console is in" "$( LC_ALL=C awk '{ print $1 }' "$rigSc/who.$rigFirst" ) $( cat "$rigSc/where.$rigFirst" )" "keeper-myx $rigWs"
 rigAssert "it received the prompt in its brief, both lines, whole and in order" "$( rigPromptOf "$rigSc/brief.$rigFirst" )" "$( cat "$rigTmp/prompt.two" )"
 rigAssert "behind the spawn brief block of the standing default routine, which names the member and its duty file" \

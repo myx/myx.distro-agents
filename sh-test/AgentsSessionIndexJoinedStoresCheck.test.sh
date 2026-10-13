@@ -36,10 +36,13 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 [ -f "$rigHook" ] || rigRefuse "the native client's hook is missing: $rigHook"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsSessionIndexJoinedStoresCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The hold file keeps a restarted run alive; without it every fake console ends at once.
-trap 'rm -f "$rigTmp/hold" ; sleep 2 ; rm -rf -- "$rigTmp"' EXIT
+trap 'rm -f "$rigTmp/hold" ; sleep 2 ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"

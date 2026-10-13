@@ -36,9 +36,12 @@ rigRefuse(){
 [ -f "$rigHere/AgentsTools.Registries.include" ] || rigRefuse "not found: $rigHere/AgentsTools.Registries.include"
 [ -f "$rigHere/AgentsRegistryHeaderRows.awk" ] || rigRefuse "not found: $rigHere/AgentsRegistryHeaderRows.awk"
 [ -f "$rigTest/check-fixtures/AgentsToolsRegistriesRows.legacy.sh" ] || rigRefuse "legacy rows fixture not found"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsRegistryRowsDiffCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
-trap 'chmod -R u+rwx "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'chmod -R u+rwx "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds
 ## one of its ids for a run of its own, and another copy of this check for its own holder. So

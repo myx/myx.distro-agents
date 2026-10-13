@@ -9,7 +9,8 @@
 ## through operations of the tooling, each run as a process of its own (READS,
 ## CALLS, OperationReader), so that another front end can use the same operations.
 ## It reads no file of a session and no registry itself, and it signals no process
-## and starts no CLI itself: a kill and a start are operations too.
+## and starts no CLI itself: a kill, a start and the start of a control thread are
+## operations too.
 ##
 ## The logic is plain functions over one state (ManagerState): the layout, the
 ## levels of the list, the selection, the focus, the filter, what a key does and
@@ -125,9 +126,12 @@ READS = {
 ## names its routine by its selector, or takes the standing default routine with what was
 ## typed as its task text, which goes on standard input and is never a word of the command.
 ## One member is started by its name, with what was typed as its prompt, on standard input too.
+## The control thread of a session is started again by the id of that session: whether one
+## is started is the operation's to say, which starts none where one lives or none is needed.
 CALLS = {
     "kill:session": ["--manager-session-kill", "--session-id", "{id}"],
     "kill:run": ["--manager-session-kill", "--session-id", "{id}", "--run"],
+    "control": ["--manager-session-control-start", "--session-id", "{id}"],
     "launch": ["--magic-spawn-session", "--routine", "{id}"],
     "prompt": ["--magic-spawn-session", "--routine-default"],
     "start": ["--manager-spawn-member", "{id}"],
@@ -142,6 +146,7 @@ KEY_READ_NOW = "F5"
 ## The keys that act on what is selected: the key, and the name of its action.
 ACTION_KEYS = (
     ("k", "kill"),
+    ("c", "control"),
     ("p", "pause"),
     ("r", "resume"),
     ("s", "stop"),
@@ -155,6 +160,8 @@ ACTION_KEYS = (
 ACTION_HANDLERS = {
     ## asks for the typed word, then kills the selected session or agent: askKill, set where it is defined
     "kill": None,
+    ## starts the control thread of the selected session again, asking nothing first: askControl, set where it is defined
+    "control": None,
     "pause": None,
     "resume": None,
     "stop": None,
@@ -172,7 +179,7 @@ ACTION_HANDLERS = {
 ## of the screen. An ask has none: no key answers one, and answering in the manager comes
 ## to stand here.
 ITEM_ACTIONS = {
-    "sessions:record": ("kill", "pause", "resume", "stop", "restart", "log"),
+    "sessions:record": ("kill", "control", "pause", "resume", "stop", "restart", "log"),
     "sessions/*:record": ("kill", "pause", "resume", "stop", "restart", "log"),
     "pending:record": (),
     "team:record": ("start",),
@@ -994,6 +1001,11 @@ def registryDate(value):
 ## member, each with its state at the end of its row, and for a live agent its activity.
 ## A session that is one lone run with no name is no work session to look at: it shows
 ## plainer, dimmed, by the member that ran and the head of its id.
+## After its eight fields a `session` row says of the control thread of the session, the
+## tooling's own process that watches its runs: the state that thread stored, when, and
+## whether it is `alive`, `gone` or `none`. A session whose thread is gone carries the mark
+## of a process that is gone (MARK_GONE) ahead of its state; one whose thread lives, or that
+## has none, carries no mark. A row of the eight fields alone says nothing of it: `-`.
 def parseSessionLevels(text):
     levels = {"sessions": []}
     sessions = {}
@@ -1002,9 +1014,10 @@ def parseSessionLevels(text):
         if fields[0] == "session" and len(fields) >= 8:
             session = {"id": fields[1], "name": unspaced(fields[2]), "state": fields[3], "started": fields[4],
                        "stateAt": fields[5], "count": fields[6], "tally": fields[7], "runs": [], "lone": False}
+            session["stored"], session["storedAt"], session["control"] = fields[8:11] if len(fields) >= 11 else ("-", "-", "-")
             row = newRow(fields[1], session["name"] or fields[1], "record", True, fields)
             row["session"] = session
-            row["tail"] = session["state"]
+            row["tail"] = (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
             row["look"] = BOLD if session["state"] == "running" else PLAIN
             sessions[fields[1]] = row
             levels["sessions"].append(row)
@@ -1047,6 +1060,24 @@ def fieldLines(pairs, width):
     return lines
 
 
+## The line `control` of the left pane of a session: whether its control thread lives, with
+## its pid once the read of that one session has given it, and the state that thread stored
+## for the session with when it was set. It stands under the state the list derives, and
+## each of the two is shown as it is, also where they differ. From the read of the session
+## where it has come, which reads the stored state at every call, else from the row of the
+## list. `-` where neither says anything of it: a row and a read of before.
+def controlText(session, info=None):
+    told = (info or {}).get("control") or {"stored": session.get("stored", "-"), "storedAt": session.get("storedAt", "-"),
+                                           "control": session.get("control", "-"), "pid": "-"}
+    if told["control"] == "-" and told["stored"] == "-":
+        return "-"
+    thread = told["control"] + (", pid " + told["pid"] if told["control"] == "alive" and told["pid"] != "-" else "")
+    stored = "stored " + told["stored"]
+    if told["stored"] != "-" and told["storedAt"] != "-":
+        stored += ", set " + registryDate(told["storedAt"])
+    return thread + "; " + stored
+
+
 ## The selected session for the left pane, from its row and the rows of its runs:
 ## its state, when it started and ended, how many agents it has and in which states, and
 ## each agent with its state and since when it runs, or until when it ran. Once the read
@@ -1060,6 +1091,7 @@ def sessionLines(session, width, info=None, limit=0):
     lines = ["one lone run with no name", ""] if session["lone"] else []
     pairs = [
         ("state", session["state"]),
+        ("control", controlText(session, info)),
         ("started", registryDate(session["started"])),
         ("ended", registryDate(session["stateAt"])),
         ("agents", "%s: %s" % (session["count"], tally) if tally else session["count"]),
@@ -1179,18 +1211,22 @@ def isoEpoch(value):
 ## What `--manager-session-read` printed: rows of TAB-separated fields, the first naming
 ## the row. `dispatch` is what the session was started for; a `run` row is followed by the
 ## `header` rows of its record and by its `store` row. The `session` row is the list's own.
+## `control` is the control thread of the session: the state it stored and when, whether it
+## lives, and its pid. A read of before prints no such row, and leaves it None.
 STORE_NAMES = ("store", "model", "in", "cacheRead", "cacheWrite", "out", "asks", "marks",
                "milestoneAt", "milestone", "waits", "dismissedBy", "log", "transcript")
 
 
 def parseSessionRead(text):
-    info = {"dispatch": None, "runs": [], "bySpawn": {}}
+    info = {"dispatch": None, "control": None, "runs": [], "bySpawn": {}}
     for line in text.split("\n"):
         fields = line.split("\t")
         if fields[0] == "dispatch" and len(fields) >= 9:
             info["dispatch"] = {"founder": fields[2], "member": unspaced(fields[3]), "routine": unspaced(fields[4]),
                                 "item": unspaced(fields[5]), "sessionThread": unspaced(fields[6]),
                                 "trackingThread": unspaced(fields[7]), "description": unescaped(fields[8])}
+        elif fields[0] == "control" and len(fields) >= 6:
+            info["control"] = {"stored": fields[2], "storedAt": fields[3], "control": fields[4], "pid": fields[5]}
         elif fields[0] == "run" and len(fields) >= 12:
             run = {"session": fields[1], "spawn": fields[2], "member": fields[3], "status": fields[4],
                    "live": fields[5], "state": fields[6], "started": fields[7], "resolved": fields[8],
@@ -1341,6 +1377,10 @@ def sessionsSummary(state):
     if "running" in state.counters:
         lines.append("In the workspace: sessions %s running, %s paused; agents %s working, %s waiting." % tuple(
             state.counters.get(name, "-") for name in COUNTER_NAMES[:4]))
+    gone = len([row for row in state.rows.get("sessions", ()) if row.get("session") and row["session"].get("control") == "gone"])
+    if gone:
+        lines.append("%s a control thread that is gone (%s in the list)." % (
+            "1 session has" if gone == 1 else "%d sessions have" % gone, MARK_GONE))
     return lines
 
 
@@ -1620,6 +1660,68 @@ def killAnswer(text):
     return lines, ", ".join("%d %s" % (count, counted) for counted, count in counts)
 
 
+## The session `c` acts on at that row, or None where the row is no session: the control
+## thread is a session's, so an agent of one, a section and `Launch / Spawn` have none.
+def controlTargetOf(state, row):
+    if row is None or levelPattern(state.path) != "sessions" or not row.get("session"):
+        return None
+    return row["session"] if row["session"]["id"] not in ("", "-") else None
+
+
+## Whether the left pane names `c` under that row: a session that is not finished and whose
+## control thread does not live, by what the list said of both. The key itself is taken on
+## every session: whether a thread is started is the operation's to say.
+def controlFits(state, row):
+    session = controlTargetOf(state, row)
+    return session is not None and session.get("control") in ("gone", "none") and session["state"] != "finished"
+
+
+## `c`: asks the tooling to start the control thread of the selected session again. No
+## confirmation is asked: the operation ends nothing, and starts nothing where a thread
+## lives or none is needed. A row that is no session says that there is nothing to control
+## there. A start that was asked for and is not answered yet is not asked for a second time.
+def askControl(state, row):
+    session = controlTargetOf(state, row)
+    if session is None:
+        return "c: nothing to control here: c starts the control thread of a session"
+    if "action:control:" + session["id"] in state.asked:
+        return "c: the control thread of this session is asked for already, and its answer has not come"
+    askCall(state, "control", session["id"], callWords("control", session["id"]), None)
+    return "control thread asked of the tooling: the session %s" % row["label"]
+
+
+## What each <outcome> of a `control` row means, in words. An outcome that is not listed
+## here shows as it is printed.
+CONTROL_OUTCOMES = {
+    "started": "started",
+    "alive": "alive already",
+    "not-needed": "not needed",
+    "not-started": "not started",
+}
+
+
+## What `--manager-session-control-start` printed: one `control` row for the session, with
+## what became of the start. Given back: its words broken to the pane, for the left pane,
+## and the same words in one line, for the bottom line: the outcome, the pid of the thread
+## that was started or lives already, and the reason the row gives, a TAB of it as a space.
+def controlAnswer(text, width):
+    lines = []
+    said = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] != "control" or len(fields) < 5:
+            continue
+        words = CONTROL_OUTCOMES.get(fields[2], fields[2])
+        if fields[3] != "-":
+            words += ", pid " + fields[3]
+        reason = unescaped(fields[4])
+        if reason:
+            words += ": " + reason
+        said.append(" ".join(words.split()))
+        lines.extend("  " + part for part in wrapToCells(words, max(10, width - 3)))
+    return lines, "control: " + ("; ".join(said) if said else "the operation named no session")
+
+
 ## Enter on a routine of `Launch / Spawn`. One the session spawner would not start says
 ## why, and nothing is asked. For another the line to type in opens with the name the
 ## session takes from its routine, to be typed over: Enter there starts the routine, and
@@ -1717,13 +1819,17 @@ def startAnswer(text, name, width):
 ## for the left pane, where it stands while the item it was asked on stays selected; one
 ## line of it stands in the bottom line; and what is shown is read again, the list of the
 ## sessions with it. A call that failed shows its error line in both places, in the pane
-## after the rows it printed.
+## after the rows it printed. The start of a control thread that printed its row and failed
+## keeps the words of that row in the bottom line: the row says why none was started.
 def applyCall(state, result):
     about = state.asked.pop(result["key"], None) or {"action": "", "viewKey": None}
     if about["action"] == "kill":
         what = "the kill"
         lines, summary = killAnswer(result["text"])
         summary = "kill: " + (summary or "the operation named no run")
+    elif about["action"] == "control":
+        what = "the control start"
+        lines, summary = controlAnswer(result["text"], state.viewWidth)
     elif about["action"] == "start":
         what = "the start"
         lines, summary = spawnAnswer(result["text"], state.viewWidth)
@@ -1733,7 +1839,8 @@ def applyCall(state, result):
     if result["status"] != 0:
         what += " failed"
         operation = result["words"][0] if result["words"] else ""
-        summary = result["error"] if operation.lstrip("-") in result["error"] else "%s: %s" % (operation, result["error"])
+        if not (about["action"] == "control" and lines):
+            summary = result["error"] if operation.lstrip("-") in result["error"] else "%s: %s" % (operation, result["error"])
         lines = lines + wrapToCells(result["error"], max(10, state.viewWidth - 1))
     title = "%s, answered %s:" % (what, time.strftime("%H:%M:%S", time.localtime(nowEpoch())))
     state.notice = summary
@@ -1755,9 +1862,11 @@ def answerLines(state, limit):
 
 
 ACTION_HANDLERS["kill"] = askKill
+ACTION_HANDLERS["control"] = askControl
 ACTION_HANDLERS["launch"] = askLaunch
 ACTION_HANDLERS["prompt"] = askPrompt
 ACTION_FITS["kill"] = killFits
+ACTION_FITS["control"] = controlFits
 ACTION_FITS["launch"] = launchFits
 
 

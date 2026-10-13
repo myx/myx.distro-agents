@@ -74,7 +74,7 @@ Steps:
    - performance budget
 2. Think it through with the systems depth listed in Goals, building on the earlier sections of `PWA-VISION.md`.
 3. File the new section, labelled `(draft)`, to `magic-coordinator` with `post-inquiry`. It lands in `PWA-VISION.md` by the skillset change rule.
-   - An architecture-boundary question (one app or several) goes to `magic-architect` with `post-inquiry` instead of being decided here.
+   - An architecture-boundary question (one app or several) goes to `magic-architect` with `post-inquiry` instead of being decided here. A disagreement with `magic-architect`'s own call is the no-quorum document, per "The ladder: one rung at a time".
 
 # Team-Member's (-specific) local rules
 

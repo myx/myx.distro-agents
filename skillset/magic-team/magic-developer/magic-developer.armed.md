@@ -63,7 +63,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - Code craft follows `reference/code-craft.md`; shell and awk follow `reference/shell.md`. Neither is restated here.
 - A shell file's standard — bash 3.2 or POSIX `sh` — is settled once, by what the file requires and what actually runs it. New tooling takes the language order in `reference/shell.md`'s "Which language a piece of tooling is written in".
 - A language axiom surfaced in another member's work is proposed for the relevant module, under the skillset change rule (`magic-team/magic-team.armed.md`).
-- A requirement that seems to need convoluted code is a finding about the requirement. It goes to the human-owner, not into the code.
+- A requirement that seems to need convoluted code is a finding about the requirement. It goes to whoever set that requirement, not into the code — the human-owner only when he is that requester.
 
 # Domain knowledge: language craft
 

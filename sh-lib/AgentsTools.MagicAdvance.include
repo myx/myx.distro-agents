@@ -113,6 +113,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 		*"**NOTE:** no scan was made"*) return 0 ;;
 	esac
 	startedRows="$( printf '%s\n' "$measureText" | LC_ALL=C awk 'NF == 13 && $6 == "spawn-started" && $8 != "-" { print ; }' )"
+	type AgentsToolsSessionControlDeathHeld > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include" 2> /dev/null || :
 	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState ; do
 		[ -n "$rowTracking" ] || continue
 		recordPath="$spawnRoot/$rowTracking/$rowSpawn.md"
@@ -121,6 +122,9 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			running) continue ;;
 			no-process)
 				[ "$rowState" != waiting ] || continue
+				## A death that the control thread of its session keeps and has not settled is that thread's while it lives: it tells it and asks about it, and this pass
+				## neither closes nor tells that run (AgentsToolsSessionControlDeathHeld). With no thread alive the run is closed here as before.
+				! AgentsToolsSessionControlDeathHeld "$rowSession" "$rowSpawn" 2> /dev/null || continue
 				[ -z "$( find "$spawnRoot/$rowTracking" "$MMDAPP/.local/agents/sessions/$rowSpawn" "$MMDAPP/.local/agents/sessions/$rowSession" -type f -mmin -15 2> /dev/null | head -1 )" ] || continue
 				rowSide=local
 			;;
@@ -157,6 +161,10 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 				housekeepingLog="${housekeepingLog}housekeeping: $itemName $itemState->$targetState $endedOutcome"$'\n'
 			fi
 		done
+		## Its end is told to the session that requested it, as its supervising shell would have told it (AgentsToolsSpawnProxyEndNotice): for a run of this host
+		## whose shell is not there to tell it. A shell that still lives tells it at its own close (AgentsToolsRegistryRecordedSupervisor). Once, since this pass
+		## closes a record once; behind the record and the item, and nothing of it in what the scan prints.
+		[ "$rowSide" != local ] || [ "$( AgentsToolsRegistryRecordedSupervisor "$recordPath" 2> /dev/null )" = "alive" ] || AgentsToolsSpawnProxyEndNotice "$recordPath" > /dev/null || :
 	done <<< "$startedRows"
 	for itemPath in "$MDAT_DATA_ROOT"/board/running/dispatch-*.md ; do
 		[ -f "$itemPath" ] || continue

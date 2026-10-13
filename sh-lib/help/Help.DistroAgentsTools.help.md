@@ -3070,7 +3070,11 @@
 			none, and neither does one that a start its caller waits on
 			opened. One whose open records are all runs of another host,
 			or name no host or no run, cannot be watched from here. A
-			thread that lives is left alone. `--all` is the check now: it
+			thread that lives is left alone. Where a session named by
+			`--session-id` needs none, the pid file and the lock that a
+			thread which died left in its `control/` are removed, unless
+			one of them names a thread that lives: the session then reads
+			as one that has no thread. `--all` is the check now: it
 			reads every session of the workspace and starts the thread of
 			each that needs one and has none alive. The advance input scan
 			and each iteration of the main loop make that same check. So

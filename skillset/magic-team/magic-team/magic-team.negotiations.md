@@ -22,7 +22,7 @@ Managing several open topics across a multi-round exchange. The shared base for 
 
 ## Topic surfacing
 
-A topic outside the current scope is never silently absorbed or dropped. Ask the human-owner: extend the scope, or file it as its own item.
+A topic outside the current scope is never silently absorbed or dropped. Ask the session's own parent: extend the scope, or file it as its own item, per "The ladder: one rung at a time".
 
 ## Gap surfacing
 

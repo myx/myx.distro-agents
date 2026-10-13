@@ -27,8 +27,11 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsMemberPendingReplyCheck.XXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigStore="$rigTmp/ws/.local/agents/pending"
 mkdir -p "$rigStore" "$rigTmp/home" "$rigTmp/skills/magic-tester" "$rigTmp/data" "$rigTmp/bin" "$rigTmp/scenario"
 ## A settle marks the question in Slack; the Slack-shaped fake curl takes that, offline.

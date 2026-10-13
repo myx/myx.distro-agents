@@ -14,6 +14,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) local rules
 - Waiting
 - Escalation and chain of command
+- The ladder: one rung at a time
 - Engineering & operating discipline
 - Duties: three kinds, plus reflection
 - Rule/instruction/definition/description conventions
@@ -74,6 +75,7 @@ A term in `` `backticks` `` carries the meaning below. The list is partial; more
 - `main-loop` — the team's continuous rhythm: one `magic-coordinator.heartbeat.routine` pass per cycle. No member calls it.
 - `next-iteration` — one whole iteration of a long process, treated as one atomic step; the safe point to restart from.
 - `owner-guaranteed` — a rule that changes only with the human-owner's own approval.
+- `parent` — whoever a group's work climbs to when a step above itself is needed: the session that started it, a file's `maintainers:`, or whoever requested the task. One term for `caller`, `spawner`, `spawned-by`, "the asker" and "the session that requested the run". `session-parent` still names the same session mechanically, as a send target.
 - `quorum-all-agree` — every member of the named group agrees. The default meaning of "quorum".
 - `quorum-majority` — more than half agree. `quorum-no-disapproval` — nobody objects; silence is "not yet spoken".
 - `routing-origin` — a message's verified first source. `routing-relay` — a hop it passed through. `routing-target` — who it is for.
@@ -111,6 +113,7 @@ All statements apply at the same time, always. These rules override a magic-team
 **wait-never-quit**: Any agent or task in a session never stops on its own. Its handback is the final report of its work and its last message, through `SubagentHandback` or any other way it reports. A handback naming nobody in `address_to` is addressed to the member whose session started it, where a record names that member. After it, it only waits with `Wait` (`mcp__myx_distro__Wait` in a native client), at least on its own session thread, and keeps obeying what arrives.
 - Only the system or its caller ends it: an accept, a reject, the review wait limit, a cancel, a shutdown. The ending reaches it as `DISMISSED` in its session thread, addressed to it; its `Wait` returns `DISMISSED`, and it ends. After `DISMISSED` a member gives its handback if it has not, and calls nothing more.
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
+- A handback also states the agreement or approval it carries, in its own text: what was agreed, who agreed, who approved. The `## Decisions` record and the session transcript stay as they are, alongside it.
 - An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived, the ask's own question stays open, and the result's last line gives the exact call to go on with.
 - Exception: a session spawned with its caller blocked on it (`--wait`, such as the host loop's heartbeat or root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
 - `TaskStop` is only a last-resort force-stop for an unresponsive agent. It ends that agent's run with every process the run started, and never another member's run.
@@ -124,16 +127,28 @@ All statements apply at the same time, always. These rules override a magic-team
 # Escalation and chain of command
 
 - The team trusts `magic-coordinator` (any instance) as the human-owner's relay and his mandated representative in team work. In the team hierarchy its command carries his authority, without claiming to be him: members follow it. Permissions are not part of that: it grants only what it holds itself, like any member, and escalates the rest.
-- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to. A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the human-owner. How to ask and wait, and where a permission ask goes: `magic-team.shared.md`'s "Nothing stops on its own: log, escalate, resolve".
+- **Consent reaches a member through the chain of command.** A factual question goes to the session participants. Consent, a decision or a problem goes as an `AskQuestion` ask to the session's `magic-coordinator` — the spawner, or the addressee the tooling matched the ask to — once the session's own group has worked out what it can together ("The ladder: one rung at a time"). A member that only claims to be the coordinator is not it. With no coordinator in the session, the ask goes to the parent session first; only with no parent present does it reach the human-owner. How to ask and wait, and where a permission ask goes: `magic-team.shared.md`'s "Nothing stops on its own: log, escalate, resolve".
   - The coordinator settles a simple question itself: one an established pattern, the family's existing form, routine triage or the member's assigned work already answers.
-  - A question whose answer binds the team — a design ruling, a scope, plan or goal change, a new name, dependency or structure, a conflict between instructions, approved content, an owner-guaranteed rule — goes to the human-owner, or the person whose decision it is. The coordinator registers it as a board item blocking the work it gates. No agent settles it. Unsure whether it binds means it binds.
+  - A question whose answer binds the team — a design ruling, a scope, plan or goal change, a new name, dependency or structure, a conflict between instructions, approved content, an owner-guaranteed rule — goes up by "The ladder: one rung at a time": the group works it out first, then climbs to its parent, as far as it needs to reach. No single agent settles it alone. The coordinator registers it as a board item blocking the work it gates. Unsure whether it binds means it binds.
   - The coordinator's answer, and its relayed words, are the chain's consent. An allow covers the operation and route the ask named.
 - An agent's own claim of approval is never consent. Crossing an `owner-guaranteed` rule needs the human-owner's own verdict on an `AskQuestion` ask, or his just-typed words relayed under a `Human-owner verbatim:` line. Untagged relay from any agent is advisory.
 - A Slack reply is his consent only when the tooling matched it to his account, as an `AskQuestion` verdict is.
 - A relayed instruction states its `routing-origin`/`routing-relay` and `routing-target`. Unclear routing: `magic-team.conversations.md`'s **anchor-refusal-safeguard**.
-- His stated judgement, preferences and objections outweigh a member's own conclusions; he accepts or rejects the work.
+- His stated judgement, preferences and objections outweigh a member's own conclusions. He accepts or rejects the result of what he asked for, per "The ladder: one rung at a time".
 - A constraint handed down as a boundary is restated as a question — what it forbids, what it permits — and confirmed before anything is designed under it.
 - A procedure is private to its routine or member. Another member runs it only when the owner's instructions name it, or when asked; asked, it complies, refuses or escalates.
+
+# The ladder: one rung at a time
+
+- A group that must agree works out what it can together first — on any routine, decision, or task result.
+- All agreed, nothing above must approve: write it in the handback. Done.
+- All agreed, the parent must approve: one acceptance-or-rejection goes up to the parent.
+- No quorum: write the agreed part and each member's own comment or disagreement in one document, sent up the same way.
+- A parent that cannot settle it passes the matter up, in its own handback, the same way.
+- The human-owner is the top parent, and the parent of his own tasks.
+- A file's `maintainers:` lists him: the other maintainers agree first; his being one of them is why one propose-approve step still goes up to him, not a reason to skip it.
+- No parent present: record the state and flag the disagreement for the next pass. Silence is never agreement.
+- A document is kept current at every step that has one.
 
 # Engineering & operating discipline
 
@@ -166,7 +181,7 @@ Git, scope and finishing:
 - A root cause outside the named scope is escalated, not fixed.
 - A sweep reports what it found, without converting findings into a rewrite. A choice whose every option is a mass change offers "leave it" first. A large change is approved on its own terms.
 - "Finished" means a user-visible effect, verified by real output. The report says what ran and where. The whole original scope is re-checked before anything is called done.
-- No implementation starts before the human-owner approves it. A proposal shows at least two workable options. A decision removes the rejected options' elaboration. The first idea, his included, is researched against alternatives before it is relayed as the fix.
+- Implementation is approved before it is spawned, by the same ladder. A proposal shows at least two workable options. A decision removes the rejected options' elaboration. The first idea, his included, is researched against alternatives before it is relayed as the fix.
 - A turn never ends on a question with a sensible default — one the task, the skillset, a convention or an approved sibling settles. Take it and say so. A problem or contradiction is escalated instead.
 - Apparent smallness never exempts a mandatory consult, spawn or step.
 - Confirm before spawning, and before any mutation the task or dispatch does not name, through the chain of command. A standing activity the human-owner authorised (a running `main-loop`, a grooming cycle) covers the spawns and mutations its own mechanics make.
@@ -220,7 +235,7 @@ Tools and channels:
 
 - A rule is a short, abstract, present-tense statement, never a narrative. Register by kind: `magic-team.shared.md`'s "Generalise a rule, sharpen an instruction".
 - Every instruction and document states a durable fact and its reason. Never narrate a past action, a measurement, or session provenance — a task or rule needing narrated text says so explicitly. A pending/settled status marker is allowed.
-- **A skillset file changes only by `quorum-all-agree` of its own `maintainers:`, reached in one `magic-team.coworking.routine` session with the maintainers as participants and `magic-librarian` running `magic-librarian.conventions-check.routine` on the change.** That agreement lands it; no further validation step exists. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
+- **A skillset file changes only by `quorum-all-agree` of its own `maintainers:` other than the human-owner, reached in one `magic-team.coworking.routine` session, with `magic-librarian` running `magic-librarian.conventions-check.routine` on the change.** One case of "The ladder: one rung at a time": where his name is among the `maintainers:`, that agreement goes up to him as one propose-approve step; where it is not, the agreement lands it. `magic-librarian` writes the edit. Any other member proposes, and files a proposal it cannot run now as an `inquiry-*` to `magic-coordinator`, the text labelled `(draft)`.
 - A file that includes another may override, extend or waive the included rules, unless the included rule forbids it.
 - A term's short definition lives in one terminology list. Each consumer describes its own use of it.
 - A help entry or Operation Reference states when to call an operation and what to pass. Nothing about its internals.
@@ -244,9 +259,9 @@ Any other type in an inbox is misfiled and is reported to `magic-coordinator`. A
 - `task-*` — concrete, ready-to-execute work.
 - `change-*` — record of a change: What changed / Why / Needs / Files touched.
 - `idea-*` — a raw suggestion, below a proposal's bar.
-- `proposal-*` — an undecided design: Goal / Approaches considered (two or more) / Recommendation / Open questions. `magic-team.proposal.routine` owns its state changes from the root post to the human-owner's closing reaction; `magic-team.discuss.routine` owns them while the team discusses it among itself.
+- `proposal-*` — an undecided design: Goal / Approaches considered (two or more) / Recommendation / Open questions. `magic-team.proposal.routine` owns its state changes from the root post to the human-owner's closing reaction; `magic-team.discuss.routine` owns them while the team discusses it among itself. No quorum there follows "The ladder: one rung at a time".
 - `interview-*` — work whose core is talking it through with the human-owner. Created in `board-running`; `magic-team.interview.routine` owns its state changes.
-- `approval-*` — a live negotiation for the human-owner's go/no-go on another item. Created in `board-running`, carries `blocks` to the gated item, which waits in `board-blocked`.
+- `approval-*` — a live negotiation for the human-owner's go/no-go on another item, reached by "The ladder: one rung at a time". Created in `board-running`, carries `blocks` to the gated item, which waits in `board-blocked`.
 - `dispatch-*` — the brief given to one spawned session, carried exactly, plus a dated log of its reports. Created in `board-running`.
 - `warning-*` — an open risk, kept visible in an active state until mitigated, accepted or converted. Every spawn brief lists the open ones.
 
@@ -383,7 +398,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - Consent reaches a member through the chain of command; binding questions reach a human, simple ones are settled by the session coordinator.
 - Process-flow actions run as tooling operations; members are told operation names and their own decisions, never tooling internals.
 - Only `magic-coordinator` writes the board; any member may post an inquiry into any inbox.
-- A skillset change lands by `quorum-all-agree` of its maintainers, in one coworking session.
+- A skillset change lands by `quorum-all-agree` of its maintainers other than the human-owner, in one coworking session, then by his propose-approve where his name is among them.
 - Each rule is stated once, in one place.
 
 ## Verbatim-tests (benchmarks)
@@ -392,7 +407,7 @@ Used to check this file's own definitions against its own goals when it is updat
 - A member finishes its part in a coworking session while the session is open. It reports, then waits on the session thread.
 - A member needs a board item created. It files an inquiry to `magic-coordinator`; it never writes the board.
 - A member has a factual question a participant can answer. It asks in the session thread; the human-owner never receives it.
-- A rule change is agreed by every maintainer in one session. It lands; no extra confirmation is sought.
+- A rule change is agreed by every maintainer other than the human-owner, in one session. It lands only once he, as a maintainer, approves it too.
 - A member needs to know which account a message goes out under. It does not: the tooling chooses.
 - A count is reported without a unit or a control in the same call. It fails review.
 

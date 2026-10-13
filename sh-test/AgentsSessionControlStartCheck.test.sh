@@ -18,7 +18,7 @@
 ##   3. NO STORM. The check leaves a session alone for five minutes after the last line of the log of its thread:
 ##      a thread that has just ended is not started again at once; once the log is older, it is. A start by name
 ##      is made at once.
-##   4. BY NAME, A SESSION THAT GETS NONE: a finished one and a waited one are `not-needed`, status 0; one of
+##   4. BY NAME, A SESSION THAT GETS NONE: a finished one and a waited one are `not-needed`, status 0, and keep nothing of a thread that died: its pid file and its lock are removed, never those of a thread that lives; one of
 ##      another host alone, and one whose open record names no run, are said so, status 1; an id no record
 ##      carries is one error line, status 1. The own id of a run names its session.
 ##   5. TWO CALLS AT ONCE leave one thread: one is `started`, the other is told `alive`.
@@ -32,7 +32,7 @@
 ##   8. The caller rule of the family, the syntax, the help pair, and the form of every row.
 ##   9. THE GUARD OVER sh-test. A thread is a detached process that outlives the check, and one whose rig is
 ##      removed never ends by itself. So every check that names an operation which starts control threads, the
-##      advance input scan, the main loop or this one, ends the threads of its rig in its EXIT trap, through
+##      advance input scan, the main loop, this one or one of the spawner's, ends the threads of its rig in its EXIT trap, through
 ##      sh-test/check-fixtures/rig-control-threads.include.test.sh, which this check holds too: a new check that
 ##      names one and does not fails here.
 ## Red before the operation existed: every assertion but the controls. Offline: only the rig's own tree is read or
@@ -302,9 +302,49 @@ echo "-- 5. by name, a session that gets none --"
 rigRun "$rigOp" --session-id "$( rigId c )"
 rigAssert "a finished session needs none: not-needed, status 0, no folder made and no process" \
 	"$rigRc:$( rigTroubles ):$( rigOut ):$( rigThreads c ):$( [ -e "$rigStores/$( rigId c )" ] && echo folder || echo none )" "0:0:control|$( rigId c )|not-needed|-|every run of it has closed its record, and a finished session needs no thread:0:none"
+## WHAT A THREAD THAT DIED LEFT IN A SESSION THAT HAS FINISHED: its pid file and its lock, each naming a process
+## that is gone, beside the log of the thread and the state it kept. The list shows such a session as one whose
+## thread is gone, for good: nothing starts a thread there again that would take them over. So the start that
+## answers that the session needs none removes those two, and nothing else.
+rigListed(){ ## short name of a session -- the word the list of sessions shows for its control thread
+	rigRun --manager-session-list
+	LC_ALL=C awk -F'\t' -v wantId="$( rigId "$1" )" '$1 == "session" && $2 == wantId { print $NF }' "$rigTmp/out"
+}
+rigStand '' ; rigLeftPid="$rigStandPid" ; rigLeft="$( rigProcBegan "$rigLeftPid" )"
+rigProcSignal KILL "$rigLeftPid" ; rigWaitFor 10 rigEnded "$rigLeftPid"
+rigLeftDir="$rigStores/$( rigId c )/control"
+mkdir -p "$rigLeftDir"
+printf '%s\n' "$rigLeft" > "$rigLeftDir/pid" ; ln -s "$rigLeft" "$rigLeftDir/lock"
+printf 'the log of the thread that died\n' > "$rigLeftDir/log" ; printf 'finished\n' > "$rigLeftDir/state"
+rigAssert "control: a finished session whose thread died reads gone in the list of sessions, by the pid file and the lock it left" "$( rigListed c )" "gone"
+rigRun "$rigOp" --session-id "$( rigId c )"
+rigAssert "a finished session whose thread died: not-needed as before, and the pid file and the lock, which name a process that is gone, are removed" \
+	"$rigRc:$( rigTroubles ):$( rigOut ):$( [ -e "$rigLeftDir/pid" ] && echo pid || echo no-pid ):$( [ -L "$rigLeftDir/lock" ] && echo lock || echo no-lock )" "0:0:control|$( rigId c )|not-needed|-|every run of it has closed its record, and a finished session needs no thread:no-pid:no-lock"
+rigAssert "nothing else of its control folder is touched, and nothing was started: the log and the state stand as they were" \
+	"$( cat "$rigLeftDir/log" 2> /dev/null ):$( cat "$rigLeftDir/state" 2> /dev/null ):$( ls "$rigLeftDir" 2> /dev/null | LC_ALL=C tr '\n' ' ' ):$( rigThreads c )" "the log of the thread that died:finished:log state :0"
+rigAssert "the session then reads none in the list of sessions" "$( rigListed c )" "none"
+## The files of a thread that lives are never touched: a finished session whose pid file and lock name a live process
+## has a thread, and is told alive; and so it is where only its lock names that process, and its pid file one that is gone.
+rigRec g g g "$rigHost" spawn-succeeded "$rigClosed"
+rigStand '' ; rigLivePid="$rigStandPid" ; rigLive="$( rigProcBegan "$rigLivePid" )"
+rigLiveDir="$rigStores/$( rigId g )/control"
+mkdir -p "$rigLiveDir"
+printf '%s\n' "$rigLive" > "$rigLiveDir/pid" ; ln -s "$rigLive" "$rigLiveDir/lock"
+rigRun "$rigOp" --session-id "$( rigId g )"
+rigAssert "a finished session whose pid file and lock name a process that lives: alive, and both stand as they were" \
+	"$rigRc:$( rigOut ):$( cat "$rigLiveDir/pid" 2> /dev/null ):$( readlink "$rigLiveDir/lock" 2> /dev/null )" "0:control|$( rigId g )|alive|$rigLivePid|-:$rigLive:$rigLive"
+printf '%s\n' "$rigLeft" > "$rigLiveDir/pid"
+rigRun "$rigOp" --session-id "$( rigId g )"
+rigAssert "nor is either removed where the lock alone names the process that lives, and the pid file one that is gone" \
+	"$rigRc:$( rigOut ):$( cat "$rigLiveDir/pid" 2> /dev/null ):$( readlink "$rigLiveDir/lock" 2> /dev/null )" "0:control|$( rigId g )|alive|$rigLivePid|-:$rigLeft:$rigLive"
 rigRun "$rigOp" --session-id "$( rigId f )"
 rigAssert "nor does one that a start its caller waits on opened, though its run is alive" \
 	"$rigRc:$( rigTroubles ):$( rigOut ):$( rigThreads f )" "0:0:control|$( rigId f )|not-needed|-|the start that opened it is one its caller waits on, and that caller watches it:0"
+mkdir -p "$rigStores/$( rigId f )/control"
+printf '%s\n' "$rigLeft" > "$rigStores/$( rigId f )/control/pid" ; ln -s "$rigLeft" "$rigStores/$( rigId f )/control/lock"
+rigRun "$rigOp" --session-id "$( rigId f )"
+rigAssert "a session its starter waits on needs none either, and keeps nothing of a thread that died: not-needed, and both are removed" \
+	"$rigRc:$( rigOut | LC_ALL=C cut -d '|' -f 3 ):$( [ -e "$rigStores/$( rigId f )/control/pid" ] && echo pid || echo no-pid ):$( [ -L "$rigStores/$( rigId f )/control/lock" ] && echo lock || echo no-lock ):$( rigThreads f )" "0:not-needed:no-pid:no-lock:0"
 rigRun "$rigOp" --session-id "$( rigId e )"
 rigAssert "a session of another host alone gets none: its row says whose its runs are, status 1, nothing started" \
 	"$rigRc:$( rigOut ):$( rigSaid '1 control thread(s) could not be started' ):$( rigThreads e ):$( [ -e "$rigStores/$( rigId e )" ] && echo folder || echo none )" "1:control|$( rigId e )|not-started|-|its open records are runs of another host (elsewhere), which cannot be watched from here:1:0:none"
@@ -451,9 +491,12 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 ## input scan and the main loop, for every session that is not finished, and the console's start. A check that
 ## names one of them, outside a comment, sources the fixture (sh-test/check-fixtures/rig-control-threads.include.test.sh)
 ## and ends the threads of its rig in its EXIT trap, before its tree is removed: a thread whose rig is gone never
-## ends by itself. A new check that names one and does not end them fails here. The spawner joins this list with
-## the task that has it start a thread when it opens a session.
-rigGuardOps='--magic-advance-input-scan|--intern-main-loop|--manager-session-control-start'
+## ends by itself. A new check that names one and does not end them fails here. And the spawner, by each of its
+## operations: the supervising shell of a start that is not waited for starts the thread of its session, so a check
+## that names the spawn proxy, the heartbeat's own, the start of a session or the console's start of a member ends
+## them too, whether its own starts wait or not: the guard reads names. So does one that names the return of a
+## review, which starts an ended run again, or the harness's own tool that brings a member in.
+rigGuardOps='--magic-advance-input-scan|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
 rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names one of the operations and does not end the threads of its rig, then how many name one
 	local guardFile guardNamed=0
 	for guardFile in "$1"/*.test.sh ; do
@@ -469,8 +512,8 @@ rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names
 rigGuarded="$( rigGuard "$rigPackage/sh-test" )"
 rigAssert "every check of the package that names one of those operations sources the fixture and ends the threads of its rig in its EXIT trap" \
 	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep -c '^NOT ENDED: ' ):$( printf '%s\n' "$rigGuarded" | LC_ALL=C grep '^NOT ENDED: ' | LC_ALL=C tr '\n' ' ' )" "0:"
-rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the scan's and the main loop's among them" \
-	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopPassBoundCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/$rigName.test.sh" | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyy"
+rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the scan's, the main loop's and three of the spawner's among them" \
+	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopPassBoundCheck AgentsSpawnDetachCheck AgentsMagicSpawnSessionCheck AgentsManagerSpawnMemberCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/$rigName.test.sh" | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyyyyy"
 ## Made to fail: a check that calls the scan and ends nothing, one that sources the fixture and never calls it,
 ## and beside them one that does both, one that names the operation in a comment alone, and one that names none.
 mkdir -p "$rigTmp/probe"
@@ -479,8 +522,9 @@ printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-te
 printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-input-scan' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo nothing' > "$rigTmp/probe/None.test.sh"
-rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, and one that only sources the fixture; not one that ends them, nor one that names the operation in a comment alone" \
-	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh named: 3 "
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
+rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, and one that starts a session through the spawner and ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
+	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh named: 4 "
 
 echo "-- 11. nothing is left running, and nothing was asked of the network --"
 rigThreadsEnd

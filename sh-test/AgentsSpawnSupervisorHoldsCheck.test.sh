@@ -55,6 +55,9 @@ rigRefuse(){
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
+## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsSpawnSupervisorHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
@@ -74,7 +77,7 @@ rigCleanup(){
 	rigProcSignal KILL $rigKept
 	chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"
 }
-trap rigCleanup EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rigCleanup' EXIT
 
 ## THE RIG'S OWN PROCESS LIST. The ps first on PATH answers the whole-host listing from the rig's own list, beside
 ## it, which holds no line: no process of the host is ever read as a run, and a run of this rig lives by the
@@ -388,6 +391,10 @@ rigAssert "the run ends with nobody reading what its waiting shell writes, and t
 
 echo "-- 6. the close: the record first, then the item, and what is posted after them --"
 rigStart close-order ""
+## The poller of its launch says what it saw while the run still runs, one post, at a moment of its own: waited
+## for here, before the run is let go, so that every call noted from the run's end on is one of its close.
+rigLaunchSaid(){ [ "$( rigCalls chat.postMessage )" -ge 3 ] ; }
+rigWaitFor 20 rigLaunchSaid
 : > "$rigDir/order-on"
 ## From here the fake Slack refuses every post.
 rigNo=0 ; while [ "$rigNo" -lt 40 ] ; do echo channel_not_found ; rigNo=$(( rigNo + 1 )) ; done > "$rigDir/post-errors"

@@ -29,7 +29,7 @@ session: coworking
 
 ## Goals
 
-- Converge a framed decision among the members it concerns, typically a `proposal-*` item past interview and brainstorm.
+- Converge a framed decision among the members it concerns, typically a `proposal-*` item past interview and brainstorm — all agreed, or the no-quorum document, per "The ladder: one rung at a time".
 - Keep collection (`magic-team.interview.routine`), idea generation (`magic-team.brainstorm.routine`) and decision distinct.
 
 ## Scope
@@ -50,13 +50,13 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **surface-options-and-tradeoffs**: lay out the real alternatives, never one answer dressed as a discussion, steps:
    - bring in `magic-architect` for a structural question, `magic-librarian` for docs or conventions, the owning `keeper-*`/`partner-*` for a domain question.
    - work the sub-points as small questions or statements to approve, per **collect-dont-converge** in `magic-team.interview.routine` and `magic-team.negotiations.md`'s topic mechanics.
-4. **converge-explicitly**: state the resolution plainly. Running out of time or information: say the session did not converge.
-5. **checkpoint-decide-vs-build**: a decision about to become a build or edit dispatch is confirmed through the chain of command first. A decision is never by itself a mandate to implement.
-6. **keep-tracking-item-current**: with a tracking item behind the decision, keep its `# Context Detail` current: options weighed, settled, still open. The item's body stays a timeless statement of the proposal, per "A rule statement stays a rule statement".
-7. **record-the-outcome**: write the decision, and the rejected alternatives where useful, into the document it binds, per **decision-lands-in-the-document-it-binds**. Propose any new item (piece, type, goal) and wait for confirmation before filing it, unless the human-owner asked for it. For a `proposal-*` item, steps:
+4. **converge-explicitly**: state the resolution plainly. Running out of time or information: say the session did not converge, and write it up as the no-quorum document — the agreed part, and each member's own argument — sent up by "The ladder: one rung at a time".
+5. **checkpoint-decide-vs-build**: a decision about to become a build or edit dispatch is confirmed first by the ladder: the group's own parent, or the human-owner where he asked for it, per "The ladder: one rung at a time". A decision is never by itself a mandate to implement.
+6. **keep-tracking-item-current**: with a tracking item behind the decision, keep its `# Context Detail` current: options weighed, settled, still open, and — no quorum — one section per dissenting member, as the no-quorum document. The item's body stays a timeless statement of the proposal, per "A rule statement stays a rule statement".
+7. **record-the-outcome**: write the decision, and the rejected alternatives where useful, into the document it binds, per **decision-lands-in-the-document-it-binds**. Propose any new item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time", unless the human-owner asked for it himself. For a `proposal-*` item, steps:
    - a decision that binds the team, or needs the human-owner's go: put it to him with `magic-team.proposal.routine`; the item keeps its state until he closes it.
    - otherwise, `magic-coordinator` resolves the item: to `board-processed` with the decision as its resolution, approved or rejected. An approved item's `blocks:` items with every `blocked-by` resolved move to `board-pending`.
-   - another executor hands the outcome to `magic-coordinator` with `post-inquiry`.
+   - another executor hands the outcome to `magic-coordinator` with `post-inquiry`, which carries it back to whoever asked for this session, per "The ladder: one rung at a time".
 
 # Closure steps
 

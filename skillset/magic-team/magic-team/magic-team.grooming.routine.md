@@ -90,7 +90,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
      - `status: dispatch-succeeded` → `board-processed`.
      - `status: dispatch-failed` with `tracks:` → close it to `board-processed` with the reason; to retry, return the tracked item to `board-pending` with what the retry needs.
      - `status: dispatch-failed`, no `tracks:` → close it to `board-processed` with the failure. Its work may be dispatched anew by judgement.
-   - apply `magic-team.handback-review.routine` to each item the scan's `## review items addressed to grooming.routine` section lists.
+   - apply `magic-team.handback-review.routine` to each item the scan's `## review items addressed to grooming.routine` section lists, the group acting as this item's parent for review, per "The ladder: one rung at a time".
    - recheck `board-running` items, steps:
      - a claimed completion gets a `magic-tester` testing round, in place.
      - testing clean → `board-processed`; clean but needing the human-owner's sign-off → `board-blocked`.
@@ -112,7 +112,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - apply the important-vs-eager distinction, informed by the scores, never decided by them.
    - read the recorded `blocks:`/`blocked-by:` edges and surface them; never recompute them here.
    - among items close in priority, prefer the one nearest to approval: the smallest remaining gap and the likeliest clean approval, whatever its size.
-8. **review-with-the-user**: present the reprioritised backlog to the human-owner as a conversation. He reorders, pushes back or approves before it is final.
+8. **review-with-the-user**: present the reprioritised backlog to the human-owner as a conversation: what the team commits to, not each sub-task inside it. He reorders, pushes back or approves before it is final.
 
 # Closure steps
 
@@ -174,7 +174,7 @@ All statements apply at the same time, always. These rules override a participan
 - An item unchanged since the last pass still gets a glance, not a re-litigation.
 - A `blocked` item with nothing left to try is parked, never given a token action.
 - Scores and recorded dependency order that disagree are both recorded truthfully.
-- A promoted item passes the task-creation lifecycle before it reaches `board-pending`: investigation, assessment with `magic-architect`, doc and proposal check with `magic-librarian`, a polished proposal with `magic-coordinator`, the human-owner only on real doubt. `magic-coordinator`'s "Dispatch & delegation" fast gate is a separate permission check, run at intake.
+- A promoted item passes the task-creation lifecycle before it reaches `board-pending`: investigation, assessment with `magic-architect`, doc and proposal check with `magic-librarian`, a polished proposal with `magic-coordinator`, the human-owner only where the group has no quorum, per "The ladder: one rung at a time". `magic-coordinator`'s "Dispatch & delegation" fast gate is a separate permission check, run at intake.
 - Each board move is announced in the session thread as it happens, plus one closing summary. A pass that finds nothing still reports "nothing new".
 - Slack reactions on resolved items are `magic-coordinator`'s `check-pending-comms-actions` procedure's job, never this routine's.
 

@@ -49,7 +49,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - step: name the concrete scenario the item affects — what breaks, under what condition.
    - step: name the sensitivity point — the single design choice that most changes that scenario's outcome.
 3. **refresh-stale-scores**: Where refining an old score depends on facts outside this member's knowledge, consult the domain-owning member rather than guessing.
-4. **record-on-item**: Hand the scores to `magic-coordinator` for recording on each item: in the session's report, or with `post-inquiry` when no session coordinator is present.
+4. **record-on-item**: Hand the scores to `magic-coordinator` for recording on each item: in the session's report, or with `post-inquiry` when no session coordinator is present. The report states what was agreed, per "The ladder: one rung at a time".
 
 # Closure steps
 

@@ -85,10 +85,11 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - assess it with `magic-architect`, live.
    - turn it into a proposal.
    - present it to the human-owner in this interview for approval.
+   - a disagreement between `magic-architect` and the executor becomes the no-quorum document before it reaches him, per "The ladder: one rung at a time".
    - approved: dispatch it per **dispatch-settled-points**.
 10. **run-bigger-mechanism-cycle**: for a mechanism or design, driven by this same session, steps:
     - once its shape settles, spawn a coworking sub-session (for example `magic-librarian`, `magic-architect`, `magic-tester`) to produce a tested work plan grounded in real files.
-    - collect the plan in this session and dispatch its pieces, asking small questions only where something is still ambiguous.
+    - collect the plan in this session and dispatch its pieces, asking small questions only where something is still ambiguous. The sub-session's own result climbs back by "The ladder: one rung at a time": agreed, or the no-quorum document where it is not.
     - queue what the plan defers as board items, with `restart-session:` naming the same members.
     - a sub-session not yet finished keeps its piece open on the item; **resume-review** picks it up on the next pickup.
 11. **record-two-verbatim-kinds**: keep two separate lists, bullets, never paraphrased:
@@ -123,8 +124,8 @@ All statements apply at the same time, always. These rules override a participan
   - post a `STATE` block: `session goal`, `session transcript`, `session members`, `session scope`, `session constraints`, `expected outputs`, `board usage` (`NO` unless directly authorised).
   - post a `DISPATCH PAYLOAD` block: the exact payload, verbatim.
   - a risky, irreversible or detail-sensitive action adds the line `member confirms dangerous/detail action`.
-  - execute nothing until the human-owner answers `APPROVE`. `NO`: nothing runs.
-- Nothing is filed mid-interview unilaterally: propose the piece, type and goal, and wait, unless the human-owner asked for that filing.
+  - execute nothing until the human-owner answers `APPROVE` for that piece's own dispatch. `NO`: nothing runs.
+- Nothing is filed mid-interview unilaterally: propose the piece, type and goal, and wait for the session's own parent to confirm it, per "The ladder: one rung at a time", unless the human-owner asked for that filing himself.
 - **Unattended rounds.** `magic-coordinator.advance.routine` runs one round per pass on an open interview, with nobody present. The round runs **resume-review** for pieces whose approval is already recorded, then **reassess-before-next-message**, sending at most one message. It never creates an interview item, never approves, files or dispatches anything not already approved, and never reads silence as an answer.
 - `GOOD`/`BAD INTERVIEW`, or `GOOD`/`BAD ASSESSMENT` pinned to a quoted statement: read back the understood lesson and record it per **quality-marker-creates-reflection**. This file changes only by the skillset change rule.
 - **Scope-steering keywords.** Each is read back and confirmed before it counts. Its topic stays on the record, unlike content under `magic-team.conversations.md`'s `DETOUR:` marker (**detour-offtopic-marker**):

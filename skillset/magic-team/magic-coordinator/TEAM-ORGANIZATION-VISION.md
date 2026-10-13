@@ -45,7 +45,7 @@ How the magic-* team is organised: execution model, operating rhythm, work pacin
 - Partner members are present but non-reporting by default: roll call only, no automatic work session, unless a case is raised for a one-on-one.
 - Idle-day findings go through a proposal pipeline. The member that found one never acts on it directly.
 - A small, obviously safe finding is dispatched back to the proposing member.
-- A finding involving cross-subsystem change, large refactoring or another member's domain goes to a joint review with everyone implicated, before design assessment.
+- A finding involving cross-subsystem change, large refactoring or another member's domain goes to a joint review with everyone implicated, before design assessment. A disagreement in that joint review is the no-quorum document, per "The ladder: one rung at a time".
 - Assessment weighs risk, profit and effort with normalised scores, re-scored for the whole backlog at every grooming. Scores inform priority; they never decide it alone.
 - Outcomes compact into a hierarchical, cross-referenced form, never a growing flat list.
 - Open, not yet built: partner members becoming more active, with their own log, where a shared project with another team is live.

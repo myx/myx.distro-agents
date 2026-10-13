@@ -219,37 +219,6 @@ AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may
 	return 1
 }
 
-## What the tooling itself tells the participants of a session, in its session thread, about
-## the run of one of them: one message, its text the note template's
-## (sh-lib/templates/tooling-note.post.format.md, `# Session`), sent through the member send
-## as the team bot in the name of the member it is about, and addressed to the member that
-## brought that one in, where that is known. Never a tracking post: the box that tracks the
-## same fact goes to the tracking thread, by its caller. Silent with no session thread. Never
-## fails the spawn: one stderr warning at most.
-AgentsToolsSpawnProxySessionNotice(){ ## session thread, the member it is about, whom it is told (may be empty), line (a heading under `# Session`), count (may be empty)
-	local noticeThread="$1" noticeMember="$2" noticeTell="" noticeName="$4" noticeText="" noticeArgs
-	[ -n "$noticeThread" ] || return 0
-	noticeArgs=( "$noticeMember" "$noticeThread" --identity-bot )
-	## Addressed to the member that brought it in, where the send can address it, and to nobody
-	## where there is none: never to the member it is about, whose run has ended.
-	type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
-	if [ -n "${3:-}" ] && [ "$3" != "$noticeMember" ] && AgentsToolsAssertBareName "$3" "the spawning member" agent-spawn-proxy 2> /dev/null \
-		&& AgentsToolsTeamMemberDirectory "$3" > /dev/null 2>&1 ; then
-		noticeTell="$3"
-		noticeArgs=( "${noticeArgs[@]}" --address-to "$noticeTell" )
-	fi
-	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
-	noticeText="$( ASKP_BLOCK="Session/$noticeName" ASKP_F_member="$noticeMember" ASKP_F_run="${MDAT_SPAWN_SESSION_ID:0:8}" ASKP_F_count="${5:-}" ASKP_F_address_to="$noticeTell" \
-		AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || noticeText=""
-	if [ -z "$noticeText" ] ; then
-		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line could not be filled from sh-lib/templates/tooling-note.post.format.md, so the session thread $noticeThread was not told" >&2
-		return 0
-	fi
-	printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > /dev/null 2>&1 \
-		|| echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not posted in the session thread $noticeThread" >&2
-	return 0
-}
-
 ## A SUPERVISING SHELL HOLDS UNTIL ITS CLOSE IS DONE. The shell that started a run waits on
 ## it and then closes it: its record, its item, the lines that say how it ended. An end sent
 ## to that shell before then -- a polite end, an interrupt, a quit; to it alone, or to the
@@ -296,9 +265,10 @@ AgentsToolsSpawnProxyHelperEnd(){ ## what AgentsToolsSpawnProxyHelperBegan print
 ## at all leaves nothing in the session thread, so the tooling says so itself: the box that
 ## tracks it in the session's tracking thread, and one message in the session thread for
 ## the member that brought this one in (AgentsToolsSpawnProxySessionNotice).
-## SubagentHandback writes no marker of its own -- it is a formatted SendMessage, nothing
-## more -- so this checks for its announce line in outputFile, the same replay-matched-prefix
-## idiom AgentsToolsSpawnProxyEventTrackClose already uses above. Silent when there is
+## Whether it handed back is the one reading of that (AgentsToolsSpawnProxyHandbacks,
+## AgentsTools.SpawnSandbox.include): the transcript of the run first, which holds each
+## handback that was delivered, whichever CLI ran and however its log shows a call; the
+## announce line of the call in outputFile only where that transcript holds none. Silent when there is
 ## neither thread, or no output file to check: a spawn with nowhere captured is not reported
 ## wrongly as silent.
 ##   $1 = session thread, $2 = member, $3 = output file, $4 = session id, $5 = the session's
@@ -316,7 +286,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 	local warnCliArgs=( "$@" )
 	[ ${#warnCliArgs[@]} -gt 0 ] || warnCliArgs=( --cli-configured )
 	[ -n "$warnThread$warnTrack" ] && [ -n "$warnLog" ] && [ -f "$warnLog" ] || return 0
-	LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
+	[ -z "$( AgentsToolsSpawnProxyHandbacks "${MDAT_SPAWN_SESSION_ID:-}" "$warnLog" )" ] || return 0
 	## A closed session is never resumed, as a closed child is never messaged (AgentsToolsBoardAcceptDismissChild,
 	## AgentsReviewChildLive): no retry, the handback-missing notice below, and the close takes its item to review.
 	warnClosed="$( AgentsToolsSpawnProxyRetryClosed "${MDAT_SPAWN_SANDBOX_ROOT:+$MDAT_SPAWN_SANDBOX_ROOT/${MDAT_SPAWN_SESSION_ID:-none}.md}" "${MDAT_SPAWN_SESSION_ID:-}" )" || warnClosed=""
@@ -376,7 +346,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 		done
 		kill "$warnWatchPid" 2>/dev/null || :
 		wait "$warnWatchPid" 2>/dev/null || :
-		LC_ALL=C grep -qE '📦 SubagentHandback|^  -> tool: (mcp__myx_distro__)?SubagentHandback' "$warnLog" 2>/dev/null && return 0
+		[ -z "$( AgentsToolsSpawnProxyHandbacks "${MDAT_SPAWN_SESSION_ID:-}" "$warnLog" )" ] || return 0
 	fi
 	## Still none. Said here, at once, unless the caller says it itself once it has closed the
 	## run's record (agentsSpawnProxyHandbackNoticeLater): a post that cannot be made must never
@@ -388,8 +358,11 @@ AgentsToolsSpawnProxyHandbackWarn(){
 
 ## The two lines that say a run ended with no handback, after its one retry: the box that
 ## tracks it in the session's tracking thread, and one message in the session thread for the
-## member that brought this one in (AgentsToolsSpawnProxySessionNotice). Only where
-## AgentsToolsSpawnProxyHandbackWarn found none, and once for that finding.
+## member that brought this one in (AgentsToolsSpawnProxySessionNotice,
+## AgentsTools.SpawnSandbox.include). Only where AgentsToolsSpawnProxyHandbackWarn found
+## none, and once for that finding. A close gives no session thread here, and so has the box
+## alone: how its run ended it tells itself, to the session that requested the run
+## (AgentsToolsSpawnProxyEndNotice).
 ## Never fails the spawn: one stderr warning at most per Slack call.
 AgentsToolsSpawnProxyHandbackNotice(){ ## session thread, member, the session's tracking thread, the member that brought this one in (the last two may be empty)
 	[ "${agentsSpawnProxyHandbackMissing:-}" = "yes" ] || return 0
@@ -1964,7 +1937,7 @@ case "$1" in
 			trap 'AgentsToolsSpawnProxyHeld TERM' TERM
 			trap 'AgentsToolsSpawnProxyHeld INT' INT
 			trap '' PIPE
-			local spawnOutcome
+			local spawnOutcome spawnHandback="seen"
 			spawnOutcome="$( AgentsToolsSpawnProxyOutcome "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$timedOut" )" || spawnOutcome="failed"
 			AgentsToolsSpawnProxyAnnounceCli "$MDAT_SPAWN_LAUNCH_MARKER" || :
 			## The handback retry first, before any close step: it resumes this very session, so it
@@ -1987,7 +1960,14 @@ case "$1" in
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			## A launch the poller had no time to see, said now, before the end post.
 			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
-			AgentsToolsSpawnProxyHandbackNotice "$sessionThread" "$callerName" "$eventTrackThread" "$spawnerMember" || :
+			## The box of a missing handback, in the tracking thread. And HOW THE RUN ENDED, TOLD TO
+			## THE SESSION THAT REQUESTED IT (AgentsToolsSpawnProxyEndNotice): a missing handback, an
+			## end with its handback elsewhere, a kill, a stop, the bound of this wait. Here, behind
+			## the record and the item, so a post that cannot be made is one warning and holds
+			## neither open.
+			[ "${agentsSpawnProxyHandbackMissing:-}" != "yes" ] || spawnHandback="missing"
+			AgentsToolsSpawnProxyHandbackNotice "" "$callerName" "$eventTrackThread" "" || :
+			AgentsToolsSpawnProxyEndNotice "$sandboxTracking" "$spawnHandback" "$( [ "$timedOut" = "0" ] || printf '%s' "$waitTimeoutSeconds" )" caller-waits || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$spawnOutcome" "$exitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" "$timedOut" "$waitTimeoutSeconds" "$eventTrackStart" || :
 			## Its close is done: the hold is taken off, and the broken pipe is as its caller had
 			## it. What is left has no bound of its own.
@@ -2070,6 +2050,35 @@ case "$1" in
 			## Nor its caller's standard input: nothing this shell calls reads it, and a terminal
 			## held there would stop this whole group at the first that tried.
 			exec < /dev/null
+			## THE CONTROL THREAD OF THE SESSION (--intern-session-control) is started here, with
+			## the first member of a session and again by any member that joins while none lives,
+			## by the one function every starter of a thread calls (AgentsToolsSessionControlStart,
+			## AgentsTools.SessionControlStart.include). Here, in the shell that supervises the
+			## run, and not in the call that started it: the folder of the session and the record
+			## of this run exist, so the thread finds something to watch at its first tick, and its
+			## start can neither hold, fail nor delay the spawn, whose call has printed its lines
+			## and returned. A lone run gets one too. A thread that lives is left alone: the
+			## function answers `alive`, which is no error. THIS BRANCH IS NEVER A START ITS CALLER
+			## WAITS ON, which gets none; and a member that joins a session that such a start
+			## opened starts none either (AgentsToolsSessionControlWaited), as no other starter
+			## does. Nor is one started while a start of it is in flight, made a moment ago by the
+			## member that was started just before this one (AgentsToolsSessionControlStarting):
+			## the members of one session are started one after the other, and its thread once.
+			## The thread is the tooling's own process and no run: detached by the function,
+			## nothing of this member in its environment, and nothing on this run's record names
+			## it. A start that fails is one warning in this run's log, and the run goes on.
+			local controlSaid=""
+			type AgentsToolsSessionControlStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include" 2> /dev/null || :
+			if ! AgentsToolsSessionControlWaited "$sessionId" 2> /dev/null && [ -z "$( AgentsToolsSessionControlStarting "$sessionId" 2> /dev/null )" ] ; then
+				controlSaid="$( AgentsToolsSessionControlStart "$sessionId" 2> /dev/null )" || :
+				case "$controlSaid" in
+					"started "*|"alive "*) ;;
+					*)
+						controlSaid="${controlSaid#failed - }"
+						echo "$MDSC_CMD: agent-spawn-proxy: ⚠️ WARNING: the control thread of session $sessionId could not be started: ${controlSaid:-the start said nothing} -- the run goes on without one, and a later start, by a member that joins, the advance scan, the main loop or the console, makes it again" >&2
+					;;
+				esac
+			fi
 			## The event-track thread is the session's debug feed (AgentsTools.EventTrackFeed.include).
 			type AgentsEventTrackFeedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
 			AgentsEventTrackFeedOpen "$MDAT_SPAWN_SESSION_ID" "$eventTrackThread"
@@ -2115,7 +2124,11 @@ case "$1" in
 			AgentsSessionTokensHeaderUpdate "$MDAT_SPAWN_SESSION_ID" 2>/dev/null || :
 			## A launch the poller had no time to see, said now, before the end post.
 			AgentsToolsSpawnProxyEventTrackLaunchedPost "$eventTrackThread" "$callerName" "$MDAT_SPAWN_LAUNCH_MARKER" "$spawnCliResolved" || :
-			AgentsToolsSpawnProxyHandbackNotice "$sessionThread" "$callerName" "$eventTrackThread" "$spawnerMember" || :
+			## The box of a missing handback, and how the run ended, told to the session that
+			## requested it, as in the waiting branch (AgentsToolsSpawnProxyEndNotice).
+			bgHandback="seen" ; [ "${agentsSpawnProxyHandbackMissing:-}" != "yes" ] || bgHandback="missing"
+			AgentsToolsSpawnProxyHandbackNotice "" "$callerName" "$eventTrackThread" "" || :
+			AgentsToolsSpawnProxyEndNotice "$sandboxTracking" "$bgHandback" "" "" || :
 			AgentsToolsSpawnProxyEventTrackClose "$eventTrackThread" "$callerName" "$bgOutcome" "$bgExitCode" "$MDAT_SPAWN_LAUNCH_MARKER" "$outputFile" 0 0 "$eventTrackStart" || :
 			local spawnCollected=""
 			spawnCollected="$( DistroAgentsTools --intern-op-pending-reply-collect --session-id "$MDAT_SPAWN_SESSION_ID" --mark-ended \

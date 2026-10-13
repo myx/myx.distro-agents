@@ -61,7 +61,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    - **reconcile-lost-reply**: A `board-blocked` item waiting on a reply the registry no longer holds open: read its `communication-channel-id` thread. The addressee's answer is there: apply it and continue the item. None: re-ask the same party in that thread (`AskQuestion`, `wait: false`) and keep the item blocked, outcome `nudged`. A missing record is never consent and never a deny. An open ask never expires by age: the human may be away for weeks. It is closed only when its question is no longer current, is a duplicate, was resolved another way, or its session is complete and closed.
 5. **advance-review-items**: For each `board-review` item whose `review-by` is `magic-coordinator`, `advance.routine` or empty (the scan's "review items addressed to advance.routine" section lists the routine's own), steps:
    - trivial: apply `magic-team.handback-review.routine` to it
-   - anything else: leave it in `board-review`
+   - anything else: leave it in `board-review` for the item's own parent, per "The ladder: one rung at a time"
 6. **advance-process-comms**: Run `magic-coordinator.communication-sweep.routine`'s Steps inline, against this pass's board read.
 7. **advance-run-process-board**: Run `check-process-board` (`magic-coordinator.armed.md`) against this pass's read.
 8. **advance-run-execute-board**: Run `check-execute-board` (below) against this pass's read.
@@ -118,11 +118,11 @@ Every `board-running` item, every pass. An item whose `recheck-date` is still in
 
 ### Per-type rules for `board-running` items
 
-Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and this rule.
+Each item is a tracking document. Spawning work on it spawns the group its `participants` names, with the goal, the task, the document and this rule. No quorum among that group becomes the no-quorum document, carried the same way.
 
 - `approval-*`: `recheck-date` due and not resolved → ask the human-owner in its tracked thread, else on his direct channel (`AskQuestion`, `wait: false`), alone in its own message. Extend it with `--recheck-in 17±2`. The ask is open, so it is not posted twice.
 - `interview-*`: run exactly one round of `magic-team.interview.routine`'s **resume-review** and **reassess-before-next-message** over its tracked thread. The round dispatches only pieces already approved, and sends at most one outward message, or one explicit close-out, then move on: the next pass continues it. With no tracked thread (`communication-channel-id` not `slack:<channel>:<ts>`), post the round to the human-owner and write the returned thread back as `communication-channel-id` (`--magic-advance-to-running --from-state:running`). A round finding every question resolved and none new moves the item to `board-processed` (`--magic-board-to-processed`).
-- `proposal-*`: carrying a `communication-channel-id`, it is in front of the human-owner (`magic-team.proposal.routine`). Read the thread root's closing reaction first: one is there, apply its outcome per that routine's **close-on-root-reaction**. None: take the `approval-*` rule. Otherwise run `magic-team.discuss.routine` over it this pass. That routine's **record-the-outcome** makes the move; approved or rejected, the item goes to `board-processed`.
+- `proposal-*`: carrying a `communication-channel-id`, it is in front of the human-owner (`magic-team.proposal.routine`). Read the thread root's closing reaction first: one is there, apply its outcome per that routine's **close-on-root-reaction**. None: take the `approval-*` rule. Otherwise run `magic-team.discuss.routine` over it this pass. That routine's **record-the-outcome** makes the move; approved or rejected, the item goes to `board-processed`, or carries the no-quorum document up where it does not converge, per "The ladder: one rung at a time".
 - `task-*`/`project-*`: completion claimed and no clean testing round → dispatch a `magic-tester` round in place. A stale testing round gets a fresh one. Otherwise apply the staleness checks above.
 - `dispatch-*`: nudge per the rule above, and append its report as a dated log entry (`--magic-advance-to-running --from-state:running`). The tooling moves a finished dispatch to `board-review`.
 - `change-*`: `recheck-date` due → check whether the change landed. Landed → `board-processed`. Not yet → `--recheck-in 17`.

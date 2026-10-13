@@ -837,6 +837,10 @@ case "$1" in
 				controlAnswer="$( AgentsToolsSessionControlStart "$controlSession" )" || :
 				controlLines="$controlSession ${controlAnswer:-failed - the start said nothing}"
 			fi
+			## A session that needs none keeps nothing of a thread that died: the pid file and the
+			## lock such a thread left are removed, where neither names a thread that lives, and
+			## the session then reads as one that has no thread (AgentsToolsSessionControlLeftovers).
+			case "$controlLines" in "$controlSession needless - "*) AgentsToolsSessionControlLeftovers "$controlSession" ;; esac
 		fi
 		## What became of each start is asked before its row is printed, all of them within one
 		## bound: a thread holds its session within a second or so of its start.

@@ -17,9 +17,11 @@
 ## sessions PageDown reaches the last one, a drawing writes no more rows than with five, and four hundred keys are
 ## taken in a few seconds; and inside a session `a` throws nobody out: the level of that session is read without
 ## the filter and keeps its agents, whatever its state, while the list above it shows the active ones.
-## And a `session` row with more fields at its end than the eight the screen takes -- the state the control thread
-## of a session stored, its date, and whether that thread lives -- is read as the row it was: the list, the left
-## pane of a session and of an agent, and the level of a session are drawn cell for cell as from rows without them.
+## And a `session` row of the eight fields alone still draws: the pane of its session says `-` of the control
+## thread. With the three more fields at its end -- the state the control thread of a session stored, its date, and
+## whether that thread lives -- the list marks the one session whose thread is gone and the pane of a session says
+## what they tell; everything else, the left pane of an agent and the level of a session among it, is drawn cell
+## for cell as from rows without them. AgentsManagerScreenControlCheck holds what is shown of the control thread.
 ## The reads of one selected session or agent are taken out of the table here: AgentsManagerScreenPaneCheck holds them.
 ## Offline: no operation of the real tooling is called, and no session of this machine is read.
 set -u
@@ -233,11 +235,11 @@ turn
 show u
 RIGSCRIPT
 rigAssert "one read gave all of it"                                  "$( rigCalls ) $( rigVal a.selected )" "1 $rigS1"
-rigAssert "its state, and when it started"                           "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )]" "[ daily of Monday][ state     running][ started   2026-10-12 16:57 +0300 (9h ago)]"
-rigAssert "how many agents it has, and in which states"              "[$( rigPane s 5 )][$( rigPane s 6 )]" "[ agents    3: 2 running, 1 finished][ session   $rigS1]"
-rigAssert "each agent with its state"                                "[$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
+rigAssert "its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )]" "[ daily of Monday][ state     running][ control   -][ started   2026-10-12 16:57 +0300 (9h ago)]"
+rigAssert "how many agents it has, and in which states"              "[$( rigPane s 6 )][$( rigPane s 7 )]" "[ agents    3: 2 running, 1 finished][ session   $rigS1]"
+rigAssert "each agent with its state"                                "[$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )]" \
 	"[ magic-coordinator  running waiting  since 2026-10-12 16:57 +0300][ magic-tester       running working  since 2026-10-12 17:05 +0300][ keeper-myx         finished         until 2026-10-12 18:00 +0300]"
-rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 5 )][$( rigPane t 7 )][$( rigPane t 8 )]" \
+rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 5 )][$( rigPane t 8 )][$( rigPane t 9 )]" \
 	"[ one lone run with no name][ state     finished][ ended     2026-10-11 14:51 +0300 (35h ago)][ agents    1: 1 finished]"
 rigAssert "on the row that goes up the pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 sessions.][ In the workspace: sessions 1 running, 0 paused; agents 1 working, 1 waiting.]"
 
@@ -353,7 +355,7 @@ rigAssert "PageUp returns to the first row"                          "$( rigVal 
 rigAssert "a drawing writes no more than with five sessions: only the rows in view" "$( rigVal last.puts ) $( rigVal last.spills )" "$rigPutsFew 0"
 rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
-echo "-- a session row with more fields at its end is read as the row it was --"
+echo "-- a session row of eight fields still draws, and the three more fields change nothing else that is drawn --"
 ## The same five sessions, each `session` row with three more fields after its eight, as the operation prints them
 ## now: one with a stored state and a live control thread, one whose thread is gone, one that ended in order, and
 ## two that never had one. The `run` rows and the row of counters are as they were.
@@ -391,7 +393,16 @@ RIGSCRIPT
 rigDrawnEight="$( rigWideDrawn five.rows )"
 rigDrawnEleven="$( rigWideDrawn wide.rows )"
 rigAssert "control: the screen was driven through the list, a session, its level and an agent, and drew each" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^l|' -e '^s|' -e '^i|' -e '^t|' -e '^u|' | LC_ALL=C awk '{ print ( $1 >= 200 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^a\.rows=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^in\.path=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn 7 sessions/$rigS1 0"
-rigAssert "the screen reads the rows by position as before: with the three more fields at the end of each session row it draws and reports cell for cell what it draws from the eight" "$( [ "$rigDrawnEleven" = "$rigDrawnEight" ] && echo same || { echo differs ; diff <( printf '%s\n' "$rigDrawnEight" ) <( printf '%s\n' "$rigDrawnEleven" ) | head -6 ; } )" "same"
+rigLeftOf(){ ## a drawing -- its lines as they are, but of each line of a screen the left pane alone, without the spaces at its end, and of that nothing where it speaks of a control thread; how many lines the pane holds is left out, and how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
+	printf '%s\n' "$1" | LC_ALL=C grep -v -e '\.viewLines=' -e '\.frames=' | LC_ALL=C awk '{ cutAt = index( $0, "│" ) ; if ( substr( $0, 2, 1 ) != "|" || ! cutAt ) { print ; next } leftText = substr( $0, 1, cutAt - 1 ) ; sub( / +$/, "", leftText ) ; if ( leftText ~ /control/ ) leftText = substr( $0, 1, 2 ) ; print leftText }'
+}
+rigListOf(){ ## a drawing -- of each line of a screen the list alone, after the tag of its screen, without the spaces at its end
+	printf '%s\n' "$1" | LC_ALL=C grep '^[a-z]|.*│' | LC_ALL=C sed -e 's/^\(..\).*│/\1/' -e 's/[ |]*$//'
+}
+rigAssert "from the eight fields the pane of a session says - of its control thread, and no row of the list carries a mark" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s| control   -  ' -e '^u| control   -  ' ) $( rigListOf "$rigDrawnEight" | LC_ALL=C grep -c -e ' x [a-z-]*$' )" "2 0"
+rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's| control   alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u| control   none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
+rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-8000-… x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l| 1 session has a control thread that is gone (x in the list).' )" "3 3 1"
+rigAssert "everything else is read by position as before: but for what it says of the control thread, the screen draws and reports cell for cell what it draws from the eight" "$( [ "$( rigLeftOf "$rigDrawnEleven" )" = "$( rigLeftOf "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigLeftOf "$rigDrawnEight" ) <( rigLeftOf "$rigDrawnEleven" ) | head -6 ; } )" "same"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SESSIONS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

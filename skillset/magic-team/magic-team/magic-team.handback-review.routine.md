@@ -23,7 +23,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-`magic-team.handback-review.routine` is how a reviewer settles a `board-review` item: a handback arrived, or its child ended with no verdict. Its executor is the reviewer the item's `review-by` names; it is assigned to the `board-review` state.
+`magic-team.handback-review.routine` is how a reviewer settles a `board-review` item: a handback arrived, or its child ended with no verdict. Its executor is the reviewer the item's `review-by` names — the item's parent for its review; it is assigned to the `board-review` state. The tooling posts, in the thread of the session that requested the run, a fact-only note of how it ended (no handback; handed back in another thread; killed from the console, by whom; stopped by whose `TaskStop`; ended at the bound of a wait; or died): it decides nothing, the reviewer's own verdict does. For a death the control thread asks this reviewer a decision instead — `resume`, `fresh`, `close` or `kill` — and until the tasks that read the answer are live, the answer changes nothing by itself.
 
 ## Goals
 
@@ -42,7 +42,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **review-read**: Read the item, its handback, the output it names, and its `## Decisions`.
+1. **review-read**: Read the item, its handback, the output it names, its `## Decisions`, and any end-of-run note the tooling left in the session's own thread.
 2. **review-choose**: Choose a verdict, or a combination of them:
    - accept: the work is done.
    - return: the same session continues, with your corrections. You may edit its documents or its sandbox first.
@@ -83,7 +83,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 ## Verbatim-goals (intents)
 
-- An agent never quits on its own: the system or its caller orders every end, and a handback's verdict is one of those orders.
+- An agent never quits on its own: the system or its parent orders every end — its caller, or whoever its `review-by` names — and a handback's verdict is one of those orders.
 - Tooling does the mechanical work; this routine only says what a reviewer may do.
 
 ## Verbatim-tests (benchmarks)

@@ -60,26 +60,26 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **invite-participants-visibly**: invite each participant as it joins, at the start or mid-session, steps:
    - post `Inviting <alias>...` into the session thread, the alias from the member's own Public Information.
    - the member loads its own `Skill` and posts its armed confirmation into the same thread, in its own voice.
-   - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate.
+   - no confirmation: wait per **wait-never-quit**, then re-invite once. Still none: say so in the thread, then continue without the member if the task allows, or escalate per "The ladder: one rung at a time".
 4. **orchestrate-the-shared-task**: the executor leads the work as a participant, rules:
    - keep the session on its goal; redirect drift.
    - make the real-time judgement calls a solo dispatch would leave to one member.
-   - carry every participant's stuck point to an outcome.
+   - carry every participant's stuck point to an outcome — the group's own agreement, carried up by "The ladder: one rung at a time", never a personal ruling.
    - the collaboration shape (hand-offs, parallel pieces, live back-and-forth) is the task's own; nothing here fixes it.
 5. **narrate-progress-in-thread**: post each scope change and each piece of work starting, as one short line in the session thread (`updated session scope: ...`, `applying ...`).
-6. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest.
+6. **report-out-with-transcripts**: post the session's report into the session thread, with enough of the working transcript to show how the outcome was reached. The report is the executor's own text under the output-style floor; transcript excerpts are marked quotation, never restyled. Redact a sensitive part and keep the rest. A handback to the session's own parent follows, carrying what was agreed, per "The ladder: one rung at a time".
 
 # Closure steps
 
 1. **close-session**: the shared closing group, steps:
-   - **post-closing-broadcast**: post the session's substance into the session thread — resolutions, triage outcomes, highlights — not a one-line summary. Coworking-like sessions: `magic-coordinator` makes the closing Trello card update the same way. Trello writes are `magic-coordinator`'s only.
+   - **post-closing-broadcast**: post the session's substance into the session thread — resolutions, triage outcomes, highlights — not a one-line summary. The same substance reaches the session's own parent in the closing handback. Coworking-like sessions: `magic-coordinator` makes the closing Trello card update the same way. Trello writes are `magic-coordinator`'s only.
    - **secure-continuity**: all participants: each checks its own part of the session, steps:
      - write anything important that lives only in this session into its own inbox: a `note-*` or a `reflection-*`. A proposed skillset change goes to `magic-coordinator` as an `inquiry-*`, its text labelled `(draft)`.
      - write a ruling on the work into that work's own document, per **decision-lands-in-the-document-it-binds**.
      - reflect on this session's real incidents, if any: corrections, conflicts with the human-owner's words, gaps found live. Frame a broken assumption as "the model was wrong".
      - run `magic-team.process-inbox.routine <own-name>`, covering what was just filed and any item this session touched.
    - **compact-session-context**: ad-hoc/solo sessions only: confirm nothing important lives only in this session, so it is safe to clear.
-   - **offer-skill-update-discussion**: coworking-like sessions only: name to the human-owner any member file or routine this session showed is due for an update, and the gap. An offer; he decides now or later.
+   - **offer-skill-update-discussion**: coworking-like sessions only: name to the file's own maintainers any member file or routine this session showed is due for an update, and the gap. An offer; they decide now or later, by "The ladder: one rung at a time".
    - **conclude-session-thread**: react ✅ on the session thread's root with `--member-comms-slack-react`. No live session thread: skip.
 
 # Routine's local procedures
@@ -116,7 +116,7 @@ All statements apply at the same time, always. These rules override a participan
   - a workspace or namespace a `keeper-*`/`warden-*` owns: that member. A `partner-*`/`client-*` specialist stays `magic-coordinator`'s call.
 - **A real tool choice goes to `magic-devops`**, invited like any participant. The chair never picks the tool.
 - Solo dispatch is only for clear, checkable work one member fully owns. Independent pieces are fan-out; shared, interacting work is coworking.
-- A decision outside the session's mandate goes through `magic-coordinator`.
+- A decision outside the session's mandate goes up to the session's own parent, by "The ladder: one rung at a time" — `magic-coordinator` where it is that parent, else whoever started the session.
 - Goal-directedness: work toward the session's goal. Off-goal items are recorded quickly, not acted on now.
 
 # Routine-specific tooling

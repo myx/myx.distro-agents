@@ -32,11 +32,14 @@
 ##   log    what the thread did, a line an event, never a line a tick: its start and its
 ##          end, a lock taken over, a state set, a tick that could conclude nothing (said
 ##          once, not at every such tick). It is bounded: see AgentsToolsSessionControlLogBound.
+##   dead, gone, post.<run id>   what the thread keeps of the death of a run, and of what is
+##          posted about it: AgentsTools.SessionControlDeath.include says what each holds.
 ## The words of the state: `running` while a run of the session is alive on this host,
-## `finished` once none is and every record of the session is closed. A session with no run
-## alive and a record still open is neither: nothing is written, and the state stays as it
-## was. That is the place of the word of a death, which a later task writes. The words of a
-## paused, a sleeping and a stopped session come with their steps.
+## `finished` once none is and every record of the session is closed, and `member-dead`
+## while a run of it has died and what is done about that is not settled, whatever its other
+## runs do. A session with no run alive and a record still open that is no death is none of
+## the three: nothing is written, and the state stays as it was. The words of a paused, a
+## sleeping and a stopped session come with their steps.
 ##
 ## A tick reads the records of the session, the process list of this host and the state
 ## file, and nothing else: no network, no tool of an agent, no registry. Which run is alive
@@ -82,6 +85,14 @@
 ## cannot be made because the interpreter or the script is gone, and a shell that ends
 ## five times in a row within seconds of its start, which is not put back a sixth time. A
 ## later task starts a dead thread again.
+## And one end is the end of what it watches: where the folder of its session is gone from
+## the disk, alone or with the store above it, the thread ends at its next tick, makes
+## nothing again, and says so in one line on its standard error.
+##
+## A DEATH IS TOLD AND ASKED ABOUT APART FROM THE TICK. What is posted about a death is one
+## bounded call of the tooling, a process of its own that the thread starts and never waits
+## for (`--death`, AgentsToolsSessionControlDeathStart): a call to Slack that hangs holds no
+## tick, and one that failed is tried again at a later tick and said in the log.
 ##
 ## It runs as no member: whatever session it is started from, nothing of that session
 ## reaches what it does or what it starts.
@@ -396,6 +407,219 @@ $witnessLine
 	return 1
 }
 
+## One file of the control folder written whole: aside, and put in place by one rename.
+AgentsToolsSessionControlKeep(){ ## name of the file, its text
+	{ printf '%s\n' "$2" > "$controlDir/$1.$controlPid.aside" && mv -f "$controlDir/$1.$controlPid.aside" "$controlDir/$1" ; } 2> /dev/null \
+		|| { rm -f "$controlDir/$1.$controlPid.aside" 2> /dev/null ; return 1 ; }
+	return 0
+}
+
+## One setting of the thread, a number of seconds, of the scope magic-team: what is set,
+## else its default; a value that is no number above zero reads as the default.
+AgentsToolsSessionControlSeconds(){ ## key, default
+	local secondsValue
+	secondsValue="$( DistroAgentsTools --agents-config-option magic-team --select-default "$1" "$2" 2> /dev/null )" || secondsValue=""
+	case "$secondsValue" in ''|*[!0123456789]*|0|????????*) secondsValue="$2" ;; esac
+	printf '%s\n' "$secondsValue"
+}
+
+## WHAT IS POSTED ABOUT ONE DEATH IS STARTED APART FROM THE TICK: the thread's own operation
+## as a process of its own, `--death`, which makes the one bounded call
+## (AgentsToolsSessionControlDeathPost, AgentsTools.SessionControlDeath.include). It is never
+## waited for and never signalled. What it says goes to the log of the thread. The process
+## is kept in control/post.<run id>, as `<pid> <start>`: while that is still that process no
+## second post about the same death is started, by this thread or by one started again.
+AgentsToolsSessionControlDeathStart(){ ## run id
+	local startRun="$1" startPid="" startBegan=""
+	(
+		exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-session-control --death --session-id "$controlSession" --spawn-id "$startRun"
+	) < /dev/null >> "$controlDir/log" 2>&1 &
+	startPid="$!"
+	case "$startPid" in
+		''|*[!0123456789]*)
+			AgentsToolsSessionControlOnce nopost "the process that posts about the death of run $startRun could not be started -- it is tried again at the next tick"
+			return 0
+		;;
+	esac
+	disown "$startPid" 2> /dev/null || :
+	startBegan="$( printf '%s\n' "$startPid" | AgentsToolsRegistryProcessesBegan )" || startBegan=""
+	AgentsToolsSessionControlKeep "post.$startRun" "${startBegan:-$startPid}" || :
+	AgentsToolsSessionControlSay event "session $controlSession: the death of run $startRun: what is told and asked about it is posted by pid $startPid, apart from the tick, within ${controlPostBound}s"
+	return 0
+}
+
+## ONE DEATH THAT IS NOT SETTLED, at one tick. The line of the death is the caller's
+## deathsLine, and is changed here. In order:
+## - a post about it in flight is left to end, by looking and never by waiting;
+## - a post that has ended left its result: what it told and what it asked is kept on the
+##   line, and a result that says the death is settled settles it. A post that failed, or
+##   left nothing, is said in the log, and the next is started no sooner than the bound of
+##   a post later;
+## - a death whose question is asked waits for its answer: reading it and carrying it out
+##   are tasks of their own, and nothing more is posted here;
+## - a death whose record another closer closed before it was told and asked here is
+##   settled: that closer told its end, by its own rule;
+## - else a post about it is started.
+AgentsToolsSessionControlDeathStep(){
+	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil=""
+	stepMarker="$controlDir/post.$stepRun"
+	stepStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	[ -n "$controlPostBound" ] || controlPostBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_POST_SECONDS 120 )"
+	if [ -f "$stepMarker" ] ; then
+		{ IFS= read -r stepHolder < "$stepMarker" ; } 2> /dev/null || stepHolder=""
+		AgentsToolsSessionControlHolderLives "$stepHolder"
+		case "$?" in 0|2) return 0 ;; esac
+		{
+			while IFS= read -r stepOne || [ -n "$stepOne" ] ; do
+				stepKey="${stepOne%%: *}" ; stepValue="${stepOne#*: }"
+				[ "$stepKey" != "$stepOne" ] || continue
+				stepRead="yes"
+				case "$stepKey" in
+					told|asked)
+						case "$stepValue" in
+							failed) stepFailed="yes" ;;
+							''|*[[:space:]]*) ;;
+							*) case " $deathsLine " in *" $stepKey="*) ;; *) deathsLine="$deathsLine $stepKey=$stepValue" ;; esac ;;
+						esac
+					;;
+					closed)
+						case " $deathsLine :$stepValue" in
+							*" settled="*) ;;
+							*:yes) deathsLine="$deathsLine settled=$stepStamp how=told" ;;
+							*:elsewhere) deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere" ;;
+						esac
+					;;
+					error) stepFailed="yes" ; stepError="$stepValue" ;;
+				esac
+			done < "$stepMarker.result"
+		} 2> /dev/null
+		rm -f "$stepMarker" "$stepMarker.result" 2> /dev/null
+		[ -n "$stepRead" ] || { stepFailed="yes" ; stepError="it ended and left no result" ; }
+		if [ -n "$stepFailed" ] ; then
+			while read -r stepOne stepValue ; do
+				[ -z "$stepOne" ] || [ "$stepOne" = "$stepRun" ] || stepKeep="$stepKeep$stepOne $stepValue
+"
+			done <<< "$controlPostWait"
+			controlPostWait="$stepKeep$stepRun $(( SECONDS + controlPostBound ))"
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: what was to be posted about it failed${stepError:+: $stepError} -- it is tried again in ${controlPostBound}s"
+		else
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: ${deathsLine#* }"
+		fi
+	fi
+	case " $deathsLine " in *" settled="*) return 0 ;; esac
+	stepValue="$( AgentsToolsSessionControlDeathMark "$deathsLine" asked )" || stepValue=""
+	case "$stepValue" in ''|none) ;; *) return 0 ;; esac
+	while IFS= read -r stepOne ; do
+		[ "${stepOne##*/}" != "$stepRun.md" ] || { stepRecord="$stepOne" ; break ; }
+	done <<< "$controlRowsNames"
+	if [ -z "$stepRecord" ] || [ "$( AgentsToolsSpawnSandboxRecordHeader "$stepRecord" status )" != "spawn-started" ] ; then
+		deathsLine="$deathsLine settled=$stepStamp how=closed-elsewhere"
+		AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its record was closed by another closer, which told its end -- nothing more is told or asked here"
+		return 0
+	fi
+	while read -r stepOne stepValue ; do
+		[ "$stepOne" != "$stepRun" ] || stepUntil="$stepValue"
+	done <<< "$controlPostWait"
+	case "$stepUntil" in ''|*[!0123456789]*) ;; *) [ "$SECONDS" -ge "$stepUntil" ] || return 0 ;; esac
+	AgentsToolsSessionControlDeathStart "$stepRun"
+	return 0
+}
+
+## THE DEATHS OF THE SESSION, judged at every read in full, from local facts alone: the rows
+## of this read, the record of each run that is gone, and the process list.
+## WHAT A DEATH IS: the process of a run is gone (its row reads no process, by the one rule a
+## live run is told by), its record is still open (`spawn-started`), the record does not say
+## that it was killed (`killed-by`, `killed-at`, AgentsToolsManagerKillMark), and its
+## supervising shell is gone (`supervisor-process` of the record, read by
+## AgentsToolsRegistryRecordedSupervisor). While that shell is alive the run is being
+## closed, and is no death. Whether the run handed back is not read: a handback alone
+## decides nothing, and a run whose process lives is alive, whatever it handed back.
+## A RECORD THAT NAMES NO SUPERVISING SHELL, an old one among them, is given the closing time
+## of a record, SESSION_CONTROL_CLOSING_SECONDS, from the moment its process was first seen
+## gone: that moment is kept in control/gone, `<run id> <seconds since 1970>` a line, so a
+## thread started again does not start that time anew. A record that closes within it made an
+## ordinary end, and its note goes.
+## A death is believed on a second look at that run alone: its record still open, no process
+## running as it, its supervising shell not alive. It is then written once, one line of
+## control/dead (AgentsTools.SessionControlDeath.include says what a line holds), and said in
+## the log. The founder of a session is its executor, every other run a participant.
+## Then each death that is not settled is taken one step further
+## (AgentsToolsSessionControlDeathStep). controlDeadOpen: how many are not settled.
+AgentsToolsSessionControlDeaths(){
+	local deathsWas="" deathsNow="" deathsGoneWas="" deathsGoneNow="" deathsOut="" deathsAt deathsNoted deathsRecord deathsShell deathsRole deathsLine deathsOne
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest
+	controlDeadOpen=0
+	[ -d "$controlDir" ] || return 0
+	{ deathsWas="$( cat "$controlDir/dead" )" ; } 2> /dev/null || deathsWas=""
+	{ deathsGoneWas="$( cat "$controlDir/gone" )" ; } 2> /dev/null || deathsGoneWas=""
+	deathsNow="$deathsWas"
+	deathsAt="$( date +%s 2> /dev/null )" || deathsAt=""
+	case "$deathsAt" in ''|*[!0123456789]*) deathsAt="" ;; esac
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowThread rowWorkspace rowLive rowState rowRest ; do
+		[ -n "$rowTracking" ] && [ -n "$deathsAt" ] || continue
+		[ "$rowLive" = "no-process" ] && [ "$rowStatus" = "spawn-started" ] || continue
+		case "$rowSpawn" in ''|-) continue ;; esac
+		## A death that is kept is judged no more.
+		case "
+$deathsNow" in *"
+$rowSpawn "*) continue ;; esac
+		deathsRecord="$MMDAPP/.local/agents/spawned/$rowTracking/$rowSpawn.md"
+		[ -f "$deathsRecord" ] || continue
+		[ -z "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-by )$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" killed-at )" ] || continue
+		deathsShell="$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" || deathsShell=""
+		case "$deathsShell" in
+			alive) continue ;;
+			gone) ;;
+			*)
+				deathsShell="unknown" ; deathsNoted=""
+				while read -r deathsOne deathsLine ; do
+					[ "$deathsOne" != "$rowSpawn" ] || { deathsNoted="$deathsLine" ; break ; }
+				done <<< "$deathsGoneWas"
+				case "$deathsNoted" in ''|*[!0123456789]*|????????????*) deathsNoted="$deathsAt" ;; esac
+				[ -n "$controlClosing" ] || controlClosing="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_CLOSING_SECONDS 300 )"
+				if [ "$(( deathsAt - deathsNoted ))" -lt "$controlClosing" ] ; then
+					deathsGoneNow="$deathsGoneNow${deathsGoneNow:+
+}$rowSpawn $deathsNoted"
+					continue
+				fi
+			;;
+		esac
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$deathsRecord" status )" = "spawn-started" ] || continue
+		! AgentsToolsRegistrySpawnRuns "$rowSpawn" "$deathsRecord" || continue
+		[ "$( AgentsToolsRegistryRecordedSupervisor "$deathsRecord" 2> /dev/null )" != "alive" ] || continue
+		deathsRole="participant" ; [ "$rowSpawn" != "$controlSession" ] || deathsRole="executor"
+		deathsNow="$deathsNow${deathsNow:+
+}$rowSpawn member=$rowOwner role=$deathsRole found=$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+		if [ "$deathsShell" = "gone" ] ; then
+			AgentsToolsSessionControlSay event "session $controlSession: a death: run $rowSpawn of $rowOwner, the $deathsRole -- its process is gone, its supervising shell is gone, and its record is still open"
+		else
+			AgentsToolsSessionControlSay event "session $controlSession: a death: run $rowSpawn of $rowOwner, the $deathsRole -- its process is gone, its record names no supervising shell and is still open, ${controlClosing}s after that was first seen"
+		fi
+	done <<< "$controlRows"
+	if [ -n "$deathsAt" ] && [ "$deathsGoneNow" != "$deathsGoneWas" ] ; then
+		if [ -z "$deathsGoneNow" ] ; then
+			rm -f "$controlDir/gone" 2> /dev/null
+		else
+			AgentsToolsSessionControlKeep gone "$deathsGoneNow" || :
+		fi
+	fi
+	while IFS= read -r deathsLine ; do
+		[ -n "$deathsLine" ] || continue
+		case " $deathsLine " in
+			*" settled="*) ;;
+			*)
+				AgentsToolsSessionControlDeathStep
+				case " $deathsLine " in *" settled="*) ;; *) controlDeadOpen=$(( controlDeadOpen + 1 )) ;; esac
+			;;
+		esac
+		deathsOut="$deathsOut${deathsOut:+
+}$deathsLine"
+	done <<< "$deathsNow"
+	[ "$deathsOut" = "$deathsWas" ] || AgentsToolsSessionControlKeep dead "$deathsOut" \
+		|| AgentsToolsSessionControlOnce unkept "what it found of the deaths of its runs could not be written to $controlDir/dead -- it is found again at the next tick"
+	return 0
+}
+
 ## One tick: what the session is now, and the state set where its word changed. It leaves in
 ## controlLeave why the thread ends, where it does. Every variable is the thread's own. No
 ## command of a tick can end the thread: each failure is taken here, and concludes nothing.
@@ -406,6 +630,17 @@ AgentsToolsSessionControlTick(){
 	controlTicks=$(( controlTicks + 1 ))
 	## A read in full: with no process kept from the last one, and at every twelfth tick.
 	[ -n "$controlWitness" ] && [ "$(( controlTicks - controlFullAt ))" -lt 12 ] || tickFull="yes"
+	## ITS SESSION IS GONE FROM THE DISK. The folder of the session is no more, alone or with
+	## the store above it: a workspace that was removed, a rig that was taken down. Nothing is
+	## there to watch and nowhere to keep a state, so the thread ends. It makes nothing again:
+	## its control folder would put the whole removed path back, and a thread that then found
+	## no record there would stay for good. It writes nothing either: its log went with the
+	## folder, so one line on its standard error says why, and no other does.
+	if [ ! -d "${controlDir%/*}" ] ; then
+		controlLeave="the folder of its session is gone, ${controlDir%/*} -- nothing is there to watch, and nothing is made again" ; controlRc=1
+		echo "# $MDSC_CMD --intern-session-control: the control thread of session $controlSession, pid $controlPid, ends: $controlLeave" >&2
+		return 0
+	fi
 	## STILL THIS THREAD'S OWN. A control folder, a lock or a pid file that is gone is made
 	## again. A lock that names a process which is gone is taken over again. A lock that names
 	## another live thread ends this one, which touches nothing of the other's. The pid file
@@ -459,7 +694,14 @@ AgentsToolsSessionControlTick(){
 		*) AgentsToolsSessionControlOnce unsure "its records changed between two reads -- nothing is concluded from it, and the state is left as it is" ; return 0 ;;
 	esac
 	AgentsToolsSessionControlStateRead
+	## The deaths of the session, judged at every read in full. While one is not settled the
+	## session is member-dead, whatever its other runs do, and the thread stays.
+	AgentsToolsSessionControlDeaths
+	[ "$controlDeadOpen" -eq 0 ] || controlSeen="dead"
 	case "$controlSeen" in
+		dead)
+			tickWord="member-dead" ; tickReason="a run of the session died, and what is done about that is not settled"
+		;;
 		running)
 			tickWord="running" ; tickReason="a run of the session is alive on this host"
 			## What the next ticks ask after; a call of one tick has no next.
@@ -473,7 +715,8 @@ AgentsToolsSessionControlTick(){
 			return 0
 		;;
 		open)
-			## The place of the word of a death: nothing is written, and the thread stays.
+			## No death, or none yet: a run that is being closed, one in its closing time,
+			## one that was killed. Nothing is written, and the thread stays.
 			AgentsToolsSessionControlOnce open "no run of it is alive on this host and $controlOpen record(s) are still open -- the state is left as it is${controlStateWord:+, $controlStateWord}"
 			return 0
 		;;
@@ -510,6 +753,8 @@ case "$1" in
 		case "${1:-}" in
 			--run) controlMode='--run' ;;
 			--one) controlMode='--one' ;;
+			## The thread's own call, apart from its tick: what is posted about one death.
+			--death) controlMode='--death' ;;
 		esac
 		if [ -z "$controlMode" ] ; then
 			printf '%s\n' "$MDSC_CMD --intern-session-control -- the control thread of one coworking session: a shell process of the tooling that watches the runs of the session and keeps its state. No agent: a tick reads local files and the process list, and nothing else." >&2
@@ -526,9 +771,16 @@ case "$1" in
 		fi
 		shift
 
-		local controlSession=""
+		local controlSession="" controlDeathRun=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
+				--spawn-id)
+					if [ "$controlMode" != "--death" ] || [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD --intern-session-control: syntax is (--run|--one) --session-id <id>, got: $1" >&2
+						set +e ; return 1
+					fi
+					controlDeathRun="$2" ; shift 2
+				;;
 				--session-id)
 					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
 						echo "⛔ ERROR: $MDSC_CMD --intern-session-control: --session-id needs an id -- syntax is (--run|--one) --session-id <id>" >&2
@@ -586,6 +838,26 @@ case "$1" in
 		done
 
 		type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		type AgentsToolsSessionControlDeathPost > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"
+
+		## WHAT IS POSTED ABOUT ONE DEATH: the one bounded call, in this process of its own, which
+		## the thread started and does not wait for. It takes no lock and is no thread: it tells
+		## and asks what is due about the death of one run, leaves what it did for the next tick
+		## in control/post.<run id>.result, and ends.
+		if [ "$controlMode" = "--death" ] ; then
+			case "$controlDeathRun" in
+				''|.|..|*/*|*[[:space:]]*)
+					echo "⛔ ERROR: $MDSC_CMD --intern-session-control: --death is the thread's own call and needs --session-id <id> --spawn-id <run id> -- nothing was posted" >&2
+					return 1
+				;;
+			esac
+			if [ ! -d "$MMDAPP/.local/agents/sessions/$controlSession/control" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --intern-session-control: session $controlSession has no control folder, so no thread keeps a death of it -- nothing was posted" >&2
+				return 1
+			fi
+			AgentsToolsSessionControlDeathPost "$controlSession" "$controlDeathRun" "$( AgentsToolsSessionControlSeconds SESSION_CONTROL_POST_SECONDS 120 )"
+			return 0
+		fi
 
 		## This process, with when it began: the pid of the shell that runs these lines, also
 		## where that is a subshell, whose $$ is its starter's.
@@ -691,7 +963,7 @@ case "$1" in
 			;;
 		esac
 		## What a thread that was ended the hard way left half made is nobody's now.
-		rm -f "$controlDir"/state.*.aside "$controlDir"/pid.*.aside "$controlDir"/log.*.aside 2> /dev/null
+		rm -f "$controlDir"/state.*.aside "$controlDir"/pid.*.aside "$controlDir"/log.*.aside "$controlDir"/dead.*.aside "$controlDir"/gone.*.aside "$controlDir"/post.*.aside 2> /dev/null
 		if ! AgentsToolsSessionControlPidWrite ; then
 			AgentsToolsSessionControlLeave
 			AgentsToolsSessionControlRefuse "could not write $controlDir/pid -- nothing was started"
@@ -726,6 +998,12 @@ case "$1" in
 			fi
 			controlTookOver=""
 		fi
+
+		## The closing time of a record that names no supervising shell, and the bound of one
+		## post about a death, which is also how long a failed one waits for its next try. Each
+		## is read once, at the first tick that needs it: a thread whose session has no run that
+		## is gone reads neither, and its first tick comes as soon as it did before.
+		local controlClosing="" controlPostBound="" controlDeadOpen=0 controlPostWait=""
 
 		while : ; do
 			controlWoken=""

@@ -48,8 +48,8 @@ Exact instructions. Execute in order, every step, literally as written — not l
 3. **generate-without-filtering**: put out ideas, the impractical and unlikely included. The first reasonable idea never ends generation.
 4. **assess-lightly**: give each idea a quick read — promising, interesting but needs work, or probably not — and why.
 5. **hand-off-promising-ideas**: file each promising idea for real evaluation, steps:
-   - propose the item (piece, type, goal) and wait for confirmation, unless the human-owner asked for that filing.
-   - `magic-coordinator` files it as an `idea-*` item, or folds it into the item it relates to. Another executor hands it to `magic-coordinator` with `post-inquiry`.
+   - propose the item (piece, type, goal) and wait for confirmation from the session's own parent, per "The ladder: one rung at a time", unless the human-owner asked for that filing himself.
+   - `magic-coordinator` files it as an `idea-*` item, or folds it into the item it relates to. Another executor hands it to `magic-coordinator` with `post-inquiry`, which carries it back to whoever asked for this session, per "The ladder: one rung at a time".
    - it continues in `magic-team.discuss.routine` when it needs a decision or has real tradeoffs, or straight into the task-creation lifecycle when it is already clear-cut.
 
 # Closure steps

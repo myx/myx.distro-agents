@@ -697,8 +697,17 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   polite end goes to the run's own processes, and the hard kill to what is still there two seconds
   later. The handback retry never resumes a record that carries `killed-at`. Its own bound ends with its
   own sleep, and the lines of a missing handback are said only after the record is closed
-  (`AgentsToolsSpawnProxyHandbackNotice`).
+  (`AgentsToolsSpawnProxyHandbackNotice`). A killed run is told as killed, by `killed-by` and at
+  `killed-at`, in the thread of the session that requested it, in place of the line of a missing
+  handback and also where it had handed back (`AgentsToolsSpawnProxyEndNotice`, block `run-killed`).
   `AgentsManagerSessionKillCheck` is its test.
+- **`--manager-session-control-start (--session-id <id>|--all)`** starts the control thread of a
+  session where it does not live; `--all` is the check now, run for every session that needs one. Rows
+  are `control <session-id> <outcome> <pid> <reason>`, outcome one of `started`, `alive`, `not-needed`
+  or `not-started`. Where it answers `not-needed` it removes the pid file and the lock a dead thread
+  left in `control/`, where neither names a thread that lives (`AgentsToolsSessionControlLeftovers`), so
+  the session reads `none`. Code is in the arm of `AgentsTools.ManagerSession.include` and in
+  `sh-lib/AgentsTools.SessionControlStart.include`; `AgentsSessionControlStartCheck` is its test.
 - **A kill and `TaskStop` find a run's processes by one walk**, `AgentsToolsRegistryRunProcesses`: the
   run's own processes and every process they started, to any depth; never a process group, the run's
   own supervising shell, or a run of another spawn. A process that left the run's tree before the kill
@@ -727,6 +736,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `--magic-spawn-session` with `--routine <selector>` or `--routine-default`; a free prompt goes to
   that operation on its standard input. The reads of a selected item start only once the selection has
   rested a third of a second. A kill or a start the screen began is not ended with the screen.
+- **Key `c` is built**: on the row of a session it calls `--manager-session-control-start --session-id
+  <id>`, asking no confirmation; the bottom line gives the outcome from the `control` row, or says there
+  is nothing to control on any other row. The list marks a session whose control thread reads `gone`
+  with `x` ahead of its state. The left pane of a session has a line `control` under `state`: the
+  thread, its pid once the read of the session has come, and the stored state with its date; `-` for a
+  row of before. For a finished session the mark goes once `c` was pressed on it, which removes what the
+  dead thread left. `AgentsManagerScreenControlCheck` is its test.
   `AgentsManagerScreenKillCheck` and `AgentsManagerScreenLaunchCheck` are two more.
 - **`Team Members` is built.** Key `n` calls `--manager-spawn-member <member>`, with the prompt on
   standard input. The screen itself calls `--manager-team-member-list` and
@@ -844,7 +860,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   The main loop rebuilds all lists each iteration (`AgentsTools.ChildrenIndex.include`) and marks
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
   there counts as session activity for the advance pass. `sessions/<id>/control/` falls under this
-  too: a start of its control thread and a change of its `state` are such activity, a tick is none.
+  too: a start of its control thread and a change of its `state` are such activity, a tick is none. A
+  start now writes one line into `control/log` before the thread's own. `dead`, `gone` and the post
+  files (`post.<run id>`, `post.<run id>.result`) are writes under `control/` too.
 - **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call, the same
   rebuild `--make-harness-indices` also runs. Sixteen stored columns now (the first seven unchanged for
   position readers; `started-at`, `resolved-at` and `session-comment` were the three before these two:
@@ -875,15 +893,33 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   carries a run's id holds no sandbox.
 - **`AgentsToolsRegistryRecordedSupervisor <record>`** (`AgentsTools.Registries.include`) says whether a
   record's `supervisor-process` still lives: `alive`, `gone` or `unknown`, rc 0 for each -- a record
-  with no such header, of another host, or cut short reads `unknown`, never `gone`. No reader asks it
-  yet. `AgentsSpawnSupervisorRecordCheck` is its test.
-- **The close of a run, in order**: handback retry, record, item, tokens, launch notice, the lines of a
-  missing handback, end post and finish flag, asks collected. The record is put in place by one rename
+  with no such header, of another host, or cut short reads `unknown`, never `gone`. The advance pass
+  asks it now, to tell the end of a dead run only where its supervising shell is not alive. The control
+  thread of a session asks it too, at every read in full, for each run of its own that is gone.
+  `AgentsSpawnSupervisorRecordCheck` is its test.
+- **The close of a run, in order**: handback retry, record, item, tokens, launch notice, the box of a
+  missing handback and how the run ended, told to the session that requested it, end post and finish
+  flag, asks collected. The record is put in place by one rename
   and its close is tried twice (`AgentsToolsSpawnProxyCloseSandbox` over
   `AgentsToolsSpawnProxyCloseSandboxOnce`), a failure said on stderr. A waiting shell holds `INT` and
   `TERM` and ignores a broken pipe from the end of its run to the end of its close. A return that
   resumes a harness context records its restart in a subshell of its own. `AgentsSpawnSupervisorHoldsCheck`
-  is the test.
+  is the test. Whether a run handed back is one reading (`AgentsToolsSpawnProxyHandbacks`,
+  `AgentsTools.SpawnSandbox.include`), used for the retry and for the note of its end: the `HANDBACK`
+  events of the run's transcript first, the announce line in its output only where the transcript holds
+  none. A native CLI's handbacks count now.
+- **The end of a run is told** (`AgentsToolsSpawnProxyEndNotice`, `AgentsTools.SpawnSandbox.include`;
+  `AgentsToolsSpawnProxySessionNotice` stands there too): posted to the thread of the session that
+  requested the run, addressed to its `parent-member`, unless that thread already shows the member's own
+  handback. One of six lines: `handback-missing`, `run-ended`, `run-killed` (by `killed-by`),
+  `run-stopped` (by whoever ran `TaskStop`), `run-bound` (ended by the tooling's own bound), or
+  `run-died` (told by the control thread of the session, where its process is gone and nothing closed
+  its record). A run no
+  session requested is told once, to the human-owner, with an added sentence naming its session. Told by
+  the shell at its own close, or else by the advance pass, never both -- or, for a death, by the control
+  thread of its session, which then holds that run from the advance pass while it lives. A record that
+  carries `death-told` is told by no other closer. `AgentsSpawnEndNoticeCheck` is
+  its test.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -969,7 +1005,9 @@ contracts are here.
   stdin closed. Any case it cannot read is `SKIP`. A new CLI's probe is a branch in the arm's `case`.
 - **Everything the loop says goes to stderr**, the readiness report included.
 - **Each iteration**: team-data sync (when `TEAM_DATA_GIT_REMOTE` is set), children index rebuild,
-  pending-reply collect and remind, then one `--intern-root-harness --routine heartbeat
+  pending-reply collect and remind, the check of the control threads
+  (`AgentsToolsSessionControlCheckWorkspace`, one stderr line when it started any, logged and never
+  fatal), then one `--intern-root-harness --routine heartbeat
   --non-interactive --wait`. Backoff starts at `MAIN_LOOP_RESTART_DELAY_SECONDS` (default 29), doubles on
   failure, caps at `MAIN_LOOP_RESTART_DELAY_MAX_SECONDS` (default 1200), resets on success. A permanent
   misconfiguration therefore shows as failures then silence, not a loud exit.
@@ -993,11 +1031,32 @@ contracts are here.
   session: no agent, no run. It keeps `control/` inside the session's folder: `lock` (a symlink naming
   `<pid> <start>`), `pid`, `state` and `log`. `state` holds `state:` (`running` or `finished`), then
   `state-at:` and `reason:`. A second start for the same session is refused while the first lives; a
-  dead thread's lock is taken over by the next start. `TERM` is its only ordered end. A `put-back`
+  dead thread's lock is taken over by the next start. `TERM` is its only ordered end; it also ends by
+  itself, with status 1, at the first tick that finds the folder of its session gone, alone or with the
+  store above it, making nothing again and writing one line on its standard error -- a `control/` folder
+  removed while the session's folder stands is still made again. `AgentsSessionControlRemovedCheck` is
+  the test. A `put-back`
   re-execs the same thread in place when its own shell would otherwise die under it. The tick interval
   is `SESSION_CONTROL_TICK_SECONDS` (default 5). Who reads `control/`: the sessions registry stores its
   `state` at each rebuild, and the list and the read of a session measure the thread itself by its
-  `pid` and `lock` (`AgentsToolsManagerSessionControls`).
+  `pid` and `lock` (`AgentsToolsManagerSessionControls`). Who starts it: the one function
+  `AgentsToolsSessionControlStart`, detached -- the console by name, and the one check
+  (`AgentsToolsSessionControlCheck`) for `--all`, the advance scan and the main loop; which sessions
+  need one is judged from the rows; a session is left alone for five minutes after the last write of
+  `control/log`; a start writes one line there first. The spawner calls it too, in the shell that
+  supervises a start that is not waited for, once the record of the run exists: with the first member
+  of a session, a lone run too, and again by any member that joins while none lives; never for a start
+  its caller waits on, nor for a member that joins a session such a start opened; not while a start is
+  in flight (`AgentsToolsSessionControlStarting`, ten seconds). A failure is one warning line in the
+  run's log, and the spawn prints what it printed. `AgentsSpawnControlThreadCheck` is its test.
+  A third mode, `--death --session-id <id> --spawn-id <run id>`, is the thread's own call, apart from
+  its tick. `control/` also holds `dead`, `gone`, `post.<run id>` and `post.<run id>.result`. `state:`
+  is `running`, `member-dead` or `finished`. Two more settings: `SESSION_CONTROL_CLOSING_SECONDS` (300)
+  and `SESSION_CONTROL_POST_SECONDS` (120). A run of the session is a death only where every one of five
+  conditions holds (no process runs as it; its record still says `spawn-started`; it carries no
+  `killed-by`/`killed-at`; its supervising shell reads `gone`, or `unknown` for at least the closing
+  seconds; a second look agrees) -- each death is then told and asked apart from the tick.
+  `AgentsSessionControlDeathCheck` is the test.
 
 ## 13. The `myx.distro` MCP server
 
@@ -1366,7 +1425,10 @@ contracts are here.
   a reply starting `accept`, `return` or `reject` does the same. A review settled another way closes the
   open prompt; every other `review-by` still posts none. A reviewer's accept moves review → processed;
   return moves it to running, the same session, with comments; reject moves it to pending, for a fresh
-  session.
+  session. A dead run's own control thread asks its item's `review-by` a decision instead, kind
+  `decision`, options `resume`, `fresh`, `close` and `kill`; where no reviewer is set there is no
+  question, and the record is simply closed. Until the tasks that read the answer are live, an answer
+  changes nothing by itself.
 - **The approval cascade** (`AgentsToolsApprovalCascade`, `AgentsTools.ApprovalCascade.include`) fires
   when an `approval-*` arrives in `board-processed` carrying `approved-by` and `approved-at`. Each `blocks`
   item takes those values as `default` ops; a stamped `board-blocked` item whose every `blocked-by` is
@@ -1472,7 +1534,9 @@ contracts are here.
 - **`--magic-advance-input-scan` closes dead spawns first**, as housekeeping that writes nothing to the
   scan output (`AgentsToolsHousekeepingReport` posts to the caller's event-track thread). Dead on this
   host: no live process, no open ask, nothing changed under its sandbox or `sessions/<id>/` for 15 min.
-  Elsewhere: no open ask and nothing changed for 24 h. A dead spawn's created dispatch item moves running
+  Elsewhere: no open ask and nothing changed for 24 h. It then starts the control thread of each session
+  that is not finished and has none alive, one housekeeping line when it started any, a failure said as
+  one warning. A dead spawn's created dispatch item moves running
   → review. A review item whose `review-by` session has ended gets `review-by: magic-coordinator`. The
   scan never accepts an item.
 
@@ -1918,7 +1982,9 @@ op's own option arm.
   no main loop. Verdicts `--member-review-accept|return|reject|follow-up` (`--intern-op-review-*`); a
   return restarts the session through the proxy's join path. Endings (`archived`, `trashed`,
   `shutdown`, `taskstop`, `review-wait-expired`) are recorded as `dismissed:` lines. A parent with no
-  thread gets `parent-thread:` written on the child's record.
+  thread gets `parent-thread:` written on the child's record. The end of a run is told to the session
+  that requested it (see "The end of a run is told", section 11), but the note decides nothing: the
+  item's review does.
 - **Session transcripts** (`AgentsTools.SessionTranscript.include`): one per spawn in
   `audit/YYYY-MM/session-<startUTC>-<member>-<sid8>.log`, rolled at 8 MB (`MDAT_TRANSCRIPT_ROLL_BYTES`),
   named before the dispatch item exists, located via `.local/agents/sessions/<spawn-id>/transcript`. No
@@ -2158,6 +2224,16 @@ Each instrument states what it proves and its red recipe in its own header. What
   files and signals of a console channel; `AgentsConsoleStreamTrapCheck` of the console's trap. The
   tooling list of `AgentsTestSignalsCheck` names no place left by the number alone outside the spawn
   proxy.
+- **A check that calls the scan, the main loop or the console's control-thread start ends the control
+  threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.test.sh`
+  (`rigControlThreadNotes`, `rigControlThreadsEnd`, called in its `EXIT` trap); the guard for this is in
+  `AgentsSessionControlStartCheck`, which fails a check of `sh-test` that names
+  `--magic-advance-input-scan`, `--intern-main-loop`, `--manager-session-control-start`,
+  `--intern-op-agent-spawn-proxy`, `--magic-heartbeat-spawn-proxy`, `--magic-spawn-session`,
+  `--manager-spawn-member`, `--member-review-return`, `--intern-op-review-return` or `--intern-tool
+  Agent` outside a comment and does not do so (35 checks carry the fixture). A thread whose rig is
+  removed now ends at its own next tick; the fixture still matters, for the time until that tick and for
+  a thread that runs older code.
 - **A test signals a process it kept only through one helper**, `sh-test/check-fixtures/rig-processes.include.test.sh`:
   the helper notes a process with when it began, and signals it later only while its pid is still that
   same process -- process ids come round within about a minute here while tests run, so a kept number
@@ -2174,11 +2250,11 @@ Each instrument states what it proves and its red recipe in its own header. What
   closing brace on one line need `;`, for awks not on a dev box), `AgentsOwnerSetupCheck`.
 - **`AgentsHarnessContainmentCheck.test.sh` is wired into nothing** and runs only by hand. It tests
   `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` together, in both polarities.
-- **The manager screen's eleven tests**: `AgentsManagerScreenFrameCheck`, `AgentsManagerScreenListCheck`,
+- **The manager screen's twelve tests**: `AgentsManagerScreenFrameCheck`, `AgentsManagerScreenListCheck`,
   `AgentsManagerScreenReadCheck`, `AgentsManagerScreenPendingCheck`, `AgentsManagerScreenSessionsCheck`,
   `AgentsManagerScreenStatusCheck`, `AgentsManagerScreenPaneCheck`, `AgentsManagerScreenKillCheck`,
-  `AgentsManagerScreenLaunchCheck`, `AgentsManagerScreenMembersCheck` and
-  `AgentsManagerScreenSettingsCheck`.
+  `AgentsManagerScreenLaunchCheck`, `AgentsManagerScreenMembersCheck`,
+  `AgentsManagerScreenSettingsCheck` and `AgentsManagerScreenControlCheck`.
   `AgentsManagerSessionListCheck`, `AgentsManagerSessionReadCheck`
   and `AgentsManagerSessionTranscriptReadCheck` are the three session operations' own.
   `AgentsManagerRoutineListCheck`, `AgentsManagerSpawnMemberCheck` and `AgentsManagerConfigDigestCheck`

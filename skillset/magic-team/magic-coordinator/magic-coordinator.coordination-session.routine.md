@@ -69,12 +69,12 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
-- Before every step, read incoming messages and messages from spawned sessions. For each: assess what it needs, dispatch real work to a spawned session, and relay the result or a status back to the human-owner.
+- Before every step, read incoming messages and messages from spawned sessions. For each: assess what it needs, dispatch real work to a spawned session, and relay the result or a status back to this session's own parent — the human-owner where this instance's parent is him.
 - Ending the turn to wait for a notification is always fatal: nothing is left to receive it. The only wait is `Wait`.
 - Nothing substantive is done inline. Every real edit, investigation or fix is dispatched (`spawn-one-dispatch`), and its result relayed back.
 - Already-approved work is spawned out by default, never executed in this session's own context.
 - Every 20 completed cycles, or on notice that a loaded skill file changed, reload the skill fresh at the top of the next **sweep-comms**, never mid-step. A reload re-reads every file, never a partial set.
-- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance.
+- This instance holds its own Slack channel to the human-owner. An unverifiable relayed message is resolved there, not through another coordinator instance. This is the trust-chain check (`magic-team.shared.md`'s narrowed "Anything needing the human-owner to act reaches him..."), not a general bypass of the ladder for ordinary asks.
 - The heartbeat is not a mode: the host loop runs it, and no session starts, relays into or stops it. Whether a pass is live is read with `--magic-heartbeat-lock-status`. A stopped host loop explains why nothing advances on its own; it changes nothing about this loop.
 - Re-pinging a visibly stalled spawned session, or restarting it where prior work is safely preserved, is this member's own call. Escalate only when the stall makes prior output untrustworthy or risks a duplicated side effect.
 

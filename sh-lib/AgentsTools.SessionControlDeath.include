@@ -1,0 +1,359 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.SessionControlDeath.include -- the death of a run of a coworking session: what
+## the control thread of the session keeps of it, how it is told and how it is asked about
+## (--intern-session-control, AgentsTools.InternSessionControl.include). Sourced, never run.
+## Functions only: the thread's own include is the arm of its operation and cannot be sourced
+## for a function, and the advance pass asks one of these too.
+##
+## WHAT A DEATH IS is judged by the thread at its tick (AgentsToolsSessionControlDeaths, in
+## its own include): the process of a run gone, its supervising shell gone, its record still
+## open, and no word on the record that it was killed.
+##
+## WHAT IS KEPT OF IT, in control/ of the session's folder:
+##   dead   a line a death, written by the tick alone, whole, by one rename:
+##            <run id> member=<member> role=<executor|participant> found=<moment>
+##          and after it the marks of what was done about it, each added once:
+##            told=<moment>   it was told: the note of its death was posted, or the question,
+##                            where the question is the message too. told=none: no note was
+##                            due.
+##            asked=<id>      the question about it was asked: the id of its pending-reply
+##                            record. asked=none: no reviewer is set, so nothing is asked.
+##            settled=<moment> how=<word>   nothing more is done about it. how=told: it was
+##                            told, nothing was to ask, and its record is closed.
+##                            how=closed-elsewhere: another closer closed its record before
+##                            it was told here, and told its end by its own rule.
+##          A death is settled where its line says so. What becomes of an answer is written
+##          on the same line, by the tasks that read it and carry it out.
+##   gone   `<run id> <seconds since 1970>` a line: when the process of a run whose record
+##          names no supervising shell was first seen gone. It outlives the thread.
+##   post.<run id>          `<pid> <start>`: the one post about that death that is in flight.
+##   post.<run id>.result   what that post left, `<key>: <value>` a line, for the next tick.
+## AND ON THE RECORD of the dead run, so that no other closer and no thread started again
+## says it a second time: `death-told: <moment>` once it was told, or once it was settled
+## that no note is due, and `death-asked: <id>`, the pending-reply record of its question.
+##
+## ONE DEATH IS TOLD ONCE AND ASKED ONCE, AND ONE RULE SAYS WHO SPEAKS. While the thread of
+## the session lives, a death it keeps and has not settled is its own: the advance pass
+## neither closes nor tells that run (AgentsToolsSessionControlDeathHeld). With no thread
+## alive that pass closes a dead run as before, and tells its end, but never the end of a run
+## whose record carries `death-told`: the one function that tells an end says nothing of it
+## (AgentsToolsSpawnProxyEndNotice, AgentsTools.SpawnSandbox.include). And the thread tells
+## nothing of a run whose record another closer closed first.
+##
+## WHO IS TOLD AND WHO IS ASKED (AgentsToolsSessionControlDeathWork). The message is the note
+## of an end, by the one function that tells every end, in the words of a death (`## run-died`
+## of the note template): in the thread of the session that requested the run, or to the
+## human-owner where no session did. The question is asked only where the dispatch item of
+## the run names a reviewer (`review-by`): a decision as every decision is posted, as the
+## team bot in the name of the dead member, with a pending-reply record of the kind decision
+## that carries the id of the session, and its number emoji placed. Its words are blocks of
+## the note template (`# Death`), never a text written here.
+##
+
+type AgentsToolsSpawnSandboxRecordHeader > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+type AgentsToolsRegistrySpawnRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+
+## The outcome word a record is closed with here: the advance pass's own, for a run that
+## ended and that no supervising shell closed (AgentsToolsAdvanceSpawnHousekeeping).
+agentsSessionControlDeathOutcome="ended-without-close"
+
+## The line of one run in control/dead of its session; rc 1 where it has none.
+AgentsToolsSessionControlDeathLine(){ ## session id, run id
+	local lineFile lineOne
+	case "${1:-}" in ''|-|.|..|*/*) return 1 ;; esac
+	lineFile="$MMDAPP/.local/agents/sessions/$1/control/dead"
+	[ -n "${2:-}" ] && [ -f "$lineFile" ] || return 1
+	{
+		while IFS= read -r lineOne || [ -n "$lineOne" ] ; do
+			case "$lineOne" in "$2 "*) printf '%s\n' "$lineOne" ; return 0 ;; esac
+		done < "$lineFile"
+	} 2> /dev/null
+	return 1
+}
+
+## One mark of such a line, what stands after `<name>=`; rc 1 where the line has none.
+AgentsToolsSessionControlDeathMark(){ ## line, name of the mark
+	local markWords markWord
+	read -r -a markWords <<< "${1:-}"
+	for markWord in ${markWords[@]+"${markWords[@]}"} ; do
+		case "$markWord" in "$2="*) printf '%s\n' "${markWord#*=}" ; return 0 ;; esac
+	done
+	return 1
+}
+
+## WHO SPEAKS. rc 0: the control thread of that session lives, and keeps that run as a death
+## it has not settled. Such a run is the thread's: it tells it and asks about it, and the
+## advance pass leaves it as it is. rc 1 for every other run: one the thread does not keep,
+## one whose death is settled, and any run of a session with no thread alive.
+AgentsToolsSessionControlDeathHeld(){ ## session id, run id
+	local heldLine
+	heldLine="$( AgentsToolsSessionControlDeathLine "${1:-}" "${2:-}" )" || return 1
+	case " $heldLine " in *" settled="*) return 1 ;; esac
+	type AgentsToolsSessionControlLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include" 2> /dev/null || return 1
+	[ -n "$( printf '%s\n' "$1" | AgentsToolsSessionControlLive 2> /dev/null )" ]
+}
+
+## One header kept on the record of a dead run, through the package's own header writer,
+## aside and then one rename, as a launch keeps one (AgentsToolsSpawnProxyRunRecord). rc 1
+## where it could not be kept: the record is then as it was.
+AgentsToolsSessionControlDeathRecordMark(){ ## record file, header, value
+	local markFile="$1" markOps markBody markAside
+	[ -f "$markFile" ] || return 1
+	mkdir -p "$MMDAPP/.local/temp" 2> /dev/null || return 1
+	markOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-death-ops.XXXXXX" 2> /dev/null )" || return 1
+	printf 'upsert\t%s\t%s\n' "$2" "$3" > "$markOps" 2> /dev/null || { rm -f "$markOps" ; return 1 ; }
+	markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$markFile" 2> /dev/null )" || markBody=""
+	rm -f "$markOps"
+	[ -n "$markBody" ] || return 1
+	markAside="$( mktemp "$markFile.death.XXXXXX" 2> /dev/null )" || return 1
+	{ cp -p "$markFile" "$markAside" && printf '%s\n' "$markBody" > "$markAside" && mv -f "$markAside" "$markFile" ; } 2> /dev/null \
+		|| { rm -f "$markAside" ; return 1 ; }
+	return 0
+}
+
+## The record of a dead run closed as ended without close, and the dispatch item it links
+## with it, as the advance pass closes a dead run (AgentsToolsAdvanceSpawnHousekeeping): by
+## the same two closers and under the same conditions, so the record and the item read as
+## that pass would have left them, and no later closer finds an end to tell. rc 0: the record
+## is closed so.
+AgentsToolsSessionControlDeathClose(){ ## record file
+	local closeRecord="$1" closeRun closeOutput closeField closeStem closeItem closeState closePath closeSpawn closeTarget
+	[ -f "$closeRecord" ] || return 1
+	closeRun="${closeRecord##*/}" ; closeRun="${closeRun%.md}"
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-started" ] || return 1
+	AgentsToolsSpawnProxyCloseSandbox "$closeRecord" "$agentsSessionControlDeathOutcome" unknown
+	[ "$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" status )" = "spawn-$agentsSessionControlDeathOutcome" ] || return 1
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	closeOutput="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" output-file )"
+	[ -n "$closeOutput" ] || closeOutput="-"
+	for closeField in spawns spawned-by ; do
+		closeStem="$( AgentsToolsSpawnSandboxRecordHeader "$closeRecord" "$closeField" )"
+		[ -n "$closeStem" ] || continue
+		closeItem="${closeStem%.md}.md"
+		closeState="$( AgentsToolsSpawnProxyBoardStateOf "$closeItem" )"
+		[ -n "$closeState" ] || continue
+		closePath="$MDAT_DATA_ROOT/board/$closeState/$closeItem"
+		[ "$( AgentsToolsSpawnSandboxRecordHeader "$closePath" status )" = dispatch-started ] || continue
+		## An item that names a newer spawn belongs to that one, not to this dead record.
+		closeSpawn="$( AgentsToolsSpawnSandboxRecordHeader "$closePath" spawn-id )"
+		[ -z "$closeSpawn" ] || [ "$closeSpawn" = "-" ] || [ "$closeSpawn" = "$closeRun" ] || continue
+		closeTarget="$closeState"
+		[ "$closeField" != spawns ] || [ "$closeState" != running ] || closeTarget=review
+		AgentsToolsSpawnProxyCloseDispatch "$closeItem" "" unknown "$closeOutput" "$agentsSessionControlDeathOutcome" "$closeState" "$closeTarget" > /dev/null 2>&1 || :
+	done
+	return 0
+}
+
+## One block of the note template filled (sh-lib/templates/tooling-note.post.format.md,
+## `# Death`). The slots travel in the caller's environment, as ASKP_F_<slot>.
+AgentsToolsSessionControlDeathText(){ ## heading under `# Death`
+	ASKP_BLOCK="Death/$1" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null
+}
+
+## THE QUESTION ABOUT A DEAD RUN, asked as the review prompt of a handback is asked
+## (AgentsReviewPromptPost, AgentsTools.ReviewFlow.include), with no agent: one post, as the
+## team bot in the name of the dead member, addressed to who is asked; its pending-reply
+## record, of the kind decision, which carries the id of the session, so the session reads
+## `waiting` while it is open and its answer is read where every typed answer is; and its
+## number emoji under it. The post is the template of a decision, filled as the tool of that
+## kind fills it (AgentsTools.AskPost.include). What it asks, its four options and its
+## context are blocks of the note template: `question`, with `executor` or `participant`,
+## `options` and `context`. Prints `asked <pending id>`, rc 0; else `failed <why>`, rc 1.
+AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is asked (a thread `<channel>:<ts>`, or human-owner), whom it is asked, the item of the run (may be empty)
+	local askSession="$1" askRecord="$2" askWhere="$3" askWhom="$4" askItem="${5:-}"
+	local askRun askMember askRole askName askShort="" askQuestion askOptions askContext askBody askOut askChannel askTs askThread askAddressees askAsking askId
+	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+	askRun="${askRecord##*/}" ; askRun="${askRun%.md}"
+	askMember="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" owner )"
+	[ -n "$askMember" ] || { printf 'failed %s\n' "its record names no member" ; return 1 ; }
+	AgentsToolsAskKindRow decision || { printf 'failed %s\n' "the table of the asks names no decision" ; return 1 ; }
+	## The founder of a session is its executor: its own id is the id of the session.
+	askRole="participant" ; [ "$askRun" != "$askSession" ] || askRole="executor"
+	askRole="$( AgentsToolsSessionControlDeathText "$askRole" )" || askRole=""
+	## The session by the name its spawn gave it, else by its short id.
+	askName="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" session-comment )"
+	[ -n "$askName" ] || askShort="${askSession:0:8}"
+	askQuestion="$( ASKP_F_member="$askMember" ASKP_F_role="$askRole" ASKP_F_session="$askName" ASKP_F_session_id="$askShort" ASKP_F_run="${askRun:0:8}" AgentsToolsSessionControlDeathText question )" || askQuestion=""
+	askOptions="$( AgentsToolsSessionControlDeathText options )" || askOptions=""
+	askContext="$( ASKP_F_item="$askItem" AgentsToolsSessionControlDeathText context )" || askContext=""
+	askBody=""
+	[ -z "$askQuestion" ] || [ -z "$askOptions" ] || askBody="$( ASKP_OPTIONS="$askOptions" ASKP_F_question="$askQuestion" ASKP_F_context="$askContext" AgentsToolsAskPostFill post "$agentsAskRowTemplate" "$agentsAskRowForm" 2> /dev/null )" || askBody=""
+	[ -n "$askBody" ] || { printf 'failed %s\n' "the question could not be filled from its templates" ; return 1 ; }
+	askOut="$( printf '%s\n' "$askBody" | DistroAgentsTools --intern-op-comms-slack-send-message "$askMember" "$askWhere" --identity-bot --address-to "$askWhom" --from-stdin 2>&1 )" || {
+		printf 'failed %s\n' "the question could not be posted to $askWhere: $( printf '%s\n' "$askOut" | LC_ALL=C grep -m1 'ERROR' | LC_ALL=C tr -s '\t ' ' ' | LC_ALL=C cut -c1-300 )"
+		return 1
+	}
+	askChannel="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_CHANNEL=//p' | head -1 )"
+	askTs="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_TS=//p' | head -1 )"
+	askThread="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_THREAD_TS=//p' | head -1 )"
+	[ -n "$askThread" ] || askThread="$askTs"
+	## A member with no account of its own answers under the team's account: its name stands
+	## among the accounts that answer, as the tools that ask keep it (AgentsHarnessAsk).
+	askAddressees="$( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEES=//p' | head -1 ) $( printf '%s\n' "$askOut" | LC_ALL=C sed -n 's/^SENT_MESSAGE_ADDRESSEE_MEMBERS=//p' | head -1 )"
+	askAddressees="${askAddressees# }" ; askAddressees="${askAddressees% }"
+	askAsking="$( printf '%s\n' "$askOut" | LC_ALL=C grep '^{' | LC_ALL=C awk -v path=message.user -v optional=1 -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2> /dev/null | LC_ALL=C sort -u | LC_ALL=C tr '\n' ' ' )" || askAsking=""
+	if [ -z "$askChannel" ] || [ -z "$askTs" ] || [ -z "$askAddressees" ] ; then
+		printf 'failed %s\n' "the question was posted, but its thread or its addressee could not be named, so its answer could not be read"
+		return 1
+	fi
+	## What the post was filled with is kept beside its record, so it is filled again once it takes no answer.
+	askId="$( printf '%s\n' "$askBody" | DistroAgentsTools --intern-op-pending-reply-open "$askMember" --to "$askWhere" --session-id "$askSession" \
+		--kind decision --address-to "$askWhom" --blocked-on "reply from $askWhom" --channel "$askChannel" --question-ts "$askTs" --thread-ts "$askThread" \
+		--addressees "$askAddressees" ${askAsking:+--asking-accounts " $askAsking"} ${askItem:+--item "$askItem"} --options "$askOptions" --ask-identity bot \
+		--fields "$( AgentsToolsAskPostFieldsPack asked-as "$agentsAskRowName" question "$askQuestion" context "$askContext" )" --context "${MDSC_CMD:-session-control}" 2> /dev/null )" || askId=""
+	[ -n "$askId" ] || { printf 'failed %s\n' "the question was posted at $askChannel:$askTs but could not be recorded, so its answer could not be read" ; return 1 ; }
+	## Its click answers, the names its template gives, placed as the identity that posted it.
+	AgentsToolsAskPostReact "$askMember" "$askChannel:$askTs" bot add $( ASKP_OPTIONS="$askOptions" AgentsToolsAskPostFill reactions "$agentsAskRowTemplate" "$agentsAskRowForm" 2> /dev/null )
+	printf 'asked %s\n' "$askId"
+	return 0
+}
+
+## WHAT IS TOLD AND ASKED ABOUT ONE DEATH, in order, each step once: a step that the line of
+## the death or the record of the run says is done is not made again. It leaves what it did
+## in its result file, a line a step, for the next tick of the thread to keep on the line of
+## the death: `told: <moment>|none|failed`, `asked: <id>|none|failed`, `closed: yes|elsewhere`,
+## `error: <why>`.
+## THE MESSAGE: the note of the end of the run, in the words of a death, by the one function
+## that tells an end (AgentsToolsSpawnProxyEndNotice): where it goes and to whom is that
+## function's rule, and so is that a run whose handback stands there gets none. No note is
+## posted where the question stands in that very thread, and is the message too; nor where
+## the question goes to a person while no member of the session that requested the run runs.
+## THE QUESTION, only where the item of the run names a reviewer. To the member that brought
+## the run in, in the thread of the session that requested it, where the reviewer is that
+## session and that member still runs there. To the human-owner, in the bot's direct
+## conversation, where the reviewer is a person, a member or a routine, or a session that has
+## ended or cannot be measured.
+## NO REVIEWER: the death is settled with the message, and the record of the run is closed as
+## ended without close, so that no later closer finds an end to tell.
+## Whoever closed the record before this was reached told its end: nothing is posted then.
+AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result goes to
+	local workSession="$1" workRun="$2" workResult="$3"
+	local workRecord workLine workTold workAsked workField workItem="" workState workReviewer="" workParent workThread workWhere="" workWhom="" workLives="" workSaid workOut workStamp
+	## The team data and the members, as every operation of the tooling finds them.
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+	set +e +u
+	workStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
+	workRecord="$( AgentsToolsRegistrySpawnRecord "$workRun" )"
+	if [ -z "$workRecord" ] ; then
+		printf 'error: %s\n' "no record of run $workRun is found" >> "$workResult"
+		return 0
+	fi
+	if [ "$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" status )" != "spawn-started" ] ; then
+		printf 'closed: elsewhere\n' >> "$workResult"
+		return 0
+	fi
+	workLine="$( AgentsToolsSessionControlDeathLine "$workSession" "$workRun" )" || workLine=""
+	workTold="$( AgentsToolsSessionControlDeathMark "$workLine" told )" || workTold="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-told )"
+	workAsked="$( AgentsToolsSessionControlDeathMark "$workLine" asked )" || workAsked="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-asked )"
+	## The item of the run, and who reviews it.
+	for workField in spawns spawned-by ; do
+		workItem="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" "$workField" )"
+		workItem="${workItem%%,*}" ; workItem="${workItem%% *}" ; workItem="${workItem%.md}"
+		workState=""
+		[ -z "$workItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || workState="$( AgentsToolsSpawnProxyBoardStateOf "$workItem.md" )"
+		[ -n "$workState" ] || { workItem="" ; continue ; }
+		workReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$workState/$workItem.md" review-by )"
+		break
+	done
+	## Whether the member that brought the run in still runs in the session that requested it.
+	workParent="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-session-id )"
+	case "$workParent" in ''|none|*/*|.|..) workParent="" ;; esac
+	workThread="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-thread )"
+	AgentsToolsSpawnConversationThreadValid "$workThread" || workThread=""
+	[ -z "$workParent" ] || ! AgentsToolsRegistrySpawnRuns "$workParent" "" || workLives="yes"
+	## Where the question goes, and to whom.
+	if [ -n "$workReviewer" ] ; then
+		workWhere="human-owner" ; workWhom="human-owner"
+		if [ -n "$workLives" ] && [ -n "$workThread" ] && [ "${workReviewer%%:*}" = "$workParent" ] ; then
+			workWhom="$( MDAT_SPAWN_SESSION_ID="$workRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || workWhom=""
+			if [ -n "$workWhom" ] ; then workWhere="$workThread" ; else workWhom="human-owner" ; fi
+		fi
+	fi
+	## 1. The message.
+	if [ -z "$workTold" ] ; then
+		if [ -n "$workWhere" ] && [ "$workWhere" != "human-owner" ] ; then
+			## The question stands in that thread, and is the message too.
+			:
+		elif [ -n "$workWhere" ] && [ -z "$workLives" ] ; then
+			workTold="none"
+		else
+			workSaid="$( AgentsToolsSpawnProxyEndNotice "$workRecord" died > /dev/null ; printf '%s' "${agentsSpawnProxyEndNoticeSaid:-failed}" )" || workSaid="failed"
+			case "$workSaid" in
+				posted) workTold="$workStamp" ;;
+				none) workTold="none" ;;
+				*)
+					printf 'told: failed\nerror: %s\n' "the note that the run died could not be posted" >> "$workResult"
+					return 0
+				;;
+			esac
+		fi
+		[ -z "$workTold" ] || AgentsToolsSessionControlDeathRecordMark "$workRecord" death-told "$workStamp" || :
+	fi
+	[ -z "$workTold" ] || printf 'told: %s\n' "$workTold" >> "$workResult"
+	## 2. The question.
+	if [ -n "$workWhere" ] ; then
+		if [ -z "$workAsked" ] ; then
+			workOut="$( AgentsToolsSessionControlDeathAsk "$workSession" "$workRecord" "$workWhere" "$workWhom" "$workItem" )" || {
+				workOut="$( printf '%s\n' "$workOut" | LC_ALL=C grep -m1 '^failed ' )"
+				printf 'asked: failed\nerror: %s\n' "${workOut#failed }" >> "$workResult"
+				return 0
+			}
+			workAsked="$( printf '%s\n' "$workOut" | LC_ALL=C sed -n 's/^asked //p' | tail -1 )"
+			[ -n "$workAsked" ] || { printf 'asked: failed\nerror: %s\n' "the question left no id" >> "$workResult" ; return 0 ; }
+			AgentsToolsSessionControlDeathRecordMark "$workRecord" death-asked "$workAsked" || :
+			if [ -z "$workTold" ] ; then
+				AgentsToolsSessionControlDeathRecordMark "$workRecord" death-told "$workStamp" || :
+				printf 'told: %s\n' "$workStamp" >> "$workResult"
+			fi
+		fi
+		printf 'asked: %s\n' "$workAsked" >> "$workResult"
+		return 0
+	fi
+	## 3. No reviewer: settled with the message.
+	printf 'asked: none\n' >> "$workResult"
+	if AgentsToolsSessionControlDeathClose "$workRecord" ; then
+		printf 'closed: yes\n' >> "$workResult"
+	else
+		printf 'error: %s\n' "its record could not be closed as $agentsSessionControlDeathOutcome" >> "$workResult"
+	fi
+	return 0
+}
+
+## ONE BOUNDED CALL: what is told and asked about one death, made in a process group of its
+## own and ended at its bound, so a call to Slack that hangs holds nothing: not the tick,
+## which never waits for this, and not the next try, which a later tick starts. Run by the
+## thread's own operation as a process apart (`--intern-session-control --death`), never
+## inside the thread, which sends no signal: this process ends its own job, which it
+## started, probes at each turn of its wait and has not collected. At the bound the group
+## is asked to end, given five seconds, and ended; what it had done till then stands in its
+## result, and the result says that the bound was reached.
+AgentsToolsSessionControlDeathPost(){ ## session id, run id, the bound in seconds
+	local postSession="$1" postRun="$2" postBound="$3" postResult postPid postFrom postGrace postMonitor
+	postResult="$MMDAPP/.local/agents/sessions/$postSession/control/post.$postRun.result"
+	{ : > "$postResult" ; } 2> /dev/null || return 1
+	## Its own process group, so the end at the bound reaches every process of the post.
+	postMonitor="$BASH_SUBSHELL:$-"
+	set -m
+	( AgentsToolsSessionControlDeathWork "$postSession" "$postRun" "$postResult" ) < /dev/null &
+	postPid=$!
+	case "$postMonitor" in 0:*m*) ;; *) set +m ;; esac
+	postFrom="$SECONDS"
+	while kill -0 "$postPid" 2> /dev/null ; do
+		if [ "$(( SECONDS - postFrom ))" -ge "$postBound" ] ; then
+			{
+				kill -TERM -- "-$postPid" || :
+				postGrace=5
+				while [ "$postGrace" -gt 0 ] && kill -0 "$postPid" ; do sleep 1 ; postGrace=$(( postGrace - 1 )) ; done
+				kill -KILL -- "-$postPid" || :
+			} 2> /dev/null
+			printf 'error: %s\n' "it did not end within its bound of $postBound seconds, and was ended" >> "$postResult"
+			break
+		fi
+		sleep 1
+	done
+	{ wait "$postPid" ; } 2> /dev/null
+	return 0
+}

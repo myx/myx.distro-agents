@@ -19,9 +19,11 @@
 ##      cheap while nothing changes: over a running session it asks whether the processes of its runs are still
 ##      themselves, and does not read the whole process list again.
 ##   5. WHAT IS NOT CALLED FINISHED, AND IS NOT WRITTEN. An open record of another host: said, no state, and the
-##      thread stays. No run alive and a record of this host still open, the place of the word of a death: no
-##      state where there was none, the old state untouched where there was one, never another word, and the
-##      thread stays and writes nothing at any tick. A folder of a session with no record: nothing to watch.
+##      thread stays. No run alive and a record of this host still open that is no death yet, one that names no
+##      supervising shell, within its closing time (AgentsSessionControlDeathCheck holds what a death is): no
+##      state where there was none, the old state untouched where there was one, never another word, the moment
+##      its process was first seen gone noted once, and the thread stays and writes nothing at any later tick.
+##      A folder of a session with no record: nothing to watch.
 ##   6. A SESSION THAT IS STARTED AGAIN reads `running` again; and a session a client founded, which has no record
 ##      under its own id, is read by the records of its members.
 ## Red before the operation existed: every assertion but the controls. Offline: only the rig's own tree is read or
@@ -311,8 +313,8 @@ rigAssert "once that record is closed, as the advance pass closes one by its age
 ## No run alive and a record of this host still open: the place of the word of a death.
 rigRec s-dead s-dead s-dead s-dead "$rigHost" spawn-started ''
 rigOne s-dead
-rigAssert "no run alive and a record of this host still open, with no state yet: one tick writes none, and says what it found" \
-	"$rigRc:[$( rigState s-dead )]:$( rigSaid 'no run of it is alive on this host and 1 record(s) are still open -- the state is left as it is' ):$( rigControl s-dead )" "0:[]:1:"
+rigAssert "no run alive and a record of this host still open, which names no supervising shell, with no state yet: one tick writes none, says what it found, and notes when it first saw that process gone" \
+	"$rigRc:[$( rigState s-dead )]:$( rigSaid 'no run of it is alive on this host and 1 record(s) are still open -- the state is left as it is' ):$( rigControl s-dead )" "0:[]:1:gone"
 rigStand s-dead ; rigDeadRun="$rigStandPid"
 rigOne s-dead
 rigDeadPrint="$( rigPrint "$rigStores/s-dead/control/state" )"
@@ -328,7 +330,7 @@ sleep 1 ; : > "$rigTmp/marker.dead" ; sleep 4
 rigAssert "a thread over such a session stays, and no tick of it writes a file of the session's folder" \
 	"$( rigLives "$rigDead" ):$( rigNewer s-dead "$rigTmp/marker.dead" ):$( rigPrint "$rigStores/s-dead/control/state" ):$( rigLogHas s-dead 'record(s) are still open' )" "1:0:$rigDeadPrint:1"
 rigProcSignal TERM "$rigDead" ; rigStatusOf "$rigDead"
-rigAssert "control: that thread ended in order, the state as it was" "$rigGot:$( rigPrint "$rigStores/s-dead/control/state" ):$( rigControl s-dead )" "0:$rigDeadPrint:log state"
+rigAssert "control: that thread ended in order, the state as it was, and the note of the moment kept for the next thread" "$rigGot:$( rigPrint "$rigStores/s-dead/control/state" ):$( rigControl s-dead )" "0:$rigDeadPrint:gone log state"
 ## A folder of a session and no record that carries its id.
 mkdir -p "$rigStores/s-empty"
 rigOne s-empty

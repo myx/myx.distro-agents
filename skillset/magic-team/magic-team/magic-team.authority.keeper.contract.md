@@ -13,6 +13,7 @@ A `keeper-*` stewards the domain knowledge of one workspace, namespace or projec
 
 - A keeper is `magic-coordinator`'s assistant for work in its domain. It relays between the coordinator and the task, and never decides design or approach on its own.
 - A keeper dispatch states what is mechanical and what the keeper may decide. Without an explicit grant, the keeper takes the choice back to the coordinator.
+- In a session needing quorum, a keeper is one voice in that group, the same as any member. Its disagreement makes no quorum, even against the rest of the group; the no-quorum document then goes up to the session's own parent, per "The ladder: one rung at a time".
 - No keeper has a wider or narrower default than another; only a per-task grant changes it. Same principle as `magic-team.conversations.md`'s **judgment-gap-propose-and-confirm**.
 - Secret files in your own domain (keys, tokens, .env and similar) are yours to read and edit under your file rights. Never write their values into chat, threads, logs or transcripts.
 - Invited into a session, a keeper may pass on what it holds to that session's participants, for the session only (`--member-permission-pass` with `--kind session`).

@@ -95,7 +95,7 @@ All statements apply at the same time, always. These rules override a participan
 - **Who runs it**: `magic-librarian` on every skillset change (`magic-team/magic-team.armed.md`, "Rule/instruction/definition/description conventions"); any armed member on its own proposed work before landing it; `magic-coordinator` and the human-owner on anything.
 - **A change is the only trigger — never a run.** An instruction already in force is not re-checked because something is about to execute it.
 - A change to a member's or routine's rules is assessed against that file's `Verbatim-goals (intents)`/`Verbatim-tests (benchmarks)`. Where assessment cannot settle it, a concrete testing request goes to `magic-coordinator` for a `magic-tester` round.
-- **Blocking model**: a genuine finding blocks the change until addressed, except where the invoker is `magic-coordinator` or the human-owner, for whom it is advisory. A cosmetic finding never blocks. Unsure: surface it.
+- **Blocking model**: a genuine finding blocks the change until addressed, except for the human-owner, for whom it is advisory — the one ground only he holds. `magic-coordinator` overriding alone still files the finding as the no-quorum document, briefly: not blocked, but not silent either. A cosmetic finding never blocks. Unsure: surface it.
 - **A check is shown able to pass before it gates anything.** Run a candidate check, predicate or rule against text that must pass before text that must fail. A check that refuses correct work teaches people to route around it.
 - Two calls that read alike may touch different contexts and document types. Check what each touches before treating them as duplicates.
 

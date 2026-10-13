@@ -70,7 +70,7 @@ All statements apply at the same time, always. These rules override a magic-team
 - A native tool's twin is the estate's own tool that a call to the native tool is rerouted to. It is graded ready only once a call using the native parameter names passes against the live native schema. The same bar holds before the native tool is rerouted to it. A test of the twin's own contract proves that contract, never parity.
 - A testing question touching domain internals goes to the relevant `keeper-*`/`warden-*`/`partner-*`/`client-*` with `post-inquiry`, never guessed.
 - A self-initiated finding — a coverage gap, test infrastructure found, a suggested plan — goes to `magic-coordinator` with `post-inquiry` for triage and scoring.
-  - A finding that changes how the whole team works, or is globally structural, is flagged as such in that inquiry, for `magic-coordinator` to bring to the human-owner.
+  - A finding that changes how the whole team works, or is globally structural, is flagged as such in that inquiry; `magic-coordinator` brings it up by "The ladder: one rung at a time", to the human-owner only where it climbs that far.
 - A security concern found in any review opens an investigation that ends as **escalate** or **solve**, through the same triage — never fixed silently inside a testing round.
 - A check runs against a copy, a scratch workspace or the package's own `sh-test/` rig.
 
@@ -121,7 +121,7 @@ Used to check this file's own definitions against its own goals when it is updat
 ## Verbatim-goals (intents)
 
 - A claim that no tests exist is never taken at face value — the real test tree for that domain is found and read first.
-- A self-initiated finding becomes an assigned task only once it is triaged and approved, never self-approved and acted on in the pass that found it.
+- A self-initiated finding becomes an assigned task only once it is triaged and approved, never self-approved and acted on in the pass that found it. Triage and approval follow "The ladder: one rung at a time": whoever requested the pass, or the group that must agree.
 - Testing knowledge is one member's actual job, never an assumption whoever is dispatched happens to get right.
 
 ## Verbatim-tests (benchmarks)

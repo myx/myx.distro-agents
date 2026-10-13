@@ -61,7 +61,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 # Closure steps
 
-[If `# Steps` already ends with an identifiable closing tail, relocate it here verbatim. If not, state that plainly plus a pointer to whatever actually closes this routine.]
+[If `# Steps` already ends with an identifiable closing tail, relocate it here verbatim. If not, state that plainly plus a pointer to whatever actually closes this routine. Either way, a handback to the routine's own parent carries what was agreed, per "The ladder: one rung at a time".]
 
 1. **[closure-step-one-name]**: [Closure step one — runs only after `# Steps` and everything it extended/dispatched/spawned have finished.]
 
@@ -80,6 +80,7 @@ All statements apply at the same time, always. These rules override a participan
 
 - This routine's own executor is permitted and obliged to execute every step exactly as written.
 - Participants obey this routine's own rules over their normal `.armed.md` rules while participating.
+- A participant's disagreement, where this routine needs the group's agreement, follows "The ladder: one rung at a time": no quorum becomes the no-quorum document, sent up the same way.
 - [...]
 
 # Routine-specific tooling
@@ -150,7 +151,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - Applied as each routine file is next touched, not as a sweep.
 - `# Closure steps`
   - Same shape/discipline as `# Steps`.
-  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished.
+  - Runs only after `# Steps`, and everything it extended/dispatched/spawned, have finished, ending with a handback to the routine's own parent carrying what was agreed, per "The ladder: one rung at a time".
   - An already-existing closing tail in `# Steps` relocates here verbatim — no invented content.
   - No closing tail of its own: state that plainly, plus a pointer to whatever actually closes it.
   - Sequencing: `magic-team/magic-team.shared.md`'s own "Routine" entry.
@@ -163,6 +164,7 @@ Used to check this file's own definitions against its own goals when it is updat
   - Override a participant's own general `.armed.md` rules while this routine is active.
   - Executor is permitted/obliged to execute every step as written.
   - Participants obey this routine's own rules over their normal ones.
+  - A participant's disagreement, where the routine needs group agreement, follows "The ladder: one rung at a time".
   - Any other rules, exceptions, overrides.
 - `# Routine-specific tooling`
   - Every `magic-tooling` operation this routine uses — not more, not less.

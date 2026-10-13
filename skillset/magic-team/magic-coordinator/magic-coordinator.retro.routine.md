@@ -53,7 +53,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
    A member with nothing meaningful to reflect on is skipped, not sent away.
 6. **surface-cross-member-patterns**: Name what showed up in more than one member's self-talk.
 7. **assess-methodology-failures**: Where did a routine, convention or way of working fall short this period, and why. Turn findings into concrete proposals, alongside the members' own. An empty result is fine.
-8. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. He and `magic-librarian` decide which proposals to adopt. Refresh the lock on entering this step and at each pause.
+8. **discuss-with-the-user**: Pause for the human-owner to react, add his reading or push back. This routine's maintainers other than him decide which proposals to adopt; that agreement goes to him as one propose-approve step, per "The ladder: one rung at a time". Refresh the lock on entering this step and at each pause.
 
 # Closure steps
 
@@ -76,7 +76,7 @@ All statements apply at the same time, always. These rules override a participan
 - First-person narration stays inside the session. Every external post is third person.
 - Retro produces proposals, never actions, however small — a member's own proposal included.
 - A cross-member pattern that looks like a design question goes to `magic-architect`.
-- A proposal big enough to change how the whole team works is confirmed with the human-owner as build work before it goes anywhere.
+- A proposal big enough to change how the whole team works is agreed by this routine's maintainers first; that agreement is confirmed with the human-owner as build work before it goes anywhere, per "The ladder: one rung at a time".
 - A finding about re-prioritising existing work is filed for grooming (`--member-inbox-note-upsert`), not worked here.
 - No schedule or automation without the human-owner's confirmation.
 - Keep `event-track` current as the routine runs.
