@@ -15,6 +15,16 @@ fi
 : "${MDLT_ORIGIN:=$MMDAPP/.local}"
 export MDLT_ORIGIN
 
+## Every child finds the bash this runs in. Where the PATH holds no `bash`, the directory of the running one
+## goes at its END, once: where one is found nothing changes, and nothing on the PATH is ever shadowed. And a
+## starter that is no shell (python) is handed the running bash itself, to start a script with (MDAT_BASH).
+case "$BASH" in
+	/*/bash)
+		command -v bash > /dev/null 2>&1 || { PATH="${PATH:+$PATH:}${BASH%/*}" ; export PATH ; }
+		export MDAT_BASH="$BASH"
+	;;
+esac
+
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"

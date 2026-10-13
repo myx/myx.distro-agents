@@ -16,6 +16,10 @@ set -e
 ## from it: the stored array byte for byte, then the corrections as a new user turn.
 ## MAGIC.md carries the reasoning.
 
+## Where the PATH holds no `bash`, the directory of the bash this runs in goes at its END, once, so every child
+## that names `bash` finds this one; where one is found nothing changes, and nothing on the PATH is ever shadowed.
+case "$BASH" in /*/bash) command -v bash > /dev/null 2>&1 || { PATH="${PATH:+$PATH:}${BASH%/*}" ; export PATH ; } ;; esac
+
 harnessHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 
 ## Set before the HARNESS_* validation below, whose own messages use these.

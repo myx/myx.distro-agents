@@ -5456,6 +5456,16 @@ def endOnSignal(signalNumber, stackFrame):
     raise SystemExit(128 + signalNumber)
 
 
+## The command the screen calls the dispatcher by: with the bash the tooling runs in where it handed one on
+## (MDAT_BASH, set at the tool's own entry), so that no `bash` has to be found on the PATH for the first line
+## of the script; handed none, by the script's own path, as before.
+def toolsCommandOf(toolsPath):
+    bashPath = os.environ.get("MDAT_BASH", "")
+    if os.path.isabs(bashPath) and os.access(bashPath, os.X_OK):
+        return [bashPath, toolsPath]
+    return [toolsPath]
+
+
 def main(arguments):
     options = {"--workspace": "", "--tools": "", "--style": ""}
     position = 0
@@ -5490,7 +5500,7 @@ def main(arguments):
     ## the first; a name that is no style leaves the first.
     setStyle(options["--style"] or os.environ.get(STYLE_VARIABLE, "") or STYLE_FIRST)
     state = ManagerState(options["--workspace"])
-    reader = OperationReader([options["--tools"]])
+    reader = OperationReader(toolsCommandOf(options["--tools"]))
     signal.signal(signal.SIGTERM, endOnSignal)
     signal.signal(signal.SIGHUP, endOnSignal)
     ## curses.wrapper gives the terminal back as it was before anything else happens, on

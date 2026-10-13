@@ -196,8 +196,12 @@ def fileInquiry(eventBody, toolPath):
         eventBody.get("user", ""), channelId, messageTs,
         eventBody.get("text", ""),
     )
+    ## Started with the bash the tooling runs in where it handed one on (MDAT_BASH, set at the tool's own
+    ## entry), so that no `bash` has to be found on the PATH; handed none, by the tool's own path, as before.
+    bashPath = os.environ.get("MDAT_BASH", "")
+    toolCommand = [bashPath, toolPath] if os.path.isabs(bashPath) and os.access(bashPath, os.X_OK) else [toolPath]
     filingResult = subprocess.run(
-        [toolPath, "--member-upsert-member-inquiry", "magic-coordinator", itemName],
+        toolCommand + ["--member-upsert-member-inquiry", "magic-coordinator", itemName],
         input=itemBody.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     ## The tool's own output is not kept: it may quote the item, and so the message.
     if filingResult.returncode != 0:

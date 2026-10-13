@@ -17,10 +17,20 @@
 ##   4. THE GENERATED CONSOLE: the workspace's console command, made by the real generator, started by its path
 ##      finds bash by the PATH; and what it starts, the tool script, here one whose first line cannot work, it
 ##      starts with the bash it runs in.
+##   5. A PATH THAT HOLDS NO BASH AT ALL, every tool of the system but that one: what a client hands down where
+##      bash is kept outside its PATH. The tool, entered by its path with its bash given, puts the directory of
+##      that bash at the END of the PATH, once, and hands the bash itself on (MDAT_BASH): a command of the member
+##      finds bash, the hook that was refused runs by its path and denies, and the two starters that are no shell,
+##      the manager screen's reader and the socket receiver's filing, start the tool script. Where the PATH holds
+##      a bash nothing is put on it. Each starter alone, with nothing but the bash handed to it, starts the
+##      script. And the harness and the generated console, each entered with its bash given and no tool before
+##      it, run a Bash call and launch a leg.
 ## Red: with `#!/bin/bash` hooks, section 1 fails (the PATH is never asked); with the harness running a hook by
-## its path, section 3 fails on status 126; with the console starting the tool by its path, section 4 fails.
-## WHAT THIS DOES NOT SHOW: that the PATH of a client on a given host holds a bash at all, and anything else
-## that differs there (the tools of the system, the rigs of other checks). Only a run on that host shows it.
+## its path, section 3 fails on status 126; with the console starting the tool by its path, section 4 fails;
+## with an entry that leaves the PATH as it was given, or a starter that starts the script by its path, section 5.
+## WHAT THIS DOES NOT SHOW: that a client on a given host can enter the tooling at all where neither its PATH nor
+## its registered command names a bash, and anything else that differs there (the tools of the system, the rigs
+## of other checks). Only a run on that host shows it.
 ## Offline: one mktemp tree, stand-ins of this check alone; the generator writes into the rig's own workspace.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -208,6 +218,126 @@ rigAssert "control: the rig's tool script cannot be started by its path: status 
 rigStarted "console" "" "$rigWs/DistroAgentsConsole.sh" --manager
 rigAssert "the console, started by its path, finds bash by the PATH: the stand-in is asked once, for the console" "$( cat "$rigTmp/console.asked" )" "$rigWs/DistroAgentsConsole.sh --manager"
 rigAssert "and it starts the tool script with the bash it runs in: the tool ran, status 0" "$( cat "$rigTmp/console.rc" ) [$( cat "$rigTmp/console.out" )] $( LC_ALL=C grep -c -i -e 'bad interpreter' -e 'not found' -e 'No such file' "$rigTmp/console.err" )" "0 [RIG-TOOL --intern-manager] 0"
+
+echo "-- 5. a PATH that holds no bash at all: the tooling, entered with its bash given, hands that bash on --"
+## What a client hands down where bash is kept outside its PATH (FreeBSD: /usr/local/bin): every tool of the system
+## by symlink, python3 among them, and no bash.
+[ "${rigRealBash##*/}" = bash ] || rigRefuse "the bash this check runs in is not named bash: $rigRealBash"
+rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH, which the two starters of this section are run by"
+rigNoBash="$rigTmp/no-bash"
+mkdir -p "$rigNoBash/own" "$rigNoBash/usr-bin" "$rigNoBash/bin" "$rigTmp/data" "$rigTmp/skills" "$rigTmp/exec-ws/.local" || rigRefuse "could not create the rig of section 5"
+ln -s /usr/bin/* "$rigNoBash/usr-bin/" 2> /dev/null ; ln -s /bin/* "$rigNoBash/bin/" 2> /dev/null
+rm -f "$rigNoBash/usr-bin/bash" "$rigNoBash/bin/bash"
+ln -s "$rigPython" "$rigNoBash/own/python3" || rigRefuse "could not place python3 on the rig's PATH"
+rigNoBashPath="$rigNoBash/own:$rigNoBash/usr-bin:$rigNoBash/bin"
+rigExecWs="$rigTmp/exec-ws"
+rigAssert "control: that PATH holds no bash, and it holds the tools, python3 among them" \
+	"$( env -i PATH="$rigNoBashPath" /bin/sh -c 'command -v bash > /dev/null 2>&1 && echo bash-found || echo no-bash ; command -v python3 > /dev/null 2>&1 && command -v awk > /dev/null 2>&1 && echo tools' | LC_ALL=C tr '\n' ' ' )" "no-bash tools "
+## A stand-in for the tool script, a bash script as that one is, and the two starters that are no shell, each
+## started as its own code starts the tool: the screen's reader as the screen's start makes it, the receiver's filing.
+printf '%s\n' '#!/usr/bin/env bash' 'printf "RIG-TOOL %s\n" "$*"' 'printf "%s\n" "$*" >> "$RIG_FILED.words"' 'cat >> "$RIG_FILED"' > "$rigTmp/stand-tool.sh"
+chmod +x "$rigTmp/stand-tool.sh"
+cat > "$rigTmp/starters.py" <<'RIGPY'
+import importlib.util, sys, time
+kind, modulePath, toolPath = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location("rig_starter", modulePath)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+if kind == "screen":
+    maker = getattr(module, "toolsCommandOf", None)
+    reader = module.OperationReader(maker(toolPath) if maker else [toolPath])
+    reader.start("probe", "rig", ["--rig-operation", "one"])
+    results = []
+    for turn in range(400):
+        results = reader.collect()
+        if results:
+            break
+        time.sleep(0.05)
+    for result in results:
+        sys.stdout.write("status=%s text=%s\n" % (result["status"], result["text"].strip()))
+else:
+    sys.argv[1:] = ["rig-app"]
+    module.fileInquiry({"channel": "CRIG00001", "ts": "1700000000.000100", "user": "URIG", "text": "RIG-MENTION"}, toolPath)
+RIGPY
+rigStarter(){ ## run folder, screen|socket, environment settings... -- one start by that starter, on the PATH without bash
+	local starterDir="$1" starterKind="$2" starterFile="$rigHere/AgentsManagerScreen.py"
+	shift 2
+	[ "$starterKind" = screen ] || starterFile="$rigHere/AgentsSlackSocketMode.py"
+	mkdir -p "$starterDir"
+	env -i HOME="$rigHome" PATH="$rigNoBashPath" RIG_FILED="$starterDir/$starterKind.filed" SOCKET_MODE_LOG_DIR="$starterDir/log" "$@" \
+		"$rigPython" -I -B "$rigTmp/starters.py" "$starterKind" "$starterFile" "$rigTmp/stand-tool.sh" > "$starterDir/$starterKind.out" 2>&1
+}
+## A member's command, where the tooling runs one (--intern-mcp-execute), the tool entered by its path with its bash given.
+rigCommand='
+	printf "%s\n" "$( command -v bash )" > "$RIG_OUT/which"
+	printf "%s\n" "$PATH" > "$RIG_OUT/path"
+	printf "%s\n" "${MDAT_BASH:-}" > "$RIG_OUT/handed"
+	"$RIG_HOOK" < "$RIG_OUT/payload" > "$RIG_OUT/hook.out" 2> "$RIG_OUT/hook.err" ; printf "%s" "$?" > "$RIG_OUT/hook.rc"
+	RIG_FILED="$RIG_OUT/screen.filed" python3 -I -B "$RIG_TMP/starters.py" screen "$RIG_LIB/AgentsManagerScreen.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/screen.out" 2>&1
+	RIG_FILED="$RIG_OUT/socket.filed" SOCKET_MODE_LOG_DIR="$RIG_OUT/log" python3 -I -B "$RIG_TMP/starters.py" socket "$RIG_LIB/AgentsSlackSocketMode.py" "$RIG_TMP/stand-tool.sh" > "$RIG_OUT/socket.out" 2>&1
+	:
+'
+rigEntered(){ ## run name, the PATH it is entered with
+	local enteredDir="$rigTmp/$1"
+	mkdir -p "$enteredDir"
+	rigPayload Read "$rigMemory/MEMORY.md" > "$enteredDir/payload"
+	( cd "$rigExecWs" && printf '%s\n' "$rigCommand" | env -i HOME="$rigHome" PATH="$2" MMDAPP="$rigExecWs" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
+		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" RIG_TMP="$rigTmp" RIG_OUT="$enteredDir" RIG_LIB="$rigHere" RIG_HOOK="$rigProj/.claude/hooks/deny-memory-md-read.sh" \
+		RIG_BASH_ASKED="$enteredDir/asked" RIG_REAL_BASH="$rigRealBash" CLAUDE_PROJECT_DIR="$rigProj" \
+		"$rigRealBash" "$rigFn" --intern-mcp-execute ) > "$enteredDir/run.out" 2>&1
+	printf '%s' "$?" > "$enteredDir/run.rc"
+}
+rigPathSays(){ ## run name -- how often the directory of the running bash stands on the PATH the command saw, and whether after everything the caller gave
+	LC_ALL=C tr ':' '\n' < "$rigTmp/$1/path" | LC_ALL=C awk -v bashDir="${rigRealBash%/*}" -v lastGiven="$rigNoBash/bin" '
+		$0 == bashDir { bashCount++ ; bashAt = NR ; } $0 == lastGiven { givenAt = NR ; }
+		END { print bashCount + 0, ( bashCount && givenAt && bashAt > givenAt ) ? "after-what-was-given" : "-" ; }'
+}
+rigStarted "no-bash.hook" "$( rigPayload Read "$rigMemory/MEMORY.md" )" /bin/sh -c 'PATH="$1" ; export PATH ; "$CLAUDE_PROJECT_DIR"/.claude/hooks/deny-memory-md-read.sh' rig "$rigNoBashPath"
+rigAssert "control: on that PATH a hook started by its path alone finds no bash: status 126 or 127, no answer" \
+	"$( case "$( cat "$rigTmp/no-bash.hook.rc" )" in (126|127) echo not-startable ;; (*) cat "$rigTmp/no-bash.hook.rc" ;; esac ) [$( cat "$rigTmp/no-bash.hook.out" )]" "not-startable []"
+rigEntered entered "$rigNoBashPath"
+rigAssert "the tool, entered with its bash given, puts the directory of that bash on the PATH: a command of the member finds bash, and it is the running one" \
+	"$( cat "$rigTmp/entered/run.rc" ) $( cat "$rigTmp/entered/which" 2> /dev/null )" "0 $rigRealBash"
+rigAssert "at the END of the PATH and once: after everything the caller gave, so nothing of his is shadowed" "$( rigPathSays entered )" "1 after-what-was-given"
+rigAssert "and it hands the running bash on to a starter that is no shell" "$( cat "$rigTmp/entered/handed" 2> /dev/null )" "$rigRealBash"
+rigAssert "the read guard of the memory store, started by its path from that command, runs and denies: status 0 and a deny decision" \
+	"$( cat "$rigTmp/entered/hook.rc" 2> /dev/null ) $( LC_ALL=C grep -c '"permissionDecision": "deny"' "$rigTmp/entered/hook.out" 2> /dev/null )" "0 1"
+rigAssert "the manager screen's reader starts the tool script and has its answer" "$( cat "$rigTmp/entered/screen.out" 2> /dev/null )" "status=0 text=RIG-TOOL --rig-operation one"
+rigAssert "the socket receiver files its inquiry through the tool script: the words and the body reached it" \
+	"$( LC_ALL=C grep -c '^--member-upsert-member-inquiry magic-coordinator inquiry-' "$rigTmp/entered/socket.filed.words" 2> /dev/null ) $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/entered/socket.filed" 2> /dev/null )" "1 1"
+rigEntered found "$rigBin:$rigNoBashPath"
+rigAssert "where the PATH holds a bash nothing is put on it: the member's command finds that one, and the running one is handed on all the same" \
+	"$( cat "$rigTmp/found/run.rc" ) $( cat "$rigTmp/found/which" 2> /dev/null ) $( rigPathSays found ) $( cat "$rigTmp/found/handed" 2> /dev/null )" "0 $rigBin/bash 0 - $rigRealBash"
+## The two starters with nothing but the bash handed to them: the PATH is as the client gave it, no bash on it.
+rigStarter "$rigTmp/handed" screen MDAT_BASH="$rigRealBash"
+rigStarter "$rigTmp/handed" socket MDAT_BASH="$rigRealBash"
+rigAssert "each starter starts the tool script with the bash handed to it, a name on the PATH never looked up" \
+	"$( cat "$rigTmp/handed/screen.out" ) / $( LC_ALL=C grep -c -x 'RIG-MENTION' "$rigTmp/handed/socket.filed" 2> /dev/null )" "status=0 text=RIG-TOOL --rig-operation one / 1"
+rigStarter "$rigTmp/unhanded" screen
+rigAssert "control: handed none, a starter starts the script by its path as before, which on that PATH finds no bash" "$( cat "$rigTmp/unhanded/screen.out" )" "status=127 text="
+rigAssert "the screen's own start makes its reader that way" "$( LC_ALL=C grep -c -F 'reader = OperationReader(toolsCommandOf(options["--tools"]))' "$rigHere/AgentsManagerScreen.py" )" 1
+## The harness entered with its bash given and no tool before it: a call that names `bash`, the Bash tool with a
+## timeout of its own, which runs its command in a bash of its own.
+mkdir -p "$rigTmp/harness-call"
+printf '{"command":"echo RIG-RAN-$(( 6 * 7 ))","cwd":"%s","timeout":30}' "$rigExecWs" \
+	| ( cd "$rigExecWs" && env -i HOME="$rigHome" PATH="$rigNoBashPath" MMDAPP="$rigExecWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
+		HARNESS_PROVIDER_NAME="bash-path proof rig" HARNESS_SELF_NAME="AgentsBashPathProofCheck.test.sh" HARNESS_ENDPOINT="https://bash-path-proof-check.invalid/v1/chat/completions" \
+		HARNESS_HOST="bash-path-proof-check.invalid" HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check never reads one" \
+		HARNESS_MODEL_LIGHT="rig-light" HARNESS_MODEL_MAIN="rig-main" HARNESS_TOKEN_MAIN="rig-not-a-credential" \
+		"$rigRealBash" "$rigHarness" --intern-tool Bash --access-root "$rigExecWs" ) > "$rigTmp/harness-call/out" 2> "$rigTmp/harness-call/err"
+rigAssert "the harness, entered with its bash given, runs a Bash call under a timeout: the command ran" "$( LC_ALL=C grep -c -x 'RIG-RAN-42' "$rigTmp/harness-call/out" )" 1
+## The generated console entered with its bash given: a spawn on the claude leg, which the console starts by its path.
+rigLegWs="$rigTmp/leg-ws"
+mkdir -p "$rigLegWs/.local/.agents" "$rigTmp/leg-home" || rigRefuse "could not create the workspace of the console launch"
+cp -p "$rigGen/ws/DistroAgentsConsole.sh" "$rigLegWs/DistroAgentsConsole.sh" || rigRefuse "could not place the generated console"
+printf 'MDLT_CONSOLE_ORIGIN=%s\n' "$MDLT_ORIGIN" > "$rigLegWs/.local/MDLT.settings.env"
+printf 'SPAWN_CLI_SERVICE=claude\n' > "$rigLegWs/.local/.agents/magic-team.agent.env"
+printf '%s\n' '#!/usr/bin/env bash' 'HARNESS_CREDENTIAL_NAMES="RIG_NO_SUCH_CREDENTIAL"' '{ printf "leg args=" ; for rigArg in "$@" ; do printf "[%s]" "$rigArg" ; done ; printf "\n" ; } >> "$RIG_LEG_LOG"' > "$rigTmp/leg-stand-in"
+chmod +x "$rigTmp/leg-stand-in"
+: > "$rigTmp/leg.log"
+env -i HOME="$rigTmp/leg-home" PATH="$rigNoBashPath" RIG_LEG_LOG="$rigTmp/leg.log" MDAT_CLAUDE_HARNESS="$rigTmp/leg-stand-in" \
+	"$rigRealBash" "$rigLegWs/DistroAgentsConsole.sh" --cli-configured --non-interactive RIG-PROMPT < /dev/null > "$rigTmp/leg.out" 2> "$rigTmp/leg.err"
+rigAssert "the console, entered with its bash given, launches its leg: the leg ran with the prompt" "$( LC_ALL=C grep -c -F '[RIG-PROMPT]' "$rigTmp/leg.log" )" 1
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ BASH PATH PROOF CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1
