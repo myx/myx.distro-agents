@@ -120,7 +120,7 @@ rigCase list
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 advance 11
 wait sessions 30
 get on
@@ -159,7 +159,7 @@ rigAssert "back at the root it is not read again, and the section says what it h
 echo "-- the left pane shows the selected subject, group by group --"
 rigCase subjects
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 wait list 30
 keys DOWN
 turn
@@ -198,7 +198,7 @@ echo "-- a subject longer than the pane scrolls with the focus on the left pane 
 rigCase scroll
 rigSize="120 20"
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN
 turn
@@ -219,7 +219,7 @@ rigAssert "and reaches its last lines: a key and a secret that are missing, mark
 echo "-- viewing only: typing in the section changes nothing --"
 rigCase viewing
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 wait list 30
 keys DOWN DOWN
 turn

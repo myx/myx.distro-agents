@@ -53,8 +53,8 @@ cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
 RIGSCRIPT
-rigAssert "the root holds the four sections in their order"          "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Settings (Configuration)...][]"
-rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 4"
+rigAssert "the root holds the five sections in their order"          "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Consoles (Tools)...][ Settings (Configuration)...]"
+rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 5"
 
 echo "-- Enter and Right dive in, the first row and Left go up --"
 rigScript <<'RIGSCRIPT'
@@ -104,14 +104,14 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 keys UP
 get top
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 get last
 keys DOWN DOWN
 get still
 RIGSCRIPT
 rigAssert "Up on the first row stays there"                          "$( rigVal top.index )" 0
-rigAssert "Down reaches the last row"                                "$( rigVal last.index ) $( rigVal last.selected )" "3 settings"
-rigAssert "Down on the last row stays there, and does not wrap"      "$( rigVal still.index ) $( rigVal still.selected )" "3 settings"
+rigAssert "Down reaches the last row"                                "$( rigVal last.index ) $( rigVal last.selected )" "4 settings"
+rigAssert "Down on the last row stays there, and does not wrap"      "$( rigVal still.index ) $( rigVal still.selected )" "4 settings"
 
 echo "-- PageDown and PageUp, a hundred rows in a pane of twenty lines --"
 rigScript <<'RIGSCRIPT'

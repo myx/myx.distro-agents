@@ -13,7 +13,9 @@
 ## CALLS, OperationReader), so that another front end can use the same operations.
 ## It reads no file of a session and no registry itself, and it signals no process
 ## and starts no CLI itself: a kill, a start and the start of a control thread are
-## operations too.
+## operations too. The one thing it starts itself is what `Consoles (Tools)` lists: a
+## console, as a child that is given the whole terminal, from the words an operation
+## printed for it, and the screen takes the terminal back when that child ends.
 ##
 ## The logic is plain functions over one state (ManagerState): the layout, the
 ## levels of the list, the selection, the focus, the filter, what a key does and
@@ -25,6 +27,7 @@
 import datetime
 import locale
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -118,6 +121,7 @@ SECTIONS = (
     ("sessions", "Sessions (Activity)"),
     ("pending", "Pending Questions"),
     ("team", "Team Members"),
+    ("consoles", "Consoles (Tools)"),
     ("settings", "Settings (Configuration)"),
 )
 ROOT_TITLE = "/"
@@ -141,7 +145,8 @@ FIXED_ROWS = {
 ## own: the read named there fills it. Beside the "view" of a row, its facts, stands its
 ## "feed", its lines, read as a kind of its own; "log" is what `l` adds to it. "needs"
 ## names what a row must carry for the read to be made at all. "acts" is what can be done
-## with a row, read as one more part of it (VIEW_PARTS).
+## with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked
+## for, and never again because its period has passed (startDueReads).
 VIEW_PARTS = ("view", "feed", "acts")
 READS = {
     ## The coworking sessions with their runs, and last the row of counters of the status lines.
@@ -159,6 +164,9 @@ READS = {
     "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
     ## The settings of the workspace as they are, by subject. For viewing: no call changes one.
     "list:settings": {"operation": ["--manager-config-digest"], "rows": "digest"},
+    ## What is started from here with the whole terminal, in the order of a menu: the consoles
+    ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
+    "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
     "view::section": None,
     "view:sessions:launch": None,
     ## A session whole, and what its runs did: the lines its tracking thread shows.
@@ -182,10 +190,12 @@ READS = {
     ## One member, whole: its information, the sessions it is in, its grants and its settings.
     "view:team:record": {"operation": ["--manager-team-member-read", "{id}"], "rows": "member-read", "needs": "member"},
     ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
-    ## of the kill itself, each with what would become of it (KILL_ROWS). Read while the
-    ## confirmation of that kill is open, by the id it names, as a kind of its own.
-    "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan"},
-    "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan"},
+    ## of the kill itself, each with what would become of it (KILL_ROWS). Read when the
+    ## confirmation of that kill opens, and once more when it is confirmed (submitKill), by
+    ## the id it names, as a kind of its own; never on the period, so what the confirmation
+    ## says does not change under the word typed into it.
+    "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+    "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
 }
 
 ## What each action asks the tooling for: the operation with its arguments, {id} the id of
@@ -223,6 +233,27 @@ KILL_WORD = "yes"
 ## The state of a session that is finished, as its row of the list gives it: such a one
 ## takes no kill, since nothing of it is left to end, to dismiss or to close.
 SESSION_FINISHED = "finished"
+## What the confirmation of a kill says in its own line between the press of its button
+## and the deed: while its plan is read once more; where the plan was not read yet; and
+## where the plan read then is not the one the confirmation showed.
+KILL_SAYS = {
+    "checking": "its plan is read once more: it is done if nothing of it has changed",
+    "unread": "nothing is done yet: its plan is still being read",
+    "changed": "nothing was done: its plan changed while this stood open. It stands above as it is now: type the word again",
+}
+
+## What the root `Consoles (Tools)` holds: the things that are started with the whole
+## terminal, each sort by the name of the row its operation prints for one. "fields": the
+## names of the fields of such a row after the first, written as the family writes them,
+## `_` for a blank and `-` for absent. The fields after those are exact, as they are
+## printed, and are never rewritten: the folder it is started in, and then its command,
+## a field a word, the first the program. "terminal": the word of its field of that name
+## that says it needs a terminal. "said": what one of that sort is called where the screen
+## speaks of it. Another sort of thing to start is one more entry here: its rows come in
+## the same list, and Enter starts it the same way (askRun, runChild).
+STARTS = {
+    "console": {"fields": ("key", "group", "label", "terminal"), "terminal": "terminal", "said": "console"},
+}
 
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
 
@@ -255,7 +286,7 @@ KEYMAPS = {
 ## the screen takes with Alt, outside a dialog, where it is text. On another layout these
 ## do not come, and nothing is taken for them.
 OPTION_KEYS = {"≈": "x", "©": "g", "ß": "s", "µ": "m", "√": "v", "˙": "h", "œ": "q",
-               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5"}
+               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5", "§": "6"}
 ## Esc and then a key within this many seconds is Alt with that key, where no menu and no
 ## dialog is open: the Meta every terminal delivers, also one that sends no Alt and keeps
 ## the function keys for itself. Esc alone closes a menu and a dialog at once, as before.
@@ -293,7 +324,7 @@ WINDOWS = (
      "commands": ()},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "foot": "loadText", "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "open", "up", "filter")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -319,6 +350,7 @@ MENUS = (
     ("go", "~G~o"),
     ("session", "~S~ession"),
     ("member", "~M~ember"),
+    ("console", "~C~onsole"),
     ("view", "~V~iew"),
     ("question", "~Q~uestion"),
     ("help", "~H~elp"),
@@ -384,6 +416,8 @@ COMMANDS = (
      "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
     {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
      "views": ("settings",), "for": "a subject of the settings", "on": ("settings:record",), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+    {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
+     "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -421,6 +455,8 @@ COMMANDS = (
      "does": ("go", ("pending",))},
     {"name": "team", "keys": ("3", "ALT-3"), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
+    {"name": "consoles", "keys": ("6", "ALT-6"), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
+     "does": ("go", ("consoles",))},
     {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "Settings (~C~onfiguration)",
      "does": ("go", ("settings",))},
     {"name": "spawn", "keys": ("5", "ALT-5"), "menu": ("go", 2), "label": "~L~aunch / Spawn",
@@ -622,6 +658,8 @@ ACTION_HANDLERS = {
     "link": None,
     ## Enter on a subject of the settings that offers choices: askSetting, set where it is defined
     "setting": None,
+    ## Enter on a row of `Consoles (Tools)`: it is started with the whole terminal: askRun, set where it is defined
+    "run": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
@@ -694,6 +732,9 @@ class ManagerState:
         ## what the kill that is being confirmed would do, as its plan was last read: read
         ## key -> {"words", "rows", "error"} (applyResult, killPlanOf)
         self.plans = {}
+        ## what was asked to be started with the whole terminal, and is at the end of the
+        ## turn of its key: {"label", "said", "words", "directory"} (askRun, runChild)
+        self.child = None
         ## the item the selection rests on, and since when (restLeft)
         self.restKey = None
         self.restSince = 0.0
@@ -923,7 +964,7 @@ def levelRows(state):
 ## the read names the form under "rows". "sessions": the sessions, and a level for each
 ## with its runs. "pending": the asks. "routines": the routines to start by hand.
 ## "members": the team members. "digest": the subjects of the settings, each with its
-## lines. No name: the stand-in below.
+## lines. "starts": what is started with the whole terminal. No name: the stand-in below.
 def parseLevels(readKey, form, text):
     if form == "sessions":
         return parseSessionLevels(text)
@@ -936,6 +977,8 @@ def parseLevels(readKey, form, text):
         return {level: parseMemberRows(text)}
     if form == "digest":
         return {level: parseDigestRows(text)}
+    if form == "starts":
+        return {level: parseStartRows(text)}
     return {level: parseRows(readKey, text)}
 
 
@@ -1136,7 +1179,8 @@ def scrollView(state, height, step, pages=0):
 ## the selected ask, and what the section of asks holds; the selected routine of `Launch /
 ## Spawn`, its free prompt, and what it holds; the selected team member, and what the
 ## section of the members holds; the selected subject of the settings, and what the
-## digest holds. None: the pane has no such content, and shows what its own read gives.
+## digest holds; the selected thing to start, and what `Consoles (Tools)` holds. None: the
+## pane has no such content, and shows what its own read gives.
 def localView(state, row):
     if row is None:
         return None
@@ -1178,6 +1222,10 @@ def localView(state, row):
         return subjectLines(row["subject"], state.viewWidth)
     if (level == "settings" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "settings"):
         return digestSummary(state)
+    if level == "consoles" and row.get("start"):
+        return startLines(row["start"], state.viewWidth)
+    if (level == "consoles" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "consoles"):
+        return startsSummary(state)
     return None
 
 
@@ -2756,11 +2804,49 @@ def killSays(target, rows=None, note=""):
     return lines
 
 
+## What a plan is known by, where the one a confirmation showed is held against the one
+## read when it was confirmed: its rows, and whether its read failed.
+def killPlanSeen(plan):
+    return (plan["rows"], bool(plan["error"]))
+
+
+## A confirmation whose button was pressed, at a turn of the screen: its plan is read once
+## more, and until that has answered the dialog stands as it was confirmed, and nothing
+## fills it (False). When it has answered: where the plan is the one the dialog showed, and
+## the word stands, the kill is asked of the tooling and the dialog closes (False). Where
+## the plan has changed nothing is done: the word is taken out, the dialog says so and
+## shows the plan as it is now (True), and it is confirmed again or left.
+def killChecked(state, dialog):
+    key, words = killPlanRead(state, dialog["about"]["target"])
+    plan = state.plans.get(key)
+    if plan is None or plan["words"] != words:
+        return False
+    seen, dialog["about"]["pressed"] = dialog["about"]["pressed"], None
+    if dialogMissing(dialog) is not None:
+        ## the word was changed meanwhile: what was pressed is no longer confirmed
+        dialog["says"] = ""
+        return True
+    if killPlanSeen(plan) == seen:
+        killAsked(state, dialog)
+        if state.dialog is dialog:
+            closeDialog(state)
+        return False
+    word = dialogControl(dialog, "word")
+    word["value"] = ""
+    dialog["focus"] = dialogStops(dialog).index(("control", dialog["controls"].index(word)))
+    dialog["says"] = KILL_SAYS["changed"]
+    return True
+
+
 ## The confirmation of a kill as it stands now, at every turn while it is open: what it
 ## says, from the plan once that was read; and where nothing of the session lives, the
 ## title, the button and the word of a close (the dialog "close") in place of a kill's.
+## The plan is read when the dialog opens and not again while it stands, so its text does
+## not change under the word; after its button was pressed, see killChecked.
 def fillKill(state, dialog):
     target = dialog["about"]["target"]
+    if dialog["about"].get("pressed") is not None and not killChecked(state, dialog):
+        return
     rows, note = killPlanOf(state, target)
     declared = DIALOGS["kill" if killLives(target, rows) else "close"]
     dialog["name"] = "kill" if killLives(target, rows) else "close"
@@ -2790,17 +2876,37 @@ def askKill(state, row):
     return ""
 
 
-## Kill, or Close, in the dialog of a kill. Exactly the word does it: the operation is
-## called once, with the id of what the dialog named. Any other word is refused there,
-## and nothing is killed or closed.
+## Kill, or Close, in the dialog of a kill. Exactly the word does it, and any other word
+## is refused there. Nothing is done at once: the plan of the kill is read once more, and
+## the dialog stays as it is and says so. When that has answered (killChecked), the kill
+## is asked for where the plan is still the one the dialog showed. A press while the first
+## read of the plan has not answered does nothing, and says so. Where no operation gives
+## a plan there is none to hold against, and the kill is asked for at once.
 def submitKill(state, dialog, button):
+    key, words = killPlanRead(state, dialog["about"]["target"])
+    if words is None:
+        killAsked(state, dialog)
+        return None
+    if dialog["about"].get("pressed") is not None:
+        return KILL_SAYS["checking"]
+    plan = state.plans.get(key)
+    if plan is None or plan["words"] != words:
+        return KILL_SAYS["unread"]
+    dialog["about"]["pressed"] = killPlanSeen(plan)
+    state.plans.pop(key, None)
+    state.forced.add(key)
+    return KILL_SAYS["checking"]
+
+
+## The kill a confirmation named is asked of the tooling: the operation is called once,
+## with the id of what the dialog named.
+def killAsked(state, dialog):
     target = dialog["about"]["target"]
     askCall(state, "kill", target["id"], callWords("kill:" + target["kind"], target["id"]), None,
             {"viewKey": target["viewKey"]})
     said = "kill asked of the tooling: the %s %s" if dialog["name"] == "kill" else "close asked of the tooling: the %s %s"
     state.notice = said % ("session" if target["kind"] == "session" else "agent", target["label"])
     state.noticeOf = None
-    return None
 
 
 DIALOG_HANDLERS["kill"] = submitKill
@@ -3880,6 +3986,118 @@ def digestSummary(state):
             "Enter changes a setting on a subject that offers choices; the others are for viewing."]
 
 
+## ---- what is started with the whole terminal: `Consoles (Tools)` ----
+
+## What `--manager-console-list` printed, as rows, in the order they come, which is the
+## order of a menu: group after group. A row of a sort STARTS names: its fields by their
+## names there, then, exact as they are printed, the folder it is started in and its
+## command, a field a word; a line that is none of them, and one too short to hold a
+## command, is left out. A row shows by its label, with its group at the end of its line.
+def parseStartRows(text):
+    rows = []
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        form = STARTS.get(fields[0])
+        if form is None or len(fields) < len(form["fields"]) + 3:
+            continue
+        start = dict(zip(form["fields"], fields[1:]))
+        start.update(sort=fields[0], directory=fields[len(form["fields"]) + 1], words=fields[len(form["fields"]) + 2:])
+        row = newRow(start["key"], unspaced(start["label"]) or start["key"], "record", False, fields)
+        row["start"] = start
+        row["tail"] = unspaced(start["group"])
+        rows.append(row)
+    return rows
+
+
+## A command for the eye, word by word: a word that holds a blank, or anything a shell
+## would read as more than a word, stands between quotes, so where each word ends shows.
+## Only what is shown: a command is started from its words as they are, with no shell.
+def commandText(words):
+    return " ".join(shlex.quote(word) for word in words)
+
+
+## The selected thing to start for the left pane, from its row: its label, its key and its
+## group, the folder it is started in, its command as it will be run, whether it needs a
+## terminal, and what Enter does.
+def startLines(start, width):
+    form = STARTS[start["sort"]]
+    return fieldLines([
+        (form["said"], unspaced(start["label"])),
+        ("key", start["key"]),
+        ("group", unspaced(start["group"])),
+        ("directory", start["directory"]),
+        ("command", commandText(start["words"])),
+        ("terminal", "it needs a terminal, on its input and on its output" if start["terminal"] == form["terminal"] else "it needs none"),
+        ("start", "Enter gives it the whole terminal. The screen is back when it ends, and says how it ended."),
+    ], width)
+
+
+## What `Consoles (Tools)` holds, for the left pane while the section itself or the row
+## that goes up is selected: how many there are to start, group by group in the order of
+## the operation. None until its read has answered.
+def startsSummary(state):
+    if "consoles" not in state.rows:
+        return None
+    groups = []
+    for row in state.rows["consoles"]:
+        if not row.get("start"):
+            continue
+        if not groups or groups[-1][0] != row["tail"]:
+            groups.append([row["tail"], 0])
+        groups[-1][1] += 1
+    total = sum(count for group, count in groups)
+    if not total:
+        return ["Nothing to start here: the operation listed none."]
+    return ["%d to start: %s." % (total, ", ".join("%d %s" % (count, group or "-") for group, count in groups)),
+            "Enter starts one with the whole terminal; the screen is back when it ends."]
+
+
+## Enter on a row of `Consoles (Tools)`: what the row names is started with the whole
+## terminal at the end of this turn of the screen (runChild), from its words as the
+## operation printed them and in its folder.
+def askRun(state, row):
+    start = row.get("start") if row else None
+    if start is None:
+        return ""
+    state.answer = None
+    state.child = {"label": row["label"], "said": STARTS[start["sort"]]["said"],
+                   "words": list(start["words"]), "directory": start["directory"]}
+    return ""
+
+
+ACTION_HANDLERS["run"] = askRun
+ACTION_FITS["run"] = lambda state, row: bool(row and row.get("start"))
+
+
+## How a child ended, for the status line, by its status as the system gives it: the
+## status it ended with, or, below 0, the signal that ended it, by its number and its name.
+def childSays(child, status):
+    if status < 0:
+        try:
+            name = " (%s)" % signal.Signals(-status).name
+        except ValueError:
+            name = ""
+        return "%s: ended by signal %d%s" % (child["label"], -status, name)
+    return "%s: ended with status %d" % (child["label"], status)
+
+
+## What was asked to be started with the whole terminal is started, and the screen waits
+## for its end: the surface gives the terminal away and takes it back, however the child
+## ended (its `child`). Then the status line says how it ended, and what is shown is read
+## again, since it may be old by now. One that cannot be started says why in a box, whole.
+def runChild(surface, state):
+    child, state.child = state.child, None
+    try:
+        status = surface.child(child["words"], child["directory"])
+    except OSError as failure:
+        tell(state, "It did not start", [(child["said"], child["label"]), ("directory", child["directory"]),
+                                         ("command", commandText(child["words"])), str(failure)])
+        return
+    state.noticeOf = None
+    state.notice = childSays(child, status)
+    readNow(state)
+
+
 ## ---- what a key does ----
 
 ## One key, on the state alone. With a dialog open the key goes to that dialog, with a
@@ -4478,7 +4696,9 @@ def startDueReads(state, reader, now):
         if reader.busy(kind) or (resting and kind in VIEW_PARTS):
             continue
         last = state.started.get(key)
-        due = key in state.forced or last is None or last["words"] != words or now - last["at"] >= REFRESH_SECONDS
+        ## a read that is made once is not due again because its period has passed
+        aged = now - last["at"] >= REFRESH_SECONDS and not (READS.get(key) or {}).get("once") if last else False
+        due = key in state.forced or last is None or last["words"] != words or aged
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
             state.forced.discard(key)
@@ -5279,17 +5499,29 @@ def drawScreen(surface, state):
     surface.show()
 
 
-## One turn of the screen: the key that came, if one did; the calls that have ended; the
-## actions that were asked for; the reads that are due now; the drawing. `now` is a clock
-## that only goes forward.
-def screenTurn(surface, state, reader, now, key):
+## The size of the terminal as it is now, taken into the state: gives the layout of it,
+## or None where it is too small to draw.
+def sizeTaken(surface, state):
     columns, lines = surface.size()
     layout = layoutOf(columns, lines)
     state.viewWidth = layout["viewWidth"] if layout else 0
     state.viewHeight = layout["viewHeight"] if layout else 0
+    return layout
+
+
+## One turn of the screen: the key that came, if one did; what that key asked to be started
+## with the whole terminal, which is waited for here; the calls that have ended; the
+## actions that were asked for; the reads that are due now; the drawing. `now` is a clock
+## that only goes forward.
+def screenTurn(surface, state, reader, now, key):
+    layout = sizeTaken(surface, state)
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now
     handleKey(state, key, layout)
+    if state.child is not None:
+        ## the terminal is another's until that ends: its size is taken again after it
+        runChild(surface, state)
+        sizeTaken(surface, state)
     if reader is not None:
         for result in reader.collect():
             applyResult(state, result)
@@ -5318,16 +5550,73 @@ class CursesSurface:
         }
         self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE",
                           "\x18": "CTRL-x"}
-        ## the mouse, where the terminal reports one: its first button at once, with no wait
-        ## for a second click, and the wheel. A terminal that reports none changes nothing.
         ## Where the pointer was last, for a turn of the wheel that comes with no place.
         self.pointer = (-1, -1)
+        self.mouse(True)
+
+    ## The mouse, where the terminal reports one: reported to the screen, its first button
+    ## at once, with no wait for a second click, and the wheel; or not reported at all, as
+    ## while the terminal is another's. A terminal that reports none changes nothing.
+    def mouse(self, reported):
         try:
-            curses.mousemask(curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED
-                             | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", WHEEL_DOWN))
+            curses.mousemask((curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED
+                              | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", WHEEL_DOWN)) if reported else 0)
             curses.mouseinterval(0)
         except (curses.error, AttributeError):
             pass
+
+    ## The terminal leaves the mode of the screen, for a child that is given it whole: the
+    ## mouse is no longer reported, the cursor shows, the keypad is the terminal's own, the
+    ## mode of the screen is kept for the way back, and the terminal is the shell's again.
+    def leave(self):
+        self.mouse(False)
+        for restore in (lambda: curses.curs_set(1), lambda: self.window.keypad(False), curses.def_prog_mode, curses.endwin):
+            try:
+                restore()
+            except curses.error:
+                pass
+
+    ## The terminal is the screen's again: its mode as it was kept, the keypad, the mouse.
+    ## What was typed and not read by the child is dropped, not taken as keys of the screen.
+    ## The size of the terminal is read anew, since it may have changed meanwhile and no
+    ## signal of that need have come here, and the next drawing draws every cell.
+    def back(self):
+        for restore in (curses.reset_prog_mode, lambda: self.window.keypad(True), curses.flushinp):
+            try:
+                restore()
+            except curses.error:
+                pass
+        self.mouse(True)
+        try:
+            size = os.get_terminal_size(sys.stdout.fileno())
+            if curses.is_term_resized(size.lines, size.columns):
+                curses.resizeterm(size.lines, size.columns)
+        except (OSError, ValueError, AttributeError, curses.error):
+            pass
+        try:
+            self.window.clearok(True)
+        except curses.error:
+            pass
+
+    ## Gives the whole terminal to a child and waits for its end: the command from its words
+    ## as they are, with no shell, started in that folder, with the environment and the
+    ## streams of the screen. However the child ends, and whatever fails here, the terminal
+    ## is taken back first (back). While the child runs an interrupt and a quit typed at
+    ## the terminal are the child's alone: the screen notes them and does not end with them,
+    ## and since it does not ignore them the child starts with what the system does on them.
+    ## Gives the status of the child as the system gives it, below 0 the signal that ended
+    ## it. A command that cannot be started fails as the system says (OSError).
+    def child(self, words, directory):
+        self.leave()
+        held = {}
+        try:
+            for number in (signal.SIGINT, signal.SIGQUIT):
+                held[number] = signal.signal(number, lambda signalNumber, stackFrame: None)
+            return subprocess.call(words, cwd=directory)
+        finally:
+            for number, handler in held.items():
+                signal.signal(number, handler)
+            self.back()
 
     ## What each look of LOOKS is on this terminal, twice: in bold, reverse and dim alone,
     ## and in its colours, or None where the terminal has not eight of them.

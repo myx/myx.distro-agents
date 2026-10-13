@@ -56,6 +56,11 @@ class TextSurface:
         self.frames = 0
         self.puts = 0
         self.cursorAt = None
+        ## the children that were given the terminal, each as its words and its folder; how
+        ## the next one ends, and the size the terminal has when it does
+        self.children = []
+        self.childEnd = 0
+        self.childSize = None
         self.resize(columns, lines)
 
     def resize(self, columns, lines):
@@ -109,6 +114,16 @@ class TextSurface:
     def show(self):
         self.frames += 1
 
+    ## A child that is given the terminal. None is started here: what it would be started
+    ## with is kept, and it ends as the script said the next one does (`child`).
+    def child(self, words, directory):
+        self.children.append((list(words), directory))
+        if self.childSize is not None:
+            self.resize(*self.childSize)
+        if self.childEnd == "missing":
+            raise FileNotFoundError(2, "No such file or directory", words[0])
+        return self.childEnd
+
     def textLines(self):
         return ["".join(lineCells) for lineCells in self.cells]
 
@@ -129,6 +144,9 @@ class TextSurface:
 ##   turn [<count>]                turns with no key
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
 ##                                 rested first, so the reads of the selected item are started
+##   child <status>|missing [<columns> <lines>]   how the next child that is given the terminal ends: with that
+##                                 status as the system gives it, below 0 the signal that ended it, or it cannot be
+##                                 started; and the size the terminal has when it has ended. No child is started.
 ##   rows <level> <id>=<label>...  the rows of a level, as if its operation had printed them; `+` ahead of an id
 ##                                 makes its row one that Enter dives into
 ##   rowsgen <level> <count>       the same, <count> generated rows r001.. labelled `row 001`..
@@ -257,6 +275,9 @@ def scriptRun(module):
             ("forced", ",".join(sorted(state.forced))),
             ("spills", surface.spills), ("frames", surface.frames), ("puts", surface.puts),
             ("cursor", "" if surface.cursorAt is None else "%d,%d" % surface.cursorAt),
+            ("children", len(surface.children)),
+            ("childWords", "".join("[%s]" % word for word in surface.children[-1][0]) if surface.children else ""),
+            ("childDirectory", surface.children[-1][1] if surface.children else ""),
         ]
         if layout is not None:
             for name in ("viewWidth", "separator", "listLeft", "listWidth", "viewHeight", "listHeight", "inputLine", "bottomLine"):
@@ -316,6 +337,9 @@ def scriptRun(module):
                 time.sleep(0.05)
                 turn()
             turn()
+        elif command == "child":
+            surface.childEnd = "missing" if words[0] == "missing" else int(words[0])
+            surface.childSize = (int(words[1]), int(words[2])) if len(words) > 2 else None
         elif command == "rows":
             setRows(words[0], [module.newRow(word.partition("=")[0].lstrip("+"), word.partition("=")[2], "record", word.startswith("+")) for word in words[1:]])
         elif command == "rowsgen":
@@ -395,7 +419,12 @@ def scriptRun(module):
 ## pty: the command on a pseudo-terminal of that size, a terminal with colours, or the one the
 ## environment names in MANAGER_SCREEN_PTY_TERM (colours says whether one was set). Once <wait-for> has been drawn the
 ## keys are written (`-`: none; \r \e \t are read as those keys, \x and two hex digits as that
-## byte, and \p is a pause of 0.4 seconds between two keys, as a hand types them). Printed: how it ended
+## byte, and \p is a pause of 0.4 seconds between two keys, as a hand types them; what stands between two
+## pauses and begins with \a<text>\a is written only once <text> stands in what was written to the terminal since
+## the keys before it, its escape sequences aside; and \z<columns>x<lines> at that place makes the terminal that
+## size, as a window that is resized, with no signal). Where the environment names texts in MANAGER_SCREEN_PTY_TRACE,
+## <name>=<text> with | between them, the same marks read in a text, the names are printed in the order their
+## texts stand in what was written to the terminal, each as often as it stands there (trace). Printed: how it ended
 ## (rc), whether <wait-for> was drawn (frame), whether the terminal's mode was changed
 ## while it ran (modeTaken) and is afterwards what it was before (modeBack), whether the
 ## other screen of the terminal was entered and left again (entered, left), and where it
@@ -404,11 +433,21 @@ def scriptRun(module):
 def ptyRun(arguments):
     columns, lines, waitFor, keys, seconds = int(arguments[0]), int(arguments[1]), arguments[2], arguments[3], float(arguments[4])
     command = arguments[6:]
-    chunks = [] if keys == "-" else [
-        re.sub(r"\\x([0-9a-fA-F]{2})", lambda found: chr(int(found.group(1), 16)),
-               part.replace("\\r", "\r").replace("\\e", "\x1b").replace("\\t", "\t")).encode("utf-8")
-        for part in keys.split("\\p")]
+    def marksRead(text):
+        return re.sub(r"\\x([0-9a-fA-F]{2})", lambda found: chr(int(found.group(1), 16)),
+                      text.replace("\\r", "\r").replace("\\e", "\x1b").replace("\\t", "\t"))
+
+    ## what is written at each turn: the text it waits for, or None; the size it makes the terminal, or None; the keys
+    chunks = []
+    for part in ([] if keys == "-" else keys.split("\\p")):
+        awaited = re.match(r"\\a(.*?)\\a", part, re.S)
+        part = part[awaited.end():] if awaited else part
+        sized = re.match(r"\\z([0-9]+)x([0-9]+)", part)
+        part = part[sized.end():] if sized else part
+        chunks.append((awaited.group(1) if awaited else None, (int(sized.group(1)), int(sized.group(2))) if sized else None,
+                       marksRead(part).encode("utf-8")))
     nextAt = None
+    writtenAt = 0
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0))
     before = termios.tcgetattr(slave)
@@ -432,8 +471,16 @@ def ptyRun(arguments):
             during = termios.tcgetattr(slave)
             nextAt = time.time()
         if nextAt is not None and chunks and time.time() >= nextAt:
-            os.write(master, chunks.pop(0))
-            nextAt = time.time() + 0.4
+            awaited, sized, typed = chunks[0]
+            since = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][0-9A-Za-z]|\x1b[=>]", "", output[writtenAt:].decode("utf-8", "replace"))
+            if awaited is None or awaited in since:
+                chunks.pop(0)
+                if sized is not None:
+                    fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", sized[1], sized[0], 0, 0))
+                if typed:
+                    os.write(master, typed)
+                writtenAt = len(output)
+                nextAt = time.time() + 0.4
         if process.poll() is not None:
             break
     status = process.poll()
@@ -472,6 +519,16 @@ def ptyRun(arguments):
     print("pty.left=%s" % ("yes" if entered != -1 and left > entered else "no"))
     print("pty.errorAfterLeft=%s" % ("none" if errorAt == -1 else "yes" if left != -1 and errorAt > left else "no"))
     print("pty.error=%s" % errorLine)
+    if os.environ.get("MANAGER_SCREEN_PTY_TRACE"):
+        found = []
+        for pair in os.environ["MANAGER_SCREEN_PTY_TRACE"].split("|"):
+            name, _, text = pair.partition("=")
+            sought = marksRead(text).encode("utf-8")
+            at = output.find(sought) if sought else -1
+            while at != -1:
+                found.append((at, name))
+                at = output.find(sought, at + 1)
+        print("pty.trace=%s" % " ".join(name for at, name in sorted(found)))
     os.close(master)
     os.close(slave)
     return 0
