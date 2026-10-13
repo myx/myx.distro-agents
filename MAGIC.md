@@ -1899,11 +1899,28 @@ op's own option arm.
   question keeps its thread watched**: every close that answers it (the harness,
   collect, the escalation read, an escalation answer, a readback) sets `follow-floor` -- the newest
   message of its own thread already read and kept, else the question -- and its item stays in the Wait set
-  until the session ends. `AgentsWaitProbeAsk` then reads only what follows the floor, with no closed
-  line, so a later message arrives as `ASK-RESULT: CLARIFIED` and is kept with the answer. The floor
-  stays where the close set it: the Wait's own stored baseline tells a new message from one already
-  shown, and the clarify op keeps each message once. Settled, withdrawn and Decisions-closed questions
+  until the session ends (or it expires, below). `AgentsWaitProbeAsk` then reads only what follows the
+  floor, so a later message arrives as `ASK-RESULT: CLARIFIED` and is kept with the answer. **This "no
+  closed line" is true of a thread-answered question only.** One answered by the team operation
+  (`answered-session` set) gets its closed line every poll regardless of `follow-floor` -- nothing a
+  person wrote ever announces that close, so the line is the one signal of it, and emitting it once is
+  the content-diff layer's job below, not this probe's.
+  The floor stays where the close set it: the Wait's own stored per-source BASELINE -- not the floor
+  itself -- tells a new rendering from one already shown, by comparing it to the last one returned, and
+  the clarify op keeps each message once. That baseline must carry forward from call to call for this to
+  hold: it does for `--wait-continue`, and for a `--wait-default` call over a source the stored wait
+  already had, *whatever `--wait-since-utime` that call also names* -- `since_utime` is a Slack-source
+  floor and has no bearing on a non-Slack source's own baseline. Letting it gate the carry-forward too
+  was the defect behind "an answered question never leaves the Wait set, re-displaying the same closed
+  line on every poll" (2026-10-13): the unchanging closed line of a by-operation close read as new on
+  every call that also named a `since_utime`, forever. Settled, withdrawn and Decisions-closed questions
   set no floor and leave the Wait set.
+  **Two more ways an `ask:` item leaves a stored wait, besides the session ending**: `--unwait
+  <kind>:<target>` (shorthand for `--wait-drop --wait-source <kind>:<target>`) drops it on demand, and an
+  answered one quiet five minutes past its own `follow-floor` -- the same pointer a clarification already
+  shifts -- drops out of a `--wait-default` call's stored sources on its own, said on
+  `WAIT-DROPPED-EXPIRED`, never silently. Neither blocks naming the same source again, explicitly, on a
+  later call.
 - **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
   conversation the question itself is one new top-level message, with no opener, in the member's DM or
   the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another
