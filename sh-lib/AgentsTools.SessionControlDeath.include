@@ -21,6 +21,13 @@
 ##                            due.
 ##            asked=<id>      the question about it was asked: the id of its pending-reply
 ##                            record. asked=none: no reviewer is set, so nothing is asked.
+##            answer=<option> answered=<moment>   the answer to its question, as its record
+##                            gave it; carried out, it settles the death, how=<option>.
+##            not=<answer>,<moment>,<item put back in review, or ->,<why>   an answer that
+##                            could not be carried out: the death stays unsettled and its
+##                            reviewer is asked again, so `asked=` and `answer=` may stand
+##                            more than once, each read as it stands last. How many `not=`
+##                            a line keeps is how many tries failed.
 ##            settled=<moment> how=<word>   nothing more is done about it. how=told: it was
 ##                            told, nothing was to ask, and its record is closed.
 ##                            how=closed-elsewhere: another closer closed its record before
@@ -76,14 +83,32 @@ AgentsToolsSessionControlDeathLine(){ ## session id, run id
 	return 1
 }
 
-## One mark of such a line, what stands after `<name>=`; rc 1 where the line has none.
+## One mark of such a line, what stands after `<name>=`; rc 1 where the line has none. A line
+## is a history: a mark that stands more than once, the question that was asked again after
+## an answer could not be carried out, the answer to it, is read as it stands last.
 AgentsToolsSessionControlDeathMark(){ ## line, name of the mark
-	local markWords markWord
+	local markWords markWord markFound="" markAny=""
 	read -r -a markWords <<< "${1:-}"
 	for markWord in ${markWords[@]+"${markWords[@]}"} ; do
-		case "$markWord" in "$2="*) printf '%s\n' "${markWord#*=}" ; return 0 ;; esac
+		case "$markWord" in "$2="*) markFound="${markWord#*=}" ; markAny="yes" ;; esac
 	done
-	return 1
+	[ -n "$markAny" ] || return 1
+	printf '%s\n' "$markFound"
+	return 0
+}
+
+## How many marks of one name a line keeps, a mark that says `none` not counted: how many
+## questions were asked (`asked`), how many answers were taken (`answer`), how many of them
+## could not be carried out (`not`). The three counts say where a death stands: as many
+## questions as failed answers, a question is due; one question more and no answer more, its
+## answer is awaited; one answer more, it is to be carried out.
+AgentsToolsSessionControlDeathCount(){ ## line, name of the mark
+	local countWords countWord countFound=0
+	read -r -a countWords <<< "${1:-}"
+	for countWord in ${countWords[@]+"${countWords[@]}"} ; do
+		case "$countWord" in "$2=none") ;; "$2="*) countFound=$(( countFound + 1 )) ;; esac
+	done
+	printf '%s\n' "$countFound"
 }
 
 ## WHO SPEAKS. rc 0: the control thread of that session lives, and keeps that run as a death
@@ -176,22 +201,26 @@ AgentsToolsSessionControlDeathOption(){ ## word
 ## record): the limit counts from there. Nothing where it names none: a death that is not
 ## asked yet holds nothing, and neither does a question of another session.
 AgentsToolsSessionControlDeathQuestion(){ ## session id
-	local questionFile questionLine questionId questionRecord questionAt questionLast=""
+	local questionFile questionLine questionWords questionWord questionId questionRecord questionAt questionLast=""
 	case "${1:-}" in ''|-|.|..|*/*) return 0 ;; esac
 	questionFile="$MMDAPP/.local/agents/sessions/$1/control/dead"
 	[ -f "$questionFile" ] || return 0
 	while IFS= read -r questionLine || [ -n "$questionLine" ] ; do
-		questionId="$( AgentsToolsSessionControlDeathMark "$questionLine" asked )" || continue
-		case "$questionId" in ''|none|*/*|.|..) continue ;; esac
-		questionRecord="$MMDAPP/.local/agents/pending/$questionId.md"
-		[ -f "$questionRecord" ] || continue
-		if [ "$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" status )" = "reply-pending" ] ; then
-			printf 'open\n'
-			return 0
-		fi
-		questionAt="$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" resolved-epoch )"
-		case "$questionAt" in ''|*[!0123456789]*|????????????*) continue ;; esac
-		[ -n "$questionLast" ] && [ "$questionLast" -ge "$questionAt" ] || questionLast="$questionAt"
+		## Every question the line names: one that was asked again stands beside the one before it.
+		read -r -a questionWords <<< "$questionLine"
+		for questionWord in ${questionWords[@]+"${questionWords[@]}"} ; do
+			case "$questionWord" in asked=*) questionId="${questionWord#asked=}" ;; *) continue ;; esac
+			case "$questionId" in ''|none|*/*|.|..) continue ;; esac
+			questionRecord="$MMDAPP/.local/agents/pending/$questionId.md"
+			[ -f "$questionRecord" ] || continue
+			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" status )" = "reply-pending" ] ; then
+				printf 'open\n'
+				return 0
+			fi
+			questionAt="$( AgentsToolsSpawnSandboxRecordHeader "$questionRecord" resolved-epoch )"
+			case "$questionAt" in ''|*[!0123456789]*|????????????*) continue ;; esac
+			[ -n "$questionLast" ] && [ "$questionLast" -ge "$questionAt" ] || questionLast="$questionAt"
+		done
 	done < "$questionFile" 2> /dev/null
 	[ -z "$questionLast" ] || printf '%s\n' "$questionLast"
 	return 0
@@ -213,8 +242,14 @@ AgentsToolsSessionControlDeathQuestion(){ ## session id
 ## death; and what the send answered is kept in control/post.<run id>.sent the moment the
 ## post is made, so a post whose record could not be written yet gets its record, and no
 ## second post. Only the emoji are placed again, which Slack takes as placed.
-AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is asked (a thread `<channel>:<ts>`, or human-owner), whom it is asked, the item of the run (may be empty)
-	local askSession="$1" askRecord="$2" askWhere="$3" askWhom="$4" askItem="${5:-}"
+## ASKED AGAIN, after an answer that could not be carried out: the same call with the number
+## of the question, 2 for the second, and it is a question of its own, with a key of its own,
+## `death:<run id>:<number>`. What it asks is the block `question-again`: which answer was
+## not carried out and why, the item where that was put back in review, and, where the same
+## answer has failed three times or more in a row for the same reason, that, in its first
+## line. Its options and its context are those of the first question.
+AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is asked (a thread `<channel>:<ts>`, or human-owner), whom it is asked, the item of the run (may be empty); then, for a question asked again: its number, the answer that was not carried out, why, how many times in a row where that is three or more (else empty), the item that was put back in review (may be empty)
+	local askSession="$1" askRecord="$2" askWhere="$3" askWhom="$4" askItem="${5:-}" askTry="${6:-1}" askFailed="${7:-}" askWhy="${8:-}" askRepeat="${9:-}" askBack="${10:-}" askKey
 	local askRun askMember askRole askName askShort="" askQuestion askOptions askContext askBody askOut askChannel askTs askThread askAddressees askAsking askId askSent askFound
 	type AgentsToolsAskPostReact > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
 	askRun="${askRecord##*/}" ; askRun="${askRun%.md}"
@@ -227,12 +262,21 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 	## The session by the name its spawn gave it, else by its short id.
 	askName="$( AgentsToolsSpawnSandboxRecordHeader "$askRecord" session-comment )"
 	[ -n "$askName" ] || askShort="${askSession:0:8}"
-	askQuestion="$( ASKP_F_member="$askMember" ASKP_F_role="$askRole" ASKP_F_session="$askName" ASKP_F_session_id="$askShort" ASKP_F_run="${askRun:0:8}" AgentsToolsSessionControlDeathText question )" || askQuestion=""
+	askKey="death:$askRun"
+	case "$askTry" in
+		''|1|*[!0123456789]*)
+			askQuestion="$( ASKP_F_member="$askMember" ASKP_F_role="$askRole" ASKP_F_session="$askName" ASKP_F_session_id="$askShort" ASKP_F_run="${askRun:0:8}" AgentsToolsSessionControlDeathText question )" || askQuestion=""
+		;;
+		*)
+			askKey="death:$askRun:$askTry"
+			askQuestion="$( ASKP_F_member="$askMember" ASKP_F_run="${askRun:0:8}" ASKP_F_option="$askFailed" ASKP_F_reason="$askWhy" ASKP_F_count="$askRepeat" ASKP_F_item="$askBack" AgentsToolsSessionControlDeathText question-again )" || askQuestion=""
+		;;
+	esac
 	askOptions="$( AgentsToolsSessionControlDeathText options )" || askOptions=""
 	askContext="$( ASKP_F_item="$askItem" AgentsToolsSessionControlDeathText context )" || askContext=""
 	askSent="$MMDAPP/.local/agents/sessions/$askSession/control/post.$askRun.sent"
 	## The question of this death is recorded already: nothing is posted, its emoji are placed again.
-	askFound="$( LC_ALL=C grep -r -l -x -F --include='*.md' -- "question-key: death:$askRun" "$MMDAPP/.local/agents/pending" 2> /dev/null | LC_ALL=C sed -n '1p' )" || askFound=""
+	askFound="$( LC_ALL=C grep -r -l -x -F --include='*.md' -- "question-key: $askKey" "$MMDAPP/.local/agents/pending" 2> /dev/null | LC_ALL=C sed -n '1p' )" || askFound=""
 	if [ -n "$askFound" ] ; then
 		askId="${askFound##*/}" ; askId="${askId%.md}"
 		askChannel="$( AgentsToolsAskPostField "$askFound" channel )" ; askTs="$( AgentsToolsAskPostField "$askFound" question-ts )"
@@ -272,7 +316,7 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 	## What the post was filled with is kept beside its record, so it is filled again once it takes no answer.
 	askId="$( printf '%s\n' "$askBody" | DistroAgentsTools --intern-op-pending-reply-open "$askMember" --to "$askWhere" --session-id "$askSession" \
 		--kind decision --address-to "$askWhom" --blocked-on "reply from $askWhom" --channel "$askChannel" --question-ts "$askTs" --thread-ts "$askThread" \
-		--addressees "$askAddressees" ${askAsking:+--asking-accounts " $askAsking"} ${askItem:+--item "$askItem"} --options "$askOptions" --ask-identity bot --question-key "death:$askRun" \
+		--addressees "$askAddressees" ${askAsking:+--asking-accounts " $askAsking"} ${askItem:+--item "$askItem"} --options "$askOptions" --ask-identity bot --question-key "$askKey" \
 		--fields "$( AgentsToolsAskPostFieldsPack asked-as "$agentsAskRowName" question "$askQuestion" context "$askContext" )" --context "${MDSC_CMD:-session-control}" 2> /dev/null )" || askId=""
 	[ -n "$askId" ] || { printf 'failed %s\n' "the question was posted at $askChannel:$askTs but could not be recorded, so its answer could not be read" ; return 1 ; }
 	## Its click answers, the names its template gives, placed as the identity that posted it.
@@ -319,13 +363,21 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 	workLine="$( AgentsToolsSessionControlDeathLine "$workSession" "$workRun" )" || workLine=""
 	workTold="$( AgentsToolsSessionControlDeathMark "$workLine" told )" || workTold="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-told )"
 	workAsked="$( AgentsToolsSessionControlDeathMark "$workLine" asked )" || workAsked="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" death-asked )"
-	if AgentsToolsSessionControlDeathMark "$workLine" answer > /dev/null ; then
+	## Where the death stands, by what its line counts: an answer more than failed answers is
+	## carried out; as many questions as failed answers, the reviewer is asked again.
+	local workTries
+	workTries="$( AgentsToolsSessionControlDeathCount "$workLine" not )"
+	if [ "$( AgentsToolsSessionControlDeathCount "$workLine" answer )" -gt "$workTries" ] ; then
 		AgentsToolsSessionControlDeathAct "$workSession" "$workRecord" "$workLine" "$workResult"
 		return 0
 	fi
 	case "$workAsked" in
 		''|none|*/*|.|..) ;;
 		*)
+			if [ "$( AgentsToolsSessionControlDeathCount "$workLine" asked )" -le "$workTries" ] ; then
+				AgentsToolsSessionControlDeathAgain "$workSession" "$workRecord" "$workLine" "$MMDAPP/.local/agents/pending/$workAsked.md" "$workResult"
+				return 0
+			fi
 			if [ "$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$workAsked.md" status )" = "reply-pending" ] ; then
 				AgentsToolsSessionControlDeathRead "$workAsked" "$workResult"
 				return 0
@@ -411,6 +463,44 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 	return 0
 }
 
+## AN ANSWER THAT COULD NOT BE CARRIED OUT LEAVES THE DEATH WITH ITS REVIEWER. The line of the
+## death keeps each such answer, `not=<answer>,<moment>,<item put back, or ->,<why>`, in
+## order, and for each of them the same reviewer is asked again, once: where the question
+## before was asked and whom, read from its record. The tooling tries no answer a second
+## time by itself: only a new answer starts a new try. The last failed answer and its reason
+## are what the new question tells; where the last three or more are the same answer for the
+## same reason, it says so first, and still asks.
+AgentsToolsSessionControlDeathAgain(){ ## session id, record file, the line of the death, the record of the question before, the file its result goes to
+	local againSession="$1" againRecord="$2" againLine="$3" againBefore="$4" againResult="$5"
+	local againWhere againWhom againItem againWords againWord againRest againTries=0 againSame=0 againLast="" againOption="" againBack="" againReason="" againOut againId
+	againWhere="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" communication-channel-id )" ; againWhere="${againWhere#slack:}"
+	againWhom="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" address-to )"
+	againItem="$( AgentsToolsSpawnSandboxRecordHeader "$againBefore" item )"
+	if [ -z "$againWhere" ] || [ -z "$againWhom" ] ; then
+		againWhere="human-owner" ; againWhom="human-owner"
+	fi
+	read -r -a againWords <<< "$againLine"
+	for againWord in ${againWords[@]+"${againWords[@]}"} ; do
+		case "$againWord" in not=*) againWord="${againWord#not=}" ;; *) continue ;; esac
+		againTries=$(( againTries + 1 ))
+		againOption="${againWord%%,*}" ; againRest="${againWord#*,}" ; againRest="${againRest#*,}"
+		againBack="${againRest%%,*}" ; againReason="${againRest#*,}"
+		if [ "$againOption|$againReason" = "$againLast" ] ; then againSame=$(( againSame + 1 )) ; else againSame=1 ; againLast="$againOption|$againReason" ; fi
+	done
+	[ "$againSame" -ge 3 ] || againSame=""
+	[ "$againBack" != "-" ] || againBack=""
+	againOut="$( AgentsToolsSessionControlDeathAsk "$againSession" "$againRecord" "$againWhere" "$againWhom" "$againItem" "$(( againTries + 1 ))" "$againOption" "${againReason//_/ }" "$againSame" "$againBack" )" || {
+		againOut="$( printf '%s\n' "$againOut" | LC_ALL=C grep -m1 '^failed ' )"
+		printf 'asked: failed\nerror: %s\n' "${againOut#failed }" >> "$againResult"
+		return 0
+	}
+	againId="$( printf '%s\n' "$againOut" | LC_ALL=C sed -n 's/^asked //p' | tail -1 )"
+	[ -n "$againId" ] || { printf 'asked: failed\nerror: %s\n' "the question left no id" >> "$againResult" ; return 0 ; }
+	AgentsToolsSessionControlDeathRecordMark "$againRecord" death-asked "$againId" || :
+	printf 'asked: %s\n' "$againId" >> "$againResult"
+	return 0
+}
+
 ## THE ANSWER IS READ where every typed answer is read and applied, and by nothing else:
 ## `--intern-op-escalation-read`, in the name of the member the question was asked for. For a
 ## decision that read takes a reply of the one who was asked, by the number of an option or
@@ -456,10 +546,16 @@ AgentsToolsSessionControlDeathSay(){ ## thread, member, whom it is told, line, r
 ## that is another thread: one line of the note template each (`death-resumed`, `death-fresh`,
 ## `death-new-process`, `death-closed`, `death-killed`), or, where it could not be done,
 ## `death-failed` with why. The result: `done: <answer>`, which settles the death, or
-## `failed: <why>`, after which the death stays unsettled and nothing more is tried by itself.
+## `failed: <why>`, after which the death stays unsettled, its reviewer is asked again
+## (AgentsToolsSessionControlDeathAgain), and the tooling tries nothing by itself.
+## A RESTART THAT FAILED AFTER ITS ITEM WAS RETURNED would leave the item in running with no
+## run. The item is put back in review, by a review request in the name of the one who
+## answered: there a return, an accept and the kill all work on it, so every option of the
+## next question does. The result says `back: <item>`, and the note and the next question
+## name it.
 AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the death, the file its result goes to
 	local actSession="$1" actRecord="$2" actLine="$3" actResult="$4"
-	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember
+	local actRun actAnswer actId actPending actBy actMember actField actItem="" actState="" actNow actOut="" actWhy="" actSaid="" actReason="" actThread actParent actParentMember actBack="" actShown
 	actRun="${actRecord##*/}" ; actRun="${actRun%.md}"
 	actAnswer="$( AgentsToolsSessionControlDeathMark "$actLine" answer )" || actAnswer=""
 	actId="$( AgentsToolsSessionControlDeathMark "$actLine" asked )" || actId=""
@@ -506,6 +602,10 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 						;;
 						*) actWhy="${actWhy:-the return of its item did not start it again}${actOut:+: ${actOut#RETURN: not restarted: }}" ;;
 					esac
+					if [ -n "$actWhy" ] && [ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" = "running" ] ; then
+						( DistroAgentsTools --intern-op-review-request "$actBy" "$actItem" --reason "its run died and the start that was to replace it failed" --context "${MDSC_CMD:-session-control}" ) > /dev/null 2>&1 || :
+						[ "$( AgentsToolsSpawnProxyBoardStateOf "$actItem.md" )" != "review" ] || actBack="$actItem"
+					fi
 				fi
 			fi
 		;;
@@ -531,20 +631,22 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 		;;
 		*) actWhy="\`$actAnswer\` is none of the answers of the question" ;;
 	esac
+	actShown="$actItem"
 	if [ -n "$actWhy" ] ; then
-		actSaid="death-failed" ; actReason="$actWhy"
+		actSaid="death-failed" ; actReason="$actWhy" ; actShown="$actBack"
 	fi
 	## Told where it was answered, and to the session that requested the run where that is another thread.
 	actThread="$( AgentsToolsSpawnSandboxRecordHeader "$actPending" channel ):$( AgentsToolsSpawnSandboxRecordHeader "$actPending" thread-ts )"
 	AgentsToolsSpawnConversationThreadValid "$actThread" || actThread=""
-	[ -z "$actThread" ] || AgentsToolsSessionControlDeathSay "$actThread" "$actMember" "$actBy" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actItem"
+	[ -z "$actThread" ] || AgentsToolsSessionControlDeathSay "$actThread" "$actMember" "$actBy" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actShown"
 	actParent="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" parent-thread )"
 	AgentsToolsSpawnConversationThreadValid "$actParent" || actParent=""
 	if [ -n "$actParent" ] && [ "${actParent#*:}" != "${actThread#*:}" ] ; then
 		actParentMember="$( MDAT_SPAWN_SESSION_ID="$actRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || actParentMember=""
-		AgentsToolsSessionControlDeathSay "$actParent" "$actMember" "$actParentMember" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actItem"
+		AgentsToolsSessionControlDeathSay "$actParent" "$actMember" "$actParentMember" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actShown"
 	fi
 	if [ -n "$actWhy" ] ; then
+		[ -z "$actBack" ] || printf 'back: %s\n' "$actBack" >> "$actResult"
 		printf 'failed: %s\n' "$actWhy" >> "$actResult"
 	else
 		printf 'done: %s\n' "$actAnswer" >> "$actResult"

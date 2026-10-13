@@ -3156,7 +3156,7 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads
 			`_`, as in a registry.
-			`member <team-member> <mark> <first-name> <family-name> <alias> <kind> <workspace> <set-up> <status> <live>`
+			`member <team-member> <mark> <first-name> <family-name> <alias> <kind> <workspace> <set-up> <status> <live> <icon>`
 			<mark>, the two names and <alias> are the member's row of
 			`team-members-names` in the workspace it is set up in; the
 			row of a `client-*` member holds its persona's. <kind> is the
@@ -3169,7 +3169,10 @@
 			`SKILL.md`: `reference-only` is a member nobody is started
 			as. <live> is `running` while a run of it in a session of
 			this workspace has a live process on this host, else
-			`no-process`. With no names registry the mark and the names
+			`no-process`. <icon> is the icon the member table of
+			`--install-skillset-symlinks` shows the member with: the
+			default icon of its prefix group, whatever its <mark>, and
+			never absent. With no names registry the mark and the names
 			of this workspace's members read `-`, and one note on stderr
 			says so. Exit 1, nothing printed, where a registry cannot be
 			rebuilt.

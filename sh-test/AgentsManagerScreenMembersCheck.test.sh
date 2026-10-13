@@ -6,9 +6,14 @@
 ## on its standard input, and prints the fixture kept for those arguments: rows in the forms
 ## `--manager-team-member-list`, `--manager-team-member-read` and `--manager-spawn-member` print.
 ## Held: entering the section asks `--manager-team-member-list` once and lists every member in the order of the
-## operation, by its name; one with a live run stands out, with `running` at the end of its row; one that is not
-## started from here, whose status is `reference-only` or whose workspace cannot be reached, shows plainer, with
-## that at the end of its row; a selected member is read by its name, `--manager-team-member-read <member>`, only
+## operation, as a table under a header: its icon, which is the last field of its row and nothing else, its name,
+## whether it runs now, its status, its kind and where it is set up, each column at the same cell in every row,
+## under an icon of two cells, under one that a variation selector makes wide, and in a row with none, as the
+## operation printed a row before it gave an icon; one with a live run stands out; one that is not started from
+## here, whose status is `reference-only` or whose workspace cannot be reached, shows plainer; the table fits the
+## pane it is drawn in: the icon and the name always show, then each column in its order while it fits whole, the
+## header with them, whether a member runs the last to be lost, and nothing but a name is ever cut; a selected
+## member is read by its name, `--manager-team-member-read <member>`, only
 ## once the selection has rested on it, and until then the pane shows what the list holds of it; then the left pane
 ## shows its mark and names, its kind, its status, whether a run of it is alive, its workspace and what it is for,
 ## its information, the sessions it is in with the member's own runs, its workspace by its paths, its grants and
@@ -57,19 +62,21 @@ rigRow(){ ## the fields of one row, joined by TAB
 	printf '%s\n' "$rowText"
 }
 ## Five members: an identity record nobody is started as; the coordinator, with no run alive; a keeper with a live
-## run; a keeper set up in another workspace; and one whose workspace cannot be reached. What the read of the
+## run; a keeper set up in another workspace; and one whose workspace cannot be reached. Each row ends with its
+## member's icon, none of them the mark the row holds, the far keeper's one that a variation selector makes wide;
+## the last row has eleven fields, as the operation printed a row before it gave an icon. What the read of the
 ## keeper prints: its information, two bullets, a session it runs in and one it ran in, two grants, and five
 ## settings, of which one secret is set, with a value in its row that the screen must never show, one secret is
 ## missing, one plain key is set, one is missing, and one is read elsewhere. One session runs; then the list of the
 ## sessions as it reads once a start has made a new one.
 rigS1=11111111-0000-4000-8000-000000000001 ; rigS2=22222222-0000-4000-8000-000000000002 ; rigNew=99999999-0000-4000-8000-000000000009
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
-rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig here active running ; }
+rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig here active running 🔏 ; }
 {
-	rigRow member human-owner :myx: - - - human ws-rig here reference-only no-process
-	rigRow member magic-coordinator 🐭 Magic Vane dispatchr magic ws-rig here active no-process
+	rigRow member human-owner :myx: - - - human ws-rig here reference-only no-process 👤
+	rigRow member magic-coordinator 🐭 Magic Vane dispatchr magic ws-rig here active no-process 🤖
 	rigKeeper
-	rigRow member keeper-far 🌾 Thea Vance farmhand keeper ws-far elsewhere active no-process
+	rigRow member keeper-far 🌾 Thea Vance farmhand keeper ws-far elsewhere active no-process ⚒️
 	rigRow member keeper-gone - - - - - - not-present - no-process
 } > "$rigF/rows.--manager-team-member-list"
 {
@@ -171,7 +178,19 @@ rigInput(){ ## text -- what the operation that starts a member got on its standa
 }
 
 echo "-- Team Members lists the members --"
+rigIconCells(){ ## name -- that value with each icon of the fixture written as the two cells the screen gives it
+	rigVal "$1" | LC_ALL=C sed -e 's/👤/##/' -e 's/🤖/##/' -e 's/🔏/##/' -e 's/⚒️/##/'
+}
+rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or three of them where the pane has room for no more -- one line of the table, in the columns the fixture gives it
+	case $# in
+		6) printf ' %-2s %-17s %-7s %-14s %-6s %s' "$@" ;;
+		4) printf ' %-2s %-17s %-7s %s' "$@" ;;
+		3) printf ' %-2s %-17s %s' "$@" ;;
+	esac
+}
+rigTableHead="$( rigTableLine '' MEMBER RUN STATUS KIND WHERE )"
 rigCase list
+rigSize="220 40"
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 30
@@ -184,25 +203,60 @@ wait list 30
 turn
 get in
 show u
-cells title 1 84 120
-cells row1 2 84 120
-cells row2 3 84 120
-cells row3 4 84 120
-cells row4 5 84 120
-cells row5 6 84 120
-cells row6 7 84 120
-cells row7 8 84 120
+cells title 1 154 220
+cells head 2 154 220
+cells row1 3 154 220
+cells row2 4 154 220
+cells row3 5 154 220
+cells row4 6 154 220
+cells row5 7 154 220
+cells row6 8 154 220
+cells row7 9 154 220
 looks k
 keys k
 get kill
 keys n
 get start
+size 147 40
+get mid
+cells midHead 2 103 147
+cells midRow2 4 103 147
+cells midRow4 6 103 147
+cells midRow6 8 103 147
+size 120 40
+get narrow
+cells narrowHead 2 84 120
+cells narrowRow2 4 84 120
+cells narrowRow3 5 84 120
+cells narrowRow4 6 84 120
+cells narrowRow5 7 84 120
+cells narrowRow6 8 84 120
+size 40 40
+get tiny
+cells tinyHead 2 28 40
+cells tinyRow3 5 28 40
+cells tinyRow4 6 28 40
 RIGSCRIPT
+rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
 rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "team list:team 1 0"
-rigAssert "every member is listed under the row that goes up, in the order of the operation, by its name" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row3 )][$( rigVal row5 )][$( rigVal row7 )]" "[ Team Members] 6 [>..][ magic-coordinator][ keeper-far][]"
-rigAssert "one with a live run carries that at the end of its row, and stands out" "[$( rigVal row4 )] $( rigLooks k 6 86 86 )$( rigLooks k 5 86 86 )" "[ keeper-myx                  running] B."
-rigAssert "one nobody is started as, and one whose workspace cannot be reached, show plainer, with why" "[$( rigVal row2 )][$( rigVal row6 )] $( rigLooks k 4 86 86 )$( rigLooks k 8 86 86 )" "[ human-owner          reference-only][ keeper-gone             not-present] DD"
+rigAssert "the members stand in a table: a header that names its columns, under it the row that goes up, then every member in the order of the operation, with its icon, its name, whether it runs now, its status, its kind and where it is set up" \
+	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal head )][$( rigVal row1 )][$( rigIconCells row3 )][$( rigIconCells row4 )][$( rigVal row7 )]" \
+	"[ Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
+rigAssert "each column starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
+	"[$( rigIconCells row2 )][$( rigIconCells row5 )][$( rigIconCells row6 )]" \
+	"[$( rigTableLine '##' human-owner - reference-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
+rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
+rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 156 156 )$( rigLooks k 5 156 156 )$( rigLooks k 9 156 156 )$( rigLooks k 3 156 160 )$( rigLooks k 6 156 156 )" "BDD......"
+rigAssert "a pane of 44 cells has room for the status, to the cell, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
+	"$( rigVal mid.listWidth ) [$( rigVal midHead )][$( rigIconCells midRow2 )][$( rigIconCells midRow4 )][$( rigVal midRow6 )]" \
+	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - reference-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
+rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
+	"$( rigVal narrow.listWidth ) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
+	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
+rigAssert "a pane with no room for a whole name shows the icon and the name alone, the name cut with the mark of a cut text; nothing was drawn past a pane at any width" \
+	"$( rigVal tiny.listWidth ) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
+	"12 [    MEMBER][ ## magic-c…][ ## keeper-…] 0"
 rigAssert "on the row that goes up the left pane says what the section holds" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 members, 1 with a live run.][ 2 of them are not started from here.]"
 rigAssert "k and n on the row that goes up find nothing to act on"   "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] []"
 

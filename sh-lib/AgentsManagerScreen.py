@@ -1882,11 +1882,60 @@ def memberRefusal(member):
     return ""
 
 
+## The columns of the members' table after the icon, named in the installer's manner, and
+## what of a member stands in each. The name always shows. Those after it show in this
+## order while the pane has room, so whether a member runs is the last of them to be lost.
+MEMBER_COLUMNS = (
+    ("MEMBER", lambda member: member["name"]),
+    ("RUN", lambda member: "running" if member["live"] == "running" else ""),
+    ("STATUS", lambda member: member["status"]),
+    ("KIND", lambda member: member["kind"]),
+    ("WHERE", lambda member: member["setUp"]),
+)
+
+
+## The rows of the members as one table, like the member table of the installer: under a
+## header, each member's icon, its name, whether it runs now, its status, its kind and
+## where it is set up, in columns as wide as their widest word, an absent one `-`. The
+## icon is the one the operation gave, and no icon is named here. It is measured in cells
+## as every text of the screen is, so a wide one, and one an emoji selector makes wide,
+## take two; a member with none keeps that place empty. Each row gets its table, which
+## all of them share, and its own cells in it: its icon, then a word for each column.
+def memberTable(rows):
+    members = [row["member"] for row in rows]
+    words = [[column[1](member) or "-" for column in MEMBER_COLUMNS] for member in members]
+    table = {"heads": [column[0] for column in MEMBER_COLUMNS],
+             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
+                        for index, column in enumerate(MEMBER_COLUMNS)],
+             "iconWidth": max([textWidth(member["icon"]) for member in members] + [0])}
+    for row, member, line in zip(rows, members, words):
+        row["table"] = table
+        row["cells"] = [member["icon"]] + line
+
+
+## One line of a table in that many cells: the icon, where the table has one, the first
+## column, and each column after it, in its order, while it fits in full. The first that
+## does not, and every one after it, is left out whole, never cut. A header is such a
+## line, of the names of the columns with no icon, so it follows the same choice. Only
+## the first column can be longer than its room: whoever draws the line cuts it there.
+def tableLineText(table, cells, width):
+    iconWidth = table["iconWidth"]
+    widths = table["widths"]
+    shown = 1
+    used = (iconWidth + 1 if iconWidth else 0) + widths[0]
+    while shown < len(widths) and used + 1 + widths[shown] <= width:
+        used += 1 + widths[shown]
+        shown += 1
+    parts = [cutToCells(cells[0], iconWidth)] if iconWidth else []
+    return " ".join(parts + [cutToCells(word, widths[index]) for index, word in enumerate(cells[1:shown + 1])]).rstrip()
+
+
 ## What `--manager-team-member-list` printed, as rows: `member` rows of TAB-separated
-## fields, in the order they come, this workspace's own members first. A member shows by
-## its name. One with a live run stands out, with `running` at the end of its row. One
-## that is not started from here shows plainer: dimmed, with its status, `reference-only`,
-## or where it is set up, `not-present`, at the end of its row.
+## fields, in the order they come, this workspace's own members first. The members show
+## as a table (memberTable). One with a live run stands out. One that is not started from
+## here, whose status is `reference-only` or whose workspace is `not-present`, shows
+## plainer: dimmed. The last field is the member's icon: a row without it, as the
+## operation printed a row before it gave one, is a member with no icon.
 def parseMemberRows(text):
     rows = []
     for line in text.splitlines():
@@ -1895,16 +1944,16 @@ def parseMemberRows(text):
             continue
         member = {"name": fields[1], "mark": unspaced(fields[2]), "first": unspaced(fields[3]),
                   "family": unspaced(fields[4]), "alias": unspaced(fields[5]), "kind": absent(fields[6]),
-                  "workspace": absent(fields[7]), "setUp": fields[8], "status": absent(fields[9]), "live": fields[10]}
+                  "workspace": absent(fields[7]), "setUp": fields[8], "status": absent(fields[9]), "live": fields[10],
+                  "icon": absent(fields[11]) if len(fields) > 11 else ""}
         row = newRow(fields[1], fields[1], "record", False, fields)
         row["member"] = member
         if member["live"] == "running":
-            row["tail"] = "running"
             row["look"] = BOLD
         if memberRefusal(member):
-            row["tail"] = member["status"] if member["status"] == "reference-only" else member["setUp"]
             row["look"] = DIM
         rows.append(row)
+    memberTable(rows)
     return rows
 
 
@@ -2233,7 +2282,7 @@ def handleKey(state, key, layout):
     elif key in dict(ACTION_KEYS):
         actionKey(state, key)
     elif state.focus == "list":
-        listKey(state, key, layout["listHeight"])
+        listKey(state, key, listRowsHeight(state, layout))
     else:
         viewKey(state, key, viewScrollHeight(state, layout))
 
@@ -2619,10 +2668,33 @@ def countersText(state):
     return text + (" " + MARK_OLD if "list:sessions" in state.failed else "")
 
 
+## The table the rows of the list shown are drawn as, where they are those of one: its
+## header is the line above them, which stays in place while they scroll. None for a
+## list with no table.
+def listTableOf(state):
+    for row in state.rows.get(levelKey(state.path), ()):
+        if row.get("table"):
+            return row["table"]
+    return None
+
+
+## The header of a table in exactly that many cells, set in under the cell of the mark of
+## the selection: the names of the columns that fit there.
+def listHeadText(table, width):
+    return cutToCells(" " + tableLineText(table, [""] + table["heads"], width - 1), width)
+
+
+## How many lines the rows of the list have: the pane's, less the one a header takes.
+def listRowsHeight(state, layout):
+    return layout["listHeight"] - (1 if listTableOf(state) else 0)
+
+
 ## One row of the list in exactly that many cells: the mark of the selection, what the row
-## shows as, and at the end of the line what the row carries as its tail, its state.
+## shows as, and at the end of the line what the row carries as its tail, its state. A row
+## of a table shows as its cells in the columns that fit.
 def listRowText(row, chosen, width):
-    head = (MARK_SELECTED if chosen else " ") + row["label"]
+    shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else row["label"]
+    head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     tailWidth = textWidth(tail)
     if not tail or tailWidth + 4 > width:
@@ -2658,8 +2730,14 @@ def drawScreen(surface, state):
     for line in range(layout["titleLine"], layout["inputLine"] + 1):
         surface.put(line, layout["separator"], MARKS["separator"], PLAIN)
     rows = levelRows(state)
-    cursor = cursorOf(state, rows, layout["listHeight"])
-    for offset in range(layout["listHeight"]):
+    listTop = layout["bodyTop"]
+    listHeight = listRowsHeight(state, layout)
+    listTable = listTableOf(state)
+    if listTable:
+        surface.put(listTop, listLeft, listHeadText(listTable, listWidth), PLAIN)
+        listTop += 1
+    cursor = cursorOf(state, rows, listHeight)
+    for offset in range(listHeight):
         position = cursor["top"] + offset
         text = " " * listWidth
         look = PLAIN
@@ -2669,7 +2747,7 @@ def drawScreen(surface, state):
             look = rows[position].get("look", PLAIN)
             if chosen:
                 look = REVERSE if state.focus == "list" else BOLD
-        surface.put(layout["bodyTop"] + offset, listLeft, text, look)
+        surface.put(listTop + offset, listLeft, text, look)
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
     for offset in range(headHeight):

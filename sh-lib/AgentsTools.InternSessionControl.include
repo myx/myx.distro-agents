@@ -470,8 +470,10 @@ $startRun $(( SECONDS + controlPostBound ))"
 ## - a call that has ended left its result: what it told and what it asked is kept on the
 ##   line, and a result that says the death is settled settles it. A call that failed, or
 ##   left nothing, is said in the log, and the next is started no sooner than the bound of
-##   a call later. An answer that could not be carried out is kept on the line as `failed=`,
-##   said in the log, and not tried again by itself: the death stays unsettled;
+##   a call later. AN ANSWER THAT COULD NOT BE CARRIED OUT is kept on the line with its
+##   moment and its reason, `not=<answer>,<moment>,<item put back, or ->,<why>`, and said in
+##   the log. It is not tried again by itself: the death stays unsettled and is its
+##   reviewer's again, who is asked again, once for each such answer;
 ## - a death whose record another closer closed before it was told and asked here is
 ##   settled: that closer told its end, by its own rule;
 ## - a death that is asked: THE ANSWER IS READ FROM THE RECORD OF THE QUESTION, a file, and
@@ -481,11 +483,13 @@ $startRun $(( SECONDS + controlPostBound ))"
 ##   answer given through the pending store, is taken the same way. Closed with one of the
 ##   options of the question: the option is kept on the line, `answer=<option>
 ##   answered=<moment>`, and a call apart carries it out. Withdrawn: the death is settled,
-##   how=withdrawn, and never asked again. Closed any other way, or gone: said once, kept as
-##   `failed=`, and the death stays unsettled;
+##   how=withdrawn, and never asked again. Closed any other way, or gone: that is an answer
+##   that could not be carried out too, kept as one, and the reviewer is asked again;
+## - where the line counts as many questions as answers that could not be carried out, a
+##   question is due, and a call apart asks it;
 ## - else a call about it is started.
 AgentsToolsSessionControlDeathStep(){
-	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil="" stepQuiet="" stepWait="" stepAsked stepStatus stepAnswer stepNot=""
+	local stepRun="${deathsLine%% *}" stepMarker stepHolder="" stepOne stepKey stepValue stepRead="" stepFailed="" stepError="" stepStamp stepRecord="" stepKeep="" stepUntil="" stepQuiet="" stepWait="" stepAsked stepStatus stepAnswer stepNot="" stepBack="" stepTries
 	stepMarker="$controlDir/post.$stepRun"
 	stepStamp="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	[ -n "$controlPostBound" ] || controlPostBound="$( AgentsToolsSessionControlSeconds SESSION_CONTROL_POST_SECONDS 120 )"
@@ -503,7 +507,14 @@ AgentsToolsSessionControlDeathStep(){
 						case "$stepValue" in
 							failed) stepFailed="yes" ;;
 							''|*[[:space:]]*) ;;
-							*) case " $deathsLine " in *" $stepKey="*) ;; *) deathsLine="$deathsLine $stepKey=$stepValue" ;; esac ;;
+							*)
+								## Told once. A question that was asked again stands beside the one before it.
+								if [ "$stepKey" = "asked" ] ; then
+									case " $deathsLine " in *" asked=$stepValue "*) ;; *) deathsLine="$deathsLine asked=$stepValue" ;; esac
+								else
+									case " $deathsLine " in *" told="*) ;; *) deathsLine="$deathsLine told=$stepValue" ;; esac
+								fi
+							;;
 						esac
 					;;
 					closed)
@@ -521,6 +532,7 @@ AgentsToolsSessionControlDeathStep(){
 						esac
 					;;
 					failed) stepNot="$stepValue" ;;
+					back) case "$stepValue" in ''|*[[:space:],]*) ;; *) stepBack="$stepValue" ;; esac ;;
 					error) stepFailed="yes" ; stepError="$stepValue" ;;
 				esac
 			done < "$stepMarker.result"
@@ -543,13 +555,15 @@ AgentsToolsSessionControlDeathStep(){
 		if [ -n "$stepFailed" ] ; then
 			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: what was to be done about it failed${stepError:+: $stepError} -- it is tried again in ${controlPostBound}s"
 		elif [ -n "$stepNot" ] ; then
-			case " $deathsLine " in *" failed="*) ;; *) deathsLine="$deathsLine failed=$stepStamp" ;; esac
-			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its answer was not carried out: $stepNot -- nothing more is tried by itself, and the death stays unsettled"
+			stepAnswer="$( AgentsToolsSessionControlDeathMark "$deathsLine" answer )" || stepAnswer="none"
+			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its answer $stepAnswer was not carried out: $stepNot -- it is not tried again by itself: its reviewer is asked again"
+			stepNot="${stepNot//[[:space:]]/_}" ; stepNot="${stepNot//,/;}"
+			deathsLine="$deathsLine not=$stepAnswer,$stepStamp,${stepBack:--},${stepNot:0:240}"
 		elif [ -z "$stepWait" ] ; then
 			AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: ${deathsLine#* }"
 		fi
 	fi
-	case " $deathsLine " in *" settled="*|*" failed="*) return 0 ;; esac
+	case " $deathsLine " in *" settled="*) return 0 ;; esac
 	stepAsked="$( AgentsToolsSessionControlDeathMark "$deathsLine" asked )" || stepAsked=""
 	case "$stepAsked" in
 		''|none)
@@ -563,7 +577,12 @@ AgentsToolsSessionControlDeathStep(){
 			fi
 		;;
 		*)
-			if ! AgentsToolsSessionControlDeathMark "$deathsLine" answer > /dev/null ; then
+			## Where the death stands, by what its line counts: see AgentsToolsSessionControlDeathCount.
+			stepTries="$( AgentsToolsSessionControlDeathCount "$deathsLine" not )"
+			if [ "$( AgentsToolsSessionControlDeathCount "$deathsLine" asked )" -le "$stepTries" ] ; then
+				## A question is due: the reviewer is asked again, by the call that is started below.
+				:
+			elif [ "$( AgentsToolsSessionControlDeathCount "$deathsLine" answer )" -le "$stepTries" ] ; then
 				stepStatus="$( AgentsToolsSpawnSandboxRecordHeader "$MMDAPP/.local/agents/pending/$stepAsked.md" status )"
 				case "$stepStatus" in
 					reply-pending) stepQuiet="quiet" ;;
@@ -574,9 +593,8 @@ AgentsToolsSessionControlDeathStep(){
 							deathsLine="$deathsLine answer=$stepAnswer answered=$stepStamp"
 							AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question is answered: $stepAnswer"
 						else
-							deathsLine="$deathsLine failed=$stepStamp"
-							AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question was closed with an answer that is none of its options -- nothing is done about it by itself, and the death stays unsettled"
-							return 0
+							deathsLine="$deathsLine not=${stepAnswer:-none},$stepStamp,-,its_question_was_closed_with_an_answer_that_is_none_of_its_options"
+							AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: its question was closed with an answer that is none of its options -- its reviewer is asked again"
 						fi
 					;;
 					withdrawn)
@@ -585,9 +603,8 @@ AgentsToolsSessionControlDeathStep(){
 						return 0
 					;;
 					*)
-						deathsLine="$deathsLine failed=$stepStamp"
-						AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: the record of its question, $stepAsked, is gone or was closed with no answer (${stepStatus:-no status}) -- nothing is done about it by itself, and the death stays unsettled"
-						return 0
+						deathsLine="$deathsLine not=none,$stepStamp,-,the_record_of_its_question_is_gone_or_was_closed_with_no_answer"
+						AgentsToolsSessionControlSay event "session $controlSession: the death of run $stepRun: the record of its question, $stepAsked, is gone or was closed with no answer (${stepStatus:-no status}) -- its reviewer is asked again"
 					;;
 				esac
 			fi

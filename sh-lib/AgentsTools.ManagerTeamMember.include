@@ -30,6 +30,7 @@
 
 type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 
 ## The rows of this workspace's team-members registry, rebuilt now, in ownRows of the caller,
 ## as the file holds them: `member workspace link-kind skillset-path`. rc 1, with one line,
@@ -131,7 +132,11 @@ AgentsToolsManagerTeamMemberStatus(){ ## member set root, member
 }
 
 ## One `member` row, in the form of the help entry. A member whose workspace cannot be
-## reached has no file to read and no registry row to take: its fields are `-`.
+## reached has no file to read and no registry row to take: its fields are `-`. Its last
+## field is the icon the member table of the installer shows it with, by its name alone:
+## the default of its prefix group, from the one list of them
+## (AgentsToolsTeamMemberKindIcon), which that table reads through
+## AgentsToolsInstallReportIcon and is given no mark for.
 AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace root, the members with a live run between newlines
 	local rowKind="${1%%-*}" rowWorkspace="-" rowLive="no-process" namesRow="" statusWord="-"
 	[ "$rowKind" != "$1" ] || rowKind="-"
@@ -144,7 +149,7 @@ AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace
 		AgentsToolsManagerTeamMemberStatus "$3" "$1"
 	fi
 	case "$5" in *$'\n'"$1"$'\n'*) rowLive="running" ;; esac
-	printf 'member\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$namesRow" "$rowKind" "${rowWorkspace:--}" "$2" "$statusWord" "$rowLive"
+	printf 'member\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$namesRow" "$rowKind" "${rowWorkspace:--}" "$2" "$statusWord" "$rowLive" "$( AgentsToolsTeamMemberKindIcon "$1" )"
 	return 0
 }
 
