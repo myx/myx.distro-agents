@@ -210,7 +210,7 @@ rigAssert "behind a dialog the border is not taken"                   "[$( rigVa
 echo "-- the left window wraps its long lines, or cuts them and scrolls sideways --"
 rigCase wrap
 rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 keys DOWN DOWN l
 wait feed 30
@@ -282,7 +282,7 @@ rigAssert "wrapped, nothing stands to the side: Left says so"         "$( rigVal
 echo "-- a character of two cells at the edge, and a table --"
 rigCase table
 rigSize="80 24" rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 keys DOWN DOWN
 wait view 30
@@ -306,7 +306,7 @@ rigAssert "nothing is drawn past the window, at any place sideways"   "$( rigVal
 echo "-- the right border of the left window is a scroll bar while it holds more than it shows --"
 rigBare <<'RIGSCRIPT'
 rows sessions a=alpha b=beta
-keys 1 DOWN DOWN
+keys 2 DOWN DOWN
 view 5
 turn
 show few

@@ -41,6 +41,11 @@ agentsManagerConfigSubjects="workspace cli systems loop scopes interface console
 ## the one declaration of them. One row on a line of its own,
 ## `<subject>|<group>|<key>|<label>|<belongs>|<description>`:
 ##   a row with no group and no key names the subject itself, and has no more than its label;
+##   a row with a group and no key names that group, for the row the digest in full gives
+##   each group ahead of its lines, and has no more than its label either: capitalised words,
+##   more than one, where the group is a word of this file's, and `{name}`, the group as it
+##   is written, where the group is a name, a CLI's, a system's, a scope's. A group that no
+##   such row fits gets the label `-`, and AgentsManagerConfigDigestCheck fails on it;
 ##   <group> and <key> name a line as the digest prints it, an absent key as `-`. `*` stands
 ##   for any, and a word that ends with `*` for every word that begins so. The first row that
 ##   fits a line names it, so the row of one key stands ahead of a row for any;
@@ -61,6 +66,8 @@ agentsManagerConfigSubjects="workspace cli systems loop scopes interface console
 ## so a new one cannot come without its label and its description: a line that no row fits
 ## gets `-` for both, and AgentsManagerConfigDigestCheck fails on it.
 agentsManagerConfigLabels="workspace|||Workspace Paths||
+workspace|paths||Workspace Folders||
+workspace|places||Registered Places||
 workspace|paths|workspace-root|Workspace Root|configuration|The root folder of this workspace, which every path of the tooling starts from. It is where the workspace was installed.
 workspace|paths|tooling-origin|Tooling Origin|configuration|The source tree the tooling runs from. It follows the console origin of the workspace, at the next start of a console.
 workspace|paths|team-data-root|Team Data Root|configuration|The folder that holds the board and the inboxes of the team. It follows the team data directory the owner setup saves.
@@ -69,6 +76,8 @@ workspace|paths|session-stores|Session Stores|configuration|The folder each sess
 workspace|paths|settings|Scope Settings Folder|configuration|The folder that holds one settings file for each scope, the team's and each member's. Only its owner and its group can read it.
 workspace|places|*|Registered Place {name}|configuration|The path of the place registered under this name. A place is registered and forgotten by the owner's own operations, or declared by a project.
 cli|||CLI Services||
+cli|workspace||Workspace Defaults||
+cli|*||{name}||
 cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service|configuration|The agent CLI this workspace starts for a member and for the console. A change reaches every next start, so it is made by the owner setup.
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
 cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
@@ -78,9 +87,12 @@ cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a ha
 cli|*|wait-round|CLI Wait Round|configuration|How long a wait runs on this CLI before it comes back, in seconds: the round of the workspace where one is set, else the CLI's own.
 cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. Only whether it is set is shown, and the owner setup saves it.
 systems|||Outside Systems||
+systems|*||{name}||
 systems|*|-|No Scope Configured|configuration|No scope of this workspace holds a setting of this system, so no member reaches it from here.
 systems|*|*|Scope {name}|configuration|Whether this scope holds the settings of this system, with the keys it still lacks. The owner setup saves the settings themselves.
 loop|||Main Loop And Heartbeat||
+loop|main-loop||Main Loop State||
+loop|heartbeat||Heartbeat State||
 loop|main-loop|state-file|Main Loop State File|configuration|The file the main loop leaves after every iteration. It says how the last one ended and when.
 loop|main-loop|MAIN_LOOP_*|{words}|configuration|What the last iteration of the main loop left in its state file. The loop writes it, and nothing reads a change made by hand.
 loop|heartbeat|state-note|Heartbeat State Note|configuration|The note the heartbeat keeps in the team data, with its lock.
@@ -89,14 +101,21 @@ loop|heartbeat|recheck-date|Heartbeat Recheck Date|configuration|The date until 
 loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration|configuration|When the heartbeat last finished a turn of its own.
 loop|heartbeat|running|Heartbeat Running|configuration|Whether the heartbeat runs now: its note says so and its lock is still held.
 scopes|||Scope Settings||
+scopes|*||{name}||
 scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a secret among them is shown only as set or not.
 interface|||Interface Settings||
+interface|style||Screen Style||
 interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
 console|||Console Behaviour||
+console|history||Shell History||
+console|origin||Tooling Origin||
+console|detail||Tool Verbosity||
 console|history|MDLT_CONSOLE_HISTORY|Console History Type|settings|Where a console of this workspace keeps the shell history of this user. A change is read by each console at its next start, and what a console wrote already stays in the file it wrote.
 console|origin|MDLT_CONSOLE_ORIGIN|Console Tooling Origin|settings|Which code every console of this workspace runs, from its next start: its own installed copy, or the tooling of a workspace that has it. A console and a session that run already keep what they started with, and it is changed for everybody who works here. An origin whose tooling is older or broken can leave every console of this workspace unable to start, the manager among them: then take the line of this key out of the settings file of the workspace by hand.
 console|detail|MDLT_CONSOLE_DETAIL|Console Verbosity|settings|How much the tools say of what they do in a console this user starts: nothing more, each step, or every detail for finding a fault. It is read at the next start of a console, and today by the agents console alone: the other consoles of the family do not read it yet.
 control|||Session Control||
+control|request||Control Request||
+control|kill||Control Kill||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread."
 

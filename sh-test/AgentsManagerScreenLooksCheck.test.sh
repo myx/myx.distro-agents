@@ -85,7 +85,7 @@ echo "-- a window that waits for its first rows says so, in a pale look --"
 rigCase waits rows --manager-session-list 'sleep 1'
 rigScript <<'RIGSCRIPT'
 turn
-keys 1
+keys 2
 turn
 get w
 cells wView 2 1 83
@@ -108,7 +108,7 @@ echo "-- read and empty, and a failed read, keep their own words --"
 rigCase empty rows
 : > "$MANAGER_SCREEN_RIG/rows"
 rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 get e
 show es
@@ -116,7 +116,7 @@ RIGSCRIPT
 rigAssert "a list that was read and holds nothing does not say it waits" "$( rigVal e.rows ) [$( rigVal e.failed )] $( rigHolds es 'Populating' )" "2 [] 0"
 rigCase failed fail
 rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 keys ESC
 turn
@@ -128,7 +128,7 @@ rigAssert "nor does one whose read failed"                           "[$( rigVal
 echo "-- the log of an item waits for its lines under its head; a screen with no reader waits for nothing --"
 rigCase log rows --manager-session-transcript-read 'sleep 1'
 rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 keys DOWN DOWN l
 advance 1
@@ -146,7 +146,7 @@ rigAssert "under the head line the window says what it waits for, pale" "[$( rig
 rigAssert "and no more once they have come"                          "[$( rigVal lLine )] $( rigHolds ls 'Populating' )" "[2026-10-13] 0"
 rigBare <<'RIGSCRIPT'
 rows sessions a=alpha
-keys 1 DOWN DOWN
+keys 2 DOWN DOWN
 turn
 get b
 show bs
@@ -181,7 +181,7 @@ rigAssert "behind a dialog both frames are the paler one, and the double line st
 echo "-- the total of the tokens of a session in a narrow column of the list --"
 rigCase tokens rows
 rigScript <<'RIGSCRIPT'
-keys 1
+keys 2
 wait sessions 30
 get k
 cells k1 4 85 119

@@ -158,7 +158,7 @@ keys ESC ALT-x
 get out
 RIGSCRIPT
 rigAssert "F10 opens the first menu, its bar on its first item"     "$( rigVal m.menu )" "go:dashboard"
-rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions (Activity)      1 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 3 2"
+rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions (Activity)      2 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 3 2"
 rigAssert "the item the bar is on stands in the look of the bar, another has its hot letter in a look of its own, and the pull-down has a shadow" "$( rigRole mr 3 4 9 ) $( rigRole mr 4 4 9 ) $( rigRole mr 4 34 35 )" "moOooo mmhmmm ww"
 rigAssert "the status line names the keys of a menu"                 "$( rigLine m 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
 rigAssert "Down moves the bar"                                       "$( rigVal m2.menu )" "go:team"
@@ -186,18 +186,18 @@ keys ESC k
 get byKey
 keys n
 get otherView
-keys 5
+keys 9
 turn
 cells barLaunch 0 0 40
 keys ALT-s
 show sl
-keys ESC 2
+keys ESC 3
 turn
 cells barPending 0 0 40
-keys 3
+keys 4
 turn
 cells barTeam 0 0 40
-keys 4
+keys 7
 turn
 cells barSettings 0 0 40
 keys LEFT
@@ -241,7 +241,7 @@ rigAssert "the compact style has a status line on top: the workspace, the machin
 rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Left Up  a Active  u Read  m Menu  q Exit  Tab Window"
 rigAssert "it spends nothing on frames: one column parts the two panes, and the list has a line more" "$( rigHas c '║' ) $( rigHas c '┌' ) $( rigHas c '└' ) $( rigHas c '│' ) $( rigVal mc.listHeight ) $( rigVal mc.viewHeight )" "0 0 0 38 37 36"
 rigAssert "its @ stands apart too, in a line that is otherwise in one look" "$( rigLine ck 1 | LC_ALL=C tr -d R )" "B"
-rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions (Activity)      1 │' )" "go:dashboard [ ≡ Go Session View Help ws-rig@rig-host] 1"
+rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions (Activity)      2 │' )" "go:dashboard [ ≡ Go Session View Help ws-rig@rig-host] 1"
 rigAssert "B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
 rigAssert "and after the last style comes the first again"          "$( rigVal back.style )" "tv"
 rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal style.refused ) $( rigVal still.style )" "nonsense tv"
@@ -332,15 +332,15 @@ size 120 40
 turn
 keys ©
 get g
-keys ESC 1 ß
+keys ESC 2 ß
 get s
-keys ESC 3 µ
+keys ESC 4 µ
 get m
 keys ESC √
 get v
 keys ESC ˙
 get h
-keys ESC ™
+keys ESC £
 get two
 keys ≈
 get x

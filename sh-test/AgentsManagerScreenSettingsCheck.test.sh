@@ -205,7 +205,7 @@ rigAssert "the digest was read once for both roots, whole, and once more when it
 echo "-- the left pane shows the selected subject, group by group --"
 rigCase subjects
 rigScript <<'RIGSCRIPT'
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN
 turn
@@ -245,7 +245,7 @@ echo "-- a subject longer than the pane scrolls with the focus on the left pane 
 rigCase scroll
 rigSize="120 20"
 rigScript <<'RIGSCRIPT'
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
@@ -266,7 +266,7 @@ rigAssert "and reaches its last lines; the key and the secret that are missing s
 echo "-- a subject is entered: its lines by their labels alone, and the left window shows the one selected --"
 rigCase entered
 rigScript <<'RIGSCRIPT'
-keys 4
+keys 7
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -288,16 +288,17 @@ show t
 keys LEFT
 turn
 get back
-keys 7
+keys 8
 turn
 keys DOWN DOWN DOWN DOWN ENTER
 turn
-keys DOWN DOWN DOWN DOWN
+# the lines of this subject stand group by group: two headings stand ahead of this line
+keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get k
 show k
 cells kStatus 39 0 120
-cells kRow 6 85 119
+cells kRow 8 85 119
 RIGSCRIPT
 rigAssert "Enter on a subject opens it: its lines of this root under the row that goes up, by label, nothing at the end of a row" "$( rigVal in.path ) [$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 )]" "settings/console [Console Behaviour] 3 [>..][ Console History Type...][ Console Title...][]"
 rigAssert "on the row that goes up the left window shows the subject itself" "[$( rigPane f 2 )][$( rigPane f 3 )][$( rigPane f 4 )]" "[ Console Behaviour [wrap]][ Console Behaviour: how the consoles of this workspace behave][ subject console, 2 lines]"
@@ -308,17 +309,18 @@ rigAssert "what it takes, where it is saved, and that Enter changes it, which th
 	"[ takes     Per User In This Workspace, The File Bash Uses][ saved in  /rig/ws_rig/.local/home/rig/MDLT.settings.env][ change    Enter changes it] 1 [ Enter Change  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 rigAssert "a setting of a kind the screen does not know shows as it is, with nothing it takes" "[$( rigPane t 3 )] $( rigPaneHolds t ' source    the default' ) $( rigScreenHolds t ' takes ' ) $( rigPaneHolds t ' change    Enter changes it' )" "[ value     rig_title] 1 0 1"
 rigAssert "Left goes up, onto the subject that was entered"         "$( rigVal back.path ) $( rigVal back.selected )" "settings console"
-rigAssert "a secret of the configuration: only its state, its description, and why it is not changed, in the words of its row" "$( rigVal k.path ) [$( rigPane k 2 )][$( rigPane k 3 )][$( rigPane k 5 )] $( rigPaneHolds k ' change    no: set at deployment: a wizard will change it' ) $( rigScreenHolds k 'sk-must' )" "configuration/cli [ Anthropic API Key [wrap]][ value     configured][ The key the Claude CLI signs in with.] 1 0"
-rigAssert "such a line is no row that is entered, the left window names no key for it, and the status line no change" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>Anthropic API Key] 0 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "a secret of the configuration, titled with its group since the subject has several: only its state, its description, and why it is not changed, in the words of its row" "$( rigVal k.path ) [$( rigPane k 2 )][$( rigPane k 3 )][$( rigPane k 5 )] $( rigPaneHolds k ' change    no: set at deployment: a wizard will change it' ) $( rigScreenHolds k 'sk-must' )" "configuration/cli [ claude: Anthropic API Key [wrap]][ value     configured][ The key the Claude CLI signs in with.] 1 0"
+rigAssert "such a line is no row that is entered, the left window names no key for it, and the status line no change" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>  Anthropic API Key] 0 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
 
 echo "-- Configuration: Enter on a line changes nothing, and says why --"
 rigCase viewing
 rigScript <<'RIGSCRIPT'
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN DOWN ENTER
 turn
-keys DOWN
+# the first row under the row that goes up is the heading of a group: the line is the one after it
+keys DOWN DOWN
 turn
 keys y e SPACE o ENTER
 get typed
@@ -358,7 +360,7 @@ echo "-- the labels of the digest: a subject and a line show by their label, the
 rigCaseLabelled labels
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN DOWN
 turn
@@ -367,7 +369,7 @@ keys DOWN
 turn
 get c
 show c
-keys 4
+keys 7
 turn
 keys DOWN
 turn
@@ -384,7 +386,7 @@ echo "-- Enter on a setting that offers choices: radio buttons; OK takes the sty
 rigCaseLabelled style
 rigScript <<'RIGSCRIPT'
 turn
-keys 4
+keys 7
 wait list 30
 keys DOWN ENTER
 turn
@@ -417,7 +419,7 @@ echo "-- Enter on a number: its range in the dialog, saved for the workspace; on
 rigCase number
 rigScript <<'RIGSCRIPT'
 turn
-keys 4
+keys 7
 wait list 30
 keys DOWN DOWN DOWN ENTER
 turn
@@ -454,7 +456,7 @@ echo "-- a setting of a kind the screen does not know is changed as a short text
 rigCase words
 rigScript <<'RIGSCRIPT'
 turn
-keys 4
+keys 7
 wait list 30
 keys DOWN DOWN ENTER
 turn
@@ -476,7 +478,7 @@ rigCaseLabelled refused
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-config-set"
 rigScript <<'RIGSCRIPT'
 turn
-keys 4
+keys 7
 wait list 30
 keys DOWN ENTER
 turn
@@ -488,6 +490,32 @@ turn
 get failed
 RIGSCRIPT
 rigAssert "the refusal is shown whole, under its own title"          "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The save failed] [operation: --manager-config-set MDAT_MANAGER_STYLE bw / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+
+echo "-- a subject with settings of two scopes that share a label: each stands under the heading of its scope --"
+rigCase scoped
+{
+	rigRow subject style 2 Style_Of_Things
+	rigRow line style user RIG_STYLE_USER set tv Interface_Style 'How.' yes choice user user tv=TV,mc=MC "$rigEnv" settings
+	rigRow line style workspace RIG_STYLE_WORKSPACE set mc Interface_Style 'How.' yes choice workspace workspace tv=TV,mc=MC "$rigEnv" settings
+} > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
+rigScript <<'RIGSCRIPT'
+turn
+root settings
+keys ENTER
+wait list 30
+keys DOWN ENTER
+turn
+get in
+cells g1 3 85 119
+cells g2 4 85 119
+cells g3 5 85 119
+cells g4 6 85 119
+keys DOWN DOWN DOWN DOWN
+turn
+get second
+border title 1 0 84
+RIGSCRIPT
+rigAssert "two settings of one label in two groups: a heading for each, the setting under its own, and its window titled with its group" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigVal g1 | LC_ALL=C sed 's/  *$//' )][$( rigVal g2 | LC_ALL=C sed 's/  *$//' )][$( rigVal g3 | LC_ALL=C sed 's/  *$//' )][$( rigVal g4 | LC_ALL=C sed 's/  *$//' )] [$( rigVal second.selected )] [$( rigVal title )]" "settings/style 5 [ user][   Interface Style...][ workspace][   Interface Style...] [workspace RIG_STYLE_WORKSPACE] [workspace: Interface Style [wrap]]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SETTINGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

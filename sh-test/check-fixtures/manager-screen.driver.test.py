@@ -458,6 +458,9 @@ def scriptRun(module):
 ## other screen of the terminal was entered and left again (entered, left), and where it
 ## last wrote ERROR once the screen was up: after it had left (errorAfterLeft), and that
 ## line (error). Where no screen came up, error is the last line that says ERROR.
+## Where the environment says MANAGER_SCREEN_PTY_SESSION=1 the pseudo-terminal is the controlling terminal of the
+## command, which leads a session of its own: Ctrl-C, Ctrl-\ and Ctrl-Z written there are then signals, as at a real terminal.
+## The terminal of such a session is taken away when its leader ends, so its mode afterwards cannot be read: modeBack is `unknown`.
 def ptyRun(arguments):
     columns, lines, waitFor, keys, seconds = int(arguments[0]), int(arguments[1]), arguments[2], arguments[3], float(arguments[4])
     command = arguments[6:]
@@ -484,7 +487,13 @@ def ptyRun(arguments):
     environment["TERM"] = os.environ.get("MANAGER_SCREEN_PTY_TERM", "xterm")
     environment.pop("LINES", None)
     environment.pop("COLUMNS", None)
-    process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=environment)
+    ## the command as a program started from a terminal is: the leader of a session of its own, the pseudo-terminal
+    ## its controlling terminal, so what is typed there as an interrupt, a quit or a stop is a signal to its foreground group
+    def ownTerminal():
+        os.setsid()
+        fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+    process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=environment,
+                               preexec_fn=ownTerminal if os.environ.get("MANAGER_SCREEN_PTY_SESSION") == "1" else None)
     output = b""
     during = None
     deadline = time.time() + seconds
@@ -524,7 +533,11 @@ def ptyRun(arguments):
         if not chunk:
             break
         output += chunk
-    after = termios.tcgetattr(slave)
+    try:
+        after = termios.tcgetattr(slave)
+    except termios.error:
+        ## the terminal of a session whose leader has ended is taken away: its mode can no longer be read
+        after = None
     entered = max(output.find(b"\x1b[?1049h"), output.find(b"\x1b[?47h"))
     left = max(output.rfind(b"\x1b[?1049l"), output.rfind(b"\x1b[?47l"))
     ## what was written before the screen came up is not the screen's
@@ -542,7 +555,7 @@ def ptyRun(arguments):
     ## whether a colour was set on the terminal at any time: a text or a ground of the eight
     print("pty.colours=%s" % ("yes" if re.search(rb"\x1b\[(?:[0-9]+;)*(?:3[0-7]|4[0-7])(?:;[0-9]+)*m", output) else "no"))
     print("pty.modeTaken=%s" % ("yes" if during is not None and during != before else "no"))
-    print("pty.modeBack=%s" % ("yes" if modeOf(after) == modeOf(before) else "no"))
+    print("pty.modeBack=%s" % ("unknown" if after is None else "yes" if modeOf(after) == modeOf(before) else "no"))
     print("pty.entered=%s" % ("yes" if entered != -1 else "no"))
     print("pty.left=%s" % ("yes" if entered != -1 and left > entered else "no"))
     print("pty.errorAfterLeft=%s" % ("none" if errorAt == -1 else "yes" if left != -1 and errorAt > left else "no"))

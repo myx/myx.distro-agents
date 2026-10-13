@@ -334,6 +334,7 @@ rigToolingList(){
 		'sh-lib/AgentsManagerScreen.py|1|kill asked of the tooling: the %s %s|@text' \
 		'sh-lib/AgentsManagerScreen.py|1|call["process"].terminate()|@uncollected' \
 		'sh-lib/AgentsManagerScreen.py|1|call["process"].kill()|@uncollected' \
+		'sh-lib/AgentsManagerScreen.py|1|os.killpg(process.pid, signal.SIGCONT)|@uncollected' \
 		'sh-lib/AgentsTools.ConsoleSession.include|1|= "$signalLine" ] && kill "-$1" "$signalPid"|@file-start' \
 		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid" 2>/dev/null'"'"' INT TERM|@waited-on' \
 		'sh-lib/AgentsTools.InternMainLoop.include|1|kill -TERM -- "-$mainLoopSpawnPid"|@probed' \

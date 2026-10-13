@@ -140,7 +140,7 @@ echo "-- Configuration holds its two folders ahead of its subjects --"
 rigCase root
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 turn
 get in
@@ -165,7 +165,7 @@ rigCase checker
 printf 'sleep 1\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN ENTER
 advance 11
@@ -224,7 +224,7 @@ rigCase checkfails
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-check-run"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN ENTER r
 wait check 30
@@ -237,7 +237,7 @@ echo "-- Server Keys: the groups from the rows, every key whole --"
 rigCase keys
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -313,7 +313,7 @@ rigCase older
 cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -338,7 +338,7 @@ cp "$rigTmp/older.keys" "$MANAGER_SCREEN_RIG/rows.--manager-keys-list"
 printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-keys-read"
 rigScript <<'RIGSCRIPT'
 turn
-keys 7
+keys 8
 wait list 30
 keys DOWN DOWN ENTER
 wait list 30
@@ -359,12 +359,76 @@ RIGSCRIPT
 rigAssert "under each key the folder says that its line could not be read, and no box opens of itself" "[$( rigVal in.dialog )] $( rigScreenHolds u 'Its public line could not be read: rig-tools: ⛔ ERROR: the rig said' )" "[] 2"
 rigAssert "its own box says that it could not be read, and no other box opens" "[$( rigVal failed.dialog )] [$( rigVal failed.dialogHolds )] $( rigVal failed.waiting )" "[keyline:ok|] [Its public line could not be read: / rig-tools: ⛔ ERROR: the rig said fail] 0"
 
+echo "-- inside a subject the lines stand group by group, where its groups hold lines of one name --"
+rigCase groups
+rigGroupLine(){ ## subject, group, key, state, value, label -- a line of the configuration as `--full` prints one
+	rigRow line "$1" "$2" "$3" "$4" "$5" "$6" - 'no:set_at_deployment:_a_wizard_will_change_it' - - - - - configuration
+}
+{
+	rigRow subject cli 8 CLI_Services
+	rigGroupLine cli workspace SPAWN_CLI_SERVICE set claude Spawn_CLI_Service
+	rigGroupLine cli claude present set /rig/claude CLI_Present
+	rigGroupLine cli claude usable set yes CLI_Usable
+	rigGroupLine cli claude RIG_CLI_KEY secret-set sk-never-shown CLI_Key
+	rigGroupLine cli grok present set /rig/grok CLI_Present
+	rigGroupLine cli grok usable missing no CLI_Usable
+	rigGroupLine cli copilot present set /rig/copilot CLI_Present
+	rigGroupLine cli copilot usable set yes CLI_Usable
+	rigRow subject loop 2 Loop_State
+	rigGroupLine loop heartbeat running set no Running
+	rigGroupLine loop heartbeat recheck set soon Recheck
+} > "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
+rigScript <<'RIGSCRIPT'
+turn
+root configuration
+keys ENTER
+wait list 30
+keys DOWN DOWN DOWN ENTER
+turn
+get in
+cells r1 3 85 119
+cells r2 4 85 119
+cells r3 5 85 119
+cells r4 6 85 119
+cells r5 7 85 119
+cells r6 8 85 119
+cells r7 9 85 119
+cells r8 10 85 119
+cells r9 11 85 119
+cells r10 12 85 119
+keys DOWN DOWN DOWN
+turn
+get head
+show hc
+keys ENTER
+get entered
+keys DOWN DOWN DOWN DOWN DOWN DOWN
+turn
+get line
+border title 1 0 84
+show u
+keys LEFT DOWN ENTER
+turn
+get one
+cells o1 3 85 119
+cells o2 4 85 119
+cells o3 5 85 119
+RIGSCRIPT
+rigTrim(){ ## name -- the cells of that name without the spaces at their end
+	rigVal "$1" | LC_ALL=C sed -e 's/  *$//'
+}
+rigAssert "a subject with three groups of lines of one name: a heading for each group, by its word as it comes, and each line under its own, set in by two" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigTrim r1 )][$( rigTrim r2 )][$( rigTrim r3 )][$( rigTrim r4 )][$( rigTrim r5 )][$( rigTrim r6 )][$( rigTrim r7 )][$( rigTrim r8 )][$( rigTrim r9 )][$( rigTrim r10 )]" "configuration/cli 13 [ workspace][   Spawn CLI Service][ claude][   CLI Present][   CLI Usable][   CLI Key][ grok][   CLI Present][   CLI Usable][ copilot]"
+rigAssert "a heading selected: the left window shows that group alone, its lines with what they read as, of a secret only its state" "[$( rigVal head.selected )] [$( rigPane hc 2 )][$( rigPane hc 3 )][$( rigPane hc 4 )][$( rigPane hc 6 )][$( rigPane hc 7 )][$( rigPane hc 8 )] $( rigScreenHolds hc sk-never-shown )" "[group claude] [ claude [wrap]][ claude][ 3 lines][     CLI Present  /rig/claude  (present)][     CLI Usable   yes  (usable)][     CLI Key      configured  (RIG_CLI_KEY)] 0"
+rigAssert "Enter on a heading does nothing: the status line says that the row has nothing to open" "[$( rigVal entered.path )] [$( rigVal entered.selected )] [$( rigVal entered.notice )] [$( rigVal entered.dialog )]" "[configuration/cli] [group claude] [Open: this row has nothing to open] []"
+rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u ' group     grok' ) $( rigPaneHolds u ' key       usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"
+rigAssert "a subject with one group shows no heading: its lines alone, as they come" "$( rigVal one.path ) $( rigVal one.rows ) [$( rigTrim o1 )][$( rigTrim o2 )][$( rigTrim o3 )]" "configuration/loop 3 [ Running][ Recheck][]"
+
 echo "-- the real screen on a pseudo-terminal: it starts, shows Configuration with its folders, and Ctrl-X ends it --"
 rigCase pty
 mkdir -p "$rigTmp/ws-rig"
 printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
-rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Sessions (Activity)" '7\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='checker=Config Checker|keys=Server Keys' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Sessions (Activity)" '8\p\aServer Keys\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
 rigAssert "it draws the folder and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace )]" "yes 0 yes none yes [checker keys]"
 
 if [ "$rigFailCount" -ne 0 ] ; then

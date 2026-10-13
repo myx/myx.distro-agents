@@ -235,7 +235,7 @@ advance 11
 turn
 wait list 5
 get away
-keys 8
+keys 1
 turn
 wait list 5
 get back
@@ -254,7 +254,7 @@ rigScript <<'EOF'
 turn
 wait list 5
 wait sessions 5
-keys 1
+keys 2
 turn
 wait sessions 5
 get s

@@ -2855,8 +2855,13 @@
 			`Registered Place` and `Scope`. A line that no row of the
 			declaration fits has the label `-`.
 			With `--full`, given ahead of every name, each `line` row has
-			eight more fields at its end, and the rows are the same
-			otherwise:
+			eight more fields at its end, and ahead of the lines of each
+			group of a subject stands one row of the group, which counts
+			them and gives what a screen calls the group: capitalised
+			words where the group is the tooling's own word, the name as
+			it is written where the group is a name, a CLI's, a system's,
+			a scope's. The rows are the same otherwise:
+			`group <subject> <group> <lines> <label>`
 			`<description> <change> <kind> <scope> <source> <values> <where> <belongs>`
 			<description> is one or two plain sentences on the line, from
 			the declaration of the labels, with no value in it. <belongs>

@@ -566,6 +566,19 @@ MENUS = (
 ## the word the left window names the key of an "only" command by, where it starts nothing.
 ## "enters": Enter on a row it acts on enters that row, so the row is drawn as a folder is,
 ## as a row that dives into a level of its own is (rowEnters).
+## The number keys that take the list to a level: the roots have theirs by the order of
+## the root list (SECTIONS), the first root 1, and are so given again whenever a root is
+## added or moved; the levels GO_MORE names, under a root, have the numbers after the
+## last root, in its order. With each number, Alt with it. Nine numbers there are: what
+## stands after the ninth has none, and is reached by its menu.
+GO_MORE = (("sessions", "launch"),)
+
+
+def goKeys(path):
+    number = ([(sectionId,) for sectionId, sectionLabel in SECTIONS] + list(GO_MORE)).index(tuple(path)) + 1
+    return (str(number), "ALT-%d" % number) if number <= 9 else ()
+
+
 COMMANDS = (
     {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
      "does": ("read",)},
@@ -636,23 +649,23 @@ COMMANDS = (
      "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "raw")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
-    {"name": "dashboard", "keys": ("8", "ALT-8"), "menu": ("go", 1), "label": "~D~ashboard (Monitor)",
+    {"name": "dashboard", "keys": goKeys(("dashboard",)), "menu": ("go", 1), "label": "~D~ashboard (Monitor)",
      "does": ("go", ("dashboard",))},
-    {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions (Activity)",
+    {"name": "sessions", "keys": goKeys(("sessions",)), "menu": ("go", 1), "label": "~S~essions (Activity)",
      "does": ("go", ("sessions",))},
-    {"name": "pending", "keys": ("2", "ALT-2"), "menu": ("go", 1), "label": "~P~ending Questions",
+    {"name": "pending", "keys": goKeys(("pending",)), "menu": ("go", 1), "label": "~P~ending Questions",
      "does": ("go", ("pending",))},
-    {"name": "team", "keys": ("3", "ALT-3"), "menu": ("go", 1), "label": "~T~eam Members",
+    {"name": "team", "keys": goKeys(("team",)), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
-    {"name": "places", "keys": ("9", "ALT-9"), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
+    {"name": "places", "keys": goKeys(("places",)), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
      "does": ("go", ("places",))},
-    {"name": "consoles", "keys": ("6", "ALT-6"), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
+    {"name": "consoles", "keys": goKeys(("consoles",)), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
      "does": ("go", ("consoles",))},
-    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "S~e~ttings",
+    {"name": "settings", "keys": goKeys(("settings",)), "menu": ("go", 1), "label": "S~e~ttings",
      "does": ("go", ("settings",))},
-    {"name": "configuration", "keys": ("7", "ALT-7"), "menu": ("go", 1), "label": "~C~onfiguration",
+    {"name": "configuration", "keys": goKeys(("configuration",)), "menu": ("go", 1), "label": "~C~onfiguration",
      "does": ("go", ("configuration",))},
-    {"name": "spawn", "keys": ("5", "ALT-5"), "menu": ("go", 2), "label": "~L~aunch / Spawn",
+    {"name": "spawn", "keys": goKeys(("sessions", "launch")), "menu": ("go", 2), "label": "~L~aunch / Spawn",
      "does": ("go", ("sessions", "launch"))},
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
@@ -1217,6 +1230,20 @@ def levelPattern(path):
     return "/".join(words)
 
 
+## The rows of a list that is set out in groups, the one drawing every such list has: for
+## each group its heading row, which stands out, and under it the rows of the group, each
+## set in by two cells. Given as pairs of a heading row and its rows, in their order.
+def groupedRows(groups):
+    rows = []
+    for head, members in groups:
+        head["look"] = BOLD
+        rows.append(head)
+        for row in members:
+            row["indent"] = 2
+            rows.append(row)
+    return rows
+
+
 def newRow(rowId, label, kind, dive=False, fields=None):
     return {"id": rowId, "label": label, "kind": kind, "dive": dive, "fields": fields or []}
 
@@ -1537,6 +1564,8 @@ def localView(state, row):
         return memberLines(row["member"], state.viewWidth, state.view["info"])
     if row.get("line"):
         return settingLines(row["line"], state.viewWidth)
+    if row.get("lineGroup"):
+        return groupLines(row["lineGroup"], state.viewWidth)
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
     if row.get("serverKey"):
@@ -4330,6 +4359,30 @@ def parseDigestLevels(readKey, text):
             lineRow["line"] = line
             levels[root + "/" + name].append(lineRow)
             held[(root, name)]["subject"]["lines"].append(line)
+    ## inside a subject that has more than one group its lines stand group by group, in the
+    ## order the groups first come: a heading for each, by the word of the group as it
+    ## comes, and its lines under it (groupedRows). The window of such a line is titled
+    ## with its group ahead of its label, since lines of several groups read alike. A
+    ## subject of one group shows its lines alone, as they come; and so does one whose
+    ## groups hold one line each, no two of them of one label: a heading over every line
+    ## would tell nothing apart there.
+    for (root, name), row in held.items():
+        groups = []
+        for lineRow in levels[root + "/" + name]:
+            word = lineRow["line"]["group"]
+            if word not in [group for group, members in groups]:
+                groups.append((word, []))
+            [members for group, members in groups if group == word][0].append(lineRow)
+        labels = [member["label"] for group, members in groups for member in members]
+        if len(groups) > 1 and (any(len(members) > 1 for group, members in groups) or len(set(labels)) < len(labels)):
+            grouped = []
+            for word, members in groups:
+                head = newRow("group " + word, word or "-", "group")
+                head["lineGroup"] = {"subject": name, "label": word or "-", "lines": [member["line"] for member in members]}
+                for member in members:
+                    member["title"] = "%s: %s" % (word or "-", member["label"])
+                grouped.append((head, members))
+            levels[root + "/" + name] = groupedRows(grouped)
     for row in held.values():
         missing = len([line for line in row["subject"]["lines"] if line["state"] in STATES_MISSING])
         if missing:
@@ -4418,6 +4471,25 @@ def subjectLines(subject, width, missingFirst=False):
 ## root declares.
 def subjectSummary(state, path, row, form):
     return subjectLines(row["subject"], state.viewWidth, form.get("missingFirst", False)) if row.get("subject") else None
+
+
+## A group of the lines of a subject for the left pane, while its heading is selected in
+## the list: its word, how many lines it holds and how many of them are missing, then its
+## lines, the missing ones first, each by its label with what it reads as, of a secret
+## only its state, and its key as the detail where its label is not the key.
+def groupLines(group, width):
+    missing = [line for line in group["lines"] if line["state"] in STATES_MISSING]
+    lines = [group["label"], "%d line%s%s" % (len(group["lines"]), "" if len(group["lines"]) == 1 else "s",
+                                             ", %d missing, each marked %s" % (len(missing), MARK_MISSING) if missing else ""), ""]
+    ordered = missing + [line for line in group["lines"] if line["state"] not in STATES_MISSING]
+    keyWidth = min(34, max(textWidth(line.get("label") or line["key"] or "-") for line in ordered))
+    for line in ordered:
+        key = line.get("label") or line["key"] or "-"
+        detail = "  (%s)" % line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
+        lines.extend(hangLines("%s %s  %s%s" % (
+            MARK_MISSING if line["state"] in STATES_MISSING else " ",
+            key + " " * max(0, keyWidth - textWidth(key)), digestWords(group["subject"], line), detail), width))
+    return lines
 
 
 ## The selected line of a subject for the left pane, from its row: what it is now first,
@@ -4675,25 +4747,24 @@ def parseKeyRows(text):
             held = dict(zip(KEY_FIELDS, fields[1:]))
             held["line"] = unspaced(fields[len(KEY_FIELDS) + 1]) if len(fields) > len(KEY_FIELDS) + 1 else ""
             groupOf(held["group"])["keys"].append(held)
-    rows = []
+    grouped = []
     for group in groups:
         group["label"] = group["label"] or keyGroupLabel(group["key"])
-        row = newRow("group " + group["key"], group["label"], "group")
-        row["keyGroup"] = group
-        row["look"] = BOLD
-        rows.append(row)
+        head = newRow("group " + group["key"], group["label"], "group")
+        head["keyGroup"] = group
+        members = []
         for held in group["keys"]:
             held["groupLabel"] = group["label"]
             row = newRow(held["key"], unspaced(held["label"]) or held["key"], "record")
             row["serverKey"] = held
-            row["indent"] = 2
             if held["state"] == KEY_PRESENT:
                 row["readable"] = True
             else:
                 row["tail"] = held["state"]
                 row["look"] = DIM
-            rows.append(row)
-    return rows
+            members.append(row)
+        grouped.append((head, members))
+    return groupedRows(grouped)
 
 
 ## What `--manager-keys-read <key>` printed: the line to paste, with its blanks as they
@@ -6269,9 +6340,11 @@ def applyResult(state, result):
 ## The one part of the screen that calls the tooling. An operation of the dispatcher runs
 ## as a process of its own, with no input, or with what was typed as its input from a
 ## file, and its output kept in files, so a call never holds a key and never fills a pipe;
-## what it wrote is taken when it has ended. One call of a kind at a time. A call that
-## acts is cut off from the terminal's signals and is not ended with the screen: what was
-## confirmed is carried out whole.
+## what it wrote is taken when it has ended. One call of a kind at a time. Every call is
+## cut off from the terminal's signals, a session of its own: an interrupt or a quit typed
+## at the terminal, for the screen or for a child that has the terminal, ends no call. A
+## call that acts is besides not ended with the screen: what was confirmed is carried out
+## whole.
 class OperationReader:
     ## The kinds of call that act, and so run on when the screen ends.
     LASTING = ("action",)
@@ -6302,7 +6375,7 @@ class OperationReader:
         try:
             process = subprocess.Popen(self.toolsCommand + list(words),
                                        stdin=subprocess.DEVNULL if inputFile is None else inputFile,
-                                       stdout=outputFile, stderr=errorFile, start_new_session=kind in self.LASTING)
+                                       stdout=outputFile, stderr=errorFile, start_new_session=True)
         except OSError as failure:
             outputFile.close()
             errorFile.close()
@@ -6435,7 +6508,7 @@ def viewTitle(state):
     ## the mode of the window, where the item has a log: it shows in the title
     form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
     ## and whether its long lines are wrapped or cut: the title says it always
-    return (marks + " " if marks else "") + row["label"] + form + " " + (WRAP_MARK if state.wrap else CUT_MARK)
+    return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap else CUT_MARK)
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one
@@ -7154,22 +7227,82 @@ class CursesSurface:
     ## Gives the whole terminal to a child and waits for its end: the command from its words
     ## as they are, with no shell, started in that folder, with the environment and the
     ## streams of the screen. However the child ends, and whatever fails here, the terminal
-    ## is taken back first (back). While the child runs an interrupt and a quit typed at
-    ## the terminal are the child's alone: the screen notes them and does not end with them,
-    ## and since it does not ignore them the child starts with what the system does on them.
-    ## Gives the status of the child as the system gives it, below 0 the signal that ended
-    ## it. A command that cannot be started fails as the system says (OSError).
+    ## is taken back first (back). While the child runs an interrupt, a quit and a stop
+    ## typed at the terminal are the child's alone. Where the screen has the terminal as a
+    ## program started from one has it, the child is given it as a shell gives it to a job
+    ## (foreground): what is typed there is then signalled to the child's group and to no
+    ## other, so the screen and its calls never see it. Where it cannot be handed on so,
+    ## the screen notes an interrupt and a quit and does not end with them, and since it
+    ## does not ignore them the child starts with what the system does on them. Gives the
+    ## status of the child as the system gives it, below 0 the signal that ended it. A
+    ## command that cannot be started fails as the system says (OSError).
     def child(self, words, directory):
         self.leave()
         held = {}
         try:
             for number in (signal.SIGINT, signal.SIGQUIT):
                 held[number] = signal.signal(number, lambda signalNumber, stackFrame: None)
-            return subprocess.call(words, cwd=directory)
+            terminal = self.ownTerminal()
+            if terminal is None:
+                return subprocess.call(words, cwd=directory)
+            return self.foreground(terminal, words, directory)
         finally:
             for number, handler in held.items():
                 signal.signal(number, handler)
             self.back()
+
+    ## The terminal the screen has as its own and is in the foreground of, as the number of
+    ## its file, or None: where its input is no terminal it controls, or another group has it.
+    def ownTerminal(self):
+        try:
+            terminal = sys.stdin.fileno()
+            return terminal if os.tcgetpgrp(terminal) == os.getpgrp() else None
+        except (OSError, ValueError, AttributeError):
+            return None
+
+    ## The child as the job that has the terminal: a process group of its own, made the
+    ## foreground group of the terminal, in the child before its command starts and here,
+    ## so neither comes first. The screen waits for its end. A child that is stopped, by a
+    ## stop typed at the terminal or by itself, is continued at once with the terminal:
+    ## the screen is no shell that could bring it back later, and a stopped child would
+    ## leave the terminal with nobody that reads it. When the child has ended the terminal
+    ## is the screen's group's again. The screen does not stop while it takes the terminal
+    ## back from the background (SIGTTOU), and the child starts with that as the system has it.
+    def foreground(self, terminal, words, directory):
+        def lead():
+            os.setpgid(0, 0)
+            try:
+                os.tcsetpgrp(terminal, os.getpgrp())
+            except OSError:
+                pass
+            signal.signal(signal.SIGTTOU, signal.SIG_DFL)
+        own = os.getpgrp()
+        kept = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+        try:
+            process = subprocess.Popen(words, cwd=directory, preexec_fn=lead)
+            while True:
+                try:
+                    os.tcsetpgrp(terminal, process.pid)
+                except OSError:
+                    pass
+                try:
+                    found, status = os.waitpid(process.pid, os.WUNTRACED)
+                except InterruptedError:
+                    continue
+                if os.WIFSTOPPED(status):
+                    try:
+                        os.killpg(process.pid, signal.SIGCONT)
+                    except OSError:
+                        pass
+                    continue
+                process.returncode = -os.WTERMSIG(status) if os.WIFSIGNALED(status) else os.WEXITSTATUS(status)
+                return process.returncode
+        finally:
+            try:
+                os.tcsetpgrp(terminal, own)
+            except OSError:
+                pass
+            signal.signal(signal.SIGTTOU, kept)
 
     ## What each look of LOOKS is on this terminal, twice: in bold, reverse and dim alone,
     ## and in its colours, or None where the terminal has not eight of them.

@@ -211,7 +211,7 @@ size 40 20
 turn
 cells narrow 19 0 40
 size 120 40
-keys ALT-3 DOWN
+keys ALT-4 DOWN
 turn
 get member
 cells onMember 39 0 120
@@ -258,7 +258,7 @@ keys q
 get mcQ
 RIGSCRIPT
 rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:dashboard []"
-rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  8 Dashboard (Monitor)  1 Sessions (Activity)  2 Pending Questions]"
+rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  1 Dashboard (Monitor)  2 Sessions (Activity)  3 Pending Questions]"
 rigAssert "Esc and then the hot letter of a menu opens that menu, as Alt with that letter does" "$( rigVal byEscS.menu )" "session:kill"
 rigAssert "the Esc that closed a menu is no Alt for the key after it, and neither is one whose key comes too late" "[$( rigVal afterMenuEsc.menu )] $( rigVal afterMenuEsc.quit ) $( rigVal late.quit )" "[] no no"
 rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal bareQ.quit )" "no"
@@ -288,17 +288,17 @@ turn
 border child 1 0 84
 keys k
 get onChild
-keys ALT-5
+keys ALT-9
 turn
 get launch
 border launchTitle 1 0 84
-keys ALT-3
+keys ALT-4
 turn
 border teamTitle 1 0 84
-keys ALT-2
+keys ALT-3
 turn
 border pendingTitle 1 0 84
-keys ALT-4
+keys ALT-7
 turn
 border settingsTitle 1 0 84
 RIGSCRIPT
@@ -329,7 +329,7 @@ get child
 keys LEFT TAB TAB m ESC
 get back
 keys a
-keys ALT-2 ALT-3 ALT-4 ALT-1
+keys ALT-3 ALT-4 ALT-7 ALT-2
 advance 11
 turn
 get roots

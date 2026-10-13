@@ -71,7 +71,7 @@ cells doubledRow 4 85 119
 mouse double 90 4
 get doubled
 border doubledTitle 1 84 120
-keys ALT-1
+keys ALT-2
 get before
 mouse down 90 10
 mouse down 90 10

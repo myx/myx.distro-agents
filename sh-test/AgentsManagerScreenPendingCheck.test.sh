@@ -565,7 +565,7 @@ rigActs "$rigAsk1" drop -
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 2
+keys 3
 wait list 30
 keys DOWN
 wait acts 30
@@ -603,7 +603,7 @@ rigActs "$rigAsk1" drop "be sure"
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 2
+keys 3
 wait list 30
 keys DOWN DOWN DOWN
 wait acts 30
@@ -643,7 +643,7 @@ rigActs "$rigAsk3" "use it" -
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 2
+keys 3
 wait list 30
 keys DOWN
 wait acts 30
@@ -675,7 +675,7 @@ printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-pending-reply-dismiss"
 rigScriptActs <<'RIGSCRIPT'
 size 120 40
 turn
-keys 2
+keys 3
 wait list 30
 keys DOWN DOWN
 wait acts 30

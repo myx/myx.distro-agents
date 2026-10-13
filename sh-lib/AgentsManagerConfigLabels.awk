@@ -16,7 +16,10 @@
 ##       from, what it takes, where it is saved, and which of the two it belongs to,
 ##       `settings` or `configuration`, as its row of the declaration says. A line that
 ##       cannot be changed reads `no` where it says so, with the reason after a colon where
-##       it belongs to the configuration, and `-` in the five fields after it.
+##       it belongs to the configuration, and `-` in the five fields after it. And one
+##       `group` row ahead of the lines of each group of a subject: the subject, the group
+##       as its lines carry it, how many lines it has, and its label, that of the row of
+##       the declaration that has that group and no key.
 ##   -v deployed=<words>   that reason: why no line of the configuration is changed here.
 ##   -v earlier=<subjects>   the subjects whose changeable lines keep, without full, the form
 ##       they had first: where the value comes from and what it takes ahead of the label.
@@ -47,6 +50,7 @@ declaring {
 }
 
 $1 == "subject" {
+	if ( full ) flushGroup()
 	at = rowOf( $2, "", "", 1 )
 	print $0, ( at ? worded( rowLabel[at], "" ) : "-" )
 	next
@@ -63,14 +67,35 @@ $1 == "line" {
 	}
 	description = at ? worded( rowDescription[at], $4 ) : "-"
 	belongs = ( at && rowBelongs[at] != "" ) ? rowBelongs[at] : "-"
-	if ( NF >= 11 ) {
-		print base, label, description, "yes", $9, $10, $7, $8, $11, belongs
-		next
+	if ( NF >= 11 ) held = base OFS label OFS description OFS "yes" OFS $9 OFS $10 OFS $7 OFS $8 OFS $11 OFS belongs
+	else {
+		reason = ( belongs == "configuration" ) ? deployed : ""
+		gsub( /[ \t]+/, "_", reason )
+		held = base OFS label OFS description OFS ( ( reason == "" ) ? "no" : "no:" reason ) OFS "-" OFS "-" OFS "-" OFS "-" OFS "-" OFS belongs
 	}
-	reason = ( belongs == "configuration" ) ? deployed : ""
-	gsub( /[ \t]+/, "_", reason )
-	print base, label, description, ( reason == "" ) ? "no" : "no:" reason, "-", "-", "-", "-", "-", belongs
+	## The lines of a group are kept until its last, so that its row can count them.
+	if ( groupHas && ( $2 != groupSubject || $3 != groupName ) ) flushGroup()
+	if ( !groupHas ) { groupHas = 1 ; groupSubject = $2 ; groupName = $3 ; groupCount = 0 }
+	groupRows[++groupCount] = held
 	next
+}
+
+END { if ( full ) flushGroup() }
+
+## The row of a group and then its lines, as they were kept.
+function flushGroup(    at, number ) {
+	if ( !groupHas ) return
+	at = groupOf( groupSubject, groupName )
+	print "group", groupSubject, groupName, groupCount, ( at ? worded( rowLabel[at], groupName ) : "-" )
+	for ( number = 1 ; number <= groupCount ; number++ ) print groupRows[number]
+	groupHas = 0
+}
+
+## The row of the declaration for a group of a subject: the first that has a group that
+## fits and no key, 0 where none does.
+function groupOf( subject, group,    at ) {
+	for ( at = 1 ; at <= rows ; at++ ) if ( rowSubject[at] == subject && rowKey[at] == "" && rowGroup[at] != "" && fits( rowGroup[at], group ) ) return at
+	return 0
 }
 
 { print }

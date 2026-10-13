@@ -148,7 +148,7 @@ turn
 wait places 5
 get start
 show root
-keys 9
+keys 5
 turn
 wait places 5
 turn
@@ -194,7 +194,7 @@ rigCase narrow
 rigScript <<'EOF'
 turn
 wait places 5
-keys 9
+keys 5
 turn
 show n
 get n
@@ -224,14 +224,14 @@ table list:sessions none
 rows sessions s1=one
 rows settings workspace=Workspace_Paths other=Other_Subject
 rows consoles c1=A_Console
-keys 1 DOWN DOWN
+keys 2 DOWN DOWN
 turn
 viewline $rigSaid
 turn
 show v
 roles vr
 get v
-keys 4 DOWN
+keys 7 DOWN
 turn
 viewline $rigSaid
 turn
@@ -291,7 +291,7 @@ advance 11
 turn
 wait places 5
 get root
-keys 9
+keys 5
 turn
 wait places 5
 get shown
@@ -316,7 +316,7 @@ rigAssert "it was read: once at the start, at once when its list is shown after 
 rigScript <<'EOF'
 turn
 wait places 5
-keys 9
+keys 5
 turn
 wait places 5
 keys u
@@ -332,13 +332,13 @@ rigCase none
 rigSize="240 40" rigScript <<EOF
 turn
 wait places 5
-keys 9
+keys 5
 turn
 show e
 wait sessions 5
 table list:sessions none
 rows sessions s1=one
-keys 1 DOWN DOWN
+keys 2 DOWN DOWN
 turn
 viewline $rigSaid
 turn

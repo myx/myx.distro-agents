@@ -483,7 +483,7 @@ rigSize="227 40"
 rigRow member magic-team :conclave: - - - team ws-rig here the-team no-process >> "$MANAGER_SCREEN_RIG/rows.--manager-team-member-list"
 rigScript <<'RIGSCRIPT'
 turn
-keys 3
+keys 4
 wait list 30
 keys DOWN DOWN DOWN DOWN DOWN DOWN
 turn

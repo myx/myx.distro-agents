@@ -7,6 +7,11 @@
 ## mode of a thing that has a log, in every style, and the choice is kept as the selection moves; the status line
 ## names the key of the help, last of the keys that work in every window; a kill whose plan could not be read is
 ## not asked for: its dialog says so, takes no word and has Cancel alone, and no kill reaches the tooling.
+## The number keys of the roots follow the order of the root list, top to bottom, `Launch / Spawn` after them, and the
+## menu Go names them so.
+## And, with the real screen on a pseudo-terminal that is its controlling terminal: while a child has the whole
+## terminal, an interrupt and a quit typed there reach the child and never end the screen, and a stop typed there
+## leaves neither the child nor the screen stopped: the child reads on, ends in order, and the screen is back.
 ## Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -233,7 +238,60 @@ RIGSCRIPT
 rigAssert "the dialog says that the plan could not be read and that nothing is done, takes no word, and has Cancel alone" "[$( rigVal k.selected )] [$( rigVal k.dialog )] $( rigVal k.dialogHolds | LC_ALL=C grep -c -F 'What its kill would do could not be read: rig-tools: ⛔ ERROR: the rig said fail / So it is not asked for: nothing is killed, dismissed or closed.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -F '[ Cancel ]' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -e 'Kill \]' -e 'Close \]' -e 'Type yes' )" "[s-run] [kill:cancel|] 1 1 0"
 rigAssert "the word typed and Enter leave it: no kill was asked of the tooling, only its plan was read" "[$( rigVal after.dialog )] $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run' "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run --plan' "$MANAGER_SCREEN_RIG/calls" )" "[] 0 1"
 
+echo "-- the number keys of the roots follow the order of the root list --"
+rigCase digits
+rigScript <<'RIGSCRIPT'
+turn
+wait sessions 5
+keys 1
+get k1
+keys 2
+get k2
+keys 3
+get k3
+keys 4
+get k4
+keys 5
+get k5
+keys 6
+get k6
+keys 7
+get k7
+keys 8
+get k8
+keys 9
+get k9
+keys ALT-4
+get a4
+keys m
+turn
+show go
+RIGSCRIPT
+rigAssert "1 to 8 go to the roots in the order of the list, 9 to Launch / Spawn, the level after them; Alt with a number does the same" "$( rigVal k1.path ) $( rigVal k2.path ) $( rigVal k3.path ) $( rigVal k4.path ) $( rigVal k5.path ) $( rigVal k6.path ) $( rigVal k7.path ) $( rigVal k8.path ) $( rigVal k9.path ) $( rigVal a4.path )" "dashboard sessions pending team places consoles settings configuration sessions/launch team"
+rigAssert "the menu Go names them so, top to bottom" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Dashboard (Monitor)  *1 ' -e 'Sessions (Activity)  *2 ' -e 'Pending Questions  *3 ' -e 'Team Members  *4 ' -e 'Locations (Places)  *5 ' -e 'Consoles (Tools)  *6 ' -e 'Settings  *7 ' -e 'Configuration  *8 ' -e 'Launch / Spawn  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Dashboard (Monitor) 1|Sessions (Activity) 2|Pending Questions 3|Team Members 4|Locations (Places) 5|Consoles (Tools) 6|Settings 7|Configuration 8|Launch / Spawn 9|"
+
+echo "-- the real screen on a pseudo-terminal it controls: an interrupt, a quit and a stop typed while a child has the terminal are the child's alone --"
+rigCase child
+mkdir -p "$rigTmp/ws-rig"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
+chmod +x "$rigTmp/tools"
+## a child that says when it is up, says each interrupt and each quit it is sent, and ends in order when it reads the line `x`
+cat > "$rigTmp/child.sh" <<'RIGCHILD'
+trap 'echo GOT-INT' INT
+trap 'echo GOT-QUIT' QUIT
+echo CHILD-UP
+while : ; do
+	if IFS= read -r rigLine ; then
+		echo "READ-$rigLine"
+		[ "$rigLine" != x ] || exit 0
+	fi
+done
+RIGCHILD
+rigRow console child Rig Rig_Child terminal "$rigTmp" bash "$rigTmp/child.sh" > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
+rigOut="$( MANAGER_SCREEN_PTY_SESSION=1 MANAGER_SCREEN_PTY_TRACE='up=CHILD-UP|int=GOT-INT|quit=GOT-QUIT|read=READ-x|ended=Rig Child: ended with status 0' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\x1bOB\p\aRig Child\a\r\p\x1bOB\p\r\p\aCHILD-UP\a\x03\p\aGOT-INT\a\x1c\p\aGOT-QUIT\a\x1a\px\r\p\aended with status 0\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigAssert "Ctrl-C and Ctrl-\\ reach the child, which says so and runs on; after Ctrl-Z it still reads its line and ends in order; the screen is back, says how it ended, and ends with status 0 by its own key, having left its screen" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) [$( rigVal pty.trace | LC_ALL=C tr ' ' '\n' | LC_ALL=C uniq | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed 's/ $//' )]" "yes 0 yes none [up int quit read ended]"
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LEFTOVERS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
-printf 'MANAGER_SCREEN_LEFTOVERS: OK (%d assertions, offline, stand-in terminal and stand-in dispatcher)\n' "$rigPassCount"
+printf 'MANAGER_SCREEN_LEFTOVERS: OK (%d assertions, offline, stand-in terminal, stand-in dispatcher and one pseudo-terminal)\n' "$rigPassCount"
