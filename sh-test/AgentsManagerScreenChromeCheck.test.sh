@@ -85,7 +85,7 @@ rigSqueeze(){ ## a line with every run of spaces as one
 	LC_ALL=C sed -e 's/  */ /g'
 }
 rigStart(){ ## the commands every case starts with: the row of counters is read, then the list holds sixty rows and is entered
-	printf 'tools %s\ntable list:pending none\nsize 120 40\nworkspace /somewhere/ws-rig\nclock 12:34:56\nwait sessions 30\ntable list:sessions none\nrowsgen sessions 60\nkeys DOWN ENTER\nturn\n' "$rigTmp/tools"
+	printf 'tools %s\ntable list:pending none\nsize 120 40\nworkspace /somewhere/ws-rig\nclock 12:34:56\nwait sessions 30\ntable list:sessions none\nrowsgen sessions 60\nroot sessions\nkeys ENTER\nturn\n' "$rigTmp/tools"
 }
 rigRun(){ ## the commands of the driver on standard input, after the ones every case starts with; what it printed is kept in rigOut
 	rigOut="$( { rigStart ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"

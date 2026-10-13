@@ -78,7 +78,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -92,8 +92,8 @@ rigScreenHolds(){ ## tag, text -- how many lines of that whole screen hold the t
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigOthers(){ ## how many starts were neither the list of the sessions nor the list of the consoles with no argument
-	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-console-list' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were neither the list of the sessions nor the list of the consoles with no argument. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-console-list' -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- Consoles (Tools) is a root, a folder, and lists what the operation gives --"
@@ -101,9 +101,9 @@ rigCase list
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 30
-cells root4 5 85 119
-cells root5 6 85 119
-keys DOWN DOWN DOWN
+show rootShown
+root consoles
+turn 3
 advance 11
 wait sessions 30
 get on
@@ -132,7 +132,10 @@ keys m
 turn
 show g
 RIGSCRIPT
-rigAssert "the root list holds it after the team members and ahead of the settings, as a folder" "[$( rigVal root4 )] [$( rigVal root5 )]" "[ Consoles (Tools)...] [ Settings...]"
+rigRootLine(){ ## text -- the number of the line of the screen, as first shown, that holds the text
+	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
+}
+rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members...' )" -lt "$( rigRootLine ' Consoles (Tools)...' )" ] && [ "$( rigRootLine ' Consoles (Tools)...' )" -lt "$( rigRootLine ' Settings...' )" ] && echo in-that-order )" "in-that-order"
 rigAssert "until it is entered its list is not read, whatever time passes" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 0"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"

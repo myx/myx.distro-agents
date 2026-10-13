@@ -41,7 +41,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigRun(){ ## the commands of the driver on standard input, after the ones every case starts with: a list of two sessions, entered; what it printed is kept in rigOut
-	rigOut="$( { printf 'size 120 40\nrows sessions s1=one s2=two\nrows team m1=member-one\nkeys ENTER\n' ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'size 120 40\nrows sessions s1=one s2=two\nrows team m1=member-one\nroot sessions\nkeys ENTER\n' ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -257,8 +257,8 @@ get styled
 keys q
 get mcQ
 RIGSCRIPT
-rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:sessions []"
-rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  1 Sessions (Activity)  2 Pending Questions  3 Team Members  6 Consoles (Tools)]"
+rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:dashboard []"
+rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  8 Dashboard (Monitor)  1 Sessions (Activity)  2 Pending Questions]"
 rigAssert "Esc and then the hot letter of a menu opens that menu, as Alt with that letter does" "$( rigVal byEscS.menu )" "session:kill"
 rigAssert "the Esc that closed a menu is no Alt for the key after it, and neither is one whose key comes too late" "[$( rigVal afterMenuEsc.menu )] $( rigVal afterMenuEsc.quit ) $( rigVal late.quit )" "[] no no"
 rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal bareQ.quit )" "no"

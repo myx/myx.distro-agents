@@ -69,13 +69,13 @@ rigCase(){ ## name, what the stand-in does at every start, then what it does at 
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the workspace and the time; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nworkspace /somewhere/ws-rig\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigCalls(){ ## how many times the stand-in was started
-	LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigSqueeze(){ ## a line with every run of spaces as one
 	LC_ALL=C sed -e 's/  */ /g'
@@ -101,10 +101,10 @@ border load 38 84 120
 looks k
 RIGSCRIPT
 rigAssert "before the first read no counter and no load average is shown" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [] [] [$rigHints]"
-rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading ) $( rigCalls ) [$( LC_ALL=C sed -n '1p' "$MANAGER_SCREEN_RIG/calls" )]" "[] list:sessions 1 [--manager-session-list]"
-rigAssert "the bottom border of the left window shows its five counters, and the status line the general keys" "[$( rigVal foot )] [$( rigVal bottom )]" "[running 2  paused 0  working 1  waiting 2  pending 3] [$rigHints]"
+rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:sessions' ) $( rigCalls ) [$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[] list:sessions 1 [--manager-session-list]"
+rigAssert "the bottom border of the left window is plain, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[] [$rigHints] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "the counter of paused sessions shows 0"                   "$( rigVal a.counters | LC_ALL=C tr ',' '\n' | LC_ALL=C grep '^paused=' )" "paused=0"
-rigAssert "the menu bar shows the workspace and the clock, and the bottom border of the list the load average" "[$( rigVal top | rigSqueeze )] [$( rigVal load )]" "[$rigMenus ws-rig 02:30:00] [load 0.42]"
+rigAssert "the menu bar shows the workspace and the clock, and the bottom border of the list is plain: the load average left it for the dashboard" "[$( rigVal top | rigSqueeze )] [$( rigVal load )]" "[$rigMenus ws-rig 02:30:00] []"
 rigAssert "both lines stand across the whole width"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n '1p;40p' | LC_ALL=C tr -d 'RH|\n' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" 0
 
 echo "-- the clock moves with no key and no call --"
@@ -130,11 +130,17 @@ turn 3
 get early
 advance 2
 wait sessions 30
+get late
 border load 38 84 120
 border foot 38 0 84
+style mc
+turn
+cells compactTop 0 0 120
+cells compactBottom 39 0 120
 RIGSCRIPT
 rigAssert "not before the period has passed"                         "[$( rigVal early.reading )]" "[]"
-rigAssert "then by itself, and the lines show what the new row holds" "$( rigCalls ) [$( rigVal load )] [$( rigVal foot )]" "2 [load 1.25] [running 3  paused 0  working 2  waiting 2  pending 4]"
+rigAssert "then by itself, and the screen holds what the new row holds; the borders stay plain" "$( rigCalls ) $( rigVal late.counters ) [$( rigVal load )] [$( rigVal foot )]" "2 load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] []"
+rigAssert "the compact style, which has no borders, still shows the load and the counters in its two status lines" "$( rigVal compactTop | LC_ALL=C grep -c -F -- ' load 1.25 ' ) $( rigVal compactBottom | LC_ALL=C grep -c -F -- ' running 3  paused 0  working 2  waiting 2  pending 4  ' )" "1 1"
 
 echo "-- the clock goes on when the read fails --"
 rigCase fail rows rows fail fail rows
@@ -149,6 +155,12 @@ get bad
 cells badTop 0 0 120
 border badFoot 38 0 84
 border badLoad 38 84 120
+style mc
+turn
+cells badCompactTop 0 0 120
+cells badCompactBottom 39 0 120
+style tv
+turn
 keys ESC
 advance 11
 wait sessions 30
@@ -163,12 +175,12 @@ said mendedLine
 RIGSCRIPT
 rigAssert "the read failed"                                          "[$( rigVal bad.failed )]" "[list:sessions]"
 rigAssert "the clock still moves"                                    "[$( rigVal badTop | rigSqueeze | LC_ALL=C sed -e 's/^.* //' )]" "[02:31:00]"
-rigAssert "the counters stay as they were, marked as old"            "[$( rigVal badFoot )]" "[running 2  paused 0  working 1  waiting 2  pending 3 !]"
-rigAssert "the load average stays too, marked as old"                "[$( rigVal badLoad )]" "[load 0.42 !]"
+rigAssert "the counters stay as they were, marked as old: in the screen's state, and in the bottom line of the compact style, where they still stand" "$( rigVal bad.counters ) [$( rigVal badFoot )] $( rigVal badCompactBottom | LC_ALL=C grep -c -F -- ' running 2  paused 0  working 1  waiting 2  pending 3 !  ' )" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [] 1"
+rigAssert "the load average stays too, marked as old, in the top line of the compact style" "[$( rigVal badLoad )] $( rigVal badCompactTop | LC_ALL=C grep -c -F -- ' load 0.42 !  ' )" "[] 1"
 rigAssert "what the read wrote is shown in a box"                      "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a second failure changes nothing"                         "[$( rigVal worse.failed )] $( rigVal worse.counters )" "[list:sessions] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
-rigAssert "a good read takes the marks and the error line away, and brings the new counters" "[$( rigVal mended.failed )] [$( rigVal mendedLoad )] [$( rigVal mendedFoot )] [$( rigVal mendedLine )]" \
-	"[] [load 1.25] [running 3  paused 0  working 2  waiting 2  pending 4] []"
+rigAssert "a good read takes the marks and the error line away, and brings the new counters" "[$( rigVal mended.failed )] $( rigVal mended.counters ) [$( rigVal mendedLoad )] [$( rigVal mendedFoot )] [$( rigVal mendedLine )]" \
+	"[] load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] [] []"
 
 echo "-- the status line names the general keys, and after them the keys of what is selected --"
 rigCase keys rows

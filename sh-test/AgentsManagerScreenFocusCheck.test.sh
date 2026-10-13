@@ -1,0 +1,383 @@
+#!/usr/bin/env bash
+## Behavioural check on what the manager screen (sh-lib/AgentsManagerScreen.py) does when the selection comes to
+## stand on a folder, a row that opens a level of its own, run rather than read. The screen's own code runs through
+## the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the
+## dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and
+## prints the fixture: rows in the forms the list operations of the screen print.
+## Held: the list of a folder is read while its row is selected, with no Enter, and the left window then shows the
+## summary of that folder from its real rows, in the form of its kind: the sessions by their states, then the
+## running and the waiting ones one by one with their agents, tokens and members; the asks with how many have no
+## asker, for whom they are, the oldest, then the oldest few with who asks whom; the members with who runs and who
+## is not started from here and why; the locations with which is not present; what is to start group by group; a
+## root of the digest with its subjects, the ones that miss a line first; the routines by whether they are
+## started; the server keys with every public key whole; a subject of the settings with its values and never a
+## secret; a subject of the configuration with its missing lines first. Until the rows have come the window says
+## `Populating <name>...`. The read of a folder starts only when the selection has rested on its row, so a selection
+## that runs over the folders starts the read of the one it stops on alone; one such read runs at a time, and one
+## under way for a folder that was left never shows in another. Entering a folder afterwards reads nothing again
+## until its period has passed. The checks of the installation are never run by the focus: their folder says that
+## they were not run, and which key runs them, and that key runs them from the row of the folder, after which the
+## folder says how they ended and when. A folder whose read fails says so in the left window.
+## Offline: no operation of the real tooling is called.
+set -u
+: "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
+rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
+rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
+rigDriver="$rigFixtures/manager-screen.driver.test.py"
+rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigRefuse(){
+	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
+}
+[ -f "$rigScreen" ] || rigRefuse "the screen is not at the origin: $rigScreen"
+[ -f "$rigDriver" ] || rigRefuse "the driver of the screen tests is missing: $rigDriver"
+[ -f "$rigTools" ] || rigRefuse "the stand-in for the dispatcher is missing: $rigTools"
+rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH"
+rigTmp="$( mktemp -d -t AgentsManagerScreenFocusCheck )" || exit 1
+rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+trap 'rm -rf -- "$rigTmp"' EXIT
+export TZ=UTC
+
+rigPassCount=0
+rigFailCount=0
+rigAssert(){ ## what is asserted, got, want
+	if [ "$2" = "$3" ] ; then
+		printf '  PASS  %s\n' "$1" ; rigPassCount=$(( rigPassCount + 1 ))
+	else
+		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFailCount=$(( rigFailCount + 1 ))
+	fi
+}
+rigRow(){ ## the fields of one row, joined by TAB
+	local rowText="$1" ; shift
+	while [ $# -gt 0 ] ; do rowText="$rowText"$'\t'"$1" ; shift ; done
+	printf '%s\n' "$rowText"
+}
+## What no machine has: five sessions, one running with three runs of two members, one waiting whose control thread
+## is gone, one unclosed, two finished; three asks, the oldest of a run that is gone; four members, one running, one
+## that is nobody to start and one whose workspace is not here; three locations, one absent; three things to start
+## in two groups; a subject of the settings and one of the configuration, with a secret that is set and one that is
+## missing; four routines, one started here, one with members named, one broken, one not for a hand; two groups of
+## server keys, a key whose row carries its whole line and one that is absent; two checks; one block.
+rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
+{
+	rigRow session s-run daily_of_Monday running 2026-10-13T01:00:00Z - 3 running=2,finished=1 running 2026-10-13T01:00:05Z alive 57100000
+	rigRow run s-run sp-1 magic-coordinator done live running 2026-10-13T01:00:00Z - righost ws-one working
+	rigRow run s-run sp-2 keeper-myx done live running 2026-10-13T01:01:00Z - righost ws-one waiting
+	rigRow run s-run sp-3 keeper-myx done ended finished 2026-10-13T01:02:00Z 2026-10-13T01:05:00Z righost ws-one -
+	rigRow session s-wait review_of_the_board waiting 2026-10-13T00:00:00Z - 1 waiting=1 waiting 2026-10-13T00:00:05Z gone 1200+
+	rigRow run s-wait sp-4 magic-architect done live waiting 2026-10-13T00:00:00Z - righost ws-one waiting
+	rigRow session s-open - unclosed 2026-10-12T00:00:00Z - 0 - - - none 0
+	rigRow session s-done old_work finished 2026-10-11T00:00:00Z 2026-10-11T01:00:00Z 2 finished=2 - - none 900
+	rigRow session s-done2 older_work finished 2026-10-10T00:00:00Z 2026-10-10T01:00:00Z 1 finished=1 - - none 100
+	rigRow counters 1 0 2 2 3 0.42 righost
+} > "$rigF/rows.--manager-session-list"
+cat > "$rigF/rows.--member-pending-reply-read" <<'RIGROWS'
+PENDING-REPLY: ask-new
+asked-at: 2026-10-13 02:20 +0000
+kind: question
+owner: keeper-myx
+address-to: human-owner
+question: Which of the two layouts stays?
+asker-live: running
+
+PENDING-REPLY: ask-old
+asked-at: 2026-10-10 02:30 +0000
+kind: approval
+owner: magic-devops
+address-to: human-owner
+question: May the old volume be removed now that the copy is proven on the second host?
+asker-live: no-process
+
+PENDING-REPLY: ask-mid
+asked-at: 2026-10-13 00:30 +0000
+kind: question
+owner: keeper-acm
+address-to: magic-coordinator
+question: Who owns the template of the report?
+asker-live: running
+
+PENDING-REPLIES: 3
+RIGROWS
+{
+	rigRow member magic-coordinator MC Magic Coordinator Magic lead ws-one present active running -
+	rigRow member keeper-myx KM Keeper Myx - keeper ws-one present active idle -
+	rigRow member human-owner HO Human Owner - human ws-one present reference-only idle -
+	rigRow member far-member FM Far Member - keeper ws-far not-present active idle -
+} > "$rigF/rows.--manager-team-member-list"
+{
+	rigRow place ws-one Ws_One workspace read-write /rig/Workspaces/ws-one present yes 2
+	rigRow place gone-work Gone_Work workspace read-write /rig/Volumes/gone-work absent no 0
+	rigRow place deep Deep directory read-only /rig/Workspaces/ws-one/source/deep present no -
+} > "$rigF/rows.--manager-place-list"
+{
+	rigRow console agents Distro Agents_Console terminal /rig/Workspaces/ws-one bash DistroAgentsConsole.sh
+	rigRow console source Distro Source_Console terminal /rig/Workspaces/ws-one bash DistroSourceConsole.sh
+	rigRow console top System Top terminal /rig top
+} > "$rigF/rows.--manager-console-list"
+{
+	rigRow subject interface 2 Interface
+	rigRow subject slack 3 Slack
+	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,mc=MC /rig/conf settings
+	rigRow line interface screen period set 10 Period Seconds_between_reads yes number user file 1..60 /rig/conf settings
+	rigRow line slack app channel set C123 Channel The_channel no:set_at_deployment text workspace file - /rig/conf configuration
+	rigRow line slack app token secret-set hidden-value Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration
+	rigRow line slack hooks signing secret-missing - Signing_secret The_signing_secret no:set_at_deployment text workspace file - /rig/conf configuration
+} > "$rigF/rows.--manager-config-digest"
+{
+	rigRow routine magic-coordinator.daily.routine.md magic-coordinator startable any work - Daily_meeting - -
+	rigRow routine magic-coordinator.retro.routine.md magic-coordinator not-startable any work - Retro needs_members members
+	rigRow routine keeper-myx.sweep.routine.md keeper-myx broken - work - Sweep its_file_is_broken -
+	rigRow routine keeper-myx.audit.routine.md keeper-myx not-startable keeper-myx work - Audit not_for_a_hand -
+} > "$rigF/rows.--manager-routine-list"
+{
+	rigRow group git 1 To_add_to_git -
+	rigRow key deploy Deploy_key git outgoing ssh-ed25519 SHA256:abcdef short-marker /rig/keys/deploy.pub present ssh-ed25519_AAAAC3NzaWHOLEKEY_rig@host
+	rigRow group trust 1 To_trust_when_connecting -
+	rigRow key host Host_key trust incoming ssh-ed25519 SHA256:fedcba short-marker /rig/keys/host.pub absent
+} > "$rigF/rows.--manager-keys-list"
+{
+	rigRow check install tools bash Bash ok fine -
+	rigRow check slack app token Token fail the_token_is_missing set_the_token
+	rigRow summary 2 1 0 1 0 12
+} > "$rigF/rows.--manager-check-run"
+{
+	rigRow block data Team_Data 1
+	rigRow figure data root Team_Data_Root 12 count ok -
+} > "$rigF/rows.--manager-dashboard-read"
+## A fresh rig for one case: a copy of the fixtures, no call noted yet.
+rigCase(){ ## name
+	export MANAGER_SCREEN_RIG="$rigTmp/$1"
+	mkdir -p "$MANAGER_SCREEN_RIG"
+	cp "$rigF"/* "$MANAGER_SCREEN_RIG/"
+	: > "$MANAGER_SCREEN_RIG/calls"
+	: > "$MANAGER_SCREEN_RIG/words"
+	echo rows > "$MANAGER_SCREEN_RIG/mode"
+}
+rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
+	rigOut="$( { printf 'tools bash %s\nwall 2026-10-13 02:30 +0000\nsize 120 36\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+}
+rigVal(){ ## name -- the value of the first `<name>=` line
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
+}
+rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
+}
+rigLeft(){ ## tag -- what the left window of that screen holds: its lines that hold something, without the frame, a ` / ` between two
+	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
+import os, re, sys
+held = []
+for line in os.environ["RIG_OUT"].split("\n"):
+    found = re.match(r"^%s\|[│║](.*?)[│║▒▲▼■]" % re.escape(sys.argv[1]), line)
+    if found and found.group(1).strip():
+        held.append(found.group(1).rstrip())
+print(" / ".join(held))
+' "$1"
+}
+rigCalls(){ ## text -- how many starts of the stand-in name it in their words
+	LC_ALL=C grep -c -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
+}
+rigFolderCalls(){ ## how many starts were of the lists that only a folder asks for: not of those that are read whatever is shown
+	LC_ALL=C grep -c -v -e '^--manager-dashboard-read$' -e '^--manager-place-list$' -e '^--manager-session-list' "$MANAGER_SCREEN_RIG/calls" || :
+}
+
+echo "-- the roots: the selection on each loads it and shows its summary, with no Enter --"
+rigCase roots
+rigScript <<'RIGSCRIPT'
+turn
+keys DOWN
+wait sessions 5
+show S
+keys DOWN
+wait focus 5
+show Q
+keys DOWN
+wait focus 5
+show T
+keys DOWN
+wait focus 5
+show P
+keys DOWN
+wait focus 5
+show C
+keys DOWN
+wait focus 5
+show G
+keys DOWN
+wait focus 5
+show F
+get end
+RIGSCRIPT
+rigAssert "the sessions: by their states, then the running and the waiting ones one by one, with their agents, tokens and members" "$( rigLeft S )" "5 sessions: 1 running, 1 waiting, 1 unclosed, 2 finished. / In the workspace: sessions 1 running, 0 paused; agents 2 working, 2 waiting. / 1 session has a control thread that is gone (x in the list). / running /   SESSION         AGENTS                   TOKENS MEMBERS /   daily of Monday 3: 2 running, 1 finished 57.1M  magic-coordinator, keeper-myx / waiting /   SESSION             AGENTS       TOKENS MEMBERS /   review of the board 1: 1 waiting 1K+    magic-architect"
+rigAssert "the asks: how many, how many with no asker, for whom, the oldest, then the oldest few with who asks whom and the question" "$( rigLeft Q )" "3 asks wait for an answer. / 1 of them was asked by a run that is gone (x in the list): nobody is there to take / the answer. / They are for: human-owner 2, magic-coordinator 1. / The oldest waits 3d: magic-devops asks human-owner. / by age, the oldest first /   AGE WHO ASKS     WHOM /   3d  magic-devops human-owner /       May the old volume be removed now that the copy is proven on the second /       host? /   2h  keeper-acm   magic-coordinator /       Who owns the template of the report? /   10m keeper-myx   human-owner /       Which of the two layouts stays?"
+rigAssert "the members: how many, who runs now, who is not started from here and why" "$( rigLeft T )" "4 members, 1 with a live run. / Running now: magic-coordinator. / 2 of them are not started from here. /   human-owner: its status is reference-only: nobody is started as this member /   far-member: its workspace cannot be reached from this machine"
+rigAssert "the locations: how many, which is here, which are absent" "$( rigLeft P )" "3 locations: 2 workspace, 1 directory. / The console runs in ws-one. / 1 of them is not present on this machine. /   gone-work / In the other views a path inside one of them stands by its name."
+rigAssert "what is to start, group by group" "$( rigLeft C )" "3 to start: 2 Distro, 1 System. / Enter starts one with the whole terminal; the screen is back when it ends. / Distro /   Agents Console /   Source Console / System /   Top"
+rigAssert "the settings: its subjects in a table" "$( rigLeft G | sed 's/^.*changes that setting\. \/ //' )" "  SUBJECT   LINES MISSING /   Interface 2     -"
+rigAssert "the configuration: its subjects, how many lines each misses" "$( rigLeft F | sed 's/^.*change it later\. \/ //' ) [$( rigLeft F | sed 's/ \/ .*$//' )]" "  SUBJECT LINES MISSING /   Slack   3     1 [1 subject, 3 lines, 1 missing.]"
+rigAssert "nothing was entered, and each list was read once: the asks, the members, what is to start, and the digest for both its roots" "[$( rigVal end.path )] $( rigCalls --member-pending-reply-read ) $( rigCalls --manager-team-member-list ) $( rigCalls --manager-console-list ) $( rigCalls --manager-config-digest ) $( rigFolderCalls )" "[] 1 1 1 1 4"
+
+echo "-- until the rows have come the window says that it waits; the read starts when the selection has rested --"
+rigCase waits
+echo "sleep 1" > "$MANAGER_SCREEN_RIG/mode.--member-pending-reply-read"
+rigScript <<'RIGSCRIPT'
+turn
+keys DOWN DOWN
+turn
+show at
+get at
+advance 0.2
+turn
+get soon
+advance 0.2
+turn
+show rested
+get rested
+wait focus 5
+show came
+RIGSCRIPT
+rigAssert "on the row at once: it waits by its name, and nothing of it is asked yet" "[$( rigLeft at )] [$( rigVal at.reading | tr ',' '\n' | LC_ALL=C grep -c -F pending )] $( rigVal at.restLeft )" "[Populating Pending Questions...] [0] 0.33"
+rigAssert "not before the selection has rested there" "[$( rigVal soon.reading | tr ',' '\n' | LC_ALL=C grep -c -F pending )]" "[0]"
+rigAssert "rested: its list is asked for, and the window still waits" "[$( rigLeft rested )] [$( rigVal rested.reading | tr ',' '\n' | LC_ALL=C grep -F pending )]" "[Populating Pending Questions...] [list:pending]"
+rigAssert "the rows have come: the summary stands there" "$( rigHolds came '3 asks wait for an answer.' ) $( rigHolds came 'Populating' )" "1 0"
+
+echo "-- a selection that runs over the folders starts the read of the one it stops on alone --"
+rigCase runs
+rigScript <<RIGSCRIPT
+turn
+wait list 5
+keys DOWN
+advance 0.1
+keys DOWN
+advance 0.1
+keys DOWN
+advance 0.1
+keys DOWN
+advance 0.1
+keys DOWN
+advance 0.1
+turn
+get ran
+copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.ran
+advance 0.4
+turn
+wait focus 5
+show stop
+RIGSCRIPT
+rigAssert "over five folders in half a second: no read of a folder was started on the way" "$( rigVal ran.selected ) $( LC_ALL=C grep -c -e --member-pending-reply-read -e --manager-team-member-list -e --manager-console-list -e --manager-config-digest "$MANAGER_SCREEN_RIG/calls.ran" )" "consoles 0"
+rigAssert "and where it stops, that folder alone is read" "$( rigFolderCalls ) $( rigCalls --manager-console-list ) $( rigHolds stop '3 to start: 2 Distro, 1 System.' )" "1 1 1"
+
+echo "-- a slow read of a folder that was left: it holds the next one back, and never shows in another folder --"
+rigCase slow
+echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--manager-team-member-list"
+rigScript <<'RIGSCRIPT'
+turn
+wait places 5
+keys DOWN DOWN DOWN
+advance 0.4
+turn
+get team
+keys DOWN DOWN
+advance 0.4
+turn
+turn
+show other
+get other
+wait focus 5
+wait focus 5
+show later
+keys UP UP
+turn
+show back
+RIGSCRIPT
+rigAssert "the members are being read, as a read of the focus" "[$( rigVal team.selected )] [$( rigVal team.reading | tr ',' '\n' | LC_ALL=C grep -F team )]" "[team] [list:team]"
+rigAssert "two folders on, while that read runs: the folder there waits by its own name, its read held back, and nothing of the members shows" "[$( rigVal other.selected )] [$( rigLeft other )] [$( rigVal other.reading | tr ',' '\n' | LC_ALL=C grep -c -F consoles )]" "[consoles] [Populating Consoles (Tools)...] [0]"
+rigAssert "when it has ended the folder there is read and shown, and still nothing of the members" "$( rigHolds later '3 to start: 2 Distro, 1 System.' ) $( rigHolds later '4 members' ) $( rigCalls --manager-console-list )" "1 0 1"
+rigAssert "back on the members: what that read gave stands there at once, and it was made once" "$( rigHolds back '4 members, 1 with a live run.' ) $( rigCalls --manager-team-member-list )" "1 1"
+
+echo "-- entering a folder afterwards uses what was read, and reads again when its period has passed --"
+rigCase enters
+rigScript <<RIGSCRIPT
+turn
+keys DOWN DOWN
+wait focus 5
+keys ENTER
+turn
+wait list 5
+get in
+copy $MANAGER_SCREEN_RIG/calls $MANAGER_SCREEN_RIG/calls.in
+advance 10.5
+turn
+wait list 5
+get aged
+RIGSCRIPT
+rigAssert "entered: its rows are there and no second read was made; the period passed: one more" "[$( rigVal in.path )] $( rigVal in.rows ) $( LC_ALL=C grep -c -F -- --member-pending-reply-read "$MANAGER_SCREEN_RIG/calls.in" ) $( rigCalls --member-pending-reply-read )" "[pending] 4 1 2"
+
+echo "-- inside the sessions and the configuration: Launch / Spawn, Server Keys, a subject; the checker is not run by the focus --"
+rigCase inner
+rigScript <<'RIGSCRIPT'
+turn
+keys DOWN ENTER DOWN
+wait focus 5
+show L
+keys LEFT DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
+wait focus 5
+advance 11
+turn
+wait check 5
+keys u
+turn
+wait check 5
+show K0
+cells k0s 35 0 120
+get k0
+keys r
+get asked
+wait check 5
+show K1
+keys DOWN
+wait focus 5
+turn 2
+wait plan 5
+show Y
+keys DOWN
+wait focus 5
+show U
+keys r
+get refused
+keys LEFT UP ENTER DOWN
+wait focus 5
+show I
+RIGSCRIPT
+rigAssert "Launch / Spawn: how many are started here, how many with members named, how many are not and why in a word" "$( rigLeft L )" "4 routines: 1 can be started here, 1 with members named, 2 cannot. /   broken: keeper-myx.sweep /   not-startable: keeper-myx.audit /   members: magic-coordinator.retro"
+rigAssert "the checker on its row, rested, the period passed and a read asked for: it was not run; the folder says so and names the key, which the status line offers" "[$( rigVal k0.selected )] [$( rigLeft K0 | sed 's/ \/ .*$//' )] $( rigHolds K0 'r runs them.' ) [$( rigVal k0s | LC_ALL=C grep -c -F 'r Run' )]" "[checker] [The checks were not run yet in this run of the screen.] 1 [1]"
+rigAssert "r on that row runs them, once, and the folder then says how they ended and when" "[$( rigVal asked.notice )] $( rigCalls --manager-check-run ) [$( rigLeft K1 | sed 's/ \/ r runs them again.*$//' )]" "[Run the checks: asked of the tooling, it takes up to a minute] 1 [2 checks: 1 ok, 0 warn, 1 fail, 0 skipped, in 12 seconds. / They last ran at 02:30:00.]"
+rigAssert "Server Keys: its groups, each public key whole and never its short form, the list read once and each key that can be read" "$( rigLeft Y ) $( rigHolds Y short-marker ) $( rigCalls --manager-keys-list ) $( rigCalls '--manager-keys-read deploy' ) $( rigCalls '--manager-keys-read host' )" "To add to git /   Deploy key /       SHA256:abcdef /       ssh-ed25519 AAAAC3NzaWHOLEKEY rig@host / To trust when connecting /   Host key /       absent: /rig/keys/host.pub 0 1 1 0"
+rigAssert "a subject of the configuration: its missing line first, a secret by its state alone" "$( rigLeft U | sed 's/ \/ Enter opens it.*$//' ) $( rigHolds U hidden-value )" "Slack / subject slack, 3 lines, 1 missing, each marked ! / missing, first /   ! Signing secret  not configured, file  (signing)  in hooks / app /     Channel    C123, file  (channel) /     Bot token  configured, file  (token) 0"
+rigAssert "on another row of the configuration the key of the checks says that it is not for it" "[$( rigVal refused.notice )]" "[Run the checks: for the checker, not for what is selected]"
+rigAssert "a subject of the settings: its settings with their values" "$( rigLeft I | sed 's/ \/ Enter opens it.*$//' )" "Interface: how this console looks, saved for the user who runs it / subject interface, 2 lines / screen /     Style   Turbo Vision, file  (style) /     Period  10, file  (period)"
+
+echo "-- a folder whose read fails says so --"
+rigCase fails
+echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-console-list"
+rigScript <<'RIGSCRIPT'
+turn
+keys DOWN DOWN DOWN DOWN DOWN
+wait focus 5
+get box
+keys ESC
+turn
+show said
+RIGSCRIPT
+rigAssert "a box says it once, and the left window says it while the folder is selected" "[$( rigVal box.dialogTitle )] [$( rigLeft said )]" "[A read failed] [Consoles (Tools) could not be read: rig-tools: ⛔ ERROR: the rig said fail]"
+
+echo "-- the real screen on a pseudo-terminal: it starts, a folder that has the focus is shown from its rows, and Ctrl-X ends it --"
+rigCase pty
+mkdir -p "$rigTmp/ws-rig"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
+chmod +x "$rigTmp/tools"
+rigOut="$( MANAGER_SCREEN_PTY_TRACE='asks=3 asks wait for an answer' "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 120 36 "Sessions (Activity)" '\x1bOB\p\x1bOB\p\a3 asks wait\a\x18' 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" 2>&1 )"
+rigAssert "it draws the summary of the asks with no Enter and ends with status 0, the terminal given back" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack ) [$( rigVal pty.trace | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//' )]" "yes 0 yes none yes [asks]"
+
+if [ "$rigFailCount" -ne 0 ] ; then
+	echo "⛔ MANAGER SCREEN FOCUS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
+fi
+printf 'MANAGER_SCREEN_FOCUS: OK (%d assertions, offline, stand-in terminal and stand-in dispatcher)\n' "$rigPassCount"

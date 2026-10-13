@@ -117,7 +117,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -137,8 +137,8 @@ rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigOthers(){ ## how many starts were neither the list of the sessions, nor the read of the dashboard the screen starts on, nor the digest asked for whole
-	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-dashboard-read' -e '--manager-config-digest --full' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were neither the list of the sessions, nor the read of the dashboard the screen starts on, nor the digest asked for whole. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-dashboard-read' -e '--manager-config-digest --full' -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- Configuration lists the subjects of its lines, and one read of the digest fills both roots --"

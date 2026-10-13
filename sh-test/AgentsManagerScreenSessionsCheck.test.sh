@@ -96,16 +96,16 @@ rigCase(){ ## name, the fixture of every start, then the fixtures of the starts 
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigCalls(){ ## how many times the stand-in was started
-	LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigCall(){ ## number -- the arguments of that start
-	LC_ALL=C sed -n "${1}p" "$MANAGER_SCREEN_RIG/calls"
+rigCall(){ ## number -- the arguments of that start, the list of the locations, which every start of the screen reads and `a` reads again, not counted
+	LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n "${1}p"
 }
 rigLooks(){ ## tag, line counted from 1, the cells from and to counted from 1 -- how those cells are drawn
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C sed -n "${2}p" | LC_ALL=C cut -c"$3-$4"
@@ -301,7 +301,7 @@ rigAssert "a session that is not active is entered, one of its agents selected" 
 rigAssert "a switches to the active ones, and the person is still in that session, on that agent" "$( rigVal pressed.filter ) $( rigVal after.path ) $( rigVal after.rows ) $( rigVal after.selected )" "active sessions/$rigS2 3 b1b1b1b1-0000-4000-8000-0000000000b1"
 rigAssert "its agents are all there"                                 "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[22222222-0000-4000-8000-00000…] [ ..][>magic-librarian          finished][ magic-developer          finished]"
 rigAssert "inside a session the list is read without the filter, also on the period" "$( LC_ALL=C grep -c -- '--active' "$MANAGER_SCREEN_RIG/calls" || : ) $( rigVal later.rows )" "1 3"
-rigAssert "Left returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( LC_ALL=C sed -n '$p' "$MANAGER_SCREEN_RIG/calls" )]" "sessions [--manager-session-list --active]"
+rigAssert "Left returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( rigCall '$' )]" "sessions [--manager-session-list --active]"
 rigAssert "and shows what the operation gives as the active ones, once it has answered: which are active is the operation's to say" "$( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 [Sessions (Activity)  [active]] [>daily of Monday...        running][]"
 
 echo "-- five hundred sessions --"

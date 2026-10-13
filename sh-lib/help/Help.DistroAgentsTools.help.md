@@ -20,7 +20,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-file-fetch <team-member> <file-id> <destination-path> [--identity-bot] [--overwrite]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-get <team-member> [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --member-comms-slack-profile-set <team-member> {--display-name <v>|--title <v>|--status-text <v>|--status-emoji <v>|--status-expiry <ts>|--avatar <path>|--presence (auto|away)|--snooze <minutes>|--snooze-end}
-📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
+📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--raw]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-read <team-member> (<channel>:<ts> [--thread]|<channel>|<conversation-id> [--oldest <ts>]) [--identity-bot]
 📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-send-message <team-member> <target> [--identity-bot] [--address-to <who>]... (<text...>|--from-stdin|--from-file <path>)
@@ -750,7 +750,7 @@
 			elsewhere, and a zero-match result on a known-busy
 			conversation is worth a direct-read check.
 
-		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw]
+		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--raw]
 			General coordinator comms-id resolver. Authenticates as
 			one team-member identity (same credential resolution as
 			--member-comms-slack-send-message), then reports: auth
@@ -763,27 +763,24 @@
 			paged or not -- that is this op's one literal, explicit
 			ask, never a side effect of asking for an identity.
 
-			--resolve-human-owner-target additionally reports the
-			best-known reachable human-owner target. Resolution
-			order: if the configured `human-owner` alias is already
-			a Slack user id (U*/W*), straight to a DM-open on it --
-			no list, ever, for a workspace configured this way, this
-			being the common case. Else, the alias as a channel id,
-			read with conversations.info. Only once both of those
-			fail does a DM-open attempt using --human-owner-hint
-			(default `myx`) against the workspace's user list run.
+			--user-name's own lookup is one bounded fetch -- capped,
+			never paginated: a cursor Slack offers past that one page
+			is not followed, so a match sitting only past it is not
+			found. Its matches are capped at 10 total, across every
+			named query together, inside the Python helper -- a fixed
+			bound, not a setting. No form of this op fetches more than
+			that one page, or holds it, ever.
 
-			That list lookup, the true last resort, is one bounded
-			fetch -- capped, never paginated: a cursor Slack offers
-			past that one page is not followed, so a match sitting
-			only past it is not found. A one-person search, never a
-			full-roster fetch held for later.
+			A capped result, or a total miss, ends with one extra
+			`SEARCH_HINT` line: how many users that one page held, that
+			repeating the same call changes nothing, and to narrow the
+			term or give a known id instead.
 
-			--user-name's own lookup is the same one bounded fetch,
-			its matches capped at 10 total, across every named query
-			together, inside the Python helper -- a fixed bound, not
-			a setting. No form of this op fetches more than that one
-			page, or holds it, ever.
+			There is no human-owner-target resolution step here.
+			`ALIAS|human-owner|...` above already reports whether his
+			conversation is configured and reachable, with one call and
+			no listing -- that is the whole answer this op owes about
+			him.
 
 			--user-name/--channel-name repeat to resolve several names
 			in one pass. --raw needs one of them: a term to search for.
@@ -794,10 +791,9 @@
 			further: a `USER_MATCH` row already carries what a match
 			needs, so --raw adds no second, wider form of it.
 
-			Exit code, with --resolve-human-owner-target: 0 a reachable
-			human-owner target is confirmed, 1 unresolved/unreachable.
-			Without it: 0 once the bare/--user-name/--channel-name/--raw
-			work above is reported.
+			Exit code: 0 once the bare/--user-name/--channel-name/--raw
+			work above is reported, 1 on an argument, token or
+			auth.test error reported above.
 
 		--magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 			Read-only: which conversations exist for that member

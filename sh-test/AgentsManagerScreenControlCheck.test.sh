@@ -123,7 +123,7 @@ rigCase(){ ## name
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; the reads of one item are taken out of the table, but for the facts of a session where rigReads says view; what it printed is kept in rigOut
 	local scriptView='table view:sessions:record none'
 	[ "${rigReads:-}" != view ] || scriptView='# the facts of a session are read'
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\n%s\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" "$scriptView" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\n%s\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" "$scriptView" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -146,8 +146,8 @@ rigStarts(){ ## how many times the start of a control thread was called, whateve
 rigStartWords(){ ## the arguments of every such call, each between brackets, a call a line
 	LC_ALL=C grep -F -- '[--manager-session-control-start]' "$MANAGER_SCREEN_RIG/words" || :
 }
-rigElse(){ ## how many starts were neither the list of the sessions, nor the read of one, nor the start of a control thread
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-read' -e '^--manager-session-control-start' "$MANAGER_SCREEN_RIG/calls" || :
+rigElse(){ ## how many starts were neither the list of the sessions, nor the read of one, nor the start of a control thread. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-read' -e '^--manager-session-control-start' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigStored="stored running, set 2026-10-12 16:58 +0000 (9h ago)"
 

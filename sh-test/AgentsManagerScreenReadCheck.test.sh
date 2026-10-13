@@ -60,16 +60,17 @@ rigCase(){ ## name, what the stand-in does at every start, then what it does at 
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the one that names the stand-in; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:sessions --manager-session-list +active --active\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable list:sessions --manager-session-list +active --active\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigCalls(){ ## how many times the stand-in was started
-	LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigCall(){ ## number -- the arguments of that start
-	LC_ALL=C sed -n "${1}p" "$MANAGER_SCREEN_RIG/calls"
+	## the list of the locations, which every start of the screen reads first, is not counted
+	LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n "${1}p"
 }
 
 echo "-- the list of Sessions (Activity) is read through its operation --"
@@ -270,7 +271,8 @@ rigAssert "when the answer comes, the pane still shows the item that is selected
 
 echo "-- a dispatcher that cannot be started --"
 rigCase gone rows
-rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:sessions --manager-session-list +active --active" "size 120 40" "keys ENTER" "turn" "get a" "said line" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+rigOut="$( printf '%s\n' "tools $rigTmp/no-such-dispatcher" "table list:pending none" "table list:sessions --manager-session-list +active --active" "table list:places none" "size 120 40" "root sessions" "keys ENTER" "turn" "get a" "said line" | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )"
+## the list of the locations is read by no operation here: it would fail the same way, and its box would stand in front of this one
 rigAssert "it is shown as a failed call, and the screen goes on"     "[$( rigVal a.failed )] $( rigVal a.quit ) $( rigVal a.dialogHolds | LC_ALL=C grep -c -- 'operation: --manager-session-list / could not be started: ' )" "[list:sessions] no 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then

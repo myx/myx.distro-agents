@@ -132,7 +132,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one session taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -158,8 +158,8 @@ rigStarts(){ ## how many times the operation that starts a member was started, w
 rigStartWords(){ ## number -- the arguments of that start of the operation that starts a member, each between brackets
 	LC_ALL=C grep -F -- '[--manager-spawn-member]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "${1}p"
 }
-rigOthers(){ ## how many starts were none of the four operations this screen may call here
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-team-member-list$' -e '^--manager-team-member-read ' -e '^--manager-spawn-member ' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were none of the four operations this screen may call here. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-team-member-list$' -e '^--manager-team-member-read ' -e '^--manager-spawn-member ' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigType(){ ## text -- the keys that type it, one a character
 	local typeText="$1" typeKeys="" typeChar
@@ -194,7 +194,8 @@ rigSize="227 40"
 rigScript <<'RIGSCRIPT'
 turn
 wait sessions 30
-keys DOWN DOWN
+root team
+turn 2
 turn
 get on
 keys ENTER
@@ -265,7 +266,9 @@ rigAssert "k is no key of this view, and n on the row that goes up says in the s
 echo "-- a selected member is read once the selection has rested, and shown --"
 rigCase member
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 get moved
@@ -303,7 +306,9 @@ echo "-- the pane of a member scrolls, and a member set up elsewhere says so --"
 rigCase scroll
 rigSize="120 20"
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 wait view 30
@@ -329,7 +334,9 @@ echo "-- n, a prompt and a name start that member --"
 rigCase start
 rigBoxHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || : ; } ## tag, text -- how many lines of that drawing of a dialog hold the text
 rigScript <<RIGSCRIPT
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 wait view 30
@@ -374,7 +381,9 @@ rigAssert "the list of the sessions is read again, and the new session is among 
 echo "-- no name, an empty prompt, Esc --"
 rigCase bare
 rigScript <<RIGSCRIPT
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 keys n$( rigType 'look at the index' ) TAB ENTER
@@ -384,7 +393,9 @@ rigAssert "with no name the member is started under none"            "$( rigStar
 rigOdd='-n "it'"'"'s" 50% a\b $(id) ; rm -rf x --session-name-or-comment z'
 rigCase odd
 rigScript <<RIGSCRIPT
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 keys n$( rigType "$rigOdd" ) TAB ENTER
@@ -393,7 +404,9 @@ RIGSCRIPT
 rigAssert "a prompt with quotes, a percent sign, a backslash, a dollar and a first word that starts with a dash arrives unchanged" "$( rigInput "$rigOdd" ) [$( rigStartWords 1 )]" "same [[--manager-spawn-member][keeper-myx]]"
 rigCase empty
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 keys n TAB ENTER
@@ -415,7 +428,9 @@ rigAssert "the operation that starts a member was never called"      "$( rigStar
 echo "-- a member that is not to be started cannot be started here --"
 rigCase refuse
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN
 wait view 30
@@ -448,7 +463,9 @@ echo "-- an error of the start is shown --"
 rigCase fail
 echo fail > "$MANAGER_SCREEN_RIG/mode.--manager-spawn-member"
 rigScript <<'RIGSCRIPT'
-keys DOWN DOWN ENTER
+root team
+turn 2
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 keys n x TAB ENTER

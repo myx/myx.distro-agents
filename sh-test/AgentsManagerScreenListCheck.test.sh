@@ -53,13 +53,16 @@ cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
 cells row6 7 85 119
+cells row7 8 85 119
+cells row8 9 85 119
 RIGSCRIPT
-rigAssert "the root holds the six sections in their order"           "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Consoles (Tools)...][ Settings...][ Configuration...]"
-rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 6"
+rigAssert "the root holds the eight sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[>Dashboard (Monitor)...][ Sessions (Activity)...][ Pending Questions...][ Team Members...][ Locations (Places)...][ Consoles (Tools)...][ Settings...][ Configuration...]"
+rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 8"
 
 echo "-- Enter and Right dive in, the first row and Left go up --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 keys ENTER
 get in
 border inTitle 1 84 120
@@ -81,12 +84,13 @@ rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rig
 rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity)]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
 rigAssert "Right dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
-rigAssert "Left goes up and returns to the row it came from"         "[$( rigVal back.path )] $( rigVal back.selected ) $( rigVal back.index )" "[] team 2"
+rigAssert "Left goes up and returns to the row it came from"         "[$( rigVal back.path )] $( rigVal back.selected )" "[] team"
 rigAssert "Left at the root stays at the root"                       "[$( rigVal root.path )] $( rigVal root.selected )" "[] team"
 
 echo "-- Launch / Spawn is a level of its own --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 keys ENTER DOWN
 get on
 border onLeft 1 0 84
@@ -105,18 +109,19 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 keys UP
 get top
-keys DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 get last
 keys DOWN DOWN
 get still
 RIGSCRIPT
 rigAssert "Up on the first row stays there"                          "$( rigVal top.index )" 0
-rigAssert "Down reaches the last row"                                "$( rigVal last.index ) $( rigVal last.selected )" "5 configuration"
-rigAssert "Down on the last row stays there, and does not wrap"      "$( rigVal still.index ) $( rigVal still.selected )" "5 configuration"
+rigAssert "Down, pressed more times than the root has rows, reaches the last row" "$( [ "$( rigVal last.index )" = "$(( $( rigVal last.rows ) - 1 ))" ] && echo last ) $( rigVal last.selected )" "last configuration"
+rigAssert "Down on the last row stays there, and does not wrap"      "$( [ "$( rigVal still.index )" = "$( rigVal last.index )" ] && echo there ) $( rigVal still.selected )" "there configuration"
 
 echo "-- PageDown and PageUp, a hundred rows in a pane of twenty lines --"
 rigScript <<'RIGSCRIPT'
 size 120 23
+root sessions
 rowsgen pending 100
 keys DOWN ENTER
 get a
@@ -145,6 +150,7 @@ rigAssert "PageUp ends on the first row"                             "$( rigVal 
 echo "-- Tab moves the focus, and the left pane then scrolls --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 view 100
 turn
 get a
@@ -170,17 +176,18 @@ RIGSCRIPT
 rigAssert "the list has the focus first, and its title shows it"     "$( rigVal a.focus ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^la|//p' | LC_ALL=C sed -n '2p' | LC_ALL=C cut -c1,85 )" "list .B"
 rigAssert "Tab moves the focus to the left pane, and its title shows it" "$( rigVal b.focus ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lb|//p' | LC_ALL=C sed -n '2p' | LC_ALL=C cut -c1,85 )" "view B."
 rigAssert "Down three times scrolls the left pane by three lines"    "$( rigVal b.viewTop ) [$( rigVal bFirst )]" "3 [line 004]"
-rigAssert "and the selection of the list has not moved"              "$( rigVal b.index ) $( rigVal b.selected )" "0 sessions"
+rigAssert "and the selection of the list has not moved"              "$( rigVal b.selected )" "sessions"
 rigAssert "PageDown scrolls it by the height of the pane"            "$( rigVal c.viewTop ) $( rigVal c.viewHeight )" "39 36"
 rigAssert "Up scrolls it back by one line"                           "$( rigVal d.viewTop )" 38
 rigAssert "it stops at its last line"                                "$( rigVal e.viewTop ) [$( rigVal eLast )]" "64 [line 100]"
 rigAssert "and at its first"                                         "$( rigVal f.viewTop )" 0
 rigAssert "the keys that dive and go up do nothing there"            "[$( rigVal g.path )] $( rigVal g.selected ) $( rigVal g.focus )" "[] sessions view"
-rigAssert "Tab gives the focus back to the list, and Down moves its selection again" "$( rigVal h.focus ) $( rigVal h.index ) $( rigVal h.viewTop )" "list 1 0"
+rigAssert "Tab gives the focus back to the list, and Down moves its selection again" "$( rigVal h.focus ) $( rigVal h.selected ) $( rigVal h.viewTop )" "list pending 0"
 
 echo "-- a, all or active --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 keys ENTER
 get a
 keys TAB a
@@ -200,6 +207,7 @@ rigAssert "and back to all"                                          "$( rigVal 
 echo "-- rows that come again --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 rows pending a=alpha b=beta c=gamma d=delta
 keys DOWN ENTER DOWN DOWN DOWN
 get a
@@ -222,6 +230,7 @@ rigAssert "and the last row where that place is gone too"            "$( rigVal 
 echo "-- q, Esc and the line that is typed in --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 keys ESC
 get esc
 dialog Name:
@@ -241,8 +250,8 @@ get bare
 keys ESC x
 get quit
 RIGSCRIPT
-rigAssert "Esc with nothing open does nothing"                       "$( rigVal esc.quit ) $( rigVal esc.index ) $( rigVal esc.focus )" "no 0 list"
-rigAssert "a key typed into the line is text: nothing quits, moves or switches" "$( rigVal typing.dialog ) $( rigVal typing.quit ) $( rigVal typing.focus ) $( rigVal typing.filter ) $( rigVal typing.index )" "Name:|qa no list all 0"
+rigAssert "Esc with nothing open does nothing"                       "$( rigVal esc.quit ) $( rigVal esc.selected ) $( rigVal esc.focus )" "no sessions list"
+rigAssert "a key typed into the line is text: nothing quits, moves or switches" "$( rigVal typing.dialog ) $( rigVal typing.quit ) $( rigVal typing.focus ) $( rigVal typing.filter ) $( rigVal typing.selected )" "Name:|qa no list all sessions"
 rigAssert "the line shows what is asked and what was typed"          "[$( rigVal typingLine )] $( rigVal typing.cursor )" "[Name: qa] 38,9"
 rigAssert "Esc backs out: the line is empty again, and nothing was submitted" "[$( rigVal closed.dialog )] [$( rigVal closed.notice )] [$( rigVal closedLine )]" "[] [] []"
 rigAssert "Enter submits what was typed, as it was corrected"        "[$( rigVal sent.dialog )] [$( rigVal sent.notice )] [$( rigVal sentLine )]" "[] [submitted: hi o] [submitted: hi o]"
@@ -251,6 +260,7 @@ rigAssert "a bare q does nothing in the Turbo Vision key map; Esc and then x end
 echo "-- the keys of the actions --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 rows sessions s1=one_session
 keys k
 get k
@@ -289,6 +299,7 @@ rigAssert "also while the left pane has the focus"                   "$( rigVal 
 echo "-- the keys that act on the selected item stand in the left pane --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 rows sessions s1=one_session
 rows team m1=one_member
 rows pending a1=one_ask

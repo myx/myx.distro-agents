@@ -42,7 +42,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigRun(){ ## the commands of the driver on standard input, after the ones every case starts with: a list of sixty sessions, entered; what it printed is kept in rigOut
-	rigOut="$( { printf 'size 120 40\nrowsgen sessions 60\nkeys ENTER\nturn\n' ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'size 120 40\nrowsgen sessions 60\nroot sessions\nkeys ENTER\nturn\n' ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -67,8 +67,10 @@ mouse click 90 3
 get opened
 keys LEFT LEFT
 get root
+cells doubledRow 4 85 119
 mouse double 90 4
 get doubled
+border doubledTitle 1 84 120
 keys ALT-1
 get before
 mouse down 90 10
@@ -90,7 +92,7 @@ rigAssert "a click inside the left window gives it the keys, and selects nothing
 rigAssert "a click on a row of the list selects that row, and the list has the keys" "$( rigVal row.focus ) $( rigVal row.selected ) $( rigVal row.path )" "list r001 sessions"
 rigAssert "a click on another row selects that one, and opens nothing" "$( rigVal other.selected ) $( rigVal other.path )" "launch sessions"
 rigAssert "a second click on the selected row opens it, as Enter does" "$( rigVal opened.path )" "sessions/launch"
-rigAssert "a double click on a row selects it and opens it"           "[$( rigVal root.path )] $( rigVal doubled.path )" "[] team"
+rigAssert "a double click on a row of the root selects it and opens it: the list is then in the row that was clicked, whichever root stands on that line" "[$( rigVal root.path )] $( [ -n "$( rigVal doubled.path )" ] && echo opened ) $( rigVal doubledTitle | LC_ALL=C grep -c -F -- "$( rigVal doubledRow | LC_ALL=C sed -e 's/^ //' -e 's/\.\.\.$//' )" )" "[] opened 1"
 rigAssert "the wheel moves the selection of the list under the pointer, down and up" "$(( $( rigVal wheeled.index ) - $( rigVal before.index ) )) $(( $( rigVal back.index ) - $( rigVal wheeled.index ) )) $( rigVal back.focus )" "2 -1 list"
 rigAssert "over the left window it scrolls that window, and the keys stay where they were" "$( rigVal viewDown.viewTop ) $( rigVal viewUp.viewTop ) $( rigVal viewDown.focus )" "3 0 list"
 rigAssert "a click on the lower half of the scroll bar pages down, on the upper half up" "$( [ "$( rigVal paged.index )" -gt 30 ] && echo down ) $( [ "$( rigVal pagedUp.index )" -lt 10 ] && echo up ) $( rigVal paged.spills )" "down up 0"
@@ -116,7 +118,7 @@ RIGSCRIPT
 rigAssert "a click on a name in the menu bar opens that menu"        "$( rigVal menu.menu )" "view:read"
 rigAssert "a click on an item chooses it: the menu closes, and the command is done" "[$( rigVal chosen.menu )] $( rigVal chosen.filter )" "[] active"
 rigAssert "a click outside an open menu closes it, and does nothing else" "$( rigVal session.menu ) [$( rigVal outside.menu )] $( rigVal outside.selected ) $( rigVal outside.focus )" "session:kill [] .. list"
-rigAssert "a click on the name of the open menu closes it, and on another name opens that one" "$( rigVal go.menu ) [$( rigVal same.menu )] $( rigVal member.menu )" "go:sessions [] view:read"
+rigAssert "a click on the name of the open menu closes it, and on another name opens that one" "$( rigVal go.menu ) [$( rigVal same.menu )] $( rigVal member.menu )" "go:dashboard [] view:read"
 
 echo "-- a dialog: buttons, boxes, radio buttons, a list, a field; and nothing outside it --"
 rigRun <<'RIGSCRIPT'
@@ -171,7 +173,7 @@ mouse click 24 39
 get cancelled
 RIGSCRIPT
 rigAssert "the status line as it is clicked on"                      "[$( rigVal st )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
-rigAssert "a click on a key of a command does that command"          "$( rigVal filtered.filter ) $( rigVal menu.menu )" "active go:sessions"
+rigAssert "a click on a key of a command does that command"          "$( rigVal filtered.filter ) $( rigVal menu.menu )" "active go:dashboard"
 rigAssert "with a menu open a click on Esc closes it"                "[$( rigVal stMenu )] [$( rigVal closed.menu )]" "[ Enter Choose  Esc Close  Left/Right Menus  Up/Down Items] []"
 rigAssert "a click on Left goes up one level"                        "[$( rigVal up.path )]" "[]"
 rigAssert "with a dialog open a click on Esc cancels it"             "[$( rigVal stDialog )] [$( rigVal cancelled.dialog )]" "[ Enter OK  Tab Next  Esc Cancel] []"

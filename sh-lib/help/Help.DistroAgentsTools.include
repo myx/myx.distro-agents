@@ -163,7 +163,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-membe
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen <team-member> <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]" >&2

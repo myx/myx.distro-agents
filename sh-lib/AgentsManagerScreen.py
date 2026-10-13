@@ -150,6 +150,32 @@ FIXED_ROWS = {
     "sessions/launch": (("free", "Free prompt", "free", False),),
     "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
 }
+## What the left window shows of a folder, a row that opens a level of its own, while that
+## row is selected, and while the row that goes up is selected inside it: the summary of
+## what the folder holds, made from its rows in a form of its kind, by the function
+## "lines" names. By the level the folder opens, as READS names a level. A folder is read
+## when the selection comes to stand on it, and not only when it is entered (focusReads),
+## so its summary is of its real rows; until they have come the window says that it waits
+## (POPULATING). The other words are that function's own. "counted": the states that are
+## counted first, in this order, whatever the rows hold, and "named" those whose rows are
+## then set out one by one; "few": how many rows are set out at most; "missingFirst": the
+## lines that are missing stand ahead of the others. A folder that is not listed here
+## shows what its own row shows: a session its summary, as its mode says.
+SUMMARIES = {
+    "dashboard": {"lines": "dashboardSummary"},
+    "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
+    "sessions/launch": {"lines": "routinesSummary"},
+    "pending": {"lines": "pendingSummary", "few": 5},
+    "team": {"lines": "membersSummary"},
+    "places": {"lines": "placesSummary"},
+    "consoles": {"lines": "startsSummary"},
+    "settings": {"lines": "digestSummary"},
+    "settings/*": {"lines": "subjectSummary"},
+    "configuration": {"lines": "digestSummary"},
+    "configuration/*": {"lines": "subjectSummary", "missingFirst": True},
+    "configuration/checker": {"lines": "checksSummary"},
+    "configuration/keys": {"lines": "serverKeysSummary"},
+}
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
 ## operation with its arguments, as the dispatcher takes them, and under "active" what the
@@ -165,8 +191,8 @@ FIXED_ROWS = {
 ## names what a row must carry for the read to be made at all. "acts" is what can be done
 ## with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked
 ## for, and never again because its period has passed (startDueReads). "seldom": a list that
-## is read whatever is shown is not read again because its period has passed either, but
-## while it is the list shown. "peek": a list that
+## is read whatever is shown is read once, when the screen starts; it is read again, on
+## the period and when a read is asked for, only while it is the list shown (seldomNow). "peek": a list that
 ## is read also while its section is the row the root stands on, since the left window
 ## then shows that section from its rows (wantedReads).
 ## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
@@ -174,6 +200,12 @@ FIXED_ROWS = {
 ## line says of it then.
 ## "each": a read that is made for every row of the level it is named by that carries what
 ## it "needs", by the id of that row; its key is its name and, after a `|`, that id (readEntry).
+## The list of a level is read also while the row that opens that level is the row
+## selected, a folder that has the focus, as it would be on entering it (focusReads): once
+## the selection has rested on that row (REST_SECONDS), so a selection that runs down a
+## list starts none, and one such read at a time, as the kind "focus", beside the list
+## shown. "peek" is read so with no rest. One that is read on "demand" alone is never
+## started by the focus: its command asks for it there too.
 VIEW_PARTS = ("view", "feed", "acts")
 READS = {
     ## The blocks of the dashboard, each with its figures, all from the one operation. It is
@@ -223,8 +255,8 @@ READS = {
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
     ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
     ## kind of its own, since a path inside one of them stands by its name in the other
-    ## views (PLACED): once when the screen starts and when a read is asked for, and on the
-    ## period only while `Locations (Places)` is the list shown.
+    ## views (PLACED): once when the screen starts; again, on the period and when a read is
+    ## asked for, only while `Locations (Places)` is the list shown.
     "list:places": {"operation": ["--manager-place-list"], "rows": "places", "kind": "places", "always": True, "seldom": True},
     ## One location, whole: its row, what declares it, and what stands in it.
     "view:places:record": {"operation": ["--manager-place-read", "{id}"], "rows": "place-read", "needs": "place"},
@@ -517,7 +549,8 @@ MENUS = (
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
 ## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
 ## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit",
-## "demand", which asks for the list shown where that is read on demand alone (READS), and
+## "demand", which asks for the list shown where that is read on demand alone (READS), or
+## for the list of the folder selected where that one is, and
 ## ("mode", <name>), which takes the left window to that mode of VIEW_MODES, or to the
 ## next one where it names none. A command comes
 ## to a menu, to the status line and to its key from this one place: adding one is adding
@@ -550,7 +583,7 @@ COMMANDS = (
     {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
      "views": ("settings/*", "configuration/*"), "for": "a setting", "on": ("settings/*:record", "configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
     {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",
-     "views": ("configuration/checker",), "does": ("demand",)},
+     "views": ("configuration", "configuration/checker"), "for": "the checker", "does": ("demand",)},
     {"name": "keyline", "keys": ("f",), "menu": ("view", 3), "label": "~F~ull public line", "status": "Full",
      "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
     {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
@@ -922,6 +955,9 @@ class ManagerState:
         ## the item the selection rests on, and since when (restLeft)
         self.restKey = None
         self.restSince = 0.0
+        ## when each read that is made on demand alone last answered, by its key: the clock
+        ## of the screen then (applyResult)
+        self.ran = {}
         self.quit = False
 
 
@@ -1454,13 +1490,12 @@ def panOf(state, room):
 
 
 ## What the left pane shows with no read of its own, from what a list read already holds:
-## the selected ask, and what the section of asks holds; the selected routine of `Launch /
-## Spawn`, its free prompt, and what it holds; the selected team member, and what the
-## section of the members holds; the selected subject of the digest, a line of it, and
-## what a root of the digest holds; the selected thing to start, and what `Consoles (Tools)` holds;
-## the blocks of the dashboard, and the one block of the selected row; the selected
-## location, and what `Locations (Places)` holds. None: the pane has no such content, and
-## shows what its own read gives.
+## the summary of a session and of an agent; of a folder, a row that opens a level, what
+## it holds, by its declaration (folderSummary); the selected ask; the selected routine of
+## `Launch / Spawn` and its free prompt; the selected team member; a line of a subject of
+## the digest; a check; a server key and a group of them; the selected thing to start; the
+## one block of the selected row of the dashboard; the selected location. None: the pane
+## has no such content, and shows what its own read gives.
 def localView(state, row):
     if row is None:
         return None
@@ -1472,6 +1507,9 @@ def localView(state, row):
             return sessionLines(row["session"], state.viewWidth, state.view["info"])
         if level == "sessions/*" and row.get("run"):
             return runLines(row["run"], state.viewWidth, state.view["info"])
+    summary = folderSummary(state, row)
+    if summary is not None:
+        return summary
     if level == "pending" and row.get("ask"):
         ## set out again only when the ask, what is stored of it, the width or the minute has changed
         stamp = (row["ask"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
@@ -1479,16 +1517,10 @@ def localView(state, row):
             return None
         state.view["askFor"] = stamp
         return askLines(row["ask"], state.viewWidth, state.view["info"])
-    if (level == "pending" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "pending"):
-        return pendingSummary(state)
-    if (level == "sessions" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "sessions"):
-        return sessionsSummary(state)
     if level == "sessions/launch" and row.get("routine"):
         return routineLines(row["routine"], state.viewWidth)
     if level == "sessions/launch" and row["kind"] == "free":
         return freePromptLines(state.viewWidth)
-    if (level == "sessions/launch" and row["kind"] == "up") or (level == "sessions" and row["kind"] == "launch"):
-        return routinesSummary(state)
     if level == "team" and row.get("member"):
         ## set out again only when the member, what was read of it, the width or the minute has changed
         stamp = (row["member"], id(state.view["info"]), state.viewWidth, int(nowEpoch() // 60))
@@ -1496,37 +1528,53 @@ def localView(state, row):
             return None
         state.view["memberFor"] = stamp
         return memberLines(row["member"], state.viewWidth, state.view["info"])
-    if (level == "team" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "team"):
-        return membersSummary(state)
-    if row.get("subject"):
-        return subjectLines(row["subject"], state.viewWidth)
     if row.get("line"):
         return settingLines(row["line"], state.viewWidth)
-    if digestRootOf(state, row):
-        return digestSummary(state, digestRootOf(state, row))
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
-    if (level == "configuration/checker" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "checker"):
-        return checksSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
     if row.get("serverKey"):
         return serverKeyLines(state, state.path, row["serverKey"], state.viewWidth)
     if row.get("keyGroup"):
         return keyGroupLines(state, state.path, [row["keyGroup"]], state.viewWidth)
-    if (level == "configuration/keys" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "keys"):
-        return serverKeysSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
     if level == "consoles" and row.get("start"):
         return startLines(row["start"], state.viewWidth)
-    if (level == "consoles" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "consoles"):
-        return startsSummary(state)
     if level == "dashboard" and row.get("block"):
         return blocksView(state, row["id"])
-    if (level == "dashboard" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "dashboard"):
-        return blocksView(state)
     if level == "places" and row.get("place"):
         return placeLines(row["place"], state.viewWidth, state.view["info"])
-    if (level == "places" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "places"):
-        return placesSummary(state)
     return None
+
+
+## The summary of the folder a row opens, for the left window: what SUMMARIES declares
+## for the level that row opens, made from the rows of that level. None where the folder
+## has none, and until its rows have come. A folder whose read failed before it gave any
+## row says so, with the line that read is shown by. A sentence is broken to the window.
+def folderSummary(state, row):
+    if not row["dive"] or row["kind"] == "up":
+        return None
+    path = state.path + [row["id"]]
+    form = SUMMARIES.get(levelPattern(path))
+    if form is None:
+        return None
+    lines = globals()[form["lines"]](state, path, row, form)
+    opened = listReadOf(path)
+    if lines is None and opened and opened[0] in state.failed and opened[0] not in state.levelsOf:
+        lines = ["%s could not be read: %s" % (row["label"], state.failed[opened[0]])]
+    ## a sentence longer than the window is broken at its words; a line that is set in, of
+    ## a table or one that hangs, was set out to the window by whoever made it
+    room = max(10, state.viewWidth - 1)
+    return lines and [part for line in lines for part in (
+        wrapToCells(line, room) if textWidth(line) > room and not line.startswith(" ") else [line])]
+
+
+## A table of a summary, by the rule of the tables (tableLineText): under its heads a row
+## a line, set in by two, each column as wide as its widest word; a column that does not
+## fit is left out whole, and only the first is ever cut.
+def summaryTable(heads, rows, width):
+    room = max(10, width - 3)
+    widths = [max([textWidth(head)] + [textWidth(line[index]) for line in rows]) for index, head in enumerate(heads)]
+    table = {"heads": list(heads), "iconWidth": 0, "widths": [min(widths[0], room)] + widths[1:]}
+    return ["  " + tableLineText(table, [""] + list(line), room) for line in [table["heads"]] + rows]
 
 
 ## The level and the kind of a row, as COMMANDS names the rows a command acts on.
@@ -1849,25 +1897,41 @@ def storedLines(stored, width):
     return lines
 
 
-## What the section of asks holds, for the left pane while the section itself or the row
-## that goes up is selected: how many wait, and how many of those have no asker any more.
-## Counted from the asks as they were read, and until then from the counters of the status
-## lines; None while neither is known.
-def pendingSummary(state):
-    if "pending" in state.rows:
-        count = len(state.rows["pending"])
-    elif str(state.counters.get("pending", "")).isdigit():
-        count = int(state.counters["pending"])
-    else:
+## What `Pending Questions` holds, for the left pane while the section itself or the row
+## that goes up is selected: how many wait, how many of those have no asker any more, for
+## whom they are, the most first, and which is the oldest; then the oldest few, each with
+## how long it waits, who asks whom, and under that its question. None until its read has
+## answered.
+def pendingSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
+    asks = [held["ask"]["values"] for held in rows if held.get("ask")]
+    count = len(asks)
     if count == 0:
         return ["Nothing waits for an answer."]
-    gone = len([row for row in state.rows.get("pending", ())
-                if row.get("ask") and row["ask"]["values"].get("asker-live") in ASKER_GONE])
+    width = max(10, state.viewWidth - 1)
+    gone = len([values for values in asks if values.get("asker-live") in ASKER_GONE])
     lines = ["%d ask%s for an answer." % (count, " waits" if count == 1 else "s wait")]
     if gone:
         lines.append("%d of them %s asked by a run that is gone (%s in the list): nobody is there to take the answer." % (
             gone, "was" if gone == 1 else "were", MARK_GONE))
+    whom = {}
+    for values in asks:
+        whom[values.get("address-to", "-")] = whom.get(values.get("address-to", "-"), 0) + 1
+    lines.append("They are for: %s." % ", ".join(
+        "%s %d" % pair for pair in sorted(whom.items(), key=lambda pair: (-pair[1], pair[0]))))
+    now = nowEpoch()
+    aged = sorted(asks, key=lambda values: askedEpoch(values) if askedEpoch(values) is not None else now)
+    lines.append("The oldest waits %s: %s asks %s." % (
+        ageText(askedEpoch(aged[0]), now) or "-", aged[0].get("owner", "-"), aged[0].get("address-to", "-")))
+    few = aged[:form["few"]]
+    table = summaryTable(("AGE", "WHO ASKS", "WHOM"), [
+        [ageText(askedEpoch(values), now) or "-", values.get("owner", "-"), values.get("address-to", "-")] for values in few], state.viewWidth)
+    lines.extend(["", "by age, the oldest first%s" % ("" if len(few) == count else ", %d of them" % len(few)), table[0]])
+    for values, line in zip(few, table[1:]):
+        lines.append(line)
+        lines.extend("      " + part for part in wrapToCells(values.get("question", ""), max(10, width - 6)) if part)
     return lines
 
 
@@ -2347,22 +2411,54 @@ def setViewMode(state, name):
 
 
 
-## What the section of the sessions holds, for the left pane while the section itself or
-## the row that goes up is selected. None until its read has answered.
-def sessionsSummary(state):
-    if "sessions" not in state.rows and "running" not in state.counters:
+## The agents of a session in a few words, from its row: how many, and how many of each
+## state, as the row tallies them.
+def agentsText(session):
+    tally = ", ".join("%s %s" % (part.partition("=")[2], part.partition("=")[0])
+                      for part in session["tally"].split(",") if "=" in part)
+    return "%s: %s" % (session["count"], tally) if tally else session["count"]
+
+
+## The members that run in a session, each once, in the order of its runs.
+def membersText(session):
+    names = []
+    for run in session["runs"]:
+        if run["member"] not in names:
+            names.append(run["member"])
+    return ", ".join(names)
+
+
+## What `Sessions (Activity)` holds, for the left pane while the section itself or the row
+## that goes up is selected: how many sessions, by their states, those its declaration
+## counts first (SUMMARIES) and then every other state the rows hold; the counters of the
+## workspace; how many have a control thread that is gone; then, state by state as it
+## names them, the sessions one by one, each with its agents, its tokens and the members
+## that run in it. None until its read has answered.
+def sessionsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
-    lines = []
-    if "sessions" in state.rows:
-        count = len(state.rows["sessions"])
-        lines.append("%d %ssession%s." % (count, "active " if state.activeOnly else "", "" if count == 1 else "s"))
+    held = [one for one in rows if one.get("session")]
+    counts = {}
+    for one in held:
+        counts[one["session"]["state"]] = counts.get(one["session"]["state"], 0) + 1
+    states = list(form["counted"]) + [name for name in counts if name not in form["counted"]]
+    lines = ["%d %ssession%s%s." % (len(held), "active " if state.activeOnly else "", "" if len(held) == 1 else "s",
+                                    ": " + ", ".join("%d %s" % (counts.get(name, 0), name) for name in states) if held else "")]
     if "running" in state.counters:
         lines.append("In the workspace: sessions %s running, %s paused; agents %s working, %s waiting." % tuple(
             state.counters.get(name, "-") for name in COUNTER_NAMES[:4]))
-    gone = len([row for row in state.rows.get("sessions", ()) if row.get("session") and row["session"].get("control") == "gone"])
+    gone = len([one for one in held if one["session"].get("control") == "gone"])
     if gone:
         lines.append("%s a control thread that is gone (%s in the list)." % (
             "1 session has" if gone == 1 else "%d sessions have" % gone, MARK_GONE))
+    for name in form["named"]:
+        named = [one for one in held if one["session"]["state"] == name]
+        if not named:
+            continue
+        lines.extend(["", name] + summaryTable(("SESSION", "AGENTS", "TOKENS", "MEMBERS"), [
+            [one["label"], agentsText(one["session"]), tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-",
+             membersText(one["session"]) or "-"] for one in named], state.viewWidth))
     return lines
 
 
@@ -2446,14 +2542,29 @@ def freePromptLines(width):
 
 
 ## What `Launch / Spawn` holds, for the left pane while the row that goes up is selected
-## there, or its own row in the list of the sessions. None until its read has answered.
-def routinesSummary(state):
-    if "sessions/launch" not in state.rows:
+## there, or its own row in the list of the sessions: how many routines, how many of them
+## Enter starts here, how many it starts once members are named, and how many it does not
+## start; then those, under the one word the operation says of each, by their names. None
+## until its read has answered.
+def routinesSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
-    routines = [row["routine"] for row in state.rows["sessions/launch"] if row.get("routine")]
-    startable = len([routine for routine in routines if routine["start"] == "startable"])
-    return ["%d routine%s: %d can be started here, %d cannot." % (
-        len(routines), "" if len(routines) == 1 else "s", startable, len(routines) - startable)]
+    routines = [held["routine"] for held in rows if held.get("routine")]
+    startable = [routine for routine in routines if routine["start"] == "startable"]
+    asking = [routine for routine in routines if routineAsksMembers(routine)]
+    others = [routine for routine in routines if routine not in startable and routine not in asking]
+    lines = ["%d routine%s: %d can be started here, %d with members named, %d cannot." % (
+        len(routines), "" if len(routines) == 1 else "s", len(startable), len(asking), len(others))]
+    words = []
+    for routine in others:
+        if routine["start"] not in words:
+            words.append(routine["start"])
+    for word in words:
+        lines.extend(hangLines("%s: %s" % (word, ", ".join(routine["label"] for routine in others if routine["start"] == word)), state.viewWidth))
+    if asking:
+        lines.extend(hangLines("members: %s" % ", ".join(routine["label"] for routine in asking), state.viewWidth))
+    return lines
 
 
 ## ---- the bottom line: what is typed, and what the screen says ----
@@ -4065,17 +4176,28 @@ def memberLines(member, width, info=None):
     return lines
 
 
-## What the section of the members holds, for the left pane while the section itself or
-## the row that goes up is selected. None until its read has answered.
-def membersSummary(state):
-    if "team" not in state.rows:
+## What `Team Members` holds, for the left pane while the section itself or the row that
+## goes up is selected: how many members, how many with a live run and which; how many
+## are not started from here, and which, under each cause. None until its read has
+## answered.
+def membersSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
-    members = [row["member"] for row in state.rows["team"] if row.get("member")]
-    alive = len([member for member in members if member["live"] == "running"])
-    refused = len([member for member in members if memberRefusal(member)])
-    lines = ["%d member%s, %d with a live run." % (len(members), "" if len(members) == 1 else "s", alive)]
+    members = [held["member"] for held in rows if held.get("member")]
+    alive = [member["name"] for member in members if member["live"] == "running"]
+    refused = [(member["name"], memberRefusal(member)) for member in members if memberRefusal(member)]
+    lines = ["%d member%s, %d with a live run." % (len(members), "" if len(members) == 1 else "s", len(alive))]
+    if alive:
+        lines.append("Running now: %s." % ", ".join(alive))
     if refused:
-        lines.append("%d of them %s not started from here." % (refused, "is" if refused == 1 else "are"))
+        lines.append("%d of them %s not started from here." % (len(refused), "is" if len(refused) == 1 else "are"))
+        causes = []
+        for name, cause in refused:
+            if cause not in causes:
+                causes.append(cause)
+        for cause in causes:
+            lines.extend(hangLines("%s: %s" % (", ".join(name for name, other in refused if other == cause), cause), state.viewWidth))
     return lines
 
 
@@ -4239,18 +4361,7 @@ def parseDigestLevels(readKey, text):
     return levels
 
 
-## The root of the digest a row stands for, or None: the row of its section at the root
-## of the list, and the row that goes up inside it. A root of the digest is a section
-## whose list the read of the digest fills.
-def digestRootOf(state, row):
-    if row["kind"] == "section" and not state.path:
-        root = row["id"]
-    elif row["kind"] == "up" and len(state.path) == 1:
-        root = state.path[0]
-    else:
-        return None
-    shown = listReadOf([root])
-    return root if shown and shown[1].get("rows") == "digest" else None
+
 
 
 ## Why a line is not changed from here, in the words of its row, or "" for one that is.
@@ -4292,30 +4403,45 @@ def digestWords(subjectName, line):
 ## and how many of them missing, then its lines group by group, each group under a line of
 ## its own: the mark of a missing one, its label, what it reads as, and after that its
 ## key, the detail, where its label is not the key. A subject and a line with no label
-## show by the name and the key. Under the lines, what Enter does: it opens the subject.
-def subjectLines(subject, width):
+## show by the name and the key. Where the missing ones stand first (SUMMARIES), they are
+## the first group, under a line that says so, each with its own group in its detail, and
+## the groups after it hold the others. Under the lines, what Enter does: it opens the subject.
+def subjectLines(subject, width, missingFirst=False):
     words = SUBJECT_WORDS.get(subject["name"], "")
-    missing = len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
+    ahead = [line for line in subject["lines"] if line["state"] in STATES_MISSING]
+    missing = len(ahead)
     lines = wrapToCells((subject.get("label") or subject["name"]) + (": " + words if words else ""), max(10, width - 1))
     lines.append("%s%d line%s%s" % ("subject %s, " % subject["name"] if subject.get("label") else "",
                                    len(subject["lines"]), "" if len(subject["lines"]) == 1 else "s",
                                    ", %d missing, each marked %s" % (missing, MARK_MISSING) if missing else ""))
     groups = []
     for line in subject["lines"]:
+        if missingFirst and line["state"] in STATES_MISSING:
+            continue
         if not groups or groups[-1][0] != line["group"]:
             groups.append((line["group"], []))
         groups[-1][1].append(line)
+    if missingFirst and ahead:
+        groups.insert(0, (None, ahead))
     for group, groupLines in groups:
-        lines.extend(["", group or "-"])
+        lines.extend(["", "missing, first" if group is None else group or "-"])
         keyWidth = min(34, max(textWidth(line.get("label") or line["key"] or "-") for line in groupLines))
         for line in groupLines:
             key = line.get("label") or line["key"] or ("no scope" if subject["name"] == "systems" else "-")
             detail = "  (%s)" % line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
+            if group is None and line["group"]:
+                detail += "  in %s" % line["group"]
             lines.extend(hangLines("%s %s  %s%s" % (
                 MARK_MISSING if line["state"] in STATES_MISSING else " ",
                 key + " " * max(0, keyWidth - textWidth(key)), digestWords(subject["name"], line), detail), width))
     lines.extend(["", "Enter opens it: its lines one by one, each with what it is and whether it is changed from here."])
     return lines
+
+
+## A subject of the digest as a folder: its lines, as its row shows them, in the form its
+## root declares.
+def subjectSummary(state, path, row, form):
+    return subjectLines(row["subject"], state.viewWidth, form.get("missingFirst", False)) if row.get("subject") else None
 
 
 ## The selected line of a subject for the left pane, from its row: what it is now first,
@@ -4422,16 +4548,25 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 
 ## What a root of the digest holds, for the left pane while its section or the row that
 ## goes up inside it is selected: how many subjects, lines and missing ones, and what the
-## root is. None until the read of the digest has answered.
-def digestSummary(state, root):
+## root is; then its subjects as a table, those with a missing line first, each with how
+## many lines it holds and how many of them are missing. None until the read of the
+## digest has answered.
+def digestSummary(state, path, row, form):
+    root = levelKey(path)
     if root not in state.rows:
         return None
-    subjects = [row["subject"] for row in state.rows[root] if row.get("subject")]
+    subjects = [held["subject"] for held in state.rows[root] if held.get("subject")]
+    lacks = lambda subject: len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
     total = sum(len(subject["lines"]) for subject in subjects)
-    missing = sum(len([line for line in subject["lines"] if line["state"] in STATES_MISSING]) for subject in subjects)
-    return ["%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
-                                                      total, "" if total == 1 else "s", missing)] + (
+    missing = sum(lacks(subject) for subject in subjects)
+    lines = ["%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
+                                                       total, "" if total == 1 else "s", missing)] + (
         [""] + wrapToCells(ROOT_WORDS[root], max(10, state.viewWidth - 1)) if root in ROOT_WORDS else [])
+    if subjects:
+        lines.extend([""] + summaryTable(("SUBJECT", "LINES", "MISSING"), [
+            [subject.get("label") or subject["name"], str(len(subject["lines"])), str(lacks(subject)) if lacks(subject) else "-"]
+            for subject in sorted(subjects, key=lambda subject: 0 if lacks(subject) else 1)], state.viewWidth))
+    return lines
 
 
 ## ---- the checks of the installation: `Config Checker` ----
@@ -4489,8 +4624,9 @@ def checkLines(check, width):
 
 ## What `Config Checker` holds, for the left pane while its row or the row that goes up
 ## inside it is selected: that the checks were not run yet, or how many there are by
-## their states and how long the run took; and the key that runs them, or that they run.
-def checksSummary(state, path):
+## their states, how long the run took and when it answered; and the key that runs them,
+## on its row too, or that they run. The focus alone never runs them (READS, "demand").
+def checksSummary(state, path, row, form):
     shown = listReadOf(path)
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -4502,6 +4638,8 @@ def checksSummary(state, path):
         counts = ", ".join("%s %s" % (summary[name], name) for name in CHECK_SUMMARY[1:-1] if name in summary)
         lines = ["%d check%s%s%s." % (len(rows), "" if len(rows) == 1 else "s", ": " + counts if counts else "",
                                        ", in %s seconds" % summary["seconds"] if summary.get("seconds") else "")]
+    if shown and state.ran.get(shown[0]):
+        lines.append("They last ran at %s." % state.ran[shown[0]])
     running = bool(shown) and shown[0] in state.reading.values()
     says = "They are running now." if running else "%s runs them%s." % (commandKeys(commandNamed("check"))[0], "" if rows is None else " again")
     return lines + [""] + wrapToCells(says + " " + CHECKS_SAY, max(10, state.viewWidth - 1))
@@ -4674,11 +4812,11 @@ def serverKeyLines(state, path, held, width):
 ## What `Server Keys` holds, for the left pane while its row or the row that goes up
 ## inside it is selected: its groups in the order of the operation, each key with its
 ## fingerprint and its whole public line. None until its read has answered.
-def serverKeysSummary(state, path):
+def serverKeysSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
-    groups = [row["keyGroup"] for row in rows if row.get("keyGroup")]
+    groups = [held["keyGroup"] for held in rows if held.get("keyGroup")]
     if not groups:
         return ["The operation listed no key of this server."]
     return keyGroupLines(state, path, groups, state.viewWidth)
@@ -4780,22 +4918,27 @@ def startLines(start, width):
 
 ## What `Consoles (Tools)` holds, for the left pane while the section itself or the row
 ## that goes up is selected: how many there are to start, group by group in the order of
-## the operation. None until its read has answered.
-def startsSummary(state):
-    if "consoles" not in state.rows:
+## the operation, and under that each group with what it holds, by its label. None until
+## its read has answered.
+def startsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
     groups = []
-    for row in state.rows["consoles"]:
-        if not row.get("start"):
+    for held in rows:
+        if not held.get("start"):
             continue
-        if not groups or groups[-1][0] != row["tail"]:
-            groups.append([row["tail"], 0])
-        groups[-1][1] += 1
-    total = sum(count for group, count in groups)
+        if not groups or groups[-1][0] != held["tail"]:
+            groups.append([held["tail"], []])
+        groups[-1][1].append(held["label"])
+    total = sum(len(labels) for group, labels in groups)
     if not total:
         return ["Nothing to start here: the operation listed none."]
-    return ["%d to start: %s." % (total, ", ".join("%d %s" % (count, group or "-") for group, count in groups)),
-            "Enter starts one with the whole terminal; the screen is back when it ends."]
+    lines = ["%d to start: %s." % (total, ", ".join("%d %s" % (len(labels), group or "-") for group, labels in groups)),
+             "Enter starts one with the whole terminal; the screen is back when it ends."]
+    for group, labels in groups:
+        lines.extend(["", group or "-"] + ["  " + label for label in labels])
+    return lines
 
 
 ## Enter on a row of `Consoles (Tools)`: what the row names is started with the whole
@@ -5026,6 +5169,11 @@ def blocksView(state, only=None):
     return lines
 
 
+## The dashboard as a folder: all its blocks.
+def dashboardSummary(state, path, row, form):
+    return blocksView(state)
+
+
 ## ---- the locations: `Locations (Places)`, and a path by the name of its location ----
 
 ## The columns of the table of the locations after the mark of the one the console runs
@@ -5120,12 +5268,13 @@ def placeLines(place, width, info=None):
 
 ## What `Locations (Places)` holds, for the left pane while the section itself or the row
 ## that goes up is selected: how many there are, kind by kind as the operation names the
-## kinds, which one the console runs in, and how many are not present. None until its
-## read has answered.
-def placesSummary(state):
-    if "places" not in state.rows:
+## kinds, which one the console runs in, and how many are not present, with which. None
+## until its read has answered.
+def placesSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
         return None
-    places = [row["place"] for row in state.rows["places"] if row.get("place")]
+    places = [held["place"] for held in rows if held.get("place")]
     if not places:
         return ["No location is known here: the operation listed none."]
     kinds = []
@@ -5138,9 +5287,10 @@ def placesSummary(state):
     here = [place["key"] for place in places if place["here"] == PLACES["here"]]
     if here:
         lines.append("The console runs in %s." % here[0])
-    away = len([place for place in places if place["state"] != PLACES["present"]])
+    away = [place["key"] for place in places if place["state"] != PLACES["present"]]
     if away:
-        lines.append("%d of them %s not present on this machine." % (away, "is" if away == 1 else "are"))
+        lines.append("%d of them %s not present on this machine." % (len(away), "is" if len(away) == 1 else "are"))
+        lines.extend(hangLines(", ".join(away), state.viewWidth))
     lines.append("In the other views a path inside one of them stands by its name.")
     return lines
 
@@ -5568,6 +5718,9 @@ def commandRefusal(state, command):
             if placeOf(state, row) not in command["on"]:
                 return other
             return "" if viewReadOf(state, row, "feed") is not None else REFUSALS["mode"] % said
+    if does[0] == "demand":
+        ## it asks for a list that is read on demand alone: the one shown, or the one of the folder selected
+        return "" if demandRead(state) else other
     if does[0] == "pan":
         ## wrapped lines hold nothing to the side
         return REFUSALS["wrapped"] % said if state.wrap else ""
@@ -5618,9 +5771,10 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "menu":
         openMenu(state, 0)
     elif does[0] == "demand":
-        ## the list shown is read on demand alone: it is asked for now, once, unless it runs
-        shown = listReadOf(state.path)
-        if shown and shown[1].get("demand"):
+        ## a list that is read on demand alone, the one shown or the one of the folder
+        ## selected: it is asked for now, once, unless it runs
+        shown = demandRead(state)
+        if shown:
             ## what the status line says of it stands until it has answered (applyResult)
             state.noticeOf = shown[0]
             if shown[0] in state.reading.values() or shown[0] in state.forced:
@@ -5777,6 +5931,18 @@ def listReadOf(path):
     return (key, entry) if entry else None
 
 
+## The read a command that asks on demand asks for now ("demand" in COMMANDS): its key and
+## its entry, or None. The list shown where that is read on demand alone, else the list
+## of the folder the selection stands on where that one is.
+def demandRead(state):
+    shown = listReadOf(state.path)
+    if shown and shown[1].get("demand"):
+        return shown
+    row = selectedRow(state)
+    opened = listReadOf(state.path + [row["id"]]) if row is not None and row["dive"] and row["kind"] != "up" else None
+    return opened if opened and opened[1].get("demand") else None
+
+
 ## The reads of what the left window shows, its facts and its lines: (kind, key, words).
 @onShownLevel
 def shownReads(state):
@@ -5800,8 +5966,9 @@ def shownRead(state, part):
 
 ## What the screen as it stands asks the tooling for: (kind, key, words) for the list of
 ## the level shown, for every list that is read whatever is shown, for the view of the
-## row selected, and for what the open dialog offers, each where READS names an operation.
-def wantedReads(state):
+## row selected, and for what the open dialog offers, each where READS names an operation;
+## and, where `focus` is not put off, for the folder the selection stands on (focusReads).
+def wantedReads(state, focus=True):
     wanted = []
     pattern = levelPattern(state.path)
     values = {"level": state.path[-1] if state.path else ""}
@@ -5831,7 +5998,44 @@ def wantedReads(state):
     for key, values in dialogReads(state):
         if key not in [wantedKey for kind, wantedKey, words in wanted]:
             wanted.append((READS[key].get("kind", "list"), key, readWords(READS[key], state, values, False)))
+    ## the folder the selection stands on is read as it would be on entering it
+    for read in focusReads(state) if focus else ():
+        if read[1] not in [wantedKey for kind, wantedKey, words in wanted]:
+            wanted.append(read)
     return wanted
+
+
+## The reads of the folder the selection stands on in the list, a row that opens a level
+## of its own: (kind, key, words) for the list of that level, in the words it is read by
+## when it is entered, and for each of its rows that a read of every row is made for
+## ("each"). They are made while the row is selected, so that the left window shows the
+## folder from its real rows (SUMMARIES), and run as a kind of their own, "focus", beside
+## the list shown: one at a time, so a read under way for a folder that was left holds
+## the next one back and never fills another folder, since rows are kept by their level.
+def focusReads(state):
+    row = selectedRow(state)
+    if row is None or not row["dive"] or row["kind"] == "up":
+        return []
+    path = state.path + [row["id"]]
+    opened = listReadOf(path)
+    if not opened:
+        return []
+    wanted = [(opened[1].get("kind", "focus"), opened[0],
+               readWords(opened[1], state, {"level": row["id"]}, opened[0] == "list:" + levelKey(path)))]
+    pattern = levelPattern(path)
+    each = READS.get("each:" + pattern)
+    for held in state.rows.get(levelKey(path), ()) if each else ():
+        if held.get(each["needs"]):
+            wanted.append((each.get("kind", "focus"), "each:%s|%s" % (pattern, held["id"]),
+                           readWords(each, state, {"id": held["id"]}, False)))
+    return wanted
+
+
+## The keys of the reads that are wanted for the focus alone: those wait until the
+## selection has rested on its row (restLeft).
+def focusOnly(state):
+    return (set(key for kind, key, words in wantedReads(state))
+            - set(key for kind, key, words in wantedReads(state, False)))
 
 
 ## The reads of the open dialog: the key in READS and the values of each entry it names
@@ -5866,25 +6070,37 @@ def viewReadOf(state, row, part):
     return entry
 
 
+## Whether a read is one that is made seldom and is not the list shown now: such a one
+## was read when the screen started, and nothing asks for it again.
+def seldomNow(state, key):
+    return bool((READS.get(key) or {}).get("seldom")) and key != (listReadOf(state.path) or ("",))[0]
+
+
 ## What is shown is read at the next chance, whatever the period says.
 def readNow(state):
     for kind, key, words in wantedReads(state):
-        ## one that is read on demand alone is asked for by its own command, not by this
-        if not (READS.get(key) or {}).get("demand"):
+        ## one that is read on demand alone is asked for by its own command, not by this;
+        ## neither is one that is read seldom, but while it is the list shown
+        if not (READS.get(key) or {}).get("demand") and not seldomNow(state, key):
             state.forced.add(key)
 
 
 ## How long the selection must still rest on its item before the reads of that one item
-## start: 0 once it has rested, and where nothing is read of the item. Which item the
-## selection rests on, and since when, is noted here.
-@onShownLevel
+## start, and the read of the folder it stands on: 0 once it has rested, and where
+## nothing is read of the item. Which item the selection rests on, and since when, is
+## noted here.
 def restLeft(state, now):
+    return restOf(state, now, bool(focusOnly(state)))
+
+
+@onShownLevel
+def restOf(state, now, focused):
     selected = viewKeyOf(state)
     if selected != state.restKey:
         state.restKey = selected
         state.restSince = now
     row = selectedRow(state)
-    if all(viewReadOf(state, row, part) is None for part in VIEW_PARTS):
+    if not focused and all(viewReadOf(state, row, part) is None for part in VIEW_PARTS):
         return 0.0
     return max(0.0, REST_SECONDS - (now - state.restSince))
 
@@ -5900,17 +6116,18 @@ def keyWait(state, now):
 ## one whose words have changed, one whose period has passed. Two of one kind never run at
 ## once: a read that is due while its kind runs waits for the turn after that one ends.
 ## The reads of one item, its facts and its lines, wait until the selection has rested on
-## it (restLeft): a selection that runs down a list starts none of them on its way.
+## it (restLeft): a selection that runs down a list starts none of them on its way. So
+## does the read of a folder that has the focus and is not shown (focusOnly).
 def startDueReads(state, reader, now):
     resting = restLeft(state, now) > 0
+    focused = focusOnly(state)
     for kind, key, words in wantedReads(state):
-        if reader.busy(kind) or (resting and kind in VIEW_PARTS):
+        if reader.busy(kind) or (resting and (kind in VIEW_PARTS or key in focused)):
             continue
         last = state.started.get(key)
         ## a read that is made once is not due again because its period has passed; neither
         ## is one that is read seldom, but while it is the list shown
-        entry = readEntry(key)
-        once = entry.get("once") or (entry.get("seldom") and key != (listReadOf(state.path) or ("",))[0])
+        once = readEntry(key).get("once") or seldomNow(state, key)
         aged = now - last["at"] >= REFRESH_SECONDS and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
@@ -5969,6 +6186,9 @@ def applyResult(state, result):
         state.plans[key] = {"words": result["words"], "rows": parseKillRows(result["text"]),
                             "error": result["error"] if result["status"] != 0 else ""}
         return
+    if (READS.get(key) or {}).get("demand"):
+        ## when what is read on demand alone last answered: its folder says it
+        state.ran[key] = state.clock
     if (READS.get(key) or {}).get("demand") and state.noticeOf == key:
         ## what was asked for on demand has answered: the status line no longer says it was asked
         state.notice = ""

@@ -6,8 +6,8 @@
 ## which notes each start and prints the fixture: rows in the forms `--manager-place-list` and
 ## `--manager-place-read <place>` print.
 ## Held: the root list holds `Locations (Places)` as a folder after `Team Members`, and `9` goes there; its list is
-## read by `--manager-place-list` with no argument, once when the screen starts, whatever is shown, on the period
-## only while it is the list shown, and again when a read is asked for; the locations stand in a table under a
+## read by `--manager-place-list` with no argument, once when the screen starts, whatever is shown, and again, on
+## the period and when a read is asked for, only while it is the list shown; the locations stand in a table under a
 ## header, each by its key, with its kind, its ceiling, its state and its sessions in the columns that fit whole,
 ## the mark of the one the console runs in ahead of it, and no column of a host; the one the console runs in stands
 ## out, one that is not present shows plainer; a line that is no row of a location is left out; the left window
@@ -270,7 +270,7 @@ rigAssert "a fact of the dialog shows by the name of the location, and the path 
 rigAssert "so does a paragraph: the path as it is under it, without what ends the sentence, and a path of no location is left alone" "$( rigBox a '║ may it write ws-one/x.sh, and (/rig/Workspaces/ws-one-other/b)? ' ) $( rigBox a '║   /rig/Workspaces/ws-one/x.sh  ' ) $( rigBox a '║ asked by  someone ' )" "1 1 1"
 rigAssert "a message box shows what it was given, as it is" "$( rigBox m 'it failed at /rig/Workspaces/ws-one/x.sh' ) $( rigBox m 'ws-one/x.sh' )" "1 1"
 
-echo "-- when it is read: once at the start, on the period only while it is the list shown, and when a read is asked for"
+echo "-- when it is read: once at the start; again, on the period and when a read is asked for, only while it is the list shown"
 rigCase period
 rigScript <<'EOF'
 turn
@@ -301,8 +301,21 @@ turn
 wait places 5
 get asked
 EOF
+rigAway="$( rigCalled --manager-place-list )"
 rigAssert "at another root it is not read again, however long" "$( rigVal root.selected ) $( rigVal root.path )" "dashboard "
-rigAssert "it was read: once at the start, at once when its list is shown after its period, again when that passed there, never after it was left, and when a read was asked for" "[$( rigVal shown.path )] [$( rigVal away.path )] $( rigVal away.selected ) $( rigCalled --manager-place-list ) $( rigPlaceCalls )" "[places] [] consoles 4 4 0"
+rigAssert "it was read: once at the start, at once when its list is shown after its period, again when that passed there, never after it was left, and not when a read was asked for at another root" "[$( rigVal shown.path )] [$( rigVal away.path )] $( rigVal away.selected ) $rigAway" "[places] [] consoles 3"
+rigScript <<'EOF'
+turn
+wait places 5
+keys 9
+turn
+wait places 5
+keys u
+turn
+wait places 5
+get there
+EOF
+rigAssert "a read asked for while its list is shown reads it: once at that start, and once for the key" "[$( rigVal there.path )] $(( $( rigCalled --manager-place-list ) - rigAway )) $( rigPlaceCalls | LC_ALL=C cut -d' ' -f2 )" "[places] 2 0"
 
 echo "-- no location known: every path stands as it is; and a list that fails"
 rigCase none

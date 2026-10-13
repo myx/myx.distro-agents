@@ -71,6 +71,7 @@ rigPty(){ ## columns, lines, the text to wait for, keys, the command... -- what 
 echo "-- at 120 columns by 40 lines --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 workspace /somewhere/ws-rig
 clock 12:34:56
 turn
@@ -105,6 +106,7 @@ rigAssert "nothing was drawn past the end of a line"                 "$( rigVal 
 echo "-- at 80 columns by 24 lines --"
 rigScript <<'RIGSCRIPT'
 size 80 24
+root sessions
 turn
 get a
 show a
@@ -116,6 +118,7 @@ rigAssert "every line is drawn, at the full width"                   "$( rigLine
 echo "-- a terminal that is too small --"
 rigScript <<'RIGSCRIPT'
 size 20 5
+root sessions
 turn
 show a
 get a
@@ -137,6 +140,7 @@ rigAssert "too small again, the quit key still ends it"              "$( rigVal 
 echo "-- a change of size --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+root sessions
 workspace /somewhere/ws-rig
 clock 12:34:56
 view 60
@@ -160,6 +164,7 @@ rigAssert "and that screen has its 40 lines"                         "$( rigLine
 echo "-- a line with a character that takes two cells --"
 rigScript <<RIGSCRIPT
 size 120 40
+root sessions
 rows pending a=🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀 b=$( rigRepeat y 34 )🚀zz
 keys DOWN ENTER DOWN
 viewline $( rigRepeat x 80 )🚀 and more text that does not fit the pane
@@ -183,6 +188,7 @@ rigAssert "nothing was drawn past the end of a line or into the other pane" "$( 
 echo "-- a terminal that is not UTF-8 --"
 rigScript <<'RIGSCRIPT'
 size 60 12
+root sessions
 plain
 turn
 cells sep 3 39 40
@@ -190,18 +196,19 @@ cells cut 2 41 59
 plaintext given a🚀b│c…
 get a
 RIGSCRIPT
-rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [>Sessions (Act+...] 0"
+rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each: on the first row of the root, the dashboard" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [ Dashboard (Mo+...] 0"
 rigAssert "what such a terminal cannot show is given as ?, cell for cell" "[$( rigVal given )]" "[a??b?c?]"
 
+## The real screen comes up on the first row of its root, the dashboard: its name in the title of the left window is what is waited for.
 echo "-- the real screen on a pseudo-terminal: the quit key --"
-rigPty 80 24 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 80 24 "Dashboard (Monitor)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the screen came up"                                       "$( rigVal pty.frame ) $( rigVal pty.entered ) $( rigVal pty.modeTaken )" "yes yes yes"
 rigAssert "the quit key ends it with status 0"                       "$( rigVal pty.rc )" 0
 rigAssert "the terminal is left as it was"                           "$( rigVal pty.left ) $( rigVal pty.modeBack )" "yes yes"
 rigAssert "and nothing was written as an error"                      "$( rigVal pty.errorAfterLeft )" none
 
 echo "-- the real screen on a pseudo-terminal: a failure inside it --"
-rigPty 80 24 "Sessions (Activity)" '\r' "$rigPython" -I -B "$rigDriver" "$rigScreen" child-raise --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 80 24 "Dashboard (Monitor)" '\r' "$rigPython" -I -B "$rigDriver" "$rigScreen" child-raise --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the screen came up, and then failed on its data"          "$( rigVal pty.frame ) $( rigVal pty.error | LC_ALL=C grep -c 'the stand-in for the data of the screen fails' )" "yes 1"
 rigAssert "its status is not 0"                                      "$( rigVal pty.rc )" 1
 rigAssert "the terminal was given back before the error was written" "$( rigVal pty.left ) $( rigVal pty.errorAfterLeft ) $( rigVal pty.modeBack )" "yes yes yes"

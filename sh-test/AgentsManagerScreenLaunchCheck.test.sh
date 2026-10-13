@@ -95,7 +95,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one session taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -118,8 +118,8 @@ rigStarts(){ ## how many times the operation that starts a session was started, 
 rigStartWords(){ ## number -- the arguments of that start of the operation that starts a session, each between brackets
 	LC_ALL=C grep -F -- '[--magic-spawn-session]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C sed -n "${1}p"
 }
-rigOthers(){ ## how many starts were none of the four operations this screen may call here: the list of the team is read while a dialog that offers members is open
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list$' -e '^--magic-spawn-session' -e '^--manager-team-member-list$' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were none of the four operations this screen may call here: the list of the team is read while a dialog that offers members is open. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-routine-list$' -e '^--magic-spawn-session' -e '^--manager-team-member-list$' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigType(){ ## text -- the keys that type it, one a character
 	local typeText="$1" typeKeys="" typeChar

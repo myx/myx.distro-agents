@@ -120,22 +120,22 @@ rigCase(){ ## name, the fixture the stand-in prints, what it does at every start
 	done
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in and the time of day, with the read of one ask taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable view:pending:record none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable view:pending:record none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigScriptActs(){ ## the same with every read of one ask as the screen has it: what the stores hold of it, and what can be done with it
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigScriptWhole(){ ## the same with the read of one ask as the screen has it
-	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:sessions none\ntable acts:pending:record none\nwall 2026-10-13 02:30 +0300\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
-rigCalls(){ ## how many times the stand-in was started
-	LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigOtherCalls(){ ## how many of its starts were anything but the read of the asks
-	LC_ALL=C grep -c -v -x -F -- "$rigRead" "$MANAGER_SCREEN_RIG/calls" || :
+rigOtherCalls(){ ## how many of its starts were anything but the read of the asks. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -x -F -- "$rigRead" || :
 }
 
 echo "-- the asks are read while the section is shown --"
@@ -143,7 +143,8 @@ rigCase root three.asks rows
 rigScript <<'RIGSCRIPT'
 size 200 40
 turn 3
-keys DOWN
+root pending
+turn 1
 turn
 get first
 cells firstLine 2 1 139
@@ -165,7 +166,7 @@ wait list 30
 RIGSCRIPT
 rigAssert "at the root nothing of the asks is read, and the pane of the section is empty" "$( rigVal first.selected ) [$( rigVal first.reading )] [$( rigVal firstLine )]" "pending [] []"
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
-rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C sed -n '1p' "$MANAGER_SCREEN_RIG/calls" )]" "[$rigRead]"
+rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
 rigAssert "back on the section itself the left pane says how many wait, and how many have no asker" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 )] [$( rigVal line2 )]" \
 	"pending [Pending Questions] [3 asks wait for an answer.] [1 of them was asked by a run that is gone (x in the list): nobody is there to take the answer.]"
 rigAssert "it is read again on the period, and not before"           "[$( rigVal early.reading )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
@@ -174,7 +175,9 @@ echo "-- each open ask is one row --"
 rigCase rows three.asks rows
 rigScript <<'RIGSCRIPT'
 size 200 40
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 get a
 border title 1 140 200
@@ -203,7 +206,9 @@ echo "-- the left pane shows the selected ask --"
 rigCase ask three.asks rows
 rigScript <<'RIGSCRIPT'
 size 120 40
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 keys DOWN DOWN DOWN
 turn
@@ -244,7 +249,9 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 handler kill
 handler start
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 keys DOWN
 turn
@@ -265,7 +272,9 @@ echo "-- a store with no open ask --"
 rigCase empty no.asks rows
 rigScript <<'RIGSCRIPT'
 size 120 40
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 get a
 cells row1 2 85 119
@@ -283,7 +292,9 @@ echo "-- a read of the asks that fails --"
 rigCase fail three.asks rows rows fail rows
 rigScript <<'RIGSCRIPT'
 size 120 40
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 keys DOWN DOWN
 get good
@@ -445,7 +456,9 @@ echo "-- the selected ask is read by its id, while it is selected --"
 rigCaseStored one rows rows "sleep 2"
 rigScriptWhole <<'RIGSCRIPT'
 size 120 40
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 get in
 keys DOWN
@@ -505,7 +518,9 @@ echo "-- the whole ask scrolls, and still no key answers it --"
 rigCaseStored scroll rows
 rigScriptWhole <<'RIGSCRIPT'
 size 120 20
-keys DOWN ENTER
+root pending
+turn 1
+keys ENTER
 wait list 30
 keys DOWN
 wait view 30
@@ -525,7 +540,7 @@ rigAssert "the pane starts at the top of the ask, and does not follow its end" "
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' the diff:' )" "view 16 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' an ask is answered where it was posted, or from here by its keys' ) $( rigVal end.spills )" "1 0"
 rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Open: this row has nothing to open] pending $rigC"
-rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' "$MANAGER_SCREEN_RIG/calls" || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
+rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
 
 rigAsk1=0d7affda-0000-4000-8000-000000000001
 rigAsk2=0e0c1c26-0000-4000-8000-000000000002
@@ -540,7 +555,7 @@ rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
 rigActCalls(){ ## how the stand-in was started for anything but a read, each start between its own brackets
-	LC_ALL=C grep -v -e '^\[--member-pending-reply-read\]' -e '^\[--manager-pending-reply-read\]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
+	LC_ALL=C grep -v -e '^\[--member-pending-reply-read\]' -e '^\[--manager-pending-reply-read\]' -e '^\[--manager-place-list\]$' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C tr '\n' ' ' | LC_ALL=C sed -e 's/ $//'
 }
 
 echo "-- a question is selected: its keys in the status line, in the left window and in the menu, only where its row says they apply --"

@@ -136,7 +136,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\nwall 2026-10-13 02:30 +0000\nsize %s\nroot sessions\n' "$rigTools" "${rigSize:-120 40}" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -150,14 +150,16 @@ rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen h
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigCalls(){ ## how many times the stand-in was started
-	LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" || :
+rigCalls(){ ## how many times the stand-in was started. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- a session selected: its status, its dispatch, its participants, then the feed of its members --"
 rigCase session
 rigScript <<'RIGSCRIPT'
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 get before
 keys DOWN DOWN
@@ -200,7 +202,9 @@ rigAssert "the newest entry is the last"                             "[$( rigPan
 echo "-- an agent selected: its status, what it waits on, its model and tokens, then its own lines only --"
 rigCase agent
 rigScript <<'RIGSCRIPT'
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN
 wait view 30
@@ -232,7 +236,9 @@ echo "-- moving the selection replaces the pane; a run with no transcript; a run
 rigCase move
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
 wait view 30
@@ -266,7 +272,9 @@ rigCase late
 echo "sleep 2" > "$MANAGER_SCREEN_RIG/mode.--manager-session-transcript-read"
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER
 wait feed 30
@@ -287,7 +295,9 @@ echo "-- new lines come into view at the end; a pane that was scrolled up stays 
 rigCase follow
 rigScript <<RIGSCRIPT
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
 wait view 30
@@ -309,7 +319,9 @@ rigAssert "with the focus on the pane, Up three times scrolls it up, and it foll
 rigCase stay
 rigScript <<RIGSCRIPT
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
 wait view 30
@@ -334,7 +346,9 @@ echo "-- g switches the left pane to the raw log, and l back to the log --"
 rigCase log
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN ENTER DOWN DOWN
 wait view 30
@@ -373,7 +387,9 @@ rigAssert "and says which run has none"                              "[$( rigPan
 echo "-- the left pane names the keys of the selected item --"
 rigCase keys
 rigScript <<'RIGSCRIPT'
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN
 wait feed 30
@@ -406,7 +422,9 @@ rigCase small
 rigSize="120 16"
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN
 wait view 30
@@ -430,7 +448,9 @@ echo "-- the reads of one item wait until the selection has rested on it --"
 rigCase rest
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 get up
 keys DOWN DOWN
@@ -457,7 +477,9 @@ rigAssert "the session the selection ran over was never read"        "$( rigCall
 rigCase fro
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN DOWN UP DOWN UP DOWN UP
 advance 0.3
@@ -477,7 +499,9 @@ echo "-- an item selected again is read again, whenever it was last read --"
 rigCase again
 rigScript <<'RIGSCRIPT'
 mode log
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN
 wait view 30
@@ -521,7 +545,9 @@ rigWideDrawn(){ ## the case, "wide" for the wider rows -- what the screen draws 
 	rigCase "$1"
 	[ "${2:-}" != "wide" ] || rigWiden
 	rigScript <<'RIGSCRIPT'
-keys DOWN ENTER
+root sessions
+turn 1
+keys ENTER
 wait sessions 30
 keys DOWN DOWN
 advance 1

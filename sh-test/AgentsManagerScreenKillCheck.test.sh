@@ -123,7 +123,7 @@ rigCase(){ ## name
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
 }
 rigScript(){ ## the commands of the driver on standard input, after the ones that name the stand-in, the time and the size, with the reads of one item taken out of the table; what it printed is kept in rigOut
-	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
+	rigOut="$( { printf 'tools bash %s\ntable list:pending none\ntable view:sessions:record none\ntable feed:sessions:record none\ntable view:sessions/*:record none\ntable feed:sessions/*:record none\nwall 2026-10-13 02:30 +0000\nsize 120 40\nroot sessions\n' "$rigTools" ; cat ; } | "$rigPython" -I -B "$rigDriver" "$rigScreen" script 2>&1 )" || rigOut="$rigOut"$'\n'"DRIVER-FAILED rc=$?"
 }
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
@@ -146,8 +146,8 @@ rigKillWords(){ ## the arguments of every start of the kill operation that kills
 rigPlans(){ ## how many times the plan of a kill was read
 	LC_ALL=C grep -c -- '^--manager-session-kill .* --plan$' "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigOthers(){ ## how many starts were neither the list of the sessions nor the kill
-	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-kill' "$MANAGER_SCREEN_RIG/calls" || :
+rigOthers(){ ## how many starts were neither the list of the sessions nor the kill. The list of the locations, which every start of the screen reads, is not counted.
+	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-kill' -e '^--manager-place-list$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
 echo "-- the kill key asks first, and says exactly what will be killed --"
@@ -589,7 +589,7 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 get asked
 RIGSCRIPT
-rigAssert "a read that runs when the screen ends is ended with it"   "$( rigVal asked.reading ) $( rigEnded --manager-session-list 20 )" "list:sessions 0"
+rigAssert "a read that runs when the screen ends is ended with it"   "$( rigVal asked.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:sessions' ) $( rigEnded --manager-session-list 20 )" "list:sessions 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN KILL CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

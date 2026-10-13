@@ -140,6 +140,9 @@ class TextSurface:
 ##   tools <command...>            the dispatcher the screen calls (a stand-in script)
 ##   copy <from> <to>              copies a file, <to> being the rest of the line: what the stand-in prints from then on
 ##   table <read key> none | <words...> [+active <words...>]   one entry of what the screen asks for
+##   root <id>                     the list is at its root, its selection on the row of that root, named by its id in
+##                                 the screen's SECTIONS: what a script counts from there does not move when the root
+##                                 list gets another row. No turn: the next key or turn draws it
 ##   keys <key...>                 each key is one turn of the screen
 ##   turn [<count>]                turns with no key
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
@@ -189,8 +192,21 @@ def scriptRun(module):
     drawn = [False]
 
     def turn(key=None):
+        first = not drawn[0]
         module.screenTurn(surface, state, reader[0], clock[0], key)
         drawn[0] = True
+        if first and reader[0] is not None:
+            ## every start of the screen reads the list of the locations, whatever is shown: the
+            ## first turn waits here, in real time and with no turn more, until that one call
+            ## has ended, so what a script sees does not depend on how fast it ended. It is taken
+            ## into the state at the next turn, as ever; since it has ended, the state no longer
+            ## names it among the reads that run, which it would say only one turn later.
+            call = reader[0].running.get("places")
+            deadline = time.time() + 30
+            while call is not None and call["process"].poll() is None and time.time() < deadline:
+                time.sleep(0.02)
+            if call is not None and call["process"].poll() is not None:
+                state.reading = dict((kind, key) for kind, key in state.reading.items() if kind != "places")
 
     def setRows(level, rows):
         state.rows[level] = rows
@@ -325,6 +341,15 @@ def scriptRun(module):
                     operation = operation[:operation.index("+active")]
                 entry["operation"] = operation
                 module.READS[words[0]] = entry
+        elif command == "root":
+            known = [sectionId for sectionId, sectionLabel in module.SECTIONS]
+            if rest not in known:
+                sys.stderr.write("manager-screen.driver.test.py: no root of that id: %s (the roots: %s)\n" % (rest, " ".join(known)))
+                if reader[0] is not None:
+                    reader[0].stop()
+                return 2
+            state.path = []
+            state.cursors[""] = {"key": "section:" + rest, "index": known.index(rest), "top": 0}
         elif command == "keys":
             for key in words:
                 turn(" " if key == "SPACE" else key)

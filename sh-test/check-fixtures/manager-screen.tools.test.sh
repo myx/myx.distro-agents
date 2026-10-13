@@ -13,10 +13,20 @@
 ##   sleep <n>     waits that many seconds first, then as rows
 ##   fail          writes a line that is no error and one error line to standard error, and ends with status 1
 ##   fail-rows     as rows, then one error line to standard error, and ends with status 1
+## Two operations the screen calls of its own accord, whatever a test is about, the list of the
+## locations at every start (`--manager-place-list`) and the blocks of the dashboard while the root
+## stands on its first row (`--manager-dashboard-read`): a start of either is noted like any other,
+## but is not counted among the starts that mode.<n> and rows.<n> number, and it is answered only by
+## what the rig says of it by its own name (mode.<its first argument>, rows.<its arguments>,
+## rows.<its first argument>), with no row where the rig says nothing: the catch-all `mode` and
+## `rows` are the fixture of the view under test, and are not theirs.
 set -u
 : "${MANAGER_SCREEN_RIG:?⛔ ERROR: MANAGER_SCREEN_RIG is not set}"
 printf '%s\n' "$*" >> "$MANAGER_SCREEN_RIG/calls"
-rigStart="$( LC_ALL=C grep -c '' "$MANAGER_SCREEN_RIG/calls" )"
+rigOwn=""
+case "${1:-}" in --manager-place-list|--manager-dashboard-read) rigOwn="yes" ;; esac
+rigStart="$( LC_ALL=C grep -c -v -e '^--manager-place-list' -e '^--manager-dashboard-read' "$MANAGER_SCREEN_RIG/calls" )"
+[ -z "$rigOwn" ] || rigStart="own"
 rigWords=""
 for rigWord in "$@" ; do rigWords="$rigWords[$rigWord]" ; done
 printf '%s\n' "$rigWords" >> "$MANAGER_SCREEN_RIG/words"
@@ -24,7 +34,7 @@ rigInput="$MANAGER_SCREEN_RIG/stdin.$$"
 cat > "$rigInput"
 [ ! -s "$rigInput" ] || cat "$rigInput" >> "$MANAGER_SCREEN_RIG/stdin.${1:-}"
 rm -f "$rigInput"
-rigMode="$( cat "$MANAGER_SCREEN_RIG/mode.$rigStart" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode.${1:-}" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode" 2> /dev/null )"
+rigMode="$( cat "$MANAGER_SCREEN_RIG/mode.$rigStart" 2> /dev/null || cat "$MANAGER_SCREEN_RIG/mode.${1:-}" 2> /dev/null || { [ -n "$rigOwn" ] && echo rows ; } || cat "$MANAGER_SCREEN_RIG/mode" 2> /dev/null )"
 case "$rigMode" in
 	sleep\ *)
 		sleep "${rigMode#sleep }"
@@ -42,7 +52,7 @@ elif [ -f "$MANAGER_SCREEN_RIG/rows.$*" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows.$*"
 elif [ -f "$MANAGER_SCREEN_RIG/rows.${1:-}" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows.${1:-}"
-elif [ -f "$MANAGER_SCREEN_RIG/rows" ] ; then
+elif [ -z "$rigOwn" ] && [ -f "$MANAGER_SCREEN_RIG/rows" ] ; then
 	cat "$MANAGER_SCREEN_RIG/rows"
 fi
 printf '%s\n' "$*" >> "$MANAGER_SCREEN_RIG/ended"
