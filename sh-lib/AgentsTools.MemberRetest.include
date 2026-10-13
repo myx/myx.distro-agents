@@ -63,9 +63,9 @@ AgentsToolsRetestCopyRoot(){ ## operation, scratch folder or nothing -- the sour
 AgentsToolsRetestRunner(){ ## source root of a copy, runner arguments... -- that copy's own runner, on that copy
 	local runnerRoot="$1" ; shift
 	if [ "$runnerRoot" = "$( cd "$MDLT_ORIGIN" 2> /dev/null && pwd -P )" ] ; then
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec bash sh-test/AgentsRunTests.sh "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec "$BASH" sh-test/AgentsRunTests.sh "$@" )
 	else
-		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" bash sh-test/AgentsRunTests.sh "$@" )
+		( cd "$runnerRoot/myx/myx.distro-agents" && exec env MDLT_ORIGIN="$runnerRoot" MDLT_OPTION="--run-from-path $runnerRoot" "$BASH" sh-test/AgentsRunTests.sh "$@" )
 	fi
 }
 AgentsToolsRetestProcess(){ ## pid -- when that process was started, as the system tells it: empty where no such process is

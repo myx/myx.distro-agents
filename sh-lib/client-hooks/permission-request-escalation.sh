@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## permission-request-escalation.sh -- the PermissionRequest hook for a *-native client.
 ## A REAL SCRIPT: installed by copying, runs exactly as it stands, nothing substituted.
 ##
@@ -30,7 +30,7 @@ hookDecision=""
 if [ -n "${MMDAPP:-}" ] && [ -x "$hookTools" ] ; then
 	while IFS= read -r hookLine ; do
 		[[ "$hookLine" == '{"hookSpecificOutput":'* ]] && hookDecision="$hookLine"
-	done < <( printf '%s' "$hookInput" | "$hookTools" --intern-op-permission-hook "${MDAT_SPAWN_AGENT:-}" 2>/dev/null )
+	done < <( printf '%s' "$hookInput" | "$BASH" "$hookTools" --intern-op-permission-hook "${MDAT_SPAWN_AGENT:-}" 2>/dev/null )
 fi
 
 if [ -n "$hookDecision" ] ; then

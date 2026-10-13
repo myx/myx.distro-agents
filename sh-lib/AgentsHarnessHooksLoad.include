@@ -118,6 +118,9 @@ AgentsHarnessHooksFromRecords(){ ## records
 			*) fromScript="$agentsHooksLoadHere/client-hooks/$agentsHookScript" ;;
 		esac
 		printf -v fromCommand '%q' "$fromScript"
+		## A hook of the package is a bash script: run by the bash this harness runs in, never through its
+		## own first line, which names an interpreter by a path or a name this host may not have.
+		case "$agentsHookScript" in /*) ;; *) printf -v fromCommand '%q %s' "$BASH" "$fromCommand" ;; esac
 		[ -z "$agentsHookArg" ] || fromCommand="$fromCommand $agentsHookArg"
 		harnessHooksList="$harnessHooksList$agentsHookMatcher"$'\t'"$fromCommand"$'\n'
 	done <<< "$1"

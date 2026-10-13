@@ -174,7 +174,7 @@ echo "-- that run had no terminal (its output is a file): the screen says so, an
 rigAssert "it ends with status 1"                           "$( cat "$rigDir/rc" )" 1
 rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'AgentsManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' || : )" "1 1"
 echo "-- sibling: the same plain start on a pseudo-terminal --"
-rigEntryPty "Sessions / Activity" q
+rigEntryPty "Sessions (Activity)" '\x18'
 rigAssert "the screen comes up"                             "$( rigPtyVal frame )" yes
 rigAssert "the quit key ends it with status 0"              "$( rigPtyVal rc )" 0
 rigAssert "the terminal is left as it was"                  "$( rigPtyVal modeBack ) $( rigPtyVal errorAfterLeft )" "yes none"
@@ -257,7 +257,7 @@ echo "-- that run had no terminal (its output is a file): the screen is refused 
 rigAssert "it ends with a status that is not 0"               "$( cat "$rigDir/rc" )" 1
 rigAssert "the screen says so in one line of its own, the last one written" "$( LC_ALL=C grep -c 'AgentsManagerScreen: ' "$rigDir/err" || : ) $( LC_ALL=C tail -1 "$rigDir/err" | LC_ALL=C grep -c 'ERROR: AgentsManagerScreen: the manager screen needs a terminal' || : )" "1 1"
 echo "-- sibling: the same console on a pseudo-terminal --"
-rigEntryPty "Sessions / Activity" q --manager
+rigEntryPty "Sessions (Activity)" '\x18' --manager
 rigAssert "the screen comes up"                               "$( rigPtyVal frame )" yes
 rigAssert "the quit key ends it with status 0"                "$( rigPtyVal rc )" 0
 rigAssert "the terminal is left as it was"                    "$( rigPtyVal modeBack ) $( rigPtyVal errorAfterLeft )" "yes none"
@@ -283,7 +283,7 @@ rigScenario manager-nocurses claude-native "" claude
 rigRealPython="$( command -v python3 )" || rigRefuse "no python3 on PATH to stand behind the one that cannot load curses"
 printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.test.sh" > "$rigDir/bin/python3"
 chmod +x "$rigDir/bin/python3"
-rigEntryPty "Sessions / Activity" q --manager
+rigEntryPty "Sessions (Activity)" '\x18' --manager
 rigAssert "on a terminal too, no screen comes up"             "$( rigPtyVal frame ) $( rigPtyVal entered )" "no no"
 rigAssert "it ends with a status that is not 0"               "$( rigPtyVal rc )" 1
 rigAssert "one plain line says that the screen needs Python with curses" "$( rigPtyVal error | LC_ALL=C grep -c 'the manager screen needs the curses module of Python' )" 1
@@ -295,7 +295,7 @@ echo "-- a plain start of a leg where the python3 first on PATH cannot load curs
 rigScenario leg-nocurses claude "" claude
 printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.test.sh" > "$rigDir/bin/python3"
 chmod +x "$rigDir/bin/python3"
-rigEntryPty "Sessions / Activity" q
+rigEntryPty "Sessions (Activity)" '\x18'
 rigAssert "no screen comes up"                                "$( rigPtyVal frame ) $( rigPtyVal entered )" "no no"
 rigAssert "it ends with status 1, so no shell prompt was left open on the terminal" "$( rigPtyVal rc )" 1
 rigAssert "one plain line says that the screen needs Python with curses" "$( rigPtyVal error | LC_ALL=C grep -c 'the manager screen needs the curses module of Python' )" 1

@@ -81,7 +81,7 @@ rigSqueeze(){ ## a line with every run of spaces as one
 	LC_ALL=C sed -e 's/  */ /g'
 }
 rigHints=" Enter Open  a Active  u Read  m Menu  ^X Exit  Tab Window"
-rigMenus=" ≡ Go Session Member View Question Help"
+rigMenus=" ≡ Go View Help"
 
 echo "-- the counters show what the row of counters holds --"
 rigCase counters rows

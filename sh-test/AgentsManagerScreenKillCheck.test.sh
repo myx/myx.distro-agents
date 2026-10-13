@@ -12,6 +12,9 @@
 ## whole session; any other word, a part of it, capitals, a space around it or nothing at all kills nothing and says
 ## so; a row that is no session and no agent, a session with no live agent and an agent that is not alive say that
 ## there is nothing to kill, and nothing is asked; the left pane names `k kill` only where it has something to end;
+## while the confirmation is open the plan of the kill is read (`--plan`, which ends nothing) and the dialog then says
+## from its rows what is ended, dismissed and closed; a session that is not finished and has no agent alive takes `k`
+## too, its dialog titled Close with a Close button, and the kill finishes it: the status line gives the summing row;
 ## what the operation answered for each run stands at the head of the left pane, ended, killed, not ended, was not
 ## running, and their count in the bottom line; then the list is read again and shows the session as it is now; a
 ## kill that fails shows its error line, after the rows it printed; an answer that comes when another item is
@@ -89,6 +92,21 @@ rigKillTester="--manager-session-kill --session-id $rigR2 --run"
 	rigRow kill "$rigS1" - magic-developer no-spawn-id spawn-failed - -
 } > "$rigF/rows.$rigKillSession"
 rigRow kill "$rigS1" "$rigS1" magic-coordinator ended spawn-started 4101 dispatch-20261012T165700Z-daily-1 > "$rigF/rows.$rigKillFounder"
+## What each of those kills would do, as `--plan` prints it: the same rows, a run that lives as one that would be
+## ended, and for the whole session the row that sums them. The tester asked one question that waits.
+rigQ2=0f62d1f4-0000-4000-8000-0000000000f2
+{
+	rigRow kill "$rigS1" "$rigS1" magic-coordinator would-end spawn-started 4101 dispatch-20261012T165700Z-daily-1
+	rigRow kill "$rigS1" "$rigR2" magic-tester would-end spawn-started 4102,4103 -
+	rigRow kill "$rigS1" "$rigR3" keeper-myx no-process spawn-succeeded - -
+	rigRow kill "$rigS1" - magic-developer no-spawn-id spawn-failed - -
+	rigRow finish "$rigS1" 2 0 0 running
+} > "$rigF/rows.$rigKillSession --plan"
+rigRow kill "$rigS1" "$rigS1" magic-coordinator would-end spawn-started 4101 dispatch-20261012T165700Z-daily-1 > "$rigF/rows.$rigKillFounder --plan"
+{
+	rigRow kill "$rigS1" "$rigR2" magic-tester would-end spawn-started 4102 -
+	rigRow dismiss "$rigS1" "$rigQ2" "$rigR2" would-dismiss
+} > "$rigF/rows.$rigKillTester --plan"
 rigRow kill "$rigS1" "$rigR2" magic-tester ended spawn-started 4102 - > "$rigF/rows.$rigKillTester"
 {
 	rigRow kill "$rigS1" "$rigS1" magic-coordinator not-ended spawn-started 4101 dispatch-20261012T165700Z-daily-1
@@ -119,11 +137,14 @@ rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen h
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
 }
-rigKills(){ ## how many times the kill operation was started, whatever its arguments
-	LC_ALL=C grep -c -- '^--manager-session-kill' "$MANAGER_SCREEN_RIG/calls" || :
+rigKills(){ ## how many times the kill operation was started to kill, whatever its arguments: a plan of it, which ends nothing, is not counted
+	LC_ALL=C grep -- '^--manager-session-kill' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- ' --plan$' || :
 }
-rigKillWords(){ ## the arguments of every start of the kill operation, each between brackets, a start a line
-	LC_ALL=C grep -F -- '[--manager-session-kill]' "$MANAGER_SCREEN_RIG/words" || :
+rigKillWords(){ ## the arguments of every start of the kill operation that kills, each between brackets, a start a line
+	LC_ALL=C grep -F -- '[--manager-session-kill]' "$MANAGER_SCREEN_RIG/words" | LC_ALL=C grep -v -F -- '[--plan]' || :
+}
+rigPlans(){ ## how many times the plan of a kill was read
+	LC_ALL=C grep -c -- '^--manager-session-kill .* --plan$' "$MANAGER_SCREEN_RIG/calls" || :
 }
 rigOthers(){ ## how many starts were neither the list of the sessions nor the kill
 	LC_ALL=C grep -c -v -e '^--manager-session-list' -e '^--manager-session-kill' "$MANAGER_SCREEN_RIG/calls" || :
@@ -148,6 +169,9 @@ keys y e
 get typing
 cells typingLine 38 1 83
 box t
+wait plan 30
+get planned
+box p
 keys ESC
 turn
 get esc
@@ -159,7 +183,10 @@ rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$
 rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║ KILL the session daily of Monday ' ) $( rigBoxHas b "║ session $rigS1 " )" "1 1"
 rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║ Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║   magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║   magic-tester       running working  $rigR2 " )" "1 1 1"
 
-rigAssert "how many are left as they are, and how to back out"     "$( rigBoxHas b '║ 2 other agents are not alive on this host: they are left as they are. ' ) $( rigBoxHas b '║ The word yes, typed whole, and Kill or Enter: that kills. Cancel and Esc ' )" "1 1"
+rigAssert "that what it does besides is being read, and how to back out" "$( rigBoxHas b '║ What it does besides, the questions it dismisses and the records it ' ) $( rigBoxHas b '║ The word yes, typed whole, and Kill or Enter: that kills. Cancel and Esc ' )" "1 1"
+rigAssert "the plan of the kill is read while the dialog is open, once, by the id of the session, and what was typed stays" "$( rigPlans ) $( rigCalled "$rigKillSession --plan" ) [$( rigVal planned.dialog )] [$( rigVal planned.dialogTitle )]" "1 1 [kill:word|ye] [Kill the session]"
+rigAssert "then the dialog says from its rows what is ended, each with its processes and its own id" "$( rigBoxHas p '║ It ends 2 agents the hard way: no closure runs, none is asked anything. ' ) $( rigBoxHas p "║   magic-coordinator  pid 4101  $rigS1 " ) $( rigBoxHas p "║   magic-tester       pid 4102,4103  $rigR2 " )" "1 1 1"
+rigAssert "what is dismissed and closed, here nothing, and the state the session reads" "$( rigBoxHas p '║ No question of it waits: nothing is dismissed. ' ) $( rigBoxHas p '║ No record of it is left open: nothing is closed. ' ) $( rigBoxHas p '║ The session reads running now. ' ) $( rigBoxHas p 'is being read' )" "1 1 1 0"
 rigAssert "the pane of the session stays above it, and nothing spills" "[$( rigPane d 3 )] $( rigVal asked.spills )" "[ state     running] 0"
 rigAssert "what is typed shows in the field"                       "[$( rigVal typing.dialog )] $( rigBoxHas t '║ ye ' )" "[kill:word|ye] 1"
 rigAssert "Esc closes the line: the bottom line is empty again, and the keys of the item are back" "[$( rigVal esc.dialog )] [$( rigVal esc.notice )] [$( rigVal escLine )] [$( rigVal escKeys )]" "[] [] [] [keys: k kill]"
@@ -172,7 +199,9 @@ keys ENTER
 wait sessions 30
 keys DOWN DOWN
 copy $rigTmp/session/after.rows $rigTmp/session/rows
-keys k y e s
+keys k
+wait plan 30
+keys y e s
 get typed
 keys ENTER
 get asked
@@ -198,7 +227,7 @@ rigAssert "the left pane shows the answer for each run: ended, killed, was not r
 rigAssert "and one that was not signalled, with why"                 "[$( rigPane a 7 )][$( rigPane a 8 )] $( rigVal answered.answer )" "[   magic-developer    not signalled: it has no id of its own][] 5"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
 rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 9 )]" \
-	"$rigS1 [>daily of Monday          finished] [ the kill, answered 02:30:00:][ state     finished]"
+	"$rigS1 [>daily of Monday...       finished] [ the kill, answered 02:30:00:][ state     finished]"
 rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[]"
 
 echo "-- on an agent the kill takes the agent's own id, with --run --"
@@ -214,6 +243,8 @@ keys k
 get asked
 show d
 box b
+wait plan 30
+box p
 keys y e s ENTER
 wait action 30
 get answered
@@ -225,6 +256,7 @@ rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal 
 rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║ KILL the agent magic-tester alone ' ) $( rigBoxHas b "║ run $rigR2, running working " ) $( rigBoxHas b "║ of the session daily of Monday ($rigS1) " )" "1 1 1"
 
 rigAssert "and that the others run on"                              "$( rigBoxHas b '║ It ends the hard way: no closure runs, it is asked nothing. The others ' )" "1"
+rigAssert "its plan is read with its own id and --run, and says which question of its own is dismissed with it" "$( rigCalled "$rigKillTester --plan" ) $( rigBoxHas p '║ It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║   $rigQ2  asked by magic-tester " )" "1 1 1"
 rigAssert "the operation is called once, with the run's own id and --run" "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigR2][--run]]"
 rigAssert "and never with the id of its session"                     "$( LC_ALL=C grep -c -F -- "$rigS1" "$MANAGER_SCREEN_RIG/words" || : )" 0
 rigAssert "the answer of that one run is shown"                      "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )]" "[kill: 1 ended] [ the kill, answered 02:30:00:][   magic-tester       ended][]"
@@ -280,6 +312,7 @@ keys ESC
 keys k ENTER
 get nothing
 keys ESC
+wait plan 30
 turn 3
 get end
 RIGSCRIPT
@@ -294,43 +327,105 @@ rigCase cannot
 rigScript <<'RIGSCRIPT'
 keys k
 get section
-keys ESC
+turn
 keys ENTER
 wait sessions 30
 keys k
 get up
-keys ESC
+turn
 keys DOWN k
 get launch
-keys ESC
+turn
 keys DOWN DOWN
 turn
 get lone
 cells loneKeys 37 1 83
 keys k
 get ended
-keys ESC
+turn
 keys UP ENTER DOWN DOWN DOWN
 turn
 get keeper
 cells keeperKeys 37 1 83
 keys k
 get gone
-keys ESC
+turn
 keys DOWN k
 get noId
-keys ESC
+turn
 turn 3
 get end
 RIGSCRIPT
-rigHere="k: nothing to kill here: k kills a session or an agent"
-rigAssert "on a section, and on the row that goes up, there is nothing to kill" "[$( rigVal section.dialogHolds )][$( rigVal up.dialogHolds )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[$rigHere][$rigHere] [message:ok|message:ok|]"
-rigAssert "on Launch / Spawn there is nothing to kill, and no word is asked for" "$( rigVal launch.selected ) [$( rigVal launch.dialog )] [$( rigVal launch.dialogHolds )]" "launch [message:ok|] [$rigHere]"
+rigHere="Kill: for a session or an agent, not for what is selected"
+rigAssert "on a section k is no key of the view; on the row that goes up the status line says what k is for, and no box opens" "[$( rigVal section.notice )][$( rigVal up.notice )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[][$rigHere] []"
+rigAssert "on Launch / Spawn there is nothing to kill, and no word is asked for" "$( rigVal launch.selected ) [$( rigVal launch.dialog )] [$( rigVal launch.notice )]" "launch [] [$rigHere]"
 rigAssert "a session that has ended names no kill key"               "$( rigVal lone.selected ) [$( rigVal loneKeys )]" "$rigS2 []"
-rigAssert "and k on it says that no agent of it is alive, asking nothing" "[$( rigVal ended.dialog )] [$( rigVal ended.dialogHolds )]" "[message:ok|] [k: nothing to kill: no agent of this session is alive]"
-rigAssert "an agent that has ended names no kill key, and k says that it is not alive" "$( rigVal keeper.selected ) [$( rigVal keeperKeys )] [$( rigVal gone.dialog )] [$( rigVal gone.dialogHolds )]" "$rigR3 [] [message:ok|] [k: nothing to kill: this agent is not alive]"
-rigAssert "neither is a run with no id of its own"                   "$( rigVal noId.selected ) [$( rigVal noId.dialog )] [$( rigVal noId.dialogHolds )]" "-3 [message:ok|] [k: nothing to kill: this agent is not alive]"
+rigAssert "and k on it says in the status line that it is finished, asking nothing" "[$( rigVal ended.dialog )] [$( rigVal ended.notice )]" "[] [Kill: this session is finished]"
+rigAssert "an agent that has ended names no kill key, and k says that it is not alive" "$( rigVal keeper.selected ) [$( rigVal keeperKeys )] [$( rigVal gone.dialog )] [$( rigVal gone.notice )]" "$rigR3 [] [] [Kill: this agent is not alive]"
+rigAssert "neither is a run with no id of its own"                   "$( rigVal noId.selected ) [$( rigVal noId.dialog )] [$( rigVal noId.notice )]" "-3 [] [Kill: this agent is not alive]"
 rigAssert "the operation was never called"                           "$( rigKills ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
+
+echo "-- a session that is not finished and has no agent alive: k closes it, and the kill finishes it --"
+rigS3=33333333-0000-4000-8000-000000000003 ; rigR5=b5b5b5b5-0000-4000-8000-0000000000b5 ; rigQ1=0f62d1f4-0000-4000-8000-0000000000f1
+rigCase waiting
+rigStale(){ ## the state of the session -- its rows of the list
+	rigRow session "$rigS3" stale_work "$1" 2026-10-01_09:00_+0000 2026-10-01_10:00_+0000 2 finished=2
+	rigRow run "$rigS3" "$rigS3" magic-coordinator spawn-succeeded no-process finished 2026-10-01_09:00_+0000 2026-10-01_10:00_+0000 rig-host ws-rig -
+	rigRow run "$rigS3" "$rigR5" keeper-myx spawn-succeeded no-process finished 2026-10-01_09:05_+0000 2026-10-01_09:40_+0000 rig-host ws-rig -
+	rigRow counters 0 0 0 1 1 0.42
+}
+rigStale waiting > "$MANAGER_SCREEN_RIG/rows"
+rigStale finished > "$MANAGER_SCREEN_RIG/after.rows"
+rigStaleKill(){ ## the outcome of the question, of the record, the state the session reads -- the rows of its kill
+	rigRow kill "$rigS3" "$rigR5" keeper-myx no-process spawn-succeeded - -
+	rigRow kill "$rigS3" "$rigS3" magic-coordinator no-process spawn-succeeded - -
+	rigRow dismiss "$rigS3" "$rigQ1" "$rigS3" "$1"
+	rigRow close "$rigS3" "$rigR5" keeper-myx "$2" dispatch-rig-stale-1
+	rigRow finish "$rigS3" 0 1 1 "$3"
+}
+rigStaleKill would-dismiss would-close waiting > "$MANAGER_SCREEN_RIG/rows.--manager-session-kill --session-id $rigS3 --plan"
+rigStaleKill dismissed closed finished > "$MANAGER_SCREEN_RIG/rows.--manager-session-kill --session-id $rigS3"
+rigScript <<RIGSCRIPT
+keys ENTER
+wait sessions 30
+keys DOWN DOWN
+turn
+get on
+cells onKeys 37 1 83
+keys k
+get asked
+box b
+wait plan 30
+get planned
+box p
+keys y e ENTER
+get part
+keys s
+copy $rigTmp/waiting/after.rows $rigTmp/waiting/rows
+keys ENTER
+get sent
+said sentLine
+wait action 30
+get answered
+show a
+said answeredLine
+wait sessions 30
+turn
+get after
+cells afterKeys 37 1 83
+RIGSCRIPT
+rigAssert "a session that waits with no agent alive is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS3 [keys: k kill]"
+rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to close ' ) $( rigBoxHas b '[ Close ]  [ Cancel ]' ) $( rigBoxHas b '[ Kill ]' )" "[close:word|] [Close the session] 1 1 0"
+rigAssert "it names the session, says that nothing is ended, and that the rest is being read" "$( rigBoxHas b '║ CLOSE the session stale work ' ) $( rigBoxHas b "║ session $rigS3 " ) $( rigBoxHas b '║ No agent of it is alive: nothing is ended. ' ) $( rigBoxHas b '║ What it does besides, the questions it dismisses and the records it ' )" "1 1 1 1"
+rigAssert "its plan is read, once, and ends nothing"                  "$( rigPlans ) $( rigCalled "--manager-session-kill --session-id $rigS3 --plan" ) $( rigVal planned.calls ) [$( rigVal planned.dialog )]" "1 1 0 [close:word|]"
+rigAssert "from the rows of the plan: the question that is dismissed, by who asked it" "$( rigBoxHas p '║ No agent of it is alive: nothing is ended. ' ) $( rigBoxHas p '║ It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║   $rigQ1  asked by magic-coordinator " )" "1 1 1"
+rigAssert "the record that is closed, the state it reads now, and how to back out" "$( rigBoxHas p '║ It closes 1 record of it left open: ' ) $( rigBoxHas p '║   keeper-myx         dispatch-rig-stale-1 ' ) $( rigBoxHas p '║ The session reads waiting now. ' ) $( rigBoxHas p '║ The word yes, typed whole, and Close or Enter: that finishes the ' )" "1 1 1 1"
+rigAssert "a part of the word closes nothing, and the dialog says so in its own words" "[$( rigVal part.dialog )] [$( rigVal part.dialogSays )]" "[close:word|ye] [nothing is closed: the word typed is not yes]"
+rigAssert "the word whole and Enter: the kill of that session is asked, once, by its id alone" "[$( rigVal sent.dialog )] [$( rigVal sentLine )] $( rigKills ) [$( rigKillWords )]" "[] [close asked of the tooling: the session stale work] 1 [[--manager-session-kill][--session-id][$rigS3]]"
+rigAssert "the status line gives the row that sums it: ended, dismissed, closed, and the state" "[$( rigVal answeredLine )]" "[kill: 0 ended, 1 dismissed, 1 closed: the session reads finished]"
+rigAssert "the left pane sets out each row of the answer"           "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
+	"[ the kill, answered 02:30:00:][   keeper-myx         was not running][   magic-coordinator  was not running][   question $rigQ1 of magic-coordinator: dismissed][   record of keeper-myx: closed][   the session reads finished]"
+rigAssert "then the list is read again, and the session, finished, takes no kill any more" "$( rigCalled --manager-session-list ) $( rigVal after.selected ) [$( rigVal afterKeys )]" "2 $rigS3 []"
 
 echo "-- a kill that fails shows its error line --"
 rigCase fail
@@ -375,7 +470,9 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
 keys DOWN DOWN
-keys k y e s ENTER
+keys k
+wait plan 30
+keys y e s ENTER
 keys DOWN
 get moved
 wait action 30
@@ -419,7 +516,9 @@ rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
 keys DOWN DOWN
-keys k y e s ENTER
+keys k
+wait plan 30
+keys y e s ENTER
 get asked
 RIGSCRIPT
 rigAssert "the screen ends while the kill it started still runs"     "$( rigVal asked.reading ) $( rigEnded "$rigKillSession" 0 )" "action:kill:$rigS1 0"

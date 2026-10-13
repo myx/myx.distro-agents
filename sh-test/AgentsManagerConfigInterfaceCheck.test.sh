@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the interface settings of the console's user, run rather than read: the `interface` subject
-## of --manager-config-digest, which reads them, and --manager-config-interface-set <key> <value>, which saves one
+## of --manager-config-digest, which reads them, and --manager-config-set <key> <value>, which saves one
 ## through the setting reader of the sibling package in its scope of the current user. Against a rig workspace
 ## built here WITH ITS OWN USER SETTINGS: every call runs with MMDAPP at the rig, so the file of the user who runs
 ## this check is the rig's own, and what that user saved in the real workspace is never read and never written,
@@ -23,7 +23,7 @@ rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigScreen="$rigHere/AgentsManagerScreen.py"
 rigRead="--manager-config-digest"
-rigWrite="--manager-config-interface-set"
+rigWrite="--manager-config-set"
 rigKey="MDAT_MANAGER_STYLE"
 rigChoices="tv=Turbo_Vision,mc=MC_(Compact),bw=B/W"
 
@@ -108,7 +108,7 @@ rigAssert "reading made nothing: the user has no settings file and no folder, an
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
 rigRun "$rigRead"
-rigAssert "in the whole digest it is the last of the subjects, with the same rows" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems loop scopes interface / $( cksum < "$rigTmp/alone" )"
+rigAssert "in the whole digest it stands after the scopes, with the same rows" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems loop scopes interface console control / $( cksum < "$rigTmp/alone" )"
 rigAssert "every other line of the digest has the six fields it had, and its label" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 != "interface" { rows++ ; if ( NF != 7 ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
 
 echo "-- 2. the environment names a style --"
@@ -124,14 +124,14 @@ for rigOne in mc bw tv ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	rigSaved="$rigRc $( rigTroubles ) [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] [$( cat "$rigOwn" 2> /dev/null )]"
 	rigRun "$rigRead" interface
-	rigAssert "$rigOne: rc 0 and no error, one row with the key, the value now saved and the file it is saved in; the user's file holds it on its one line; the digest reads it back as the user's own" "$rigSaved [$( rigStyle )]" "0 0 [saved $rigKey $rigOne $rigOwn] [$rigKey=$rigOne] [$rigOne user $rigChoices]"
+	rigAssert "$rigOne: rc 0 and no error, one row with the key, the value now saved, its scope and the file it is saved in; the user's file holds it on its one line; the digest reads it back as the user's own" "$rigSaved [$( rigStyle )]" "0 0 [saved $rigKey $rigOne user $rigOwn] [$rigKey=$rigOne] [$rigOne user $rigChoices]"
 done
-rigAssert "the row of the writer has exactly the fields of its form, TAB between them" "$( rigRun "$rigWrite" "$rigKey" tv ; LC_ALL=C awk -F'\t' '{ print NR, NF, $1 }' "$rigTmp/out" )" "1 4 saved"
+rigAssert "the row of the writer has exactly the fields of its form, TAB between them" "$( rigRun "$rigWrite" "$rigKey" tv ; LC_ALL=C awk -F'\t' '{ print NR, NF, $1 }' "$rigTmp/out" )" "1 5 saved"
 printf '# a note of the user\nMDLT_CONSOLE_HISTORY=workspace-shared\n' >> "$rigOwn"
 rigRun "$rigWrite" "$rigKey" mc
 rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=mc|MDLT_CONSOLE_HISTORY=workspace-shared|"
 rigRun "$rigWrite" "$rigKey" mc
-rigAssert "saving the value that is saved already is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey mc $rigOwn] 1"
+rigAssert "saving the value that is saved already is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey mc user $rigOwn] 1"
 rigAssert "no temp file is left beside the user's file" "$( ls -A "${rigOwn%/*}" | LC_ALL=C tr '\n' ' ' )" "MDLT.settings.env "
 
 echo "-- 4. the environment ahead of the saved style --"
@@ -157,9 +157,9 @@ rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the 
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
-rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the interface settings -- nothing was saved. Its keys: $rigKey"
+rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_HISTORY, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS"
 rigBad=""
-for rigOne in MDLT_CONSOLE_HISTORY SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
+for rigOne in MDLT_CONSOLE_ORIGIN SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
 	rigRun "$rigWrite" "$rigOne" bw
 	[ "$( rigRefused "$rigNoKey" )" = "1 0 1 1" ] && [ "$( rigSum "$rigOwn" )" = "$rigOwnBefore" ] || rigBad="$rigBad [$rigOne: $( rigRefused "$rigNoKey" )]"
 done
@@ -178,7 +178,7 @@ rigAssert "no argument, a key alone and a third word are refused with the syntax
 echo "-- 7. the settings of another user are never touched --"
 rigAssert "after every call so far the other user's file is as it was, byte for byte, and so is every other file of the rig: the workspace's own settings, the scopes" "$( rigSum "$rigOther" ) $( rigTree )" "$rigOtherBefore $rigTreeBefore"
 rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigWrite" "$rigKey" bw ; rigPre=()
-rigAssert "with the environment naming the other user, the style is still saved for the user who runs the call, and the row names that user's file" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigOwn" )" "0 [saved $rigKey bw $rigOwn] 1"
+rigAssert "with the environment naming the other user, the style is still saved for the user who runs the call, and the row names that user's file" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigOwn" )" "0 [saved $rigKey bw user $rigOwn] 1"
 rigAssert "and the other user's file is as it was" "$( rigSum "$rigOther" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "$rigOtherBefore 1"
 rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigRead" interface ; rigPre=()
 rigAssert "it is read from the same user's file too: the other user's style is not shown" "$rigRc [$( rigStyle )]" "0 [bw user $rigChoices]"
@@ -190,12 +190,12 @@ rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigWrite" "$rigKey" tv
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family, and nothing is saved" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigWrite#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) $( rigSum "$rigOwn" )" "1 0 1 $rigOwnBefore"
-rigAssert "the include of the settings names one form of the reader that changes a setting, in the scope of the current user, and none that removes one or that changes a scope of the agents" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "1 1"
+rigAssert "the include of the settings names the writer of the scope of the current user once, beside the one of the scope of the team, and no form of the reader that removes a setting" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "2 1"
 rigAssert "and the writer makes no temp file of its own: the include names no \$\$ and no mktemp" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '\$\$' -e 'mktemp' || : )" "0"
 
 echo "-- 9. the values offered are the styles of the screen --"
 rigAssert "each value and its label is a style the screen declares, in the screen's order, and there is no other" "$( LC_ALL=C awk '/^STYLES = \($/ { on = 1 ; next } on && /^\)$/ { exit } on' "$rigScreen" | LC_ALL=C sed -n 's/^    ("\([^"]*\)", {"label": "\([^"]*\)".*$/\1=\2/p' | LC_ALL=C tr ' ' '_' | LC_ALL=C tr '\n' ',' )" "$rigChoices,"
-rigAssert "a setting of the interface cannot come without its label: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^interface|$rigGroup|$rigOne|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigInterfaceSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigInterfaceSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "1 none-lacking"
+rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "4 none-lacking"
 rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigScreen" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigScreen" )" "tv $rigKey"
 
 echo "-- 10. the help pair --"
@@ -209,12 +209,12 @@ rigForm(){ ## heading, row kind -- the form line of that row in that entry, its 
 	rigEntry "$1" | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$2"' <.*>\)`$/\1/p'
 }
 rigAssert "the writer has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s <key> <value>' "$rigWrite" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigWrite" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigWrite" "$rigHelpMd" || : )" "1 1 1 1 1"
-rigAssert "its entry gives the form of its row, which is the row it prints" "$( rigForm "$rigWrite <key> <value>" saved )" "saved <key> <value> <file>"
+rigAssert "its entry gives the form of its row, which is the row it prints" "$( rigForm "$rigWrite <key> <value>" saved )" "saved <key> <value> <scope> <where>"
 rigAssert "its entry says whose setting it saves, that the others' are not touched, and names the refusals" "$( for rigWord in 'the user who runs' 'another user' 'nothing was saved' 'MDLT.settings.env' ; do rigEntry "$rigWrite <key> <value>" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e "$rigWord" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyy"
-rigAssert "the entry of the digest gives the form of a line of the interface, with its two fields after the value and its label the last" "$( rigForm "$rigRead [<subject>...]" 'line interface' )" "line interface <group> <key> <state> <value> <source> <choices> <label>"
+rigAssert "the entry of the digest gives the form of a line of the interface, with its two fields after the value and its label the last" "$( rigForm "$rigRead [--full] [<subject>...]" 'line interface' )" "line interface <group> <key> <state> <value> <source> <choices> <label>"
 rigRun "$rigRead" interface
-rigAssert "and each line of the interface printed has exactly those fields" "$( LC_ALL=C awk -F'\t' -v wantFields="$( rigForm "$rigRead [<subject>...]" 'line interface' | LC_ALL=C awk '{ print NF }' )" '$1 == "line" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
-rigAssert "the entry of the digest names the subject, the three places a value comes from, and the key of the style" "$( for rigWord in interface user environment default "$rigKey" ; do rigEntry "$rigRead [<subject>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyy"
+rigAssert "and each line of the interface printed has exactly those fields" "$( LC_ALL=C awk -F'\t' -v wantFields="$( rigForm "$rigRead [--full] [<subject>...]" 'line interface' | LC_ALL=C awk '{ print NF }' )" '$1 == "line" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
+rigAssert "the entry of the digest names the subject, the three places a value comes from, and the key of the style" "$( for rigWord in interface user environment default "$rigKey" ; do rigEntry "$rigRead [--full] [<subject>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyy"
 rigRun --help-syntax
 rigAssert "--help-syntax prints the writer's line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 

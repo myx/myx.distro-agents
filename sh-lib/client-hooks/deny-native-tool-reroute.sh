@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## deny-native-tool-reroute.sh -- the PreToolUse hook that routes a *-native agent CLI
 ## off its own built-in tools and onto this estate's MCP tooling. A REAL SCRIPT: it is
 ## installed by copying, it runs exactly as it stands here, and nothing is substituted

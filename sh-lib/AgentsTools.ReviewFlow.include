@@ -25,7 +25,7 @@ AgentsReviewTools(){
 	if type DistroAgentsTools > /dev/null 2>&1 ; then
 		DistroAgentsTools "$@"
 	else
-		"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
+		"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" "$@"
 	fi
 }
 

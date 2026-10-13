@@ -134,8 +134,8 @@ rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of t
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C sed -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigListRow(){ ## what a row shows as, its tail -- that row of the list as it is drawn in its 34 cells, not selected
-	printf ' %-*s %s' "$(( 32 - ${#2} ))" "$1" "$2"
+rigListRow(){ ## what a row shows as, its tail -- that row of the list, a session that can be opened, as it is drawn in its 34 cells with the mark of a folder after its name, not selected
+	printf ' %-*s %s' "$(( 32 - ${#2} ))" "$1..." "$2"
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :
@@ -205,7 +205,7 @@ rigAssert "a thread that is gone: the line control stands under the state, with 
 rigAssert "and the pane names the key that starts it again"          "[$( rigVal keys1 )]" "[keys: k kill  c control]"
 rigAssert "a thread that lives: the pane says so, and names no such key" "[$( rigPane s2 4 )] [$( rigVal keys2 )]" "[ control   alive; stored running, set 2026-10-12 15:01 +0000 (11h ago)] [keys: k kill]"
 rigAssert "a session that ended in order: no thread, the stored state finished, and no key" "[$( rigPane s3 5 )][$( rigPane s3 6 )] [$( rigVal keys3 )]" "[ state     finished][ control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)] []"
-rigAssert "a session that is not finished and never had a thread: nothing stored, and the key is named" "[$( rigPane s4 3 )][$( rigPane s4 4 )] [$( rigVal keys4 )]" "[ state     waiting][ control   none; stored -] [keys: c control]"
+rigAssert "a session that is not finished and never had a thread: nothing stored, and the key is named" "[$( rigPane s4 3 )][$( rigPane s4 4 )] [$( rigVal keys4 )]" "[ state     waiting][ control   none; stored -] [keys: k kill  c control]"
 rigAssert "where the stored state and the derived one differ, each is shown as it is" "$( rigVal s5.selected ) [$( rigPane s5 3 )][$( rigPane s5 4 )]" "$rigS5 [ state     finished][ control   gone; stored running, set 2026-10-12 09:40 +0000 (16h ago)]"
 rigAssert "a finished session names no such key, whatever its thread" "[$( rigVal keys5 )]" "[]"
 rigAssert "all of it came with the one list: nothing more was called" "$( rigCalled --manager-session-list ) $( rigStarts ) $( rigElse ) $( rigVal s5.spills )" "1 0 0 0"
@@ -349,29 +349,29 @@ rigCase cannot
 rigScript <<'RIGSCRIPT'
 keys c
 get section
-keys ESC
+turn
 keys ENTER
 wait sessions 30
 keys c
 get up
-keys ESC
+turn
 keys DOWN c
 get launch
-keys ESC
+turn
 keys DOWN ENTER DOWN
 turn
 get agent
 cells agentKeys 37 1 83
 keys c
 get onAgent
-keys ESC
+turn
 turn 3
 get end
 RIGSCRIPT
-rigHere="c: nothing to control here: c starts the control thread of a session"
-rigAssert "on a section, and on the row that goes up, there is nothing to control" "[$( rigVal section.dialogHolds )][$( rigVal up.dialogHolds )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[$rigHere][$rigHere] [message:ok|message:ok|]"
-rigAssert "on Launch / Spawn there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.dialogHolds )]" "launch [$rigHere]"
-rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigVal agentKeys )] [$( rigVal onAgent.dialogHolds )]" "sessions/$rigS1 $rigS1 [keys: k kill] [$rigHere]"
+rigHere="Control thread: for a session, not for what is selected"
+rigAssert "on a section c is no key of the view; on the row that goes up the status line says what c is for, and no box opens" "[$( rigVal section.notice )][$( rigVal up.notice )] [$( rigVal section.dialog )$( rigVal up.dialog )]" "[][$rigHere] []"
+rigAssert "on Launch / Spawn there is nothing to control"            "$( rigVal launch.selected ) [$( rigVal launch.notice )]" "launch [$rigHere]"
+rigAssert "an agent of a session names no such key, and c on it says the same: the thread is its session's" "$( rigVal agent.path ) $( rigVal agent.selected ) [$( rigVal agentKeys )] [$( rigVal onAgent.notice )]" "sessions/$rigS1 $rigS1 [keys: k kill] [$rigHere]"
 rigAssert "the operation was never called"                           "$( rigStarts ) $( rigElse ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
 
 echo "-- c pressed again before the answer has come asks nothing a second time --"

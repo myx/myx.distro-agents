@@ -21,6 +21,12 @@
 
 case "$1" in
 
+	## What the owner's own check of the setup says, domain by domain, as rows.
+	--manager-check-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerCheck.include"
+		return $?
+	;;
+
 	## The settings of this workspace, as they are, and the interface settings of the user
 	## who runs the console, which one operation saves.
 	--manager-config-*)
@@ -35,9 +41,21 @@ case "$1" in
 		return $?
 	;;
 
+	## The most vital figures of this workspace and of its machine, in blocks a screen draws.
+	--manager-dashboard-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerDashboard.include"
+		return $?
+	;;
+
 	## The questions that wait on an answer: what may be done with one, and doing it.
 	--manager-pending-reply-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerPendingReply.include"
+		return $?
+	;;
+
+	## The public keys this server shows to others: those to add to git, those to trust.
+	--manager-keys-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerKeys.include"
 		return $?
 	;;
 

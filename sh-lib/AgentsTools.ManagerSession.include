@@ -649,6 +649,178 @@ AgentsToolsManagerSessionKill(){ ## the operation as it was called, the id, "run
 	return 0
 }
 
+## For how long the kill of a session waits for the supervising shells of the runs it ended
+## to close their records, in seconds, before it says what state the session is in.
+agentsManagerFinishWaitSeconds=5
+
+## WHAT THE KILL OF A SESSION FINISHES, once what lived of it is ended: the session is left
+## with nothing pending. With "plan" nothing is done, and the same rows say what would be.
+## Run by the console's own call, never by the control thread: it ends no process.
+## THE QUESTIONS. Every question that still waits and was asked by the session or by a run of
+## it is dismissed, through the one dismissal the console has (--manager-pending-reply-dismiss),
+## with the reason that the session was killed from the console, and by whom: so it is
+## withdrawn by `console:<account>`, and its trace stands in its own thread, as that path
+## leaves it. No record of a question is closed here. For one run alone, the questions that
+## very run asked, once it is ended: nobody is left to hear their answer.
+## THE RECORDS, for a whole session alone. A record of it that is still open, with no process
+## behind it and no supervising shell alive to close it, is closed as the tooling closes a
+## run that ended without its close (AgentsToolsSessionControlDeathClose, the two closers of
+## the advance pass), its dispatch item with it, and marked first as killed from the console:
+## `killed-by`, `killed-at` (AgentsToolsManagerKillMark), and the ordered ending on its item
+## and in its transcript where this kill did not record it (AgentsToolsManagerKillRecord).
+## Its end is told to whoever requested the run, as every closer tells one: as a run that was
+## killed where this or an earlier kill ended its process, and else as a record that was
+## closed from the console, its run having ended before. A record whose supervising shell
+## lives is that shell's to close: it is waited for a few seconds, and left to it.
+## Never of another host: a run this host cannot measure is not touched, nor its questions.
+## A run that still lives is not touched either: its kill said that it could not be ended.
+## Rows, TAB-separated, after the rows of the kill: `dismiss` a question, `close` a record,
+## and for a whole session one `finish` row last, which sums it: how many runs were ended,
+## how many questions dismissed, how many records closed, and the state the session reads
+## now. A second kill of the same session finds nothing left, and its `finish` row says so.
+AgentsToolsManagerSessionFinish(){ ## the operation as it was called, the id, "run" where the id is a run's own alone (may be empty), "plan" where nothing is to be done (may be empty), how many runs the kill ended
+	local finishOp="$1" finishId="$2" finishOwn="${3:-}" finishPlan="${4:-}" finishEnded="${5:-0}" finishTab=$'\t' finishNl=$'\n'
+	local finishWho finishStamp finishWhole="" finishIds=" " finishReason finishKind finishSession finishSpawn finishMember finishStatus finishLive finishRest
+	local finishKey finishSource finishAsker finishOwner finishAskStatus finishAsk finishRc finishRecord finishShell finishItem finishFound
+	local finishDismissed=0 finishClosed=0 finishState="-" finishWait=0 finishAt finishMarked
+	local finishSpawns=() finishMembers=() finishRecords=() finishWaits=()
+	local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+	AgentsToolsManagerSessionScope "$finishOp" "$finishId" "$finishOwn" "nothing more was done" || return 1
+	[ "$scopeRun" != "-" ] || finishWhole="yes"
+	finishSession="$scopeSession"
+	finishWho="$( AgentsToolsManagerConsoleUser )"
+	finishStamp="$( date +"%Y-%m-%d %H:%M %z" )"
+	## Why a question is dismissed: a line of the note template, `# Reasons`, never a text
+	## written here (sh-lib/templates/tooling-note.post.format.md).
+	type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+	if [ -n "$finishWhole" ] ; then
+		finishReason="$( ASKP_BLOCK="Reasons/session-killed" ASKP_F_by="$finishWho" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || finishReason=""
+		finishIds=" $finishSession "
+	else
+		finishReason="$( ASKP_BLOCK="Reasons/asker-killed" ASKP_F_by="$finishWho" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || finishReason=""
+	fi
+	[ -n "$finishReason" ] || echo "⚠️ WARNING: $MDSC_CMD $finishOp: the reason of a dismissal could not be filled from its template (tooling-note.post.format.md, Reasons), so a question is dismissed with none" >&2
+	finishEnded=0
+	## The runs: whose questions are dismissed, and whose records are this call's to close.
+	while IFS="$finishTab" read -r finishKind finishRest finishSpawn finishMember finishStatus finishLive finishRest ; do
+		[ "$finishKind" = "run" ] || continue
+		[ -n "$finishWhole" ] || [ "$finishSpawn" = "$scopeRun" ] || continue
+		finishRecord="" ; finishFound=""
+		case "$finishSpawn" in ''|-) ;; *) finishRecord="$( AgentsToolsRegistrySpawnRecord "$finishSpawn" < /dev/null )" ;; esac
+		if [ -n "$finishPlan" ] ; then
+			## What a kill would end: the run with what it started, as the walk finds it now.
+			[ "$finishLive" != "running" ] || finishFound="$( AgentsToolsRegistryRunProcesses "$finishSpawn" "$finishRecord" < /dev/null | AgentsToolsManagerKillPids )"
+			if [ -n "$finishFound" ] ; then
+				finishEnded=$(( finishEnded + 1 ))
+				printf 'kill\t%s\t%s\t%s\twould-end\t%s\t%s\t-\n' "$finishSession" "$finishSpawn" "$finishMember" "$finishStatus" "$( printf '%s' "$finishFound" | LC_ALL=C tr ' ' ',' )"
+			else
+				printf 'kill\t%s\t%s\t%s\t%s\t%s\t-\t-\n' "$finishSession" "$finishSpawn" "$finishMember" "$( [ "$finishLive" != "running" ] && printf '%s' "$finishLive" || printf 'no-process' )" "$finishStatus"
+			fi
+		fi
+		case "$finishLive" in
+			no-process) ;;
+			running) [ -n "$finishPlan" ] || continue ;;
+			*) continue ;;
+		esac
+		case "$finishSpawn" in ''|-) continue ;; esac
+		case "$finishIds" in *" $finishSpawn "*) ;; *) finishIds="$finishIds$finishSpawn " ;; esac
+		[ -n "$finishWhole" ] && [ "$finishStatus" = "spawn-started" ] && [ -n "$finishRecord" ] || continue
+		finishSpawns[${#finishSpawns[@]}]="$finishSpawn" ; finishMembers[${#finishMembers[@]}]="$finishMember" ; finishRecords[${#finishRecords[@]}]="$finishRecord"
+	done <<< "$scopeListed"
+	[ -n "$finishPlan" ] || finishEnded="${5:-0}"
+	## The questions that wait, as the registry of them holds them, which the read above has
+	## held to the store.
+	while read -r finishKey finishSource finishAsker finishOwner finishAskStatus finishRest ; do
+		[ "$finishSource" = "ask" ] && [ "$finishAskStatus" = "reply-pending" ] || continue
+		case "$finishIds" in *" $finishAsker "*) ;; *) continue ;; esac
+		finishAsk="${finishKey%.md}"
+		if [ -n "$finishPlan" ] ; then
+			printf 'dismiss\t%s\t%s\t%s\twould-dismiss\n' "$finishSession" "$finishAsk" "$finishAsker"
+			finishDismissed=$(( finishDismissed + 1 ))
+			continue
+		fi
+		finishRc=0
+		( DistroAgentsTools --manager-pending-reply-dismiss --id "$finishAsk" --reason "$finishReason" ) > /dev/null < /dev/null || finishRc=$?
+		if [ "$finishRc" = 0 ] ; then
+			printf 'dismiss\t%s\t%s\t%s\tdismissed\n' "$finishSession" "$finishAsk" "$finishAsker"
+			finishDismissed=$(( finishDismissed + 1 ))
+		else
+			printf 'dismiss\t%s\t%s\t%s\tnot-dismissed\n' "$finishSession" "$finishAsk" "$finishAsker"
+		fi
+	done < <( LC_ALL=C grep -v '^#' "$( AgentsToolsRegistryFile pending-replies )" 2> /dev/null )
+	## The records. Those a supervising shell still closes are given a few seconds first.
+	if [ "${#finishSpawns[@]}" -gt 0 ] ; then
+		type AgentsToolsSessionControlDeathClose > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlDeath.include"
+		type AgentsReviewEndChild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include"
+		finishAt=0
+		while [ "$finishAt" -lt "${#finishSpawns[@]}" ] ; do
+			finishWaits[finishAt]=""
+			[ "$( AgentsToolsRegistryRecordedSupervisor "${finishRecords[finishAt]}" )" != "alive" ] || finishWaits[finishAt]="yes"
+			finishAt=$(( finishAt + 1 ))
+		done
+		if [ -z "$finishPlan" ] ; then
+			finishWait=$(( agentsManagerFinishWaitSeconds * 4 ))
+			while [ "$finishWait" -gt 0 ] ; do
+				finishFound="" ; finishAt=0
+				while [ "$finishAt" -lt "${#finishSpawns[@]}" ] ; do
+					[ -z "${finishWaits[finishAt]}" ] || [ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "${finishRecords[finishAt]}" )" status )" != "spawn-started" ] || finishFound="yes"
+					finishAt=$(( finishAt + 1 ))
+				done
+				[ -n "$finishFound" ] || break
+				sleep 0.25
+				finishWait=$(( finishWait - 1 ))
+			done
+		fi
+		finishAt=0
+		while [ "$finishAt" -lt "${#finishSpawns[@]}" ] ; do
+			finishSpawn="${finishSpawns[finishAt]}" ; finishMember="${finishMembers[finishAt]}" ; finishRecord="${finishRecords[finishAt]}"
+			finishAt=$(( finishAt + 1 ))
+			[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$finishRecord" )" status )" = "spawn-started" ] || continue
+			if [ -n "${finishWaits[finishAt - 1]}" ] ; then
+				printf 'close\t%s\t%s\t%s\tleft\t-\n' "$finishSession" "$finishSpawn" "$finishMember"
+				continue
+			fi
+			if [ -n "$finishPlan" ] ; then
+				printf 'close\t%s\t%s\t%s\twould-close\t-\n' "$finishSession" "$finishSpawn" "$finishMember"
+				finishClosed=$(( finishClosed + 1 ))
+				continue
+			fi
+			## Marked and recorded here where no kill ended its process: such a record is told
+			## as one that was closed, and one a kill had marked as a run that was killed.
+			finishMarked="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$finishRecord" )" killed-at )"
+			finishItem="-"
+			case "$finishMarked" in
+				''|-)
+					finishMarked=""
+					AgentsToolsManagerKillMark "$finishRecord" "$finishWho" "$finishStamp" < /dev/null \
+						|| echo "⚠️ WARNING: $MDSC_CMD $finishOp: the record of run $finishSpawn could not be marked as killed from the console" >&2
+					finishItem="$( AgentsToolsManagerKillRecord "$finishSpawn" "$finishWho" < /dev/null )"
+				;;
+			esac
+			if ( AgentsToolsSessionControlDeathClose "$finishRecord" ) > /dev/null 2>&1 < /dev/null ; then
+				( AgentsToolsSpawnProxyEndNotice "$finishRecord" "$( [ -n "$finishMarked" ] || printf 'closed' )" ) > /dev/null < /dev/null || :
+				[ "$finishItem" != "-" ] || finishItem="$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$finishRecord" )" spawns )"
+				printf 'close\t%s\t%s\t%s\tclosed\t%s\n' "$finishSession" "$finishSpawn" "$finishMember" "${finishItem:--}"
+				finishClosed=$(( finishClosed + 1 ))
+			else
+				printf 'close\t%s\t%s\t%s\tnot-closed\t-\n' "$finishSession" "$finishSpawn" "$finishMember"
+			fi
+		done
+	fi
+	[ -n "$finishWhole" ] || return 0
+	## The state the session reads now, by the read of one session: its records and its
+	## questions as they stand after this.
+	if [ -z "$finishPlan" ] ; then
+		scopeSession="" ; scopeRun="" ; scopeMeasured="" ; scopeListed="" ; scopeControl=""
+		AgentsToolsManagerSessionScope "$finishOp" "$finishSession" "" "its state could not be read again" 2> /dev/null || :
+	fi
+	while IFS="$finishTab" read -r finishKind finishRest finishRest finishStatus finishRest ; do
+		[ "$finishKind" != "session" ] || { finishState="$finishStatus" ; break ; }
+	done <<< "$scopeListed"
+	printf 'finish\t%s\t%s\t%s\t%s\t%s\n' "$finishSession" "$finishEnded" "$finishDismissed" "$finishClosed" "${finishState:--}"
+	return 0
+}
+
 case "$1" in
 
 	## The sessions of this workspace, each with its runs, then one row of counters: TAB-separated
@@ -814,26 +986,27 @@ case "$1" in
 	## what happened to it: TAB-separated rows a screen reads, their form the help entry's. It
 	## asks for no confirmation: that is the screen's.
 	--manager-session-kill)
-		local killOp="$1" killId="" killOwn=""
+		local killOp="$1" killId="" killOwn="" killPlan="" killRows="" killRc=0 killEnded=0
 		shift
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id)
 					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
-						echo "⛔ ERROR: $MDSC_CMD $killOp: --session-id needs an id -- syntax is --session-id <id> [--run]" >&2
+						echo "⛔ ERROR: $MDSC_CMD $killOp: --session-id needs an id -- syntax is --session-id <id> [--run] [--plan]" >&2
 						set +e ; return 1
 					fi
 					killId="$2" ; shift 2
 				;;
 				--run) killOwn="run" ; shift ;;
+				--plan) killPlan="plan" ; shift ;;
 				*)
-					echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run], got: $1" >&2
+					echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run] [--plan], got: $1" >&2
 					set +e ; return 1
 				;;
 			esac
 		done
 		if [ -z "$killId" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run], got no --session-id" >&2
+			echo "⛔ ERROR: $MDSC_CMD $killOp: syntax is --session-id <id> [--run] [--plan], got no --session-id" >&2
 			set +e ; return 1
 		fi
 		## WHO CARRIES IT OUT. Where the control thread of the session lives, the thread does:
@@ -841,7 +1014,25 @@ case "$1" in
 		## Where none lives, or it does not take the request in time, this call does, as
 		## before, and says so in one line (AgentsToolsSessionControlRequestKill).
 		type AgentsToolsSessionControlRequestKill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlRequest.include"
-		AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
+		## The thread's own call carries the kill out, and no more: what the kill of a session
+		## finishes is done by the console that asked, once it has the rows of the kill. Nor
+		## does the thread's call about a death, whose answer `kill` ends what lives of the
+		## session: it settles the record of its dead run itself, and asks for the kill alone
+		## (controlMode is that call's own, AgentsTools.InternSessionControl.include).
+		if [ -n "${agentsSessionControlCarried:-}" ] || [ "${controlMode:-}" = "--death" ] ; then
+			AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
+			return 0
+		fi
+		## THEN THE SESSION IS FINISHED: its questions dismissed, its open records closed, and
+		## rows that say so after the rows of the kill (AgentsToolsManagerSessionFinish). With
+		## --plan nothing is ended and nothing is done: the same rows say what would be.
+		if [ -z "$killPlan" ] ; then
+			killRows="$( AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" )" || killRc=$?
+			[ -z "$killRows" ] || printf '%s\n' "$killRows"
+			[ "$killRc" = 0 ] || { set +e ; return 1 ; }
+			killEnded="$( printf '%s\n' "$killRows" | LC_ALL=C awk -F'\t' '$1 == "kill" && ( $5 == "ended" || $5 == "killed" ) { rowsEnded++ } END { print rowsEnded + 0 }' )"
+		fi
+		AgentsToolsManagerSessionFinish "$killOp" "$killId" "$killOwn" "$killPlan" "$killEnded" || { set +e ; return 1 ; }
 		return 0
 	;;
 

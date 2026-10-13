@@ -1332,7 +1332,7 @@ case "$1" in
 		if [ "$workspace" = "$MMDAPP" ] ; then
 			nsListed="$( Distro DistroSourceTools --list-namespace-roots 2>/dev/null | tr '\n' ' ' )"
 		elif [ -x "$workspace/DistroSourceConsole.sh" ] ; then
-			nsListed="$( echo 'Distro DistroSourceTools --list-namespace-roots' | MMDAPP="$workspace" "$workspace/DistroSourceConsole.sh" --non-interactive 2>/dev/null | tr '\n' ' ' )"
+			nsListed="$( echo 'Distro DistroSourceTools --list-namespace-roots' | MMDAPP="$workspace" "$BASH" "$workspace/DistroSourceConsole.sh" --non-interactive 2>/dev/null | tr '\n' ' ' )"
 		fi
 		nsWorkspaceReal="$( cd -P "$workspace" && pwd -P )"
 		if [ -z "$nsListed" ] ; then
@@ -2379,7 +2379,7 @@ case "$1" in
 		elif [ "$workspace" = "$MMDAPP" ] ; then
 			Distro DistroSourceTools --make-code-workspace --quiet >&2 || wsRegenRc=$?
 		else
-			echo 'Distro DistroSourceTools --make-code-workspace --quiet' | MMDAPP="$workspace" "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
+			echo 'Distro DistroSourceTools --make-code-workspace --quiet' | MMDAPP="$workspace" "$BASH" "$workspace/DistroSourceConsole.sh" --non-interactive >&2 || wsRegenRc=$?
 		fi
 		if [ ! -x "$workspace/DistroSourceConsole.sh" ] ; then
 			echo "🙋 WARNING: code-workspace not regenerated, no executable DistroSourceConsole.sh -- chat.agentSkillsLocations stays absent" >&2

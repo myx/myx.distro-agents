@@ -173,7 +173,7 @@ AskUserQuestion||ask-user-question.post.format.md||*"
 			reactArgs=( "$reactMember" "$reactAt" "$reactName" )
 			[ "$reactAs" != "bot" ] || reactArgs=( "${reactArgs[@]}" --identity-bot )
 			[ "$reactDo" != "remove" ] || reactArgs=( "${reactArgs[@]}" --remove )
-			"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-react "${reactArgs[@]}" > /dev/null 2>&1 \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-react "${reactArgs[@]}" > /dev/null 2>&1 \
 				|| echo "⚠️ WARNING: ${MDSC_CMD:-ask-post}: :$reactName: could not be $reactDone on $reactAt, which changes nothing else" >&2
 		done
 		return 0
@@ -216,7 +216,7 @@ AskUserQuestion||ask-user-question.post.format.md||*"
 		[ "$closeAs" != "bot" ] || closeArgs=( "${closeArgs[@]}" --identity-bot )
 		closeTo="$( AgentsToolsAskPostField "$closeFile" address-to )"
 		[ -z "$closeTo" ] || closeArgs=( "${closeArgs[@]}" --address-to "$closeTo" )
-		printf '%s' "$closeText" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "${closeArgs[@]}" > /dev/null 2>&1 \
+		printf '%s' "$closeText" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-comms-slack-send-message "${closeArgs[@]}" > /dev/null 2>&1 \
 			|| echo "⚠️ WARNING: ${MDSC_CMD:-ask-post}: the post $closeChannel:$closeTs could not be edited to drop its How to answer part, which changes nothing else" >&2
 		return 0
 	}

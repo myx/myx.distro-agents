@@ -1043,7 +1043,7 @@ case "$1" in
 				rm -f "$hookHeldMark"
 				hookHeld="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=tool_input -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null \
 					| MDAT_CHANGE_HOLD_ONLY="$hookHeldMark" MDAT_SPAWN_AGENT="$hookMember" MDAT_SPAWN_SESSION_ID="$hookSession" \
-						"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$hookHeldTool" 2>/dev/null )" || :
+						"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$hookHeldTool" 2>/dev/null )" || :
 				if [ -e "$hookHeldMark" ] ; then
 					rm -f "$hookHeldMark"
 					AgentsToolsPermissionHookDecision deny "${hookHeld:-This change needs the approval of the human-owner, and holding it gave no result, so nothing is held and nothing was written. Make the call again.}"

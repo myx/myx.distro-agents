@@ -49,7 +49,7 @@ function stjShellQuote(textValue) {
 # The part to append to, by the shell's own rule (rolls at 8 MB); re-read every 200 writes.
 function stjResolve(   resolveCmd, resolveLine) {
 	stjPath = ""
-	resolveCmd = "/bin/bash -c '. \"$0/AgentsTools.SessionTranscript.include\" && AgentsTranscriptPath \"$1\"' " stjShellQuote(stjLib) " " stjShellQuote(stjSid) " 2>/dev/null"
+	resolveCmd = "bash -c '. \"$0/AgentsTools.SessionTranscript.include\" && AgentsTranscriptPath \"$1\"' " stjShellQuote(stjLib) " " stjShellQuote(stjSid) " 2>/dev/null"
 	if ((resolveCmd | getline resolveLine) > 0) stjPath = resolveLine
 	close(resolveCmd)
 	stjWrites = 0

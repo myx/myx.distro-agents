@@ -62,7 +62,7 @@ AgentsEventTrackFeedOpen(){ ## the participant's own session id, the session's t
 ## One post to the thread, its lines on stdin. Through the tooling's own post op only, which
 ## renders it as boxes and cuts it at Slack's limits; never --update.
 AgentsEventTrackFeedSend(){ ## member, thread, session id
-	"$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
+	"$BASH" "$agentsEventTrackFeedTools" --intern-op-event-track-post "$1" "$2" --kind feed ${3:+--session-id "$3"} --from-stdin > /dev/null 2>&1 || :
 }
 
 ## The open post's lines and the new ones: every post that ends among them sent, in order and

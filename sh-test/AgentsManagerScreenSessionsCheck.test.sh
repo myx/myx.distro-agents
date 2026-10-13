@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the section `Sessions / Activity` of the manager screen (sh-lib/AgentsManagerScreen.py), run
+## Behavioural check on the section `Sessions (Activity)` of the manager screen (sh-lib/AgentsManagerScreen.py), run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the case's fixture: rows in the
@@ -130,15 +130,15 @@ cells row8 9 85 119
 looks k
 RIGSCRIPT
 rigAssert "the operation is --manager-session-list"                  "[$( rigCall 1 )]" "[--manager-session-list]"
-rigAssert "Launch / Spawn is the first row under the row that goes up" "[$( rigVal row1 )][$( rigVal row2 )] $( rigVal a.rows )" "[>..][ Launch / Spawn] 7"
-rigAssert "a session with a name shows its name, with its spaces, and its state" "[$( rigVal row3 )]" "[ daily of Monday           running]"
-rigAssert "one without a name shows the id of its session"           "[$( rigVal row4 )]" "[ 22222222-0000-4000-8000-… waiting]"
-rigAssert "one lone run with no name shows plainer: the member that ran and the head of its id" "[$( rigVal row5 )]" "[ magic-devops 33333333    finished]"
-rigAssert "a session of another host carries its own state"          "[$( rigVal row6 )]" "[ far away          unknown-foreign]"
-rigAssert "and one whose record is still open"                       "[$( rigVal row7 )][$( rigVal row8 )]" "[ keeper-ae3 55555555      unclosed][]"
+rigAssert "Launch / Spawn is the first row under the row that goes up" "[$( rigVal row1 )][$( rigVal row2 )] $( rigVal a.rows )" "[>..][ Launch / Spawn...] 7"
+rigAssert "a session with a name shows its name, with its spaces, and its state" "[$( rigVal row3 )]" "[ daily of Monday...        running]"
+rigAssert "one without a name shows the id of its session"           "[$( rigVal row4 )]" "[ 22222222-0000-4000-80…... waiting]"
+rigAssert "one lone run with no name shows plainer: the member that ran and the head of its id" "[$( rigVal row5 )]" "[ magic-devops 33333333... finished]"
+rigAssert "a session of another host carries its own state"          "[$( rigVal row6 )]" "[ far away...       unknown-foreign]"
+rigAssert "and one whose record is still open"                       "[$( rigVal row7 )][$( rigVal row8 )]" "[ keeper-ae3 55555555...   unclosed][]"
 rigAssert "a running session stands out, a lone run is dimmed, the others are plain" \
 	"$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )" "B.D.D"
-rigAssert "the title says that all are shown"                        "[$( rigVal title )]" "[Sessions / Activity  [all]]"
+rigAssert "the title says that all are shown"                        "[$( rigVal title )]" "[Sessions (Activity)  [all]]"
 
 echo "-- no session at all --"
 rigCase none none.rows
@@ -152,7 +152,7 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells line1 2 1 83
 RIGSCRIPT
-rigAssert "the level shows the row that goes up, then Launch / Spawn, and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch / Spawn][]"
+rigAssert "the level shows the row that goes up, then Launch / Spawn, and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch / Spawn...][]"
 rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[0 sessions.]"
 
 echo "-- a: all or active --"
@@ -174,8 +174,8 @@ get all
 border allTitle 1 84 120
 RIGSCRIPT
 rigAssert "a asks the operation again, with --active"                "$( rigCalls ) [$( rigCall 2 )]" "3 [--manager-session-list --active]"
-rigAssert "the sessions that are not active are gone from the list"  "$( rigVal active.rows ) [$( rigVal activeTitle )] [$( rigVal activeRow3 )][$( rigVal activeRow4 )]" "3 [Sessions / Activity  [active]] [>daily of Monday           running][]"
-rigAssert "a again asks without it, and shows them all again"        "[$( rigCall 3 )] $( rigVal all.rows ) [$( rigVal allTitle )] $( rigVal all.selected )" "[--manager-session-list] 7 [Sessions / Activity  [all]] $rigS1"
+rigAssert "the sessions that are not active are gone from the list"  "$( rigVal active.rows ) [$( rigVal activeTitle )] [$( rigVal activeRow3 )][$( rigVal activeRow4 )]" "3 [Sessions (Activity)  [active]] [>daily of Monday...        running][]"
+rigAssert "a again asks without it, and shows them all again"        "[$( rigCall 3 )] $( rigVal all.rows ) [$( rigVal allTitle )] $( rigVal all.selected )" "[--manager-session-list] 7 [Sessions (Activity)  [all]] $rigS1"
 
 echo "-- diving into a session shows its agents --"
 rigCase dive five.rows
@@ -266,7 +266,7 @@ RIGSCRIPT
 rigAssert "the lone run is selected, and holds its one agent"        "$( rigVal before.selected ) $( rigVal inLone.rows )" "$rigS3 2"
 rigAssert "the named session is selected, the third row"             "$( rigVal named.selected ) $( rigVal named.index )" "$rigS1 2"
 rigAssert "read again in another order, the selection stays on that session" "$( rigVal after.selected ) $( rigVal after.index ) $( rigVal after.rows ) [$( rigVal row3 )][$( rigVal row4 )]" \
-	"$rigS1 3 6 [ 22222222-0000-4000-8000-… waiting][>daily of Monday           running]"
+	"$rigS1 3 6 [ 22222222-0000-4000-80…... waiting][>daily of Monday...        running]"
 rigAssert "the session that is gone from the list is gone from the screen" "$( rigVal end.selected ) $( rigVal end.index )" "$rigS5 5"
 
 echo "-- inside a session, a throws nobody out --"
@@ -302,7 +302,7 @@ rigAssert "a switches to the active ones, and the person is still in that sessio
 rigAssert "its agents are all there"                                 "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[22222222-0000-4000-8000-00000…] [ ..][>magic-librarian          finished][ magic-developer          finished]"
 rigAssert "inside a session the list is read without the filter, also on the period" "$( LC_ALL=C grep -c -- '--active' "$MANAGER_SCREEN_RIG/calls" || : ) $( rigVal later.rows )" "1 3"
 rigAssert "Left returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( LC_ALL=C sed -n '$p' "$MANAGER_SCREEN_RIG/calls" )]" "sessions [--manager-session-list --active]"
-rigAssert "and shows what the operation gives as the active ones, once it has answered: which are active is the operation's to say" "$( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 [Sessions / Activity  [active]] [>daily of Monday           running][]"
+rigAssert "and shows what the operation gives as the active ones, once it has answered: which are active is the operation's to say" "$( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 [Sessions (Activity)  [active]] [>daily of Monday...        running][]"
 
 echo "-- five hundred sessions --"
 {
@@ -349,11 +349,11 @@ get first
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
 rigAssert "the pane has thirty lines, and the level five hundred sessions under its two first rows" "$( rigVal a.listHeight ) $( rigVal a.rows )" "29 502"
-rigAssert "four hundred times Down moves the selection four hundred rows, with its row in view" "$( rigVal moved.index ) $( rigVal moved.top ) [$( rigVal movedRow )]" "400 372 [>session 102              finished]"
-rigAssert "PageDown reaches the last one"                            "$( rigVal last.index ) $( rigVal last.top ) [$( rigVal lastRow )]" "501 473 [>session 001              finished]"
+rigAssert "four hundred times Down moves the selection four hundred rows, with its row in view" "$( rigVal moved.index ) $( rigVal moved.top ) [$( rigVal movedRow )]" "400 372 [>session 102...           finished]"
+rigAssert "PageDown reaches the last one"                            "$( rigVal last.index ) $( rigVal last.top ) [$( rigVal lastRow )]" "501 473 [>session 001...           finished]"
 rigAssert "it can be dived into like the first"                      "$( rigVal in.path ) $( rigVal in.rows )" "sessions/00000001-0000-4000-8000-000000000000 3"
 rigAssert "PageUp returns to the first row"                          "$( rigVal first.index ) $( rigVal first.top )" "0 0"
-rigAssert "a drawing writes no more than with five sessions: only the rows in view" "$( rigVal first.puts ) $( rigVal last.spills )" "$rigPutsFew 0"
+rigAssert "a drawing writes no more than with five sessions, but for the mark of a folder on each row in view beyond the seven of that small list: only the rows in view" "$( rigVal first.puts ) $( rigVal last.spills )" "$(( rigPutsFew + $( rigVal first.listHeight ) - 7 )) 0"
 rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
 echo "-- a session row of eight fields still draws, and the three more fields change nothing else that is drawn --"
@@ -402,7 +402,7 @@ rigListOf(){ ## a drawing -- of each line of a screen the list alone, after the 
 }
 rigAssert "from the eight fields the pane of a session says - of its control thread, and no row of the list carries a mark" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│control   -  ' -e '^u|│control   -  ' ) $( rigListOf "$rigDrawnEight" | LC_ALL=C grep -c -e ' x [a-z-]*$' )" "2 0"
 rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│control   alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u|│control   none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
-rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-800… x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l|│1 session has a control thread that is gone (x in the list).' )" "3 3 1"
+rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l|│1 session has a control thread that is gone (x in the list).' )" "3 3 1"
 rigAssert "everything else is read by position as before: but for what it says of the control thread, the screen draws and reports cell for cell what it draws from the eight" "$( [ "$( rigLeftOf "$rigDrawnEleven" )" = "$( rigLeftOf "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigLeftOf "$rigDrawnEight" ) <( rigLeftOf "$rigDrawnEleven" ) | head -6 ; } )" "same"
 
 if [ "$rigFailCount" -ne 0 ] ; then

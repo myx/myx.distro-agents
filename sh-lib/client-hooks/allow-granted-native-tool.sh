@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## allow-granted-native-tool.sh -- the PreToolUse hook that answers allow for a native file
 ## tool call a spawned member is granted, so a *-native client runs it with no permission
 ## prompt. A REAL SCRIPT: installed by copying, runs exactly as it stands, nothing
@@ -166,7 +166,7 @@ case "$hookRc" in
 	0)
 		if [ -n "$agentsGrantsCheckOnce" ] ; then
 			[ -n "$hookSession" ] || exit 0
-			"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
 				--session-id "$hookSession" --refusal-id "$agentsGrantsCheckOnce" > /dev/null 2>&1 || exit 0
 		fi
 		hookAnswer allow "granted to $hookMember: $agentsGrantsCheckLayer"

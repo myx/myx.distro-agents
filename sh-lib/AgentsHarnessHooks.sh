@@ -230,7 +230,7 @@ AgentsHarnessHooksRefusal(){
 		: > "$harnessScratch/hook.err"
 		hookRc=0
 		if [ -n "$harnessTimeoutCmd" ] ; then
-			printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$harnessTimeoutCmd" 60 bash -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" || hookRc=$?
+			printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$harnessTimeoutCmd" 60 "$BASH" -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" || hookRc=$?
 		else
 			## Watchdog where no `timeout` exists, the shape Bash already uses here. It ends the
 			## hook it was started for and no other process: sixty seconds on, the pid alone may
@@ -241,7 +241,7 @@ AgentsHarnessHooksRefusal(){
 			## what is loaded is gone with the watchdog. Where no start can be read, nothing is
 			## signalled by the number alone.
 			{
-				printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" bash -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" &
+				printf '%s' "$hookPayload" | CLAUDE_PROJECT_DIR="$MMDAPP" "$BASH" -c "$hookCommand" > "$harnessScratch/hook.out" 2>"$harnessScratch/hook.err" &
 				hookRunPid=$!
 				(
 					type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null

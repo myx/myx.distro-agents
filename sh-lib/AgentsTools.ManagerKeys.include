@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerKeys.include -- the --manager-keys-* operations: the PUBLIC keys this
+## server shows to others, for an operator to see and to copy. Sourced from the
+## `--manager-keys-*)` arm of AgentsTools.Manager.include; who may call was asked where the
+## family is dispatched.
+##
+## WHICH KEYS THEY ARE IS NOT DECIDED HERE. They are the keys the rig's own command prints,
+## `mdci-public-keys` (mdci-packages-myx/setup.feature-mdci/data/os-commands), found where it
+## finds them, in its two kinds:
+##   add-to-git         the key the account uses for git, which an owner lists on a git host
+##       as a deploy or user key: the one its ssh command names (`git config --global
+##       core.sshCommand`, its `-i`), else the deploy key of the account under MDCI_HOME,
+##       else the generated default; and that default beside it where it is another key;
+##   trust-on-connect   the ssh host keys of this server, which whoever connects to it
+##       checks and accepts: /etc/ssh/ssh_host_*_key.pub.
+## THAT COMMAND IS NOT RUN HERE: where a public file is missing it derives the key from the
+## private one, and it asks every git repository whether the key reads it. Here ONLY A PUBLIC
+## FILE IS EVER OPENED, a file whose name ends `.pub`, and ssh-keygen is given no other. Of a
+## private key only whether it is there is asked, as the command asks it, to know which key
+## the account uses: it is never opened, and nothing of it is printed. A place with no
+## public file says so. Nothing is written, and nothing reaches another host.
+##
+
+## The home of the rig's account, and the account, as mdci-public-keys takes them.
+AgentsToolsManagerKeysHome(){
+	printf '%s\n' "${MDCI_HOME:-/usr/local/mdci}"
+}
+AgentsToolsManagerKeysAccount(){
+	sysrc -n mdcid_user 2> /dev/null || echo mdci
+}
+
+## The key the account uses for git, as mdci-public-keys finds it: the path of the private
+## key, which is only named here. Its public file is that path with `.pub` after it.
+AgentsToolsManagerKeysDeploy(){
+	local deployHome deployCommand deployNamed
+	deployHome="$( AgentsToolsManagerKeysHome )"
+	deployCommand="$( git config --global --get core.sshCommand 2> /dev/null )" || deployCommand=""
+	deployNamed="$( printf '%s\n' "$deployCommand" | LC_ALL=C sed -n 's/.* -i \([^ ]*\).*/\1/p' )"
+	if [ -n "$deployNamed" ] ; then
+		printf '%s\n' "$deployNamed"
+	elif [ -f "$deployHome/deploy-keys/$( AgentsToolsManagerKeysAccount )" ] ; then
+		printf '%s\n' "$deployHome/deploy-keys/$( AgentsToolsManagerKeysAccount )"
+	else
+		printf '%s\n' "$deployHome/.ssh/id_ed25519"
+	fi
+}
+
+## The keys, one a line, `<key>|<label>|<group>|<what it is for>|<public file>`, in the order
+## mdci-public-keys prints them: the key for git, the generated default where it is another,
+## then each host key by the name of its file, or one line for the host keys where none is.
+AgentsToolsManagerKeysDeclared(){
+	local declaredDeploy declaredHome declaredHost="${MDAT_MANAGER_KEYS_HOST_DIR:-/etc/ssh}" declaredFile declaredName declaredAny=""
+	declaredHome="$( AgentsToolsManagerKeysHome )"
+	declaredDeploy="$( AgentsToolsManagerKeysDeploy )"
+	printf '%s\n' "deploy|Deploy Key To Add To Git|add-to-git|the deploy key of this server, to list as a deploy key on each git repository it reads|$declaredDeploy.pub"
+	if [ "$declaredDeploy" != "$declaredHome/.ssh/id_ed25519" ] && [ -f "$declaredHome/.ssh/id_ed25519" ] ; then
+		printf '%s\n' "generated|Generated Key Not Used For Git|add-to-git|another key the account generated, not used for git unless a repository is set up with it|$declaredHome/.ssh/id_ed25519.pub"
+	fi
+	for declaredFile in "$declaredHost"/ssh_host_*_key.pub ; do
+		[ -f "$declaredFile" ] || continue
+		declaredName="${declaredFile##*/ssh_host_}" ; declaredName="${declaredName%_key.pub}"
+		case "$declaredName" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789]*) continue ;; esac
+		declaredAny="yes"
+		printf '%s\n' "host-$declaredName|Host Key $( printf '%s' "$declaredName" | LC_ALL=C tr 'a-z' 'A-Z' ) To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredFile"
+	done
+	[ -n "$declaredAny" ] || printf '%s\n' "host|Host Key To Trust On Connect|trust-on-connect|an ssh host key of this server, for the known hosts of those who connect to it|$declaredHost/ssh_host_key.pub"
+	return 0
+}
+
+## One field of a row: its whitespace reads `_`, and an empty one `-`, as in a registry.
+AgentsToolsManagerKeysField(){ ## text
+	local fieldText="${1//[[:space:]]/_}"
+	printf '%s' "${fieldText:--}"
+}
+
+## The first line of a public key file, where it is one: `<type> <key> [<comment>]`, the type
+## a key type's name and the key in the letters of base64 alone. Sets keysLine, keysType and
+## keysText; rc 1, all three empty, where the file is not there, cannot be read, is no `.pub`
+## file, or holds no such line. NOTHING BUT A FILE NAMED `.pub` IS OPENED.
+AgentsToolsManagerKeysPublic(){ ## public file
+	keysLine="" ; keysType="" ; keysText=""
+	case "$1" in *.pub) ;; *) return 1 ;; esac
+	[ -f "$1" ] && [ -r "$1" ] || return 1
+	IFS= read -r keysLine < "$1" || [ -n "$keysLine" ] || return 1
+	keysType="${keysLine%% *}" ; keysText="${keysLine#* }" ; keysText="${keysText%% *}"
+	case "$keysType" in ssh-*|ecdsa-*|sk-*) ;; *) keysLine="" ; keysType="" ; keysText="" ; return 1 ;; esac
+	case "$keysText" in ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=]*) keysLine="" ; keysType="" ; keysText="" ; return 1 ;; esac
+	return 0
+}
+
+## The `key` row of one declared key: `present` with its type, its fingerprint and its key in
+## short, the first twelve and the last eight letters; `absent`, with `-` for these, where no
+## public key can be read at its file. The fingerprint is ssh-keygen's, of the public file.
+AgentsToolsManagerKeysRow(){ ## key, label, group, what it is for, public file
+	local rowPrint="" rowShort="-" rowState="absent" keysLine keysType keysText
+	if AgentsToolsManagerKeysPublic "$5" ; then
+		rowState="present"
+		rowPrint="$( ssh-keygen -l -f "$5" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || rowPrint=""
+		rowShort="$keysText"
+		[ "${#keysText}" -le 24 ] || rowShort="${keysText:0:12}...${keysText: -8}"
+	fi
+	printf 'key\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$( AgentsToolsManagerKeysField "$2" )" "$3" "$( AgentsToolsManagerKeysField "$4" )" "${keysType:--}" "${rowPrint:--}" "$rowShort" "$( AgentsToolsManagerKeysField "$5" )" "$rowState"
+}
+
+case "$1" in
+
+	## The public keys of this server, one row each: TAB-separated rows a screen reads. Their
+	## form is the help entry's.
+	--manager-keys-list)
+		local listOp="$1" listKey listLabel listGroup listFor listFile
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is $listOp, got $# argument(s) -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		while IFS='|' read -r listKey listLabel listGroup listFor listFile ; do
+			[ -n "$listKey" ] || continue
+			AgentsToolsManagerKeysRow "$listKey" "$listLabel" "$listGroup" "$listFor" "$listFile"
+		done <<< "$( AgentsToolsManagerKeysDeclared )"
+		return 0
+	;;
+
+	## One key by its name: its row, the line as one pastes it, and for the key for git the
+	## repositories the rig keeps a list of. Its form is the help entry's.
+	--manager-keys-read)
+		local readOp="$1" readKey readLabel readGroup readFor readFile readFound="" readHost readProject readUrl keysLine keysType keysText
+		shift
+		if [ $# -ne 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <key>, got $# argument(s) -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		case "$1" in ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is $readOp <key>, and the word given is no name of a key -- nothing is shown" >&2
+			set +e ; return 1
+		;; esac
+		while IFS='|' read -r readKey readLabel readGroup readFor readFile ; do
+			[ "$readKey" = "$1" ] || continue
+			readFound="yes"
+			break
+		done <<< "$( AgentsToolsManagerKeysDeclared )"
+		if [ -z "$readFound" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: no key is named '$1' -- nothing is shown. The keys are those ${readOp%-read}-list prints" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerKeysRow "$readKey" "$readLabel" "$readGroup" "$readFor" "$readFile"
+		AgentsToolsManagerKeysPublic "$readFile" || return 0
+		## The line as one pastes it, its blanks kept: for git the public key line as its file
+		## has it; for those who connect the line of a known hosts file, the name of this host
+		## ahead of the type and the key, as mdci-public-keys prints it.
+		if [ "$readGroup" = "trust-on-connect" ] ; then
+			readHost="$( hostname 2> /dev/null )" || readHost=""
+			printf 'paste\t%s %s %s\n' "${readHost:-localhost}" "$keysType" "$keysText"
+		else
+			printf 'paste\t%s\n' "$keysLine"
+		fi
+		## Where the key for git is to be listed: the repositories the rig declares, which it
+		## keeps for that command, a project and an address a line. None is asked anything.
+		if [ "$readKey" = "deploy" ] && [ -r "$( AgentsToolsManagerKeysHome )/.mdci-source-repos.txt" ] ; then
+			while IFS=$'\t' read -r readProject readUrl ; do
+				[ -n "$readUrl" ] || continue
+				case "$readUrl" in *://*:*@*) continue ;; esac
+				printf 'register\t%s\t%s\n' "$( AgentsToolsManagerKeysField "$readProject" )" "$( AgentsToolsManagerKeysField "$readUrl" )"
+			done < "$( AgentsToolsManagerKeysHome )/.mdci-source-repos.txt"
+		fi
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

@@ -249,7 +249,7 @@ get read
 keys ?
 get help
 keys ESC
-keys m RIGHT RIGHT RIGHT
+keys m RIGHT RIGHT
 turn
 show v
 keys ESC i
@@ -258,13 +258,13 @@ keys q
 get mcQ
 RIGSCRIPT
 rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:sessions []"
-rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  m Member  v View  q Question  h Help  x Exit  1 Sessions / Activity  2 Pending Questions]"
+rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  1 Sessions (Activity)  2 Pending Questions  3 Team Members]"
 rigAssert "Esc and then the hot letter of a menu opens that menu, as Alt with that letter does" "$( rigVal byEscS.menu )" "session:kill"
 rigAssert "the Esc that closed a menu is no Alt for the key after it, and neither is one whose key comes too late" "[$( rigVal afterMenuEsc.menu )] $( rigVal afterMenuEsc.quit ) $( rigVal late.quit )" "[] no no"
 rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal bareQ.quit )" "no"
 rigAssert "u reads now, and ? opens the help: the keys from the declaration, those that act now first" "$( rigVal read.forced ) [$( rigVal help.dialogTitle )] $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'The keys that act now, on what is selected in the active window: / ?, F1: Keys / u, F5: Read now / m, F10: Menu / ^X, Alt-X: Exit' )" "list:sessions [Keys] 1"
 rigAssert "then the other keys, one whose action is not built saying so, and the menus by their letters" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'p: Pause (not built)' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F '/ g: Go / s: Session / m: Member / v: View / q: Question / h: Help /' )" "1 1"
-rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                          u │' ) $( rigHas v '│ Interface style: the next         i │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 0 0"
+rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       i │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 0 0"
 rigAssert "i takes the next style, and in the compact key map q ends the screen" "$( rigVal styled.style ) $( rigVal mcQ.quit )" "mc yes"
 
 echo "-- inside a container, on the row that goes up, the left window shows the container, and its keys act on it --"
@@ -305,7 +305,7 @@ RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one] [one] sessions/s1 .."
 rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ Enter Open  Left Up  a Active  k Kill  u Read  m Menu  ^X Exit  Tab Window] [handled kill on s1]"
 rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[agent-one] [handled kill on a1]"
-rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn] [Team Members] [Pending Questions] [Settings / Configuration]"
+rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn] [Team Members] [Pending Questions] [Settings (Configuration)]"
 
 echo "-- the mode of the left window and a toggle of a view are kept for the run: the raw log, all or active --"
 rigRun <<'RIGSCRIPT'

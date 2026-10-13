@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 ## Behavioural check on the list of the manager screen and on what a key does (sh-lib/AgentsManagerScreen.py), run
 ## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py): each
-## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions / Activity`,
-## `Pending Questions`, `Team Members` and `Settings / Configuration` in that order, the first one selected; Enter or
+## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
+## `Pending Questions`, `Team Members` and `Settings (Configuration)` in that order, the first one selected; Enter or
 ## Right dives into a row, the first row below the root goes up, and so does Left, back onto the row that was dived
-## into; inside `Sessions / Activity` the first item is `Launch / Spawn`, a level of its own; Up and Down stop at the
+## into; inside `Sessions (Activity)` the first item is `Launch / Spawn`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of
 ## the list stays; `a` switches all and active only while the list has the focus; rows that come again in another
@@ -53,7 +53,7 @@ cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
 RIGSCRIPT
-rigAssert "the root holds the four sections in their order"          "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[>Sessions / Activity][ Pending Questions][ Team Members][ Settings / Configuration][]"
+rigAssert "the root holds the four sections in their order"          "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Settings (Configuration)...][]"
 rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 4"
 
 echo "-- Enter and Right dive in, the first row and Left go up --"
@@ -74,10 +74,10 @@ get back
 keys LEFT
 get root
 RIGSCRIPT
-rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions / Activity  [all]]"
+rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions (Activity)  [all]]"
 rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVal inRow1 )] $( rigVal in.selected )" "[>..] .."
-rigAssert "inside Sessions / Activity the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn]"
-rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions / Activity]"
+rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn...]"
+rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity)]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
 rigAssert "Right dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
 rigAssert "Left goes up and returns to the row it came from"         "[$( rigVal back.path )] $( rigVal back.selected ) $( rigVal back.index )" "[] team 2"
@@ -192,8 +192,8 @@ keys a
 get d
 RIGSCRIPT
 rigAssert "all sessions are shown first"                             "$( rigVal a.filter )" all
-rigAssert "a does nothing while the left pane has the focus"         "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view all [Sessions / Activity  [all]]"
-rigAssert "with the focus on the list it switches to the active ones" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list active [Sessions / Activity  [active]]"
+rigAssert "a does nothing while the left pane has the focus"         "$( rigVal b.focus ) $( rigVal b.filter ) [$( rigVal bTitle )]" "view all [Sessions (Activity)  [all]]"
+rigAssert "with the focus on the list it switches to the active ones" "$( rigVal c.focus ) $( rigVal c.filter ) [$( rigVal cTitle )]" "list active [Sessions (Activity)  [active]]"
 rigAssert "and back to all"                                          "$( rigVal d.filter )" all
 
 echo "-- rows that come again --"
@@ -250,38 +250,40 @@ rigAssert "a bare q does nothing in the Turbo Vision key map; Esc and then x end
 echo "-- the keys of the actions --"
 rigScript <<'RIGSCRIPT'
 size 120 40
+rows sessions s1=one_session
 keys k
 get k
-keys ESC
+keys ENTER DOWN DOWN
 keys p
 get p
-keys ESC
+turn
 keys r
 get r
-keys ESC
+turn
 keys s
 get s
-keys ESC
+turn
 keys R
 get R
-keys ESC
+keys k
+get kIn
 keys l
 get l
 keys n
 get n
-keys ESC
+turn
 handler kill
-keys DOWN k
+keys k
 get handled
 keys TAB k
 get handledLeft
 RIGSCRIPT
-rigAssert "each key of an action has its place, and says so in a box until its handler is built; k and n, which are, say that a section is nothing to kill and is no member to start; l, the key of a mode of the left window, opens nothing on a section, which has no log" \
-	"[$( rigVal k.dialogHolds )][$( rigVal p.dialogHolds )][$( rigVal r.dialogHolds )][$( rigVal s.dialogHolds )][$( rigVal R.dialogHolds )][$( rigVal l.dialogHolds )][$( rigVal n.dialogHolds )]" \
-	"[k: nothing to kill here: k kills a session or an agent][p: pause is not built yet][r: resume is not built yet][s: stop is not built yet][R: restart is not built yet][][n: nothing to start here: n starts a team member with a prompt]"
-rigAssert "none of them moved or quit anything"                      "$( rigVal l.index ) $( rigVal l.quit ) $( rigVal l.focus )" "0 no list"
-rigAssert "with a handler, the key goes to it with the row that is selected" "[$( rigVal handled.notice )]" "[handled kill on pending]"
-rigAssert "also while the left pane has the focus"                   "$( rigVal handledLeft.focus ) [$( rigVal handledLeft.notice )]" "view [handled kill on pending]"
+rigAssert "each key of an action is a key in its view alone, and at the root none is; in its view it says in the status line why it does nothing: that it is not built, until its handler is; k, which is, that this row is nothing it acts on; l, the key of a mode of the left window, that the row has no log; and n, the key of another view, says nothing" \
+	"[$( rigVal k.notice )] [$( rigVal p.notice )][$( rigVal r.notice )][$( rigVal s.notice )][$( rigVal R.notice )][$( rigVal kIn.notice )][$( rigVal l.notice )][$( rigVal n.notice )] [$( rigVal n.dialog )]" \
+	"[] [Pause is not built yet][Resume is not built yet][Stop is not built yet][Restart is not built yet][Kill: not for what is selected, as it is now][Log: what is selected has no log][Log: what is selected has no log] []"
+rigAssert "none of them moved or quit anything"                      "$( rigVal l.selected ) $( rigVal l.quit ) $( rigVal l.focus )" "s1 no list"
+rigAssert "with a handler, the key goes to it with the row that is selected" "[$( rigVal handled.notice )]" "[handled kill on s1]"
+rigAssert "also while the left pane has the focus"                   "$( rigVal handledLeft.focus ) [$( rigVal handledLeft.notice )]" "view [handled kill on s1]"
 
 echo "-- the keys that act on the selected item stand in the left pane --"
 rigScript <<'RIGSCRIPT'

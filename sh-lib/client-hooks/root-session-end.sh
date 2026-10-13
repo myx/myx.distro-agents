@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## root-session-end.sh -- the SessionEnd and SessionStart (resume) hooks of a root session: a
 ## *-native client session the team tooling did not spawn (the human-owner's own, an interactive
 ## native console). A REAL SCRIPT: installed by copying, runs exactly as it stands, nothing
@@ -94,7 +94,7 @@ set -m
 (
 	trap '' HUP INT
 	export MMDAPP="$hookWs" MDLT_ORIGIN
-	[ ! -x "$hookTools" ] || "$hookTools" --intern-op-pending-reply-collect --session-id "$hookSession" --mark-ended --context SessionEnd
+	[ ! -x "$hookTools" ] || "$BASH" "$hookTools" --intern-op-pending-reply-collect --session-id "$hookSession" --mark-ended --context SessionEnd
 	if . "$hookLib/AgentsTools.SessionTranscript.include" && AgentsTranscriptBase "$hookSession" > /dev/null ; then
 		AgentsTranscriptSpawnEnd "$hookSession" "session-end:$hookReason" -
 	fi

@@ -157,8 +157,9 @@ rigAssert "the kill of one participant from the console: its process is ended, t
 	"$( rigEnded "$rigPb" && echo killed || echo runs ):$( rigEnded "$rigFb" && echo killed || echo runs ):$( rigThreadIs fb-run "$rigThreadB" )" "killed:runs:alive:holds:0"
 rigCall bash "$rigTool" --manager-session-kill --session-id fb-run > "$rigTmp/kill-fb.out" 2> "$rigTmp/kill-fb.err"
 rigWaitFor 20 rigEnded "$rigFb"
-rigAssert "the kill of the whole session, by the id of its founder: the founder's process is ended, and the thread lives, holds its session, and its log knows no end" \
-	"$( rigEnded "$rigFb" && echo killed || echo runs ):$( rigThreadIs fb-run "$rigThreadB" )" "killed:alive:holds:0"
+rigWaitFor 20 rigEnded "$rigThreadB"
+rigAssert "the kill of the whole session, by the id of its founder: the founder's process is ended, and the thread is ended by no signal meant for a run: the kill finished the session, so the thread ended by itself, in order, and its log says why" \
+	"$( rigEnded "$rigFb" && echo killed || echo runs ):$( rigEnded "$rigThreadB" && echo ended || echo alive ):$( LC_ALL=C grep -c -F -- ', ends: its session is finished' "$rigStores/fb-run/control/log" 2> /dev/null ):$( LC_ALL=C grep -c -F -- 'it was ended by' "$rigStores/fb-run/control/log" 2> /dev/null )" "killed:ended:1:0"
 rigAssert "control: the killed runs are marked on their records, so the thread takes neither for a death" \
 	"$( LC_ALL=C grep -l -e '^killed-by: rig$' "$rigSp/fb-run/fb-run.md" "$rigSp/pb-run/pb-run.md" 2> /dev/null | LC_ALL=C grep -c . ):$( [ -e "$rigStores/fb-run/control/dead" ] && echo dead-kept || echo none )" "2:none"
 rigAssert "no request was made" "$( [ -e "$rigTmp/curl.calls" ] && echo called || echo none )" "none"

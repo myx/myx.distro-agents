@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-## Behavioural check on the section `Settings / Configuration` of the manager screen (sh-lib/AgentsManagerScreen.py),
+## Behavioural check on the section `Settings (Configuration)` of the manager screen (sh-lib/AgentsManagerScreen.py),
 ## run rather than read. The screen's own code runs through the stand-in terminal of the driver
 ## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture: rows in the form
@@ -115,7 +115,7 @@ rigOthers(){ ## how many starts were neither the list of the sessions nor the di
 	LC_ALL=C grep -c -v -x -e '--manager-session-list' -e '--manager-config-digest' "$MANAGER_SCREEN_RIG/calls" || :
 }
 
-echo "-- Settings / Configuration lists the subjects of the digest --"
+echo "-- Settings (Configuration) lists the subjects of the digest --"
 rigCase list
 rigScript <<'RIGSCRIPT'
 turn
@@ -149,7 +149,7 @@ show r
 RIGSCRIPT
 rigAssert "until the section is entered the digest is not read, whatever time passes" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "settings [] 0"
 rigAssert "entering it asks the operation that prints the digest"    "$( rigVal asked.path ) $( rigVal asked.reading )" "settings list:settings"
-rigAssert "the subjects are listed under the row that goes up, in the order of the operation" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row5 )][$( rigVal row7 )]" "[Settings / Configuration] 6 [>..][ loop][]"
+rigAssert "the subjects are listed under the row that goes up, in the order of the operation" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row5 )][$( rigVal row7 )]" "[Settings (Configuration)] 6 [>..][ loop][]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row6 )]" \
 	"[ workspace               1 missing][ cli                     3 missing][ systems                 2 missing][ scopes                  2 missing]"
 rigAssert "on the row that goes up the left pane says what the digest holds, and that it is for viewing" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 subjects, 61 lines, 8 missing.][ Enter changes a setting on a subject that offers choices; the others are for view…]"
@@ -229,17 +229,17 @@ keys RIGHT
 get dived
 keys k
 get kill
-keys ESC
+turn
 keys n
 get start
-keys ESC
+turn
 keys TAB y ENTER TAB
 turn 3
 get end
 RIGSCRIPT
-rigAssert "a text is typed on a subject and Enter is pressed: no line opens, and nothing is submitted" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.selected ) $( rigVal typed.quit )" "[] [] cli no"
+rigAssert "a text is typed on a subject and Enter is pressed: no line opens, and nothing is submitted" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.selected ) $( rigVal typed.quit )" "[] [Change the setting: nothing of this subject is changed from here] cli no"
 rigAssert "Enter and Right dive nowhere"                             "$( rigVal dived.path ) $( rigVal dived.selected )" "settings cli"
-rigAssert "the keys of the actions find nothing to act on"           "[$( rigVal kill.dialogHolds )][$( rigVal start.dialogHolds )] [$( rigVal start.dialog )]" "[k: nothing to kill here: k kills a session or an agent][n: nothing to start here: n starts a team member with a prompt] [message:ok|]"
+rigAssert "k and n are no keys of this view: nothing opens, and the status line keeps what it said" "[$( rigVal dived.notice )] [$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[Open: this row has nothing to open] [Open: this row has nothing to open][Open: this row has nothing to open] []"
 rigAssert "no operation was called but the two reads, and the digest never with an argument" "$( rigOthers ) $( rigCalled --manager-config-digest ) $( rigVal end.calls ) [$( rigVal end.dialog )]" "0 1 0 []"
 
 ## A digest as the operation prints it now: every row ends with its label, a line with none ends with `-`, and the
@@ -256,7 +256,7 @@ rigAssert "no operation was called but the two reads, and the digest never with 
 rigCaseLabelled(){ ## name -- a fresh rig whose digest is the labelled one, and whose save prints its row
 	rigCase "$1"
 	cp "$rigTmp/labelled.digest" "$MANAGER_SCREEN_RIG/rows.--manager-config-digest"
-	rigRow saved MDAT_MANAGER_STYLE mc /rig/ws_rig/.local/home/rig/MDLT.settings.env > "$MANAGER_SCREEN_RIG/rows.--manager-config-interface-set"
+	rigRow saved MDAT_MANAGER_STYLE mc user /rig/ws_rig/.local/home/rig/MDLT.settings.env > "$MANAGER_SCREEN_RIG/rows.--manager-config-set"
 }
 rigBoxHolds(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -285,7 +285,7 @@ rigAssert "the subjects are listed by their labels"                  "[$( rigVal
 rigAssert "the left window is titled by the label, and names the subject as the operation takes it beside its count" "[$( rigPane c 2 )] $( rigPaneHolds c ' subject cli, 2 lines, 1 missing, each marked !' )" "[ CLI Services] 1"
 rigAssert "a line shows by its label, with its key as the detail after it" "$( rigPaneHolds c '   ! Spawn Harness Tier  missing  (SPAWN_HARNESS_TIER)' )" "1"
 rigAssert "a line with no label shows by its key"                     "$( rigPaneHolds c '     ODD_KEY             odd' )" "1"
-rigAssert "the subject of the interface shows its style as it is, by the label of the choice, and where it comes from" "$( rigPaneHolds i '     Interface Style  Turbo Vision, the default  (MDAT_MANAGER_STYLE)' ) $( rigScreenHolds i 'Interface Settings   Turbo Vision' )" "1 1"
+rigAssert "the subject of the interface shows its style as it is, by the label of the choice, and where it comes from" "$( rigPaneHolds i '     Interface Style  Turbo Vision, the default  (MDAT_MANAGER_STYLE)' ) $( rigScreenHolds i 'Interface Settin…... Turbo Vision' )" "1 1"
 rigAssert "and says what Enter changes there, which the status line names" "$( rigPaneHolds i ' Enter changes Interface Style: Turbo Vision, MC (Compact), B/W.' ) [$( rigVal sI )]" "1 [ Enter Change  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 
 echo "-- Enter on the interface: its choices as radio buttons; OK takes the style at once and saves it --"
@@ -313,16 +313,16 @@ get ok
 wait action 30
 get done
 RIGSCRIPT
-rigAssert "Enter on a subject that offers no choice opens nothing"    "[$( rigVal none.dialog )] [$( rigVal none.notice )]" "[] []"
+rigAssert "Enter on a subject that offers no choice opens nothing, and the status line says so" "[$( rigVal none.dialog )] [$( rigVal none.notice )]" "[] [Change the setting: nothing of this subject is changed from here]"
 rigAssert "on the interface it opens the dialog of its setting, on the style this screen is drawn in" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[setting:choice|tv] [Interface Style]"
 rigAssert "the choices of the row stand as radio buttons, with OK and Cancel" "$( rigBoxHolds sbox '║ (*) Turbo Vision' ) $( rigBoxHolds sbox '║ ( ) MC (Compact)' ) $( rigBoxHolds sbox '║ ( ) B/W' ) $( rigBoxHolds sbox '[ OK ]  [ Cancel ]' )" "1 1 1 1"
-rigAssert "Space chooses the one the bar is on; Esc closes, saves nothing and leaves the style" "[$( rigVal mc.dialog )] [$( rigVal esc.dialog )] $( rigVal esc.style ) $( rigCalled '--manager-config-interface-set MDAT_MANAGER_STYLE mc' )" "[setting:choice|mc] [] tv 1"
+rigAssert "Space chooses the one the bar is on; Esc closes, saves nothing and leaves the style" "[$( rigVal mc.dialog )] [$( rigVal esc.dialog )] $( rigVal esc.style ) $( rigCalled '--manager-config-set MDAT_MANAGER_STYLE mc' )" "[setting:choice|mc] [] tv 1"
 rigAssert "OK: this screen takes the style at once, before the operation has answered" "[$( rigVal ok.dialog )] $( rigVal ok.style ) [$( rigVal ok.notice )]" "[] mc [save asked of the tooling: Interface Style: MC (Compact)]"
-rigAssert "and it is saved by the write operation, once, by the key and the value of the row" "$( rigCalled '--manager-config-interface-set MDAT_MANAGER_STYLE mc' ) [$( rigVal done.notice )] $( rigVal done.style )" "1 [saved: Interface Style: MC (Compact)] mc"
+rigAssert "and it is saved by the write operation, once, by the key and the value of the row" "$( rigCalled '--manager-config-set MDAT_MANAGER_STYLE mc' ) [$( rigVal done.notice )] $( rigVal done.style )" "1 [saved: Interface Style: MC (Compact)] mc"
 
 echo "-- a save that is refused: what the operation wrote stands in a box --"
 rigCaseLabelled refused
-printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-config-interface-set"
+printf 'fail\n' > "$MANAGER_SCREEN_RIG/mode.--manager-config-set"
 rigScript <<'RIGSCRIPT'
 turn
 keys 4
@@ -334,7 +334,7 @@ wait action 30
 turn
 get failed
 RIGSCRIPT
-rigAssert "the refusal is shown whole, under its own title"          "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The save failed] [operation: --manager-config-interface-set MDAT_MANAGER_STYLE bw / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "the refusal is shown whole, under its own title"          "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The save failed] [operation: --manager-config-set MDAT_MANAGER_STYLE bw / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SETTINGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

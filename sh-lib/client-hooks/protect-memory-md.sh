@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## protect-memory-md.sh -- the PreToolUse hook that denies Edit and Write into the client's
 ## own machine-local memory store, ~/.claude/projects/<project>/memory/ (MEMORY.md and every
 ## topic file beside it), and allows every other write. A REAL SCRIPT: installed by copying,

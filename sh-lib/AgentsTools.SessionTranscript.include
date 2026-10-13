@@ -584,7 +584,7 @@ AgentsSessionTokensHeaderUpdate(){ ## session id
 	updateItem="${updatePath##*/}"
 	updateState="${updatePath%/*}"
 	updateState="${updateState##*/}"
-	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-board-upsert-move-edit "$updateState" "$updateItem" \
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-board-upsert-move-edit "$updateState" "$updateItem" \
 		--from-state:"$updateState" --context --session-tokens --header:upsert:tokens:"$updateValue" --log-verb:updated > /dev/null 2>&1 \
 		|| echo "# session transcript: ⚠️ WARNING: the tokens header of $updateItem was not updated" >&2
 	return 0

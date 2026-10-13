@@ -931,7 +931,7 @@ AgentsHarnessGranted(){ ## tool, resolved target
 	harnessGrantOpen="" ; harnessGrantOpenFor="" ; harnessGrantLayer=""
 	grantSession="$( AgentsHarnessSessionKey )"
 	[ -n "$2" ] && [ -n "$grantSession" ] && [ -n "$harnessAgent" ] && [ -x "$grantTools" ] || return 1
-	if ! "$grantTools" --intern-op-permission-grant-read "$harnessAgent" --session-id "$grantSession" --tool "$1" --target "$2" \
+	if ! "$BASH" "$grantTools" --intern-op-permission-grant-read "$harnessAgent" --session-id "$grantSession" --tool "$1" --target "$2" \
 		> "$harnessScratch/grant.out" 2> /dev/null ; then
 		harnessGrantOpen="$( LC_ALL=C awk '$1 == "OPEN-ASK:" && $2 != "" { print $2, $3, $4 ; }' "$harnessScratch/grant.out" 2> /dev/null )" || harnessGrantOpen=""
 		[ -z "$harnessGrantOpen" ] || harnessGrantOpenFor="$1"$'\t'"$2"
@@ -942,7 +942,7 @@ AgentsHarnessGranted(){ ## tool, resolved target
 	case "$grantLine" in
 		'session '*|'task '*|'planned '*|'standing '*) return 0 ;;
 		'once '*)
-			"$grantTools" --intern-op-permission-grant-consume --session-id "$grantSession" --refusal-id "${grantLine#once }" \
+			"$BASH" "$grantTools" --intern-op-permission-grant-consume --session-id "$grantSession" --refusal-id "${grantLine#once }" \
 				> /dev/null 2>&1 || return 1
 			return 0
 		;;
@@ -965,7 +965,7 @@ AgentsHarnessRefusal(){ ## tool, target, error line
 		printf 'REFUSAL-ID: none -- this session has no session id or team identity, so the refusal was not recorded and cannot be escalated by id.\n'
 		return 0
 	fi
-	"$refusalTools" --intern-op-permission-refusal-log "$harnessAgent" --session-id "$refusalSession" --tool "$1" --target "$2" \
+	"$BASH" "$refusalTools" --intern-op-permission-refusal-log "$harnessAgent" --session-id "$refusalSession" --tool "$1" --target "$2" \
 		--reason "$3" > "$harnessScratch/refusal.out" 2> "$harnessScratch/refusal.err" || :
 	refusalId="$( LC_ALL=C sed -n 's/^\(refusal-[0-9a-f-]*\)$/\1/p' "$harnessScratch/refusal.out" | head -1 )"
 	if [ -z "$refusalId" ] ; then
@@ -1024,7 +1024,7 @@ AgentsHarnessFileGate(){ ## tool, path, read|write
 					0)
 						## An Allow once is used up here, by the one lock its store keeps.
 						[ -n "$agentsGrantsCheckOnce" ] || return 0
-						"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
+						"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-grant-consume \
 							--session-id "$gateSession" --refusal-id "$agentsGrantsCheckOnce" > /dev/null 2>&1 && return 0
 					;;
 					3)
@@ -1299,7 +1299,7 @@ AgentsHarnessChangeHold(){ ## tool, resolved target, the file as it stands (empt
 		printf 'ERROR: %s: the change to %s could not be kept to hold it, so nothing is held and nothing was written\n' "$1" "$2"
 		return 0
 	fi
-	holdOut="$( "$holdTools" --intern-op-change-hold "$harnessAgent" --session-id "$holdSession" --tool "$1" --file "$2" ${3:+--base "$3"} --result "$4" \
+	holdOut="$( "$BASH" "$holdTools" --intern-op-change-hold "$harnessAgent" --session-id "$holdSession" --tool "$1" --file "$2" ${3:+--base "$3"} --result "$4" \
 		--call "$harnessScratch/change.call" ${6:+--matched "$6"} 2> "$harnessScratch/change.err" )" || holdRc=$?
 	if [ "$holdRc" = "0" ] && [ "$holdOut" = "NOCHANGE" ] ; then
 		printf 'OK: nothing is held or written: this call leaves %s exactly as it is\n' "$2"
@@ -1896,7 +1896,7 @@ AgentsHarnessToolWebSearch(){ ## query, raw arguments
 	done
 	searchDefaults="$harnessWebAllowDefaults"
 	[ -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] || searchDefaults=""
-	[ -z "$searchDefaults" ] || searchDenied="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || searchDefaults=""
+	[ -z "$searchDefaults" ] || searchDenied="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || searchDefaults=""
 	[ -z "$searchDefaults" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || searchDefaults=""
 	[ -n "$searchDefaults" ] || printf 'Note: the web access policy could not be read, so no result is kept outside allowed_domains by default.\n'
 	## Body to its own file, so the capture holds the one-line status and nothing else.
@@ -1975,8 +1975,8 @@ AgentsHarnessToolWebFetch(){ ## url, prompt
 		;;
 	esac
 	[ -x "$fetchTools" ] || fetchUnread=1
-	[ -n "$fetchUnread" ] || fetchAllowExtra="$( "$fetchTools" --agents-config-option magic-team --select WEB_ALLOW_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
-	[ -n "$fetchUnread" ] || fetchDenied="$( "$fetchTools" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2>> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchAllowExtra="$( "$BASH" "$fetchTools" --agents-config-option magic-team --select WEB_ALLOW_PREFIXES 2> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
+	[ -n "$fetchUnread" ] || fetchDenied="$( "$BASH" "$fetchTools" --agents-config-option magic-team --select WEB_DENY_PREFIXES 2>> "$harnessScratch/webpolicy.err" )" || fetchUnread=1
 	[ -n "$fetchUnread" ] || ! LC_ALL=C grep -qF '.local/.agents/magic-team.agent.env' "$harnessScratch/webpolicy.err" || fetchUnread=1
 	if [ -n "$fetchUnread" ] ; then
 		printf 'ERROR: the web access policy could not be read, so it cannot be checked and nothing was fetched: %s\n' "$toolUrl" ; return 0
@@ -2109,7 +2109,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other send path exists here. Nothing was sent.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
 	## Built as argv so the optional flag is one token rather than a quoted fragment.
-	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" "$toolTarget"
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-send-message "$harnessAgent" "$toolTarget"
 	case "$toolAsBot" in
 		true|1|yes) set -- "$@" --identity-bot ;;
 	esac
@@ -2137,7 +2137,7 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 		fi
 		toolInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-message-$( printf '%s' "$toolMessage" | cksum | cut -d' ' -f1 ).md"
 		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$harnessAgent" "$( date +'%Y-%m-%d %H:%M %z' )" "$toolTarget" "$toolMessage" ; } \
-			| "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
+			| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-upsert-member-inquiry "$toolTarget" "$toolInbox" > "$harnessScratch/inbox.out" 2>&1 ; then
 			printf 'inbox %s %s\n' "$toolTarget" "$toolInbox" > "$harnessScratch/send.delivered"
 			printf 'Sent to the inbox of %s as %s, because that team member has no Slack DM channel of its own. It is read only when that member next processes its inbox.\n' "$toolTarget" "$toolInbox"
 		else
@@ -2441,7 +2441,7 @@ AgentsHarnessToolWait(){
 	done
 	## Built as argv, so a source naming a thread stays one token rather than a
 	## quoted fragment, and an empty sources string adds no flag at all.
-	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-wait-for-input "$harnessAgent"
 	for waitSource in $toolSources ; do
 		set -- "$@" --wait-source "$waitSource"
 	done
@@ -2508,7 +2508,7 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s. Nothing was appended.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
-	appendOut="$( MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
+	appendOut="$( MDAT_SPAWN_SESSION_ID="$( AgentsHarnessSessionKey )" "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" \
 		--member-append-session-transcript "${harnessAgent:-unknown}" --message "$1" 2>&1 )" || appendRc=$?
 	if [ "$appendRc" != "0" ] ; then
 		appendOut="$( printf '%s\n' "$appendOut" | LC_ALL=C grep -F 'ERROR:' | tail -1 )"
@@ -2790,7 +2790,7 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 	if [ ! -x "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ] ; then
 		printf 'ERROR: the team tooling is not present at the origin this workspace resolves, %s, and no other spawn path exists here. Nothing was spawned.\n' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" ; return 0
 	fi
-	set -- "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
+	set -- "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$toolAgentName" \
 		--from-stdin --dispatch-doc:create --context Agent
 	## The member this call is made as, which a session never spawned names nowhere in its
 	## environment: kept on the spawn's record, so the handback of the helper has an addressee.
@@ -2829,7 +2829,7 @@ AgentsHarnessToolAgent(){ ## agent name, prompt, cli service, session name or co
 		"SPAWN-PREPARE-BRIEF: "*) ;;
 		*)
 			local toolBrief=""
-			if toolBrief="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default ${toolCliService:+--cli-service "$toolCliService"} ${toolSettingsWorkspace:+--settings-workspace "$toolSettingsWorkspace"} --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
+			if toolBrief="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-spawn-prepare-brief "$toolAgentName" --routine-default ${toolCliService:+--cli-service "$toolCliService"} ${toolSettingsWorkspace:+--settings-workspace "$toolSettingsWorkspace"} --context Agent 2>"$harnessScratch/spawn-brief.err" )" && [ -n "$toolBrief" ] ; then
 				toolPrompt="$toolBrief"$'\n\n'"$toolPrompt"
 			else
 				toolBriefNote="NOTE: the spawn brief block (tool-routing, read-and-obey) could not be built for $toolAgentName, so the prompt went in without it: $( head -1 "$harnessScratch/spawn-brief.err" 2>/dev/null )"
@@ -3099,7 +3099,7 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	## The ordered ending recorded before the signal, in the item's Decisions and the session
 	## transcript (AgentsTools.ReviewFlow.include); the stop itself stays this tool's. With no
 	## item there is nowhere to record it, which the result says.
-	[ -z "$itemPath" ] || "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
+	[ -z "$itemPath" ] || "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
 		--reason taskstop --no-dismiss > /dev/null 2>&1 || :
 	stopKept="$( printf '%s\n' "$stopPids" | AgentsHarnessStopKept )" || stopKept=""
 	for stopPid in $stopPids ; do
@@ -3421,7 +3421,7 @@ AgentsHarnessToolSubagentHandback(){
 	local toolCollected="" toolCollectSession
 	toolCollectSession="$( AgentsHarnessSessionKey )"
 	if [ -n "$toolCollectSession" ] ; then
-		toolCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
+		toolCollected="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 			--session-id "$toolCollectSession" --context SubagentHandback 2>/dev/null | LC_ALL=C grep -v '^COLLECT: ' )" || toolCollected=""
 	fi
 	toolBody="$( ASKP_F_task="$( AgentsHarnessReportTask "$toolTask" )" ASKP_F_outcome="$toolOutcome" ASKP_F_findings="$toolFindings" ASKP_F_unfinished="$toolUnfinished" ASKP_F_collected="$toolCollected" ASKP_F_address_to="$toolAddressTo" \
@@ -3441,7 +3441,7 @@ AgentsHarnessToolSubagentHandback(){
 	## (AgentsTools.ReviewFlow.include). A failed one moves nothing. Silent, and never fails the call.
 	[ -n "$toolCollectSession" ] && [ -f "$harnessScratch/send.delivered" ] || return 0
 	rm -f "$harnessScratch/send.delivered"
-	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-handback "$harnessAgent" --session-id "$toolCollectSession" \
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-handback "$harnessAgent" --session-id "$toolCollectSession" \
 		--message "$( printf '%s' "$toolOutcome" | LC_ALL=C tr '\n' ' ' | cut -c1-200 )" > /dev/null 2>&1 || :
 }
 
@@ -3537,7 +3537,7 @@ AgentsHarnessArtifactPublish(){
 	[ -z "$toolKind" ] || pubArgs+=( --kind "$toolKind" )
 	pubSession="$( AgentsHarnessSessionKey )"
 	[ -z "$pubSession" ] || pubArgs+=( --session-id "$pubSession" )
-	"$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" "${pubArgs[@]}" \
+	"$BASH" "$pubTools" --intern-artifact-publish "$harnessAgent" --title "$toolTitle" "${pubArgs[@]}" \
 		> "$harnessScratch/artifact.out" 2> "$harnessScratch/artifact.err" < /dev/null || pubRc=$?
 	toolUrl="$( LC_ALL=C sed -n 's/^ARTIFACT_URL=//p' "$harnessScratch/artifact.out" | head -1 )"
 	if [ "$pubRc" != 0 ] ; then
@@ -3578,7 +3578,7 @@ AgentsHarnessPendingReplyOpen(){ ## conversation id, question body, then the typ
 	case "${14:-}" in
 		true|1|yes) openIdentity="bot" ;;
 	esac
-	openId="$( printf '%s' "$2" | "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
+	openId="$( printf '%s' "$2" | "$BASH" "$openTools" --intern-op-pending-reply-open "$harnessAgent" \
 		--to "$1" \
 		${openSession:+--session-id "$openSession"} \
 		${3:+--kind "$3"} ${4:+--address-to "$4"} ${5:+--channel "$5"} ${6:+--question-ts "$6"} ${7:+--thread-ts "$7"} \
@@ -3600,7 +3600,7 @@ AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict,
 	[ -x "$closeTools" ] || return 0
 	## Only while still open: a record another closer (a collect, a settle) closed first is left as it is.
 	local closeRc=0
-	"$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} ${5:+--answered-by "$5"} --context "$harnessAskName" >/dev/null 2>&1 || closeRc=$?
+	"$BASH" "$closeTools" --intern-op-pending-reply-close "$1" --if-open --status "$2" ${3:+--verdict "$3"} ${4:+--answer-ts "$4"} ${5:+--answered-by "$5"} --context "$harnessAskName" >/dev/null 2>&1 || closeRc=$?
 	case "$closeRc" in
 		0|3) ;;
 		*) printf 'WARNING: %s: pending reply %s could not be closed as %s, so it still reads as waiting.\n' "$harnessAskName" "$1" "$2" >&2 ;;
@@ -3614,7 +3614,7 @@ AgentsHarnessPendingReplyClose(){ ## pending reply id, status, optional verdict,
 AgentsHarnessAskEarlier(){ ## kind, question, question key, address_to, refusal id, task ref
 	local earlyTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" earlyFound earlyId earlyAnswer
 	[ -x "$earlyTools" ] && [ -n "$harnessAgent" ] || return 1
-	earlyFound="$( printf '%s' "$2" | "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "$( AgentsHarnessSessionKey )" \
+	earlyFound="$( printf '%s' "$2" | "$BASH" "$earlyTools" --intern-op-pending-reply-earlier "$harnessAgent" --session-id "$( AgentsHarnessSessionKey )" \
 		--kind "$1" ${3:+--question-key "$3"} ${4:+--address-to "$4"} ${5:+--refusal-id "$5"} ${6:+--task-ref "$6"} 2>/dev/null \
 		| LC_ALL=C grep -m1 -E '^EARLIER-(RECORD|DECISION) ' )" || earlyFound=""
 	[ -n "$earlyFound" ] || return 1
@@ -3655,7 +3655,7 @@ AgentsHarnessAskLaterSaid(){
 ## Prints its result lines; nothing at all when there is no record to read.
 AgentsHarnessEscalationRead(){ ## pending reply id
 	[ -n "$1" ] && [ -n "$harnessAgent" ] || return 0
-	"$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-read "$harnessAgent" "$1" \
+	"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-read "$harnessAgent" "$1" \
 		> "$harnessScratch/escalation-read.out" 2> /dev/null || :
 	LC_ALL=C grep -E '^(ESCALATION|VERDICT|VERDICT-TEXT|VERDICT-REASON|ANSWERED-BY|GRANT|CHANGE|WAITING-ON|UNREADABLE-REASON): ' "$harnessScratch/escalation-read.out" 2>/dev/null || :
 }
@@ -3699,7 +3699,7 @@ AgentsHarnessAskKeepClarifications(){ ## pending id, clarification lines, newest
 		[ -n "$keepFloor" ] || keepFloor="$( AgentsHarnessAskRecordField "$1" question-ts )"
 	fi
 	[ -n "$2" ] || [ -n "$keepFloor" ] || { printf '0\n' ; return 0 ; }
-	keepOut="$( printf '%s\n' "$2" | "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$1" --from-stdin \
+	keepOut="$( printf '%s\n' "$2" | "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-clarify "$1" --from-stdin \
 		${keepFloor:+--follow-floor "$keepFloor"} 2>/dev/null )" \
 		|| printf 'WARNING: %s: the clarifications on pending reply %s were not kept on its record.\n' "$harnessAskName" "$1" >&2
 	keepOut="$( printf '%s\n' "$keepOut" | LC_ALL=C sed -n 's/^CLARIFIED [^ ]* \([0-9][0-9]*\)$/\1/p' | head -1 )"
@@ -3724,7 +3724,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending_id %s names no pending reply in this workspace. Nothing was done.\n' "$harnessAskName" "$actId" ; return 0
 	fi
 	if [ -n "$actWithdraw" ] ; then
-		actOut="$( "$actTools" --member-pending-reply-settle "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
+		actOut="$( "$BASH" "$actTools" --member-pending-reply-settle "$harnessAgent" "$actId" --reason "$actWithdraw" --withdraw 2>&1 )" || actRc=$?
 		if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "WITHDRAWN $actId" ; then
 			AgentsHarnessAskWaitItem drop "$actId" || :
 			printf 'ASK-RESULT: WITHDRAWN\nPending reply %s is withdrawn: closed with your reason and no verdict, so it answers, grants and decides nothing, and it is reminded no more. A note in its thread tells the person it is no longer needed, and it has left your Wait set.\n' "$actId"
@@ -3736,7 +3736,7 @@ AgentsHarnessAskAct(){ ## pending id, readback option, withdraw reason, understo
 		printf 'ERROR: %s: pending reply %s was NOT withdrawn, and stays as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$actId" "$actOut"
 		return 0
 	fi
-	actOut="$( "$actTools" --member-escalation-readback "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
+	actOut="$( "$BASH" "$actTools" --member-escalation-readback "$harnessAgent" "$actId" "$actReadback" "$actUnderstood" 2>&1 )" || actRc=$?
 	if [ "$actRc" = "0" ] && printf '%s\n' "$actOut" | LC_ALL=C grep -q -x -F "ESCALATION: $actId answered" ; then
 		## The item stays in the Wait set: a later reply there is an objection, kept on the decision.
 		AgentsHarnessAskWaitItem add "$actId" || :
@@ -3855,7 +3855,7 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			## A person is shown the target by its location root, `<place>:<relative path>`, where
 			## it lies in a registered place, and then never its absolute path beside it; as given
 			## where it lies in none. The record keeps the exact target, which the grant is written from.
-			[ -z "$askRefusedTarget" ] || askRefusedTarget="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-place "$harnessAgent" "$askRefusedTarget" 2>/dev/null \
+			[ -z "$askRefusedTarget" ] || askRefusedTarget="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-place "$harnessAgent" "$askRefusedTarget" 2>/dev/null \
 				|| printf '%s\n' "$askRefusedTarget" )"
 			## The folder of the refused file, which a request for one call offers as one more
 			## answer: as the post shows it, and nothing where it cannot be right
@@ -3863,7 +3863,7 @@ AgentsHarnessAskCheck(){ ## -- reads the caller's tool* fields
 			## The project that file lies in is one more answer beside the folder, where the same
 			## operation names one: a project of a source tree that is wider than the folder.
 			askRefusedFolder="" ; askRefusedProject=""
-			[ -n "${toolEntries:-}" ] || askRefusedFolder="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-folder "$harnessAgent" \
+			[ -n "${toolEntries:-}" ] || askRefusedFolder="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-folder "$harnessAgent" \
 				--session-id "$askSession" --refusal-id "$toolRefusalId" 2> /dev/null )" || askRefusedFolder=""
 			askRefusedProject="$( LC_ALL=C sed -n 's/^PROJECT-SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
 			askRefusedFolder="$( LC_ALL=C sed -n 's/^SHOWN: //p' <<< "$askRefusedFolder" | head -1 )"
@@ -4026,7 +4026,7 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 	if [ "$askThreadTs" = "$askTs" ] ; then
 		if [ -n "$revPrev" ] ; then
 			## One live update under the root: the one before it goes, under the identity that posted it.
-			"$revTools" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
+			"$BASH" "$revTools" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$revPrev" $( [ "$revAsBot" != "true" ] || printf -- '--identity-bot' ) > /dev/null 2>&1 \
 				|| printf 'WARNING: %s: the update before this one, %s:%s, could not be removed, so the thread holds two.\n' "$harnessAskName" "$askChannel" "$revPrev" >&2
 		elif AgentsToolsAskKindRow "$toolKind" ; then
 			AgentsHarnessAskReact "$askChannel:$askTs" "$revAsBot" add $( ASKP_BLOCK="Marks/superseded" AgentsToolsAskPostFill block "$agentsAskRowTemplate" "" 2> /dev/null )
@@ -4044,7 +4044,7 @@ AgentsHarnessAskRevise(){ ## record file, options given (empty: unchanged), sele
 		MDSC_CMD="$harnessAskName" AgentsToolsAskPostClose "$revRecord" "$revSuperseded" superseded edit
 	fi
 	AgentsHarnessAskReact "$askChannel:$revTs" "$revAsBot" add $revNew
-	revOut="$( printf '%s' "$askBody" | "$revTools" --intern-op-pending-reply-revise "$toolPendingId" --from-stdin --revision-ts "$revTs" --select "$toolSelect" --options "$toolOptions" \
+	revOut="$( printf '%s' "$askBody" | "$BASH" "$revTools" --intern-op-pending-reply-revise "$toolPendingId" --from-stdin --revision-ts "$revTs" --select "$toolSelect" --options "$toolOptions" \
 		--fields "$( AgentsHarnessAskFields )" --revised-by "$harnessAgent" ${revSuperseded:+--superseded "$revSuperseded"} --context "$harnessAskName" 2>&1 )" || {
 		printf 'ERROR: %s: the changed question WAS posted as %s:%s, and then pending reply %s could not be updated, so an answer is still read against the question as it was. What the operation reported follows:\n%s\n' "$harnessAskName" "$askChannel" "$revTs" "$toolPendingId" "$revOut" ; return 1
 	}
@@ -4085,7 +4085,7 @@ AgentsHarnessAskProposalReply(){ ## -- reads the caller's ask* and tool* fields
 			return 0
 		fi
 		## No root stands without its proposal.
-		if "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
+		if "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --member-comms-slack-delete-message "$harnessAgent" "$askChannel:$askTs" $replyBot > /dev/null 2>&1 ; then
 			replyRoot="its root was removed"
 		else
 			replyRoot="its root $askChannel:$askTs could not be removed, and stands with no proposal under it"
@@ -4353,7 +4353,7 @@ AgentsHarnessAsk(){
 	## that fails, or names nobody, leaves the ask exactly as it was made.
 	local askRouteOut="" askRoute=""
 	if [ "$toolKind" = "permission" ] && [ -z "$toolEntries" ] && [ -n "$toolRefusalId" ] && [ -z "$askRoutine" ] && [ -n "$harnessAgent" ] && AgentsHarnessAskParty "$toolAddressTo" ; then
-		askRouteOut="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-route "$harnessAgent" \
+		askRouteOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-route "$harnessAgent" \
 			--session-id "$askSession" --refusal-id "$toolRefusalId" --address-to "$toolAddressTo" 2> /dev/null )" || askRouteOut=""
 		askRoute="$( printf '%s\n' "$askRouteOut" | LC_ALL=C sed -n 's/^ROUTE: //p' | head -1 )"
 		if [ -n "$askRoute" ] && [ "$askRoute" != "$toolAddressTo" ] && AgentsHarnessAskParty "$askRoute" ; then
@@ -4443,7 +4443,7 @@ AgentsHarnessAsk(){
 	## as it was made: a prompt of its own.
 	local askJoined="" askJoinedOut=""
 	if [ -n "$askOwnerBot" ] && [ "$toolKind" = "permission" ] && [ -z "$toolEntries" ] && [ -n "$toolRefusalId" ] && [ -n "$harnessAgent" ] ; then
-		askJoinedOut="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-permission-add "$harnessAgent" \
+		askJoinedOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-escalation-permission-add "$harnessAgent" \
 			--session-id "$askSession" --refusal-id "$toolRefusalId" --reason "$toolReason" --context "$harnessAskName" 2> /dev/null )" || askJoinedOut=""
 		case "$askJoinedOut" in
 			'ADDED: '*)
@@ -4476,7 +4476,7 @@ AgentsHarnessAsk(){
 			esac
 		done <<< "$toolEntries"
 		askWhere=""
-		askJoinedOut="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-set-ask "$harnessAgent" \
+		askJoinedOut="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-set-ask "$harnessAgent" \
 			--session-id "$askSession" --refusal-id "$toolRefusalId" --task-ref "$toolTaskRef" --reason "$toolReason" "${askSetArgs[@]}" 2> "$harnessScratch/set-ask.err" )" || askSetRc=$?
 		case "$askSetRc:$askJoinedOut" in
 			0:'THERE: '*)
@@ -4524,7 +4524,7 @@ AgentsHarnessAsk(){
 		case "$askWhere" in
 			DUPLICATE$'\t'*) ;;
 			*)
-				askSingles="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-single-asks "$harnessAgent" \
+				askSingles="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-permission-single-asks "$harnessAgent" \
 					--session-id "$askSession" --task-ref "$toolTaskRef" 2> /dev/null )" || askSingles=""
 			;;
 		esac
@@ -4546,7 +4546,7 @@ AgentsHarnessAsk(){
 			## Asking again is not how an answer is found: its thread is read first, and an
 			## answer already there closes the record and is returned, with nothing posted.
 			local askDupCollected=""
-			askDupCollected="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
+			askDupCollected="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-pending-reply-collect \
 				--id "$askDupId" --context "$harnessAskName" 2>/dev/null | LC_ALL=C grep '^ANSWERED ' )" || askDupCollected=""
 			if [ -n "$askDupCollected" ] ; then
 				AgentsHarnessAskWaitItem drop "$askDupId" || :
@@ -4894,7 +4894,7 @@ AgentsHarnessAskWaitItem(){ ## add|drop, pending reply id
 			*) return 0 ;;
 		esac
 	fi
-	"$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
+	"$BASH" "$itemTools" --intern-op-wait-for-input "$harnessAgent" "--wait-$1" --wait-session-id "$itemSession" --wait-source "ask:$2" > /dev/null 2>&1
 }
 
 ## The lines that end an ask left open: its wait item, and the Wait that collects its answer.

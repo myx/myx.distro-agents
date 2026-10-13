@@ -503,7 +503,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
 		export MDAT_WAIT_REMIND=off
 		cd "$testDir" || exit 1
-		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" bash "$testDir/$oneName.test.sh"
+		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$testDir/$oneName.test.sh"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &
 	onePid=$!
 	wait "$onePid" || oneRc=$?

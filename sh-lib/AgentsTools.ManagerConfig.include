@@ -7,8 +7,8 @@
 ## arm of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
 ##
 ## FOR VIEWING, but for one operation. The digest writes nothing: no setting, no registry,
-## no file. --manager-config-interface-set saves one interface setting of the user who runs
-## it, and nothing else (THE INTERFACE SETTINGS, below). A value is read by
+## no file. --manager-config-set saves one changeable setting, a declared one, and nothing
+## else (THE CHANGEABLE SETTINGS, below). A value is read by
 ## the setting reader of the sibling package, one key a call (LocalTools.Config.include, as
 ## AgentsContext.UseAgentsTools.include reads the team data directory), and the names of a
 ## scope's keys by the names-only reader (AgentsToolsScopeKeyNames). The form of the setting
@@ -35,54 +35,70 @@ type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 
 ## The subjects of the digest, in the order a person looks for them, which is the order
 ## they are printed in whatever the order they are asked in.
-agentsManagerConfigSubjects="workspace cli systems loop scopes interface"
+agentsManagerConfigSubjects="workspace cli systems loop scopes interface console control"
 
-## THE LABELS: what a screen calls each subject and each line, in the one declaration of them.
-## One row on a line of its own, `<subject>|<group>|<key>|<label>`:
-##   a row with no group and no key names the subject itself;
+## THE LABELS: what a screen calls each subject and each line, and what it says of a line, in
+## the one declaration of them. One row on a line of its own,
+## `<subject>|<group>|<key>|<label>|<belongs>|<description>`:
+##   a row with no group and no key names the subject itself, and has no more than its label;
 ##   <group> and <key> name a line as the digest prints it, an absent key as `-`. `*` stands
 ##   for any, and a word that ends with `*` for every word that begins so. The first row that
 ##   fits a line names it, so the row of one key stands ahead of a row for any;
 ##   <label> is capitalised words, more than one, never the bare key. `{words}` in it stands
 ##   for the words of the key itself, capitalised, with `Setting` after a key of one word;
-##   `{name}` for the key as it stands, where the key is a name: a place's, a scope's.
+##   `{name}` for the key as it stands, where the key is a name: a place's, a scope's;
+##   <belongs> is which of the two a line is. `settings`: what a user sets for himself in
+##   this workspace, and what may be changed while things run and is read by itself at its
+##   next use; each of them is a row of THE CHANGEABLE SETTINGS. `configuration`: what is
+##   deployed and configured for the workspace or the machine, and everything measured; no
+##   such line is changed from a console now, a wizard will change it;
+##   <description> is one or two plain sentences: what the line is, and what changes it or
+##   what a change of it does. NEVER A VALUE IN IT, and nothing of a secret: no digit, no
+##   path, no assignment.
 ## A row for any key is for lines whose keys are not this file's: the places registered, the
 ## scopes and their keys, the credentials a harness leg declares, what the main loop left in
 ## its state file. Every line this file prints under a key of its own has a row of its own,
-## so a new one cannot come without its label: a line that no row fits gets the label `-`,
-## and AgentsManagerConfigDigestCheck fails on it.
-agentsManagerConfigLabels="workspace|||Workspace Paths
-workspace|paths|workspace-root|Workspace Root
-workspace|paths|tooling-origin|Tooling Origin
-workspace|paths|team-data-root|Team Data Root
-workspace|paths|session-records|Session Records
-workspace|paths|session-stores|Session Stores
-workspace|paths|settings|Scope Settings Folder
-workspace|places|*|Registered Place {name}
-cli|||CLI Services
-cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service
-cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier
-cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds
-cli|workspace|spawn-settings-workspace|Spawn Settings Workspace
-cli|*|present|CLI Present
-cli|*|usable|CLI Usable
-cli|*|wait-round|CLI Wait Round
-cli|*|*|{words}
-systems|||Outside Systems
-systems|*|-|No Scope Configured
-systems|*|*|Scope {name}
-loop|||Main Loop And Heartbeat
-loop|main-loop|state-file|Main Loop State File
-loop|main-loop|MAIN_LOOP_*|{words}
-loop|heartbeat|state-note|Heartbeat State Note
-loop|heartbeat|state|Heartbeat State
-loop|heartbeat|recheck-date|Heartbeat Recheck Date
-loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration
-loop|heartbeat|running|Heartbeat Running
-scopes|||Scope Settings
-scopes|*|*|{words}
-interface|||Interface Settings
-interface|style|MDAT_MANAGER_STYLE|Interface Style"
+## so a new one cannot come without its label and its description: a line that no row fits
+## gets `-` for both, and AgentsManagerConfigDigestCheck fails on it.
+agentsManagerConfigLabels="workspace|||Workspace Paths||
+workspace|paths|workspace-root|Workspace Root|configuration|The root folder of this workspace, which every path of the tooling starts from. It is where the workspace was installed.
+workspace|paths|tooling-origin|Tooling Origin|configuration|The source tree the tooling runs from. It follows the console origin of the workspace, at the next start of a console.
+workspace|paths|team-data-root|Team Data Root|configuration|The folder that holds the board and the inboxes of the team. It follows the team data directory the owner setup saves.
+workspace|paths|session-records|Session Records|configuration|The folder the record of every started run is kept in. The tooling makes it at the first start of a run.
+workspace|paths|session-stores|Session Stores|configuration|The folder each session keeps its own store in. The tooling makes it at the first session.
+workspace|paths|settings|Scope Settings Folder|configuration|The folder that holds one settings file for each scope, the team's and each member's. Only its owner and its group can read it.
+workspace|places|*|Registered Place {name}|configuration|The path of the place registered under this name. A place is registered and forgotten by the owner's own operations, or declared by a project.
+cli|||CLI Services||
+cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service|configuration|The agent CLI this workspace starts for a member and for the console. A change reaches every next start, so it is made by the owner setup.
+cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
+cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
+cli|workspace|spawn-settings-workspace|Spawn Settings Workspace|configuration|The workspace the spawn settings are read from. It is found at the call, from the settings of the team.
+cli|*|present|CLI Present|configuration|Whether this CLI is on the machine, with the file of its harness leg or the path of its binary. It is measured at the call.
+cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a harness leg with one of its credentials set, a vendor CLI where its binary is. It is measured at the call.
+cli|*|wait-round|CLI Wait Round|configuration|How long a wait runs on this CLI before it comes back, in seconds: the round of the workspace where one is set, else the CLI's own.
+cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. Only whether it is set is shown, and the owner setup saves it.
+systems|||Outside Systems||
+systems|*|-|No Scope Configured|configuration|No scope of this workspace holds a setting of this system, so no member reaches it from here.
+systems|*|*|Scope {name}|configuration|Whether this scope holds the settings of this system, with the keys it still lacks. The owner setup saves the settings themselves.
+loop|||Main Loop And Heartbeat||
+loop|main-loop|state-file|Main Loop State File|configuration|The file the main loop leaves after every iteration. It says how the last one ended and when.
+loop|main-loop|MAIN_LOOP_*|{words}|configuration|What the last iteration of the main loop left in its state file. The loop writes it, and nothing reads a change made by hand.
+loop|heartbeat|state-note|Heartbeat State Note|configuration|The note the heartbeat keeps in the team data, with its lock.
+loop|heartbeat|state|Heartbeat State|configuration|The state the heartbeat wrote into its note at its last turn.
+loop|heartbeat|recheck-date|Heartbeat Recheck Date|configuration|The date until which the lock of the heartbeat holds. The heartbeat moves it at every turn.
+loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration|configuration|When the heartbeat last finished a turn of its own.
+loop|heartbeat|running|Heartbeat Running|configuration|Whether the heartbeat runs now: its note says so and its lock is still held.
+scopes|||Scope Settings||
+scopes|*|*|{words}|configuration|A setting of this scope, saved in its own settings file. The owner setup saves it, and a secret among them is shown only as set or not.
+interface|||Interface Settings||
+interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
+console|||Console Behaviour||
+console|history|MDLT_CONSOLE_HISTORY|Console History Type|settings|Where a console of this workspace keeps the shell history of this user. A change is read by each console at its next start, and what a console wrote already stays in the file it wrote.
+console|origin|MDLT_CONSOLE_ORIGIN|Console Tooling Origin|configuration|Where the consoles of this workspace load their tools from. It is set when the workspace is installed, and a wrong one stops every console.
+console|detail|MDSC_DETAIL|Debug Output Mode|configuration|Whether the tools of this family say what they do as they do it, for whoever runs them with it on. A command takes it from its verbose option or from the environment of its caller, and no settings file holds it.
+control|||Session Control||
+control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
+control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread."
 
 ## The words of a key that stand whole in capitals in a label made of the key's own words.
 agentsManagerConfigLabelCapitals="API CLI ID IMAP SMTP URL UTC XAI"
@@ -230,16 +246,17 @@ AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
 	fi
 }
 
-## Gives the rows of a subject their labels: reads its `subject` row and its `line` rows,
-## and prints each with its label as one more field at its end, by THE LABELS
-## (AgentsManagerConfigLabels.awk). No subject and no line maker knows a label: a row gets
-## its own here, in the one place every row of the digest passes.
-AgentsToolsManagerConfigLabelled(){
+## Gives the rows of a subject what THE LABELS say of them: reads its `subject` row and its
+## `line` rows, and prints each with its label as one more field at its end; with `full`,
+## each line in full, with its description, whether it can be changed and which of the two
+## it belongs to (AgentsManagerConfigLabels.awk, which says the forms). No subject and no
+## line maker knows a label: a row gets its own here, where every row of the digest passes.
+AgentsToolsManagerConfigLabelled(){ ## `full` (may be empty)
 	{
 		printf '%s\n' "$agentsManagerConfigLabels"
 		printf '\034\n'
 		cat
-	} | LC_ALL=C awk -v capitals="$agentsManagerConfigLabelCapitals" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerConfigLabels.awk"
+	} | LC_ALL=C awk -v capitals="$agentsManagerConfigLabelCapitals" -v full="${1:+1}" -v earlier="$agentsManagerConfigEarlierForm" -v deployed="$agentsManagerConfigDeployed" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerConfigLabels.awk"
 }
 
 ## THE WORKSPACE AND ITS PATHS: the root of the workspace, the origin the tooling runs from,
@@ -472,21 +489,55 @@ AgentsToolsManagerConfigScopes(){
 	return 0
 }
 
-## THE INTERFACE SETTINGS of the user who runs the call: how the manager screen looks to that
-## user. One row a setting, on a line of its own, its fields parted by `|`:
-##   the group of its line in the digest, a short name of the setting;
-##   its key, which is also the name of the variable of the environment that sets it for a start;
+## THE CHANGEABLE SETTINGS: the declared few a console may change, and no other. They are
+## the lines that belong to the `settings` (THE LABELS): what a user sets for himself, and
+## what may be changed while things run. One row a setting, on a line of its own, its fields
+## parted by `|`:
+##   the subject and the group of its line in the digest;
+##   its key, under which it is saved;
+##   its kind: `choice`, one of the values its row lists; `number`, a whole number from its
+##   smallest to its largest;
+##   where its value is read, in the order of reading, blanks between: `environment`, the
+##   variable of the environment that bears its key; `user`, the settings of the user who
+##   runs the call, in this workspace; `system`, the workspace's own settings file, which
+##   the consoles read after the user's; `team`, the settings of the team in this workspace.
+##   It is saved in the first of `user` and `team` its row names: the user's own scope, or
+##   the workspace's, for everybody;
 ##   its default, the value where nothing sets it;
-##   the values that may be chosen, in the order they are offered, parted by commas, each
-##   `<value>=<label>`. No value holds a blank, and no value and no label a `,`, a `=` or a `|`.
-## Another interface setting is one more row here: the digest and the writer go by the rows
-## and know no setting by name. A value is saved under its key in the user's own settings of
-## this workspace, by the setting reader of the sibling package in its scope of the current
-## user. NO SECRET IS KEPT HERE: the writer saves nothing but a value that stands in a row,
-## so no text of a caller's reaches a file.
-## The styles are those the screen declares, with its labels (STYLES in
-## AgentsManagerScreen.py): AgentsManagerConfigInterfaceCheck holds the two against each other.
-agentsManagerConfigInterfaceSettings="style|MDAT_MANAGER_STYLE|tv|tv=Turbo Vision,mc=MC (Compact),bw=B/W"
+##   what it takes: for a choice the values in the order they are offered, parted by commas,
+##   each `<value>=<label>`; for a number `<smallest>..<largest>`. No value holds a blank,
+##   and no value and no label a `,`, a `=` or a `|`.
+## Another changeable setting is one more row here, with its row in THE LABELS: the digest
+## and the writer go by the rows and know no setting by name. NO SECRET IS KEPT HERE: the
+## writer saves nothing but a value that a row takes, so no text of a caller's reaches a file.
+## EACH IS HERE BECAUSE the tooling reads it at its next use, a wrong value cannot be saved,
+## and no running session is broken by a change:
+##   MDAT_MANAGER_STYLE   the user's own: the look of the manager screen at its next start
+##       (the styles the screen declares, STYLES in AgentsManagerScreen.py, which
+##       AgentsManagerConfigInterfaceCheck holds against this row).
+##   MDLT_CONSOLE_HISTORY   the user's own: which history file a console takes at its next
+##       start. Every console's rc reads it, the user's own first. An unknown value stops a
+##       console, so only its six are taken.
+##   SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS   dynamic: the two bounds
+##       of a request to a control thread, read at each request. A value that is no number
+##       reads as the default, and a kill never depends on either. Their ranges are set
+##       here: the tooling itself reads any whole number above nought.
+## NOT HERE, each a line of the configuration: the CLI service, the harness tier and the wait
+## round of the workspace (deployed; a round longer than a CLI allows ends the waits of
+## running sessions), where the consoles load their tools from (a wrong one stops every
+## console), and the debug output of the tools (MDSC_DETAIL: no file holds it). The tick and
+## the other seconds of a control thread are no line at all: a running thread reads them.
+agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv|tv=Turbo Vision,mc=MC (Compact),bw=B/W
+console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|workspace-personal=Per User In This Workspace,workspace-separate=Per User And Per Console,workspace-shared=Shared By All Users,local-machine-home=In The Home Of The User,bash-default=The File Bash Uses,user-default=As The User Has It
+control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
+control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600"
+
+## The subjects whose changeable lines keep, where the digest is not asked in full, the form
+## they had first: where the value comes from and what it takes ahead of the label.
+agentsManagerConfigEarlierForm="interface"
+
+## Why no line of the configuration is changed from a console: the words of its field.
+agentsManagerConfigDeployed="set at deployment: a wizard will change it"
 
 ## The file the user who runs the call has for settings of their own in this workspace, where
 ## the setting reader of the sibling package keeps its scope of the current user. rc 1, and
@@ -523,45 +574,115 @@ AgentsToolsManagerConfigUserSave(){ ## key, value
 	) > /dev/null 2>&1
 }
 
-## Whether a value is one an interface setting may take: rc 0 where it stands among the
-## choices of its row.
-AgentsToolsManagerConfigInterfaceOffers(){ ## choices, value
-	case "$2" in ''|*,*|*=*|*'|'*) return 1 ;; esac
-	case ",$1" in *",$2="*) return 0 ;; esac
+## One setting of the workspace's own settings file, which the consoles read after the
+## user's: by the same reader, in its scope of the workspace. Reading makes no file.
+AgentsToolsManagerConfigSystemValue(){ ## key
+	(
+		set -- --system-config-option --select "$1"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) 2> /dev/null || :
+}
+
+## The file the settings of the team are kept in, in this workspace.
+AgentsToolsManagerConfigTeamFile(){
+	printf '%s\n' "${MMDAPP%/}/.local/.agents/magic-team.agent.env"
+}
+
+## One setting of the team in this workspace, by the tooling's own operation, as every
+## reader of such a setting asks it.
+AgentsToolsManagerConfigTeamValue(){ ## key
+	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null < /dev/null || :
+}
+
+## Saves one setting of the team in this workspace, by that same operation: the tooling's
+## own writer of a workspace's settings, which is the setting reader of the sibling package.
+## It writes as that reader writes the user's, a temp file named by the id of the shell and
+## put in place by a rename, with nothing said where that fails: whoever saves reads the
+## value back.
+AgentsToolsManagerConfigTeamSave(){ ## key, value
+	DistroAgentsTools --agents-config-option magic-team --upsert "$1" "$2" > /dev/null 2>&1 < /dev/null
+}
+
+## Whether a value is one a setting takes: rc 0 where it is. A choice takes the values of
+## its row. A number takes, to be saved, a whole number from its smallest to its largest,
+## written in digits alone with no nought ahead; and as it is read, `read` given, any whole
+## number above nought of up to seven digits, which is what the tooling itself reads.
+AgentsToolsManagerConfigSettingTakes(){ ## kind, what it takes, value, `read` (may be empty)
+	case "$3" in ''|*,*|*=*|*'|'*) return 1 ;; esac
+	case "$1" in
+		choice)
+			case ",$2" in *",$3="*) return 0 ;; esac
+		;;
+		number)
+			case "$3" in *[!0123456789]*|0*|????????*) return 1 ;; esac
+			[ -z "${4:-}" ] || return 0
+			[ "$3" -ge "${2%%..*}" ] && [ "$3" -le "${2##*..}" ] && return 0
+		;;
+	esac
 	return 1
 }
 
-## What an interface setting is now and where that comes from, `<value> <source>`: the first
-## of these that names one of its values. The variable of the environment that bears its
-## key, `environment`; what the user saved, `user`; else its default, `default`. A name that
-## is none of its values counts as not given, wherever it stands.
-AgentsToolsManagerConfigInterfaceNow(){ ## key, default, choices
-	local nowKey="$1" nowValue
-	nowValue="${!nowKey:-}"
-	if AgentsToolsManagerConfigInterfaceOffers "$3" "$nowValue" ; then
-		printf '%s %s\n' "$nowValue" environment
-		return 0
-	fi
-	nowValue="$( AgentsToolsManagerConfigUserValue "$nowKey" )" || nowValue=""
-	if AgentsToolsManagerConfigInterfaceOffers "$3" "$nowValue" ; then
-		printf '%s %s\n' "$nowValue" user
-		return 0
-	fi
-	printf '%s %s\n' "$2" default
+## What a changeable setting is now and where that comes from, `<value> <source>`: the first
+## place of its row that holds a value it takes. `environment`, `user`, or `workspace` for
+## the workspace's own file and for the settings of the team alike; else its default,
+## `default`. A value that is none it takes counts as not given, wherever it stands.
+AgentsToolsManagerConfigSettingNow(){ ## key, kind, places, default, what it takes
+	local nowKey="$1" nowPlace nowValue nowSource
+	for nowPlace in $3 ; do
+		case "$nowPlace" in
+			environment) nowValue="${!nowKey:-}" ; nowSource=environment ;;
+			user) nowValue="$( AgentsToolsManagerConfigUserValue "$nowKey" )" || nowValue="" ; nowSource=user ;;
+			system) nowValue="$( AgentsToolsManagerConfigSystemValue "$nowKey" )" || nowValue="" ; nowSource=workspace ;;
+			team) nowValue="$( AgentsToolsManagerConfigTeamValue "$nowKey" )" || nowValue="" ; nowSource=workspace ;;
+			*) continue ;;
+		esac
+		if AgentsToolsManagerConfigSettingTakes "$2" "$5" "$nowValue" read ; then
+			printf '%s %s\n' "$nowValue" "$nowSource"
+			return 0
+		fi
+	done
+	printf '%s %s\n' "$4" default
 	return 0
 }
 
-## THE INTERFACE: one line for each of THE INTERFACE SETTINGS, in the group of its row: its
-## key, `set`, and what it is now. Then, at the end of the row, where that comes from,
-## `environment`, `user` or `default`, and the values that may be chosen with their labels,
-## as its row declares them: a screen draws the choice from the line and knows no setting.
-AgentsToolsManagerConfigInterface(){
-	local interfaceGroup interfaceKey interfaceDefault interfaceChoices interfaceNow
-	while IFS='|' read -r interfaceGroup interfaceKey interfaceDefault interfaceChoices ; do
-		[ -n "$interfaceKey" ] || continue
-		interfaceNow="$( AgentsToolsManagerConfigInterfaceNow "$interfaceKey" "$interfaceDefault" "$interfaceChoices" )" || interfaceNow=""
-		AgentsToolsManagerConfigLine interface "$interfaceGroup" "$interfaceKey" set "${interfaceNow%% *}" "${interfaceNow#* }" "$interfaceChoices"
-	done <<< "$agentsManagerConfigInterfaceSettings"
+## Where a changeable setting is saved, `<scope> <file>` with a TAB between them: the user's
+## own file where its row names `user`, else the settings of the team, the workspace's.
+AgentsToolsManagerConfigSettingPlace(){ ## places
+	case " $1 " in
+		*" user "*) printf 'user\t%s\n' "$( AgentsToolsManagerConfigUserFile )" ;;
+		*" team "*) printf 'workspace\t%s\n' "$( AgentsToolsManagerConfigTeamFile )" ;;
+		*) return 1 ;;
+	esac
+}
+
+## The lines of the changeable settings of one subject, one for each row of THE CHANGEABLE
+## SETTINGS that names it: its key, `set`, and what it is now; then five fields more, where
+## that comes from, what it takes, its kind, its scope and the file it is saved in. The
+## labeller puts them where the form of the row has them.
+AgentsToolsManagerConfigDeclared(){ ## subject
+	local declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes declaredNow declaredScope declaredFile
+	while IFS='|' read -r declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes ; do
+		[ "$declaredSubject" = "$1" ] && [ -n "$declaredKey" ] || continue
+		declaredNow="$( AgentsToolsManagerConfigSettingNow "$declaredKey" "$declaredKind" "$declaredPlaces" "$declaredDefault" "$declaredTakes" )" || declaredNow=""
+		declaredScope="" ; declaredFile=""
+		IFS=$'\t' read -r declaredScope declaredFile <<< "$( AgentsToolsManagerConfigSettingPlace "$declaredPlaces" )"
+		AgentsToolsManagerConfigLine "$1" "$declaredGroup" "$declaredKey" set "${declaredNow%% *}" "${declaredNow#* }" "$declaredTakes" "$declaredKind" "$declaredScope" "$declaredFile"
+	done <<< "$agentsManagerConfigSettings"
+	return 0
+}
+
+## THE CONSOLE: what a console of this workspace does, by what every console's rc and every
+## context reads. Its changeable settings; then, for viewing, where the consoles load their
+## tools from, as the contexts read it, the user's own setting first, and whether the tools
+## say what they do as they do it, as the environment of this call has it (MDSC_DETAIL: a
+## command takes it from its verbose option or from its caller, and no file holds it).
+AgentsToolsManagerConfigConsole(){
+	local consoleOrigin
+	AgentsToolsManagerConfigDeclared console
+	consoleOrigin="$( AgentsToolsManagerConfigUserValue MDLT_CONSOLE_ORIGIN )" || consoleOrigin=""
+	[ -n "$consoleOrigin" ] || consoleOrigin="$( AgentsToolsManagerConfigSystemValue MDLT_CONSOLE_ORIGIN )" || consoleOrigin=""
+	AgentsToolsManagerConfigLine console origin MDLT_CONSOLE_ORIGIN set "${consoleOrigin:-.local}"
+	AgentsToolsManagerConfigLine console detail MDSC_DETAIL set "${MDSC_DETAIL:-off}"
 	return 0
 }
 
@@ -570,8 +691,13 @@ case "$1" in
 	## The settings of this workspace as they are, by subject: TAB-separated rows a screen
 	## reads. Their form is the help entry's.
 	--manager-config-digest)
-		local digestOp="$1" digestName digestKnown digestFound digestWanted=" " digestLines digestLine digestCount
+		local digestOp="$1" digestName digestKnown digestFound digestWanted=" " digestLines digestLine digestCount digestFull=""
 		shift
+		## Each line in full, where that is asked ahead of every name.
+		if [ "${1:-}" = "--full" ] ; then
+			digestFull="full"
+			shift
+		fi
 		for digestName in "$@" ; do
 			digestFound="false"
 			for digestKnown in $agentsManagerConfigSubjects ; do
@@ -592,7 +718,8 @@ case "$1" in
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
 				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
-				interface) digestLines="$( AgentsToolsManagerConfigInterface )" || digestLines="" ;;
+				interface|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
+				console) digestLines="$( AgentsToolsManagerConfigConsole )" || digestLines="" ;;
 			esac
 			digestCount=0
 			if [ -n "$digestLines" ] ; then
@@ -603,47 +730,61 @@ case "$1" in
 			{
 				printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
 				[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
-			} | AgentsToolsManagerConfigLabelled
+			} | AgentsToolsManagerConfigLabelled "$digestFull"
 		done
 		return 0
 	;;
 
-	## Saves one interface setting for the user who runs the call, in this workspace: the one
-	## operation here that writes. One row a program reads. Its form is the help entry's.
-	--manager-config-interface-set)
-		local interfaceOp="$1" interfaceGroup interfaceKey interfaceDefault interfaceChoices interfaceKeys="" interfaceValues="" interfaceFile interfaceSaved
+	## Saves one changeable setting, a row of THE CHANGEABLE SETTINGS, and nothing else: the
+	## one operation here that writes. A key of the configuration is none of them, and is
+	## refused as any other. One row a program reads. Its form is the help entry's.
+	--manager-config-set)
+		local setOp="$1" setSubject setGroup setKey setKind setPlaces setDefault setTakes setKeys="" setFound="" setValues="" setHow="" setScope="" setFile="" setSaved
 		shift
 		if [ $# -ne 2 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: syntax is $interfaceOp <key> <value>, got $# argument(s) -- nothing was saved" >&2
+			echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is $setOp <key> <value>, got $# argument(s) -- nothing was saved" >&2
 			set +e ; return 1
 		fi
-		while IFS='|' read -r interfaceGroup interfaceKey interfaceDefault interfaceChoices ; do
-			[ -n "$interfaceKey" ] || continue
-			interfaceKeys="$interfaceKeys${interfaceKeys:+, }$interfaceKey"
-			[ "$interfaceKey" != "$1" ] || interfaceValues="$interfaceChoices"
-		done <<< "$agentsManagerConfigInterfaceSettings"
+		while IFS='|' read -r setSubject setGroup setKey setKind setPlaces setDefault setTakes ; do
+			[ -n "$setKey" ] || continue
+			setKeys="$setKeys${setKeys:+, }$setKey"
+			[ "$setKey" != "$1" ] || { setFound="$setKind" ; setValues="$setTakes" ; setHow="$setPlaces" ; }
+		done <<< "$agentsManagerConfigSettings"
 		## Nothing that was given is repeated in a refusal: a word that is no key and no value
 		## of a setting may be anything, a secret pasted by mistake among it.
-		if [ -z "$interfaceValues" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the key given is none of the interface settings -- nothing was saved. Its keys: $interfaceKeys" >&2
+		if [ -z "$setFound" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: the key given is none of the changeable settings -- nothing was saved. Its keys: $setKeys" >&2
 			set +e ; return 1
 		fi
-		if ! AgentsToolsManagerConfigInterfaceOffers "$interfaceValues" "$2" ; then
-			interfaceValues="$( printf '%s\n' "$interfaceValues" | LC_ALL=C sed -e 's/=[^,]*//g' -e 's/,/, /g' )"
-			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the value given is none of the values of $1 -- nothing was saved. Its values: $interfaceValues" >&2
+		if ! AgentsToolsManagerConfigSettingTakes "$setFound" "$setValues" "$2" "" ; then
+			if [ "$setFound" = "number" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is no whole number from ${setValues%%..*} to ${setValues##*..}, which $1 takes -- nothing was saved" >&2
+			else
+				setValues="$( printf '%s\n' "$setValues" | LC_ALL=C sed -e 's/=[^,]*//g' -e 's/,/, /g' )"
+				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is none of the values of $1 -- nothing was saved. Its values: $setValues" >&2
+			fi
 			set +e ; return 1
 		fi
-		if ! interfaceFile="$( AgentsToolsManagerConfigUserFile )" ; then
-			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: the operating system gives the user who runs this call no name, so there is no file to save in -- nothing was saved" >&2
+		IFS=$'\t' read -r setScope setFile <<< "$( AgentsToolsManagerConfigSettingPlace "$setHow" )"
+		if [ -z "$setFile" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: there is no file to save $1 in: the operating system gives the user who runs this call no name -- nothing was saved" >&2
 			set +e ; return 1
 		fi
-		AgentsToolsManagerConfigUserSave "$1" "$2" || :
-		interfaceSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || interfaceSaved=""
-		if [ "$interfaceSaved" != "$2" ] ; then
-			echo "⛔ ERROR: $MDSC_CMD $interfaceOp: $1 could not be saved: $interfaceFile does not hold the value after the write" >&2
+		## A setting of the workspace is changed for everybody. Whoever reaches this arm is the
+		## console's operator, who stands at least equal to magic-coordinator: a member's
+		## session, magic-coordinator's among them, was refused where the family is dispatched.
+		if [ "$setScope" = "user" ] ; then
+			AgentsToolsManagerConfigUserSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || setSaved=""
+		else
+			AgentsToolsManagerConfigTeamSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigTeamValue "$1" )" || setSaved=""
+		fi
+		if [ "$setSaved" != "$2" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $setOp: $1 could not be saved: $setFile does not hold the value after the write" >&2
 			set +e ; return 1
 		fi
-		printf 'saved\t%s\t%s\t%s\n' "$1" "$interfaceSaved" "${interfaceFile//[[:space:]]/_}"
+		printf 'saved\t%s\t%s\t%s\t%s\n' "$1" "$setSaved" "$setScope" "${setFile//[[:space:]]/_}"
 		return 0
 	;;
 

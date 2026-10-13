@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerCheck.include -- the --manager-check-* operations: what the check of the
+## setup says, as rows a screen reads. Sourced from the `--manager-check-*)` arm of
+## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## THE CHECK IS NOT HERE. It is the owner's own operation, `--owner-setup-<domain> --check`,
+## the read-only diagnosis of one part of an installation, which prints text for a person: a
+## line a check, `<KEY>: OK`, `WARN` or `FAIL`, with its reason and its fix under it. This
+## include runs that operation for each domain, as a process of its own, and puts each of
+## its result lines into one row (AgentsManagerCheckRows.awk). NOTHING IS DECIDED HERE: no
+## check, no threshold and no judgement of its own. It writes nothing, and what a check
+## reaches is what that check reaches when the owner runs it.
+##
+## ON DEMAND, AND BOUNDED: the checks are far from cheap, seconds each, so no tick asks for
+## them. Every domain is started at once and all are waited for together, for so many seconds
+## at most; one that has not ended by then is ended, and said so in a row, and the others
+## still answer.
+##
+## WHAT IS ENDED IS PROVED TO BE WHAT WAS STARTED. A pid is a number the system gives again.
+## Each check is started as the leader of a process group of its own and kept with when it
+## began, read as it is started (AgentsToolsRegistryProcessesBegan, the one reading a process
+## is kept by). At the bound its group is signalled only while that pid is still the process
+## that began then, shown in the statement of the signal itself (AgentsToolsRegistryGroupBegan
+## for the first signal, the same reading for the second): a check that ended by itself, and
+## one whose start could not be read, is never signalled.
+##
+
+type AgentsToolsRegistryGroupBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+
+## The domains the owner setup has, in the order their rows are printed.
+agentsManagerCheckDomains="claude copilot grok scaleway slack storage"
+
+## The domains whose check asks outside this machine, which `--local` leaves out: `claude`
+## asks the CLI of the workspace whether it is signed in, `slack` asks Slack for the
+## workspace of the team's token.
+agentsManagerCheckReaching="claude slack"
+
+## The words of a key that stand whole in capitals in the label of a check.
+agentsManagerCheckCapitals="API CLI ID MCP URL"
+
+## How long all the checks of one call may take together, in seconds, where none is given.
+agentsManagerCheckSeconds=60
+
+## The rows of the checks that were asked for, domain by domain, from what each left in the
+## folder: its result lines as rows; one `skipped` row for a check that was left out, that
+## did not end in time, or that printed no result line. A function of its own, so that no
+## `case` stands inside a command substitution.
+AgentsToolsManagerCheckRows(){ ## folder, the domains wanted, the bound in seconds
+	local rowsName rowsLabel rowsFound
+	for rowsName in $agentsManagerCheckDomains ; do
+		case " $2 " in *" $rowsName "*) ;; *) continue ;; esac
+		rowsLabel="$( printf '%s' "$rowsName" | LC_ALL=C awk '{ print toupper( substr( $0, 1, 1 ) ) substr( $0, 2 ) "_Check" }' )"
+		if [ -e "$1/$rowsName.late" ] ; then
+			printf 'check\t%s\t-\t-\t%s\tskipped\tthe_check_did_not_end_within_%s_seconds\t-\n' "$rowsName" "$rowsLabel" "$3"
+		elif [ ! -e "$1/$rowsName.out" ] ; then
+			printf 'check\t%s\t-\t-\t%s\tskipped\tleft_out:_its_check_asks_outside_this_machine\t-\n' "$rowsName" "$rowsLabel"
+		else
+			rowsFound="$( LC_ALL=C awk -v domain="$rowsName" -v capitals="$agentsManagerCheckCapitals" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerCheckRows.awk" "$1/$rowsName.out" )"
+			if [ -n "$rowsFound" ] ; then
+				printf '%s\n' "$rowsFound"
+			else
+				printf 'check\t%s\t-\t-\t%s\tskipped\tthe_check_printed_no_result_line\t-\n' "$rowsName" "$rowsLabel"
+			fi
+		fi
+	done
+	return 0
+}
+
+case "$1" in
+
+	## Runs the check of every domain, or of those named, and prints one row a result line,
+	## then one row that sums them. Its form is the help entry's.
+	--manager-check-run)
+		local runOp="$1" runLocal="" runSeconds="$agentsManagerCheckSeconds" runWanted="" runName runKnown runFound runFolder runPids="" runPid runWaited=0 runAlive runRows runBegan="$SECONDS"
+		local runMonitor runKept endName endPid endBegan
+		local runTool="${MDAT_MANAGER_CHECK_TOOL:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh}"
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--local) runLocal="yes" ; shift ;;
+				--seconds)
+					case "${2:-}" in ''|*[!0123456789]*|0*|?????*)
+						echo "⛔ ERROR: $MDSC_CMD $runOp: --seconds takes a whole number above nought of up to four digits -- nothing was run" >&2
+						set +e ; return 1
+					;; esac
+					runSeconds="$2" ; shift 2
+				;;
+				*)
+					runFound=""
+					for runKnown in $agentsManagerCheckDomains ; do [ "$runKnown" != "$1" ] || runFound="yes" ; done
+					if [ -z "$runFound" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $runOp: syntax is $runOp [--local] [--seconds <n>] [<domain>...], and the word given is none of its domains -- nothing was run. Its domains: ${agentsManagerCheckDomains// /, }" >&2
+						set +e ; return 1
+					fi
+					runWanted="$runWanted $1" ; shift
+				;;
+			esac
+		done
+		[ -n "$runWanted" ] || runWanted=" $agentsManagerCheckDomains"
+		set +e
+		runFolder="$( mktemp -d -t AgentsManagerCheck )" || {
+			echo "⛔ ERROR: $MDSC_CMD $runOp: no folder for what the checks print could be made -- nothing was run" >&2
+			return 1
+		}
+		## Every check that is run is started now, each a process of its own and the leader of
+		## a group of its own, and is kept as `<domain>|<pid>|<start>`.
+		runMonitor="$BASH_SUBSHELL:$-"
+		set -m
+		for runName in $agentsManagerCheckDomains ; do
+			case " $runWanted " in *" $runName "*) ;; *) continue ;; esac
+			if [ -n "$runLocal" ] ; then case " $agentsManagerCheckReaching " in *" $runName "*) continue ;; esac ; fi
+			"$BASH" "$runTool" "--owner-setup-$runName" --check > "$runFolder/$runName.out" 2> /dev/null < /dev/null &
+			runKept="$( printf '%s\n' "$!" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" || runKept=""
+			[ -z "$runKept" ] || runPids="$runPids $runName|${runKept%% *}|${runKept#* }"
+		done
+		case "$runMonitor" in 0:*m*) ;; *) set +m ;; esac
+		## They are waited for together. One that has not ended in time is ended, its whole
+		## group, while its leader is still the process that was started, and is no row of a
+		## result.
+		while : ; do
+			runAlive=""
+			for runPid in $runPids ; do
+				endPid="${runPid#*|}" ; endPid="${endPid%%|*}"
+				! kill -0 "$endPid" 2> /dev/null || runAlive="$runAlive $runPid"
+			done
+			[ -n "$runAlive" ] || break
+			if [ "$runWaited" -ge "$runSeconds" ] ; then
+				for runPid in $runAlive ; do
+					endName="${runPid%%|*}" ; endPid="${runPid#*|}" ; endBegan="${endPid%%|*} ${endPid#*|}" ; endPid="${endPid%%|*}"
+					: > "$runFolder/$endName.late"
+					AgentsToolsRegistryGroupBegan "$endBegan" > /dev/null 2>&1 && kill -TERM -- "-$endPid" 2> /dev/null
+				done
+				sleep 2
+				for runPid in $runAlive ; do
+					endPid="${runPid#*|}" ; endBegan="${endPid%%|*} ${endPid#*|}" ; endPid="${endPid%%|*}"
+					[ "$( printf '%s\n' "$endPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$endBegan" ] && kill -KILL -- "-$endPid" 2> /dev/null
+				done
+				break
+			fi
+			sleep 1
+			runWaited=$(( runWaited + 1 ))
+		done
+		wait 2> /dev/null
+		runRows="$( AgentsToolsManagerCheckRows "$runFolder" "$runWanted" "$runSeconds" )"
+		rm -rf -- "$runFolder"
+		[ -z "$runRows" ] || printf '%s\n' "$runRows"
+		printf '%s\n' "$runRows" | LC_ALL=C awk -F'\t' -v OFS='\t' -v took="$(( SECONDS - runBegan ))" '$1 == "check" { checks++ ; state[$6]++ } END { print "summary", checks + 0, state["ok"] + 0, state["warn"] + 0, state["fail"] + 0, state["skipped"] + 0, took }'
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

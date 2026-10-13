@@ -257,7 +257,7 @@ keys RIGHT
 get dived
 RIGSCRIPT
 rigAssert "an ask is selected, and the left pane names no key for it" "$( rigVal on.selected ) [$( rigVal keysLine )]" "1f2e3d4c-0000-4000-8000-000000000003 []"
-rigAssert "its keys are pressed: no dialog opens, nothing is submitted, and the status line says why" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [what can be done with this question is still being read] no"
+rigAssert "its keys are pressed: no dialog opens, nothing is submitted, and the status line says why" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [Answer: what can be done with this question is still being read] no"
 rigAssert "Enter and Right dive nowhere"                             "$( rigVal dived.path ) $( rigVal dived.selected )" "pending 1f2e3d4c-0000-4000-8000-000000000003"
 rigAssert "no operation that changes an ask is called: every start is the read" "$( rigOtherCalls ) $( [ "$( rigCalls )" -ge 1 ] && printf read )" "0 read"
 
@@ -524,7 +524,7 @@ RIGSCRIPT
 rigAssert "the pane starts at the top of the ask, and does not follow its end" "$( rigVal c.viewTop ) $( rigVal c.follow ) [$( rigPane c 3 )]" "0 no [ ✏️ change]"
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' the diff:' )" "view 16 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' an ask is answered where it was posted, or from here by its keys' ) $( rigVal end.spills )" "1 0"
-rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [] pending $rigC"
+rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Open: this row has nothing to open] pending $rigC"
 rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' "$MANAGER_SCREEN_RIG/calls" || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
 
 rigAsk1=0d7affda-0000-4000-8000-000000000001
@@ -578,7 +578,7 @@ rigAssert "the left window names the same keys under it"              "[$( rigVa
 rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ Enter Answer  j Reject  d Dismiss  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         Enter │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
-rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c35-40 )" "xxxxxx"
+rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c18-23 )" "xxxxxx"
 rigAssert "with the keys in the left window the status line names none of them" "[$( rigVal sView )]" "[ u Read  m Menu  ^X Exit  Tab Window]"
 
 echo "-- Enter on a decision: the dialog of its answer, a digit chooses, words go with it, one call --"
@@ -666,7 +666,7 @@ wait acts 30
 turn
 keys o
 get nolink
-keys ENTER j
+keys j
 turn
 get rej
 box rbox
@@ -687,12 +687,12 @@ turn
 keys j
 get norej
 RIGSCRIPT
-rigAssert "o on a question whose row gives no link says so in a box"  "[$( rigVal nolink.dialogTitle )] [$( rigVal nolink.dialogHolds )]" "[Link] [the message of this permission has no link]"
+rigAssert "o on a question whose row gives no link says so in the status line"  "[$( rigVal nolink.dialog )] [$( rigVal nolink.notice )]" "[] [Show the link: the message of this permission has no link]"
 rigAssert "j asks for the confirmation, naming the answer a reject gives" "[$( rigVal rej.dialog )] [$( rigVal rej.dialogTitle )] $( rigBoxHolds rbox '║ REJECT the permission of magic-librarian: it is answered' ) $( rigBoxHolds rbox '[ Reject ]  [ Cancel ]' )" "[reject:words|] [Reject the permission of magic-librarian] 1 1"
 rigAssert "Enter rejects: its success in the status line; the reject is one call with --reject, the dismissal after it one call with its reason" "[$( rigVal rdone.notice )] $( rigActCalls )" "[rejected: deny, as magic-coordinator] [--manager-pending-reply-answer][--id][$rigAsk2][--reject] [--manager-pending-reply-dismiss][--id][$rigAsk2][--reason][no need]"
 rigAssert "d asks for the confirmation of the dismissal, with a field for its reason" "[$( rigVal dis.dialog )] [$( rigVal dis.dialogTitle )] $( rigBoxHolds dbox '║ Reason, or none' ) $( rigBoxHolds dbox '[ Dismiss ]  [ Cancel ]' )" "[dismiss:words|] [Dismiss the permission of magic-librarian] 1 1"
 rigAssert "the operation refuses: what it wrote stands whole in a box" "[$( rigVal dfail.dialogTitle )] [$( rigVal dfail.dialogHolds )]" "[The dismissal failed] [operation: --manager-pending-reply-dismiss --id $rigAsk2 --reason no need / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
-rigAssert "j on a question that takes no reject opens no confirmation: a box says why" "[$( rigVal norej.dialog )] [$( rigVal norej.dialogHolds )]" "[message:ok|] [this decision has no negative answer of its own, so it takes no reject: answer it, or dismiss it]"
+rigAssert "j on a question that takes no reject opens no confirmation: the status line says why" "[$( rigVal norej.dialog )] [$( rigVal norej.notice )]" "[] [Reject: this decision has no negative answer of its own: answer it, or dismiss it]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN PENDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

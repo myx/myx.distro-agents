@@ -358,6 +358,8 @@ rigToolingList(){
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
+		'sh-lib/AgentsTools.ManagerCheck.include|1|AgentsToolsRegistryGroupBegan "$endBegan" > /dev/null 2>&1 && kill -TERM -- "-$endPid"|@own-group' \
+		'sh-lib/AgentsTools.ManagerCheck.include|1|= "$endBegan" ] && kill -KILL -- "-$endPid"|@own-group' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \

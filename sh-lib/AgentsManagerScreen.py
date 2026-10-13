@@ -60,6 +60,7 @@ REST_SECONDS = 1.0 / 3
 PLAIN, BOLD, REVERSE, DIM = 0, 1, 2, 3
 DESKTOP, BAR, BAR_HOT, BAR_AT, BAR_ON, BAR_ON_HOT, BAR_OFF, FRAME_ON, FRAME, SCROLL, SHADOW = 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 BOX, BOX_FRAME, BOX_FIELD, BOX_ON, BOX_BUTTON, BOX_BUTTON_ON, BOX_SAYS = 15, 16, 17, 18, 19, 20, 21
+FOLDER = 22
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -93,6 +94,8 @@ LOOKS = (
     ("b", "R", "black", "green", False),
     ("n", "B", "white", "green", True),
     ("!", "RB", "red", "white", False),
+    ## the mark of a folder after the name of a row that Enter enters
+    ("e", "B", "yellow", "blue", True),
 )
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
@@ -103,17 +106,19 @@ MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 ## of a menu, with its ends.
 MARKS = {"separator": "│", "cut": "…", "plain": False,
          "frame": "┌─┐│└┘", "frameOn": "╔═╗║╚╝", "rule": "├─┤", "shade": "░", "system": "≡",
-         "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•"}
+         "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•",
+         ## what stands after the name of a row that Enter enters, a folder: never what is cut
+         "folder": "..."}
 MARK_SELECTED = ">"
 MARK_READING = "~"
 MARK_OLD = "!"
 
 ## The root of the list, in its order: the id of each section and what it shows as.
 SECTIONS = (
-    ("sessions", "Sessions / Activity"),
+    ("sessions", "Sessions (Activity)"),
     ("pending", "Pending Questions"),
     ("team", "Team Members"),
-    ("settings", "Settings / Configuration"),
+    ("settings", "Settings (Configuration)"),
 )
 ROOT_TITLE = "/"
 ROW_UP = ".."
@@ -176,11 +181,17 @@ READS = {
                             "rows": "ask-acts", "needs": "ask"},
     ## One member, whole: its information, the sessions it is in, its grants and its settings.
     "view:team:record": {"operation": ["--manager-team-member-read", "{id}"], "rows": "member-read", "needs": "member"},
+    ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
+    ## of the kill itself, each with what would become of it (KILL_ROWS). Read while the
+    ## confirmation of that kill is open, by the id it names, as a kind of its own.
+    "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan"},
+    "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan"},
 }
 
 ## What each action asks the tooling for: the operation with its arguments, {id} the id of
 ## what it acts on. The screen itself signals no process and starts no CLI. A session's id
-## ends every live run of it; `--run` takes the id as a run's own, so on the row of an
+## finishes that session: every live run of it is ended, its questions that wait are
+## dismissed and its records left open are closed; `--run` takes the id as a run's own, so on the row of an
 ## agent that agent alone is ended, the founder too, whose id is its session's. A start
 ## names its routine by its selector, or takes the standing default routine with what was
 ## typed as its task text, which goes on standard input and is never a word of the command.
@@ -201,7 +212,7 @@ CALLS = {
     "dismiss": ["--manager-pending-reply-dismiss", "--id", "{id}"],
     ## a setting that offers choices is saved for the user who runs the console, by its
     ## key, the value chosen being the word after it
-    "set": ["--manager-config-interface-set", "{id}"],
+    "set": ["--manager-config-set", "{id}"],
 }
 ## What each of those is given the words typed beside it with, where any were typed.
 CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}
@@ -209,6 +220,9 @@ CALL_WORDS = {"answer": "--text", "reject": "--text", "dismiss": "--reason"}
 CALL_NAME = "--session-name-or-comment"
 ## The word that confirms a kill, typed whole.
 KILL_WORD = "yes"
+## The state of a session that is finished, as its row of the list gives it: such a one
+## takes no kill, since nothing of it is left to end, to dismiss or to close.
+SESSION_FINISHED = "finished"
 
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
 
@@ -298,6 +312,9 @@ VIEW_MODE_FIRST = "summary"
 
 ## The menus of the menu bar, in their order: the name of each and what it shows as, its hot
 ## letter between tildes. Alt with that letter opens it, and F10 opens the first.
+## A menu is in the bar while it holds a command of the view, the level the list is at
+## (menusShown): one whose commands are all of other views is not there. `Go`, `View` and
+## `Help` hold commands of every view, so they are always there.
 MENUS = (
     ("go", "~G~o"),
     ("session", "~S~ession"),
@@ -318,8 +335,19 @@ MENUS = (
 ## under "toggle" what it toggles in the state, which is kept for the run of the screen
 ## whatever is selected, and has two words there, what its key will do while that is off
 ## and while it is on. "on": the rows it acts on, by their level and
-## kind; with none it acts wherever its window has the keys. "only": its key is its own on
-## those rows alone, and another command's elsewhere. "does": what it does. ("action",
+## kind; with none it acts wherever its window has the keys. "views": the views it belongs
+## to, each a level of the list named as "on" names one; with none it belongs to every
+## view. In a view all its commands stand in their menus and have their keys, and a
+## command of another view is in no menu there and its key is not its key. One that
+## belongs to the view and does not apply to what is selected is greyed in its menu, is
+## not chosen, and says why in one line of the status line when it is tried, by its key
+## or by a click (commandRefusal); "for" names in that line what it acts on. "asks": whether
+## it does anything is its operation's to say, so it applies to every row it is for, and
+## what ACTION_FITS says of a row only keeps it out of the status line. "only": its key is its own on
+## those rows alone, and another command's elsewhere. "tells": its key is its own only on
+## the rows its action acts on as they are now (ACTION_FITS), where it tells in a dialog why
+## another command of that key does nothing there; elsewhere the key is the next command's
+## that has it, and the left window does not name it among the keys of the item. "does": what it does. ("action",
 ## <name>) is the handler of that action (ACTION_HANDLERS) with the selected row, which
 ## asks first where it must and then calls the operations "calls" names in CALLS; while
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
@@ -330,6 +358,8 @@ MENUS = (
 ## to a menu, to the status line and to its key from this one place: adding one is adding
 ## an entry here. Where two commands share a key, the first that applies has it. "says":
 ## the word the left window names the key of an "only" command by, where it starts nothing.
+## "enters": Enter on a row it acts on enters that row, so the row is drawn as a folder is,
+## as a row that dives into a level of its own is (rowEnters).
 COMMANDS = (
     {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys",
      "does": ("action", "help")},
@@ -338,20 +368,22 @@ COMMANDS = (
     {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
     {"name": "exit", "keys": ("CTRL-x", "ALT-x"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
      "does": ("quit",)},
+    {"name": "unstarted", "keys": ("ENTER", "RIGHT"),
+     "views": ("sessions/launch",), "for": "a routine that cannot be started", "on": ("sessions/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
     {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
-     "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
+     "views": ("sessions/launch",), "for": "a routine", "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
     {"name": "prompt", "keys": ("ENTER",), "menu": ("session", 2), "label": "~F~ree prompt", "status": "Start",
-     "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
+     "views": ("sessions/launch",), "for": "the free prompt", "on": ("sessions/launch:free",), "only": True, "does": ("action", "prompt"), "calls": ("prompt",)},
     {"name": "answer", "keys": ("ENTER", "y"), "menu": ("question", 1), "label": "~A~nswer", "status": "Answer",
-     "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
+     "views": ("pending",), "for": "a question", "on": ("pending:record",), "only": True, "says": "answer", "does": ("action", "answer"), "calls": ("answer",)},
     {"name": "reject", "keys": ("j",), "menu": ("question", 1), "label": "Re~j~ect", "status": "Reject",
-     "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
+     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "reject"), "calls": ("reject",)},
     {"name": "dismiss", "keys": ("d",), "menu": ("question", 1), "label": "~D~ismiss", "status": "Dismiss",
-     "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
+     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
     {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link",
-     "on": ("pending:record",), "does": ("action", "link")},
+     "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
     {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
-     "on": ("settings:record",), "only": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+     "views": ("settings",), "for": "a subject of the settings", "on": ("settings:record",), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -362,34 +394,34 @@ COMMANDS = (
      "does": ("filter",)},
     {"name": "style", "keys": ("i", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
     {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control",
-     "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
+     "views": ("sessions", "sessions/*"), "for": "a session", "asks": True, "on": ("sessions:record",), "does": ("action", "control"), "calls": ("control",)},
     {"name": "pause", "keys": ("p",), "menu": ("session", 3), "label": "~P~ause",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "pause")},
     {"name": "resume", "keys": ("r",), "menu": ("session", 3), "label": "~R~esume",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "resume")},
     {"name": "stop", "keys": ("s",), "menu": ("session", 3), "label": "~S~top",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
     {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
     {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
     {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "summary")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "summary")},
     {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
     {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log",
-     "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "raw")},
+     "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "raw")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
-     "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
-    {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions / Activity",
+     "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
+    {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions (Activity)",
      "does": ("go", ("sessions",))},
     {"name": "pending", "keys": ("2", "ALT-2"), "menu": ("go", 1), "label": "~P~ending Questions",
      "does": ("go", ("pending",))},
     {"name": "team", "keys": ("3", "ALT-3"), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
-    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "Settings / ~C~onfiguration",
+    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "Settings (~C~onfiguration)",
      "does": ("go", ("settings",))},
     {"name": "spawn", "keys": ("5", "ALT-5"), "menu": ("go", 2), "label": "~L~aunch / Spawn",
      "does": ("go", ("sessions", "launch"))},
@@ -409,6 +441,23 @@ STATUS_KEYS = {
 ## How the name of a key shows in a menu and in the status line, where it is not its own name.
 KEY_WORDS = {"ENTER": "Enter", "TAB": "Tab", "ESC": "Esc", "LEFT": "Left", "RIGHT": "Right",
              "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn"}
+## What the status line says when a command of the view is tried and does not apply, by
+## why it does not; %s is the command as its menu names it. "window": the other window has
+## the keys; "unbuilt": its action is not built; "row": what is selected is not what it
+## acts on, and "rowFor" the same of a command that names what it acts on ("for"); "fits":
+## its action does not act on that row as it is now and says no more itself
+## (ACTION_REFUSALS); "mode": what is selected has no log; "up": the list has no level
+## above; "open": the row has no level of its own.
+REFUSALS = {
+    "window": "%s: the other window has the keys (Tab)",
+    "unbuilt": "%s is not built yet",
+    "row": "%s: not for what is selected",
+    "rowFor": "%s: for %s, not for what is selected",
+    "fits": "%s: not for what is selected, as it is now",
+    "mode": "%s: what is selected has no log",
+    "up": "%s: this is the top level",
+    "open": "%s: this row has nothing to open",
+}
 
 ## ---- the declaration of the dialogs ----
 
@@ -441,7 +490,13 @@ CONTROL_KINDS = {
 ## "feeds": the command of COMMANDS it asks for, or the commands, whose operations its
 ## handler calls (DIALOG_HANDLERS); a dialog with none only says something. "first": the
 ## control the keys are on when it opens, where that is not its first one. "reads": the entries of
-## READS that are read while it is open, since it offers what they give (DIALOG_FILLS).
+## READS that are read while it is open, since it offers what they give (DIALOG_FILLS); a
+## name there that holds {kind} is the entry of the kind of what the dialog was opened on,
+## its "target", and that one is asked by the id of the target (dialogReads).
+## A control may be declared "required": what the dialog says, and does not do, while that
+## control holds nothing, a field only blanks, boxes none checked, or, with "exactly", while
+## a field does not hold that very word. The engine holds it for every dialog (dialogMissing):
+## no handler is called, the buttons that would act are greyed, and Enter presses none.
 ## A control of options may say under "empty" what stands in it while it has none, and
 ## under "digits" that a digit typed while the keys are on it picks the option whose id is
 ## that digit. What a
@@ -460,15 +515,24 @@ DIALOGS = {
     "members": {"title": "Start the routine with members", "feeds": "launch", "reads": ("list:team",),
                 "controls": ({"name": "about", "kind": "text"},
                              {"name": "members", "kind": "checks", "label": "Members",
-                              "empty": "the members are being read"},
+                              "empty": "the members are being read",
+                              "required": "no member is checked: check one at least, with Space"},
                              {"name": "task", "kind": "input", "label": "What the session is to work on"}),
                 "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
-    ## the confirmation of a kill: exactly what will be killed, and the word that confirms
-    ## it, typed whole
-    "kill": {"title": "Kill", "feeds": "kill",
+    ## the confirmation of a kill: exactly what will be killed, dismissed and closed, as
+    ## the plan of that kill gives it, and the word that confirms it, typed whole
+    "kill": {"title": "Kill", "feeds": "kill", "reads": ("plan:kill:{kind}",),
              "controls": ({"name": "about", "kind": "text"},
-                          {"name": "word", "kind": "input", "label": "Type %s to kill" % KILL_WORD}),
+                          {"name": "word", "kind": "input", "label": "Type %s to kill" % KILL_WORD, "exactly": KILL_WORD,
+                           "required": "nothing is killed: the word typed is not %s" % KILL_WORD}),
              "buttons": (("kill", "Kill"), ("cancel", "Cancel"))},
+    ## the same confirmation where nothing of the session lives: it is closed, and its
+    ## title, its button and its word say so (fillKill)
+    "close": {"title": "Close", "feeds": "kill", "reads": ("plan:kill:{kind}",),
+              "controls": ({"name": "about", "kind": "text"},
+                           {"name": "word", "kind": "input", "label": "Type %s to close" % KILL_WORD, "exactly": KILL_WORD,
+                            "required": "nothing is closed: the word typed is not %s" % KILL_WORD}),
+              "buttons": (("kill", "Close"), ("cancel", "Cancel"))},
     ## the start of a routine the spawner starts as its executors: what its session is to
     ## work on, and the name of that session
     "routine": {"title": "Start the routine", "feeds": "launch",
@@ -481,7 +545,8 @@ DIALOGS = {
     "prompt": {"title": "Free prompt", "feeds": ("prompt", "start"), "reads": ("list:team",), "first": "prompt",
                "controls": ({"name": "about", "kind": "text"},
                             {"name": "who", "kind": "list", "label": "Who runs it"},
-                            {"name": "prompt", "kind": "area", "label": "Prompt"},
+                            {"name": "prompt", "kind": "area", "label": "Prompt",
+                             "required": "nothing is started: the prompt is empty"},
                             {"name": "name", "kind": "input", "label": "Name of the session, or none"}),
                "buttons": (("start", "Start"), ("cancel", "Cancel"))},
     ## the answer to a pending question that has answers of its own: the question as it was
@@ -494,7 +559,8 @@ DIALOGS = {
     ## the answer to a plain question: the words typed are its answer
     "reply": {"title": "Answer", "feeds": "answer",
               "controls": ({"name": "about", "kind": "text"},
-                           {"name": "words", "kind": "input", "label": "The answer"}),
+                           {"name": "words", "kind": "input", "label": "The answer",
+                            "required": "nothing is answered: the answer is empty"}),
               "buttons": (("answer", "Answer"), ("cancel", "Cancel"))},
     ## the confirmation of a reject, and of a dismissal, of a pending question
     "reject": {"title": "Reject", "feeds": "reject",
@@ -526,8 +592,9 @@ DIALOG_OPTIONS = 8
 DIALOG_AREA = 4
 
 ## The handler of each action: handler(state, row) gives the text for the bottom line, or
-## None. Where it must ask first it opens a dialog with openDialog(), and what it refuses it
-## says in a box (tell). None here: the task of
+## None. Where it must ask first it opens a dialog with openDialog(). It is called only on
+## a row its command applies to (commandRefusal): what does not apply says its one line in
+## the status line and reaches no handler. None here: the task of
 ## that action has not built it.
 ACTION_HANDLERS = {
     ## asks for the typed word, then kills the selected session or agent: askKill, set where it is defined
@@ -541,6 +608,8 @@ ACTION_HANDLERS = {
     ## Enter on a routine of `Launch / Spawn`, and on its free prompt: askLaunch and askPrompt, set where they are defined
     "launch": None,
     "prompt": None,
+    ## Enter and Right on a routine of `Launch / Spawn` that cannot be started: askUnstarted, set where it is defined
+    "unstarted": None,
     ## starts the selected team member with a prompt: askStart, set where it is defined
     "start": None,
     ## shows the keys of the screen, from COMMANDS: askHelp, set where it is defined
@@ -557,6 +626,10 @@ ACTION_HANDLERS = {
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
 ACTION_FITS = {}
+## Why an action does not act on a row ACTION_FITS refuses: refusal(state, row) gives the
+## words, set where it is defined. They stand in the status line, after the name of the
+## command, when it is tried there. An action with no entry has the engine's own words.
+ACTION_REFUSALS = {}
 
 
 ## Everything the screen knows between two keys. Nothing here is the terminal's.
@@ -618,6 +691,9 @@ class ManagerState:
         ## what the last call that acted answered, shown while the item it was asked on
         ## stays selected: {"key", "lines"}
         self.answer = None
+        ## what the kill that is being confirmed would do, as its plan was last read: read
+        ## key -> {"words", "rows", "error"} (applyResult, killPlanOf)
+        self.plans = {}
         ## the item the selection rests on, and since when (restLeft)
         self.restKey = None
         self.restSince = 0.0
@@ -1124,7 +1200,7 @@ def itemKeysText(state):
     for command in COMMANDS:
         if command["does"][0] != "action" or place not in command.get("on", ()):
             continue
-        if not actionShown(state, row, command["does"][1]):
+        if command.get("tells") or not actionShown(state, row, command["does"][1]):
             continue
         if command.get("only"):
             keys.insert(0, "%s %s" % (keyShown(commandKeys(command)[0]), command.get("says", "start")))
@@ -2135,14 +2211,40 @@ def dialogValue(dialog, name):
     return control["value"] if control else None
 
 
+## The first control of a dialog whose required input is not there, or None: a field that
+## holds only blanks and new lines, or not the very word it must hold; boxes with none of
+## their options checked.
+def dialogMissing(dialog):
+    for control in dialog["controls"]:
+        if not control.get("required"):
+            continue
+        value = control["value"]
+        if control.get("exactly") is not None:
+            if value != control["exactly"]:
+                return control
+        elif isinstance(value, list):
+            if not [option for option in control["options"] if option[0] in value]:
+                return control
+        elif not value.strip():
+            return control
+    return None
+
+
 ## A button of the open dialog is pressed. "cancel", and any button of a dialog that only
 ## says something, closes it. Any other goes to its handler: what that refuses stays in
-## the dialog, which stays open; else the dialog closes.
+## the dialog, which stays open; else the dialog closes. While a required input is not
+## there no handler is called: the dialog says so in one line, and the keys go back to
+## the control that lacks it.
 def pressButton(state, buttonName):
     dialog = state.dialog
     handler = DIALOG_HANDLERS.get(dialog["name"])
     if buttonName == "cancel" or handler is None:
         closeDialog(state)
+        return
+    missing = dialogMissing(dialog)
+    if missing is not None:
+        dialog["says"] = missing["required"]
+        dialog["focus"] = dialogStops(dialog).index(("control", dialog["controls"].index(missing)))
         return
     dialog["says"] = handler(state, dialog, buttonName) or ""
     if not dialog["says"] and state.dialog is dialog:
@@ -2211,8 +2313,10 @@ def dialogStatus(dialog):
     digits = [option[0] for option in control["options"] if option[0].isdigit()] if control and control.get("digits") else []
     if digits:
         items.append((digits[0] + "-" + digits[-1] if len(digits) > 1 else digits[0], "Choose"))
-    if what != "area":
-        items.append(("Enter", dialog["buttons"][index if what == "button" else 0][1]))
+    pressed = dialog["buttons"][index if what == "button" else 0]
+    if what != "area" and (pressed[0] == "cancel" or dialogMissing(dialog) is None):
+        ## a button that would act is no default while a required input is not there
+        items.append(("Enter", pressed[1]))
     if len(dialogStops(dialog)) > 1:
         items.append(("Tab", "Next"))
     if (dialog["plan"] or {}).get("long"):
@@ -2403,7 +2507,9 @@ def drawDialog(surface, state, columns, lines):
     for index, label in enumerate(labels):
         if column + textWidth(label) > left + width - 2:
             break
-        surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BOX_BUTTON)
+        ## a button that would act is greyed while a required input is not there
+        off = dialog["buttons"][index][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None
+        surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BAR_OFF if off else BOX_BUTTON)
         spot(state, column, last, textWidth(label), 1, ("button", index))
         column += textWidth(label) + 2
 
@@ -2463,75 +2569,36 @@ def killTargetOf(state, row):
     return None
 
 
-## Whether `k` has anything to end at that row: a session or an agent with a live run.
+## Whether `k` acts on that row: a session that is not finished, whatever lives of it,
+## since its kill finishes it; and an agent with a live run.
 def killFits(state, row):
     target = killTargetOf(state, row)
-    return target is not None and bool(target["runs"])
-
-
-## What the confirmation of a kill says, exactly: what is ended, by which id, and how.
-def killSays(target):
+    if target is None:
+        return False
     if target["kind"] == "session":
-        alive = target["runs"]
-        rest = len(target["session"]["runs"]) - len(alive)
-        lines = ["KILL the session %s" % target["label"],
-                 "session %s" % target["id"],
-                 "%s the hard way: no closure runs, none is asked anything." % (
-                     "Its 1 live agent ends" if len(alive) == 1 else "Its %d live agents end" % len(alive))]
-        lines.extend("  %-18s %-16s %s" % (run["member"], runStateText(run), unspaced(run["spawn"])) for run in alive[:6])
-        if len(alive) > 6:
-            lines.append("  and %d more" % (len(alive) - 6))
-        if rest:
-            lines.append("1 other agent is not alive on this host: it is left as it is." if rest == 1
-                         else "%d other agents are not alive on this host: they are left as they are." % rest)
-    else:
-        run = target["run"]
-        lines = ["KILL the agent %s alone" % target["label"],
-                 "run %s, %s" % (target["id"], runStateText(run)),
-                 "of the session %s" % target["sessionLabel"]
-                 + (" (%s)" % run["session"] if target["sessionLabel"] != run["session"] else ""),
-                 "It ends the hard way: no closure runs, it is asked nothing. The others run on."]
-        if run["spawn"] == run["session"]:
-            lines.append("It is the founder: its id is its session's. It alone is ended, not the session.")
-    lines.append("The word %s, typed whole, and Kill or Enter: that kills. Cancel and Esc kill nothing." % KILL_WORD)
-    return lines
+        return target["session"]["state"] != SESSION_FINISHED
+    return bool(target["runs"])
 
 
-## `k`: asks for the confirmation of the kill of the selected session or agent, in a
-## dialog that says exactly what will be killed. A row that is no
-## session and no agent, and one with no live run, says in a box that there is nothing to
-## kill, and nothing is asked.
-def askKill(state, row):
+## Why `k` does nothing at a row it is for: the session is finished, the agent is not alive.
+def killRefusal(state, row):
     target = killTargetOf(state, row)
     if target is None:
-        return tell(state, "Kill", "k: nothing to kill here: k kills a session or an agent")
-    if not target["runs"]:
-        return tell(state, "Kill", "k: nothing to kill: %s" % ("no agent of this session is alive" if target["kind"] == "session"
-                                                                else "this agent is not alive"))
-    state.answer = None
-    ## the answer belongs to the item the key was pressed on, whatever is selected when it comes
-    target["viewKey"] = viewKeyOf(state)
-    openDialog(state, "kill", {"about": {"lines": killSays(target)}}, {"target": target},
-               "Kill the session" if target["kind"] == "session" else "Kill the agent %s" % target["label"])
-    return ""
+        return ""
+    return "this session is finished" if target["kind"] == "session" else "this agent is not alive"
 
 
-## Kill in the dialog of a kill. Exactly the word kills: the operation is called once,
-## with the id of what the dialog named. Any other word is refused there, and kills nothing.
-def submitKill(state, dialog, button):
-    target = dialog["about"]["target"]
-    if dialogValue(dialog, "word") != KILL_WORD:
-        return "nothing is killed: the word typed is not %s" % KILL_WORD
-    askCall(state, "kill", target["id"], callWords("kill:" + target["kind"], target["id"]), None,
-            {"viewKey": target["viewKey"]})
-    state.notice = "kill asked of the tooling: the %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"])
-    state.noticeOf = None
-    return None
-
-
-DIALOG_HANDLERS["kill"] = submitKill
-
-
+## The rows `--manager-session-kill` prints, a kill and the plan of one alike, each by its
+## name with the names of its fields after the first: a `kill` row for each run the id
+## names; a `dismiss` row for each question of it that waited; a `close` row for each
+## record of it that was left open; and last, for a whole session, the one `finish` row
+## that sums them: how many were ended, dismissed and closed, and the state it reads.
+KILL_ROWS = {
+    "kill": ("session", "spawn", "member", "outcome", "status", "pids", "item"),
+    "dismiss": ("session", "question", "asker", "outcome"),
+    "close": ("session", "spawn", "member", "outcome", "item"),
+    "finish": ("session", "ended", "dismissed", "closed", "state"),
+}
 ## What each <outcome> of a `kill` row means, in words, and the words it is counted under
 ## in the bottom line. An outcome that is not listed here shows as it is printed.
 KILL_OUTCOMES = {
@@ -2542,27 +2609,239 @@ KILL_OUTCOMES = {
     "other-host": ("not signalled: it runs on another host", "not signalled"),
     "no-spawn-id": ("not signalled: it has no id of its own", "not signalled"),
     "host-unrecorded": ("not signalled: its record names no host", "not signalled"),
+    "would-end": ("would be ended", "would be ended"),
 }
+## The same of a `dismiss` row, and of a `close` row.
+DISMISS_OUTCOMES = {
+    "dismissed": ("dismissed", "dismissed"),
+    "not-dismissed": ("not dismissed: it waits still", "not dismissed"),
+    "would-dismiss": ("would be dismissed", "would be dismissed"),
+}
+CLOSE_OUTCOMES = {
+    "closed": ("closed", "closed"),
+    "not-closed": ("not closed: it is open still", "not closed"),
+    "left": ("left to its supervising shell, which lives and closes it", "left open"),
+    "would-close": ("would be closed", "would be closed"),
+}
+## The outcomes of a `kill` row of a plan that say the run lives, and would be ended.
+KILL_LIVES = ("would-end",)
+## How many rows of one sort the confirmation of a kill sets out, before it counts the rest.
+KILL_SHOWN = 6
 
 
-## What `--manager-session-kill` printed: one `kill` row for each run the id names, with
-## what happened to it. Given back: a line for each run, for the left pane, and how many
-## runs had each outcome, for the bottom line.
-def killAnswer(text):
-    lines = []
-    counts = []
+## What `--manager-session-kill` printed, as its rows by their names (KILL_ROWS), each row
+## by the names of its fields. A line that is none of them, and one too short, is left out.
+def parseKillRows(text):
+    rows = dict((name, []) for name in KILL_ROWS)
     for line in text.splitlines():
         fields = line.split("\t")
-        if fields[0] != "kill" or len(fields) < 8:
-            continue
-        words, counted = KILL_OUTCOMES.get(fields[4], (fields[4], fields[4]))
-        lines.append("  %-18s %s" % (fields[3], words))
+        names = KILL_ROWS.get(fields[0])
+        if names and len(fields) > len(names):
+            rows[fields[0]].append(dict(zip(names, fields[1:])))
+    return rows
+
+
+## A count as the operation gives it, with its word, in the plural where it is not one.
+def countWords(count, word):
+    return "%s %s" % (count, word if str(count) == "1" else word + "s")
+
+
+## The read of what the kill of that target would do: its key in READS and its words, or
+## the key and None where no operation gives it.
+def killPlanRead(state, target):
+    key = "plan:kill:" + target["kind"]
+    return key, readWords(READS[key], state, {"id": target["id"]}, False) if READS.get(key) else None
+
+
+## What the kill of that target would do, as its plan was read: its rows by their names,
+## and "". Or None, and the line the confirmation says in their place: while the plan is
+## being read, where its read failed, and where it printed no row of a kill.
+def killPlanOf(state, target):
+    key, words = killPlanRead(state, target)
+    plan = state.plans.get(key)
+    if words is None or plan is None or plan["words"] != words:
+        return None, "What it does besides, the questions it dismisses and the records it closes, is being read."
+    if plan["error"]:
+        return None, "What it does besides could not be read: %s" % plan["error"]
+    if not any(plan["rows"].values()):
+        return None, "What it does besides is not known: its plan printed no row."
+    return plan["rows"], ""
+
+
+## Whether something of that target lives, and so is killed, not only closed: by the plan
+## where it was read, how many it would end; until then by the live runs the list gave. An
+## agent is killed only while it lives.
+def killLives(target, rows):
+    if target["kind"] != "session":
+        return True
+    if rows is None:
+        return bool(target["runs"])
+    if rows["finish"]:
+        return rows["finish"][-1]["ended"] != "0"
+    return any(kill["outcome"] in KILL_LIVES for kill in rows["kill"])
+
+
+## The lines of a plan for the confirmation: what would be dismissed, and for a whole
+## session, ahead of it, what would be ended, and after it what would be closed and the
+## state the session reads now. Each with its count, from the row that sums them where
+## there is one, and under it its rows, no more than KILL_SHOWN of a sort.
+def killPlanLines(target, rows):
+    whole = target["kind"] == "session"
+    members = dict((kill["spawn"], kill["member"]) for kill in rows["kill"])
+    ending = [kill for kill in rows["kill"] if kill["outcome"] in KILL_LIVES]
+    finish = rows["finish"][-1] if rows["finish"] else {}
+    lines = []
+
+    def part(count, said, none, shown):
+        lines.append(said if str(count) != "0" else none)
+        lines.extend(shown[:KILL_SHOWN])
+        if len(shown) > KILL_SHOWN:
+            lines.append("  and %d more" % (len(shown) - KILL_SHOWN))
+
+    if whole:
+        count = finish.get("ended", len(ending))
+        part(count, "It ends " + countWords(count, "agent") + " the hard way: no closure runs, none is asked anything.",
+             "No agent of it is alive: nothing is ended.",
+             ["  %-18s pid %s  %s" % (kill["member"], kill["pids"], unspaced(kill["spawn"])) for kill in ending])
+    count = finish.get("dismissed", len(rows["dismiss"]))
+    part(count, "It dismisses " + countWords(count, "question") + (" of it that waits:" if str(count) == "1" else " of it that wait:"),
+         "No question of it waits: nothing is dismissed.",
+         ["  %s  asked by %s" % (dismiss["question"], members.get(dismiss["asker"], dismiss["asker"])) for dismiss in rows["dismiss"]])
+    if whole:
+        count = finish.get("closed", len(rows["close"]))
+        part(count, "It closes " + countWords(count, "record") + " of it left open:",
+             "No record of it is left open: nothing is closed.",
+             ["  %-18s %s" % (close["member"], unspaced(close["item"])) for close in rows["close"]])
+        if finish:
+            lines.append("The session reads %s now." % unspaced(finish["state"]))
+    return lines
+
+
+## What the confirmation of a kill says, exactly: what is ended, by which id, and how, and
+## from the plan of the kill (`rows`, killPlanOf) what is dismissed and closed with it.
+## Until the plan was read: what the list gave of it, and `note`, the line that says the
+## plan is being read or why there is none.
+def killSays(target, rows=None, note=""):
+    lives = killLives(target, rows)
+    if target["kind"] == "session":
+        lines = ["%s the session %s" % ("KILL" if lives else "CLOSE", target["label"]),
+                 "session %s" % target["id"]]
+        if rows is not None:
+            lines.extend(killPlanLines(target, rows))
+        else:
+            alive = target["runs"]
+            if alive:
+                lines.append("%s the hard way: no closure runs, none is asked anything." % (
+                    "Its 1 live agent ends" if len(alive) == 1 else "Its %d live agents end" % len(alive)))
+            else:
+                lines.append("No agent of it is alive: nothing is ended.")
+            lines.extend("  %-18s %-16s %s" % (run["member"], runStateText(run), unspaced(run["spawn"])) for run in alive[:KILL_SHOWN])
+            if len(alive) > KILL_SHOWN:
+                lines.append("  and %d more" % (len(alive) - KILL_SHOWN))
+            lines.append(note)
+    else:
+        run = target["run"]
+        lines = ["KILL the agent %s alone" % target["label"],
+                 "run %s, %s" % (target["id"], runStateText(run)),
+                 "of the session %s" % target["sessionLabel"]
+                 + (" (%s)" % run["session"] if target["sessionLabel"] != run["session"] else ""),
+                 "It ends the hard way: no closure runs, it is asked nothing. The others run on."]
+        if run["spawn"] == run["session"]:
+            lines.append("It is the founder: its id is its session's. It alone is ended, not the session.")
+        lines.extend(killPlanLines(target, rows) if rows is not None else [note])
+    if lives:
+        lines.append("The word %s, typed whole, and Kill or Enter: that kills. Cancel and Esc kill nothing." % KILL_WORD)
+    else:
+        lines.append("The word %s, typed whole, and Close or Enter: that finishes the session. Cancel and Esc do nothing." % KILL_WORD)
+    return lines
+
+
+## The confirmation of a kill as it stands now, at every turn while it is open: what it
+## says, from the plan once that was read; and where nothing of the session lives, the
+## title, the button and the word of a close (the dialog "close") in place of a kill's.
+def fillKill(state, dialog):
+    target = dialog["about"]["target"]
+    rows, note = killPlanOf(state, target)
+    declared = DIALOGS["kill" if killLives(target, rows) else "close"]
+    dialog["name"] = "kill" if killLives(target, rows) else "close"
+    dialog["buttons"] = list(declared["buttons"])
+    for held, control in zip(dialog["controls"], declared["controls"]):
+        held.update((field, control[field]) for field in ("label", "required") if field in control)
+    dialog["title"] = "%s the session" % declared["title"] if target["kind"] == "session" else "%s the agent %s" % (declared["title"], target["label"])
+    dialogControl(dialog, "about")["lines"] = killSays(target, rows, note)
+
+
+## `k`: asks for the confirmation of the kill of the selected session or agent, in a
+## dialog that says exactly what will be killed, dismissed and closed: the plan of that
+## kill is read anew for it. On a row that is no session and no agent, on a session
+## that is finished and on an agent that is not alive the key says its line in the status
+## line (killRefusal) and this is not reached.
+def askKill(state, row):
+    target = killTargetOf(state, row)
+    if target is None or not killFits(state, row):
+        return ""
+    state.answer = None
+    ## the answer belongs to the item the key was pressed on, whatever is selected when it comes
+    target["viewKey"] = viewKeyOf(state)
+    key, words = killPlanRead(state, target)
+    state.plans.pop(key, None)
+    state.forced.add(key)
+    fillKill(state, openDialog(state, "kill", None, {"target": target}))
+    return ""
+
+
+## Kill, or Close, in the dialog of a kill. Exactly the word does it: the operation is
+## called once, with the id of what the dialog named. Any other word is refused there,
+## and nothing is killed or closed.
+def submitKill(state, dialog, button):
+    target = dialog["about"]["target"]
+    askCall(state, "kill", target["id"], callWords("kill:" + target["kind"], target["id"]), None,
+            {"viewKey": target["viewKey"]})
+    said = "kill asked of the tooling: the %s %s" if dialog["name"] == "kill" else "close asked of the tooling: the %s %s"
+    state.notice = said % ("session" if target["kind"] == "session" else "agent", target["label"])
+    state.noticeOf = None
+    return None
+
+
+DIALOG_HANDLERS["kill"] = submitKill
+DIALOG_HANDLERS["close"] = submitKill
+DIALOG_FILLS["kill"] = fillKill
+DIALOG_FILLS["close"] = fillKill
+
+
+## What `--manager-session-kill` printed: a `kill` row for each run the id names, with
+## what happened to it, then a `dismiss` row for each question and a `close` row for each
+## record, and for a whole session the `finish` row that sums them. Given back: a line
+## for each row, for the left pane, and for the bottom line the summing row, or, where
+## the operation printed none, how many rows had each outcome.
+def killAnswer(text):
+    rows = parseKillRows(text)
+    members = dict((kill["spawn"], kill["member"]) for kill in rows["kill"])
+    lines = []
+    counts = []
+
+    def said(outcomes, outcome):
+        words, counted = outcomes.get(outcome, (outcome, outcome))
         for count in counts:
             if count[0] == counted:
                 count[1] += 1
                 break
         else:
             counts.append([counted, 1])
+        return words
+
+    for kill in rows["kill"]:
+        lines.append("  %-18s %s" % (kill["member"], said(KILL_OUTCOMES, kill["outcome"])))
+    for dismiss in rows["dismiss"]:
+        lines.append("  question %s of %s: %s" % (dismiss["question"], members.get(dismiss["asker"], dismiss["asker"]),
+                                                  said(DISMISS_OUTCOMES, dismiss["outcome"])))
+    for close in rows["close"]:
+        lines.append("  record of %s: %s" % (close["member"], said(CLOSE_OUTCOMES, close["outcome"])))
+    if rows["finish"]:
+        finish = rows["finish"][-1]
+        lines.append("  the session reads %s" % unspaced(finish["state"]))
+        return lines, "%s ended, %s dismissed, %s closed: the session reads %s" % (
+            finish["ended"], finish["dismissed"], finish["closed"], unspaced(finish["state"]))
     return lines, ", ".join("%d %s" % (count, counted) for counted, count in counts)
 
 
@@ -2648,14 +2927,7 @@ def askLaunch(state, row):
         ]}}, {"routine": routine, "viewKey": viewKeyOf(state)})
         return ""
     if routine["start"] != "startable":
-        return tell(state, "The routine is not started", [
-            "%s cannot be started from here." % routine["label"],
-            ("routine", routine["selector"]),
-            ("owner", routine["owner"]),
-            ("executors", routine["executors"] or "none are named"),
-            ("start", routine["start"]),
-            ("why", routine["reason"] or "the operation says no more"),
-        ], "information")
+        return ""
     state.answer = None
     openDialog(state, "routine", {
         "about": {"lines": [
@@ -2672,6 +2944,37 @@ def askLaunch(state, row):
 ## no member named or with the members its dialog asks for.
 def launchFits(state, row):
     return bool(row and row.get("routine") and (row["routine"]["start"] == "startable" or routineAsksMembers(row["routine"])))
+
+
+## Why Enter starts no routine at that row: what the operation says of its start.
+def launchRefusal(state, row):
+    routine = row.get("routine") if row else None
+    if routine is None:
+        return ""
+    return "%s is not started from here: %s" % (routine["label"], routine["reason"] or routine["start"])
+
+
+## Whether the routine of that row cannot be started from here: one the session spawner
+## would not start, and that is not one its members alone are to be named for.
+def unstartedFits(state, row):
+    return bool(row and row.get("routine")) and not launchFits(state, row)
+
+
+## Enter and Right, and a click that opens, on a routine that cannot be started: the
+## information dialog, with the routine, who executes it, and why, the reason as the
+## operation gives it. Nothing is started and no operation is called.
+def askUnstarted(state, row):
+    routine = row.get("routine") if row else None
+    if routine is None:
+        return ""
+    return tell(state, "The routine is not started", [
+        "%s cannot be started from here." % routine["label"],
+        ("routine", routine["selector"]),
+        ("owner", routine["owner"]),
+        ("executors", routine["executors"] or "none are named"),
+        ("start", routine["start"]),
+        ("why", routine["reason"] or "the operation says no more"),
+    ], "information")
 
 
 ## The members that can be started from here, as the options of a dialog that offers them:
@@ -2703,8 +3006,6 @@ def fillMembers(state, dialog):
 def submitMembers(state, dialog, button):
     control = dialogControl(dialog, "members")
     members = [name for name, label in control["options"] if name in control["value"]]
-    if not members:
-        return "no member is checked: check one at least, with Space"
     routine = dialog["about"]["routine"]
     task = dialogValue(dialog, "task").strip()
     askCall(state, "launch", routine["selector"], callWords("launch", routine["selector"]) + members,
@@ -2769,15 +3070,14 @@ def askPrompt(state, row):
     return openPrompt(state, "", "Free prompt")
 
 
-## Start in the dialog of a prompt. An empty prompt is refused there, since the operation
-## would start a session on its brief block alone. Else the session is started through
+## Start in the dialog of a prompt. An empty prompt never comes here: the prompt is declared
+## required, since the operation would start a session on its brief block alone, and the
+## engine of the dialogs holds that. The session is started through
 ## the operation, once, with the prompt on its standard input and no word of it among its
 ## arguments: by the default routine where the list stands on its first row, as the free
 ## prompt always was; or the member the list stands on, alone, as `n` starts one.
 def submitPrompt(state, dialog, button):
     prompt = dialogValue(dialog, "prompt").rstrip("\n")
-    if not prompt.strip():
-        return "nothing is started: the prompt is empty"
     who = dialogValue(dialog, "who")
     name = dialogValue(dialog, "name").strip()
     named = "named " + name if name else "with no name"
@@ -2876,9 +3176,13 @@ ACTION_HANDLERS["kill"] = askKill
 ACTION_HANDLERS["control"] = askControl
 ACTION_HANDLERS["launch"] = askLaunch
 ACTION_HANDLERS["prompt"] = askPrompt
+ACTION_HANDLERS["unstarted"] = askUnstarted
 ACTION_FITS["kill"] = killFits
 ACTION_FITS["control"] = controlFits
 ACTION_FITS["launch"] = launchFits
+ACTION_FITS["unstarted"] = unstartedFits
+ACTION_REFUSALS["kill"] = killRefusal
+ACTION_REFUSALS["launch"] = launchRefusal
 
 
 ## ---- the pending questions: answer, reject, dismiss, link ----
@@ -2953,6 +3257,15 @@ def linkFits(state, row):
     return acts is not None and bool(absent(acts["question"]["link"]))
 
 
+## Why an act does not apply to the ask of that row: it is not read yet, or its row of
+## the read says that it takes none.
+def askRefusal(state, row, words):
+    acts = askActsOf(state, row)
+    if acts is None:
+        return askUnread(state, row)
+    return words % acts["question"]
+
+
 ## What the status line says of a key of an ask pressed before the ask was read; on a row
 ## that is no ask the key says nothing and does nothing.
 def askUnread(state, row):
@@ -2997,7 +3310,7 @@ def askAnswer(state, row):
         return askUnread(state, row)
     question = acts["question"]
     if not absent(question["text"]):
-        return tell(state, "Answer", "this %s takes no answer any more: it is %s" % (question["kind"], question["status"]))
+        return ""
     state.answer = None
     fill = {"about": {"lines": askSays(state, row, acts)}}
     if acts["answers"]:
@@ -3014,8 +3327,6 @@ def submitAnswer(state, dialog, button):
     askId = dialog["about"]["id"]
     words = dialogValue(dialog, "words").strip()
     if dialog["name"] == "reply":
-        if not words:
-            return "nothing is answered: the answer is empty"
         call = callWords("answer", askId) + [words]
     else:
         call = callWords("answer", askId) + [dialogValue(dialog, "answers")] + ([CALL_WORDS["answer"], words] if words else [])
@@ -3033,7 +3344,7 @@ def askReject(state, row):
         return askUnread(state, row)
     question = acts["question"]
     if not absent(question["reject"]):
-        return tell(state, "Reject", "this %s has no negative answer of its own, so it takes no reject: answer it, or dismiss it" % question["kind"])
+        return ""
     state.answer = None
     openDialog(state, "reject", {"about": {"lines": [
         "REJECT the %s of %s: it is answered `%s`, as %s." % (question["kind"], question["asker"], question["reject"], question["standsAs"]),
@@ -3048,7 +3359,7 @@ def askDismiss(state, row):
         return askUnread(state, row)
     question = acts["question"]
     if question["dismiss"] != ASK_ACT_YES:
-        return tell(state, "Dismiss", "this %s cannot be dismissed: it is %s" % (question["kind"], question["status"]))
+        return ""
     state.answer = None
     openDialog(state, "dismiss", {"about": {"lines": [
         "DISMISS the %s of %s: it is withdrawn, and nothing is answered, granted or decided." % (question["kind"], question["asker"]),
@@ -3076,7 +3387,7 @@ def askLink(state, row):
         return askUnread(state, row)
     question = acts["question"]
     if not absent(question["link"]):
-        return tell(state, "Link", "the message of this %s has no link" % question["kind"])
+        return ""
     return tell(state, "Link of the %s of %s" % (question["kind"], question["asker"]),
                 ["The message of the question, where it was posted:", " " + question["link"]], "information")
 
@@ -3102,6 +3413,10 @@ ACTION_FITS["answer"] = answerFits
 ACTION_FITS["reject"] = rejectFits
 ACTION_FITS["dismiss"] = dismissFits
 ACTION_FITS["link"] = linkFits
+ACTION_REFUSALS["answer"] = lambda state, row: askRefusal(state, row, "this %(kind)s takes no answer any more: it is %(status)s")
+ACTION_REFUSALS["reject"] = lambda state, row: askRefusal(state, row, "this %(kind)s has no negative answer of its own: answer it, or dismiss it")
+ACTION_REFUSALS["dismiss"] = lambda state, row: askRefusal(state, row, "this %(kind)s cannot be dismissed: it is %(status)s")
+ACTION_REFUSALS["link"] = lambda state, row: askRefusal(state, row, "the message of this %(kind)s has no link")
 DIALOG_HANDLERS["answer"] = submitAnswer
 DIALOG_HANDLERS["reply"] = submitAnswer
 DIALOG_HANDLERS["reject"] = submitAskAct
@@ -3340,16 +3655,13 @@ def memberFits(state, row):
     return bool(row and row.get("member") and not memberRefusal(row["member"]))
 
 
-## `n`: starts the selected team member with a prompt. A row that is no member says in a
-## box that there is nothing to start, and a member that is not started why; nothing is asked.
-## Else the dialog of a prompt opens, its list on that member.
+## `n`: starts the selected team member with a prompt: the dialog of a prompt opens, its
+## list on that member. On a row that is no member, and on a member that is not started,
+## the key says its line in the status line and this is not reached.
 def askStart(state, row):
     member = row.get("member") if row else None
-    if member is None:
-        return tell(state, "Start a member", "n: nothing to start here: n starts a team member with a prompt")
-    refusal = memberRefusal(member)
-    if refusal:
-        return tell(state, "The member is not started", "n: %s is not started: %s" % (member["name"], refusal))
+    if member is None or memberRefusal(member):
+        return ""
     return openPrompt(state, member["name"], "Start the member %s" % member["name"])
 
 
@@ -3372,9 +3684,10 @@ def spawnAnswer(text, width):
 
 ACTION_HANDLERS["start"] = askStart
 ACTION_FITS["start"] = memberFits
+ACTION_REFUSALS["start"] = lambda state, row: "%s is not started: %s" % (row["member"]["name"], memberRefusal(row["member"])) if row and row.get("member") else ""
 
 
-## ---- the settings: `Settings / Configuration` ----
+## ---- the settings: `Settings (Configuration)` ----
 
 ## What each subject of the digest holds, in words, for the head of its pane. A subject
 ## that is not listed here shows by its name alone.
@@ -3538,17 +3851,19 @@ def submitSetting(state, dialog, button):
 
 
 ## What the save of a setting printed: its row `saved`, the key, the value as it was read
-## back, and the file, set out for the left pane, and what the status line says of it.
+## back, whom it is saved for, and the file, set out for the left pane, and what the
+## status line says of it.
 def settingAnswer(text, says, width):
     for line in text.splitlines():
         fields = line.split("\t")
-        if fields[0] == "saved" and len(fields) >= 4:
-            return fieldLines([("saved", fields[1]), ("value", fields[2]), ("in", fields[3])], width), "saved: %s" % says
+        if fields[0] == "saved" and len(fields) >= 5:
+            return fieldLines([("saved", fields[1]), ("value", fields[2]), ("scope", fields[3]), ("in", fields[4])], width), "saved: %s" % says
     return [line for line in text.splitlines() if line.strip()], "the save printed no row of what it saved"
 
 
 ACTION_HANDLERS["setting"] = askSetting
 ACTION_FITS["setting"] = settingFits
+ACTION_REFUSALS["setting"] = lambda state, row: "nothing of this subject is changed from here"
 DIALOG_HANDLERS["setting"] = submitSetting
 
 
@@ -3602,8 +3917,8 @@ def handleKey(state, key, layout):
         if metaPending(state) and len(key) == 1 and key != " ":
             key = "ALT-" + key.lower()
         state.metaAt = None
-    if key.startswith("ALT-") and menuOfLetter(key[4:]) is not None:
-        openMenu(state, menuOfLetter(key[4:]))
+    if key.startswith("ALT-") and menuOfLetter(state, key[4:]) is not None:
+        openMenu(state, menuOfLetter(state, key[4:]))
         return
     command = commandOfKey(state, key)
     if command is not None:
@@ -3749,7 +4064,7 @@ def mouseEvent(state, what, column, line, layout):
             openMenu(state, hit[1])
         else:
             state.menu["item"] = hit[1]
-            chooseItem(state, menuItems(MENUS[state.menu["menu"]][0])[hit[1]], layout)
+            chooseItem(state, menuItems(state, MENUS[state.menu["menu"]][0])[hit[1]], layout)
         return
     if not clicked:
         ## the window under the pointer, or the active one where the pointer is not known
@@ -3806,54 +4121,102 @@ def commandWindow(command):
     return None
 
 
-## The command a key means now, or None: the first of COMMANDS that has the key, applies
-## in the window that has the keys, and, where the key is its own on some rows alone, is
-## on such a row with its handler built.
+## Whether a command belongs to the view of now, the level the list is at: one that names
+## no view belongs to every view.
+def commandInView(state, command):
+    return "views" not in command or levelPattern(state.path) in command["views"]
+
+
+## The command a key means now, or None: the first of COMMANDS that has the key, belongs
+## to the view, applies in the window that has the keys, and, where the key is its own on
+## some rows alone, is on such a row with its handler built; one that tells why another
+## does nothing ("tells") only on a row its action acts on as it is now.
 def commandOfKey(state, key):
     place = placeOf(state, selectedRow(state))
     for command in COMMANDS:
-        if key not in commandKeys(command) or commandWindow(command) not in (None, state.focus):
+        if key not in commandKeys(command) or commandWindow(command) not in (None, state.focus) or not commandInView(state, command):
             continue
         if command.get("only") and (place not in command["on"] or ACTION_HANDLERS.get(command["does"][1]) is None):
+            continue
+        if command.get("tells") and not actionShown(state, selectedRow(state), command["does"][1]):
             continue
         return command
     return None
 
 
-## Whether a command applies now: a menu shows one that does not as greyed and does not
-## choose it, and the status line leaves it out. Its key is taken all the same wherever
-## its window has the keys: the handler of an action says itself why it does nothing.
-def commandApplies(state, command):
+## What a command is named by where the screen says something of it: as its menu shows
+## it, else its word of the status line.
+def commandSaid(command):
+    return hotText(command["label"]) if command.get("label") else command.get("status") or command["name"]
+
+
+## Why a command does not apply now, in one line (REFUSALS), or "" where it applies. A
+## menu shows one that does not as greyed and does not choose it, the status line leaves
+## it out, and its key does nothing: tried, by its key or by a click, it says this line in
+## the status line, and no handler is called.
+def commandRefusal(state, command):
+    said = commandSaid(command)
     if commandWindow(command) not in (None, state.focus):
-        return False
+        return REFUSALS["window"] % said
     does = command["does"]
     row = selectedRow(state)
+    other = REFUSALS["rowFor"] % (said, command["for"]) if command.get("for") else REFUSALS["row"] % said
     if does[0] == "action":
         if ACTION_HANDLERS.get(does[1]) is None:
-            return False
+            return REFUSALS["unbuilt"] % said
         if "on" not in command:
-            return True
+            return ""
         ## an action acts on what the left window shows: on the container too, while the
         ## selection stands on the row that goes up inside it
         with shownLevel(state, not command.get("only")):
             row = selectedRow(state)
-            return placeOf(state, row) in command["on"] and actionShown(state, row, does[1])
+            if placeOf(state, row) not in command["on"]:
+                return other
+            if actionShown(state, row, does[1]) or command.get("asks"):
+                return ""
+            words = ACTION_REFUSALS[does[1]](state, row) if does[1] in ACTION_REFUSALS else ""
+            return "%s: %s" % (said, words) if words else REFUSALS["fits"] % said
     if does[0] == "mode":
         ## a mode is of a thing that has a log: on any other the keys of the modes do nothing
         with shownLevel(state):
             row = selectedRow(state)
-            return placeOf(state, row) in command["on"] and viewReadOf(state, row, "feed") is not None
+            if placeOf(state, row) not in command["on"]:
+                return other
+            return "" if viewReadOf(state, row, "feed") is not None else REFUSALS["mode"] % said
     if does[0] == "up":
-        return bool(state.path)
+        return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
-        return row is not None and (row["dive"] or row["kind"] == "up")
-    return True
+        return "" if row is not None and (row["dive"] or row["kind"] == "up") else REFUSALS["open"] % said
+    return ""
+
+
+## Whether a command applies now: it belongs to the view, and nothing refuses it.
+def commandApplies(state, command):
+    return commandInView(state, command) and not commandRefusal(state, command)
+
+
+## Whether the status line names a command now, its stricter rule: the command applies,
+## and one whose operation says itself whether it does anything ("asks") also fits the
+## row as it is now.
+def commandOffered(state, command):
+    if not commandApplies(state, command):
+        return False
+    if not command.get("asks"):
+        return True
+    with shownLevel(state, not command.get("only")):
+        return actionShown(state, selectedRow(state), command["does"][1])
 
 
 ## What a command does, on the state alone. `key` is the key it came by, or None where a
 ## menu gave it.
 def runCommand(state, command, layout, key=None):
     does = command["does"]
+    refusal = commandRefusal(state, command)
+    if refusal:
+        ## it does not apply: nothing is done, and the status line says why
+        state.noticeOf = None
+        state.notice = refusal
+        return
     if does[0] == "quit":
         state.quit = True
     elif does[0] == "focus":
@@ -3872,9 +4235,8 @@ def runCommand(state, command, layout, key=None):
         state.noticeOf = None
         state.notice = "interface style: %s" % STYLE["label"]
     elif does[0] == "mode":
-        if commandApplies(state, command):
-            names = [name for name, mode in VIEW_MODES]
-            setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
+        names = [name for name, mode in VIEW_MODES]
+        setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
     elif does[0] == "move":
         if state.focus == "list":
             moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
@@ -3889,21 +4251,19 @@ def runCommand(state, command, layout, key=None):
         state.focus = "list"
     elif does[0] == "action":
         ## the handler of the action, with the row that is selected
-        handler = ACTION_HANDLERS.get(does[1])
+        handler = ACTION_HANDLERS[does[1]]
         state.noticeOf = None
-        if handler is None:
-            state.notice = tell(state, command["name"].capitalize(), "%s: %s is not built yet" % (key or commandKeys(command)[0], does[1]))
-        else:
-            with shownLevel(state, not command.get("only")):
-                state.notice = handler(state, selectedRow(state)) or ""
+        with shownLevel(state, not command.get("only")):
+            state.notice = handler(state, selectedRow(state)) or ""
 
 
 ## ---- the menus ----
 
-## The items of a menu, in their order: the commands COMMANDS places in it, group after
-## group, and None where a line parts two groups.
-def menuItems(menuName):
-    listed = sorted((command for command in COMMANDS if command.get("menu", ("",))[0] == menuName),
+## The items of a menu in the view of now, in their order: the commands of that view
+## COMMANDS places in it, group after group, and None where a line parts two groups.
+def menuItems(state, menuName):
+    listed = sorted((command for command in COMMANDS
+                     if command.get("menu", ("",))[0] == menuName and commandInView(state, command)),
                     key=lambda command: command["menu"][1])
     items = []
     for command in listed:
@@ -3913,10 +4273,16 @@ def menuItems(menuName):
     return items
 
 
-## The place in MENUS of the menu with that hot letter, or None.
-def menuOfLetter(letter):
-    for index, (menuName, label) in enumerate(MENUS):
-        if hotLetter(label) == letter.lower():
+## The menus the bar holds in the view of now, each by its place in MENUS: those that
+## hold a command of that view.
+def menusShown(state):
+    return [index for index, (menuName, label) in enumerate(MENUS) if menuItems(state, menuName)]
+
+
+## The place in MENUS of the menu of the bar with that hot letter, or None.
+def menuOfLetter(state, letter):
+    for index in menusShown(state):
+        if hotLetter(MENUS[index][1]) == letter.lower():
             return index
     return None
 
@@ -3926,18 +4292,21 @@ def openMenu(state, index):
     state.menu = {"menu": index, "item": 0}
 
 
-## One key while a menu is open. Left and Right go to the menu beside it, Up and Down move
+## One key while a menu is open. Left and Right go to the menu beside it in the bar, Up and Down move
 ## the bar, over the lines that part the groups, and around at the ends. Enter chooses the
 ## item the bar is on and the hot letter of an item chooses that one: the menu closes and
-## the command is done, as its key would do it; an item that does not apply is not chosen.
+## the command is done, as its key would do it; an item that does not apply is not chosen,
+## the menu stays open, and the status line says why (commandRefusal).
 ## Esc and F10 close the menu. The key that ends the screen ends it from here too.
 def menuKey(state, key, layout):
     menu = state.menu
-    items = menuItems(MENUS[menu["menu"]][0])
+    items = menuItems(state, MENUS[menu["menu"]][0])
     if key in ("ESC", "F10"):
         state.menu = None
     elif key in ("LEFT", "RIGHT"):
-        openMenu(state, (menu["menu"] + (1 if key == "RIGHT" else -1)) % len(MENUS))
+        shown = menusShown(state)
+        at = shown.index(menu["menu"]) if menu["menu"] in shown else 0
+        openMenu(state, shown[(at + (1 if key == "RIGHT" else -1)) % len(shown)])
     elif key in ("UP", "DOWN"):
         step = 1 if key == "DOWN" else -1
         index = (menu["item"] + step) % len(items)
@@ -3949,8 +4318,8 @@ def menuKey(state, key, layout):
     elif key in commandKeys(commandNamed("exit")):
         state.quit = True
     elif key.startswith("ALT-"):
-        if menuOfLetter(key[4:]) is not None:
-            openMenu(state, menuOfLetter(key[4:]))
+        if menuOfLetter(state, key[4:]) is not None:
+            openMenu(state, menuOfLetter(state, key[4:]))
     elif len(key) == 1:
         for index, command in enumerate(items):
             if command is not None and hotLetter(command["label"]) == key.lower():
@@ -3960,9 +4329,13 @@ def menuKey(state, key, layout):
 
 
 def chooseItem(state, command, layout):
-    if commandApplies(state, command):
-        state.menu = None
-        runCommand(state, command, layout)
+    refusal = commandRefusal(state, command)
+    if refusal:
+        state.noticeOf = None
+        state.notice = refusal
+        return
+    state.menu = None
+    runCommand(state, command, layout)
 
 
 ## ---- reading through operations ----
@@ -4028,10 +4401,25 @@ def wantedReads(state):
             wanted.append((entry.get("kind", "list"), key, readWords(entry, state, {})))
     wanted.extend(shownReads(state))
     ## what the open dialog offers is read while it is open
-    for key in DIALOGS[state.dialog["name"]].get("reads", ()) if state.dialog is not None else ():
-        if READS.get(key) and key not in [wantedKey for kind, wantedKey, words in wanted]:
-            wanted.append((READS[key].get("kind", "list"), key, readWords(READS[key], state, {}, False)))
+    for key, values in dialogReads(state):
+        if key not in [wantedKey for kind, wantedKey, words in wanted]:
+            wanted.append((READS[key].get("kind", "list"), key, readWords(READS[key], state, values, False)))
     return wanted
+
+
+## The reads of the open dialog: the key in READS and the values of each entry it names
+## that gives an operation. A name that holds {kind} is the entry of the kind of what the
+## dialog was opened on, its "target", and is asked by the id of that.
+def dialogReads(state):
+    if state.dialog is None:
+        return []
+    target = state.dialog["about"].get("target") or {}
+    reads = []
+    for name in DIALOGS[state.dialog["name"]].get("reads", ()):
+        key = name.replace("{kind}", target.get("kind", ""))
+        if READS.get(key):
+            reads.append((key, {"id": target.get("id", "")} if key != name else {}))
+    return reads
 
 
 ## The read of a part of the left pane for that row, "view" its facts or "feed" its lines:
@@ -4140,6 +4528,12 @@ def applyResult(state, result):
         return
     if key in wantedNow and wantedNow[key] != result["words"]:
         state.forced.add(key)
+        return
+    if key.startswith("plan:"):
+        ## what a kill would do is its confirmation's own: that says what was read, or that
+        ## it could not be, and no box does
+        state.plans[key] = {"words": result["words"], "rows": parseKillRows(result["text"]),
+                            "error": result["error"] if result["status"] != 0 else ""}
         return
     if result["status"] != 0:
         ## a box says it once: a read that fails again in the same words is marked as old, no more
@@ -4394,11 +4788,13 @@ def whereShown(state, room, extra):
     return MARKS["cut"], leftCut(host, max(1, room - extra - textWidth(clock) - 2)), clock
 
 
-## The menu bar, from its left: the system mark, then each menu of MENUS, its hot letter in
-## the look of one. The menu that is open stands in the look of the bar of a menu.
+## The menu bar, from its left: the system mark, then each menu of MENUS that the view has
+## (menusShown), its hot letter in the look of one. The menu that is open stands in the
+## look of the bar of a menu.
 def menuBarParts(state):
     parts = [(" " + MARKS["system"] + " ", BAR)]
-    for index, (menuName, label) in enumerate(MENUS):
+    for index in menusShown(state):
+        label = MENUS[index][1]
         opened = state.menu is not None and state.menu["menu"] == index
         parts.extend(hotParts(" " + label + " ", BAR_ON if opened else BAR, BAR_ON_HOT if opened else BAR_HOT))
     return parts
@@ -4421,7 +4817,8 @@ def drawMenuBar(surface, state, columns):
     surface.put(0, 0, " " * columns, BAR)
     after = putParts(surface, 0, 0, menuBarParts(state), columns)
     column = textWidth(MARKS["system"]) + 2
-    for index, (menuName, label) in enumerate(MENUS):
+    for index in menusShown(state):
+        label = MENUS[index][1]
         spot(state, column, 0, textWidth(hotText(label)) + 2, 1, ("menu", index))
         column += textWidth(hotText(label)) + 2
     ## where the bar is too narrow for all of it, the machine and the clock stay longest
@@ -4461,17 +4858,49 @@ def listRowsHeight(state, layout):
     return layout["listHeight"] - (1 if listTableOf(state) else 0)
 
 
+## Whether Enter enters a row, which is then drawn as a folder: it dives into a level of
+## its own, or a command declared with "enters" acts on it as it is now.
+def rowEnters(state, row):
+    if row["dive"]:
+        return True
+    place = placeOf(state, row)
+    return any(command.get("enters") and place in command.get("on", ()) and actionShown(state, row, command["does"][1])
+               for command in COMMANDS)
+
+
 ## One row of the list in exactly that many cells: the mark of the selection, what the row
 ## shows as, and at the end of the line what the row carries as its tail, its state. A row
-## of a table shows as its cells in the columns that fit.
-def listRowText(row, chosen, width):
+## of a table shows as its cells in the columns that fit. A row that Enter enters has the
+## mark of a folder after its name: a name too long for its room is cut ahead of that
+## mark, which is never cut itself. Gives the text, and where in it the mark stands, or None.
+def listRowParts(row, chosen, width, enters=False):
     shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     tailWidth = textWidth(tail)
-    if not tail or tailWidth + 4 > width:
-        return cutToCells(head, width)
-    return cutToCells(head, width - tailWidth - 1) + " " + cutToCells(tail, tailWidth)
+    room = width if not tail or tailWidth + 4 > width else width - tailWidth - 1
+    markAt = None
+    mark = MARKS["folder"]
+    if enters and not row.get("table") and room > textWidth(mark) + 2:
+        if textWidth(head) > room - textWidth(mark):
+            head = cutToCells(head, room - textWidth(mark))
+        markAt = textWidth(head)
+        head += mark
+    text = cutToCells(head, room)
+    return (text if room == width else text + " " + cutToCells(tail, tailWidth)), markAt
+
+
+## One row of the list, drawn in that many cells: in its own look, or in the look of the
+## selection; the mark of a folder in its own palette entry, but on the row the selection
+## is on, whose bar is whole.
+def putListRow(surface, state, line, column, row, chosen, width):
+    text, markAt = listRowParts(row, chosen, width, rowEnters(state, row))
+    look = row.get("look", PLAIN)
+    if chosen:
+        look = REVERSE if state.focus == "list" else BOLD
+    surface.put(line, column, text, look)
+    if markAt is not None and not chosen:
+        surface.put(line, column + markAt, MARKS["folder"], FOLDER)
 
 
 ## ---- the compact style: two panes between two status lines, nothing spent on frames ----
@@ -4553,16 +4982,11 @@ def drawCompact(surface, state, layout):
     cursor = cursorOf(state, rows, listHeight)
     for offset in range(listHeight):
         position = cursor["top"] + offset
-        text = " " * listWidth
-        look = PLAIN
         if position < len(rows):
-            chosen = position == cursor["index"]
-            text = listRowText(rows[position], chosen, listWidth)
-            look = rows[position].get("look", PLAIN)
-            if chosen:
-                look = REVERSE if state.focus == "list" else BOLD
+            putListRow(surface, state, listTop + offset, listLeft, rows[position], position == cursor["index"], listWidth)
             spot(state, listLeft, listTop + offset, listWidth, 1, ("row", position))
-        surface.put(listTop + offset, listLeft, text, look)
+        else:
+            surface.put(listTop + offset, listLeft, " " * listWidth, PLAIN)
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
     for offset in range(headHeight):
@@ -4624,13 +5048,13 @@ def statusItems(state):
         return list(STATUS_KEYS["line"])
     if metaPending(state):
         ## after Esc: the keys that are Alt with a letter, each by its letter alone
-        return ([(hotLetter(label), hotText(label)) for menuName, label in MENUS]
+        return ([(hotLetter(MENUS[index][1]), hotText(MENUS[index][1])) for index in menusShown(state)]
                 + [(key[4:], statusWord(state, command) or hotText(command["label"])) for command in COMMANDS
                    for key in commandKeys(command) if key.startswith("ALT-")])
     own = []
     everywhere = []
     for command in COMMANDS:
-        if command.get("status") and commandApplies(state, command) and command["does"] != ("mode", state.viewMode):
+        if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", state.viewMode):
             wide = commandWindow(command) is None and "on" not in command
             (everywhere if wide else own).append((keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
@@ -4725,16 +5149,11 @@ def drawRowsBody(surface, state, layout, box):
     cursor = cursorOf(state, rows, rowsHeight)
     for offset in range(rowsHeight):
         position = cursor["top"] + offset
-        text = " " * room
-        look = PLAIN
         if position < len(rows):
-            chosen = position == cursor["index"]
-            text = listRowText(rows[position], chosen, room)
-            look = rows[position].get("look", PLAIN)
-            if chosen:
-                look = REVERSE if state.focus == "list" else BOLD
+            putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room)
             spot(state, column, top + offset, room, 1, ("row", position))
-        surface.put(top + offset, column, text, look)
+        else:
+            surface.put(top + offset, column, " " * room, PLAIN)
     return (len(rows), cursor["top"], rowsHeight)
 
 
@@ -4762,12 +5181,16 @@ def drawWindow(surface, state, layout, window):
 ## an item that does not apply greyed, the bar on one item, and its shadow.
 def drawMenu(surface, state, layout):
     menu = state.menu
-    items = menuItems(MENUS[menu["menu"]][0])
+    items = menuItems(state, MENUS[menu["menu"]][0])
     listed = [command for command in items if command is not None]
+    if not listed:
+        ## the view has left the menu behind: it closes
+        state.menu = None
+        return
     labelWidth = max(textWidth(hotText(command["label"])) for command in listed)
     keyWidth = max(textWidth(keyShown(commandKeys(command)[0])) for command in listed)
     width = labelWidth + keyWidth + 6
-    left = 3 + sum(textWidth(hotText(label)) + 2 for menuName, label in MENUS[:menu["menu"]])
+    left = 3 + sum(textWidth(hotText(MENUS[index][1])) + 2 for index in menusShown(state) if index < menu["menu"])
     left = max(0, min(left, layout["columns"] - width - 2))
     frame = MARKS["frame"]
     last = layout["lines"] - 2

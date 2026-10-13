@@ -4,7 +4,7 @@
 ## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
 ## (check-fixtures/manager-screen.tools.test.sh), which notes each start with its arguments and then prints rows,
 ## sleeps or fails as the case says. Time is a number the case moves, so no case waits for a period to pass.
-## Held: the root asks for nothing; the level of `Sessions / Activity` asks `--manager-session-list` once, as a
+## Held: the root asks for nothing; the level of `Sessions (Activity)` asks `--manager-session-list` once, as a
 ## process of its own, and what it printed becomes rows, a record a line, its fields split at each TAB; `a` asks
 ## again at once with `--active`; a call that sleeps five seconds does not hold a key: the selection moves while it
 ## runs, and the title carries the mark of a read; a call that fails shows its first error line, not the line of
@@ -13,7 +13,7 @@
 ## the key that checks now starts a read at once; an answer asked before the filter changed is dropped and asked
 ## again; the left pane reads the item that is selected, and an answer that comes for an item that is no longer
 ## selected is dropped; and a dispatcher that cannot be started at all is shown as a failed call.
-## These cases hold how a read is made, not what a section shows: the list of `Sessions / Activity` stands in their
+## These cases hold how a read is made, not what a section shows: the list of `Sessions (Activity)` stands in their
 ## table as a plain list in the stand-in's form, read only while it is shown, and the list of the asks is taken out,
 ## so every start the stand-in notes is one of the case's own. What the sessions and the asks show, and the read
 ## that is made whatever is shown, are held by AgentsManagerScreenSessionsCheck, AgentsManagerScreenStatusCheck and
@@ -72,7 +72,7 @@ rigCall(){ ## number -- the arguments of that start
 	LC_ALL=C sed -n "${1}p" "$MANAGER_SCREEN_RIG/calls"
 }
 
-echo "-- the list of Sessions / Activity is read through its operation --"
+echo "-- the list of Sessions (Activity) is read through its operation --"
 rigCase list rows
 rigScript <<'RIGSCRIPT'
 size 120 40
@@ -95,8 +95,8 @@ rigAssert "the level asks at once, and the call runs beside the screen" "$( rigV
 rigAssert "the operation is --manager-session-list, started once"    "$( rigCalls ) [$( rigCall 1 )]" "1 [--manager-session-list]"
 rigAssert "what it printed is rows under Launch / Spawn, a record a line, its fields split at each TAB" \
 	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" \
-	"[>..][ Launch / Spawn][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
-rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Sessions / Activity  [all]]"
+	"[>..][ Launch / Spawn...][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
+rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Sessions (Activity)  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
 rigCase active rows
@@ -114,7 +114,7 @@ get later
 RIGSCRIPT
 rigAssert "a starts a read at once"                                  "$( rigVal asked.filter ) $( rigVal asked.reading )" "active list:sessions"
 rigAssert "with --active after the operation"                        "$( rigCalls ) [$( rigCall 2 )]" "2 [--manager-session-list --active]"
-rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[Sessions / Activity  [active]]"
+rigAssert "and the title says which are shown"                       "[$( rigVal title )]" "[Sessions (Activity)  [active]]"
 
 echo "-- a slow call does not hold a key --"
 rigCase slow "sleep 5"
@@ -132,8 +132,8 @@ get again
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
 rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:sessions 0"
-rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn]"
-rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Sessions / Activity  [all]]"
+rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn...]"
+rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Sessions (Activity)  [all]]"
 rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:sessions"
 rigAssert "none of that waited for the five seconds of the call"     "$( [ "$rigSecondsTaken" -lt 4 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
@@ -164,10 +164,10 @@ RIGSCRIPT
 rigAssert "the first call gave three rows"                           "$( rigVal good.rows ) $( rigVal good.selected ) [$( rigVal good.failed )]" "5 s1 []"
 rigAssert "the second call failed, after the period"                 "$( rigCalls ) [$( rigVal bad.failed )]" "4 [list:sessions]"
 rigAssert "the three rows stay, and the selection with them"         "$( rigVal bad.rows ) $( rigVal bad.selected ) [$( rigVal badRow3 )][$( rigVal badRow5 )]" "5 s1 [>s1  alpha  running][ s3  gamma  finished]"
-rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Sessions / Activity  [all]]"
+rigAssert "they are marked as old"                                   "[$( rigVal badTitle )]" "[! Sessions (Activity)  [all]]"
 rigAssert "what the read wrote is shown in a box, whole, with its operation" "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a second failure keeps them still"                        "$( rigVal worse.rows ) [$( rigVal worse.failed )]" "5 [list:sessions]"
-rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "5 [] [Sessions / Activity  [all]] []"
+rigAssert "a good call takes the mark and the error line away"       "$( rigVal mended.rows ) [$( rigVal mended.failed )] [$( rigVal mendedTitle )] [$( rigVal mendedLine )]" "5 [] [Sessions (Activity)  [all]] []"
 
 echo "-- a second read is not started while the first runs --"
 rigCase once "sleep 5"

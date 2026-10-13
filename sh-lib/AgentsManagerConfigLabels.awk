@@ -1,17 +1,30 @@
 #!/usr/bin/awk -f
 ##
-## AgentsManagerConfigLabels.awk -- gives each row of the settings digest its label, as its last
-## field: for AgentsToolsManagerConfigLabelled (AgentsTools.ManagerConfig.include). On standard
-## input, in this order: the rows of the one declaration of the labels (THE LABELS there, which
-## says what a row is), one line that holds the byte \034 alone, and the rows of a subject as
-## the digest made them, its `subject` row and its `line` rows, a TAB between their fields.
+## AgentsManagerConfigLabels.awk -- gives each row of the settings digest what the one
+## declaration says of it, its label and, in full, its description and whether it can be
+## changed: for AgentsToolsManagerConfigLabelled (AgentsTools.ManagerConfig.include). On
+## standard input, in this order: the rows of the declaration (THE LABELS there, which says
+## what a row is), one line that holds the byte \034 alone, and the rows of a subject as the
+## digest made them, a TAB between their fields: its `subject` row and its `line` rows. A
+## line has six fields, or eleven where it is a changeable setting's: the six, then where its
+## value comes from, what it takes, its kind, its scope and the file it is saved in.
 ##
 ##   -v capitals=<words>   the words of a key that stand whole in capitals in a label made of
 ##       the key's own words, parted by blanks (agentsManagerConfigLabelCapitals).
+##   -v full=1             each line in full, fifteen fields: its six, its label, then its
+##       description, whether it can be changed, its kind, its scope, where its value comes
+##       from, what it takes, where it is saved, and which of the two it belongs to,
+##       `settings` or `configuration`, as its row of the declaration says. A line that
+##       cannot be changed reads `no` where it says so, with the reason after a colon where
+##       it belongs to the configuration, and `-` in the five fields after it.
+##   -v deployed=<words>   that reason: why no line of the configuration is changed here.
+##   -v earlier=<subjects>   the subjects whose changeable lines keep, without full, the form
+##       they had first: where the value comes from and what it takes ahead of the label.
 ##
-## Prints each row with one more field at its end: the label of the first row of the
-## declaration that fits it, its blanks written `_` as every field of a row has them, and `-`
-## where no row fits. Nothing else of a row is changed: no key, no state, no value.
+## Without full a row gets one more field at its end, its label. The label and the
+## description are those of the first row of the declaration that fits, their blanks written
+## `_` as every field of a row has them, and `-` where no row fits. Nothing else of a row is
+## changed: no key, no state, no value.
 ##
 
 BEGIN {
@@ -19,18 +32,47 @@ BEGIN {
 	declaring = 1 ; rows = 0
 	count = split( capitals, capital, " " )
 	for ( at = 1 ; at <= count ; at++ ) inCapitals[capital[at]] = 1
+	count = split( earlier, capital, " " )
+	for ( at = 1 ; at <= count ; at++ ) earlierForm[capital[at]] = 1
 }
 
 declaring {
 	if ( $0 == "\034" ) { declaring = 0 ; next }
-	if ( split( $0, part, "|" ) < 4 || part[1] == "" || part[4] == "" ) next
+	count = split( $0, part, "|" )
+	if ( count < 4 || part[1] == "" || part[4] == "" ) next
 	rows++
 	rowSubject[rows] = part[1] ; rowGroup[rows] = part[2] ; rowKey[rows] = part[3] ; rowLabel[rows] = part[4]
+	rowBelongs[rows] = ( count >= 5 ) ? part[5] : "" ; rowDescription[rows] = ( count >= 6 ) ? part[6] : ""
 	next
 }
 
-$1 == "subject" { print $0, labelOf( $2, "", "", 1 ) ; next }
-$1 == "line" { print $0, labelOf( $2, $3, $4, 0 ) ; next }
+$1 == "subject" {
+	at = rowOf( $2, "", "", 1 )
+	print $0, ( at ? worded( rowLabel[at], "" ) : "-" )
+	next
+}
+
+$1 == "line" {
+	at = rowOf( $2, $3, $4, 0 )
+	label = at ? worded( rowLabel[at], $4 ) : "-"
+	base = $1 OFS $2 OFS $3 OFS $4 OFS $5 OFS $6
+	if ( !full ) {
+		if ( NF >= 11 && ( $2 in earlierForm ) ) print base, $7, $8, label
+		else print base, label
+		next
+	}
+	description = at ? worded( rowDescription[at], $4 ) : "-"
+	belongs = ( at && rowBelongs[at] != "" ) ? rowBelongs[at] : "-"
+	if ( NF >= 11 ) {
+		print base, label, description, "yes", $9, $10, $7, $8, $11, belongs
+		next
+	}
+	reason = ( belongs == "configuration" ) ? deployed : ""
+	gsub( /[ \t]+/, "_", reason )
+	print base, label, description, ( reason == "" ) ? "no" : "no:" reason, "-", "-", "-", "-", "-", belongs
+	next
+}
+
 { print }
 
 ## Whether a word of a row of the declaration fits a word of a line: `*` fits any, a word
@@ -60,16 +102,23 @@ function put( text, mark, with,    at ) {
 	return ( at == 0 ) ? text : substr( text, 1, at - 1 ) with substr( text, at + length( mark ) )
 }
 
-## The label of a subject itself (own is 1) or of one of its lines: that of the first row
-## that fits. A row with no group and no key is the subject's own, and no line's.
-function labelOf( subject, group, key, own,    at, label ) {
+## A text of a row of the declaration as a field of a row of the digest: what it says of the
+## key put in, its blanks written `_`, and `-` where it is empty.
+function worded( text, key ) {
+	text = put( put( text, "{words}", wordsOf( key ) ), "{name}", key )
+	gsub( /[ \t]+/, "_", text )
+	return ( text == "" ) ? "-" : text
+}
+
+## The row of the declaration for a subject itself (own is 1) or for one of its lines: the
+## first that fits, 0 where none does. A row with no group and no key is the subject's own,
+## and no line's.
+function rowOf( subject, group, key, own,    at ) {
 	for ( at = 1 ; at <= rows ; at++ ) {
 		if ( rowSubject[at] != subject ) continue
 		if ( rowGroup[at] == "" && rowKey[at] == "" ) { if ( !own ) continue }
 		else if ( own || !fits( rowGroup[at], group ) || !fits( rowKey[at], key ) ) continue
-		label = put( put( rowLabel[at], "{words}", wordsOf( key ) ), "{name}", key )
-		gsub( /[ \t]+/, "_", label )
-		return ( label == "" ) ? "-" : label
+		return at
 	}
-	return "-"
+	return 0
 }

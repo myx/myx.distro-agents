@@ -17,6 +17,7 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - handback-missing
   - run-ended
   - run-killed
+  - run-closed
   - run-stopped
   - run-bound
   - run-died
@@ -47,6 +48,8 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - console-dismissed
 - Reasons
   - not-held
+  - session-killed
+  - asker-killed
 - Words
   - asked-earlier
 - Contract
@@ -92,6 +95,12 @@ What the tooling says in a session's thread about the session itself, and what i
 
 ```
 🛑 The run[[ `{{run}}`]] of {{member}} was killed from the console by {{by}}[[, {{at}}]].[[ {{unrequested}}]]
+```
+
+## run-closed
+
+```
+🛑 The run[[ `{{run}}`]] of {{member}} had ended and left its record open: the record was closed from the console by {{by}}[[, {{at}}]], with the kill of its session.[[ {{unrequested}}]]
 ```
 
 ## run-stopped
@@ -276,6 +285,18 @@ Why an answer was not applied, as a line above says it.
 {{by}} does not hold {{tool}}[[ on `{{target}}`]]
 ```
 
+## session-killed
+
+```
+the session was killed from the console by {{by}}
+```
+
+## asker-killed
+
+```
+the run that asked it was killed from the console by {{by}}
+```
+
 # Words
 
 A value a line above takes where the record gives none.
@@ -295,6 +316,8 @@ an earlier date
 - rule: The five lines of an end, `## handback-missing`, `## run-ended`, `## run-killed`, `## run-stopped` and `## run-bound`, say how the run of a member ended. Whoever closes the record of that run posts one of them, once, as the team bot: its supervising shell, or the advance pass for a dead run that it closes. `{{member}}` is the member whose run it is, and `{{run}}` the first 8 characters of that run's id. The line is posted in the thread of the session that requested the run, which is the run's own session thread where it joined that session, and it is addressed to the member that brought the run in, where the send can address it, never to the member it is about. A run that no session requested, and whose item names no reviewer, is told to the human-owner in the bot's direct conversation, addressed to him: the line then ends with `{{unrequested}}`, the `## unrequested` line. Each is a message that states a fact and asks nothing, never a tracking post.
 - rule: `## handback-missing` is the line of a run that ended by itself with no `SubagentHandback` call seen in its output, after the one retry that asks it for one. The box that tracks the same fact goes to the session's tracking thread, and only there (`event-track.post.format.md`, `handback`).
 - rule: `## run-ended` is the line of a run that ended by itself and handed back, where none of its handbacks was posted in the thread it is told in. A run whose handback stands in that thread gets no line: the handback said it.
+- rule: `## session-killed` and `## asker-killed` under `# Reasons` say why a question was dismissed by a kill from the console: of its whole session, or of the one run that asked it. Each is the `{{reason}}` of `## console-dismissed`, and is kept as the reason on the record of the question. `{{by}}` is the name the console's user has in the operating system.
+- rule: `## run-closed` is the line of a run whose record the kill of its session closed with no process behind it: the run had ended before and nobody had closed its record, so it is not said to have been killed. `{{by}}` and `{{at}}` are those of `## run-killed`, as the record keeps them.
 - rule: `## run-killed` is the line of a run that the console killed: `{{by}}`, the name the console's user has in the operating system, and `{{at}}`, when, a Slack date token so each reader sees it in their own timezone, both as the run's record keeps them. It is posted whatever the run had handed back, and in place of `## handback-missing`.
 - rule: `## run-stopped` is the line of a run that a member's `TaskStop` ended: `{{by}}`, that member, and `{{at}}`, when, a Slack date token, both as the run's transcript records that ending. It is posted whatever the run had handed back, and in place of `## handback-missing`.
 - rule: `## run-bound` is the line of a run that the tooling ended because the wait of its caller reached its bound: `{{seconds}}`, that bound. It is posted whatever the run had handed back, and in place of `## handback-missing`.

@@ -577,7 +577,10 @@ printf 'SPAWN_CLI_SERVICE=rig-cli\n' > "$rigW/.local/.agents/magic-team.agent.en
 printf '# rigpkg\n' > "$rigW/source/rigrepo/rigpkg/MAGIC.md" ; : > "$rigW/source/rigrepo/rigpkg/file.sh" ; printf '# workspace\n' > "$rigW/MAGIC.md"
 printf '# rig armed\n' > "$rigTmp/b10/skills/rig-member/rig-member.armed.md"
 printf -- '---\nmaintainers: rig\n---\nrig identity\n' > "$rigTmp/b10/skills/rig-member/rig-member.basic.md"
-printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\nif [ -e /dev/fd/4 ] ; then echo open > "%s/b10/fd4.seen" ; else echo closed > "%s/b10/fd4.seen" ; fi\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigTmp" "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
+## A stand-in console stays until the launcher has kept it on the record (rigKept), five seconds at most: one that
+## ends at once is gone before the launcher can read when it began, however it was started.
+rigKept='rigKeptNo=0 ; while [ "$rigKeptNo" -lt 50 ] && ! grep -q "^run-process: " "$MDAT_SPAWN_SANDBOX_ROOT/$MDAT_SPAWN_SESSION_ID.md" 2> /dev/null ; do rigKeptNo=$(( rigKeptNo + 1 )) ; sleep 0.1 ; done'
+printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\nif [ -e /dev/fd/4 ] ; then echo open > "%s/b10/fd4.seen" ; else echo closed > "%s/b10/fd4.seen" ; fi\necho deliverable > "$MDAT_SPAWN_SANDBOX_ROOT/output/result.txt"\n' "$rigKept" "$rigTmp" "$rigTmp" > "$rigW/DistroAgentsConsole.sh"
 chmod +x "$rigW/DistroAgentsConsole.sh"
 printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
 	| env -i HOME="$rigTmp/b10/home" PATH="$rigTmp/ps-bin:/usr/bin:/bin" MMDAPP="$rigW" MDAT_DATA_ROOT="$rigD" MDLT_ORIGIN="$MDLT_ORIGIN" \
@@ -615,7 +618,7 @@ echo "   the detached branch starts its console in the background and waits for 
 ## One detached spawn on a stand-in console, never a real CLI; sets rigAsyncRecord to its record and rigAsyncOut to its output file.
 rigAsync(){ ## case name, the console's own lines
 	local asyncBefore asyncFile
-	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\n' "$2" > "$rigW/DistroAgentsConsole.sh"
+	printf '#!/bin/sh\n## cli-configured MDAT_SPAWN_LAUNCH_MARKER --cli)\ncat > /dev/null\n%s\n%s\n' "$rigKept" "$2" > "$rigW/DistroAgentsConsole.sh"
 	chmod +x "$rigW/DistroAgentsConsole.sh"
 	asyncBefore="$( ls "$rigSp"/*/*.md 2> /dev/null )"
 	printf 'Work on rigrepo/rigpkg/file.sh following rig-member.armed.md.\n' \
@@ -807,7 +810,9 @@ rigDlRun(){ ## label, fd 4 mode (closed|file|ro), shell and its options... -- <l
 		ro)     "$@" -c '. "$1" ; AgentsToolsDaemonLine "housekeeping: probe" ; echo "status=$? alive" > "$2"' x "$rigDlFn" "$rigTmp/dl.$dlLabel.status" 4< "$rigTmp/dl.ro" > "$rigTmp/dl.$dlLabel.out" 2> "$rigTmp/dl.$dlLabel.err" ;;
 	esac
 }
-for rigDlSpec in "sh:/bin/sh" "bash:/bin/bash" "bash-posix:/bin/bash --posix" "dash:/bin/dash" ; do
+## The old bash a system keeps at /bin (macOS: 3.2) where there is one, else the bash this check runs in.
+rigDlBash=/bin/bash ; [ -x "$rigDlBash" ] || rigDlBash="$BASH"
+for rigDlSpec in "sh:/bin/sh" "bash:$rigDlBash" "bash-posix:$rigDlBash --posix" "dash:/bin/dash" ; do
 	rigDlName="${rigDlSpec%%:*}" ; rigDlCmd="${rigDlSpec#*:}"
 	[ -x "${rigDlCmd%% *}" ] || { rigCheck "${rigDlCmd%% *} exists on this machine" no yes ; continue ; }
 	rigDlRun "$rigDlName.c" closed $rigDlCmd

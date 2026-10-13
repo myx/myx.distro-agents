@@ -244,7 +244,7 @@ def scriptRun(module):
             ("dialogBox", ",".join(str(value) for value in state.dialog["plan"]["box"]) if state.dialog and state.dialog["plan"] else ""),
             ("waiting", len(state.waiting)),
             ("menu", "" if getattr(state, "menu", None) is None else "%s:%s" % (
-                module.MENUS[state.menu["menu"]][0], module.menuItems(module.MENUS[state.menu["menu"]][0])[state.menu["item"]]["name"])),
+                module.MENUS[state.menu["menu"]][0], module.menuItems(state, module.MENUS[state.menu["menu"]][0])[state.menu["item"]]["name"])),
             ("quit", "yes" if state.quit else "no"),
             ("style", module.STYLE["name"] if hasattr(module, "STYLE") else ""),
             ("reading", ",".join(sorted(state.reading.values()))),

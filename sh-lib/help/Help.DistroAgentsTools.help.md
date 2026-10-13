@@ -161,9 +161,13 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices [<name>...]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
-📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]
-📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>
+📘 syntax: DistroAgentsTools.fn.sh --manager-check-run [--local] [--seconds <n>] [<domain>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [--full] [<subject>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>
 📘 syntax: DistroAgentsTools.fn.sh --manager-console-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
@@ -173,7 +177,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
-📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
@@ -746,26 +750,38 @@
 			elsewhere, and a zero-match result on a known-busy
 			conversation is worth a direct-read check.
 
-		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]
+		--magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw]
 			General coordinator comms-id resolver. Authenticates as
 			one team-member identity (same credential resolution as
 			--member-comms-slack-send-message), then reports: auth
 			identity (`AUTH_USER_ID`, `AUTH_USER_NAME`); requested
-			user-name/channel-name matches with resolved IDs;
+			user-name/channel-name matches with resolved IDs; and
 			configured alias reachability for magic-team/human-owner/
-			event-track/event-alert; and the best-known reachable
-			human-owner target.
+			event-track/event-alert.
 
-			Human-owner resolution order: the configured `human-owner`
-			alias id first, then (if unreachable) a DM-open attempt
-			using --human-owner-hint (default `myx`) against the
-			workspace's user list.
+			A bare call stops there. It never fetches `users.list`,
+			paged or not -- that is this op's one literal, explicit
+			ask, never a side effect of asking for an identity.
+
+			--resolve-human-owner-target additionally reports the
+			best-known reachable human-owner target. Resolution
+			order: the configured `human-owner` alias id first, then
+			(if unreachable) a DM-open attempt using --human-owner-hint
+			(default `myx`) against the workspace's user list.
+
+			That list lookup, when it is needed, asks one page at a
+			time and stops at the first page the hint matches -- a
+			one-person search, never a full-roster fetch held for
+			later. --user-name's own lookup is unaffected: it still
+			fetches one page, as before.
 
 			--user-name/--channel-name repeat to resolve several names
 			in one pass. --raw includes the full API payloads.
 
-			Exit code: 0 a reachable human-owner target is confirmed,
-			1 unresolved/unreachable.
+			Exit code, with --resolve-human-owner-target: 0 a reachable
+			human-owner target is confirmed, 1 unresolved/unreachable.
+			Without it: 0 once the bare/--user-name/--channel-name/--raw
+			work above is reported.
 
 		--magic-comms-slack-conversations-roster <team-member> [--identity user|bot|both] [--types <csv>]
 			Read-only: which conversations exist for that member
@@ -2764,7 +2780,36 @@
 			Prints the agents console script body (used by
 			`--make-console-command`) and exits.
 
-		--manager-config-digest [<subject>...]
+		--manager-check-run [--local] [--seconds <n>] [<domain>...]
+			One of the console's own operations (see Notes). Shows what
+			the check of the setup says: it runs the owner's read-only
+			diagnosis, `--owner-setup-<domain> --check`, for each domain
+			or for those named, and puts each result line of it into one
+			row. It makes no check and no judgement of its own, writes
+			nothing, and reaches what those checks reach. The domains:
+			`claude`, `copilot`, `grok`, `scaleway`, `slack`, `storage`.
+			Not for a tick: a check takes seconds. All are started at
+			once and waited for together, for <n> seconds at most, 60
+			where none is given; one that has not ended by then is ended
+			and reads `skipped`, and the others still answer. `--local`
+			leaves out the domains whose check asks outside this
+			machine, `claude` (it asks the CLI whether it is signed in)
+			and `slack` (it asks Slack for the workspace of the token):
+			each reads `skipped`. Prints rows of TAB-separated fields on
+			stdout, an absent value `-`, a value's whitespace `_`:
+			`check <domain> <section> <key> <label> <state> <reason> <remedy>`
+			`summary <checks> <ok> <warn> <fail> <skipped> <seconds>`
+			<section> is the heading the check printed above the line,
+			<key> the name of the check and <label> its words,
+			capitalised. <state> is `ok`, `warn` or `fail`, as the check
+			said, or `skipped`. <reason> is what the check said of it, in
+			its own words. <remedy> is the command the check names to
+			fix it, its blanks kept, since it is run as it stands. The
+			one `summary` row is the last line. Exit 0 whatever the
+			checks say. Exit 1, nothing run, for a word that is no
+			domain.
+
+		--manager-config-digest [--full] [<subject>...]
 			One of the console's own operations (see Notes). Prints the
 			settings of this workspace as they are, for viewing. It only
 			reads: no setting, no registry and no file is written. With no
@@ -2783,8 +2828,9 @@
 			their blanks written `_`. <subject> and <key> stay the names
 			a call takes. The labels have one declaration. The subjects
 			are `Workspace Paths`, `CLI Services`, `Outside Systems`,
-			`Main Loop And Heartbeat`, `Scope Settings` and
-			`Interface Settings`. A line the tooling prints under a key
+			`Main Loop And Heartbeat`, `Scope Settings`,
+			`Interface Settings`, `Console Behaviour` and
+			`Session Control`. A line the tooling prints under a key
 			of its own has a label of its own, as `Workspace Root` or
 			`Interface Style`. A line whose key is not the tooling's has
 			one by rule: a key of a scope, a credential of a harness leg
@@ -2793,6 +2839,28 @@
 			place and a scope of an outside system by its name, after
 			`Registered Place` and `Scope`. A line that no row of the
 			declaration fits has the label `-`.
+			With `--full`, given ahead of every name, each `line` row has
+			eight more fields at its end, and the rows are the same
+			otherwise:
+			`<description> <change> <kind> <scope> <source> <values> <where> <belongs>`
+			<description> is one or two plain sentences on the line, from
+			the declaration of the labels, with no value in it. <belongs>
+			says which of the two the line is: `settings`, what a user
+			sets for himself in this workspace and what may be changed
+			while things run; `configuration`, what is deployed and
+			configured for the workspace or the machine, and everything
+			measured. <change> is `yes` for a line of the settings, which
+			`--manager-config-set` saves, and for a line of the
+			configuration `no:set_at_deployment:_a_wizard_will_change_it`.
+			For a line that can be changed <kind> is `choice` or
+			`number`; <scope> is `user`, the user's own in this
+			workspace, or `workspace`, for everybody; <source> says where
+			its value comes from, `environment`, `user`, `workspace` or
+			`default`; <values> is what it takes, for a choice
+			<value>=<label> joined by commas in the order they are
+			offered, for a number <smallest>..<largest>; <where> is the
+			file it is saved in. Each of the five reads `-` for a line
+			that cannot be changed.
 			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
 			Nothing of the value of a secret is printed, in no row and in
 			no message: not a part of it, not its length. Its line reads
@@ -2843,7 +2911,7 @@
 			its value, ahead of its label:
 			`line interface <group> <key> <state> <value> <source> <choices> <label>`
 			<group> is a short name of the setting and <key> its key, as
-			`--manager-config-interface-set` takes it. <state> is `set`
+			`--manager-config-set` takes it. <state> is `set`
 			and <value> what the setting is now. <source> says where that
 			comes from: `environment`, the variable of the environment
 			that bears the key; `user`, what the user saved in this
@@ -2855,86 +2923,202 @@
 			setting now, the interface style of the manager screen:
 			group `style`, key `MDAT_MANAGER_STYLE`, value `tv`, `mc` or
 			`bw`.
+			`console`: what a console of this workspace does. Group
+			`history`, key `MDLT_CONSOLE_HISTORY`, where a console keeps
+			the shell history of the user, which every console reads at
+			its start, the user's own setting ahead of the workspace's:
+			`workspace-personal`, `workspace-separate`,
+			`workspace-shared`, `local-machine-home`, `bash-default` or
+			`user-default`. Group `origin`, key `MDLT_CONSOLE_ORIGIN`,
+			where the consoles load their tools from. Group `detail`, key
+			`MDSC_DETAIL`, whether the tools say what they do as they do
+			it, as the environment of the call has it, `off` where it
+			has none: a command takes it from its verbose option or from
+			its caller, and no settings file holds it.
+			`control`: the two bounds of a request to the control thread
+			of a session, in seconds, each what is saved for the team or
+			else its default: group `request`, key
+			`SESSION_CONTROL_REQUEST_SECONDS`; group `kill`, key
+			`SESSION_CONTROL_KILL_SECONDS`.
 
-		--manager-config-interface-set <key> <value>
+		--manager-config-set <key> <value>
 			One of the console's own operations (see Notes). Saves one
-			interface setting for the user who runs the call, in this
-			workspace: the one operation of the settings that writes.
-			<key> is the key of a line of the subject `interface` of
-			`--manager-config-digest`, and <value> one of the values that
-			line offers. One setting now, the interface style of the
-			manager screen: `MDAT_MANAGER_STYLE`, with `tv`, `mc` or `bw`.
-			The value is saved in the user's own settings of this
-			workspace, `.local/home/<user>/MDLT.settings.env` under its
-			root, by the setting reader of the local tools in its scope
-			of the current user: every line that set the key is replaced
-			by one, and every other line of the file stays. <user> is the
-			name the operating system gives the user who runs the call,
-			whatever the environment names, so the settings of another
-			user are never read and never written. A start of the manager
-			screen takes the saved style where neither its command nor
-			the environment names one. Prints one row of TAB-separated
-			fields on stdout:
-			`saved <key> <value> <file>`
-			<value> is the value as it was read back from <file> after
-			the write, and whitespace in <file> reads `_`. Exit 1, with
-			one error line, nothing printed and nothing saved: where
-			<key> is no interface setting, in a line that lists the keys;
-			where <value> is none of the values of the setting, in a line
-			that lists them; where it is not given one key and one value,
-			in a line with its syntax. Every such line ends `nothing was
-			saved`. Nothing that was given is repeated in it, and no
-			value but one the digest offers is ever saved, so no secret
-			reaches the file. Exit 1 too where the file does not hold the
+			changeable setting, and nothing else: the one operation of
+			the settings that writes. <key> is the key of a line that
+			`--manager-config-digest --full` says can be changed, a line
+			of the `settings`, and <value> one that line takes. Four are
+			declared. `MDAT_MANAGER_STYLE`, a `choice`, the user's own:
+			the interface style of the manager screen at its next start.
+			`MDLT_CONSOLE_HISTORY`, a `choice`, the user's own: where a
+			console keeps the shell history of the user, read at its next
+			start. `SESSION_CONTROL_REQUEST_SECONDS`, a `number` from 1
+			to 60, and `SESSION_CONTROL_KILL_SECONDS`, a `number` from 5
+			to 600, the workspace's: the two bounds of a request to a
+			control thread, read at the next request. A setting of scope
+			`user` is saved in the user's own settings of this workspace,
+			`.local/home/<user>/MDLT.settings.env` under its root, by the
+			setting reader of the local tools in its scope of the current
+			user. <user> is the name the operating system gives the user
+			who runs the call, whatever the environment names, so the
+			settings of another user are never read and never written. A
+			setting of scope `workspace` is saved for everybody, in the
+			settings of the team, `.local/.agents/magic-team.agent.env`,
+			by `--agents-config-option`: the console's operator may, who
+			stands at least equal to magic-coordinator, and a member's
+			session is refused as for every operation of the family.
+			Either way every line that set the key is replaced by one and
+			every other line of the file stays. Prints one row of
+			TAB-separated fields on stdout:
+			`saved <key> <value> <scope> <where>`
+			<value> is the value as it was read back after the write,
+			<scope> `user` or `workspace`, and <where> the file, its
+			whitespace written `_`. Exit 1, with one error line, nothing
+			printed and nothing saved: where <key> is none of the
+			changeable settings, a key of the configuration among them,
+			in a line that lists the keys; where <value> is none the
+			setting takes, in a line that lists its values or gives its
+			range; where it is not given one key and one value, in a line
+			with its syntax. Every such line ends `nothing was saved`.
+			Nothing that was given is repeated in it, and no value but
+			one a declared setting takes is ever saved, so no secret
+			reaches a file. Exit 1 too where the file does not hold the
 			value after the write.
 
-		--manager-console-list
+		--manager-dashboard-read [<block>...]
+			One of the console's own operations (see Notes). Prints the
+			dashboard: the most vital figures of this workspace and of
+			the machine it runs on, grouped in blocks that a screen draws
+			as titled boxes, with no knowledge of what is in one. It only
+			reads, for viewing: no registry is rebuilt, no scope of
+			settings is opened, no git command is run, and nothing
+			reaches another host. With no name it prints every block, in
+			the order below; with names, only those, in that same order
+			whatever the order given. A word that is none of them
+			refuses the call before anything is printed, in one line
+			that lists them. Prints rows of TAB-separated fields on
+			stdout, the first naming the row. An absent value reads `-`,
+			and a value's own whitespace reads `_`, as in a registry.
+			`block <block> <label> <figures>`
+			`figure <block> <figure> <label> <value> <unit> <level> <share>`
+			A block row is followed by its figures, which it counts. A
+			block that has no honest figure on this host is left out,
+			and so is a figure the host gives no answer for: nothing is
+			guessed. <label> is what a screen calls the block or the
+			figure: capitalised words, their blanks written `_`. <unit>
+			says how <value> reads: `count`, a whole number of things;
+			`bytes`; `seconds`, a length of time; `-`, a word, a path or
+			a plain number, shown as it is. <level> is `ok`, `warn` or
+			`bad`, and `-` where nothing is judged. <share> is a whole
+			number from 0 to 100 where the figure is a part of a whole,
+			for a bar, and `-` where it is none. The blocks have one
+			declaration: a reader takes a block or a figure it does not
+			know as one more box or one more line.
+			`sessions`, Sessions And Agents: the sessions that read
+			`running`, `waiting` and `unclosed`, and those paused, the
+			agents working and waiting, as `--manager-session-list`
+			counts them, by its own code; the control threads that are
+			`alive` and `gone`; and `deaths-unanswered`, the sessions
+			whose control thread keeps a death that is not settled and
+			whose question has no answer yet. The two registries of the
+			sessions are read as they lie, and which runs are alive is
+			measured at the call. Only the sessions that can count are
+			measured: those with a record still open, an open ask, an
+			end of today or a control thread. A session whose every
+			record is closed is not asked for a process, so one that the
+			list reads `running` by a process left behind a closed
+			record is not counted here. `warn` on an unclosed session, a
+			thread that is gone and a death unanswered.
+			`pending`, Pending Questions: `open`, the asks that wait in
+			the registry `pending-replies` as it lies; `asker-gone`, how
+			many of them, asked on this host, have no live asker,
+			measured at the call as `--member-pending-reply-read` says
+			it; `human-owner`, how many are addressed to the human-owner;
+			`oldest-age`, how long the oldest has waited. Of a question
+			its header alone is read.
+			`tokens`, Session Tokens: `running`, the tokens of the
+			sessions that run now, and `finished-today`, of those whose
+			last run closed on this host's date of today. A total covers
+			in, cache read, cache write and out, all added, of every run
+			of the session, as the <tokens> of `--manager-session-list`
+			has them from the store of each run. `not-whole` is how many
+			of those sessions have a run with no known figures, so that
+			their total is less than they used. No transcript is opened.
+			`team`, Team Members: `members`, the members the machine
+			knows, the team itself not counted; `startable`, how many of
+			them can be started here, which a member with no folder and
+			an identity record cannot; `running`, how many have a run
+			with a live process in a session of this workspace.
+			`team-data`, Team Data: `root`, the root of the team data,
+			and `present`, `yes` or `no`; `size`, of all that lies under
+			it; and `board-<state>`, the items of the board in each
+			state, a folder of the board a state and a `.md` file of it
+			an item. What only git knows of the team data, what is not
+			committed and what is not pushed, is no figure here.
+			`loop`, Main Loop And Heartbeat: as `--manager-config-digest`
+			reads them, how the last iteration of the main loop ended,
+			how long ago, and after how many failures in a row; the
+			state of the heartbeat, how long ago its last iteration was,
+			and whether it runs. Nothing the tooling keeps says that a
+			main loop runs now, so that is no figure.
+			`machine`, The Machine: the three load averages, each with a
+			level and a share by what it is of the processors, `warn`
+			from one runnable process a processor and `bad` from two;
+			the processors; the memory in use, with its share of all of
+			it, `warn` from 90 and `bad` from 97, and the memory free to
+			use, which is the pages nothing holds and those given up
+			when asked; and how long the machine is up. Each by what
+			macOS, Linux and FreeBSD has for it.
+			`disk`, Disk Space: of the volume the workspace lies on, of
+			the one its temp folder `.local/temp` lies on, and of the one
+			the root of the team data lies on, each volume once, under
+			the first of the three that lies on it: `<name>-size`,
+			`<name>-used` with the share `df` gives and a level, `warn`
+			from 85 and `bad` from 95, and `<name>-free`. <name> is
+			`workspace`, `temp` or `team-data`.
+			`testing`, Retest Queue: `waiting`, the retests that wait in
+			the queue of the machine, and `oldest-age`, how long the
+			oldest of them waits.
+			What is slow to read and changes seldom is kept for ten
+			minutes, in `.local/temp/mdat-manager-dashboard.*` of the
+			workspace: the size of the team data, which is a walk of
+			every file under it, and the two counts of the members.
+			Everything else is read at the call. Where that folder
+			cannot be written the size is not measured at all.
+
+		--manager-keys-list
 			One of the console's own operations (see Notes). Lists the
-			consoles that can be started from this workspace right now,
-			for a manager screen to start one as a child on its own
-			terminal and to have the terminal back when the child ends.
-			It only reads: nothing is started and nothing is written.
-			Prints rows of TAB-separated fields on stdout, the first
-			naming the row.
-			`console <key> <group> <label> <terminal> <directory> <word>...`
-			One row a console, in the order of a menu: <group> `shell`,
-			then `agents`, then `distro`. <key> names the console:
-			`bash`; the name of a vendor CLI, as `claude-native`;
-			`source`, `local`, `deploy`, `remote`. <label> is what a
-			screen calls it: capitalised words, more than one, their
-			blanks written `_`, as `Bash_Shell`, `Claude_Native_Console`,
-			`Source_Console`, `Local_Tools_Console`, `Deploy_Console`,
-			`Remote_Console`. <terminal> is `terminal` where the console
-			needs a terminal on its input and on its output, and `-`
-			where it needs none. <directory> is the folder to start it
-			in, the workspace root. Every field after it is one word of
-			the command, the first the program, by its absolute path.
-			<directory> and each <word> are exact, and not written as a
-			value is in the fields before them: a blank in one is a
-			blank of the path or of the word, `_` is `_`, `-` is `-`.
-			None of them is empty, and none holds a TAB or a line end.
-			So the command needs no shell: its words are handed to exec
-			as they are, in <directory>, with the environment of whoever
-			starts it, and what the console needs beyond that its own
-			words carry. No field holds a secret.
-			The row `bash` is a bash shell in the workspace with what a
-			console user gets, the tooling's functions and the tools of
-			every installed package on its PATH: bash with the rc file
-			of the agents console. A row of the group `agents` is a
-			vendor's own console, started as
-			`DistroAgentsConsole.sh --cli <name>`
-			which is what `Agents --start-console --cli <name>` runs. A
-			row of the group `distro` is one of `DistroSourceConsole.sh`,
-			`DistroLocalConsole.sh`, `DistroDeployConsole.sh` and
-			`DistroRemoteConsole.sh`. Nothing is listed that would not
-			start. A vendor CLI is a row only where the workspace's
-			console command is there, is executable and names it, and
-			where `--manager-config-digest` reads it usable. A Distro
-			console is a row only where its command is a file of the
-			workspace root and executable. A console whose folder or
-			command holds what a row cannot carry is left out, with a
-			note on stderr. A harness leg is never a row: a start of one
-			by name is the manager screen itself.
+			public keys this server shows to others, the keys the rig's
+			own command `mdci-public-keys` prints, found where it finds
+			them. Only a public file is ever opened, one whose name ends
+			`.pub`: no private key is opened, and that command is not
+			run. It only reads, and reaches no other host. Prints one
+			row for each key, TAB-separated, on stdout, an absent value
+			`-`, a value's whitespace `_`:
+			`key <key> <label> <group> <purpose> <type> <fingerprint> <short> <file> <state>`
+			<group> is `add-to-git`, a key an owner lists on a git host
+			as a deploy or user key: `deploy`, the key the account uses
+			for git, and `generated`, the default it made where that is
+			another one. Or `trust-on-connect`, an ssh host key of this
+			server, which whoever connects to it checks and accepts:
+			`host-<type>` for each. <fingerprint> is that of the public
+			file, as ssh-keygen gives it, and <short> the key itself in
+			short, its first twelve and its last eight letters. <state>
+			is `present`, or `absent` where no public key can be read at
+			<file>: the other three read `-` then.
+
+		--manager-keys-read <key>
+			One of the console's own operations (see Notes). Prints one
+			key by its name, as `--manager-keys-list` prints it: its
+			`key` row, then, where it is `present`, the line as one
+			pastes it, its blanks kept, and for `deploy` the repositories
+			the rig keeps a list of. Public material only.
+			`paste <line>`
+			`register <project> <address>`
+			For a key of `add-to-git` the line is the public key line of
+			its file, whole. For one of `trust-on-connect` it is the line
+			of a known hosts file: the name of this host, the type and
+			the key. No repository is asked anything. Exit 1, nothing
+			printed, for a name that is no key.
 
 		--manager-place-list
 			One of the console's own operations (see Notes). Lists the
@@ -3280,7 +3464,7 @@
 			Exit 1, nothing printed, with one error line, where no
 			record carries <id>, or a registry cannot be rebuilt.
 
-		--manager-session-kill --session-id <id> [--run]
+		--manager-session-kill --session-id <id> [--run] [--plan]
 			One of the console's own operations (see Notes). Ends runs of
 			this workspace on this host the hard way: no closure of a
 			routine runs and no agent is asked anything. It asks for no
@@ -3334,6 +3518,41 @@
 			its request back and carries the kill out itself, as before.
 			One line on stderr says who carried it out, and why where
 			this call did.
+			THE KILL OF A WHOLE SESSION FINISHES IT, whatever state it is
+			in, and a session with nothing alive is no refusal. After the
+			`kill` rows, every question that still waits and was asked by
+			the session or a run of it is dismissed, by the console's own
+			dismissal (`--manager-pending-reply-dismiss`), with the reason
+			that the session was killed from the console, and by whom.
+			Then every record of it that is still open, with no process
+			behind it and no supervising shell alive to close it, is
+			closed as a run that ended without its close, its dispatch
+			item with it, marked `killed-by` and `killed-at`; a record
+			whose supervising shell lives is left to that shell, after a
+			wait of five seconds at most. A run of another host is not
+			touched. The rows that say so follow the `kill` rows:
+			`dismiss <session-id> <pending-id> <asker> <outcome>`
+			`close <session-id> <spawn-id> <member> <outcome> <item>`
+			`finish <session-id> <ended> <dismissed> <closed> <state>`
+			<asker> is the id that asked, a run's own or the session's.
+			<outcome> of a `dismiss` row is `dismissed`, or
+			`not-dismissed` where the dismissal was refused; of a `close`
+			row `closed`, `not-closed`, or `left` for a record its
+			supervising shell still closes. The one `finish` row is the
+			last line and sums it: the runs that were ended, the
+			questions dismissed, the records closed, and the <state> the
+			session reads now, as `--manager-session-list` gives it. A
+			second kill of the same session, and the kill of a session
+			that is finished with nothing waiting, print that row with
+			zeros, exit 0. With `--run`, or the own id of a run that
+			joined a session, one run is ended as before, the questions
+			that very run asked are dismissed once it is ended, no record
+			is closed by this call, and no `finish` row is printed.
+			`--plan` ends nothing and does nothing: it prints the same
+			rows as what a kill would do, a run that would be ended with
+			the <outcome> `would-end` and its processes, `would-dismiss`,
+			`would-close`, and in the `finish` row the three counts of
+			what would be done and the state the session reads now.
 
 		--manager-session-control-start (--session-id <id>|--all)
 			One of the console's own operations (see Notes). Starts the

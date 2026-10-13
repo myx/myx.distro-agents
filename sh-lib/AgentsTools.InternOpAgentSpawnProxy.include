@@ -303,7 +303,7 @@ AgentsToolsSpawnProxyHandbackWarn(){
 		local warnRetryPid warnWatchPid warnRetryRc
 		## Started with the broken pipe at its default: a waiting shell ignores it while it closes
 		## its run, and what it starts must not take that over.
-		( trap - PIPE ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$MMDAPP/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
+		( trap - PIPE ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$warnSessionId" MDAT_SESSION_THREAD="$warnThread" MDAT_SPAWN_RESUME=true "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "${warnCliArgs[@]}" --non-interactive \
 			<<< "$( printf '%s\n%s\n%s\n' \
 				"Your previous run on this task ended without calling SubagentHandback." \
 				"Call SubagentHandback now with your outcome so far." \
@@ -390,7 +390,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 		rm -f "$runMark"
 		env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 			MDAT_SPAWN_RESUME_FROM="$runFrom" MDAT_SPAWN_RESUME_EVENT_MARKER="$runMark" \
-			"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+			"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
 		runPid=$!
 		AgentsToolsSpawnProxyRunRecord "$runPid"
 		## The resume recorded when its first event arrives, not when the session ends. The
@@ -433,7 +433,7 @@ AgentsToolsSpawnProxyConsoleRun(){ ## session id, session thread, conversation t
 	## changes: its stdin and its streams are the same, its exit status is what this returns,
 	## and the wait lasts until that process has ended.
 	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
-		"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
+		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	runRc=0
@@ -1837,17 +1837,17 @@ case "$1" in
 			if [ -n "$parentSessionId" ] ; then
 				set -m
 				if [ -n "$outputFile" ] ; then
-					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				else
-					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
+					( trap '' HUP ; exec env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive ) <<< "$spawnContext" >&2 4>&- &
 				fi
 				spawnPid=$!
 				set +m
 			elif [ -n "$outputFile" ] ; then
-				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >> "$outputFile" 2>&1 4>&- &
 				spawnPid=$!
 			else
-				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
+				env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$spawnSkillsetRoot" MDAT_SESSION_ID="$sessionId" MDAT_SESSION_THREAD="$sessionThread" MDAT_CONVERSATION_THREADS="$conversationThreads" "$BASH" "$MMDAPP/DistroAgentsConsole.sh" "${spawnCliArgs[@]}" --non-interactive <<< "$spawnContext" >&2 4>&- &
 				spawnPid=$!
 			fi
 			## The process this launch started, kept on the spawn's record: how its run is seen

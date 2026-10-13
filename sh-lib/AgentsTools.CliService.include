@@ -49,7 +49,7 @@ AgentsToolsCliServiceOfSession(){ ## session id
 ## whole number of one second or more, else the service's, else the safe one.
 AgentsToolsCliServiceWaitRound(){ ## cli service (empty: not known)
 	local roundSet="" roundOne
-	roundSet="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WAIT_ROUND_SECONDS 2> /dev/null )" || roundSet=""
+	roundSet="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select WAIT_ROUND_SECONDS 2> /dev/null )" || roundSet=""
 	case "$roundSet" in
 		''|0|*[!0123456789]*) ;;
 		*) printf '%s' "$roundSet" ; return 0 ;;

@@ -163,7 +163,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-react <team-membe
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-send <team-member> <email@address>... -- <subject> -- (<body...>|--from-stdin|--from-file <path>)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-email-mark-seen <team-member> <uid>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-contact-digest-send <team-member> <origin team-member> (--resolved|--needs-ruling) <text...>" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-slack-resolve-ids <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-file <path>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> --from-stdin" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --magic-comms-trello-post-comment <team-member> <card-id> [text...]" >&2
@@ -222,9 +222,13 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices [<name>...]" >
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-check-run [--local] [--seconds <n>] [<domain>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [--full] [<subject>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list" >&2
@@ -234,7 +238,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id 
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2

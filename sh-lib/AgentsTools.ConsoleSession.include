@@ -199,7 +199,7 @@ case "$1" in
 			disown 2>/dev/null || true
 			DistroAgentsToolsChannelPidKeep "$channelDir/holder.pid" "$holderPid"
 
-			nohup env MMDAPP="$workspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$workspace" )" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
+			nohup env MMDAPP="$workspace" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$workspace" )" "$BASH" "$workspace/$consoleName" --non-interactive < "$fifo" >> "$log" 2>&1 &
 			local consolePid=$!
 			disown 2>/dev/null || true
 			DistroAgentsToolsChannelPidKeep "$channelDir/console.pid" "$consolePid"

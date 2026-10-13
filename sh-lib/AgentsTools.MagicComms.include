@@ -75,7 +75,7 @@ AgentsMagicCommsSlackListPaged(){
 	done
 }
 
-AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] ... | --print-required-scopes
+AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw] | --print-required-scopes
 	local MDSC_CMD='DistroAgentsTools'
 	if [ "$1" = "--print-required-scopes" ] ; then
 		printf '%s\n' users:read channels:read groups:read im:read im:write mpim:read mpim:write
@@ -84,11 +84,11 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	local memberName="$1"
 	shift || true
 	if [ -z "$memberName" ] ; then
-		echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: syntax is <team-member> [--user-name <name>]... [--channel-name <name>]... [--human-owner-hint <name>] [--raw]" >&2
+		echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: syntax is <team-member> [--user-name <name>]... [--channel-name <name>]... [--resolve-human-owner-target [--human-owner-hint <name>]] [--raw]" >&2
 		set +e ; return 1
 	fi
 
-	local userNamesCsv="" channelNamesCsv="" raw="false" humanOwnerHint="myx"
+	local userNamesCsv="" channelNamesCsv="" raw="false" humanOwnerHint="myx" resolveHumanOwnerTarget="false"
 	while [ $# -gt 0 ] ; do
 		case "$1" in
 			--user-name)
@@ -117,6 +117,10 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 			;;
 			--raw)
 				raw="true"
+				shift
+			;;
+			--resolve-human-owner-target)
+				resolveHumanOwnerTarget="true"
 				shift
 			;;
 			*)
@@ -240,6 +244,15 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 		fi
 	done
 
+	if [ "$resolveHumanOwnerTarget" != "true" ] ; then
+		## Everything below is one explicit ask, never a side effect of asking
+		## for anything else: without this flag a bare call stops here, and
+		## never reaches a users.list fetch, paged or not.
+		printf 'USERS_LIST_OK=%s\n' "$usersOk"
+		printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
+		return 0
+	fi
+
 	local humanAliasResolved humanAliasChannel humanAliasInfo humanAliasErr
 	humanAliasResolved="$( DistroAgentsToolsResolveTarget human-owner )" || humanAliasResolved=""
 	humanAliasChannel="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^CHANNEL=//p' )"
@@ -262,39 +275,60 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 		humanAliasErr="unresolved"
 	fi
 
+	## This op's own one-person lookup, never the shared roster pager
+	## (AgentsMagicCommsSlackListPaged): one page at a time, STOPPING at the
+	## first page the hint matches, so a match on page 1 of a large workspace
+	## never pays for page 2. Only when --raw/--user-name already fetched a
+	## page above (usersOk=true already) is that one page reused instead,
+	## unpaged, as before.
+	local hintUserId=""
 	if [ "$usersOk" = "not-requested" ] ; then
-		usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
-		usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
-		[ "$usersOkRc" = "0" ] || usersOk='-'
+		local hintCursor="" hintPageIndex=0 hintPageMax="${ENV_MAGIC_SWEEP_SLACK_PAGE_MAX:-20}"
+		case "$hintPageMax" in ''|*[!0123456789]*|0) hintPageMax=20 ;; esac
+		local hintPageArgs=()
+		while : ; do
+			hintPageIndex=$(( hintPageIndex + 1 ))
+			hintPageArgs=( -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" )
+			[ -z "$hintCursor" ] || hintPageArgs+=( --data-urlencode "cursor=$hintCursor" )
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 "${hintPageArgs[@]}" <<< "$authHeader" )"
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
+			[ "$usersOkRc" = "0" ] || usersOk='-'
+			[ "$usersOk" = "true" ] || break
+			hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
+			[ -z "$hintUserId" ] || break
+			hintCursor="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=response_metadata.next_cursor \
+				-v dialect=slack -f "$slackJsonField" 2>/dev/null )"
+			[ -n "$hintCursor" ] || break
+			[ "$hintPageIndex" -lt "$hintPageMax" ] || break
+		done
+	elif [ "$usersOk" = "true" ] ; then
+		hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
+			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 	fi
 	## Every exit below passes here, and the config-alias exit above reports
 	## its own; neither reports twice.
 	printf 'USERS_LIST_OK=%s\n' "$usersOk"
 	printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
 
-	if [ "$usersOk" = "true" ] ; then
-		local hintUserId
-		hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
-			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
-		if [ -n "$hintUserId" ] ; then
-			local openResp openOk openErr openChannel
-			openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @- -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" <<< "$authHeader" )"
-			local openOkRc=0 openErrRc=0 openChannelRc=0
-			openOk=""
-			openErr=""
-			openChannel=""
-			openOk="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || openOkRc=$?
-			openErr="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || openErrRc=$?
-			openChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$slackJsonField" )" || openChannelRc=$?
-			[ "$openOkRc" = "0" ] || openOk='-'
-			[ "$openErrRc" = "0" ] || openErr='-'
-			if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
-				echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
-				return 0
-			fi
-			echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=$openErr|channel_id_reader_rc=$openChannelRc|alias_error=$humanAliasErr"
-			return 1
+	if [ -n "$hintUserId" ] ; then
+		local openResp openOk openErr openChannel
+		openResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @- -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$hintUserId" <<< "$authHeader" )"
+		local openOkRc=0 openErrRc=0 openChannelRc=0
+		openOk=""
+		openErr=""
+		openChannel=""
+		openOk="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || openOkRc=$?
+		openErr="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || openErrRc=$?
+		openChannel="$( printf '%s\n' "$openResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$slackJsonField" )" || openChannelRc=$?
+		[ "$openOkRc" = "0" ] || openOk='-'
+		[ "$openErrRc" = "0" ] || openErr='-'
+		if [ "$openOk" = "true" ] && [ "$openChannelRc" = "0" ] && [ -n "$openChannel" ] ; then
+			echo "HUMAN_OWNER_TARGET|status=reachable|target=$openChannel|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId"
+			return 0
 		fi
+		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=$humanOwnerHint|user_id=$hintUserId|error=$openErr|channel_id_reader_rc=$openChannelRc|alias_error=$humanAliasErr"
+		return 1
 	fi
 
 	echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=none|hint=$humanOwnerHint|alias_error=$humanAliasErr|note=unable_to_resolve_hint_user"

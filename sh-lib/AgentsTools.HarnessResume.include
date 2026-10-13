@@ -68,7 +68,7 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	rm -f "$runMark"
 	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
 		MDAT_HARNESS_RESUME_CONTEXT="$runContext" MDAT_HARNESS_RESUME_MARKER="$runMark" \
-		"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
+		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runResume" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	## Recorded as soon as the harness says it loaded, so the line precedes the run's own.
@@ -95,7 +95,7 @@ AgentsToolsSpawnProxyHarnessResumeRun(){ ## session id, session thread, conversa
 	## changes: its stdin and its streams are the same, its exit status is what this returns,
 	## and the wait lasts until that process has ended.
 	env MMDAPP="$MMDAPP" MDAT_SKILLSET_ROOT="$( AgentsToolsWorkspaceSkillsetRoot "$MMDAPP" )" MDAT_SESSION_ID="$runSession" MDAT_SESSION_THREAD="$runThread" MDAT_CONVERSATION_THREADS="$runConv" \
-		"$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
+		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" "$@" --non-interactive <<< "$runFull" &
 	runPid=$!
 	AgentsToolsSpawnProxyRunRecord "$runPid"
 	runRc=0

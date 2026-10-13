@@ -21,7 +21,7 @@ case "$1" in
 	;;
 	--start-console)
 		shift
-		"$MMDAPP/DistroAgentsConsole.sh" --cli-auto "$@"
+		"$BASH" "$MMDAPP/DistroAgentsConsole.sh" --cli-auto "$@"
 		set +e ; return $?
 	;;
 	--start-agents-tools-console)

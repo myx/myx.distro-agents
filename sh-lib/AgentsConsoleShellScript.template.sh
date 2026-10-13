@@ -302,7 +302,7 @@ if [ "$DAGC_MANAGER" = "true" ] || { [ "$1" = "--non-interactive" ] && [ "${2:-}
 		echo "⛔ ERROR: DistroAgentsConsole: --manager runs --intern-manager, which needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
 		exit 1
 	fi
-	exec "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
 fi
 ## THE DEFAULT OF AN INTERACTIVE START is the manager screen as well, in every setup, one whose
 ## CLI service is a vendor CLI among them: a start that is no spawn (no --non-interactive),
@@ -322,7 +322,7 @@ if [ "$1" != "--non-interactive" ] && [ "$DAGC_CLI_GIVEN" != "true" ] && [ -t 0 
 		echo "⛔ ERROR: DistroAgentsConsole: a start on a terminal that names no CLI (no --cli) is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started. A vendor CLI's own console is started by its name: --cli <name>." >&2
 		exit 1
 	fi
-	exec "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
 fi
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
@@ -406,7 +406,7 @@ if [ "$1" != "--non-interactive" ] && DagcCliIsLeg "$DAGC_CLI" ; then
 		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
 		exit 1
 	fi
-	exec "$DAGC_MANAGER_TOOLS" --intern-manager
+	exec "$BASH" "$DAGC_MANAGER_TOOLS" --intern-manager
 fi
 if [ "$1" == "--non-interactive" ] ; then
 	## The leg test comes first, and is not covered by the set above: that set
@@ -684,7 +684,7 @@ else
 fi
 for DAGC_CREDENTIAL_NAME in $DAGC_CLI_CREDENTIALS ; do
 	## Tested, not bare: set -e would kill the console on an unreadable scope.
-	DAGC_CREDENTIAL_VALUE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
+	DAGC_CREDENTIAL_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
 	[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
 	export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
 done
@@ -701,7 +701,7 @@ if [ "$DAGC_CLI" = "claude-native" ] && [ "$( DagcClaudeAuthProbe )" = "out" ] ;
 	if [ "$1" == "--non-interactive" ] ; then
 		DAGC_CLAUDE_KEY=""
 		for DAGC_CREDENTIAL_NAME in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN ; do
-			DAGC_CREDENTIAL_VALUE="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
+			DAGC_CREDENTIAL_VALUE="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select "$DAGC_CREDENTIAL_NAME" 2>/dev/null )" || DAGC_CREDENTIAL_VALUE=""
 			[ -n "$DAGC_CREDENTIAL_VALUE" ] || continue
 			export "$DAGC_CREDENTIAL_NAME=$DAGC_CREDENTIAL_VALUE"
 			DAGC_CLAUDE_KEY="$DAGC_CREDENTIAL_NAME"
@@ -935,7 +935,7 @@ if [ "$1" == "--non-interactive" ] ; then
 		DAGC_NONINTERACTIVE_PERM_FLAGS="" ; DAGC_PROMPT_ARGS=()
 		## The tier this workspace asks of every harness leg. Unset passes nothing and
 		## the harness keeps its own default; a value it does not know it refuses itself.
-		DAGC_HARNESS_TIER="$( "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null )" || DAGC_HARNESS_TIER=""
+		DAGC_HARNESS_TIER="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --agents-config-option magic-team --select SPAWN_HARNESS_TIER 2>/dev/null )" || DAGC_HARNESS_TIER=""
 		[ -z "$DAGC_HARNESS_TIER" ] || DAGC_PROMPT_ARGS=( --tier "$DAGC_HARNESS_TIER" )
 	else
 		case "$DAGC_CLI" in

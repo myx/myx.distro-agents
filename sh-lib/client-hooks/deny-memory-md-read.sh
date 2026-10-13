@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 ## deny-memory-md-read.sh -- the PreToolUse hook that denies READING the client's own
 ## machine-local memory store, ~/.claude/projects/<project>/memory/ (and the
 ## $CLAUDE_CONFIG_DIR equivalent): Read of any file in it, MEMORY.md and every topic file,

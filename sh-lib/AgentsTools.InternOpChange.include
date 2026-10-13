@@ -215,7 +215,7 @@ if ! type AgentsChangeFill > /dev/null 2>&1 ; then
 			[ "${MDAT_SPAWN_SESSION_ID:-}" = "$cvSession" ] || unset MDAT_SPAWN_SANDBOX_ROOT MDAT_SPAWN_SANDBOX_ROOT_REAL
 			export MDAT_CHANGE_APPLY="$cvDir" MDAT_SPAWN_AGENT="$cvOwner" MDAT_SPAWN_SESSION_ID="$cvSession"
 			cd "$MMDAPP" 2> /dev/null || exit 1
-			"$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$cvTool" < "$cvDir/call.json" 2> /dev/null
+			"$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-tool "$cvTool" < "$cvDir/call.json" 2> /dev/null
 		)" || :
 		cvLine="$( printf '%s\n' "$cvOut" | LC_ALL=C grep -m1 '^STALE: ' )" || cvLine=""
 		if [ -n "$cvLine" ] ; then

@@ -1298,7 +1298,14 @@ case "$1" in
 				*)
 					if [ "$waitMode" = "continue" ] ; then
 						[ ! -f "$waitStateDir/base.$floorIndex" ] || cp "$waitStateDir/base.$floorIndex" "$waitDir/base.$floorIndex"
-					elif [ "$waitMode" = "default" ] && [ -z "$waitSince" ] ; then
+					elif [ "$waitMode" = "default" ] ; then
+						## since_utime is a Slack-source floor (AgentsWaitTsNewer, above); it names no
+						## opinion about a non-Slack source's own stored content baseline, so carrying
+						## a held source's baseline forward here does not wait on it being empty. A
+						## default wait naming since_utime must still start an ask:/file:/inbox:/board:
+						## source already in waitStoredSources from what it last held, or the same
+						## unchanging content -- an ask: record's own closed-line among it -- reads as
+						## arriving fresh on every call that also names a since_utime.
 						floorStoredIndex=0
 						for floorStoredSource in $waitStoredSources ; do
 							floorStoredIndex=$(( floorStoredIndex + 1 ))

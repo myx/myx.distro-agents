@@ -81,7 +81,7 @@ case "$1" in
 			(
 				unset MDAT_DATA_ROOT MYXROOT MDSC_OPTION MDSC_INMODE MDSC_SOURCE MDSC_CACHED MDSC_OUTPUT MDSC_MEMORY
 				for mcpStaleIndex in ${!MDSC_ID*} ; do unset "$mcpStaleIndex" ; done
-				printf '%s\n' "$mcpLine" | exec "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-request "$$" "$AGENTS_MCP_REQ_SEQ" 3>&1 1>&2
+				printf '%s\n' "$mcpLine" | exec "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-request "$$" "$AGENTS_MCP_REQ_SEQ" 3>&1 1>&2
 			) < /dev/null &
 		done
 		wait

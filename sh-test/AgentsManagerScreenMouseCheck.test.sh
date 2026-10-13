@@ -97,9 +97,9 @@ rigAssert "a click on the lower half of the scroll bar pages down, on the upper 
 
 echo "-- the menus: a name opens, an item chooses, a click outside closes --"
 rigRun <<'RIGSCRIPT'
-mouse click 25 0
+mouse click 17 0
 get menu
-mouse click 27 3
+mouse click 19 3
 get chosen
 mouse click 8 0
 get session
@@ -116,7 +116,7 @@ RIGSCRIPT
 rigAssert "a click on a name in the menu bar opens that menu"        "$( rigVal menu.menu )" "view:read"
 rigAssert "a click on an item chooses it: the menu closes, and the command is done" "[$( rigVal chosen.menu )] $( rigVal chosen.filter )" "[] active"
 rigAssert "a click outside an open menu closes it, and does nothing else" "$( rigVal session.menu ) [$( rigVal outside.menu )] $( rigVal outside.selected ) $( rigVal outside.focus )" "session:kill [] .. list"
-rigAssert "a click on the name of the open menu closes it, and on another name opens that one" "$( rigVal go.menu ) [$( rigVal same.menu )] $( rigVal member.menu )" "go:sessions [] member:start"
+rigAssert "a click on the name of the open menu closes it, and on another name opens that one" "$( rigVal go.menu ) [$( rigVal same.menu )] $( rigVal member.menu )" "go:sessions [] view:read"
 
 echo "-- a dialog: buttons, boxes, radio buttons, a list, a field; and nothing outside it --"
 rigRun <<'RIGSCRIPT'
@@ -181,9 +181,9 @@ rigOut="$( printf '%s\n' 'mousekey 5 7 BUTTON1_RELEASED' 'mousekey 5 7 BUTTON1_C
 rigAssert "the first button let go, and its click, are a click, a double click is one, the wheel is up and down, and a press alone and another button are nothing" "$( rigVals mousekey )" "MOUSE:click:5:7 MOUSE:click:5:7 MOUSE:double:5:7 MOUSE:up:5:7 MOUSE:down:5:7  "
 
 echo "-- the real screen, on a terminal that reports the mouse and on one that reports none --"
-rigPty 100 30 "Sessions / Activity" '\e[M %!\e[M#%!x' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 100 30 "Sessions (Activity)" '\e[M %!\e[M#%!x' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "a click on Go in the menu bar, as an xterm reports it, opens that menu, and the hot letter of Exit ends the screen with status 0" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
-MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Sessions / Activity" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "on a terminal that reports no mouse the screen comes up all the same, and Esc and then x ends it" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.errorAfterLeft )" "yes 0 none"
 
 if [ "$rigFailCount" -ne 0 ] ; then

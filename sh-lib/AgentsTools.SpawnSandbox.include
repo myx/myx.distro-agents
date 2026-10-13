@@ -700,6 +700,9 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## HOW IT ENDED, each a line of its own under `# Session` of the note template:
 ##   run-killed        its record says that the console killed it, by whom and when
 ##                     (`killed-by`, `killed-at`, AgentsToolsManagerKillMark).
+##   run-closed        the same marks, on a record the kill of its session closed with no
+##                     process behind it: its run had ended before, so it was not killed. Its
+##                     closer says so, with `closed` as what it saw (AgentsToolsManagerSessionFinish).
 ##   run-stopped       its transcript holds the ordered ending of a member's TaskStop, which
 ##                     is recorded before the run is signalled: by which member, and when.
 ##   run-bound         the wait of its caller reached the bound of the tooling, which then
@@ -787,6 +790,7 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 		endAt=""
 	elif [ -n "$endAt" ] ; then
 		endLine="run-killed"
+		[ "$endSeen" != "closed" ] || endLine="run-closed"
 		endBy="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" killed-by )"
 	elif [ -n "$endStop" ] ; then
 		endLine="run-stopped"
