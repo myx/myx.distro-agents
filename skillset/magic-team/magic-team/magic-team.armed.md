@@ -113,11 +113,11 @@ All statements apply at the same time, always. These rules override a magic-team
 - The tooling records every verdict and every ending in the item's `## Decisions` and in the session transcript.
 - An ask tool's own wait may come back `ASK-RESULT: ARRIVED-OTHER`: something else of interest to the session arrived, the ask's own question stays open, and the result's last line gives the exact call to go on with.
 - Exception: a session spawned with its caller blocked on it (`--wait`, such as the host loop's heartbeat or root-harness pass) hands back and ends when its pass is done. Its caller cannot send `DISMISSED`.
-- `TaskStop` is only a last-resort force-stop for an unresponsive agent.
+- `TaskStop` is only a last-resort force-stop for an unresponsive agent. It ends that agent's run with every process the run started, and never another member's run.
 - Finishing a routine's steps ("exits", "runs Step N once and exits") means leaving the routine, not ending the session: the session lives and listens.
 - A handback puts its item into `board-review`; the reviewer settles it with `magic-team.handback-review.routine`. Other cases are general communication.
 - Whatever it waits for — an answer, a verdict, a spawned member, a board or inbox change — it waits with `Wait`. `Wait` with no sources waits on the session thread.
-- `TIMEOUT` is a normal result, never an answer. Read what is pending, then wait again or re-ask. People may take hours.
+- `TIMEOUT` is a normal result, never an answer. Read what is pending (`--member-pending-reply-read`), then wait again or re-ask. People may take hours. An open record's own `asker-live:` says whether the asking run is still there: `no-process` or `session-ended` means nobody is there to take the answer, worth escalating rather than only waiting longer.
 - A wait ends on an event, never on a clock. No sleep-and-look loops.
 - Silence is not a verdict, and never a reason to stop.
 
@@ -331,7 +331,7 @@ The team's shared tooling floor. Behaviour is read with `--member-help <own-name
 
 **Rule**: a date inside any name — document, file, item — is `YYYYMMDD'T'HHmm'Z'`, or `YYYYMMDD'T'HHmmSS'Z'` where seconds are needed.
 
-**Prefix grant**: the whole `--member-*` namespace. An operation's prefix names who may run it, with no exception: `--member-*` any member, `--magic-*` `magic-coordinator` only, `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. A member needing a `--magic-*` operation asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
+**Prefix grant**: the whole `--member-*` namespace. An operation's prefix names who may run it, with no exception: `--member-*` any member, `--magic-*` `magic-coordinator` only, `--librarian-*` `magic-librarian`, `--client-*` the named `client-*` member it names, in its own session, nobody else, `--owner-*` only where a member's own list names it. `--manager-*` is no member's: it is the console's own, and is refused from inside any member's session, the coordinator's included. A member needing a `--magic-*` operation asks the session's `magic-coordinator`. `magic-coordinator` reaches a client operation through its own `--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`, never the `--client-*` operation itself.
 
 ## DistroAgentsTools magic-tooling operations
 

@@ -25,10 +25,12 @@ rigRefuse(){
 }
 [ -f "$rigPackage/sh-scripts/DistroAgentsTools.fn.sh" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigPackage/sh-test/AgentsRunTests.sh" ] || rigRefuse "the test runner is not at the origin this workspace resolves: $rigPackage/sh-test/AgentsRunTests.sh"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsRetestQueueCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'for rigLeft in $rigStarted ; do kill "$rigLeft" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignal TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigLive="$rigWs/source"
 rigQueue="$rigHome/.agents/magic-team/retest-queue"
 mkdir -p "$rigHome" "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigLive/myx/myx.distro-agents" "$rigLive/myx/myx.common/os-myx.common/host/tarball/share"
@@ -86,7 +88,7 @@ rigCall(){ ## result prefix, operation, its arguments... -- one call of the tool
 	( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$rigLive" MDLT_OPTION="--run-from-path $rigLive" RIG_TMP="$rigTmp" RIG_SHARED="$rigTmp" ${rigAs:+MDAT_SPAWN_AGENT="$rigAs"} \
 		bash -c 'case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac ; exec bash "$0" "$@"' "$rigTool" "$@" ) > "$callOut.out" 2> "$callOut.err" < /dev/null &
 	rigLast=$!
-	rigStarted="$rigStarted $rigLast"
+	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
 }
 rigEnd(){ ## pid -- waits for that call, its rc in rigRc
 	rigRc=0 ; wait "$1" 2> /dev/null || rigRc=$?

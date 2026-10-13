@@ -20,7 +20,7 @@ DistroAgentsTools(){
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
-		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|*:|*:-*) ;;
+		--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*) ;;
 		--*:*)
 			## An invited member, set up only in another workspace on this machine: its operation runs here, and only its skillset, and those of its own settings this workspace holds none of, are read from the workspace it is set up in. The root is set for this one call, and a call that already reads that root goes on as it is.
 			local memberBrought memberBroughtFrom
@@ -43,9 +43,13 @@ DistroAgentsTools(){
 	## A --client-* op naming a client is that client's own session's, or the console's
 	## (AgentsToolsClientCallerCheck): one rule for the whole family, asked here and in no
 	## stub. magic-coordinator's own way to one is a --magic-* op, --magic-client-operation-run.
+	## A --manager-* op is the console's own, and no member's session's, magic-coordinator's
+	## among them (AgentsToolsManagerCallerCheck): one rule for the whole family, asked here
+	## and in no arm of it.
 	case "$1" in
 		--magic-*) AgentsToolsMagicCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 		--client-*) AgentsToolsClientCallerCheck "${2:-}" "${1#--}" || { set +e ; return 1 ; } ;;
+		--manager-*) AgentsToolsManagerCallerCheck "${1#--}" || { set +e ; return 1 ; } ;;
 	esac
 
 	## A --client-* op reaches the other organisation of the client-* member it names. The
@@ -282,6 +286,12 @@ DistroAgentsTools(){
 			return $?
 		;;
 
+		## The console's own operations, which a manager screen reads and acts through: never a member's.
+		--manager-*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Manager.include"
+			return $?
+		;;
+
 		--install-*)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Install.include"
 			return $?
@@ -417,6 +427,12 @@ DistroAgentsTools(){
 		## instance, interactive or not, with an optional payload routine to run meanwhile.
 		--intern-root-harness)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternRootHarness.include"
+			return $?
+		;;
+
+		## The manager screen of the agents console, in this terminal: what the console's --manager runs.
+		--intern-manager)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternManager.include"
 			return $?
 		;;
 

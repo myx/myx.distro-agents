@@ -3,8 +3,10 @@
 
 ## Four registries, one pattern: a columnar cache rebuilt from a store, never
 ## maintained beside it, built like the distro's own indices -- whitespace columns,
-## temp name renamed into place. A missing value is always `-`, never empty. No
-## registry stores a date or liveness, both measured live.
+## temp name renamed into place. A missing value is always `-`, never empty. A
+## registry stores whatever the tooling needs to work fast, so that a display does not
+## read through the session folders, the date a run started and the date a state was
+## recorded among it. Liveness is never stored: it is measured live.
 ##   team-members        <- this workspace's own member registry, .local/agents/members.registry
 ##   team-members-names  <- those members' names, alias and mark
 ##   spawned-sessions    <- the spawn sandbox roots in this workspace
@@ -23,10 +25,14 @@ AgentsToolsRegistryWrite(){ ## registry name, rows function
 	local registryFile registryTemp
 	registryFile="$( AgentsToolsRegistryFile "$1" )"
 	mkdir -p "${registryFile%/*}" || return 1
-	registryTemp="$registryFile.$$"
+	## A temp file of this rebuild's own, by mktemp and never by $$: a rebuild started in a
+	## subshell (a command a harness runs for its member) has its shell's $$, so two at
+	## once met on one name, and one wrote into the file the other had put in place.
+	registryTemp="$( mktemp "$registryFile.XXXXXX" )" || return 1
 	"$2" > "$registryTemp" || { rm -f "$registryTemp" ; return 1 ; }
-	## Renamed rather than written in place, so a reader never sees half a rebuild.
-	mv -f "$registryTemp" "$registryFile" || { rm -f "$registryTemp" ; return 1 ; }
+	## Renamed rather than written in place, so a reader never sees half a rebuild. The
+	## mode is set on the temp: mktemp makes it private, and mv carries its mode over.
+	chmod 644 "$registryTemp" && mv -f "$registryTemp" "$registryFile" || { rm -f "$registryTemp" ; return 1 ; }
 	return 0
 }
 
@@ -231,7 +237,7 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 					personaFields="$( [ -z "$personaDir" ] || MDAT_SKILLSET_ROOT="${personaDir%/*}" ; AgentsToolsRegistryMemberNamesRead "$registryPersonaMember" )"
 					personaMissing="$( AgentsToolsRegistryMemberNamesMissing "$personaFields" )"
 					for namesKey in $personaMissing ; do
-						echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+						echo "⚠️ WARNING: $MDSC_CMD ${registryBuildOp:---make-harness-indices}: persona member $registryPersonaMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
 					done
 				fi
 				if [ -n "$personaMissing" ] ; then
@@ -249,7 +255,7 @@ AgentsToolsRegistryTeamMembersNamesRows(){
 		namesFields="$( AgentsToolsRegistryMemberNamesRead "$namesMember" )"
 		if [ "$namesStatus" != "reference-only" ] && [ "$namesMember" != "magic-team" ] && [ "$namesMember" != "human-owner" ] ; then
 			for namesKey in $( AgentsToolsRegistryMemberNamesMissing "$namesFields" ) ; do
-				echo "⚠️ WARNING: $MDSC_CMD --make-agents-indices: member $namesMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
+				echo "⚠️ WARNING: $MDSC_CMD ${registryBuildOp:---make-harness-indices}: member $namesMember: required field $namesKey is missing or not valid in its basic.md (a Name bullet of plain words, or its scope key)" >&2
 			done
 		fi
 		printf '%s %s\n' "$namesMember" "$namesFields"
@@ -261,36 +267,48 @@ AgentsToolsRegistryTeamMembersNamesRebuild(){
 	AgentsToolsRegistryWrite team-members-names AgentsToolsRegistryTeamMembersNamesRows
 }
 
-## All four registries, rebuilt in one pass: the two of this workspace's members, then
-## the two of its sessions, each by the rebuild function every other rebuild of it calls.
-## A workspace with no session store yet (an install, a host no session ran on) has
-## those two written with no rows, never a failure. The set is the one list below:
-## another registry is one more line. Each file is noted on stderr; fails only when a
-## file cannot be written.
-AgentsToolsRegistryAgentsIndicesBuild(){
-	local indicesFailed="false" indicesName indicesRebuild indicesFile indicesRows
-	while read -r indicesName indicesRebuild ; do
-		indicesFile="$( AgentsToolsRegistryFile "$indicesName" )"
-		if "$indicesRebuild" ; then
-			indicesRows="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$indicesFile" )"
-			echo "# $MDSC_CMD --make-agents-indices: wrote $indicesFile ($indicesRows rows)" >&2
-		else
-			echo "⛔ ERROR: $MDSC_CMD --make-agents-indices: could not write $indicesFile" >&2
-			indicesFailed="true"
-		fi
-	done <<< "team-members AgentsToolsRegistryTeamMembersRebuild
+## The one list of the registries, a line each: its name, and the function that rebuilds
+## it, in the order they are built. Another registry is one more line.
+AgentsToolsRegistryList(){
+	printf '%s\n' "team-members AgentsToolsRegistryTeamMembersRebuild
 team-members-names AgentsToolsRegistryTeamMembersNamesRebuild
 spawned-sessions AgentsToolsRegistrySpawnedSessionsRebuild
 pending-replies AgentsToolsRegistryPendingRepliesRebuild"
+}
+
+## The registries of that list, rebuilt in one pass: those named, in the list's order, or
+## all of them with no name -- the two of this workspace's members, then the two of its
+## sessions, each by the rebuild function every other rebuild of it calls. A workspace
+## with no session store yet (an install, a host no session ran on) has those two
+## written with no rows, never a failure. Each file is noted on stderr, under the name
+## the operation was called by, which a warning of a rebuild carries too; fails only
+## when a file cannot be written.
+AgentsToolsRegistryAgentsIndicesBuild(){ ## the operation as it was called, registry name...
+	local registryBuildOp="${1:---make-harness-indices}" indicesFailed="false" indicesName indicesRebuild indicesFile indicesRows
+	[ $# -eq 0 ] || shift
+	while read -r indicesName indicesRebuild ; do
+		[ $# -eq 0 ] || case " $* " in *" $indicesName "*) ;; *) continue ;; esac
+		indicesFile="$( AgentsToolsRegistryFile "$indicesName" )"
+		if "$indicesRebuild" ; then
+			indicesRows="$( LC_ALL=C awk 'END { print NR + 0 ; }' "$indicesFile" )"
+			echo "# $MDSC_CMD $registryBuildOp: wrote $indicesFile ($indicesRows rows)" >&2
+		else
+			echo "⛔ ERROR: $MDSC_CMD $registryBuildOp: could not write $indicesFile" >&2
+			indicesFailed="true"
+		fi
+	done <<< "$( AgentsToolsRegistryList )"
 	[ "$indicesFailed" = "false" ]
 }
 
 ##
 ## spawned-sessions -- every spawn recorded in this workspace's sandbox roots.
 ## Columns: tracking-name session-id parent-session-id host owner status exit-code
-##          spawn-id agent-log-thread session-thread workspace
+##          spawn-id agent-log-thread session-thread workspace started-at resolved-at
+##          session-comment
 ##
-## session-id is the session's own shared id (spawn-id for a lone spawn); spawn-id is this row's own spawn. The four trailing columns are appended, never inserted.
+## session-id is the session's own shared id (spawn-id for a lone spawn); spawn-id is this row's own spawn. Every column after exit-code was appended, never inserted.
+##
+## started-at, resolved-at and session-comment are the record's own headers of those names: when the run started, when its closed state was recorded, and how its session was named. A date reads `2026-10-12_16:57_+0300`, its spaces written `_` like any value's.
 ##
 ## workspace is a basename, never a path -- same convention as team-members' own workspace column (AgentsTools.Install.include).
 ##
@@ -335,7 +353,7 @@ AgentsToolsRegistrySpawnedSessionsRows(){
 			## id to be reached by, and saying so is the point.
 			[ "$sawRecord" = "true" ] || printf 'E\n'
 		done
-	} | LC_ALL=C awk -v registryRows=spawned -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistryHeaderRows.awk"
+	} | LC_ALL=C awk -v registryRows=spawned -v registryColumns=14 -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsRegistryHeaderRows.awk"
 	return 0
 }
 
@@ -348,10 +366,12 @@ AgentsToolsRegistrySpawnedSessionsRebuild(){
 ## never disagree about what "waiting" means. Never rebuilds that registry itself:
 ## the caller rebuilds it once per render, not once per row.
 AgentsToolsRegistryPendingSessionOpen(){ ## session-id
-	local wantSession="$1" pendingFile
+	local wantSession="$1" pendingFile spawnedFile
 	[ -n "$wantSession" ] && [ "$wantSession" != "-" ] || return 1
 	pendingFile="$( AgentsToolsRegistryFile pending-replies )"
 	[ -f "$pendingFile" ] || return 1
+	spawnedFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	[ -f "$spawnedFile" ] || spawnedFile=""
 	## pending-replies columns: key source session-id owner status blocked-on
 	## communication-channel-id -- session-id is field 3, source is field 2,
 	## status is field 5. Two stores, two open-conditions: an `ask` row is open
@@ -360,10 +380,24 @@ AgentsToolsRegistryPendingSessionOpen(){ ## session-id
 	## still genuinely blocked (AgentsToolsRegistryPendingRepliesRows filters
 	## out any board item whose own blocked-on has cleared), so its mere
 	## presence with source board-item is itself the open condition.
-	LC_ALL=C awk -v want="$wantSession" '
-		$3 == want && ( ( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" ) { found = 1 ; exit ; }
+	## An ask's session-id is the id of the RUN that asked, which is its session's id
+	## only for a lone spawn and for the founder of a coworking session. So the ask of
+	## a run that joined a session is an ask against that session too, found through
+	## that run's own row of spawned-sessions, read first where the file is there:
+	## spawn-id, field 8, is the run, and session-id, field 2, the session it joined.
+	LC_ALL=C awk -v want="$wantSession" -v haveRuns="$spawnedFile" '
+		haveRuns != "" && FILENAME == ARGV[1] {
+			if ( ( $2 "" ) == ( want "" ) && $8 != "" && $8 != "-" ) { runIds[++runCount] = $8 ; }
+			next ;
+		}
+		( $2 == "ask" && $5 == "reply-pending" ) || $2 == "board-item" {
+			if ( $3 == want ) { found = 1 ; exit ; }
+			for ( runIdx = 1 ; runIdx <= runCount ; runIdx++ ) {
+				if ( $3 == runIds[runIdx] ) { found = 1 ; exit ; }
+			}
+		}
 		END { exit ( found ? 0 : 1 ) ; }
-	' "$pendingFile"
+	' ${spawnedFile:+"$spawnedFile"} "$pendingFile"
 }
 
 ## running/waiting/finished, plus the two cases a guess would get wrong: unknown-foreign
@@ -388,7 +422,9 @@ AgentsToolsRegistryDeriveState(){ ## status, live, session-id
 ## would call open, one per line between newlines, from ONE awk over both registries
 ## instead of one per row. The same `==` as that function's, numeric where awk sees two
 ## numbers, so the answer is the same id for id. An id holding a backslash is left out:
-## `-v` would have read it as an escape, so the caller asks the function itself.
+## `-v` would have read it as an escape, so the caller asks the function itself. A row
+## whose own run asked, its spawn-id being the session-id of an open ask, gives its
+## session too, as that function finds it: an ask carries the id of the run that asked.
 AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
 	local openPending
 	openPending="$( AgentsToolsRegistryFile pending-replies )"
@@ -402,7 +438,7 @@ AgentsToolsRegistryPendingOpenSessions(){ ## spawned-sessions registry file
 		$2 == "" || $2 == "-" || index($2, "\\") > 0 { next ; }
 		{
 			for (openIdx = 1 ; openIdx <= openCount ; openIdx++) {
-				if ($2 == openIds[openIdx]) { print $2 ; break ; }
+				if ($2 == openIds[openIdx] || ($8 != "" && $8 != "-" && $8 == openIds[openIdx])) { print $2 ; break ; }
 			}
 		}
 	' "$openPending" "$1" 2>/dev/null || :
@@ -539,6 +575,178 @@ AgentsToolsRegistrySpawnRuns(){ ## spawn id, its record file (may be empty)
 	return 1
 }
 
+## The record of one spawn in this workspace's sandbox roots, by the spawn's own id: the file
+## of that name that names the id as its spawn-id. Prints its path, or nothing.
+AgentsToolsRegistrySpawnRecord(){ ## spawn id
+	local spawnRecord
+	case "${1:-}" in ''|-|*/*|.|..) return 0 ;; esac
+	for spawnRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$1.md" ; do
+		[ -f "$spawnRecord" ] || continue
+		[ "$( AgentsToolsRegistryHeader "$( AgentsToolsRegistryFrontmatter "$spawnRecord" )" spawn-id )" = "$1" ] || continue
+		printf '%s\n' "$spawnRecord"
+		return 0
+	done
+	return 0
+}
+
+## THE PROCESSES OF ONE RUN on this host, for a caller that ends the run: ONE WALK, for the
+## manager's kill and for a stop alike (AgentsTools.ManagerSession.include,
+## AgentsHarnessSessionPids of AgentsUniversalHarness.sh). First the run's own processes, by
+## the one reading above and no other: those that run as the spawn by their own word; where
+## none does, the process its record names as the one its launch started, while that is still
+## the same process. Then every process those started, to any depth, as the process list
+## stands at this moment: what a run started ends with it, its helper servers, a tool command
+## and the child of that command that hangs.
+## Never among them, though they stand under the run:
+## - a process that runs as another spawn by its own word, with what that one started:
+##   a member this run brought in is a run of its own, whoever started it;
+## - the process that started such a run, with everything else under it: that is the shell
+##   that supervises the other run, and it must live to close that run's record;
+## - the asking process and every process it descends from, with what stands under them: a
+##   command line that carries the id as the argument of an operation is that operation's
+##   caller, no run. The asking process is this one unless one is named; `-` names none, for
+##   a caller that may itself stand under the run it ends.
+## The run's own supervising shell is never reached: the walk only goes down from the run's
+## own processes, and that shell is the process that started them, above them; and it is none
+## of the run's own processes, since its command line is the tooling's, which the one reading
+## never takes for a run. No process group is read or signalled: the group of a run holds its
+## supervising shell too.
+## A process that left the run's tree before this moment, its starter gone and itself handed
+## to the first process of the host, is not found: nothing on a process says that the run
+## once started it.
+## One pid a line, the run's own first; nothing when the run has no process here.
+AgentsToolsRegistryRunProcesses(){ ## spawn id, its record file (found by the id where not given), the asking process (this one where not given; `-` for none)
+	local procList procOwn procRecord="${2:-}" procAsking="${3:-$$}" procOthers="" procId
+	[ -n "${1:-}" ] || return 0
+	procList="$( ps -A -ww -o pid=,args= 2>/dev/null )" || procList=""
+	procOwn="$( printf '%s\n' "$procList" | AgentsToolsRegistryRunPids "$1" )" || procOwn=""
+	if [ -z "$procOwn" ] ; then
+		[ -n "$procRecord" ] || procRecord="$( AgentsToolsRegistrySpawnRecord "$1" )"
+		[ -n "$procRecord" ] && [ -f "$procRecord" ] || return 0
+		procOwn="$( AgentsToolsRegistryRecordedRun "$procRecord" )" || return 0
+	fi
+	## The runs of other spawns among the processes of this host, by the same reading.
+	while IFS= read -r procId ; do
+		[ -n "$procId" ] && [ "$procId" != "$1" ] || continue
+		procOthers="$procOthers $( printf '%s\n' "$procList" | AgentsToolsRegistryRunPids "$procId" | LC_ALL=C tr '\n' ' ' )"
+	done <<< "$( printf '%s\n' "$procList" | AgentsToolsRegistryRunWords | LC_ALL=C sort -u )"
+	[ "$procAsking" != "-" ] || procAsking=""
+	ps -A -o pid=,ppid= 2>/dev/null | MDAT_REGISTRY_RUN_OWN="$procOwn" MDAT_REGISTRY_RUN_OTHERS="$procOthers" LC_ALL=C awk -v askingPid="$procAsking" '
+		BEGIN {
+			ownTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OWN"], ownList, /[ \n]+/ ) ;
+			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) { if ( ownList[ownAt] != "" ) { ownRun[ownList[ownAt]] = 1 ; } }
+			otherTotal = split( ENVIRON["MDAT_REGISTRY_RUN_OTHERS"], otherList, /[ \n]+/ ) ;
+			for ( otherAt = 1 ; otherAt <= otherTotal ; otherAt++ ) { if ( otherList[otherAt] != "" ) { otherRun[otherList[otherAt]] = 1 ; } }
+		}
+		{ parentOf[$1] = $2 ; pidList[++pidTotal] = $1 ; }
+		END {
+			## A run of another spawn, and the process that started it, are not entered.
+			for ( otherPid in otherRun ) {
+				notEntered[otherPid] = 1 ;
+				onePid = parentOf[otherPid] "" ;
+				if ( onePid != "" && ! ( onePid in otherRun ) && ! ( onePid in ownRun ) ) { notEntered[onePid] = 1 ; }
+			}
+			## Nor is the asking process, nor any process it descends from.
+			for ( onePid = askingPid "" ; onePid != "" && ( onePid + 0 ) > 1 && ! ( onePid in askedBy ) ; onePid = parentOf[onePid] "" ) { askedBy[onePid] = 1 ; notEntered[onePid] = 1 ; }
+			for ( ownAt = 1 ; ownAt <= ownTotal ; ownAt++ ) {
+				onePid = ownList[ownAt] ;
+				if ( onePid == "" || ( onePid in askedBy ) || ( onePid in startedBy ) ) { continue ; }
+				startedBy[onePid] = 1 ; print onePid ;
+			}
+			do {
+				grew = 0 ;
+				for ( pidAt = 1 ; pidAt <= pidTotal ; pidAt++ ) {
+					onePid = pidList[pidAt] ;
+					if ( ! ( onePid in startedBy ) && ! ( onePid in notEntered ) && ( parentOf[onePid] in startedBy ) ) { startedBy[onePid] = 1 ; print onePid ; grew = 1 ; }
+				}
+			} while ( grew ) ;
+		}
+	' || :
+	return 0
+}
+
+## Which of the processes given are processes of this host now, and when each began:
+## `<pid> <start>` a line, the start as one word, as AgentsToolsRegistryProcessStart gives it.
+## One that has ended and is not yet collected by the process that started it is no process
+## any more. For a caller that signalled processes and must know which are still there: the
+## same pid begun at another time is another process, and is never signalled for the first.
+AgentsToolsRegistryProcessesBegan(){ ## -- stdin: process ids, a line each
+	local beganPids
+	beganPids="$( LC_ALL=C awk '$1 ~ /^[0-9]+$/ { printf "%s%s", ( beganSaid++ ? "," : "" ), $1 ; }' )" || beganPids=""
+	[ -n "$beganPids" ] || return 0
+	LC_ALL=C ps -o pid=,stat=,lstart= -p "$beganPids" 2>/dev/null | LC_ALL=C awk '
+		NF > 2 && $2 !~ /^Z/ { beganPid = $1 ; $1 = "" ; $2 = "" ; sub( /^ +/, "" ) ; gsub( / +/, "_" ) ; print beganPid, $0 ; }
+	' || :
+	return 0
+}
+
+## WHAT IS LEFT OF A RUN after it was signalled, for the caller that signalled it and kept what
+## it signalled as AgentsToolsRegistryProcessesBegan gave it, each process with when it began:
+## those of them that are still the processes they were, and whatever the walk gives for the
+## run now. The first is what tells a process the run had started and that outlives it: once
+## the run's own process is gone, nothing under the run's name leads to that one any more, so
+## a walk alone would read it as gone. A kept pid that another process has taken since began
+## at another time: it is none of them, and is never signalled for the first. One place, for
+## the manager's kill and for a stop alike. One pid a line.
+AgentsToolsRegistryRunLeft(){ ## spawn id, the processes signalled as `<pid> <start>` lines (may be empty), the asking process (as AgentsToolsRegistryRunProcesses takes it)
+	{
+		[ -z "${2:-}" ] || { printf '%s\n' "$2" | AgentsToolsRegistryProcessesBegan ; printf '=\n%s\n' "$2" ; } \
+			| LC_ALL=C awk '$0 == "=" { leftKept = 1 ; next ; } ! leftKept { leftNow[$0] = 1 ; next ; } ( $0 in leftNow ) { print $1 ; }'
+		AgentsToolsRegistryRunProcesses "${1:-}" "" "${3:-$$}"
+	} | LC_ALL=C sort -u
+	return 0
+}
+
+## WHAT A STOP OR A KILL LEFT OF A RUN, KEPT IN THE RUN'S OWN STORE:
+## .local/agents/sessions/<spawn id>/stop.left, a line a process, `<pid> <start>`, the start
+## as AgentsToolsRegistryProcessesBegan gives it. A process the run started that outlived a
+## stop stands under no process of the run any more, so no walk from the run finds it again:
+## this file is what the next stop or kill of that run finds it by.
+## An entry is a process only while its pid is still the process that began when the entry
+## says. One whose process is gone, and one whose pid another process has taken, are nothing,
+## and are never signalled. So the file needs no clearing when the run is started again: what
+## an earlier life of the run left behind in name alone is told by its start time, and what
+## it left behind alive is still this run's to end. The file is removed by the read that
+## finds nothing of it left, and by the stop or the kill after which nothing is left.
+AgentsToolsRegistryRunLeftFile(){ ## spawn id -- prints the path; rc 1 for an id that names no store
+	case "${1:-}" in ''|-|*/*|.|..|*' '*) return 1 ;; esac
+	[ -n "${MMDAPP:-}" ] || return 1
+	printf '%s\n' "$MMDAPP/.local/agents/sessions/$1/stop.left"
+}
+## The entries kept for a run that are still the processes they were, `<pid> <start>` a line.
+## A file that holds none any more is removed.
+AgentsToolsRegistryRunLeftKept(){ ## spawn id
+	local keptFile keptLines keptStill
+	keptFile="$( AgentsToolsRegistryRunLeftFile "${1:-}" )" || return 0
+	[ -f "$keptFile" ] || return 0
+	keptLines="$( cat "$keptFile" 2>/dev/null )" || keptLines=""
+	keptStill=""
+	[ -z "$keptLines" ] || keptStill="$( { printf '%s\n' "$keptLines" | AgentsToolsRegistryProcessesBegan ; printf '=\n%s\n' "$keptLines" ; } \
+		| LC_ALL=C awk '$0 == "=" { keptRead = 1 ; next ; } ! keptRead { keptNow[$0] = 1 ; next ; } ( $0 in keptNow ) && ! keptSaid[$0]++ { print ; }' )" || keptStill=""
+	if [ -z "$keptStill" ] ; then
+		rm -f "$keptFile" 2>/dev/null
+		return 0
+	fi
+	printf '%s\n' "$keptStill"
+	return 0
+}
+## Keeps for a run the processes given, which its caller signalled and found still there, each
+## with when it began; with none given, or none of them a process any more, the file is
+## removed. Written aside and put in place by one rename. Never fails its caller.
+AgentsToolsRegistryRunLeftKeep(){ ## spawn id, the process ids still there (a space or a line between them; may be empty)
+	local keepFile keepLines
+	keepFile="$( AgentsToolsRegistryRunLeftFile "${1:-}" )" || return 0
+	keepLines=""
+	[ -z "${2:-}" ] || keepLines="$( printf '%s\n' ${2} | AgentsToolsRegistryProcessesBegan )" || keepLines=""
+	if [ -z "$keepLines" ] ; then
+		rm -f "$keepFile" 2>/dev/null
+		return 0
+	fi
+	mkdir -p "${keepFile%/*}" 2>/dev/null || return 0
+	{ printf '%s\n' "$keepLines" > "$keepFile.$$.aside" && mv -f "$keepFile.$$.aside" "$keepFile" ; } 2>/dev/null || rm -f "$keepFile.$$.aside" 2>/dev/null
+	return 0
+}
+
 ## AgentsToolsRegistryDeriveState without a fork: the same answer, into derivedState of the
 ## caller, the open asks read from AgentsToolsRegistryPendingOpenSessions's set.
 AgentsToolsRegistryDeriveStateFromSet(){ ## status, live, session-id, open-session set
@@ -604,6 +812,63 @@ AgentsToolsRegistryPendingRepliesRebuild(){
 	AgentsToolsRegistryWrite pending-replies AgentsToolsRegistryPendingRepliesRows
 }
 
+## Whether the run that asked is alive, for each asking id given: measured now and never
+## stored, since a file an hour old would call a dead asker alive. An ask's session-id is
+## the id of the run that asked -- its spawn id, or the client's own id of a session no
+## spawn started -- never the coworking session that run joined. So each id is matched to
+## the run that has it as its own, by the one rule a run is recognised by, and to nothing
+## else. stdin is the asking ids, a line each; the process list is read once for them all.
+## Prints `<id> <live>` a line, what this host says of that id:
+##   running          a process of this host runs as it (AgentsToolsRegistryRunWords), or the
+##                    process its record names still lives, that record being of this host
+##                    and still open (AgentsToolsRegistryRecordedRunAlive), as a row is read
+##   no-process       a spawn record names it and nothing runs as it: no live asker
+##   session-ended    no spawn record names it, and its own store carries the end marker of
+##                    a root session (AgentsToolsGrantsSessionEnded): no live asker
+##   no-spawn-record  no spawn record names it and nothing says it ended: a root session,
+##                    which a rule for runs cannot measure, or an id nothing here knows
+## On which host an ask was asked is its record's own `host`, which the caller holds: the
+## ask of another host is not for this to measure.
+AgentsToolsRegistryAskersLive(){ ## process list text -- stdin: the asking ids, a line each
+	local askersWords askersHost askerId askerRecord askerLine askerFront askerStatus askerHost askerSeen askerLive
+	askersWords="
+$( printf '%s' "$1" | AgentsToolsRegistryRunWords )
+"
+	askersHost="$( hostname -s 2>/dev/null )" || askersHost=""
+	[ -n "$askersHost" ] || askersHost="unknown"
+	while IFS= read -r askerId ; do
+		case "$askerId" in ''|-|.|..|*/*) continue ;; esac
+		case "$askersWords" in *"
+$askerId
+"*) printf '%s running\n' "$askerId" ; continue ;; esac
+		askerSeen="" ; askerLive="no-process"
+		for askerRecord in "${MMDAPP:-/nonexistent}/.local/agents/spawned"/*/"$askerId.md" ; do
+			[ -f "$askerRecord" ] || continue
+			askerSeen=1
+			## Only a record of this host that is still open can name a living process.
+			askerFront="" ; askerStatus="" ; askerHost=""
+			while IFS= read -r askerLine ; do
+				case "$askerFront:$askerLine" in
+					':---') askerFront=1 ;;
+					'1:---') break ;;
+					'1:status: '*) [ -n "$askerStatus" ] || askerStatus="${askerLine#status: }" ;;
+					'1:host: '*) [ -n "$askerHost" ] || askerHost="${askerLine#host: }" ;;
+				esac
+			done < "$askerRecord"
+			case "$askerStatus" in spawn-succeeded|spawn-failed|spawn-ended-without-close) continue ;; esac
+			[ "$askerHost" = "$askersHost" ] || continue
+			! AgentsToolsRegistryRecordedRunAlive "$askerRecord" || { askerLive="running" ; break ; }
+		done
+		if [ -z "$askerSeen" ] ; then
+			askerLive="no-spawn-record"
+			type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+			! AgentsToolsGrantsSessionEnded "${MMDAPP:-/nonexistent}/.local/agents/sessions/$askerId" || askerLive="session-ended"
+		fi
+		printf '%s %s\n' "$askerId" "$askerLive"
+	done
+	return 0
+}
+
 ## Rebuilds one registry and prints it, with its own column line. A registry that
 ## could not be rebuilt says so and never prints a stale file as though it were
 ## fresh; an empty one says it is empty, which is not the same statement.
@@ -651,53 +916,38 @@ AgentsToolsRegistryRenderSpawnedSessionsGrouped(){ ## extended rows text, state 
 	return 0
 }
 
-## The spawned-sessions render is the one that adds measured/derived columns, so it
-## does not go through the plain renderer. The process list is read ONCE for every
-## row rather than once per row -- this answers "which of these are alive here", a
-## different question from the harness's own "what are this session's pids". The
-## pending-replies registry is rebuilt once too, for the "waiting" state derivation --
-## never once per row, and never stale for it either.
-##
-## view: "agents" (default) -- one row per spawn-id, today's shape plus two trailing
-## columns (workspace, state). "sessions" -- the same rows grouped by session-id,
-## one row per coworking session. session-id filter narrows either view; a state
-## filter narrows the sessions view to sessions holding at least one agent in that
-## state, keeping each matching session's own full state-tally rather than trimming
-## it to the filtered state alone.
-AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
-	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
-	local registryFile psText thisHost thisWorkspace
-	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowLive rowState
-	local extendedRows="" registryRow sawRow="false" sawAny="false" openSet="" runningSet="" derivedState=""
-	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
-	printf '%s\n\n' "## spawned sessions"
-	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
-		printf '%s\n\n' "**NOTE:** no scan was made -- no spawn sandbox root exists yet, so no spawn has ever run in this workspace"
-		return 0
-	fi
-	if ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
-		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
-		return 0
-	fi
-	AgentsToolsRegistryPendingRepliesRebuild || :
-	thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
+## Every row of a spawned-sessions registry file with what is measured for it, a line a row,
+## into three variables of the caller: measuredRows, the thirteen columns the render prints
+## (the eleven first ones, then live and state); measuredDated, those and the three appended
+## columns (started-at resolved-at session-comment), `-` where the file has none, which the
+## manager's list reads (AgentsTools.ManagerSession.include); and measuredAny, whether the
+## file held a row at all, whatever the filter. The ONE place a row's live and state are
+## derived. The process list is read ONCE for every row rather than once per row -- this
+## answers "which of these are alive here", a different question from the harness's own "what
+## are this session's pids". The caller has rebuilt both registries in the same call: the
+## pending-replies one is what the "waiting" state is derived from, never once per row, and
+## never stale for it either.
+AgentsToolsRegistryMeasureRows(){ ## spawned-sessions registry file, this host (asked of the host where not given), session-id filter
+	local measuredFile="$1" thisHost="${2:-}" filterSession="${3:-}" psText openSet="" runningSet="" derivedState=""
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowRest rowLive
+	measuredRows="" ; measuredDated="" ; measuredAny="false"
+	[ -f "$measuredFile" ] || return 0
+	[ -n "$thisHost" ] || thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
 	[ -n "$thisHost" ] || thisHost="unknown"
-	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
-	[ -n "$thisWorkspace" ] || thisWorkspace="unknown"
-	printf 'registry: %s -- rebuilt by this scan\n' "$registryFile"
-	printf 'this-host: %s\n' "$thisHost"
-	printf 'this-workspace: %s\n' "$thisWorkspace"
 	psText="$( ps -A -ww -o pid=,args= 2>/dev/null )" || psText=""
 	## The open asks are read once for every row too, never by an awk per row.
-	openSet="$( AgentsToolsRegistryPendingOpenSessions "$registryFile" )
+	openSet="$( AgentsToolsRegistryPendingOpenSessions "$measuredFile" )
 "
 	## And the process list is read once for the spawns it runs as, not by a shell
 	## pattern match per row over the whole list.
-	runningSet="$( AgentsToolsRegistryRunningSpawns "$registryFile" "$psText" )
+	runningSet="$( AgentsToolsRegistryRunningSpawns "$measuredFile" "$psText" )
 "
-	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace ; do
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment rowRest ; do
 		[ -n "$rowTracking" ] || continue
-		sawAny="true"
+		measuredAny="true"
+		## More words than columns: a sandbox folder named with a space. Its words stay
+		## together as they always did, so no reader takes it for a row of thirteen columns.
+		[ -z "$rowRest" ] || rowWorkspace="$rowWorkspace $rowStarted $rowResolved $rowComment $rowRest"
 		if [ "$rowSpawn" = "-" ] ; then
 			## No spawn id, so there is no handle to ask about on any machine.
 			rowLive="no-spawn-id"
@@ -720,11 +970,51 @@ $rowSpawn
 			fi
 		fi
 		AgentsToolsRegistryDeriveStateFromSet "$rowStatus" "$rowLive" "$rowSession" "$openSet"
-		rowState="$derivedState"
 		[ -z "$filterSession" ] || [ "$rowSession" = "$filterSession" ] || continue
-		extendedRows="$extendedRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $rowState
+		measuredRows="$measuredRows$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $derivedState
 "
-	done < "$registryFile"
+		measuredDated="$measuredDated$rowTracking $rowSession $rowParent $rowHost $rowOwner $rowStatus $rowExit $rowSpawn $rowAgentLogThread $rowSessionThread $rowWorkspace $rowLive $derivedState ${rowStarted:--} ${rowResolved:--} ${rowComment:--}
+"
+	done < "$measuredFile"
+	return 0
+}
+
+## The spawned-sessions render is the one that adds measured/derived columns, so it
+## does not go through the plain renderer: its rows come measured from
+## AgentsToolsRegistryMeasureRows above. The pending-replies registry is rebuilt once
+## too, for the "waiting" state derivation.
+##
+## view: "agents" (default) -- one row per spawn-id, today's shape plus two trailing
+## columns (workspace, state). "sessions" -- the same rows grouped by session-id,
+## one row per coworking session. session-id filter narrows either view; a state
+## filter narrows the sessions view to sessions holding at least one agent in that
+## state, keeping each matching session's own full state-tally rather than trimming
+## it to the filtered state alone.
+AgentsToolsRegistryRenderSpawnedSessions(){ ## view, session-id filter, state filter
+	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
+	local registryFile thisHost thisWorkspace rowState
+	local extendedRows="" registryRow sawRow="false" sawAny="false" measuredRows="" measuredDated="" measuredAny="false"
+	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
+	printf '%s\n\n' "## spawned sessions"
+	if [ ! -d "$MMDAPP/.local/agents/spawned" ] ; then
+		printf '%s\n\n' "**NOTE:** no scan was made -- no spawn sandbox root exists yet, so no spawn has ever run in this workspace"
+		return 0
+	fi
+	if ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
+		printf '%s\n\n' "**NOTE:** no scan was made -- the registry could not be rebuilt at $registryFile"
+		return 0
+	fi
+	AgentsToolsRegistryPendingRepliesRebuild || :
+	thisHost="$( hostname -s 2>/dev/null )" || thisHost=""
+	[ -n "$thisHost" ] || thisHost="unknown"
+	thisWorkspace="$( basename "$MMDAPP" 2>/dev/null )" || thisWorkspace=""
+	[ -n "$thisWorkspace" ] || thisWorkspace="unknown"
+	printf 'registry: %s -- rebuilt by this scan\n' "$registryFile"
+	printf 'this-host: %s\n' "$thisHost"
+	printf 'this-workspace: %s\n' "$thisWorkspace"
+	## The three appended columns of a measured row are not this view's: it prints thirteen.
+	AgentsToolsRegistryMeasureRows "$registryFile" "$thisHost" "$filterSession"
+	extendedRows="$measuredRows" ; sawAny="$measuredAny"
 	if [ "$viewWanted" = "sessions" ] ; then
 		AgentsToolsRegistryRenderSpawnedSessionsGrouped "$extendedRows" "$filterState"
 		return 0

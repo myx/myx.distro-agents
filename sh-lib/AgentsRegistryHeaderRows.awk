@@ -3,8 +3,11 @@
 ## AgentsRegistryHeaderRows.awk -- the rows of the spawned-sessions or the
 ## pending-replies registry, every record file in ONE pass, instead of a frontmatter
 ## print and one header awk per column per file. Called by AgentsTools.Registries.include
-## with -v registryRows=spawned|pending; stdin is one entry per line, in the order the
-## caller's own glob loops found them, so the row order is the shell's:
+## with -v registryRows=spawned|pending. With -v registryColumns=14 a spawned row carries,
+## after its eleven columns, the three appended to them: started-at, resolved-at and
+## session-comment; a caller that names no count gets the eleven, so one that loaded its
+## reader before they existed still counts its rows. stdin is one entry per line, in the
+## order the caller's own glob loops found them, so the row order is the shell's:
 ##   D<tracking-name>  spawned: a sandbox root starts; its name is the tracking name
 ##   S<record path>    spawned: one record in the current sandbox
 ##   E                 spawned: the current sandbox held no record
@@ -84,7 +87,7 @@ registryRows == "spawned" && entryKind == "D" {
 }
 
 registryRows == "spawned" && entryKind == "E" {
-	printf "%s - - - - no-session-record - - - - -\n", sandboxTracking ;
+	printf "%s - - - - no-session-record - - - - -%s\n", sandboxTracking, ( registryColumns >= 14 ? " - - -" : "" ) ;
 	next ;
 }
 
@@ -94,7 +97,9 @@ registryRows == "spawned" && entryKind == "S" {
 	registryFrontmatterRead(entryText) ;
 	recordTracking = registryHeader("tracking-name") ;
 	if (recordTracking != "-") sandboxTracking = recordTracking ;
-	printf "%s %s %s %s %s %s %s %s %s %s %s\n", sandboxTracking, registryHeader("session-id"), registryHeader("parent-session-id"), registryHeader("host"), registryHeader("owner"), registryHeader("status"), registryHeader("exit-code"), registryHeader("spawn-id"), registryHeader("agent-log-thread"), registryHeader("session-thread"), registryHeader("workspace") ;
+	printf "%s %s %s %s %s %s %s %s %s %s %s", sandboxTracking, registryHeader("session-id"), registryHeader("parent-session-id"), registryHeader("host"), registryHeader("owner"), registryHeader("status"), registryHeader("exit-code"), registryHeader("spawn-id"), registryHeader("agent-log-thread"), registryHeader("session-thread"), registryHeader("workspace") ;
+	if ( registryColumns >= 14 ) printf " %s %s %s", registryHeader("started-at"), registryHeader("resolved-at"), registryHeader("session-comment") ;
+	printf "\n" ;
 	next ;
 }
 

@@ -102,7 +102,8 @@ AgentsToolsPendingReplyRemindStamp(){ ## pending id, record file, stages (comma 
 	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
 	stampLock="$agentsLocalLockPath"
 	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
-		stampOps="$MMDAPP/.local/temp/mdat-pending-reply-remind.$$.$RANDOM"
+		## Its own file, by mktemp: $$ is one for every subshell of one shell, and $RANDOM beside it is no promise.
+		stampOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-remind.XXXXXX" 2> /dev/null )" || stampOps=""
 		{
 			for stampStage in ${3//,/ } ; do
 				case "$stampStage" in

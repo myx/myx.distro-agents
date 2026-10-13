@@ -4,8 +4,11 @@
 ## first starting the session and every further one joining it by session id; with no
 ## positional members, the routine's own executors line supplies the roster, and a
 ## value that is not a plain comma-separated list of existing members ("magic-team"/"*"
-## or prose) is refused; an unknown explicit member is refused too. Offline: a fake
-## console records what each spawned member receives, a fake curl answers Slack.
+## or prose) is refused; an unknown explicit member is refused too, and every name is asked
+## before the first member is started, so a call with one wrong name starts nobody. Two members whose
+## spawns fall inside one second each get a dispatch item and a receipt of their own.
+## Offline: a fake console records what each spawned member receives, a fake curl
+## answers Slack.
 ## Modelled on AgentsSpawnSessionThreadCheck.test.sh (fake console/curl rig) and
 ## AgentsHarnessArmGateCheck.test.sh (env -i isolated scenarios, rig tree only).
 set -u
@@ -153,6 +156,21 @@ rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-no-such )"
 rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'no such team member' )" 1
 rigAssert "nothing was spawned"                          "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
 
+echo "-- a good first member and an unknown second one: nobody is started, nothing is left behind --"
+## What a start leaves: a console that ran, a sandbox with its record, a board item, a post (the session's thread).
+## Counted before and after, once the starts of the sections above have had the time to close.
+rigLeft(){ printf '%s %s %s %s' "$( ls "$rigTmp" | grep -c '^brief\.' )" "$( ls "$rigWs/.local/agents/spawned" 2>/dev/null | grep -c . )" "$( find "$rigData/board" -type f 2>/dev/null | grep -c . )" "$( grep -c '^chat.postMessage ' "$rigTmp/calls" 2>/dev/null )" ; }
+sleep 6
+rigLeftBefore="$( rigLeft )"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-no-such )"
+sleep 3
+rigAssert "is refused, in one line that names the name that is wrong" "$( printf '%s\n' "$rigOut" | grep -c -x -F 'DistroAgentsTools: magic-spawn-session: ⛔ ERROR: no such team member: rig-member-no-such' ) $( printf '%s\n' "$rigOut" | grep 'ERROR' | grep -c -v -F 'SystemContext.SetInputSpec' )" "1 1"
+rigAssert "no session is started"                         "$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" 0
+rigAssert "the first member, a good one, is not started either: no console ran, and no record, no item and no thread is left" "$( rigLeft )" "$rigLeftBefore"
+rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default rig-member-a ../rig-member-b )"
+sleep 3
+rigAssert "nor with a second name that is no bare name: refused, nobody started, nothing left" "$( printf '%s\n' "$rigOut" | grep -c -F 'magic-spawn-session: ❗ ASSERT: <team-member> must be a bare name' ) $( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' ) [$( rigLeft )]" "1 0 [$rigLeftBefore]"
+
 echo "-- both --routine and --routine-default: refused --"
 rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --routine solo rig-member-a )"
 rigAssert "is refused"                                   "$( printf '%s\n' "$rigOut" | grep -c 'use only one of --routine' )" 1
@@ -190,6 +208,46 @@ rigOut="$( rigRun "RIG-TASK-TEXT" --routine-default --description )"
 rigAssert "a description with no text is refused, and nothing is spawned" \
 	"$( printf '%s\n' "$rigOut" | grep -c -- '--description requires <text>' ):$( printf '%s\n' "$rigOut" | grep -c '^SESSION_ID=' )" "1:0"
 rigAssert "the syntax line of the operation names it"     "$( rigRun "" --no-such-option 2>&1 | grep -c -F -- '[--description <text>]' )" 1
+
+echo "-- two members of one call, both spawns inside one second: each has a dispatch item and a receipt of its own --"
+## The rig's clock, held: the stamp a spawn takes for its names (`date -u +%Y%m%dT%H%M%SZ`)
+## reads one second for the whole call, as it does when the second spawn starts within the
+## first one's second. Every other question of the time goes to the real date. Both spawns
+## are made by the one shell of the call, so its pid is one for both: before each name
+## carried its spawn's own id, the second spawn took the first one's item for its own.
+rigRealDate="$( command -v date )" || rigRefuse "no date on PATH"
+mkdir -p "$rigTmp/held"
+printf '%s\n' '#!/usr/bin/env bash' \
+	'case "$*" in "-u +%Y%m%dT%H%M%SZ") echo 20300101T000000Z ; exit 0 ;; esac' \
+	"exec \"$rigRealDate\" \"\$@\"" > "$rigTmp/held/date"
+chmod +x "$rigTmp/held/date"
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned" "$rigData/board"
+mkdir -p "$rigData/board"
+rm -f "$rigTmp/brief.rig-member-a" "$rigTmp/brief.rig-member-b"
+rigOut="$( PATH="$rigTmp/held:$PATH" rigRun "RIG-TASK-TEXT" --routine-default rig-member-a rig-member-b )"
+rigAssert "the session is started with both members"    "$( printf '%s\n' "$rigOut" | grep -c -x -F 'MEMBERS=rig-member-a rig-member-b' )" 1
+rigWaitFor "$rigTmp/brief.rig-member-a" || rigRefuse "rig-member-a's own console never received a context"
+rigWaitFor "$rigTmp/brief.rig-member-b" || rigRefuse "rig-member-b's own console never received a context"
+rigItemsOf(){ LC_ALL=C grep -l -x -F "owner: $1" "$rigData"/board/*/dispatch-*.md 2>/dev/null | wc -l | tr -d ' ' ; } ## member -> its dispatch items, in any state
+rigRecordValues(){ LC_ALL=C sed -n "s/^$1: //p" "$rigWs/.local/agents/spawned"/*/*.md 2>/dev/null | LC_ALL=C sort -u ; } ## header -> its values over the spawn records, each once
+rigAssert "each member has a dispatch item of its own"   "$( rigItemsOf rig-member-a ):$( rigItemsOf rig-member-b )" 1:1
+rigAssert "each spawn record names an item of its own"   "$( rigRecordValues spawns | wc -l | tr -d ' ' )" 2
+rigAssert "and a receipt of its own"                     "$( rigRecordValues execution-receipt | wc -l | tr -d ' ' )" 2
+## The names keep their form: the date, the word, then the calling shell's pid and the first
+## part of the spawn's own id; and an item's name still gives its receipt, as the reader of
+## an old output log derives it (AgentsHarnessDispatchReceipt, AgentsUniversalHarness.sh).
+rigNamesKept=0
+for rigRecord in "$rigWs/.local/agents/spawned"/*/*.md ; do
+	[ -f "$rigRecord" ] || continue
+	rigSpawnId="${rigRecord##*/}" ; rigSpawnId="${rigSpawnId%.md}"
+	rigReceipt="$( LC_ALL=C sed -n 's/^execution-receipt: //p' "$rigRecord" | head -1 )"
+	rigSpawns="$( LC_ALL=C sed -n 's/^spawns: //p' "$rigRecord" | head -1 )"
+	printf '%s\n' "$rigReceipt" | LC_ALL=C grep -q -E "^spawn-proxy-20300101T000000Z-[0-9]+-${rigSpawnId:0:8}\$" || continue
+	[ "$rigSpawns" = "dispatch-20300101T000000Z-spawn-proxy-${rigReceipt#spawn-proxy-20300101T000000Z-}" ] || continue
+	rigNamesKept=$(( rigNamesKept + 1 ))
+done
+rigAssert "both names keep their form, and end with the first part of the spawn's own id" "$rigNamesKept" 2
+chmod -R u+w -- "$rigWs/.local/agents/spawned" 2>/dev/null ; rm -rf "$rigWs/.local/agents/spawned"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MAGIC SPAWN SESSION CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

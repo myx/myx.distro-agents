@@ -189,16 +189,24 @@ AgentsToolsSpawnProxyEventTrackClose(){ ## thread, member, outcome, exit code, m
 ## rule of AgentsToolsGrantsSessionEnded; another closer, such as the advance pass for a dead
 ## spawn, got there first), or its transcript records its ending -- a Wait that returned
 ## DISMISSED, or an ordered ENDING (taskstop, shutdown, archived, trashed, review-wait-expired),
-## which AgentsTools.ReviewFlow.include records before it stops anything. rc 0 closed, the
-## reason printed; rc 1 open, or nothing to tell it by.
+## which AgentsTools.ReviewFlow.include records before it stops anything. Or its record says
+## that the console killed it: `killed-at`, written before the signal by
+## --manager-session-kill (AgentsTools.ManagerSession.include), which is what tells a killed
+## run that has no item and no transcript to record an ending in. rc 0 closed, the reason
+## printed; rc 1 open, or nothing to tell it by.
 AgentsToolsSpawnProxyRetryClosed(){ ## record file (may be empty), spawn id (may be empty)
-	local closedStatus="" closedPart
+	local closedStatus="" closedPart closedKilled=""
 	if [ -n "$1" ] && [ -f "$1" ] ; then
 		closedStatus="$( AgentsToolsSpawnSandboxRecordHeader "$1" status )"
 		case "$closedStatus" in
 			''|spawn-started) ;;
 			*) printf 'its record is already closed (status %s)' "$closedStatus" ; return 0 ;;
 		esac
+		closedKilled="$( AgentsToolsSpawnSandboxRecordHeader "$1" killed-at )"
+		if [ -n "$closedKilled" ] ; then
+			printf 'its record says it was killed (by %s, %s)' "$( AgentsToolsSpawnSandboxRecordHeader "$1" killed-by )" "$closedKilled"
+			return 0
+		fi
 	fi
 	[ -n "$2" ] && type AgentsTranscriptParts > /dev/null 2>&1 || return 1
 	while IFS= read -r closedPart ; do
@@ -510,6 +518,9 @@ case "$1" in
 				local spawnBrought
 				spawnBrought="$( AgentsToolsMemberSkillsetBring "$callerName" "--intern-op-agent-spawn-proxy" )" || { set +e ; return 1 ; }
 				[ -z "$spawnBrought" ] || local -x MDAT_SKILLSET_ROOT="${spawnBrought%%$'\t'*}"
+				## NOTHING RUNS AS AN IDENTITY RECORD. A member whose SKILL.md says `status: reference-only`, the record of a person (human-owner is one), is refused here, in the one place every start goes through, whoever asks and in whatever form: before its brief is read and before anything is made, so no record, no item and no thread is left (AgentsToolsTeamMemberStartCheck, AgentsTools.TeamRegistry.include).
+				type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+				AgentsToolsTeamMemberStartCheck "$callerName" "${MDAT_SKILLSET_ROOT:-}/$callerName" "--intern-op-agent-spawn-proxy" || { set +e ; return 1 ; }
 				## Said once for this spawn: which of its own settings are read from the workspace it is set up in.
 				[ -z "$spawnBrought" ] || AgentsToolsMemberSettingsBorrowedSay "$callerName" "--intern-op-agent-spawn-proxy" "${spawnBrought#*$'\t'}"
 			;;
@@ -1057,7 +1068,6 @@ case "$1" in
 		local timestamp receiptId
 		## The ruled name form, seconds variant, in UTC: a dispatch item is a board item.
 		timestamp="$( date -u +%Y%m%dT%H%M%SZ )"
-		receiptId="spawn-proxy-$timestamp-$$"
 
 		## The session this spawn was started from, read before the export below
 		## replaces it: a spawning session inherited its own id from its console.
@@ -1099,6 +1109,13 @@ case "$1" in
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: uuidgen produced no session id, so the dispatch record and the agent's own session could not be joined -- refusing to spawn rather than recording a session nothing reports" >&2
 			set +e ; return 1
 		fi
+
+		## The receipt, and the dispatch item named after it below: the stamp, this shell's pid,
+		## and the first part of the spawn's own id. The stamp and the pid alone are one for two
+		## spawns that one call makes inside one second (--magic-spawn-session spawns its members
+		## from one shell, one right after the other), and the second then took the first one's
+		## dispatch item for its own. The id is what tells such spawns apart.
+		receiptId="spawn-proxy-$timestamp-$$-${MDAT_SPAWN_SESSION_ID:0:8}"
 
 		## The acting member, for the inline agent definition the console builds.
 		## Exported beside the session id and on the same terms: both branches
@@ -1177,7 +1194,7 @@ case "$1" in
 
 		local dispatchItemName="" dispatchBriefBody=""
 		if [ "$dispatchDocMode" = "create" ] ; then
-			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$.md"
+			dispatchItemName="dispatch-$timestamp-spawn-proxy-$$-${MDAT_SPAWN_SESSION_ID:0:8}.md"
 			dispatchBriefBody="$( printf '%s\n' \
 				"---" \
 				"---" \
@@ -1890,11 +1907,17 @@ case "$1" in
 			return 0
 		fi
 
-		## Detached when spawned from inside a session (backlog :229), close steps and all:
-		## its own process group, HUP ignored, so ending the caller's pass leaves it running.
-		[ -z "$parentSessionId" ] || set -m
+		## Detached whatever started it (backlog :229), close steps and all: its own process
+		## group, HUP ignored, so ending the caller's pass leaves it running, and a hangup sent
+		## to its caller does not reach it. A caller with no session id, a bare console, starts
+		## it exactly as a caller inside a session does: dispatch is the same from anywhere.
+		## The caller's own job control is left as it was found: on only in a shell of its own
+		## that had it on. A subshell carries that flag from the shell it came from, with job
+		## control off, and there it is off again after the start.
+		local spawnMonitor="$BASH_SUBSHELL:$-"
+		set -m
 		(
-			[ -z "$parentSessionId" ] || trap '' HUP
+			trap '' HUP
 			set +e
 			## Handed off whole: nothing its caller had open stays open here. A caller that runs
 			## this op as a function under a redirect of its own -- a review return did, and so
@@ -1959,7 +1982,7 @@ case "$1" in
 			AgentsToolsTeamDataPushIfAhead "agent-spawn-proxy close" > /dev/null 2>&1
 		) >> "$outputFile" 2>&1 4>&- &
 		local spawnPid=$!
-		[ -z "$parentSessionId" ] || set +m
+		case "$spawnMonitor" in 0:*m*) ;; *) set +m ;; esac
 		echo "RECEIPT_ID=$receiptId"
 		echo "SESSION_ID=$sessionId"
 		echo "SESSION_THREAD=${sessionThread:-none}"

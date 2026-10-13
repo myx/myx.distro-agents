@@ -82,9 +82,9 @@ if ! type AgentsToolsApprovalCascade > /dev/null 2>&1 ; then
 
 			## Stamp: `default` ops, so a value the item already carries wins.
 			newBody="$(
-				opsFile="$MMDAPP/.local/temp/mdat-approval-cascade.$$"
+				## A file of its own for this stamp, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && opsFile="$( mktemp "$MMDAPP/.local/temp/mdat-approval-cascade.XXXXXX" )" || exit 1
 				trap 'rm -f "$opsFile"' EXIT
-				mkdir -p "$MMDAPP/.local/temp" || exit 1
 				printf 'default\tapproved-by\t%s\ndefault\tapproved-at\t%s\n' "$approvedBy" "$approvedAt" > "$opsFile" || exit 1
 				LC_ALL=C awk -v opsFile="$opsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" "$targetPath"
 			)" || newBody=""

@@ -44,7 +44,9 @@ AgentsToolsLocalLockTake(){ ## key, tries (default 30), label for warnings
 			## Claimed by rename, so of two breakers only one moves it. The breaker that moved
 			## the dead lock takes the next pass free: the state it tested is gone, so the loop
 			## still ends. Anyone else spends a try.
-			lockStale="$agentsLocalLockPath.stale.$$"
+			## The name it is moved to is this breaker's own, by mktemp and never by $$: two breakers
+			## in subshells of one shell have one $$, and one would remove what the other just moved.
+			lockStale="$( mktemp "$agentsLocalLockPath.stale.XXXXXX" 2>/dev/null )" || { lockTry=$(( lockTry + 1 )) ; continue ; }
 			if mv "$agentsLocalLockPath" "$lockStale" 2>/dev/null ; then
 				lockMoved="$( readlink "$lockStale" 2>/dev/null )" || lockMoved=""
 				rm -f "$lockStale"
@@ -58,6 +60,9 @@ AgentsToolsLocalLockTake(){ ## key, tries (default 30), label for warnings
 					printf 'WARNING: LOCK_CONFLICT on %s: the lock of pid %s was moved while being broken and could not be restored, because pid %s holds it now -- both believe they hold it\n' \
 						"$lockLabel" "$lockMoved" "$( readlink "$agentsLocalLockPath" 2>/dev/null )" >&2
 				fi
+			else
+				## not moved: the name made for it goes
+				rm -f "$lockStale"
 			fi
 			lockTry=$(( lockTry + 1 ))
 			continue

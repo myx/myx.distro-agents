@@ -158,7 +158,7 @@ Both families are plain `Provides:`/`Declares:` tokens with no key of their own.
   `magic-team:workspace:<name>:<path>:<host-glob>` register a place, granting nothing; and
   `magic-team:permissions:<namespace|workspace|directory|project>:<selector>:<allow-read|allow-write|allow-tool>:<member>[:<glob>]`
   grants. Their selectors and defaults are in `--help`, under `--owner-workspace-upsert` and
-  `--make-agents-indices`. Any of them with `--` glued in front is an inert reference line.
+  `--make-harness-indices`. Any of them with `--` glued in front is an inert reference line.
 
 ## Fragment file conventions
 

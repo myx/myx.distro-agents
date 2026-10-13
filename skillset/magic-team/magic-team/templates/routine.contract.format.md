@@ -118,7 +118,7 @@ Used to check this file's own definitions against its own goals when it is updat
 
 # Contract
 
-- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional), `allows:` (optional).
+- Frontmatter: `executors:`, `maintainers:`, `invitees:`, `default-for-session-kind:` (optional), `session:` (optional), `allows:` (optional). No key says that a routine takes arguments. `--manager-routine-list` prints, per routine, its `executors:`, its `session:` and the title line below -- nothing more.
 - `allows:` (optional)
   - Permissions the routine gives its participants while a session runs it, ending with that session: comma-separated `<member|executors|participants>:<tool>[:<target>]`, a path target relative to the workspace or absolute, %-escaped as a tracking document's `allows`.
   - Approved by its `maintainers:`. `cred:` and `spend:` entries stand only with `human-owner` among them; without him, any other entry stands only when a maintainer holds it.

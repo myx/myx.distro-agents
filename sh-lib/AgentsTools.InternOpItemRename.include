@@ -123,8 +123,8 @@ case "$1" in
 				## by rename, not by substitution.
 				[ "$f" = "$sourcePath" ] && continue
 				grep -q -F -- "$sweepOldStem" "$f" || continue
-				tmp="$MMDAPP/.local/temp/mdat-intern-op-item-rename.$$"
-				mkdir -p "$MMDAPP/.local/temp" && : > "$tmp" || { unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM ; set +e ; return 1 ; }
+				## A file of this sweep's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && tmp="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-item-rename.XXXXXX" )" || { unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM ; set +e ; return 1 ; }
 				if ! LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsItemRenameSweep.awk" "$f" > "$tmp" ; then
 					rm -f "$tmp"
 					unset MDAT_RENAME_OLD MDAT_RENAME_NEW MDAT_RENAME_OLD_STEM MDAT_RENAME_NEW_STEM

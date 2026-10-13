@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerRoutine.include -- the --manager-routine-* operations: the console's own
+## view of the routines the members carry. Sourced from the `--manager-routine-*)` arm of
+## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## A routine is a `*.routine.md` file of a member's folder. No registry and no index holds
+## the routines, so an operation here reads the files, at each call, in every folder the
+## session spawner looks in (AgentsToolsTeamMemberDirectoryText: this workspace's members,
+## then those of the other workspaces of this machine). What it says of a routine it asks
+## the session spawner's own functions (AgentsTools.SpawnRoutine.include), each as the
+## spawner calls it: a routine reads startable exactly where --magic-spawn-session, given
+## its file name and no member, would start it.
+##
+
+type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
+type AgentsToolsTeamMemberReferenceOnly > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+
+## The rows --manager-routine-list prints: one for each routine file, by owner, then by
+## selector. Nothing is written. A value's own whitespace goes out as `_` and an absent one
+## as `-`, in one pass over the rows, so a row is always its nine fields.
+AgentsToolsManagerRoutineRows(){ ## the operation as it was called
+	local rowsOp="$1" rowsMember rowsDir rowsFile rowsName rowsTab=$'\t' rowsLine rowsText=""
+	local rowsStart rowsReason rowsExecutors rowsSession rowsTitle rowsContract rowsWhy rowsExecutor
+	while IFS=$'\t' read -r rowsMember rowsDir ; do
+		[ -n "$rowsDir" ] || continue
+		for rowsFile in "$rowsDir"/*.routine.md ; do
+			[ -f "$rowsFile" ] || continue
+			rowsName="${rowsFile##*/}"
+			rowsStart="startable" ; rowsReason="" ; rowsExecutors="" ; rowsSession=""
+			## The file's own title line, as the routine contract places it: the first `# `
+			## heading below the frontmatter block, where that is not `# Summary` already.
+			rowsTitle="$( LC_ALL=C awk '
+				NR == 1 && $0 == "---" { inFrontmatter = 1 ; next ; }
+				inFrontmatter { if ( $0 == "---" ) inFrontmatter = 0 ; next ; }
+				index( $0, "# " ) == 1 { if ( $0 != "# Summary" ) print substr( $0, 3 ) ; exit ; }
+			' "$rowsFile" 2> /dev/null )" || rowsTitle=""
+			## Asked in the spawner's own order, each of its own function: the contract the file
+			## must satisfy, the one file its name selects, the roster its executors name.
+			if ! rowsContract="$( AgentsToolsSpawnRoutineContractCheck "$rowsFile" 2>&1 )" ; then
+				## What the routine contract check said, in its own words, its name for the file taken off.
+				rowsStart="broken"
+				rowsReason="${rowsContract#"⛔ ERROR: $rowsFile: "}"
+				rowsReason="${rowsReason%%$'\n'*}"
+			else
+				rowsExecutors="${rowsContract%%$'\n'*}"
+				rowsExecutors="${rowsExecutors#executors: }"
+				! AgentsToolsSpawnRoutineIsCoworking "$rowsFile" || rowsSession="coworking"
+				if [ "$( AgentsToolsSpawnRoutineResolve "$rowsName" 2> /dev/null )" != "$rowsFile" ] ; then
+					rowsStart="not-startable"
+					rowsReason="more than one routine file answers to its name, so the session spawner cannot select it"
+				elif ! rowsWhy="$( AgentsToolsSpawnRoutineExecutorsRoster "$rowsExecutors" )" ; then
+					rowsStart="not-startable"
+					case "$rowsWhy" in
+						any-member) rowsReason="its executors, $rowsExecutors, is any member: the session spawner starts it only with members named" ;;
+						empty-name) rowsReason="its executors holds an empty name" ;;
+						*) rowsReason="its executor ${rowsWhy#*"$rowsTab"} is no member of any workspace of this machine" ;;
+					esac
+				else
+					## Nothing runs as an identity record: the spawner starts none of a roster that
+					## holds one (AgentsToolsTeamMemberStartCheck). The roster is what the rule printed.
+					while IFS= read -r rowsExecutor ; do
+						[ -n "$rowsExecutor" ] || continue
+						if AgentsToolsTeamMemberReferenceOnly "$( AgentsToolsTeamMemberDirectory "$rowsExecutor" )" ; then
+							rowsStart="not-startable"
+							rowsReason="its executor $rowsExecutor is an identity record, which is never started"
+							break
+						fi
+					done <<< "$rowsWhy"
+				fi
+			fi
+			case "$rowsName" in
+				*[[:space:]]*)
+					rowsStart="broken"
+					rowsReason="its file name holds whitespace, which a row cannot carry as a selector"
+				;;
+			esac
+			## The place of its arguments is kept, and empty: no routine file says, in a form a
+			## program reads, whether it takes any. The routine contract has no key for it.
+			printf -v rowsLine 'routine\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "${rowsName//"$rowsTab"/ }" "${rowsMember//"$rowsTab"/ }" "$rowsStart" \
+				"${rowsExecutors//"$rowsTab"/ }" "$rowsSession" "" "${rowsTitle//"$rowsTab"/ }" "${rowsReason//"$rowsTab"/ }"
+			rowsText="$rowsText$rowsLine"$'\n'
+		done
+	done <<< "$( AgentsToolsTeamMemberDirectoryText )"
+	if [ -z "$rowsText" ] ; then
+		echo "# $MDSC_CMD $rowsOp: no member's folder holds a routine file" >&2
+		return 0
+	fi
+	printf '%s' "$rowsText" \
+		| LC_ALL=C awk -F'\t' 'BEGIN { OFS = "\t" ; } {
+			for ( fieldAt = 1 ; fieldAt <= 9 ; fieldAt++ ) {
+				gsub( /^[ \t]+|[ \t]+$/, "", $fieldAt ) ; gsub( /[ \t]+/, "_", $fieldAt ) ;
+				if ( $fieldAt == "" ) $fieldAt = "-" ;
+			}
+			print $1, $2, $3, $4, $5, $6, $7, $8, $9 ;
+		}' \
+		| LC_ALL=C sort -t "$rowsTab" -k3,3 -k2,2
+}
+
+case "$1" in
+
+	## Every routine file of every member's folder, one TAB-separated row each, with whether
+	## the session spawner would start it by itself. Its form is the help entry's.
+	--manager-routine-list)
+		local listOp="$1"
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerRoutineRows "$listOp" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

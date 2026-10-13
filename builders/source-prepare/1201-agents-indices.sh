@@ -4,4 +4,4 @@
 ###
 
 echo "Build: make agents indices" >&2
-DistroAgentsTools.fn.sh --make-agents-indices
+DistroAgentsTools.fn.sh --make-harness-indices

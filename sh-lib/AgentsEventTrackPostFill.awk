@@ -1051,6 +1051,22 @@ END {
 		outAt[keptCount] = outAt[lineNo] ; outContext[keptCount] = outContext[lineNo] ; outSubject[keptCount] = outSubject[lineNo] ; outWho[keptCount] = outWho[lineNo] ;
 	}
 	outCount = keptCount ;
+	## For a reader that is no Slack (ETP_ROWS set: --manager-session-transcript-read): the same
+	## lines as rows on standard output, a line each in the order given, and no post is written:
+	## `<moment> TAB <subject> TAB <who it regards> TAB <text>`, `-` for one that is not known. No
+	## header is a row: what a box's title says is each row's own. The text is the line as the
+	## thread shows it to its reader: a date token as its fallback text, Slack's three entities
+	## turned back. It holds no TAB and no line break, as no line of a post does.
+	if ( ENVIRON["ETP_ROWS"] != "" ) {
+		rowSubject = "" ; rowWho = "" ;
+		for ( lineNo = 1 ; lineNo <= outCount ; lineNo++ ) {
+			if ( outIsHeader[lineNo] ) { rowSubject = outSubject[lineNo] ; rowWho = outWho[lineNo] ; continue ; }
+			rowText = sldFallbacks( outLine[lineNo] ) ;
+			gsub( /&lt;/, "<", rowText ) ; gsub( /&gt;/, ">", rowText ) ; gsub( /&amp;/, "\\&", rowText ) ;
+			printf "%s\t%s\t%s\t%s\n", ( outAt[lineNo] != "" ? outAt[lineNo] : "-" ), ( rowSubject != "" ? rowSubject : "-" ), ( rowWho != "" ? rowWho : "-" ), rowText ;
+		}
+		exit 0 ;
+	}
 	## The boxes: each block one box, or more where it outgrows one (buildBlock), each line
 	## marked with the block it is in.
 	lineNo = 1 ; unitCount = 0 ;

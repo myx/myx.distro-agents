@@ -425,8 +425,9 @@ case "$1" in
 			echo "# $MDSC_CMD --member-comms-email-send: sending via smtp://${smtpHost}:${smtpPort} to: $recipients" >&2
 			local rc=0
 			(
-				msgFile="$MMDAPP/.local/temp/mdat-comms-email-message.$$"
-				mkdir -p "$MMDAPP/.local/temp" && : > "$msgFile" || exit 1
+				## A file of this message's own, by mktemp and never by $$: two sends from subshells of
+				## one shell have one $$, so they met on one name and one sent the other's text.
+				mkdir -p "$MMDAPP/.local/temp" && msgFile="$( mktemp "$MMDAPP/.local/temp/mdat-comms-email-message.XXXXXX" )" || exit 1
 				trap 'rm -f "$msgFile"' EXIT
 				chmod 600 "$msgFile" || exit 1
 

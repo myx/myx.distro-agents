@@ -17,13 +17,15 @@ rigRefuse(){
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -f "$rigRealTemplate" ] || rigRefuse "the brief template is not in the package: $rigRealTemplate"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsMainLoopPassBoundCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLoopPid=""
 ## A filled sandbox input/ loses its write bits (AgentsToolsSpawnSandboxFillInput's own
 ## read-only-by-mode contract), reached now that a pass's own spawn-prepare-brief
 ## resolves -- restored before any removal, final cleanup included.
-trap '[ -z "$rigLoopPid" ] || kill -KILL -- "-$rigLoopPid" 2>/dev/null ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap '[ -z "$rigLoopPid" ] || rigProcGroupSignal KILL "$rigLoopPid" ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 ## A rig stopped from outside still takes its loop with it.
 trap 'exit 1' INT TERM
 
@@ -77,9 +79,10 @@ rigLoopStart(){
 		' > "$rigDir/loop.out" 2> "$rigDir/loop.err" &
 	rigLoopPid=$!
 	set +m
+	rigProcNote "$rigLoopPid"
 }
 rigLoopStop(){
-	{ kill -TERM -- "-$rigLoopPid" ; sleep 2 ; kill -KILL -- "-$rigLoopPid" ; wait "$rigLoopPid" ; } 2>/dev/null
+	{ rigProcGroupSignal TERM "$rigLoopPid" ; sleep 2 ; rigProcGroupSignal KILL "$rigLoopPid" ; wait "$rigLoopPid" ; } 2>/dev/null
 	rigLoopPid=""
 }
 ## --one is a single, non-backgrounded iteration: run it in the foreground and

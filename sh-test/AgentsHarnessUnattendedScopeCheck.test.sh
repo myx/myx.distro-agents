@@ -16,6 +16,8 @@ rigRefuse(){
 [ -f "$rigHere/AgentsConsoleShellScript.template.sh" ] || rigRefuse "console template not found: $rigHere/AgentsConsoleShellScript.template.sh"
 [ -x "$rigTools" ] || rigRefuse "team tooling not found: $rigTools"
 
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessUnattendedScopeCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
@@ -50,11 +52,13 @@ rigRun(){ ## output file, command...
 	set -m
 	env -u MDAT_SESSION_UNATTENDED -u MDAT_SPAWN_SESSION_ID -u MDAT_DATA_ROOT -u CLAUDE_CODE_ENTRYPOINT HOME="$rigTmp/home" MMDAPP="$rigTmp/ws" "$@" > "$runOut" 2>&1 &
 	runPid=$!
-	( sleep 60 ; kill -KILL -- "-$runPid" ) 2>/dev/null &
+	rigProcNote "$runPid"
+	( sleep 60 ; rigProcGroupSignal KILL "$runPid" ) 2>/dev/null &
 	watchPid=$!
 	set +m
+	rigProcNote "$watchPid"
 	wait "$runPid" || runRc=$?
-	{ kill "$watchPid" ; wait "$watchPid" ; } 2>/dev/null
+	{ rigProcSignal TERM "$watchPid" ; wait "$watchPid" ; } 2>/dev/null
 	return "$runRc"
 }
 

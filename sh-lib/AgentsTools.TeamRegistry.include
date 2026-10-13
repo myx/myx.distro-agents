@@ -188,6 +188,27 @@ AgentsToolsTeamMemberDirectory(){ ## member
 	printf '%s\n' "$directoryFound"
 }
 
+## Whether a member's directory is that of an identity record and no acting member: its
+## SKILL.md says `status: reference-only`. human-owner is one, the record of a person. Read
+## as the grants and the access roots read it (AgentsTools.Grants.include,
+## AgentsTools.ClientAccessRoots.include). rc 1 for a directory that says no such thing, a
+## member with no SKILL.md and a name with no directory among them.
+AgentsToolsTeamMemberReferenceOnly(){ ## member directory
+	[ -n "${1:-}" ] && [ -f "$1/SKILL.md" ] && LC_ALL=C grep -q '^status: reference-only' "$1/SKILL.md" 2> /dev/null
+}
+
+## NOTHING RUNS AS AN IDENTITY RECORD. The one check of a start: rc 1, and one plain line on
+## stderr that names the member, where its directory is a reference-only one; rc 0, and
+## nothing said, for any other. The one place every start goes through asks it before it
+## makes anything (--intern-op-agent-spawn-proxy). An operation that would make something
+## first, or start one member before it reaches another, asks it too, ahead of that
+## (--magic-spawn-session, --manager-spawn-member): never a check of its own.
+AgentsToolsTeamMemberStartCheck(){ ## member, member directory, the operation asked, as the line names it
+	AgentsToolsTeamMemberReferenceOnly "${2:-}" || return 0
+	echo "⛔ ERROR: $MDSC_CMD $3: $1 is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started" >&2
+	return 1
+}
+
 ## The one routine file a routine name names, `<name>.routine` or its full
 ## `<member>.<name>.routine`, among the routines of every member AgentsToolsTeamMemberDirectoryText
 ## lists. Prints its path; rc 1 for none, or for a name several files carry.
@@ -214,13 +235,16 @@ AgentsToolsRoutineFile(){ ## routine name
 ## link goes -- a link to a member of another workspace among them -- and real content
 ## there is refused rather than removed. Non-zero on a failure.
 AgentsToolsTeamMemberIndexWrite(){ ## workspace
-	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n'
+	local writeWs="${1%/}" writeDir writeText writeName writeTarget writeRest writeSlot writeRc=0 writeNames=$'\n' writeTemp
 	writeWs="$( cd "$writeWs" && pwd )" || return 1
 	writeDir="$writeWs/.local/agents"
 	mkdir -p "$writeDir/members" || return 1
 	writeText="$( AgentsToolsTeamMemberIndexText "$writeWs" )" || return 1
-	if ! { printf '%s\n' "$writeText" | LC_ALL=C awk 'NF' > "$writeDir/members.index.tmp.$$" && mv -f "$writeDir/members.index.tmp.$$" "$writeDir/members.index" ; } ; then
-		rm -f "$writeDir/members.index.tmp.$$"
+	## A temp file of this write's own, by mktemp and never by $$, with its mode set on the
+	## temp (AgentsToolsRegistryWrite, AgentsTools.Registries.include).
+	writeTemp="$( mktemp "$writeDir/members.index.XXXXXX" )" || return 1
+	if ! { printf '%s\n' "$writeText" | LC_ALL=C awk 'NF' > "$writeTemp" && chmod 644 "$writeTemp" && mv -f "$writeTemp" "$writeDir/members.index" ; } ; then
+		rm -f "$writeTemp"
 		return 1
 	fi
 	while IFS=$'\t' read -r writeName writeTarget writeRest ; do

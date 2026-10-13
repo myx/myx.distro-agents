@@ -34,7 +34,7 @@ AgentsToolsRegistryLegacyFrontmatter(){ ## file
 AgentsToolsRegistryLegacySpawnedSessionsRows(){
 	local sandboxDir sessionFile headerText sawRecord
 	local rowTracking rowRecordTracking rowSession rowParent rowHost rowOwner rowStatus rowExit
-	local rowSpawn rowAgentLogThread rowSessionThread rowWorkspace
+	local rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowStarted rowResolved rowComment
 	for sandboxDir in "$MMDAPP/.local/agents/spawned"/*/ ; do
 		[ -d "$sandboxDir" ] || continue
 		## The sandbox root's own name is the tracking name, and is the fallback for
@@ -58,15 +58,19 @@ AgentsToolsRegistryLegacySpawnedSessionsRows(){
 			rowAgentLogThread="$( AgentsToolsRegistryLegacyHeader "$headerText" agent-log-thread )"
 			rowSessionThread="$( AgentsToolsRegistryLegacyHeader "$headerText" session-thread )"
 			rowWorkspace="$( AgentsToolsRegistryLegacyHeader "$headerText" workspace )"
+			## The three columns appended since, read the same per-column way.
+			rowStarted="$( AgentsToolsRegistryLegacyHeader "$headerText" started-at )"
+			rowResolved="$( AgentsToolsRegistryLegacyHeader "$headerText" resolved-at )"
+			rowComment="$( AgentsToolsRegistryLegacyHeader "$headerText" session-comment )"
 			## The record's own tracking-name wins over the folder name where it has
 			## one -- they agree unless a sandbox was moved by hand, and then the
 			## record is what the spawn itself wrote.
 			[ "$rowRecordTracking" = "-" ] || rowTracking="$rowRecordTracking"
-			printf '%s %s %s %s %s %s %s %s %s %s %s\n' "$rowTracking" "$rowSession" "$rowParent" "$rowHost" "$rowOwner" "$rowStatus" "$rowExit" "$rowSpawn" "$rowAgentLogThread" "$rowSessionThread" "$rowWorkspace"
+			printf '%s %s %s %s %s %s %s %s %s %s %s %s %s %s\n' "$rowTracking" "$rowSession" "$rowParent" "$rowHost" "$rowOwner" "$rowStatus" "$rowExit" "$rowSpawn" "$rowAgentLogThread" "$rowSessionThread" "$rowWorkspace" "$rowStarted" "$rowResolved" "$rowComment"
 		done
 		## An empty sandbox is a listed session, not a missing one. It has no session
 		## id to be reached by, and saying so is the point.
-		[ "$sawRecord" = "true" ] || printf '%s - - - - no-session-record - - - - -\n' "$rowTracking"
+		[ "$sawRecord" = "true" ] || printf '%s - - - - no-session-record - - - - - - - -\n' "$rowTracking"
 	done
 	return 0
 }
@@ -163,7 +167,7 @@ AgentsToolsRegistryLegacyRecordedRun(){ ## spawn id
 AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, state filter
 	local viewWanted="${1:-agents}" filterSession="${2:-}" filterState="${3:-}"
 	local registryFile psText thisHost thisWorkspace
-	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowLive rowState
+	local rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowLive rowState rowAppended
 	local extendedRows="" registryRow sawRow="false" sawAny="false"
 	registryFile="$( AgentsToolsRegistryFile spawned-sessions )"
 	printf '%s\n\n' "## spawned sessions"
@@ -184,9 +188,12 @@ AgentsToolsRegistryLegacyRenderSpawnedSessions(){ ## view, session-id filter, st
 	printf 'this-host: %s\n' "$thisHost"
 	printf 'this-workspace: %s\n' "$thisWorkspace"
 	psText="$( ps -A -ww -o pid=,args= 2>/dev/null )" || psText=""
-	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace ; do
+	## The three columns appended to the registry file since are not this render's: it prints thirteen.
+	## A row of more words than columns keeps them all together, as it did before them.
+	while read -r rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLogThread rowSessionThread rowWorkspace rowAppended ; do
 		[ -n "$rowTracking" ] || continue
 		sawAny="true"
+		case "$rowAppended" in *' '*' '*' '*) rowWorkspace="$rowWorkspace $rowAppended" ;; esac
 		if [ "$rowSpawn" = "-" ] ; then
 			## No spawn id, so there is no handle to ask about on any machine.
 			rowLive="no-spawn-id"

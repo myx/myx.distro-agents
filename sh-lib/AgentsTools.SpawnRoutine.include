@@ -148,3 +148,38 @@ AgentsToolsSpawnRoutineContractExecutorsInvitees(){ ## contract-check output (it
 	printf '%s\n' "${ceExecutorsLine#executors: }"
 	printf '%s\n' "${ceInviteesLine#invitees: }"
 }
+
+## The roster a routine's own executors value names, for a start with no member named: one
+## member on a line, where the value is a plain comma-separated list of existing members,
+## each name trimmed. Anything else names no spawnable roster: rc 1, and one line that says
+## why -- `any-member` for an empty value and for the "any member" shorthand (`magic-team`,
+## `*`, per magic-team.shared.md), `empty-name` for a list with an empty place, and
+## `no-member<TAB><name>` for the first name no workspace of this machine holds a member of
+## (AgentsToolsTeamMemberDirectory), prose among them. THE ONE RULE of what a routine starts
+## by itself: --magic-spawn-session starts by it, and --manager-routine-list prints it.
+AgentsToolsSpawnRoutineExecutorsRoster(){ ## executors value
+	local rosterValue rosterList rosterName rosterNames=""
+	rosterValue="$( printf '%s' "$1" | LC_ALL=C awk '{ gsub(/^[ \t]+|[ \t]+$/, "") ; print ; }' )"
+	case "$rosterValue" in
+		''|'*'|'magic-team')
+			printf 'any-member\n'
+			return 1
+		;;
+	esac
+	IFS=',' read -r -a rosterList <<< "$rosterValue"
+	for rosterName in "${rosterList[@]}" ; do
+		rosterName="${rosterName#"${rosterName%%[![:space:]]*}"}"
+		rosterName="${rosterName%"${rosterName##*[![:space:]]}"}"
+		if [ -z "$rosterName" ] ; then
+			printf 'empty-name\n'
+			return 1
+		fi
+		if ! AgentsToolsTeamMemberDirectory "$rosterName" > /dev/null ; then
+			printf 'no-member\t%s\n' "$rosterName"
+			return 1
+		fi
+		rosterNames="$rosterNames$rosterName"$'\n'
+	done
+	printf '%s' "$rosterNames"
+	return 0
+}

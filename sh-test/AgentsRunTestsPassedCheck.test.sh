@@ -21,10 +21,12 @@ rigRefuse(){
 }
 [ -f "$rigRunner" ] || rigRefuse "the runner is not at the origin this workspace resolves: $rigRunner"
 [ -f "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" ] || rigRefuse "myx.common lib/parallel, which the runner runs its tests with, is not at ${MYXROOT:-/usr/local/share/myx.common}"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsRunTestsPassedCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'for rigLeft in $rigStarted ; do kill "$rigLeft" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignal TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws" ; rigMembers="$rigTmp/members" ; rigCommon="$rigTmp/myx.common"
 rigRecord="$rigHome/.agents/magic-team/suite-results"
 mkdir -p "$rigHome" "$rigWs/.local/temp" "$rigMembers/rig-member" "$rigCommon"
@@ -78,7 +80,7 @@ rigRun(){ ## session, runner args... -- that session's runner, started in the ba
 	( cd "$rigWs" && exec env -i HOME="${rigHomeFor:-$rigHome}" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="$rigCommon" MDAT_SKILLSET_ROOT="$rigMembers" RIG_SHARED="$rigTmp" RIG_SUITE="$1" \
 		bash "$( rigPkg "$1" )/sh-test/AgentsRunTests.sh" "${@:2}" ) > "$rigTmp/$1.out" 2>&1 &
 	rigLast=$!
-	rigStarted="$rigStarted $rigLast"
+	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
 }
 rigEnd(){ ## pid -- waits for that runner, its rc in rigRc
 	rigRc=0 ; wait "$1" 2> /dev/null || rigRc=$?

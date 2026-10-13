@@ -21,8 +21,8 @@ AgentsToolsClientCommsSnapshotBeforeWrite(){ ## actingMember, writeOp, system, r
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not read the current $snapResourceType to snapshot it -- refusing the write" >&2
 		return 1
 	fi
-	snapTmp="$MMDAPP/.local/temp/mdat-snapshot.$$"
-	mkdir -p "$MMDAPP/.local/temp" || {
+	## A file of this snapshot's own, by mktemp and never by $$, which every subshell of one shell shares.
+	mkdir -p "$MMDAPP/.local/temp" && snapTmp="$( mktemp "$MMDAPP/.local/temp/mdat-snapshot.XXXXXX" )" || {
 		printf '%s\n' "⛔ ERROR: $MDSC_CMD --$snapWriteOp: could not create the snapshot scratch directory -- refusing the write" >&2
 		return 1
 	}

@@ -307,8 +307,9 @@ AgentsToolsCommsSlackFileInfo(){ ## <team-member> <file-id> [--identity-bot] | -
 	## response is parsed field by field, and RESPONSE_BODY= in the diagnostic
 	## is what maps file_not_found/file_deleted to rc 3/4 -- and a substitution
 	## yields one capture, so the second stream needs a real sink.
-	local diagFile="$MMDAPP/.local/temp/mdat-slack-file-info-diag.$$"
-	mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
+	## Its own, by mktemp and never by $$, which every subshell of one shell shares.
+	local diagFile
+	mkdir -p "$MMDAPP/.local/temp" && diagFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-file-info-diag.XXXXXX" )" || { set +e ; return 1 ; }
 	chmod 600 "$diagFile"
 
 	echo "# $MDSC_CMD --member-comms-slack-file-info: GET files.info file=$fileId (metadata only -- no file content is retrieved by this op, acting member $memberName)" >&2
@@ -1064,8 +1065,9 @@ case "$1" in
 			## documented stdout contract is DELETE_TARGET, DELETE_STATE, then the raw
 			## response -- and a substitution yields one capture, so the second stream
 			## needs a real sink. One for the whole run, not one per target.
-			local diagFile="$MMDAPP/.local/temp/mdat-slack-delete-diag.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$diagFile" || { set +e ; return 1 ; }
+			## Its own, by mktemp and never by $$, which every subshell of one shell shares.
+			local diagFile
+			mkdir -p "$MMDAPP/.local/temp" && diagFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-delete-diag.XXXXXX" )" || { set +e ; return 1 ; }
 			chmod 600 "$diagFile"
 
 			local deleteTotal="${#deleteTargets[@]}" deleteDone=0 deleteFailed=0
@@ -1714,8 +1716,8 @@ case "$1" in
 			## --from-stdin is buffered because step 1 needs the byte length up front.
 			local shareBodyFile="$shareFromFile"
 			if [ "$shareFromStdin" = "true" ] ; then
-				shareStdinFile="$MMDAPP/.local/temp/mdat-slack-share-stdin.$$"
-				mkdir -p "$MMDAPP/.local/temp" && : > "$shareStdinFile" || { set +e ; return 1 ; }
+				## A file of this share's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && shareStdinFile="$( mktemp "$MMDAPP/.local/temp/mdat-slack-share-stdin.XXXXXX" )" || { set +e ; return 1 ; }
 				chmod 600 "$shareStdinFile"
 				cat > "$shareStdinFile"
 				shareBodyFile="$shareStdinFile"

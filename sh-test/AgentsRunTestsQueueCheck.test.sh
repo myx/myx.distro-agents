@@ -24,10 +24,12 @@ rigRefuse(){
 }
 [ -f "$rigRunner" ] || rigRefuse "the runner is not at the origin this workspace resolves: $rigRunner"
 [ -f "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" ] || rigRefuse "myx.common lib/parallel, which the runner runs its tests with, is not at ${MYXROOT:-/usr/local/share/myx.common}"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsRunTestsQueueCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStarted=""
-trap 'for rigLeft in $rigStarted ; do kill "$rigLeft" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignal TERM $rigStarted ; rm -rf -- "$rigTmp"' EXIT
 rigHome="$rigTmp/home" ; rigWs="$rigTmp/ws"
 rigQueue="$rigHome/.agents/magic-team/suite-queue"
 rigWorkers="$rigHome/.agents/magic-team/suite-workers"
@@ -79,7 +81,7 @@ rigRun(){ ## session, runner args... -- that session's runner, started in the ba
 	( cd "$rigWs" && exec env -i HOME="${rigHomeFor:-$rigHome}" PATH="$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="${MYXROOT:-}" RIG_SHARED="$rigTmp" RIG_SUITE="$1" RIG_HOLD="$rigHold" \
 		bash "$( rigRoot "$1" )/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" "${@:2}" ) > "$rigTmp/$1.out" 2>&1 &
 	rigLast=$!
-	rigStarted="$rigStarted $rigLast"
+	rigStarted="$rigStarted $rigLast" ; rigProcNote "$rigLast"
 }
 rigEnd(){ ## pid -- waits for that runner, its rc in rigRc
 	rigRc=0 ; wait "$1" 2> /dev/null || rigRc=$?
@@ -189,14 +191,14 @@ echo "-- 4. a turn held by a process that no longer exists is released by itself
 rigFresh
 mkdir -p "$rigQueue"
 rigDead="$( rigDeadPid )"
-sleep 60 & rigOther=$! ; rigStarted="$rigStarted $rigOther"
+sleep 60 & rigOther=$! ; rigStarted="$rigStarted $rigOther" ; rigProcNote "$rigOther"
 printf 'pid=%s\norigin=%s\nsince=2026-01-01T00:00:00Z\n' "$rigDead" "$( rigRoot b )" > "$rigQueue/0000000001.000000.$rigDead.ticket"
 printf 'pid=%s\norigin=%s\nsince=2026-01-01T00:00:01Z\n' "$rigOther" "$( rigRoot c )" > "$rigQueue/0000000002.000000.$rigOther.ticket"
 : > "$rigQueue/0000000003.000000.7.ticket"
 rigRun a ; rigEnd "$rigLast"
 rigAssert "tickets ahead whose runner is gone, is a process that is no runner, or was never written whole: the suite runs at once, saying nothing of waiting" "$rigRc $( rigWaits a ) $( rigOrder )" "0 0 BEGIN a END a"
 rigAssert "and they are taken out of the line" "$( rigTickets )" 0
-kill "$rigOther" 2> /dev/null ; wait "$rigOther" 2> /dev/null
+rigProcSignal TERM "$rigOther" ; wait "$rigOther" 2> /dev/null
 mkdir -p "$rigLock" ; printf 'runner-pid: %s\nagent: AgentsRunTests.sh, a full suite from %s\ntaken: 2026-01-01T00:00:00Z\n' "$rigDead" "$( rigRoot b )" > "$rigLock/holder.txt"
 : > "$rigTmp/log"
 rigRun a ; rigEnd "$rigLast"
@@ -320,12 +322,12 @@ rigCores="$( sysctl -n hw.ncpu 2> /dev/null || getconf _NPROCESSORS_ONLN 2> /dev
 rigHalf=$(( rigCores / 2 )) ; [ "$rigHalf" -ge 1 ] || rigHalf=1
 mkdir -p "$rigWorkers" ; : > "$rigWorkers/state" ; rigHolders=""
 for (( rigHolder = 1 ; rigHolder <= rigHalf ; rigHolder++ )) ; do
-	sleep 600 & rigHolders="$rigHolders $!" ; rigStarted="$rigStarted $!" ; printf 'H %s\n' "$!" >> "$rigWorkers/state"
+	sleep 600 & rigHolders="$rigHolders $!" ; rigStarted="$rigStarted $!" ; printf 'H %s\n' "$!" >> "$rigWorkers/state" ; rigProcNote "$!"
 done
 rigRun n RigTiny ; rigPidN=$rigLast
 rigUntil 'a test waits for a worker slot' "$rigTmp/n.out" || rigRefuse "with every slot of the default budget held, the test never said it waits"
 rigAssert "with no budget set it is half the machine's cores: that many held, and a test waits, saying so" "[$( rigOrder )] $( LC_ALL=C grep -c -F -- "a test waits for a worker slot: $rigHalf of $rigHalf in use on this machine" "$rigTmp/n.out" || : )" "[] 1"
-kill ${rigHolders%% [0-9]*} 2> /dev/null ; kill $rigHolders 2> /dev/null
+rigProcSignal TERM ${rigHolders%% [0-9]*} ; rigProcSignal TERM $rigHolders
 rigEnd "$rigPidN"
 rigAssert "and it runs once a holder is gone" "$rigRc $( rigOrder )" "0 BEGIN n END n"
 

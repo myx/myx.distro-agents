@@ -43,10 +43,12 @@ rigRefuse(){
 for rigNeed in magic-tester magic-developer magic-coordinator ; do
 	[ -r "${MDAT_SKILLSET_ROOT:-}/$rigNeed/$rigNeed.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigNeed"
 done
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessAskForgedMarkCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0
 rigFailCount=0
@@ -410,7 +412,7 @@ revStart(){ ## scenario name
 	: > "$revDir/transcript.log"
 	printf '%s\n' "$revDir/transcript.log" > "$revWs/.local/agents/sessions/$revSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$revSpawn" > /dev/null 2>&1 < /dev/null &
-	rigLivePids="$rigLivePids $!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	disown "$!" 2> /dev/null || :
 	revAsChild "$revDir/handback" --intern-op-review-handback keeper-myx --session-id "$revSpawn" --message "rig work done"
 }

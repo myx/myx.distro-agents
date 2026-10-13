@@ -142,7 +142,8 @@ AgentsHarnessMcpIndexText(){ ## workspace [use-spec]
 AgentsHarnessMcpIndexWrite(){ ## workspace [use-spec]
 	local writeIndex="$1/.local/agents/mcp.servers.index" writeTmp
 	mkdir -p "$1/.local/agents" || return 1
-	writeTmp="$writeIndex.tmp.$$"
+	## a temp file of this write's own, by mktemp and never by $$ (AgentsToolsRegistryWrite)
+	writeTmp="$( mktemp "$writeIndex.XXXXXX" )" || return 1
 	AgentsHarnessMcpIndexText "$1" "${2:-}" > "$writeTmp" || { rm -f "$writeTmp" ; return 1 ; }
 	chmod 644 "$writeTmp" && mv -f "$writeTmp" "$writeIndex" || { rm -f "$writeTmp" ; return 1 ; }
 }

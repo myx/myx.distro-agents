@@ -149,11 +149,13 @@ AgentsHarnessHooksIndexText(){ ## [records]
 ## Writes the index for one workspace from the policy, atomically. Non-zero when it
 ## could not be written.
 AgentsHarnessHooksIndexWrite(){ ## workspace
-	local writeFile="$1/.local/agents/harness.hooks.index" writeText
+	local writeFile="$1/.local/agents/harness.hooks.index" writeText writeTemp
 	writeText="$( AgentsHarnessHooksIndexText )" || return 1
 	mkdir -p "$1/.local/agents" || return 1
-	if ! { printf '%s\n' "$writeText" > "$writeFile.tmp.$$" && chmod 644 "$writeFile.tmp.$$" && mv -f "$writeFile.tmp.$$" "$writeFile" ; } ; then
-		rm -f "$writeFile.tmp.$$"
+	## a temp file of this write's own, by mktemp and never by $$ (AgentsToolsRegistryWrite)
+	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || return 1
+	if ! { printf '%s\n' "$writeText" > "$writeTemp" && chmod 644 "$writeTemp" && mv -f "$writeTemp" "$writeFile" ; } ; then
+		rm -f "$writeTemp"
 		return 1
 	fi
 }

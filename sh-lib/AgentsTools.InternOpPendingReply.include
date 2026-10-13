@@ -340,8 +340,8 @@ case "$1" in
 		## parser exists and a failure leaves the record exactly as it was -- an open
 		## record is recoverable by a rescan, a truncated one is not.
 		local pendingOps pendingBody
-		pendingOps="$MMDAPP/.local/temp/mdat-pending-reply-ops.$$.$RANDOM"
-		mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
+		## A file of this close's own, by mktemp: $$ is one for every subshell of one shell, and $RANDOM beside it is no promise.
+		mkdir -p "$MMDAPP/.local/temp" && pendingOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-ops.XXXXXX" )" || { AgentsToolsLocalLockGive "$pendingLock" ; set +e ; return 1 ; }
 		{
 			printf 'upsert\tstatus\t%s\n' "$pendingStatus"
 			if [ -n "$pendingAmend" ] ; then
@@ -482,11 +482,12 @@ case "$1" in
 				fa = a ; sub( /^[^.]*\.?/, "", fa ) ; fb = b ; sub( /^[^.]*\.?/, "", fb ) ;
 				fa = substr( fa "000000", 1, 6 ) ; fb = substr( fb "000000", 1, 6 ) ;
 				exit ( ( sa + 0 > sb + 0 || ( sa + 0 == sb + 0 && fa > fb ) ) ? 0 : 1 ) ; }' ; then
-				local clarOps="$MMDAPP/.local/temp/mdat-pending-reply-clarify-ops.$$.$RANDOM"
+				local clarOps=""
 				clarBody=""
-				mkdir -p "$MMDAPP/.local/temp" && printf 'upsert\tfollow-floor\t%s\n' "$clarFloor" > "$clarOps" \
+				mkdir -p "$MMDAPP/.local/temp" && clarOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-clarify-ops.XXXXXX" )" \
+					&& printf 'upsert\tfollow-floor\t%s\n' "$clarFloor" > "$clarOps" \
 					&& clarBody="$( LC_ALL=C awk -v opsFile="$clarOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$clarFile" )" || clarBody=""
-				rm -f "$clarOps"
+				[ -z "$clarOps" ] || rm -f "$clarOps"
 				if [ -n "$clarBody" ] ; then
 					{ printf '%s\n' "$clarBody" > "$clarFile.$$" && mv -f "$clarFile.$$" "$clarFile" ; } || rm -f "$clarFile.$$"
 				else
@@ -558,8 +559,7 @@ case "$1" in
 		revCount="$( LC_ALL=C awk 'NR > 1 && $0 == "---" { exit ; } index( $0, "revisions: " ) == 1 { print substr( $0, 12 ) ; exit ; }' "$revFile" )"
 		case "$revCount" in ''|*[!0-9]*) revCount=0 ;; esac
 		revCount=$(( revCount + 1 ))
-		revOps="$MMDAPP/.local/temp/mdat-pending-reply-revise-ops.$$.$RANDOM"
-		mkdir -p "$MMDAPP/.local/temp" || { AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
+		mkdir -p "$MMDAPP/.local/temp" && revOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-revise-ops.XXXXXX" )" || { AgentsToolsLocalLockGive "$revLock" ; set +e ; return 1 ; }
 		{
 			printf 'upsert\trevision-ts\t%s\n' "${revTs//$'\n'/ }"
 			printf 'upsert\trevisions\t%s\n' "$revCount"

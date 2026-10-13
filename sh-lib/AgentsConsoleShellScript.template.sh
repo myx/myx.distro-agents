@@ -73,7 +73,7 @@ DAGC_CLI="copilot"
 DAGC_CLI_GIVEN="false"
 DAGC_CLI_AUTO="false"
 DAGC_CLI_CONFIGURED="false"
-## Where DAGC_CLI came from, for the message a bash console prints when it cannot start it.
+## Where DAGC_CLI came from, for the message the console prints when it cannot start it.
 DAGC_CLI_BY="the default"
 ## ---- harness legs, one mechanism for every provider ---------------------
 ## A harness leg is a FILE, not a name in a list. sh-lib/Agents<Name>Harness.sh
@@ -252,8 +252,13 @@ DagcExecBashConsole(){ ## the reason this is a bash console and not an agent CLI
 	export MDAT_CONSOLE_FALLBACK_REASON="$1"
 	exec bash --rcfile "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/console-agents-bashrc.rc" -i
 }
+DAGC_MANAGER="false"
 while true ; do
 	case "$1" in
+		--manager)
+			DAGC_MANAGER="true"
+			shift
+		;;
 		--cli-auto)
 			DAGC_CLI_AUTO="true"
 			shift
@@ -278,6 +283,27 @@ while true ; do
 		;;
 	esac
 done
+## --manager starts the manager screen in place of any agent CLI, whatever CLI service is
+## configured: nothing of a CLI is selected or started for it, so it is taken here, ahead of
+## the selection. It runs the tooling's own --intern-manager, which says why where the screen
+## cannot start (no terminal, a Python with no curses module). It is no spawn and takes
+## nothing after it: with --non-interactive, in either order, it is refused.
+if [ "$DAGC_MANAGER" = "true" ] || { [ "$1" = "--non-interactive" ] && [ "${2:-}" = "--manager" ] ; } ; then
+	if [ "$1" = "--non-interactive" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: --manager starts the manager screen in a terminal, and --non-interactive starts a spawn with none: they cannot be given together. Nothing was started." >&2
+		exit 1
+	fi
+	if [ $# -gt 0 ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: --manager takes nothing after it (got: $1). Nothing was started." >&2
+		exit 1
+	fi
+	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: --manager runs --intern-manager, which needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
+		exit 1
+	fi
+	exec "$DAGC_MANAGER_TOOLS" --intern-manager
+fi
 # --cli-auto takes magic-team's own SPAWN_CLI_SERVICE where it is set, else the first installed known CLI.
 # --cli-configured takes the same setting and stops there: an unset setting means no external CLI was chosen,
 # which is a different answer from "none could be started" and is reported as rc=5 so a caller can branch on it.
@@ -341,19 +367,24 @@ case " $DAGC_SELECTABLE_CLIS " in
 		fi
 	;;
 esac
-## An interactive launch (no --non-interactive) of a harness leg (claude, copilot,
-## scaleway) runs the existing `DistroAgentsTools.fn.sh --intern-root-harness`, with
-## no option of its own, started as it is by hand; this terminal is only where its
-## output goes. No vendor binary is run and nothing is renamed to -native. That
-## operation resolves the CLI itself from SPAWN_CLI_SERVICE, so it is run only for a
-## leg that setting named; a leg chosen any other way (--cli, the PATH scan) cannot
-## be what it would run, and opens the bash console and says what happened.
+## An interactive launch (no --non-interactive) of a harness leg (claude, copilot, grok,
+## scaleway) starts the manager screen, however the leg was chosen: by SPAWN_CLI_SERVICE,
+## by --cli or by the PATH scan. A leg has no interactive shape of its own, and every
+## session is interactive through Slack, so the console keeps no interactive root session:
+## the root session is one more session, started from the screen as any other. The screen
+## is run exactly as --manager runs it, by the tooling's own --intern-manager, which says
+## why in one line and ends with status 1 where it cannot start (no terminal, a Python
+## with no curses module): no root harness, no vendor binary and no bash console is
+## started in its place. Words after the flags are not handed on: the screen takes none,
+## as the root harness took none. A vendor CLI, a -native name, stays what an interactive
+## start runs, and a spawn (--non-interactive) runs its leg as before.
 if [ "$1" != "--non-interactive" ] && DagcCliIsLeg "$DAGC_CLI" ; then
-	DAGC_ROOT_HARNESS_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
-	if [ "$DAGC_CLI_BY" = "SPAWN_CLI_SERVICE" ] && [ -x "$DAGC_ROOT_HARNESS_TOOLS" ] ; then
-		exec "$DAGC_ROOT_HARNESS_TOOLS" --intern-root-harness
+	DAGC_MANAGER_TOOLS="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
+	if [ ! -x "$DAGC_MANAGER_TOOLS" ] ; then
+		echo "⛔ ERROR: DistroAgentsConsole: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg is the manager screen, which runs --intern-manager and needs $DAGC_MANAGER_TOOLS to be executable. Nothing was started." >&2
+		exit 1
 	fi
-	DagcExecBashConsole "nothing was started: '$DAGC_CLI' is a harness leg (chosen by $DAGC_CLI_BY), and an interactive start of a leg runs --intern-root-harness, which takes its CLI from SPAWN_CLI_SERVICE and needs $DAGC_ROOT_HARNESS_TOOLS to be executable."
+	exec "$DAGC_MANAGER_TOOLS" --intern-manager
 fi
 if [ "$1" == "--non-interactive" ] ; then
 	## The leg test comes first, and is not covered by the set above: that set

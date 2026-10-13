@@ -107,7 +107,13 @@ AgentsEventTrackFeedRun(){ ## the participant's own session id, member, the sess
 	[ -n "$3" ] && [ -n "${MMDAPP:-}" ] || return 0
 	runFeed="$MMDAPP/.local/agents/sessions/$1/feed"
 	runTaken="$runFeed.posting"
-	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT HUP
+	## A hangup ends the poster only where it ends its run. A detached run ignores it (the
+	## spawn proxy's trap '' HUP, which the poster starts under), and its poster goes on with
+	## it: it is ended as its run ends, by the TERM its proxy sends. Where the hangup is not
+	## ignored, the run dies of it, and the poster posts what is open and ends, as on TERM.
+	local runHangup="HUP"
+	case "$( trap -p HUP )" in "trap -- '' "*) runHangup="" ;; esac
+	trap 'AgentsEventTrackFeedPost "$2" "$3" "$runOpen" "$1" 1 > /dev/null ; AgentsEventTrackFeedDrop "$runTaken" "$runOffset" ; exit 0' TERM INT $runHangup
 	while : ; do
 		## The feed taken at the last poll goes once all of it is read. A poll later, never at
 		## once: a write that opened the feed just before it was taken has landed by then.

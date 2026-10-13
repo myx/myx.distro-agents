@@ -168,8 +168,8 @@ rigAssert "a local row wins the bare name, the other is name@workspace, and no w
 
 echo "-- 4. registration, the earlier list, and the readers --"
 rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigHere/AgentsTools.Make.include" )"
-rigAssert "every update registers the workspace: --make-workspace-integrations runs the registration, then the member homes after the install" \
-	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --intern-directory-register / { a = NR } /DistroAgentsTools --install-workspace-integrations / { b = NR } /DistroAgentsTools --intern-member-home-register / { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
+rigAssert "every update registers the workspace: --make-workspace-integrations runs the registration, then the member homes after the part of the install that writes the member registry" \
+	"$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --intern-directory-register / { a = NR } /DistroAgentsTools --install-workspace-integrations / && !b { b = NR } /DistroAgentsTools --intern-member-home-register / { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
 rigAssert "the member install registers no workspace" "$( LC_ALL=C grep -c -e '--owner-workspace-upsert' -e 'directories.registry' "$rigHere/AgentsTools.Install.include" )" 0
 rigAssert "the * grant expansion walks the known workspace roots, this workspace first" "$( LC_ALL=C grep -c 'agentsGrantsRoots="$( AgentsToolsPlacesWorkspaceRoots "$regWs" )"' "$rigHere/AgentsTools.Grants.include" )" 1
 rigRoots(){ ## workspace name -- AgentsToolsPlacesWorkspaceRoots from there under rigRunHome

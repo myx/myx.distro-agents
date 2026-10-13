@@ -20,6 +20,8 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to record under"
 
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessEscalationEdgeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -151,6 +153,7 @@ rigAsk(){ ## target path
 	rigTool rig-asker AskUserQuestion "{\"to\":\"magic-team\",\"question\":\"May this task write the refused file ${1##*/}?\",\"address_to\":\"magic-coordinator\",\"kind\":\"permission\",\"refusal_id\":\"$( rigRefusalId "$rigScenarioDir/refused" )\",\"reason\":\"rig\",\"task_ref\":\"dispatch-rig\"}" "$rigScenarioDir/ask" &
 	rigAskPid=$!
 	set +m
+	rigProcNote "$rigAskPid"
 	local waitLeft=20
 	rigPending=""
 	while [ -z "$rigPending" ] && [ "$waitLeft" -gt 0 ] ; do
@@ -173,7 +176,7 @@ rigGrantCount(){ ## refusal id
 	LC_ALL=C grep -c -F -- "$1" "$rigScenarioDir/ws/.local/agents/sessions/rig-asker/grants" || :
 }
 rigAskStop(){
-	{ kill -TERM -- "-$rigAskPid" ; sleep 1 ; kill -KILL -- "-$rigAskPid" ; wait "$rigAskPid" ; } 2>/dev/null
+	{ rigProcGroupSignal TERM "$rigAskPid" ; sleep 1 ; rigProcGroupSignal KILL "$rigAskPid" ; wait "$rigAskPid" ; } 2>/dev/null
 }
 rigAsk "$rigScenarioDir/ws/OUT/p"
 rigPendingFile="$rigScenarioDir/ws/.local/agents/pending/$rigPending.md"
@@ -230,10 +233,11 @@ rigAskStop
 rigAsk "$rigScenarioDir/ws/OUT/claim-live"
 sleep 120 &
 rigLivePid=$!
+rigProcNote "$rigLivePid"
 rigClaimSet "$rigClaimHost:$rigLivePid:$( rigClaimStart "$rigLivePid" )"
 rigAssert "a claim held by a live applier is not taken: nothing applied, no grant, no second holder" "$( rigClaimAnswer )" "0:1:0:1"
 rigAssert "and the record stays open"                  "$( LC_ALL=C grep -c '^status: reply-pending$' "$rigPendingFile" )" 1
-{ kill "$rigLivePid" ; wait "$rigLivePid" ; } 2>/dev/null
+{ rigProcSignal TERM "$rigLivePid" ; wait "$rigLivePid" ; } 2>/dev/null
 rigAssert "once that holder is gone, the answer is applied, once" "$( rigClaimAnswer )" "1:0:1:2"
 rigAskStop
 ## The same pid started at another time is another process: its holder is gone.

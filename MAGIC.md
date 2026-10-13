@@ -55,7 +55,10 @@ that the code and docs do not readily tell you.
   `AgentsTools.ClientComms.include`. `--member-comms-<service>-*` and `--intern-op-comms-<service>-*`
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
-  two arms are identical today.
+  two arms are identical today. `--manager-*` → `sh-lib/AgentsTools.Manager.include`, one further
+  include per subject: sessions `AgentsTools.ManagerSession.include`, routines
+  `AgentsTools.ManagerRoutine.include`, spawning `AgentsTools.ManagerSpawn.include`, settings
+  `AgentsTools.ManagerConfig.include`, team members `AgentsTools.ManagerTeamMember.include`.
 - **One team, two organisations.** A call reaches our own organisation unless it is on the client
   side: a `--client-*` operation, or a `client:` address, of a `client-*` member
   (`AgentsTools.CommsSide.include`). A `client-*` member's own settings for an outside system are the
@@ -79,10 +82,14 @@ that the code and docs do not readily tell you.
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
   `--intern-artifact-*` is one, approved for the Artifact publish (`AgentsTools.InternArtifact.include`).
+  `--intern-manager` is another, approved for the console's manager screen: no argument, runs
+  `sh-lib/AgentsManagerScreen.py` with Python.
 - **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
   even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
   for any member, the tooling checking access on its arguments; `--magic-*` for the coordinator only;
-  `--owner-*` for the human. Older `--intern-op-*` ops used by tooling break it. Those called only
+  `--owner-*` for the human; `--manager-*` for the console itself, nobody's member, taking no member as
+  its second word, refused from inside any member's session, the coordinator's included
+  (`AgentsToolsManagerCallerCheck`, asked once where the family is dispatched). Older `--intern-op-*` ops used by tooling break it. Those called only
   from a set-up context are now in-context helpers with no operation: `--intern-op-slack-check` →
   `AgentsToolsSlackCheck`, `-url-post-bytes` → `AgentsToolsUrlPostBytes`, `-comms-slack-file-info` →
   `AgentsToolsCommsSlackFileInfo`, `-comms-slack-resolve-ids` → `AgentsToolsCommsSlackResolveIds`,
@@ -225,12 +232,16 @@ that the code and docs do not readily tell you.
 - **Installing a generated file over its target**: the writer emits, the caller installs, through a temp
   beside the target and a same-directory rename. Several temp spellings exist (`<t>.$$` in a trapped
   subshell, `<t>.$$.tmp`, `mktemp <t>.XXXXXX`, `<t>.tmp.$$` in `AgentsTools.Install.include`). Do not
-  convert one to another; a new site uses its file's form. Never under `/tmp` (no atomic rename, symlink
+  convert one to another; a new site uses its file's form -- except that a new `$$` name is never that
+  form: `mktemp <name>.XXXXXX` is the one correct idiom now. Never under `/tmp` (no atomic rename, symlink
   planting). Set a mode on the temp, never the target. Check the entry landed by re-running the
   idempotent writer and comparing.
-- **Scratch paths**: `mktemp -d -t "<prefix>-XXXXXXXX"`, or `$MMDAPP/.local/temp/<name>.$$` spelled out at
-  each use. `${TMPDIR:-/tmp}` is only for code that runs where no workspace exists. Concurrent scans
-  share one `$$`, so they use `mktemp`.
+- **Scratch paths**: `mktemp -d -t "<prefix>-XXXXXXXX"`, or a scratch file made with
+  `mktemp "$MMDAPP/.local/temp/<name>.XXXXXX"` (after `mkdir -p` of its folder). `${TMPDIR:-/tmp}` is
+  only for code that runs where no workspace exists. A name spelled with the shell's own process id
+  (`<name>.$$`) is shared by every subshell of that one shell, so two writers of one call can collide
+  on it; such a name stands only where `AgentsTempNamesCheck` already lists it, with its reason -- a
+  new site that makes one fails that test.
 - **Severity marks**: `⛔ ERROR` for a fault, `🙋 WARNING` for a designed refusal. Keep the asymmetry. A
   warning inside a composed operation is lost in scrollback, so the closing summary repeats it.
 - **The bare-name gate** (`AgentsToolsAssertBareName`) validates every member, item and document name.
@@ -336,7 +347,7 @@ User-facing behaviour is in [docs/configuration.md](docs/configuration.md).
   prints only for two or more source copies, or for a copy of neither kind; one source copy with any
   number of `.local` copies says nothing. The machine `members.registry` keeps every row.
 - **The member index** `$MMDAPP/.local/agents/members.index` and its `members/` view hold this
-  workspace's own members only. Built by `--install-skillset-symlinks` and `--make-agents-indices`; a
+  workspace's own members only. Built by `--install-skillset-symlinks` and `--make-harness-indices`; a
   rewrite drops any link to another workspace's member. A member of another workspace is never
   materialised here: a reader that names one (routing, a spawn, the client sweeps) finds it through
   the machine-wide registry (`AgentsToolsTeamMemberDirectory`, the row holding its source preferred),
@@ -442,13 +453,19 @@ User grammar is in [docs/commands.md](docs/commands.md); per-domain manuals are 
 
 User steps are in [docs/installation.md](docs/installation.md).
 
-- **`--make-workspace-integrations`** runs `--intern-directory-register`, `--make-agents-indices` (its
-  grants are unrolled over the places just registered), `--make-console-command`, `--install-workspace-integrations`, `--intern-member-home-register`, then
-  `--install-workspace-restrictions` only when `.claude/hooks/deny-native-tool-reroute.sh` exists, then
-  `--make-harness-indices` last. Workspace registration is this step's, never a member install's.
-- **`--install-workspace-integrations`** calls `--install-vscode-integrations`,
-  `--install-skillset-symlinks`, `--install-claude-workspace-trust`, `--install-claude-permissions` and
-  `--install-copilot-access-fragment`. With `--install-workspace-restrictions` it is one of the two root
+- **`--make-workspace-integrations`** runs seven steps, in order: `--intern-directory-register` (the
+  places); `--make-console-command`; the first part of `--install-workspace-integrations`;
+  `--intern-member-home-register`; `--make-harness-indices`, once, with no name, so every index is
+  built (its grants are unrolled over the places just registered); the second part of
+  `--install-workspace-integrations`; then `--install-workspace-restrictions` only when
+  `.claude/hooks/deny-native-tool-reroute.sh` exists. Workspace registration is this step's, never a
+  member install's.
+- **`--install-workspace-integrations` runs in two parts, around the indices build.** The first part is
+  the MCP registration and the member links (`--install-vscode-integrations`,
+  `--install-skillset-symlinks`); the second, after the build, is the trust, the Claude permissions, the
+  settings and the Copilot access (`--install-claude-workspace-trust`, `--install-claude-permissions`,
+  `--install-copilot-access-fragment`). The Copilot access step writes `harness.roots.index` again, by
+  its name, when it made a root. With `--install-workspace-restrictions` it is one of the two root
   install methods in the default syntax.
 - **MCP registration targets this workspace only.** Never another workspace's origin or config. A host
   starts its server once per session with workspace variables unset and its own project directory as
@@ -497,18 +514,28 @@ User steps are in [docs/installation.md](docs/installation.md).
   looks the same. A real discovery failure exits 1. An empty selection is never passed to
   `ListDistroDeclares --select-from-env`.
 - **`$workspace` is `${workspaceArg:-$MMDAPP}`** in the permissions and symlinks ops.
-- **`--make-agents-indices`** (`AgentsTools.Make.include`) rebuilds all four registries --
-  `team-members.registry`, `team-members-names.registry`, `spawned-sessions.registry` and
-  `pending-replies.registry` -- each by its own rebuild function, from the one list in
-  `AgentsToolsRegistryAgentsIndicesBuild` (`AgentsTools.Registries.include`); a new registry is one line
-  there plus `Rows`/`Rebuild` functions. Where a workspace has no session store, the last two are written
-  with no rows, with a plain note and no error.
+- **`--make-harness-indices [<name>...]`** (`AgentsTools.Make.include`) is the one operation that makes
+  every index of the tooling. With no name it builds all ten; with names, only those, in their own
+  order; a name that is none of them refuses the call before anything is built. The ten are the stems
+  `team-members`, `team-members-names`, `spawned-sessions`, `pending-replies`, `members`, `permissions`,
+  `grants`, `mcp.servers`, `harness.roots` and `harness.hooks`. `--make-agents-indices` is this same
+  operation's earlier name and still works. The integrations run and the build call it once, with no
+  name, so every index is built; no caller names a list. `--manager-team-member-list` and
+  `--manager-team-member-read` read the `team-members`/`team-members-names` registries this builds, the
+  same ones `ListAgents`-style readers use.
+  The four registries below -- `team-members.registry`, `team-members-names.registry`,
+  `spawned-sessions.registry` and `pending-replies.registry` -- are each rebuilt by its own rebuild
+  function, from the one list in `AgentsToolsRegistryAgentsIndicesBuild` (`AgentsTools.Registries.include`);
+  a new registry is one line there plus `Rows`/`Rebuild` functions. Where a workspace has no session
+  store, the last two are written with no rows, with a plain note and no error. A registry or index
+  writer that holds no lock makes its temp file with `mktemp`, sets its mode, and renames it into place.
   Rows exist only for members with a path in this workspace. Names come from the member's `basic.md`
   (`- **Name**:` as plain words, split at the first space; alias and mark via
   `AgentsToolsCommsSlackMemberMarks`), overridden by scope keys `FIRST_NAME`, `FAMILY_NAME`, `ALIAS`.
   Invalid values store `-`; a stored space is `_`. Every `client-*` row takes the persona member's values
-  (`registryPersonaMember`). Missing fields warn on stderr, never fail. It also runs as the source-prepare
-  builder `1201-agents-indices.sh` (parallel with `1201-increment.sh`).
+  (`registryPersonaMember`). Missing fields warn on stderr, never fail. One source-prepare builder makes
+  every index now, `1201-agents-indices.sh` (parallel with `1201-increment.sh`). The builder
+  `1202-harness-indices.sh` stays in place and builds nothing; it says in one line where the build is.
 - **It also builds the grants** (`AgentsTools.Grants.include`): `permissions.registry` and its tags from
   the declares of this workspace and of every registered tooling workspace without agents (`.` there is
   that workspace; `namespace` applies in every tooling workspace; `workspace:<pattern>` such as `*-testbed`
@@ -609,6 +636,91 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`DAGC_NONINTERACTIVE_CLIS`** is `copilot copilot-native claude claude-native grok scaleway`, plus any
   discovered leg. `grok-native` is not in it (a real interactive binary not proven non-interactive). A
   leg has no interactive shape; `--cli <leg>` without `--non-interactive` is refused with a stated reason.
+- **An interactive start of a harness leg now starts the manager screen by default**, whatever leg
+  (`claude`, `copilot`, `grok`, `scaleway`); an interactive start of a `-native` service still starts
+  that vendor's own console. `--non-interactive` is unchanged. A console generated before 13 October
+  keeps the old default until it is made again (`--make-console-command`).
+- **`--manager` starts the console's manager screen in place of a CLI**, whatever service is configured.
+  It takes nothing after it, and is refused together with `--non-interactive`.
+- **`--intern-manager` has no help; its contract is here.** The console's own inner entry for the
+  manager screen, a new approved `--intern-` kind. It takes no argument and runs
+  `sh-lib/AgentsManagerScreen.py` with Python. It ends with status 1 and one plain line where Python,
+  its `curses` module, or a terminal is missing; it ends with status 0 on `q`.
+- **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
+  coworking sessions with their runs, ending with one row of counters. It is the only one of the three
+  session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
+  call.
+- **`--manager-session-read --session-id <id> [--run]`** shows one session, or with `--run` one run of
+  it: its rows, its dispatch, each run's record headers and store.
+- **`--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]`** gives the
+  messages and tool use of a session's members as feed rows, newest last, made by the tracking post's
+  own renderer, in a rows form that writes no post.
+- **The two session reads take a registry as it lies only while it still matches the store**: its
+  names and counts compared against the store's own, never a time. What a record itself says is read
+  from the record fresh at every call. The sessions include now has four awk files, the newest
+  `AgentsManagerSessionScope.awk`. `AgentsManagerSessionReadCheck` and
+  `AgentsManagerSessionTranscriptReadCheck` are the two reads' own tests.
+- **`--manager-routine-list`** lists every routine file the members carry, one row each, saying whether
+  it is startable -- a routine is startable where its file names its executors as a plain list of
+  existing members -- with the reason in words where it is not. No registry or index holds the
+  routines: it reads the files at each call. The spawner's own rule for a start with no member named is
+  the same one function now, `AgentsToolsSpawnRoutineExecutorsRoster`, that the spawner and this list
+  both ask. Its code is `sh-lib/AgentsTools.ManagerRoutine.include`; `AgentsManagerRoutineListCheck` is
+  its test.
+- **`--manager-spawn-member <team-member>`** starts one member with a prompt, in a new coworking session
+  of its own, and does not wait. The prompt comes on stdin or from a file, never as an argument. It
+  brings no member itself: the spawn proxy brings it, and asks of it the same check every start asks.
+  Its code is `sh-lib/AgentsTools.ManagerSpawn.include`; `AgentsManagerSpawnMemberCheck` is its test.
+- **No start starts an identity record.** A member whose `SKILL.md` says `status: reference-only` is
+  never started, by any start: the spawn proxy refuses it before anything is made
+  (`AgentsToolsTeamMemberStartCheck`). `--magic-spawn-session` asks this check of every member before
+  its first spawn. `--manager-routine-list` says `not-startable` for a routine whose `executors` names
+  such a member. `AgentsSpawnReferenceOnlyCheck` is the rule's own test.
+- **`--manager-config-digest [<subject>...]`** prints the settings as they are, by subject: workspace,
+  cli, systems, loop, scopes. A secret reads only as set or missing; its value is never printed. Its
+  code is `sh-lib/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
+- **`--manager-session-kill --session-id <id> [--run]`** ends runs the hard way: no closure of a
+  routine runs, and no agent is asked anything. A session's id ends every live run of it; `--run` ends
+  the founder alone. The ending is recorded first, under the name the console's user has in the
+  operating system -- the record carries `killed-by` and `killed-at`, reason `manager-kill` -- then a
+  polite end goes to the run's own processes, and the hard kill to what is still there two seconds
+  later. The handback retry never resumes a record that carries `killed-at`.
+  `AgentsManagerSessionKillCheck` is its test.
+- **A kill and `TaskStop` find a run's processes by one walk**, `AgentsToolsRegistryRunProcesses`: the
+  run's own processes and every process they started, to any depth; never a process group, the run's
+  own supervising shell, or a run of another spawn. A process that left the run's tree before the kill
+  is not found. What a stop signalled and found still there is kept in the run's store, the file
+  `stop.left`: the next `TaskStop` or `--manager-session-kill` of that run ends what the file names, an
+  entry counting only while its pid is still the process that began then; the file is removed when
+  nothing of it is left. `TaskStop` with force now ends a started process that ignores the polite end.
+- **`--manager-team-member-list` and `--manager-team-member-read <team-member>`**: the list has one row
+  per member -- its mark, names, alias, kind, workspace, where it is set up, its status, and whether a
+  run of it is alive, a member set up only in another workspace of this machine included; the read adds
+  its description, its sessions, its grants and its settings, a secret setting reading only as set or
+  missing. Their code is `sh-lib/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
+  is their test.
+- **The manager screen's own `Pending Questions` section and its `pending` counter** are fed by
+  `--member-pending-reply-read magic-coordinator --any-owner`, read only while that section is shown;
+  the selected ask is read by its id while it is selected; `F5` reads now.
+- **The screen's five other counters and its load average** come from `--manager-session-list`'s own
+  `counters` row, read every 10 seconds, whatever is shown.
+- **Key `l` is built now, no longer only reserved.** The screen calls `--manager-session-read` and
+  `--manager-session-transcript-read` for the selected session or agent only, passing `--run` for an
+  agent and `--log` on `l`.
+  `AgentsManagerScreenPendingCheck`, `AgentsManagerScreenSessionsCheck`,
+  `AgentsManagerScreenStatusCheck` and `AgentsManagerScreenPaneCheck` are among the screen's tests.
+- **Key `k` is built**: it takes the typed word `yes`, then calls `--manager-session-kill`, with
+  `--run` on an agent's row. **`Launch / Spawn` is built**: it calls `--manager-routine-list`, and
+  `--magic-spawn-session` with `--routine <selector>` or `--routine-default`; a free prompt goes to
+  that operation on its standard input. The reads of a selected item start only once the selection has
+  rested a third of a second. A kill or a start the screen began is not ended with the screen.
+  `AgentsManagerScreenKillCheck` and `AgentsManagerScreenLaunchCheck` are two more.
+- **`Team Members` is built.** Key `n` calls `--manager-spawn-member <member>`, with the prompt on
+  standard input. The screen itself calls `--manager-team-member-list` and
+  `--manager-team-member-read <member>`. `p`, `r`, `s` and `R` stay reserved; no key answers an ask.
+- **`Settings / Configuration` is built**, for viewing only: the screen calls `--manager-config-digest`.
+  `AgentsManagerScreenMembersCheck` and `AgentsManagerScreenSettingsCheck` are two more: eleven screen
+  tests in all.
 - **`MDAT_<NAME>_HARNESS` points one leg at another file**: a bare filename in `sh-lib`, or an absolute
   path; a relative path with `/` is refused (it would resolve against `$MMDAPP`). It must exist and be
   executable. Install probes and `AgentsToolsSpawnCliPresent` test the default file, not the override.
@@ -642,6 +754,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The spawn proxy does not run a CLI.** It pipes its context into
   `DistroAgentsConsole.sh --cli-configured --non-interactive`. Both its waiting and background branches
   inherit the exports.
+- **Every start that does not wait is detached, whatever its caller**, a caller with no session id
+  included: its own process group, hangup ignored, its output in its session log. Only a `--wait` start
+  with no parent session stays in the group of its caller.
 - **A detached spawn closes every descriptor it inherited** (`4>&-` on each backgrounded launch, its
   output tail and its event-track feed loop): the fourth descriptor a caller holds open to learn when a
   whole process tree has exited is never left open by a child meant to outlive that caller, so a review
@@ -654,7 +769,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`MDAT_SPAWN_SESSION_ID` is a uuid minted by the proxy** and written to the dispatch item's
   `session-id`; it is the only join between the dispatch record and hook reports. Lowercase it.
   No uuid, no spawn. The caller's previous value, else `CLAUDE_CODE_SESSION_ID`, becomes
-  `parent-session-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`).
+  `parent-session-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`), named
+  `spawn-proxy-<UTC stamp>-<pid>-<first eight of the spawn id>`; its dispatch item is
+  `dispatch-<UTC stamp>-spawn-proxy-<pid>-<first eight>.md`. Older names end at the pid.
 - **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-heartbeat-spawn-proxy`): the
   spawner's own words for what the spawn is for, redacted and bounded (`AgentsToolsTaskTextKept`). On
   agent-spawn-proxy, kept as `description:` on both the dispatch item it creates and its own spawn
@@ -686,8 +803,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `MDAT_CONVERSATION_HISTORY_MAX`). It is made read-only by file mode, because a verb-less access flag
   grants it for writing. Credentials are never copied. Emptied on every close path.
 - **Sandbox sweep**: each main-loop iteration and heartbeat close empties `input/` of sandboxes on this
-  host with no live process. Never touched: another host, a running session, no record, or a record
-  under 10 minutes old.
+  host with no live process, asking the one alive-by-one-rule check every reader now shares (see
+  "A run is alive by one rule only" below). Never touched: another host, a running session, no record,
+  or a record under 10 minutes old.
 - **The session record** `<sandbox>/<spawn-id>.md` sits outside `input/` and `output/`, so the session
   cannot forge it. Its frontmatter rebuilds the spawned-sessions registry. Fields: `session-id`,
   `spawn-id`, `parent-session-id`, `tracking-name`, `host`, `workspace` (basename, never a path, the
@@ -705,16 +823,24 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `children/.indexed`. Without the mark, a harness scans every record. Not under `sessions/`: a file
   there counts as session activity for the advance pass.
 - **`ListAgents` reads the spawned-sessions registry**, rebuilt from sandboxes on each call, the same
-  rebuild `--make-agents-indices` also runs. Eleven
-  stored columns (the first seven unchanged for position readers), plus `live` (checked during the call,
-  this host only) and `state` (`running`/`waiting`/`finished`/`unclosed`/`unknown-foreign`), matched on spawn id.
-  `waiting` reads the pending-replies registry. Rows are one awk pass
+  rebuild `--make-harness-indices` also runs. Fourteen stored columns now (the first seven unchanged for
+  position readers; `started-at`, `resolved-at` and `session-comment` are the three newest, appended
+  last: a registry may store the date a session started and the date a state was recorded, though
+  liveness itself is still measured live, never stored), plus `live` (checked during the call,
+  this host only) and `state` (`running`/`waiting`/`finished`/`unclosed`/`unknown-foreign`). `ListAgents`
+  itself still prints exactly what it printed before. `live` is
+  told by the spawn id. `waiting` reads the pending-replies registry instead, told by the session: an
+  ask counts for the session of the run that asked it, not necessarily the current spawn's own id. Rows are one awk pass
   (`AgentsRegistryHeaderRows.awk`), never a fork per file; `live` and `state` are derived without a fork
   per row. Filters (`view`, `session_id`, `state`) are in the tool description.
-- **A run is alive by one rule only**: a process of this host runs as a spawn when the value of its
-  own `--session-id` or `--resume` argument -- the first of the two on its line -- is that spawn's id,
-  matched whole; an id standing anywhere else on the line is no run, and neither is a command line of
-  the tooling itself (`DistroAgentsTools.fn.sh`, the command or its interpreter's script).
+- **A run is alive by one rule only, and every reader asks it.** A process of this host runs as a spawn
+  when the value of its own `--session-id` or `--resume` argument -- the first of the two on its line --
+  is that spawn's id, matched whole; an id standing anywhere else on the line is no run, and neither is
+  a command line of the tooling itself (`DistroAgentsTools.fn.sh`, the command or its interpreter's
+  script). A run is alive by its own word this way, or else by the process its record names, while
+  that is still the same process. `TaskOutput`, the sandbox sweep and the ending of a dismissed run all
+  ask this one rule now; no reader keeps a match of its own. A line that only carries a run's id holds
+  no sandbox.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -733,10 +859,16 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`DISMISSED` is recognised by its tag, never by the posting account** (spawner and child may share a
   bot): the send header's addressees, from the send's own `address_to`, or a typed `DISMISSED <member>`.
   One addressed to someone else, to nobody (`@here`), or sent with no `address_to`, dismisses no one. One function, `dismissalOf` in `AgentsDismissalMatch.awk`, also used by
-  `AgentsSlackThreadAnswers.awk` so the own-post skip never drops it. `TaskStop` is the last resort.
+  `AgentsSlackThreadAnswers.awk` so the own-post skip never drops it. `TaskStop` is the last resort for
+  a run that keeps responding; `--manager-session-kill` is the console's own hard ending, outside the
+  routine and reasoning paths entirely (see "The agents console").
 - **`--magic-spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
-  A wildcard or prose `executors` value is refused. Invitees are never spawned here. It takes
+  A wildcard or prose `executors` value is refused: the one function behind this,
+  `AgentsToolsSpawnRoutineExecutorsRoster`, is also what `--manager-routine-list` asks to say whether a
+  routine is startable. Every member of the call is asked before the first is started, three things: a
+  plain name, a member at all, and no identity record; a call with one wrong name starts nobody.
+  Invitees are never spawned here. It takes
   `--spawn-settings-workspace <name>` and `--spawn-cli-service <name>`, the same as the Agent tool's own
   `settings_workspace` field beside `cli_service`.
 - **The paying workspace is a spawn setting, not a workspace switch.** The CLI service, the harness tier
@@ -765,7 +897,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`AgentsToolsActingMemberCheck`). `--magic-*` refuses any session acting as another member
   (`AgentsToolsMagicCallerCheck`), with no exemption: `--magic-*` is `magic-coordinator`'s alone. `--client-*`
   naming a client runs only for that client in its own session -- nobody else, no exemption for
-  `magic-coordinator`, checked once where the operation is dispatched. Tooling
+  `magic-coordinator`, checked once where the operation is dispatched. `--manager-*` is the console's
+  own, nobody's member: refused from inside any member's session, the coordinator's included
+  (`AgentsToolsManagerCallerCheck`, asked once where the family is dispatched). Tooling
   acting for another member calls the `--intern-op-*` form directly.
 - **`--magic-client-operation-run <team-member> --client-<operation> [<argument>...]`**: `magic-coordinator`'s
   own way to a client's operation. The named team member is the client, dispatched in its own session as
@@ -804,10 +938,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `GIT_CONFIG_*`, or the push fails and `clonePull` then deletes the checkout. A remote with history plus
   local content is reported, to merge by hand.
 - **`--intern-root-harness [--routine <selector>] [--non-interactive] [--wait]`**, no member argument.
+  The console no longer runs it; its callers are the main loop and a person by hand.
   It spawns `--magic-heartbeat-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
   thread in `magic-team` and always waits, as the foreground job of its terminal: Ctrl+C reaches the
-  proxy, which stops the session and closes it (an async start died with the terminal hangup, its
-  record never closed); `--non-interactive` runs one loop and posts to `event-track`, and needs
+  proxy, which stops the session and closes it; `--non-interactive` runs one loop and posts to `event-track`, and needs
   `--routine`. The brief is the static `root-harness-session-start.prompt-packet.verbatim.md` with an
   `INTERACTION-MODE:` line (and a `ROUTINE:` line) prepended; no templating inside it.
 - **The `🤖 AI service used:` line** is the spawn proxy's, read from the child's `DISTRO_CONSOLE_EXEC=`.
@@ -1566,6 +1700,17 @@ op's own option arm.
 
 ## 20. Questions, decisions and review
 
+- **`--member-pending-reply-read`'s list first rebuilds the pending-replies registry**, by the same
+  rebuild `--make-harness-indices pending-replies` makes, so the file is current after any list; a read
+  by one `<pending-id>` rebuilds nothing. Each open record also prints `asker-live:` before `question:`,
+  whether the run that asked it is alive, measured as the read is made and stored nowhere: `running` (a
+  process of this host runs as it), `no-process` or `session-ended` (nobody is there to take the answer),
+  `no-spawn-record`, `other-host`, `host-unrecorded`, `no-session-id`, or `not-measured` (this read
+  measured nothing, as when the registry could not be rebuilt). The record's `session-id` is the id of
+  the run that asked, never of the coworking session that run joined, and the asker is matched by it.
+  The read itself acts on nothing: it closes, withdraws and re-asks nothing. Read by one `<member>
+  <id>`, it prints those same lines, then `PENDING-REPLY-STORED: <id>` and what the stores hold of the
+  ask: the whole question as posted, its options, its context, and a permission set's own entries.
 - **The `AskQuestion` wait** takes only the addressee's replies and judges every reply since
   `question-ts`. Its own outcome, `ASK-RESULT:`, is one of `RECEIVED`, `TIMEOUT`, `DISMISSED`, `CLOSED`
   or `ERROR` -- never `UNCLASSIFIED`, which is only ever an internal placeholder; where a verdict read
@@ -1681,7 +1826,9 @@ op's own option arm.
   never collected by default. Runs at `SubagentHandback`, at spawn close (marking `collect: ended`) and in
   the main loop (`--ended`, answers go to the asker's inbox). The `--ended` pass also takes asks older
   than `MDAT_PENDING_COLLECT_STALE_MINUTES` (120), up to `MDAT_PENDING_COLLECT_STALE_MAX` (40), applies
-  typed verdicts, and closes asks of still-running sessions quietly (`MDAT_PENDING_CLOSE_QUIET=1`).
+  typed verdicts, and closes asks of still-running sessions quietly (`MDAT_PENDING_CLOSE_QUIET=1`): quiet
+  only for an asker that is itself alive, told by `AgentsToolsRegistryAskersLive` -- a member that joined
+  a session by its own id, a root session by that same function.
   Results in `.local/agents/pending-collect.last`.
 - **Remind** (`AgentsToolsPendingReplyRemindRun`, `AgentsTools.PendingReplyRemind.include`), tooling only,
   every main-loop iteration: at 30 min, 2 h, and daily after 09:00 local for asks 4 h+ old
@@ -1733,7 +1880,9 @@ op's own option arm.
   longer exists: housekeeping reads the one session record instead.
 - **The feed is one poster per participant**, its own buffer `sessions/<own id>/feed` and switch
   `sessions/<own id>/feed.open`; only what starts a poster switches the feed on, so a thread recorded for
-  a session with no poster buffers nothing. It posts into the session's thread, never one of its own.
+  a session with no poster buffers nothing. It posts into the session's thread, never one of its own. A
+  detached run's own feed poster goes on through a hangup, as the run does: it traps a hangup only where
+  one is not already ignored where it starts, and is ended by its proxy when the run ends.
 - **Event-track subjects are `session` and `run`.** The thread's root post is the session's start, the
   starting spawn's own run start inside it; a spawn that joins an already-running session posts its own
   start as a reply, never a root; a run's end is that one participant's own end, never the session's.
@@ -1929,6 +2078,13 @@ Each instrument states what it proves and its red recipe in its own header. What
   started in: every `MDAT_SPAWN_*` and `MDAT_SESSION_*` variable and `MDAT_CONVERSATION_THREADS` are
   taken out, and its session id is `rig-run-<test>-test-only`. So the suite gives the same result from
   a spawned member's session as from any other. `AgentsRunTestsIdentityCheck` is the test for this.
+- **The runner hands the parallel driver its workers, never the tests** (`AgentsRunWorker`); a worker
+  takes the next test by making that test's log file. So a run cannot stand still on the driver's own
+  helper, as the old one could.
+- **A run that stands still is ended with status 124.** It counts as standing still when nothing
+  changed in its run folder for longer than the test timeout plus `--stall-margin` (120 seconds by
+  default). `summary.txt` then gets a `STALLED` line, and `stalled.txt` in the run folder names what
+  never ran and what never ended. `AgentsRunTestsStallCheck` is the test for both.
 - **Wired into `--owner-setup-scaleway --check`**: `HARNESS_PARSES`, `AgentsHarnessSelfCheck.test.awk`
   (four sites per tool; text match, so it misses syntax and JSON breaks), `AgentsHarnessToolsJsonCheck`
   (parsed vs text counts; reads through `AgentsHarnessJsonSlice.awk`, not the consuming reader),
@@ -1940,6 +2096,17 @@ Each instrument states what it proves and its red recipe in its own header. What
   closing brace on one line need `;`, for awks not on a dev box), `AgentsOwnerSetupCheck`.
 - **`AgentsHarnessContainmentCheck.test.sh` is wired into nothing** and runs only by hand. It tests
   `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` together, in both polarities.
+- **The manager screen's eleven tests**: `AgentsManagerScreenFrameCheck`, `AgentsManagerScreenListCheck`,
+  `AgentsManagerScreenReadCheck`, `AgentsManagerScreenPendingCheck`, `AgentsManagerScreenSessionsCheck`,
+  `AgentsManagerScreenStatusCheck`, `AgentsManagerScreenPaneCheck`, `AgentsManagerScreenKillCheck`,
+  `AgentsManagerScreenLaunchCheck`, `AgentsManagerScreenMembersCheck` and
+  `AgentsManagerScreenSettingsCheck`.
+  `AgentsManagerSessionListCheck`, `AgentsManagerSessionReadCheck`
+  and `AgentsManagerSessionTranscriptReadCheck` are the three session operations' own.
+  `AgentsManagerRoutineListCheck`, `AgentsManagerSpawnMemberCheck` and `AgentsManagerConfigDigestCheck`
+  are the routine, spawn and config operations' own. `AgentsManagerSessionKillCheck` and
+  `AgentsManagerTeamMemberCheck` are the kill and team-member operations' own.
+  `AgentsSpawnReferenceOnlyCheck` is the no-start-for-a-reference-only-member rule's own.
 - **Diff checks hold a rewrite to its previous implementation**, kept only as fixtures in
   `sh-test/check-fixtures/*.legacy.*`: `AgentsWireStreamDiffCheck`, `AgentsHarnessJsonFieldDiffCheck`,
   `AgentsHarnessHooksDiffCheck`, `AgentsRegistryRowsDiffCheck` (also `--live-copy-from <workspace>`).

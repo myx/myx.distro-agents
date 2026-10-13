@@ -17,6 +17,8 @@ rigRefuse(){
 }
 
 [ -f "$rigHere/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/AgentsUniversalHarness.sh"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessEditIntegrityCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
@@ -53,10 +55,12 @@ rigTool(){ ## tool, arguments JSON, result file
 	printf '%s\n' "$2" | MMDAPP="$rigTmp/ws" bash "$rigHarness" --intern-tool "$1" \
 		--access-read-root "$rigTmp/ws/IN" --access-write-root "$rigTmp/ws/IN" > "$3.out" 2>/dev/null &
 	local toolPid=$! toolRc=0
-	( sleep 60 ; kill -KILL "$toolPid" ) 2>/dev/null &
+	rigProcNote "$toolPid"
+	( sleep 60 ; rigProcSignal KILL "$toolPid" ) 2>/dev/null &
 	local watchPid=$!
+	rigProcNote "$watchPid"
 	wait "$toolPid" || toolRc=$?
-	{ kill "$watchPid" ; wait "$watchPid" ; } 2>/dev/null
+	{ rigProcSignal TERM "$watchPid" ; wait "$watchPid" ; } 2>/dev/null
 	printf '%s\n' "$toolRc" > "$3"
 	cat "$3.out" >> "$3"
 }

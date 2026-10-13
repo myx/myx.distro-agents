@@ -227,16 +227,19 @@ AgentsToolsGrantsIndexText(){ ## workspace
 }
 
 ## Rebuilds the index the way the sibling myx.distro-* indices are rebuilt
-## (IndexCacheMissDistro.include): the generator in a tested subshell into <file>.$$.tmp,
-## then mv -f. On a failure the old index stays, rc 1.
+## (IndexCacheMissDistro.include): the generator in a tested subshell into a temp file
+## beside it, then mv -f. The temp is this write's own, by mktemp and never by $$, with
+## its mode set on it (AgentsToolsRegistryWrite, AgentsTools.Registries.include). On a
+## failure the old index stays, rc 1.
 AgentsToolsGrantsIndexWrite(){ ## workspace
-	local writeFile="${1%/}/.local/agents/grants.index"
-	if ! ( AgentsToolsGrantsIndexText "$1" ) > "$writeFile.$$.tmp" ; then
-		rm -f -- "$writeFile.$$.tmp"
+	local writeFile="${1%/}/.local/agents/grants.index" writeTemp
+	writeTemp="$( mktemp "$writeFile.XXXXXX" )" || writeTemp=""
+	if [ -z "$writeTemp" ] || ! ( AgentsToolsGrantsIndexText "$1" ) > "$writeTemp" ; then
+		[ -z "$writeTemp" ] || rm -f -- "$writeTemp"
 		echo "⛔ ERROR: grants: the grants index generator failed -- $writeFile left unchanged" >&2
 		return 1
 	fi
-	mv -f -- "$writeFile.$$.tmp" "$writeFile"
+	chmod 644 "$writeTemp" && mv -f -- "$writeTemp" "$writeFile" || { rm -f -- "$writeTemp" ; return 1 ; }
 }
 
 ## A current index for a reader: agentsGrantsIndexFile names it, or, where .local/agents
@@ -774,10 +777,11 @@ AgentsToolsGrantsSessionText(){ ## workspace, member, session id, sandbox input,
 ## A current session index: agentsGrantsSessionFile names it, or agentsGrantsSessionText holds
 ## it, in memory, where there is no session or its store cannot be written. Rebuilt
 ## (AgentsToolsGrantsSessionText) only when the grants index or a joined store's grants are
-## newer, in the sibling way: into <file>.$$.tmp, then mv -f, the old one kept on a failure.
+## newer, in the sibling way: into a temp file of its own beside it (mktemp, never $$), then
+## mv -f, the old one kept on a failure.
 ## rc 1 with neither.
 AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty), sandbox input, sandbox output, origin skillset
-	local ensureWs="${1%/}" ensureDir ensureFile
+	local ensureWs="${1%/}" ensureDir ensureFile ensureTemp
 	agentsGrantsSessionFile="" ; agentsGrantsSessionText=""
 	AgentsToolsGrantsIndexEnsure "$ensureWs" || return 1
 	AgentsToolsGrantsSessionHeader "$2" "$4" "$5" "$6"
@@ -791,10 +795,11 @@ AgentsToolsGrantsSessionEnsure(){ ## workspace, member, session id (may be empty
 		fi
 		[ -d "$ensureDir" ] || mkdir -p "$ensureDir" 2> /dev/null || :
 		if [ -d "$ensureDir" ] && [ -w "$ensureDir" ] ; then
-			if ( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" ) > "$ensureFile.$$.tmp" ; then
-				mv -f -- "$ensureFile.$$.tmp" "$ensureFile" && { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
+			ensureTemp="$( mktemp "$ensureFile.XXXXXX" 2> /dev/null )" || ensureTemp=""
+			if [ -n "$ensureTemp" ] && ( AgentsToolsGrantsSessionText "$ensureWs" "$2" "$3" "$4" "$5" "$6" ) > "$ensureTemp" ; then
+				chmod 644 "$ensureTemp" && mv -f -- "$ensureTemp" "$ensureFile" && { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
 			fi
-			rm -f -- "$ensureFile.$$.tmp"
+			[ -z "$ensureTemp" ] || rm -f -- "$ensureTemp"
 			echo "⛔ ERROR: grants: the session permission index of $3 could not be built -- $ensureFile left unchanged" >&2
 			[ ! -f "$ensureFile" ] || { agentsGrantsSessionFile="$ensureFile" ; return 0 ; }
 		fi

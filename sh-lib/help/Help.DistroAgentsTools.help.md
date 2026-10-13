@@ -157,10 +157,19 @@
 📘 syntax: DistroAgentsTools.fn.sh --install-vscode-integrations [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--scope workspace|user-home] [--workspace <path>]
 📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]
-📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices
-📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices
+📘 syntax: DistroAgentsTools.fn.sh --make-agents-indices [<name>...]
+📘 syntax: DistroAgentsTools.fn.sh --make-harness-indices [<name>...]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
+📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run]
+📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -2630,35 +2639,34 @@
 			rather than treated as absent.
 
 		--make-workspace-integrations [--quiet]
-			Runs all `--make-*` commands, then
-			--install-workspace-integrations, then
-			--install-workspace-restrictions (only where restrictions
+			Registers the workspace's places, makes the console command,
+			then installs in two parts with the one build of the indices
+			between them: the part of --install-workspace-integrations
+			the indices are made from (the MCP registration and the
+			member links), the members' homes, --make-harness-indices
+			with no name, then the part that reads the indices (the
+			trust, the permissions, the settings, the copilot access),
+			and --install-workspace-restrictions (only where restrictions
 			were installed, that is where
-			.claude/hooks/deny-native-tool-reroute.sh exists), then
-			--make-harness-indices, against $MMDAPP. A step
-			that fails ends the run; later steps don't run. `--quiet`
-			suppresses the usage guidance normally printed.
+			.claude/hooks/deny-native-tool-reroute.sh exists), against
+			$MMDAPP. A step that fails ends the run; later steps don't
+			run. `--quiet` suppresses the usage guidance normally printed.
 
-		--make-harness-indices
-			Writes the universal harness's own indexes in
-			`$MMDAPP/.local/agents`, which it reads at every start
-			instead of recomputing them: `harness.roots.index`
-			(the access roots, already resolved),
-			`harness.hooks.index` (the hooks the client tool policy
-			names) and `mcp.servers.index` (the servers this workspace
-			registers, as --install-vscode-integrations also writes
-			it), each one index used whichever origin a harness of
-			this workspace runs from. Each is produced from our own
-			primary data by the code the harness otherwise runs --
-			never from `.claude/settings.json`, `mcp.servers.json` or
-			any other file written for an external tool, which the
-			harness never reads -- and is used only while what it was
-			produced from is unchanged, so a missing, stale or
-			older-format one only costs time. The
-			children lists under `children/` are not this op's: the main
-			loop rebuilds them. Takes no arguments.
+		--make-harness-indices [<name>...]
+			The one operation that makes every index of the tooling in
+			`$MMDAPP/.local/agents`, the registries among them. With no
+			name it builds all of them, in the order below; with names,
+			only those, in that same order whatever the order given. A
+			name is the stem of the file it builds: `team-members`,
+			`team-members-names`, `spawned-sessions`, `pending-replies`,
+			`members`, `permissions`, `grants`, `mcp.servers`,
+			`harness.roots`, `harness.hooks`. A name that is none of
+			them refuses the call before anything is built, in one line
+			that lists them. Prints nothing on stdout, notes what it
+			writes on stderr under the name it was called by, and fails
+			when a file cannot be written. Run once by the install,
+			between its two parts, and once by the source-prepare build.
 
-		--make-agents-indices
 			Rebuilds the prepared registries of this workspace's team
 			members in `$MMDAPP/.local/agents`: `team-members.registry`
 			(member, workspace, link kind, skillset path) and
@@ -2713,9 +2721,26 @@
 			standing row comes ahead of the approval. A reader finding
 			it stale or missing rebuilds it.
 
-			Takes no arguments, prints nothing on stdout, notes each
-			file on stderr, and fails only when a file cannot be
-			written. Run by the install and by the source-prepare build.
+			Last the universal harness's own indexes in
+			`$MMDAPP/.local/agents`, which it reads at every start
+			instead of recomputing them: `harness.roots.index`
+			(the access roots, already resolved),
+			`harness.hooks.index` (the hooks the client tool policy
+			names) and `mcp.servers.index` (the servers this workspace
+			registers, as --install-vscode-integrations also writes
+			it), each one index used whichever origin a harness of
+			this workspace runs from. Each is produced from our own
+			primary data by the code the harness otherwise runs --
+			never from `.claude/settings.json`, `mcp.servers.json` or
+			any other file written for an external tool, which the
+			harness never reads -- and is used only while what it was
+			produced from is unchanged, so a missing, stale or
+			older-format one only costs time. The
+			children lists under `children/` are not this op's: the main
+			loop rebuilds them.
+
+		--make-agents-indices [<name>...]
+			The earlier name of --make-harness-indices: the same operation.
 
 		--make-console-command [--quiet]
 			Re-creates `DistroAgentsConsole.sh`, the command to quickly
@@ -2725,6 +2750,391 @@
 		--make-console-script
 			Prints the agents console script body (used by
 			`--make-console-command`) and exits.
+
+		--manager-config-digest [<subject>...]
+			One of the console's own operations (see Notes). Prints the
+			settings of this workspace as they are, for viewing. It only
+			reads: no setting, no registry and no file is written. With no
+			name it prints every subject, in the order below; with names,
+			only those, in that same order whatever the order given. A
+			name that is none of them refuses the call before anything is
+			printed, in one line that lists them. Prints rows of
+			TAB-separated fields on stdout, the first naming the row. An
+			absent value reads `-`, and a value's own whitespace reads `_`,
+			as in a registry.
+			`subject <subject> <lines>`
+			`line <subject> <group> <key> <state> <value>`
+			A subject row is followed by its lines, which it counts.
+			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
+			Nothing of the value of a secret is printed, in no row and in
+			no message: not a part of it, not its length. Its line reads
+			`secret-set` or `secret-missing`, with the value `-`.
+			A key is a secret unless it is known not to be. A key of the
+			owner setup's catalogue is what the catalogue marks it. Any
+			other key is a secret when its name holds the word TOKEN, KEY,
+			SECRET, PASSWORD or COOKIE, and is no secret only when the
+			last word of its name is a plain kind: ALIAS, CONVERSATIONS,
+			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, NAME, PORT, SECONDS,
+			SECURITY, SITE, TIER, USER, USERNAME or WORKSPACE. A key of no
+			known kind is a secret. A value that carries a password inside
+			a URL is a secret whatever its key.
+			`workspace`: group `paths`, the root of the workspace, the
+			origin of the tooling, the root of the team data, the two
+			session stores and the folder of the scopes, each `set` where
+			it is there and `missing` where it is not, with the path
+			either way; group `places`, each registered place by name
+			with its path, as --owner-workspace-list gives them.
+			`cli`: group `workspace`, the CLI service the workspace asks
+			for, its harness tier, its wait round and the workspace its
+			spawn settings are read from; then one group for each CLI the
+			console knows: `present` with its file or its binary, each
+			credential a harness leg reads as a secret line, `usable` as
+			`yes` or `no`, and `wait-round` in seconds. A leg is usable
+			with one of its credentials set, a vendor CLI where its
+			binary is.
+			`systems`: one group for each outside system, the team's own
+			Slack first: `slack`, `email`, `jira`, `confluence`, `trello`,
+			`google`. <key> is a scope, <state> is `set` where that scope
+			holds a value under a key of the system, and <value> names
+			the keys it lacks, joined by commas: each key the catalogue
+			keeps in that scope with no value, then each key the scope
+			holds with none. A system no scope holds has one line with
+			the scope `-`.
+			`loop`: group `main-loop`, its state file and what the last
+			iteration left in it; group `heartbeat`, its note, its state,
+			its recheck date, and `running`, which is `yes` while its
+			lock is held. Nothing says that a main loop runs now, so that
+			is not printed.
+			`scopes`: one group for each scope that holds a key, <key>
+			the name of the key, in the order of its file. A scope with
+			no key is left out, and a line that is a comment is no key.
+			A line whose name is not a setting's, capital letters, digits
+			and `_`, is never listed: a note on stderr counts them.
+
+		--manager-routine-list
+			One of the console's own operations (see Notes). Lists the
+			routines the members carry: every `*.routine.md` file of
+			every member's folder, those of a member of another workspace
+			of this machine among them. No registry and no index holds
+			the routines, so it reads the files at each call; it writes
+			nothing. Prints rows of TAB-separated fields on stdout, the
+			first naming the row. An absent value reads `-`, and a
+			value's own whitespace reads `_`.
+			`routine <selector> <owner> <start> <executors> <session> <arguments> <title> <reason>`
+			One row a routine, by <owner>, then by <selector>. <selector>
+			is the file's name, the selector
+			`--magic-spawn-session --routine <selector>`
+			takes. <owner> is the member whose folder holds the file.
+			<start> says whether that operation would start the routine
+			with no member named, by the checks it makes itself. It is
+			`startable` where the file names its executors as a plain
+			comma-separated list of existing members. It is
+			`not-startable` where the executors are `magic-team` or `*`,
+			which is any member, or hold a name that is no member of any
+			workspace of this machine, or a member whose `SKILL.md` says
+			`status: reference-only`, an identity record, which is never
+			started, or where more than one routine file answers to the
+			selector. It is `broken` where the file
+			fails the routine contract: no frontmatter block, or no
+			executors or maintainers. <reason> says in words why a
+			routine is not `startable`, and is `-` for one that is.
+			<executors> is the frontmatter value, `-` for a `broken`
+			file. <session> is `coworking` for a coworking-like routine,
+			to whose session the spawner adds `magic-coordinator`.
+			<arguments> is `-`, its place kept: no routine file says, in
+			a form a program reads, whether the routine takes arguments.
+			<title> is the file's own title line. With no routine file
+			at all, a note on stderr and no row.
+
+		--manager-session-list [--active]
+			One of the console's own operations (see Notes). Lists the
+			coworking sessions run from this workspace, each with its runs.
+			It rebuilds the registries `spawned-sessions` and
+			`pending-replies` first and measures which runs are alive, in
+			the same call, and writes nothing else. Prints rows of
+			TAB-separated fields on stdout, the first naming the row. An
+			absent value reads `-`, and a value's own whitespace reads `_`,
+			as in a registry: a date reads `2026-10-12_16:57_+0300`.
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally>`
+			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
+			`counters <sessions-running> <sessions-paused> <agents-working> <agents-waiting> <pending-answers> <load-average>`
+			A session row is followed by its runs, the earliest started
+			first. Sessions come by start date, the newest first, one with
+			no date last. The one `counters` row is the last line, always.
+			<name> is the first `session-comment` of the session's runs. A
+			row with no session id is a session under its tracking name.
+			A session's <state> is `running` while a run of it has a live
+			process, else `waiting` while an ask of it or of one of its
+			runs is open, else `unknown-foreign` with an open record of
+			another host, else `unclosed` with any open record, else
+			`finished`. <state-at> is the date its last run closed, for a
+			`finished` session only. <state-tally> reads
+			`running=1,finished=2`. A run's <live> and <state> are those
+			`ListAgents` shows. <activity> of a live run is `waiting`
+			inside a `Wait` call and `working` otherwise. `--active` keeps
+			the `running` sessions; the counters count the whole workspace
+			either way. <sessions-paused> is 0 until sessions can be
+			paused. <pending-answers> is the open asks, <load-average> the
+			host's one-minute figure. With no session store, a note on
+			stderr and the `counters` row alone. Exit 1, nothing printed,
+			where a registry cannot be rebuilt.
+
+		--manager-session-read --session-id <id> [--run]
+			One of the console's own operations (see Notes). Shows one
+			coworking session run from this workspace, or one run of it,
+			in full. <id> is the id of a session, or a run's own id: a
+			session's id shows every run of it, and the own id of a run
+			that joined a session shows that run alone, under the rows
+			of its session. The founder's own id is its session's:
+			`--run` takes <id> as a run's own, which shows the founder
+			alone. It reads the registries `spawned-sessions` and
+			`pending-replies` as they lie, and the records and stores of
+			that one session, never another's. A registry is rebuilt
+			first, in the same call, only where it is missing or does
+			not hold its store as the store is now, by the names there
+			and never by a time: a row for every record of every
+			sandbox folder, a row of <id>, a row for every ask, and of
+			each ask of the session the status its record has now. So a
+			member that joined the session since is in the next read.
+			What a record of the session says, its status among it, is
+			read from the record at every call. Which runs are alive is
+			measured in the same call. It writes nothing else. Prints
+			rows of TAB-separated fields on stdout, the first naming the
+			row. An absent value reads `-`.
+			`session <session-id> <name> <state> <started-at> <state-at> <run-count> <state-tally>`
+			`dispatch <session-id> <founder> <member> <routine> <dispatch-item> <session-thread> <tracking-thread> <description>`
+			`run <session-id> <spawn-id> <member> <status> <live> <state> <started-at> <resolved-at> <host> <workspace> <activity>`
+			`header <spawn-id> <name> <value>`
+			`store <spawn-id> <store> <model> <tokens-in> <tokens-cache-read> <tokens-cache-write> <tokens-out> <open-asks> <marks> <milestone-at> <milestone> <wait-sources> <dismissed-by> <session-log> <transcript>`
+			The `session` row comes first, then `dispatch`, then each
+			run: its `run` row, a `header` row for each header of its
+			record, and its `store` row. The runs come the earliest
+			started first. The `session` and `run` rows are those of
+			--manager-session-list, field for field. `dispatch` is what
+			the session was started for, from its founder's record: its
+			member, its routine, its dispatch item and its description.
+			<founder> is `record`, or `no-record` for a session a client
+			founded, whose founder left none: the four then read `-`.
+			<tracking-thread> is the record's `agent-log-thread`. A
+			`header` row is one header of the run's record as it stands,
+			its `cli` among them. `store` is the run's own store. <store>
+			is `store`, or `no-store` for a run with no folder of its
+			own, where every field after it but <open-asks> reads `-`.
+			<open-asks> is the ids of that run's asks still waiting for
+			an answer, comma-joined. <marks> is the marks its store
+			holds, comma-joined, of `dismissed`, `dismissed.handback`,
+			`ended` and `review-expired`, and <dismissed-by> is who
+			dismissed it. <milestone-at> and <milestone> are its last
+			milestone, <wait-sources> what its stored wait waits on, and
+			<session-log> and <transcript> the paths of those files
+			where they are there. A run with no spawn id has its `run`
+			row alone. <description>, <value>, <milestone>,
+			<wait-sources>, <dismissed-by> and the two paths are free
+			text, written exact, with their spaces: a TAB reads `\t`, a
+			line break `\n`, a carriage return `\r` and a backslash
+			`\\`. Every other field is one word, a value's own
+			whitespace written `_`, as in a registry. <activity> of a
+			live run is `waiting` inside a `Wait` call and `working`
+			otherwise: a tool call is not told from thinking, since no
+			file of a run says which. Exit 1, nothing printed, with one
+			error line, where no record carries <id>, or a registry
+			cannot be rebuilt.
+
+		--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
+			One of the console's own operations (see Notes). Shows what
+			one run did, or every run of one coworking session: the
+			lines the tracking thread of the session shows, read from
+			where they last, each run's transcript. <id> and `--run` are
+			those of --manager-session-read, and so are the registries
+			it reads and when it rebuilds one. It reads the transcripts
+			and the session logs of that one session, never another's,
+			and writes nothing else. Prints rows of TAB-separated fields
+			on stdout, the first naming the row. An absent value reads
+			`-`.
+			`source <spawn-id> <member> <kind> <path>`
+			`log <spawn-id> <member> <text>`
+			`feed <time> <spawn-id> <member> <subject> <regarding> <text>`
+			One `source` row for each run comes first, the earliest
+			started run first: where that run's lines are read from.
+			<kind> is `transcript`, or `session-log` for a run with no
+			transcript, whose session log is given in its place, or
+			`none` for a run with neither, which has no further row.
+			Then the `log` rows, run by run, the lines of each session
+			log in their order. Then the `feed` rows of every run
+			together, in the order of their times, the newest last. A
+			`feed` row is one operation as the tracking thread shows it,
+			with its emoji: a tool call with its outcome, a message out,
+			the result of a wait, a round with its tokens, the start,
+			the model and the end. <time> is its moment, ISO UTC,
+			<member> the member whose run it is, <subject> the box it
+			stands in in the thread, `member`, `run`, `session` or
+			`system`, and <regarding> who that box names. Its <text> is
+			one line: it holds no TAB and no line break, a token-like
+			value in it reads `[redacted]`, and its marks are Slack's, a
+			name between `*` and a code between back quotes. `--tail` is
+			how many lines of each run are read, from its end, 200 where
+			not given. Of a transcript, read over all its parts, at
+			least that many: it never starts in the middle of a body, so
+			it starts at the head line of the operation its first line
+			belongs to. For a session whose runs are cut so, the `feed`
+			rows start at the latest of the moments from which each cut
+			run's lines are held, so no run is shown with a gap. `--log`
+			gives the raw session log of every run, and no `feed` row:
+			<kind> is then `session-log` or `none`. A `log` row's <text>
+			is one line of the log, a token-like value in it
+			`[redacted]`, written exact: a TAB reads `\t`, a carriage
+			return `\r` and a backslash `\\`. <path> is written so too.
+			Exit 1, nothing printed, with one error line, where no
+			record carries <id>, or a registry cannot be rebuilt.
+
+		--manager-session-kill --session-id <id> [--run]
+			One of the console's own operations (see Notes). Ends runs of
+			this workspace on this host the hard way: no closure of a
+			routine runs and no agent is asked anything. It asks for no
+			confirmation either: that is its caller's. <id> is taken as
+			--manager-session-read takes it: a session's id ends every
+			live run of it, the own id of a run that joined a session
+			ends that run alone, and `--run` takes <id> as a run's own,
+			which ends the founder alone. The registry `spawned-sessions`
+			is rebuilt first, always, so that a run that joined the
+			session a moment ago is among them. For each run it ends, the
+			ending is recorded first, under the name the console's user
+			has in the operating system: `killed-by` and `killed-at` on
+			the run's record, one `dismissed` line with the reason
+			`manager-kill` in the Decisions of its own dispatch item, and
+			one ENDING line in its transcript. Then TERM goes to the
+			processes that run as that run and to every process they
+			started, to any depth: its helper servers, a tool command,
+			the child of that command that hangs. Each is signalled by
+			its own pid, never a process group. The run's own supervising
+			shell is never signalled, so it closes the record; nor is a
+			run of another spawn that the run started, or the shell that
+			supervises that one. KILL goes to what is still there two
+			seconds later. What an earlier stop or kill of the run
+			signalled and left, kept in the run's store as `stop.left`, is
+			ended with it, also where the run itself is alive no more. A
+			process that left the run's tree before any of them, its
+			starter gone, is not found. A killed run is not started again
+			by the handback retry. Prints one row for each run <id> names,
+			TAB-separated, on stdout, in the order of the list:
+			`kill <session-id> <spawn-id> <member> <outcome> <status> <pids> <item>`
+			<outcome> is `ended` where the run and what it started ended
+			on TERM, `killed` where any of them took KILL, and `not-ended`
+			where a process is still there after both. For a run that was
+			not signalled it is the run's <live> as
+			`--manager-session-list` gives it: `no-process`, `other-host`,
+			`no-spawn-id` or `host-unrecorded`. <status> is the status of
+			the run's record as it stood, <pids> the processes that were
+			signalled, comma-separated, and <item> the dispatch item the
+			ending was recorded on; an absent value reads `-`. Where no
+			run <id> names is alive: its rows, a note on stderr, and exit
+			0. Exit 1, nothing printed and nothing signalled, with one
+			error line, where no record carries <id>, or the registry
+			cannot be rebuilt; exit 1 after its rows where a run could not
+			be ended.
+
+		--manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+			One of the console's own operations (see Notes). Starts one
+			member with a prompt, in a new coworking session of its own,
+			and does not wait for it. The prompt is stdin (default) or
+			`--from-file`, never an argument, and an empty one is
+			refused. The member gets it as its brief, behind the spawn
+			brief block of the standing default routine, as
+			`--magic-spawn-session --routine-default`
+			puts it ahead of a task text. The start makes a `dispatch-*`
+			item in board-running, and the run is detached: it outlives
+			the console that started it.
+			`--session-name-or-comment <text>` names the session, which
+			shows by its id without one. `--description <text>` says
+			what the start is for, kept on its records.
+			<team-member> is a member of this workspace, or one set up
+			only in another workspace of this machine, which the start
+			brings as every start does. A name that is no member is
+			refused. So is a member whose `SKILL.md` says
+			`status: reference-only`, such as `human-owner`: an identity
+			record is never started. The session runs as that member,
+			whoever is at the console; the operating system runs it as
+			the user that runs the console.
+			**Hazard: no secret belongs in the prompt** -- the console
+			puts a brief on the CLI's own command line, visible in `ps`
+			on the host.
+			Prints one row of TAB-separated fields on stdout. An absent
+			value reads `-`, and a value's own whitespace reads `_`.
+			`spawn <session-id> <member> <name> <dispatch-item>`
+			<session-id> is the id of the new session and of the
+			member's run in it, as `--manager-session-list` lists them.
+			<name> is the session's name as its record keeps it.
+			<dispatch-item> is the item the start made. Exit 1 with one
+			error line, and nothing on stdout, where nothing was started.
+
+		--manager-team-member-list
+			One of the console's own operations (see Notes). Lists the
+			members of the team as this workspace knows them, one row a
+			member. Its own members come first, in the order of their
+			registry; then each member the machine knows that is set up
+			only in another workspace, which is a member here too. It
+			rebuilds the registry `team-members` first, reads
+			`team-members-names` as it lies, and reads which runs are
+			alive through `--manager-session-list`, which rebuilds its
+			two registries; it writes nothing else. Prints rows of
+			TAB-separated fields on stdout, the first naming the row. An
+			absent value reads `-`, and a value's own whitespace reads
+			`_`, as in a registry.
+			`member <team-member> <mark> <first-name> <family-name> <alias> <kind> <workspace> <set-up> <status> <live>`
+			<mark>, the two names and <alias> are the member's row of
+			`team-members-names` in the workspace it is set up in; the
+			row of a `client-*` member holds its persona's. <kind> is the
+			member's prefix group, the word before its first dash.
+			<workspace> is the name of the workspace it is set up in, and
+			<set-up> says where that is: `here`, `elsewhere` on this
+			machine, or `not-present` where the machine's members index
+			names the member and its workspace cannot be reached, its
+			other fields then `-`. <status> is the `status` of its
+			`SKILL.md`: `reference-only` is a member nobody is started
+			as. <live> is `running` while a run of it in a session of
+			this workspace has a live process on this host, else
+			`no-process`. With no names registry the mark and the names
+			of this workspace's members read `-`, and one note on stderr
+			says so. Exit 1, nothing printed, where a registry cannot be
+			rebuilt.
+
+		--manager-team-member-read <team-member>
+			One of the console's own operations (see Notes). Prints one
+			member of the team: one set up here, or only in another
+			workspace on this machine, which the operation finds itself.
+			Rows as `--manager-team-member-list` prints them, in this
+			order: the member's own `member` row; its information; the
+			bullets of its `basic.md`; the sessions of this workspace it
+			has a run in; its grants; its settings.
+			`info <name> <value>`
+			`bullet <name> <text>`
+			`grant <kind> <access> <target> <place> <origin> <ends>`
+			`setting <key> <state> <value> <workspace>`
+			The `info` rows, in this order: `description`, of its
+			`SKILL.md`; `workspace`, the path of the workspace it is set
+			up in; `home`, its home where the machine keeps one;
+			`link-kind` and `skillset-path`, its row of the registry
+			`team-members` of that workspace; and for a `client-*`
+			member `persona`, the member whose names its row holds. A
+			session is its `session` row, then the member's own `run`
+			rows in it, as `--manager-session-list` prints them: the
+			sessions where a run of the member is alive come first. The
+			`grant` rows are those `--magic-permission-list` prints for
+			the member. A `setting` row is one key of the member's scope
+			in this workspace, with the <state> and the <value>
+			`--manager-config-digest` gives it: `set`, `missing`,
+			`secret-set` or `secret-missing`. Which key is a secret is
+			that operation's rule, and nothing of the value of a secret
+			is ever printed. For a member set up elsewhere the keys of
+			each system this workspace holds no setting of for it
+			follow, which are read from the workspace it is set up in:
+			each by its name alone, its <state> `elsewhere` and its
+			<value> `-`. <workspace> names the workspace whose scope
+			holds the key. The grants index is brought up to date where
+			it is stale; nothing else is written but the registries.
+			Exit 1, nothing printed, for a name that is no member, a
+			member whose workspace cannot be reached, or a part that
+			cannot be read.
 
 		--magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 			Moves a board item to board/backlog/ and/or patches its
@@ -3572,9 +3982,61 @@
 			status, owner, kind, question-tag, channel, question-ts,
 			thread-ts, address-to, session-id, asked-at and, once
 			closed, resolved-at, verdict and answered-by, then
-			`question:` with its first line. It changes nothing, and it
-			reads no thread, so an answer still in the thread is not
+			`question:` with its first line. It changes no record, and
+			it reads no thread, so an answer still in the thread is not
 			shown here.
+			An open record also prints `asker-live:` before its
+			question: whether the run that asked it is alive, measured
+			as the read is made and stored nowhere. `running`: a
+			process of this host runs as it. `no-process`: a spawn
+			record names it and nothing runs as it, so nobody is there
+			to take the answer. `session-ended`: a session no spawn
+			started, whose own store says it ended. `no-spawn-record`:
+			such a session with no end recorded, which is not measured.
+			`other-host`, `host-unrecorded` and `no-session-id`: asked
+			on another host, or the record does not say where or by
+			whom. `not-measured`: this read measured nothing for it, as
+			when the registry could not be rebuilt.
+			The session-id of a record is the id of the run that asked,
+			never of the coworking session that run joined, and the
+			asker is matched by it. The read only says so: it closes,
+			withdraws and asks again nothing.
+			A list first rebuilds the pending-replies registry, by the
+			rebuild `--make-harness-indices pending-replies` makes, so
+			that file is current after any list. One record by its
+			<pending-id> rebuilds nothing.
+			One record by its <pending-id> prints those same lines, then
+			the whole of what the stores hold of that ask, from
+			`PENDING-REPLY-STORED: <id>` to a blank line. Every line
+			there is `<name>: <text>`. A text of several lines repeats
+			its name on each of its lines, in order: an empty line is
+			the name, the colon and one space, and the text ends where
+			a line has another name. A name that lists things has one
+			of them a line. In this order, each only where a store
+			holds it: the record's other header fields under their own
+			names (host, communication-channel-id, addressees, reason,
+			task-ref, refusal-id, select and the rest); `posted`, the
+			question as it was posted, whole; `clarification`, what the
+			record keeps of its thread since; `option`, the options
+			with their words; `field-<slot>`, what the post was filled
+			with (asked-as, tag, question, context, understood, source,
+			will-do, refused-tool, refused-target, refused-for, folder,
+			project, reason, task, proposal, document; of a review
+			member, task, outcome, session; of a held change also act,
+			file, purpose, asked-by, the diff as shown and cut);
+			`first-option` and `first-field-<slot>`, the same as first
+			asked, once it was asked again, changed; `set-<key>`, a
+			permission set's own record (scope, item, session-id,
+			participants, entry, place, purpose, reason, held);
+			`answer-noted-<key>`, a verdict noted and not yet applied;
+			`refused-<key>`, `refused-place` and `refused-text`, the
+			refused call of a permission and what the tool said;
+			`change-store`, `change-<key>` and `change-diff`, a held
+			change and its whole diff; `kept-beside`, the names of what
+			lies beside the record. Only the stores of this workspace
+			are read, never a thread: an ask made before its slots were
+			kept has its question in `posted` alone. A list prints none
+			of this.
 			An open question is also reminded by the main loop itself
 			(30 minutes, 2 hours, then daily after 09:00 once 4+ hours
 			old), always by a reply in that question's own thread. The
@@ -4384,6 +4846,13 @@
 			is refused, asking for explicit `<team-member>...`
 			instead.
 
+			A member whose `SKILL.md` says `status: reference-only` is
+			an identity record, such as `human-owner`, and is never
+			started: a call that names one, or whose routine's
+			`executors` do, is refused in one line before its first
+			spawn, so no member of the call is started. A name that is
+			no member is refused the same way, before the first spawn.
+
 			The first member spawned starts the session; every
 			further one joins it by the session id the first spawn's
 			own output reports. A routine's own `invitees` are never
@@ -4590,6 +5059,13 @@
 		body itself is untouched. An item whose frontmatter opens with `---`
 		and never closes is refused instead -- where that block ends cannot
 		be determined, so nothing is written.
+
+		The `--manager-*` operations are the console's own, and the
+		tooling's: what a manager screen, and later a portal, reads and
+		acts through. Whoever can open the console on the machine runs
+		them, a person or a script. A call from inside a member's session
+		is refused in one line, magic-coordinator's among them. Each prints
+		plain text for a program to read, in the form its entry gives.
 
 ##  Examples:
 

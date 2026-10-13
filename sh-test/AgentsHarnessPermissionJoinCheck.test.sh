@@ -32,6 +32,8 @@ rigRefuse(){
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to send under"
 
 mkdir -p "$MMDAPP/.local/temp" || exit 1
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d "$MMDAPP/.local/temp/AgentsHarnessPermissionJoinCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
@@ -300,8 +302,9 @@ rigThreadLater unlock "$rigScenarioDir/ws/.local/agents/pending/*.set.three"
 ## His click waits until the third call is written to the record: the mark below is made by the rig once the set holds three entries.
 ( while [ "$( rigStarts "$( rigSetFile )" 'entry: ' )" != "3" ] ; do sleep 0.2 ; done ; : > "$( rigSetFile ).three" ) &
 rigWatch=$!
+rigProcNote "$rigWatch"
 rigAsk "$rigThird" "May the rig write the third file?"
-kill "$rigWatch" 2>/dev/null ; wait "$rigWatch" 2>/dev/null
+rigProcSignal TERM "$rigWatch" ; wait "$rigWatch" 2>/dev/null
 rigAssert "the third call comes back answered: allow-set, with the set's grant" \
 	"$rigKilled:$( rigFirstLine "$rigScenarioDir/out" ):$( rigVerdictLine ):$( rigLines "$rigScenarioDir/out" "GRANT: set 3 entries for $rigMember" )" \
 	"no:ASK-RESULT: RECEIVED:VERDICT: allow-set:1"

@@ -24,10 +24,12 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin this workspace resolves: $rigHarness"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsHarnessDismissedEndCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigRunPids=""
-trap 'for rigPid in $rigRunPids ; do kill -KILL "$rigPid" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignal KILL $rigRunPids ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/served" "$rigTmp/loop" "$rigTmp/tmp" "$rigTmp/home" "$rigTmp/skills"
 for rigName in "$rigMember" "$rigLead" magic-coordinator ; do
 	mkdir -p "$rigTmp/skills/$rigName"
@@ -74,9 +76,9 @@ rigScene(){ ## scenario name, who the DISMISSED in the thread is addressed to (e
 	## The run, and beside it a process that only quotes the id: the first is the session, the second is not.
 	## Neither is a job of this shell, so the shell says nothing when one is ended.
 	perl -e 'sleep 600' -- --session-id "$rigSpawn" > /dev/null 2>&1 &
-	rigRunPid=$! ; rigRunPids="$rigRunPids $rigRunPid" ; disown "$rigRunPid" 2> /dev/null || :
+	rigRunPid=$! ; rigRunPids="$rigRunPids $rigRunPid" ; rigProcNote "$rigRunPid" ; disown "$rigRunPid" 2> /dev/null || :
 	perl -e 'sleep 600' -- --note "$rigSpawn" > /dev/null 2>&1 &
-	rigQuotePid=$! ; rigRunPids="$rigRunPids $rigQuotePid" ; disown "$rigQuotePid" 2> /dev/null || :
+	rigQuotePid=$! ; rigRunPids="$rigRunPids $rigQuotePid" ; rigProcNote "$rigQuotePid" ; disown "$rigQuotePid" 2> /dev/null || :
 }
 rigAlive(){ ## pid
 	kill -0 "$1" 2> /dev/null && printf alive || printf gone
@@ -164,10 +166,28 @@ echo "-- a run that ends by itself within the grace is not signalled --"
 rigScene endsItself "$rigMember"
 rigCall Wait "$rigWait"
 rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=3
-kill -TERM "$rigRunPid" 2> /dev/null
+rigProcSignal TERM "$rigRunPid"
 sleep 7
 rigAssert "nothing is said of ending a run that is gone, and no other process is touched" \
 	"$( rigSaid "$rigDir/ws/.local/agents/sessions/$rigSpawn/session.log" "$rigEndedLine" ):$( rigAlive "$rigQuotePid" )" "0:alive"
+
+echo "-- a run with no session word is ended too, by the process its record names, while another process quotes its id --"
+rigScene noWord "$rigMember"
+## No process runs as this session by its own word: the stand-in that did is ended, and the run
+## is a process that carries no id at all, which the spawn's record names as the one its launch
+## started. The process that only quotes the id is still there, and is still no run.
+rigProcSignal KILL "$rigRunPid"
+rigGoneWithin "$rigRunPid" 5 > /dev/null
+perl -e 'sleep 600' > /dev/null 2>&1 &
+rigRecordedPid=$! ; rigRunPids="$rigRunPids $rigRecordedPid" ; rigProcNote "$rigRecordedPid" ; disown "$rigRecordedPid" 2> /dev/null || :
+rigRecordedStart="$( LC_ALL=C ps -o lstart= -p "$rigRecordedPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
+[ -n "$rigRecordedStart" ] || rigRefuse "the stand-in of the run with no session word did not start, so its ending could not be measured"
+printf -- '---\nspawn-id: %s\nparent-session-id: none\nowner: %s\nstatus: spawn-started\nrun-process: %s %s\n---\n' "$rigSpawn" "$rigMember" "$rigRecordedPid" "$rigRecordedStart" > "$rigDir/ws/.local/agents/spawned/rig-folder/$rigSpawn.md"
+rigCall Wait "$rigWait"
+rigCall SubagentHandback '{"to":"session-current","outcome":"RIG-OUTCOME"}' MDAT_DISMISSED_END_GRACE=2
+rigAssert "dismissed, then the handback: its last line says to end" "$( rigLast )" "$rigNextEnd"
+rigAssert "the grace over, the process its record names is ended by the tooling, and the one that only quotes the id lives" "$( rigGoneWithin "$rigRecordedPid" 20 ):$( rigAlive "$rigQuotePid" )" "gone:alive"
+rigAssert "and the session's log says who ended the run, and why" "$( rigSaid "$rigDir/ws/.local/agents/sessions/$rigSpawn/session.log" "$rigEndedLine" )" 1
 
 echo "-- a session that was not dismissed waits, hands back and lives exactly as before --"
 rigScene notDismissed ""

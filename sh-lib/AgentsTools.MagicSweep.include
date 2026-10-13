@@ -169,8 +169,8 @@ case "$1" in
 		## subshell's exit status, which is what lets the cleanup sit inside it.
 		local sweepRc=0
 		(
-			clientSweepDir="$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.$$"
-			rm -rf "$clientSweepDir" && mkdir -p "$clientSweepDir" || exit 1
+			## Its own, by mktemp and never by $$: concurrent scans share one $$.
+			clientSweepDir="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/mdat-magic-sweep-clients.$callingMember.XXXXXX" )" || exit 1
 			trap 'rm -rf "$clientSweepDir"' EXIT
 
 			## All accounts concurrently, emitted in the original order (MAGIC.md).

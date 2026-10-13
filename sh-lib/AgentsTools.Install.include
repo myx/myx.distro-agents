@@ -1633,7 +1633,7 @@ case "$1" in
 		## means to guarantee can't actually be created, it is recorded as
 		## wildcard instead rather than left as a false promise the console would
 		## trust unconditionally.
-		local fragmentRoot fragmentTag ownCount=0 explicitCount=0 wildcardCount=0
+		local fragmentRoot fragmentTag ownCount=0 explicitCount=0 wildcardCount=0 createdCount=0
 		: > "$fragmentTmp"
 		while IFS= read -r fragmentRoot ; do
 			[ -n "$fragmentRoot" ] || continue
@@ -1665,6 +1665,7 @@ case "$1" in
 					if [ -d "$fragmentRoot" ] ; then
 						ownCount=$(( ownCount + 1 ))
 					elif mkdir -p "$fragmentRoot" 2>/dev/null ; then
+						createdCount=$(( createdCount + 1 ))
 						## Only ever written into a directory this run just created --
 						## never into one that already existed, whatever it holds.
 						printf '%s\n' \
@@ -1680,6 +1681,7 @@ case "$1" in
 					fi
 				;;
 				explicit)
+					[ -d "$fragmentRoot" ] || createdCount=$(( createdCount + 1 ))
 					if mkdir -p "$fragmentRoot" 2>/dev/null ; then
 						explicitCount=$(( explicitCount + 1 ))
 					else
@@ -1692,6 +1694,15 @@ case "$1" in
 			esac
 			printf '%s\t%s\n' "$fragmentTag" "$fragmentRoot" >> "$fragmentTmp"
 		done <<< "$rootsList"
+
+		## A root this run created changes what one index holds: the harness's roots index
+		## keeps every root as it resolved, and one made before that root existed keeps it
+		## unresolved. The step that changes what an index holds writes it, as the MCP
+		## registration and the member links write theirs: that one index, by its name, and
+		## only for the workspace the tooling runs for, which is the one the index is of.
+		if [ "$createdCount" -gt 0 ] && [ "$workspace" = "$( cd "$MMDAPP" && pwd )" ] ; then
+			DistroAgentsTools --make-harness-indices harness.roots || { rm -f "$fragmentTmp" ; set +e ; return 1 ; }
+		fi
 
 		local rootCount="$( printf '%s\n' "$rootsList" | grep -c '' )"
 
@@ -1994,38 +2005,48 @@ case "$1" in
 		fi
 		workspace="$( cd "$workspace" && pwd )"
 
-		DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
+		## The whole install, or one of its two parts for --make-workspace-integrations, which
+		## makes the indices between them and names the part in makeInstallPart, a local of
+		## its own run. `before-indices` is what the indices are made from: the MCP registration
+		## and the member links, which write the member registry. `after-indices` is what reads
+		## them: the trust, the permissions, the settings and the copilot access. Run by itself
+		## it is both, as it always was.
+		local integrationsPart="${makeInstallPart:-}"
+		if [ "$integrationsPart" != "after-indices" ] ; then
+			DistroAgentsTools --install-vscode-integrations --workspace "$workspace" || { set +e ; return 1 ; }
 
-		local ownsReport="false"
-		if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
-			MDSC_SKILLSET_REPORT="$MMDAPP/.local/temp/magic-skillset-report.$$"
-			mkdir -p "$MMDAPP/.local/temp" && : > "$MDSC_SKILLSET_REPORT" || { set +e ; return 1 ; }
-			export MDSC_SKILLSET_REPORT ; ownsReport="true"
+			local ownsReport="false"
+			if [ -z "$MDSC_SKILLSET_REPORT" ] ; then
+				MDSC_SKILLSET_REPORT="$MMDAPP/.local/temp/magic-skillset-report.$$"
+				mkdir -p "$MMDAPP/.local/temp" && : > "$MDSC_SKILLSET_REPORT" || { set +e ; return 1 ; }
+				export MDSC_SKILLSET_REPORT ; ownsReport="true"
+			fi
+			local ownsPrescan="false" installStatus=0
+			if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
+				local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
+				AgentsToolsInstallScanMembers "$workspace" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
+				export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
+				export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
+				export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
+				export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
+				export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
+			fi
+			if [ -n "$scope" ] ; then
+				DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || installStatus=1
+			else
+				DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || installStatus=1
+				DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || installStatus=1
+			fi
+			if [ "$ownsPrescan" = "true" ] ; then
+				unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
+			fi
+			if [ "$ownsReport" = "true" ] ; then
+				DistroAgentsTools --install-skillset-report-render
+				rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
+			fi
+			[ "$installStatus" = "0" ] || { set +e ; return 1 ; }
 		fi
-		local ownsPrescan="false" installStatus=0
-		if [ -z "$MDSC_SKILLSET_PRESCAN" ] ; then
-			local scanMemberNames scanMemberSources scanDiscoveryTrusted scanDiscoveryError
-			AgentsToolsInstallScanMembers "$workspace" "false" "$MDLT_ORIGIN/myx/myx.distro-agents/skillset/magic-team"
-			export MDSC_SKILLSET_MEMBERNAMES="$scanMemberNames"
-			export MDSC_SKILLSET_MEMBERSOURCES="$scanMemberSources"
-			export MDSC_SKILLSET_DISCOVERY_TRUSTED="$scanDiscoveryTrusted"
-			export MDSC_SKILLSET_DISCOVERY_ERROR="$scanDiscoveryError"
-			export MDSC_SKILLSET_PRESCAN="1" ; ownsPrescan="true"
-		fi
-		if [ -n "$scope" ] ; then
-			DistroAgentsTools --install-skillset-symlinks --scope "$scope" --workspace "$workspace" || installStatus=1
-		else
-			DistroAgentsTools --install-skillset-symlinks --scope user-home --workspace "$workspace" || installStatus=1
-			DistroAgentsTools --install-skillset-symlinks --scope workspace --workspace "$workspace" || installStatus=1
-		fi
-		if [ "$ownsPrescan" = "true" ] ; then
-			unset MDSC_SKILLSET_PRESCAN MDSC_SKILLSET_MEMBERNAMES MDSC_SKILLSET_MEMBERSOURCES MDSC_SKILLSET_DISCOVERY_TRUSTED MDSC_SKILLSET_DISCOVERY_ERROR
-		fi
-		if [ "$ownsReport" = "true" ] ; then
-			DistroAgentsTools --install-skillset-report-render
-			rm -f "$MDSC_SKILLSET_REPORT" ; unset MDSC_SKILLSET_REPORT
-		fi
-		[ "$installStatus" = "0" ] || { set +e ; return 1 ; }
+		[ "$integrationsPart" != "before-indices" ] || return 0
 
 		## must follow --install-vscode-integrations, which creates $HOME/.claude.json when missing
 		DistroAgentsTools --install-claude-workspace-trust --workspace "$workspace" || { set +e ; return 1 ; }

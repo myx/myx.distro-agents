@@ -8,15 +8,17 @@
 ##   $MMDAPP/.local/temp/mdat-tests/<UTC-stamp>/summary.txt     PASS / FAIL per test, totals
 ## and points $MMDAPP/.local/temp/mdat-tests/latest at it.
 ##
-## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [<name-substring>...]
+## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
 ##        AgentsRunTests.sh --passed [<name-substring>...]
 ##   no substrings: every *.test.sh; otherwise the tests whose name contains any of them.
 ##   --passed runs nothing: for each of those tests it prints one line, `<test> <when>`, the
 ##   time it passed on the very state it would run on now, or `<test> -` where no such pass
 ##   is on record (the pass record, below).
 ##   Workers: lib/parallel's own default (ENV_PARALLEL_WORKER_COUNT, else 4) unless -w is given.
-##   Each task line of the run list is `<test> <timeout-seconds>`; -t sets the timeout written
+##   Each line of the run list is `<test> <timeout-seconds>`; -t sets the timeout written
 ##   into each line (default 900).
+##   Status: 0 every test passed, 1 a test did not or the run was refused, 124 the run stood
+##   still and was ended (A RUN THAT STANDS STILL, below).
 ##
 ## Each test gets a test-only session identity, so no test can write into a live session store.
 ## And nothing of the session its runner was started in. A member's session that a spawn started
@@ -63,6 +65,33 @@
 ## own source root is in, under $MMDAPP/.local/temp: a lock naming that folder is its
 ## caller's own, and so is any such lock to a run from a tree that is no scratch folder.
 ##
+## THE DRIVER IS HANDED ITS WORKERS, NEVER THE TESTS. lib/parallel starts a job for each line
+## it reads and, once as many run as it has workers, waits to be told that one has ended
+## before it reads on. It is told through a helper process of its own, and a driver whose
+## helper is gone is never told: it waits for ever with no test running, and no job is left
+## to wake it (2026-10-13: 192 named tests, 56 run, then more than an hour of standing
+## still; the helper of that run was gone, and nothing of the driver looks after it). So the
+## driver reads one line for each worker and no more: it starts them all at once and has
+## nothing to wait for but their end. Each worker takes the tests of the run list one after
+## another, each time the first that no worker has taken, until none is left. A test is
+## taken by whoever makes its log, which is made whole or not at all, so no test is run
+## twice and none is left out. What runs at once, and the order in which the tests start
+## and ask for their slots, are as they were: as many tests as workers, in the order of the
+## list.
+##
+## A RUN THAT STANDS STILL IS ENDED, AND SAYS SO. Every start and every end of a test is
+## written in the run folder, and so are each line a test prints and the note, made again
+## each minute, that a test waits for a slot. A watch beside the run looks at the folder.
+## Once nothing in it has changed for longer than a test may take (-t) and a margin more
+## (--stall-margin, default 120 seconds), no test of the run is running and none waits, so
+## the run is ended: the driver is stopped with what is left under it, the summary is written
+## with what did end, the tests that never ran and those that started and never ended are
+## named, in the output and in <run folder>/stalled.txt, and the status is 124. The watch
+## counts the time as it goes and never reads it off the clock, so a machine that slept is
+## not taken for a run that stood still. A margin under 61 seconds is for a rig alone: a
+## test that waits for a slot is seen to wait once a minute. A run whose tests have no time
+## limit (-t 0, or no number) has no watch: there is no time by which a test must have ended.
+##
 ## A PASS IS KEPT BY THE CONTENT IT WAS EARNED ON. After a test passes, the pass goes on
 ## record under a key made from the content of everything the test can read: every file of
 ## the copy of the package this runner is in (its tests and their fixtures, sh-lib,
@@ -89,11 +118,15 @@ set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 
 testDir="$( cd "$( dirname "$0" )" && pwd )"
-runWorkers="" runTimeout=900 runPassed=""
+runWorkers="" runTimeout=900 runPassed="" runStallMargin=120
 while [ $# -gt 0 ] ; do
 	case "$1" in
 		-w|--workers) runWorkers="$2" ; shift 2 ;;
 		-t|--timeout) runTimeout="$2" ; shift 2 ;;
+		--stall-margin)
+			case "$2" in ''|*[!0123456789]*) echo "⛔ ERROR: AgentsRunTests.sh: --stall-margin takes a number of seconds: $2" >&2 ; exit 1 ;; esac
+			runStallMargin="$2" ; shift 2
+		;;
 		--passed) runPassed=1 ; shift ;;
 		--) shift ; break ;;
 		-*) echo "⛔ ERROR: AgentsRunTests.sh: unknown option: $1" >&2 ; exit 1 ;;
@@ -500,6 +533,81 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 	fi
 }
 
+AgentsRunWorker(){ ## worker number -- one task line of the driver: the tests of the run list one after another, each the first no worker has taken, until none is left
+	local workerName workerTimeout
+	while read -r workerName workerTimeout ; do
+		[ -n "$workerName" ] || continue
+		## taken by whoever makes its log: made by one worker or not at all, never by two
+		( set -C ; printf '' > "$runDir/$workerName.log" ) 2>/dev/null || continue
+		AgentsRunOneTest "$workerName" "$workerTimeout" < /dev/null || :
+	done < "$runList"
+	return 0
+}
+
+## The stall keeper: what the run folder holds now, on one line: the time of its newest entry,
+## how many entries it has, and how many of them are receipts. The watch compares two of these
+## lines and nothing else. (No apostrophe in this program, for the reason the slot keeper gives.)
+runStallKeeper="$( cat <<'RUNSTALLKEEPER'
+use strict ; use warnings ;
+my ( $dir ) = @ARGV ;
+opendir( my $list, $dir ) or exit 1 ;
+my ( $newest, $entries, $receipts ) = ( 0, 0, 0 ) ;
+for my $name ( readdir( $list ) ) {
+	next if $name eq "." || $name eq ".." ;
+	my @at = stat( "$dir/$name" ) or next ;
+	$entries++ ;
+	$receipts++ if $name =~ /\.receipt$/ ;
+	$newest = $at[ 9 ] if $at[ 9 ] > $newest ;
+}
+closedir( $list ) ;
+print "$newest $entries $receipts\n" ;
+RUNSTALLKEEPER
+)"
+AgentsRunStallEnd(){ ## seconds the run has stood still -- the note of it, for the summary, and the driver ended with what is left under it
+	local endSelf endSignal endPid
+	## from here the watch is not told to go any more: it ends the run, and then itself
+	trap '' TERM
+	printf 'stood-still=%s\ntimeout=%s\nmargin=%s\nended=%s\n' "$1" "$runTimeout" "$runStallMargin" "$( date -u +%Y-%m-%dT%H:%M:%SZ )" > "$runDir/stalled.txt" || { rm -f "$runDir/stalled.txt" ; return 1 ; }
+	## The driver is the first process of the pipeline, a child of this runner as the watch is,
+	## and the tee after it ends by itself once nothing writes to it. The driver is told to end,
+	## so it removes what it made; what is under it is ended outright, a stopped process too.
+	## The pids are read and signalled in one go: none is kept for later, when its number may
+	## be another process's.
+	endSelf="$( exec sh -c 'echo "$PPID"' )"
+	ps -A -o pid= -o ppid= -o comm= 2>/dev/null | LC_ALL=C awk -v root="$$" -v self="$endSelf" '
+		{ ppid[ $1 ] = $2 ; name[ $1 ] = $3 }
+		END {
+			for ( pid in ppid ) {
+				if ( pid == self || pid == root ) continue
+				top = pid ; hops = 0
+				while ( ( top in ppid ) && ppid[ top ] != root && top != self && hops++ < 64 ) top = ppid[ top ]
+				if ( ! ( top in ppid ) || ppid[ top ] != root || top == self || name[ top ] ~ /(^|\/)tee$/ ) continue
+				if ( top == pid ) first = first "TERM " pid "\n" ; else rest = rest "KILL " pid "\n"
+			}
+			printf "%s%s", first, rest
+		}' | while read -r endSignal endPid ; do kill "-$endSignal" "$endPid" 2>/dev/null ; done
+	return 0
+}
+AgentsRunStallWatch(){ ## -- beside the run for as long as it lasts: once nothing in the run folder has changed for longer than a test may take and the margin, the run is ended as stalled (A RUN THAT STANDS STILL, above)
+	local watchLimit=$(( 10#$runTimeout + 10#$runStallMargin )) watchEvery watchSleep="" watchSeen="" watchNow watchStill=0
+	watchEvery=$(( watchLimit / 10 )) ; [ "$watchEvery" -ge 1 ] || watchEvery=1 ; [ "$watchEvery" -le 20 ] || watchEvery=20
+	trap '[ -z "$watchSleep" ] || kill "$watchSleep" 2>/dev/null ; exit 0' TERM
+	while : ; do
+		## its own sleep holds none of the runner's output, and goes with the watch
+		sleep "$watchEvery" > /dev/null 2>&1 < /dev/null &
+		watchSleep=$! ; wait "$watchSleep" ; watchSleep=""
+		## a runner that is gone has nobody to tell
+		kill -0 "$$" 2>/dev/null || return 0
+		watchNow="$( perl -e "$runStallKeeper" "$runDir" 2>/dev/null )"
+		[ -n "$watchNow" ] || continue
+		if [ "$watchNow" != "$watchSeen" ] ; then watchSeen="$watchNow" ; watchStill=0 ; continue ; fi
+		watchStill=$(( watchStill + watchEvery ))
+		[ "$watchStill" -gt "$watchLimit" ] || continue
+		AgentsRunStallEnd "$watchStill" || :
+		return 0
+	done
+}
+
 . "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" || {
 	echo "⛔ ERROR: AgentsRunTests.sh: myx.common lib/parallel is not available" >&2 ; exit 1
 }
@@ -509,7 +617,32 @@ mkdir -p "$runSlotDir" 2>/dev/null && [ -w "$runSlotDir" ] || {
 
 echo "# AgentsRunTests.sh: $runCount test(s), workers ${runWorkers:-lib/parallel default}, timeout ${runTimeout}s, run folder: $runDir" >&2
 runStart="$( date +%s )"
-Parallel ${runWorkers:+--workers "$runWorkers"} AgentsRunOneTest < "$runList" | tee "$runDir/progress.txt"
+## as many workers as the driver would run at once, and a line of the driver for each, never more lines than tests (THE DRIVER IS HANDED ITS WORKERS, above)
+runWorkerCount="${runWorkers:-${ENV_PARALLEL_WORKER_COUNT:-4}}"
+runWorkerLines="$runCount"
+case "$runWorkerCount" in ''|*[!0123456789]*) ;; *) [ "$runWorkerCount" -ge "$runCount" ] || runWorkerLines="$runWorkerCount" ;; esac
+runWorkerList=""
+for (( runWorker = 1 ; runWorker <= runWorkerLines ; runWorker++ )) ; do runWorkerList="$runWorkerList${runWorkerList:+$'\n'}$runWorker" ; done
+## no time limit for a test, no time to hold a run to; the watch says nothing itself, so it holds none of this runner's output
+runStallPid=""
+case "$runTimeout" in ''|*[!0123456789]*) ;; *) [ "$(( 10#$runTimeout ))" = 0 ] || { AgentsRunStallWatch > /dev/null 2>&1 & runStallPid=$! ; } ;; esac
+Parallel --workers "$runWorkerCount" AgentsRunWorker <<< "$runWorkerList" | tee "$runDir/progress.txt"
+## The run has ended: by itself, and the watch is told to go; or by the watch, which hears nothing while it ends
+## the run, and is waited for. It is told only while this shell knows it to be running, never by a pid kept for later.
+runStalled="" runNever="" runNeverCount=0 runOpen="" runOpenCount=0
+if [ -n "$runStallPid" ] ; then
+	case " $( jobs -pr | LC_ALL=C tr '\n' ' ' )" in *" $runStallPid "*) kill "$runStallPid" 2>/dev/null ;; esac
+	wait "$runStallPid" 2>/dev/null
+fi
+if [ -f "$runDir/stalled.txt" ] ; then
+	runStalled="$( sed -n 's/^stood-still=//p' "$runDir/stalled.txt" | sed -n 1p )" ; runStalled="${runStalled:-?}"
+	for runName in $( cut -d' ' -f1 "$runList" ) ; do
+		[ ! -f "$runDir/$runName.receipt" ] || continue
+		if [ -f "$runDir/$runName.log" ] ; then runOpen="$runOpen $runName" ; runOpenCount=$(( runOpenCount + 1 ))
+		else runNever="$runNever $runName" ; runNeverCount=$(( runNeverCount + 1 )) ; fi
+	done
+	printf 'never-ran=%s\nnever-ended=%s\n' "${runNever# }" "${runOpen# }" >> "$runDir/stalled.txt"
+fi
 
 {
 	for runName in $( cut -d' ' -f1 "$runList" ) ; do
@@ -517,6 +650,7 @@ Parallel ${runWorkers:+--workers "$runWorkers"} AgentsRunOneTest < "$runList" | 
 		if [ "${runRc:-x}" = 0 ] ; then echo "PASS $runName" ; else echo "FAIL $runName rc=${runRc:-none}" ; fi
 	done | sort -k1,1 -k2,2
 	runPass="$( grep -l '^rc=0$' "$runDir"/*.receipt 2>/dev/null | wc -l | tr -d ' ' )"
+	[ -z "$runStalled" ] || echo "STALLED  never ran $runNeverCount  never ended $runOpenCount"
 	echo "TOTAL $runCount  PASS $runPass  FAIL $(( runCount - runPass ))  WALL $(( $( date +%s ) - runStart ))s"
 } > "$runDir/summary.txt"
 perl -e "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :
@@ -524,5 +658,9 @@ perl -e "$runPassKeeper" prune "$runPassDir" "$runPassAge" 2>/dev/null || :
 echo "---" >&2
 grep '^FAIL' "$runDir/summary.txt" || :
 tail -n 1 "$runDir/summary.txt"
+if [ -n "$runStalled" ] ; then
+	echo "⛔ ERROR: AgentsRunTests.sh: this run stood still and was ended as stalled: nothing of it started, ended or wrote a line for ${runStalled}s, longer than a test may take (${runTimeout}s) and ${runStallMargin}s more, so no test of it was running and none waited for a worker slot. Never ran, $runNeverCount of $runCount test(s):${runNever:- none}. Started and never ended, $runOpenCount:${runOpen:- none}. What did end is in $runDir/summary.txt, and the note of this in $runDir/stalled.txt" >&2
+	exit 124
+fi
 grep -q '^FAIL' "$runDir/summary.txt" && exit 1
 exit 0

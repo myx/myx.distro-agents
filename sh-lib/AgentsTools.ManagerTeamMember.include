@@ -1,0 +1,393 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerTeamMember.include -- the --manager-team-member-* operations: the
+## console's own view of the team's members. Sourced from the `--manager-team-member-*)` arm
+## of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## A registry or an index holds what the tooling needs to work fast, so nothing here reads
+## through folders for what one of them holds. The members of this workspace are the rows of
+## its team-members registry, rebuilt in the same call; their marks and names are their rows
+## of team-members-names as it lies; the sessions are what --manager-session-list prints,
+## the grants what --magic-permission-list prints, and the settings what
+## --manager-config-digest prints of its scope. A member set up only in another
+## workspace on this machine is a member here too: the machine's own directory of members
+## names it (AgentsToolsTeamMemberDirectoryText), and where it is set up is the answer every
+## reader of an invited member's own facts is given (AgentsToolsMemberInvitedWorkspace). The
+## dispatcher brings no member for an operation of this family, and nothing here is run as
+## one: a member's facts are read, where it is set up. A member's own files are read only
+## for what no registry holds, each a gap for a later column: the status and the description
+## of its SKILL.md, and the bullets of its basic.md.
+##
+## A SECRET IS NEVER PRINTED, in a row or in an error, and none is read here: no code of
+## this include opens a scope or asks the setting reader for a value. Which key is a secret
+## is decided in one place for the whole family, the digest of settings
+## (AgentsToolsManagerConfigKeySecret, AgentsTools.ManagerConfig.include), whose own lines
+## are what a member's settings are printed from. A key held by another workspace's scope
+## is printed by its name alone.
+##
+
+type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+
+## The rows of this workspace's team-members registry, rebuilt now, in ownRows of the caller,
+## as the file holds them: `member workspace link-kind skillset-path`. rc 1, with one line,
+## where the registry cannot be rebuilt: a stale file is never read as though it were fresh.
+AgentsToolsManagerTeamMemberOwn(){ ## the operation as it was called
+	local ownFile
+	ownRows=""
+	ownFile="$( AgentsToolsRegistryFile team-members )"
+	if ! AgentsToolsRegistryTeamMembersRebuild ; then
+		echo "⛔ ERROR: $MDSC_CMD $1: the registry team-members could not be rebuilt in ${ownFile%/*} -- nothing is shown" >&2
+		return 1
+	fi
+	ownRows="$( cat "$ownFile" 2> /dev/null )" || ownRows=""
+	return 0
+}
+
+## What the list of sessions prints now, in sessionRows of the caller: the sessions of this
+## workspace with their runs, both session registries rebuilt and every run measured by that
+## operation's own code, so nothing here reads the store of the sessions a second way. rc 1,
+## with one line after that operation's own, where it fails.
+AgentsToolsManagerTeamMemberSessions(){ ## the operation as it was called
+	sessionRows="$( DistroAgentsTools --manager-session-list )" || {
+		echo "⛔ ERROR: $MDSC_CMD $1: the sessions of this workspace could not be read -- nothing is shown" >&2
+		return 1
+	}
+	return 0
+}
+
+## Where one member is set up, in four variables of the caller: placedSetUp (`here`,
+## `elsewhere`, `not-present`, or nothing for a name the machine knows no member by),
+## placedRoot (the member set root its own files are read under), placedWorkspace (the root
+## of the workspace it is set up in) and placedFolder (its folder as the machine's directory
+## of members gives it, for a member that is not of this workspace). Here: a row of this
+## workspace's registry, or a folder of its member set. Elsewhere: the workspace the one
+## resolution of an invited member answers, where its folder is in that workspace's member
+## set. Not present: the machine's directory names it, and no such workspace can be reached.
+AgentsToolsManagerTeamMemberPlace(){ ## member, the members of this workspace's registry between newlines, the machine's directory of members
+	local placeText placeWorkspace
+	placedSetUp="" ; placedRoot="" ; placedWorkspace="" ; placedFolder=""
+	case "$2" in *$'\n'"$1"$'\n'*) placedSetUp="here" ;; esac
+	[ -n "$placedSetUp" ] || [ ! -d "${MDAT_SKILLSET_ROOT:-/nonexistent}/$1" ] || placedSetUp="here"
+	if [ "$placedSetUp" = "here" ] ; then
+		placedRoot="${MDAT_SKILLSET_ROOT:-}" ; placedWorkspace="${MMDAPP%/}"
+		return 0
+	fi
+	placeText=$'\n'"$3"
+	case "$placeText" in *$'\n'"$1"$'\t'*) ;; *) return 0 ;; esac
+	placeText="${placeText#*$'\n'"$1"$'\t'}"
+	placedFolder="${placeText%%$'\n'*}"
+	placedSetUp="not-present"
+	if placeWorkspace="$( AgentsToolsMemberInvitedWorkspace "$1" )" ; then
+		placedRoot="$( AgentsToolsWorkspaceSkillsetRoot "$placeWorkspace" )"
+		if [ -d "$placedRoot/$1" ] ; then
+			placedSetUp="elsewhere" ; placedWorkspace="${placeWorkspace%/}"
+		else
+			placedRoot=""
+		fi
+	fi
+	return 0
+}
+
+## One member's row of a team-members-names registry file as it lies, in namesRow of the
+## caller, its four fields between TABs: mark, first name, family name, alias. Each is `-`
+## where the registry holds none, and all four where the file or the row is not there.
+AgentsToolsManagerTeamMemberNames(){ ## member, registry file
+	local namesMember namesMark namesFirst namesFamily namesAlias namesRest
+	namesRow="-"$'\t'"-"$'\t'"-"$'\t'"-"
+	[ -f "$2" ] || return 0
+	while read -r namesMember namesMark namesFirst namesFamily namesAlias namesRest ; do
+		[ "$namesMember" = "$1" ] || continue
+		namesRow="${namesMark:--}"$'\t'"${namesFirst:--}"$'\t'"${namesFamily:--}"$'\t'"${namesAlias:--}"
+		break
+	done < "$2"
+	return 0
+}
+
+## The `status` of a member's SKILL.md, in statusWord of the caller: `reference-only` for a
+## member nobody is started as. `-` where the file gives none or is not there. No registry
+## holds it.
+AgentsToolsManagerTeamMemberStatus(){ ## member set root, member
+	local statusLine statusFront=""
+	statusWord="-"
+	[ -f "$1/$2/SKILL.md" ] || return 0
+	while IFS= read -r statusLine || [ -n "$statusLine" ] ; do
+		case "$statusFront:$statusLine" in
+			':---') statusFront=1 ;;
+			'1:---') break ;;
+			'1:status:'*)
+				statusLine="${statusLine#status:}"
+				statusLine="${statusLine#"${statusLine%%[![:space:]]*}"}"
+				statusLine="${statusLine%"${statusLine##*[![:space:]]}"}"
+				[ -z "$statusLine" ] || statusWord="${statusLine//[[:space:]]/_}"
+				break
+			;;
+			':'*) break ;;
+		esac
+	done < "$1/$2/SKILL.md"
+	return 0
+}
+
+## One `member` row, in the form of the help entry. A member whose workspace cannot be
+## reached has no file to read and no registry row to take: its fields are `-`.
+AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace root, the members with a live run between newlines
+	local rowKind="${1%%-*}" rowWorkspace="-" rowLive="no-process" namesRow="" statusWord="-"
+	[ "$rowKind" != "$1" ] || rowKind="-"
+	namesRow="-"$'\t'"-"$'\t'"-"$'\t'"-"
+	if [ "$2" != "not-present" ] ; then
+		rowWorkspace="${4%/}" ; rowWorkspace="${rowWorkspace##*/}"
+		rowWorkspace="${rowWorkspace//[[:space:]]/_}"
+		## Its names are those of the workspace it is set up in, as the author line of a message reads them.
+		AgentsToolsManagerTeamMemberNames "$1" "$( MMDAPP="${4%/}" ; AgentsToolsRegistryFile team-members-names )"
+		AgentsToolsManagerTeamMemberStatus "$3" "$1"
+	fi
+	case "$5" in *$'\n'"$1"$'\n'*) rowLive="running" ;; esac
+	printf 'member\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$namesRow" "$rowKind" "${rowWorkspace:--}" "$2" "$statusWord" "$rowLive"
+	return 0
+}
+
+## The members that have a run with a live process, between newlines, out of the rows of the
+## list of sessions: a `run` row names its member fourth and what was measured of it sixth.
+AgentsToolsManagerTeamMemberLive(){ ## the rows of the list of sessions
+	printf '\n%s\n' "$( printf '%s\n' "$1" | LC_ALL=C awk -F'\t' '$1 == "run" && $6 == "running" { print $4 ; }' )"
+}
+
+## The note of a workspace with no names registry, on stderr, once.
+AgentsToolsManagerTeamMemberNamesSay(){ ## the operation as it was called
+	local sayFile
+	sayFile="$( AgentsToolsRegistryFile team-members-names )"
+	[ -f "$sayFile" ] || echo "# $MDSC_CMD $1: no names registry is at $sayFile, so the mark and the names of each member of this workspace read - (--make-harness-indices builds it)" >&2
+	return 0
+}
+
+## The rows --manager-team-member-list prints: this workspace's own members in the order of
+## their registry, then each member the machine's directory knows that is set up only in
+## another workspace. One it names whose workspace cannot be reached is still a row, said
+## as `not-present`. Fails, printing nothing, where a registry cannot be rebuilt.
+AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
+	local listOp="$1" listOwn=$'\n' listSeen=$'\n' listLive listMember listRest listDirectory
+	local ownRows="" sessionRows="" placedSetUp placedRoot placedWorkspace placedFolder
+	AgentsToolsManagerTeamMemberOwn "$listOp" || return 1
+	AgentsToolsManagerTeamMemberSessions "$listOp" || return 1
+	listLive="$( AgentsToolsManagerTeamMemberLive "$sessionRows" )"$'\n'
+	while read -r listMember listRest ; do
+		[ -z "$listMember" ] || listOwn="$listOwn$listMember"$'\n'
+	done <<< "$ownRows"
+	[ "$listOwn" = $'\n' ] || AgentsToolsManagerTeamMemberNamesSay "$listOp"
+	while read -r listMember listRest ; do
+		[ -n "$listMember" ] || continue
+		AgentsToolsManagerTeamMemberRow "$listMember" here "${MDAT_SKILLSET_ROOT:-}" "${MMDAPP%/}" "$listLive"
+	done <<< "$ownRows"
+	listDirectory="$( AgentsToolsTeamMemberDirectoryText )" || listDirectory=""
+	while IFS=$'\t' read -r listMember listRest ; do
+		[ -n "$listMember" ] || continue
+		case "$listOwn$listSeen" in *$'\n'"$listMember"$'\n'*) continue ;; esac
+		listSeen="$listSeen$listMember"$'\n'
+		AgentsToolsManagerTeamMemberPlace "$listMember" "$listOwn" "$listDirectory"
+		AgentsToolsManagerTeamMemberRow "$listMember" "${placedSetUp:-not-present}" "$placedRoot" "$placedWorkspace" "$listLive"
+	done <<< "$listDirectory"
+	return 0
+}
+
+## The `setting` rows of one member. The keys of its scope in this workspace are the lines
+## the digest of settings prints for that scope, each with the state and the value the
+## digest gives it: which key is a secret, and what is shown of it, is that operation's own
+## rule, and nothing of a secret reaches this shell. For a member set up elsewhere, then the
+## keys of each system this workspace holds no setting of for it, which the tooling reads
+## from the workspace it is set up in (the settings fallback,
+## AgentsToolsConfigOptionElsewhere): by their names alone, from the names-only reader, as
+## `elsewhere`. What another workspace's scope holds is that workspace's to show.
+AgentsToolsManagerTeamMemberSettingRows(){ ## member, set-up
+	local settingsMember="$1" settingsLines settingsName settingsSystem settingsThere settingsKeys settingsKey
+	settingsLines="$( DistroAgentsTools --manager-config-digest scopes )" || return 1
+	settingsName="${MMDAPP%/}" ; settingsName="${settingsName##*/}"
+	printf '%s\n' "$settingsLines" | LC_ALL=C awk -F'\t' -v OFS='\t' -v wantScope="$settingsMember" -v scopeWorkspace="${settingsName//[[:space:]]/_}" '
+		$1 == "line" && $2 == "scopes" && $3 == wantScope && NF == 6 { print "setting", $4, $5, $6, scopeWorkspace ; }
+	'
+	[ "$2" = "elsewhere" ] || return 0
+	for settingsSystem in $agentsMemberSettingSystems ; do
+		AgentsToolsConfigOptionElsewhere "$settingsMember" "${settingsSystem}_" || return 1
+		settingsThere="$agentsConfigOptionElsewhere"
+		[ -n "$settingsThere" ] || continue
+		settingsName="${settingsThere%/}" ; settingsName="${settingsName##*/}" ; settingsName="${settingsName//[[:space:]]/_}"
+		settingsKeys="$( AgentsToolsScopeKeyNames "$settingsThere" "$settingsMember" "${settingsSystem}_" "" )" || settingsKeys=""
+		while [ -n "$settingsKeys" ] ; do
+			settingsKey="${settingsKeys%%, *}"
+			if [ "$settingsKey" = "$settingsKeys" ] ; then settingsKeys="" ; else settingsKeys="${settingsKeys#*, }" ; fi
+			## Only the name of a setting is a key, as the digest takes it: what stands ahead
+			## of the `=` of any other line may be anything, and is never printed.
+			case "$settingsKey" in ''|[!ABCDEFGHIJKLMNOPQRSTUVWXYZ]*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) continue ;; esac
+			printf 'setting\t%s\telsewhere\t-\t%s\n' "$settingsKey" "$settingsName"
+		done
+	done
+	return 0
+}
+
+## The rows --manager-team-member-read prints for one member: its `member` row, its
+## information, the bullets of its basic.md, the sessions it has a run in, its grants and
+## its settings. Every part is gathered before the first row is printed: fails, printing
+## nothing, for a name that is no member, a member that cannot be brought, or a part that
+## cannot be read.
+AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, member -- its name already known to be a bare one
+	local readOp="$1" readMember="$2" readOwn=$'\n' readName readWorkspace readKind readPath readRest readText readFile
+	local readLinkKind="-" readLinkPath="-" readHome="-" readDescription="-" readBullets="" readSessions readGrants readSettings readLive
+	local ownRows="" sessionRows="" placedSetUp placedRoot placedWorkspace placedFolder
+	AgentsToolsManagerTeamMemberOwn "$readOp" || return 1
+	while read -r readName readRest ; do
+		[ -z "$readName" ] || readOwn="$readOwn$readName"$'\n'
+	done <<< "$ownRows"
+	readText="$( AgentsToolsTeamMemberDirectoryText )" || readText=""
+	AgentsToolsManagerTeamMemberPlace "$readMember" "$readOwn" "$readText"
+	case "$placedSetUp" in
+		'')
+			echo "⛔ ERROR: $MDSC_CMD $readOp: no team member is named '$readMember': it is not set up in ${MMDAPP%/}, and the machine's members index ($( AgentsToolsTeamSharedMembers )) names no member of that name -- nothing is shown" >&2
+			return 1
+		;;
+		not-present)
+			echo "⛔ ERROR: $MDSC_CMD $readOp: member '$readMember' is set up in no workspace that can be reached from ${MMDAPP%/}: the machine's members index ($( AgentsToolsTeamSharedMembers )) names its folder as $placedFolder, and that workspace is not one this machine knows, is not on this machine now, or does not hold that folder in its member set -- nothing is shown" >&2
+			return 1
+		;;
+	esac
+	AgentsToolsManagerTeamMemberSessions "$readOp" || return 1
+	readLive="$( AgentsToolsManagerTeamMemberLive "$sessionRows" )"$'\n'
+
+	## Its row of the team-members registry of the workspace it is set up in: this one's,
+	## rebuilt now, or that one's as it lies.
+	readText="$ownRows"
+	[ "$placedSetUp" = "here" ] || readText="$( cat "$( MMDAPP="$placedWorkspace" ; AgentsToolsRegistryFile team-members )" 2> /dev/null )" || readText=""
+	while read -r readName readWorkspace readKind readPath readRest ; do
+		[ "$readName" = "$readMember" ] || continue
+		readLinkKind="${readKind:--}" ; readLinkPath="${readPath:--}"
+		break
+	done <<< "$readText"
+	## Its home, where the machine keeps one: a member found in more than one workspace.
+	readFile="$( AgentsToolsTeamSharedDir )/member-homes.registry"
+	if [ -f "$readFile" ] ; then
+		while IFS=$'\t' read -r readName readPath readRest ; do
+			[ "$readName" = "$readMember" ] && [ -n "$readPath" ] || continue
+			readHome="${readPath//[[:space:]]/_}"
+			break
+		done < "$readFile"
+	fi
+	## The description of its SKILL.md, which no registry holds: the value of that header,
+	## on its own line or folded over the indented lines under it, as one line.
+	readFile="$placedRoot/$readMember/SKILL.md"
+	[ ! -f "$readFile" ] || readDescription="$( LC_ALL=C awk '
+		$0 == "---" { if ( ++fenceCount > 1 ) { exit ; } next ; }
+		fenceCount != 1 { exit ; }
+		inText && ( $0 ~ /^[ \t]/ || $0 == "" ) {
+			textLine = $0 ; gsub( /^[ \t]+|[ \t\r]+$/, "", textLine ) ;
+			if ( textLine != "" ) { textAll = textAll ( textAll == "" ? "" : " " ) textLine ; }
+			next ;
+		}
+		inText { exit ; }
+		index( $0, "description:" ) == 1 {
+			textAll = substr( $0, 13 ) ; gsub( /^[ \t]+|[ \t\r]+$/, "", textAll ) ;
+			if ( textAll ~ /^[>|][+-]?$/ ) { textAll = "" ; }
+			inText = 1 ;
+		}
+		END { gsub( /[ \t\r]+/, "_", textAll ) ; print ( textAll == "" ? "-" : textAll ) ; }
+	' "$readFile" 2> /dev/null )" || readDescription="-"
+	## The bullets of its basic.md, which no registry holds whole: each `- **Name**: text`
+	## line, with the indented lines that continue it.
+	readFile="$placedRoot/$readMember/$readMember.basic.md"
+	[ ! -f "$readFile" ] || readBullets="$( LC_ALL=C awk '
+		function bulletOut() {
+			if ( bulletName != "" ) {
+				gsub( /[ \t\r]+/, "_", bulletName ) ;
+				gsub( /^[ \t\r]+|[ \t\r]+$/, "", bulletText ) ; gsub( /[ \t\r]+/, "_", bulletText ) ;
+				print "bullet\t" bulletName "\t" ( bulletText == "" ? "-" : bulletText ) ;
+			}
+			bulletName = "" ; bulletText = "" ;
+		}
+		/^- \*\*[^*]+\*\*:/ {
+			bulletOut() ;
+			bulletName = $0 ; sub( /^- \*\*/, "", bulletName ) ; sub( /\*\*:.*$/, "", bulletName ) ;
+			bulletText = $0 ; sub( /^- \*\*[^*]+\*\*:[ \t]*/, "", bulletText ) ;
+			next ;
+		}
+		bulletName != "" && /^[ \t]+[^ \t\r]/ { bulletLine = $0 ; sub( /^[ \t]+/, "", bulletLine ) ; bulletText = bulletText " " bulletLine ; next ; }
+		{ bulletOut() ; }
+		END { bulletOut() ; }
+	' "$readFile" 2> /dev/null )" || readBullets=""
+	## The sessions it has a run in: each session's own row, then the member's runs in it,
+	## as the list of sessions printed them; those where a run of it is alive come first.
+	readSessions="$( printf '%s\n' "$sessionRows" | LC_ALL=C awk -F'\t' -v wantMember="$readMember" '
+		$1 == "session" { sessionRow[$2] = $0 ; sessionOf[++sessionTotal] = $2 ; next ; }
+		$1 == "run" && $4 == wantMember { sessionRuns[$2] = sessionRuns[$2] $0 "\n" ; if ( $6 == "running" ) { sessionLive[$2] = 1 ; } }
+		END {
+			for ( livePass = 1 ; livePass >= 0 ; livePass-- ) {
+				for ( sessionAt = 1 ; sessionAt <= sessionTotal ; sessionAt++ ) {
+					sessionId = sessionOf[sessionAt] ;
+					if ( !( sessionId in sessionRuns ) || ( ( sessionId in sessionLive ) ? 1 : 0 ) != livePass ) { continue ; }
+					print sessionRow[sessionId] ; printf "%s", sessionRuns[sessionId] ;
+				}
+			}
+		}
+	' )" || readSessions=""
+	readGrants="$( DistroAgentsTools --magic-permission-list --member "$readMember" )" || {
+		echo "⛔ ERROR: $MDSC_CMD $readOp: the grants of $readMember could not be listed -- nothing is shown" >&2
+		return 1
+	}
+	readGrants="$( printf '%s\n' "$readGrants" | LC_ALL=C awk -F'\t' -v OFS='\t' 'NF { for ( fieldAt = 1 ; fieldAt <= NF ; fieldAt++ ) { gsub( /[ ]+/, "_", $fieldAt ) ; if ( $fieldAt == "" ) { $fieldAt = "-" ; } } print "grant", $0 ; }' )" || readGrants=""
+	readSettings="$( AgentsToolsManagerTeamMemberSettingRows "$readMember" "$placedSetUp" )" || {
+		echo "⛔ ERROR: $MDSC_CMD $readOp: the settings of $readMember could not be read -- nothing is shown" >&2
+		return 1
+	}
+
+	[ "$placedSetUp" != "here" ] || AgentsToolsManagerTeamMemberNamesSay "$readOp"
+	AgentsToolsManagerTeamMemberRow "$readMember" "$placedSetUp" "$placedRoot" "$placedWorkspace" "$readLive"
+	printf 'info\tdescription\t%s\n' "$readDescription"
+	printf 'info\tworkspace\t%s\n' "${placedWorkspace//[[:space:]]/_}"
+	printf 'info\thome\t%s\n' "$readHome"
+	printf 'info\tlink-kind\t%s\n' "$readLinkKind"
+	printf 'info\tskillset-path\t%s\n' "$readLinkPath"
+	## A client's row of the names registry holds its persona's names, never its own.
+	case "$readMember" in client-*) printf 'info\tpersona\t%s\n' "${registryPersonaMember:--}" ;; esac
+	[ -z "$readBullets" ] || printf '%s\n' "$readBullets"
+	[ -z "$readSessions" ] || printf '%s\n' "$readSessions"
+	[ -z "$readGrants" ] || printf '%s\n' "$readGrants"
+	[ -z "$readSettings" ] || printf '%s\n' "$readSettings"
+	return 0
+}
+
+case "$1" in
+
+	## The members of the team as this workspace knows them: TAB-separated rows a screen
+	## reads. Their form is the help entry's.
+	--manager-team-member-list)
+		local listOp="$1"
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax takes no argument, got: $1" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsManagerTeamMemberListRows "$listOp" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## One member: its row, its information, its sessions, its grants and its settings. The
+	## dispatcher brings no member for this family, so where the member is set up is asked here.
+	--manager-team-member-read)
+		local readOp="$1"
+		shift
+		if [ $# -eq 0 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is <team-member>, got no team member" >&2
+			set +e ; return 1
+		fi
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is <team-member>, got also: $2" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$1" "<team-member>" "${readOp#--}" || { set +e ; return 1 ; }
+		AgentsToolsManagerTeamMemberReadRows "$readOp" "$1" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

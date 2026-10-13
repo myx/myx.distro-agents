@@ -441,6 +441,47 @@ rigAssert "its Decisions line is recorded"                "$( rigDecisionLines )
 rigCollect again --ended
 rigAssert "a second pass adds no line, note or reaction"  "$( rigDecisionLines )/$( rigNotes )/$( rigReacted '1700000001.000102 white_check_mark' )" 1/1/1
 
+## A coworking session: its founder, whose spawn id is the session's id, is gone and closed. An ask
+## carries the id of the run that asked, so the ask of a member that joined is no session's id:
+## whether its asker lives is told of that run itself, by the one rule a run is recognised by.
+rigJoinedLive="rig-joined-live-$$-$RANDOM"
+printf '900002 rig-run --add-dir /rig/.local/agents/spawned/rig-cow-sess/input --session-id %s\n' "$rigJoinedLive" >> "$rigTmp/ps.list"
+
+echo "-- the stale pass, the ask of a member that joined a session and lives: closed silently --"
+rigStart staleJoinedLive
+rigLinked "$rigQ1" 1700000001.000102 Q1 "$rigJoinedLive"
+rigSpawnSession rig-cow-sess spawn-succeeded rig-cow-sess
+rigSpawnSession rig-cow-sess spawn-started "$rigJoinedLive"
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it joined","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "the live joined member's ask is answered"      "$( rigStatus "$rigQ1" )/$( rigField "$rigQ1" verdict )" "reply-received/yes, keep it joined"
+rigAssert "its Decisions line is recorded, its condition cleared" "$( rigDecisionLines )/$( LC_ALL=C grep -c '^condition: ' "$rigScenarioDir/data/board/blocked/$rigLiveItem.md" )" 1/0
+rigAssert "no 'after your session ended' note: its asker lives" "$( rigNotes )" 0
+rigAssert "and no closing reaction"                       "$( cat "$rigScenarioDir/reactions" 2>/dev/null | wc -l | tr -d ' ' )" 0
+
+echo "-- the stale pass, the ask of a member that joined a session and whose run has ended: note and reactions, as before --"
+rigStart staleJoinedGone
+rigLinked "$rigQ1" 1700000001.000102 Q1 rig-joined-gone
+rigSpawnSession rig-cow-sess spawn-succeeded rig-cow-sess
+rigSpawnSession rig-cow-sess spawn-succeeded rig-joined-gone
+## a member of that session still lives: the ask is its asker's, and its asker is gone
+rigSpawnSession rig-cow-sess spawn-started "$rigJoinedLive"
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "the ended member's ask is answered"            "$( rigStatus "$rigQ1" )" reply-received
+rigAssert "one note in the asker's inbox, though a member of its session lives" "$( rigNotes ):$( LC_ALL=C grep -c -F -- "--session-id $rigJoinedLive" "$rigTmp/ps.list" )" 1:1
+rigAssert ":white_check_mark: on the question"            "$( rigReacted '1700000001.000102 white_check_mark' )" 1
+rigAssert "its Decisions line is recorded"                "$( rigDecisionLines )" 1
+
+echo "-- the stale pass, an unclosed member that joined and has no process: ended, note and reactions --"
+rigStart staleJoinedUnclosed
+rigLinked "$rigQ1" 1700000001.000102 Q1 rig-joined-unclosed
+rigSpawnSession rig-cow-sess spawn-succeeded rig-cow-sess
+rigSpawnSession rig-cow-sess spawn-started rig-joined-unclosed
+rigReplies ',{"ts":"1700000001.000200","user":"URIGOWNER","text":"yes, keep it","thread_ts":"1700000001.000101"}'
+rigCollect out --ended
+rigAssert "a record still open is no live asker: note and reaction" "$( rigStatus "$rigQ1" )/$( rigNotes )/$( rigReacted '1700000001.000102 white_check_mark' )" reply-received/1/1
+
 echo "-- the stale pass is capped --"
 rigStart staleCap
 rigRecord "$rigQ1" 1700000001.000102 Q1 rig-cap-sess ""

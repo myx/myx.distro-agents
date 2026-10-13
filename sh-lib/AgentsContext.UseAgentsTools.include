@@ -108,6 +108,19 @@ if ! type AgentsToolsClientCallerCheck >/dev/null 2>&1 ; then
 	}
 fi
 
+if ! type AgentsToolsManagerCallerCheck >/dev/null 2>&1 ; then
+	## A --manager-* op is the console's own, and the tooling's: refused, rc 1 with the
+	## reason, from a spawned session, whichever member it acts as, magic-coordinator among
+	## them. A call from no such session, a person at a console or a script, is accepted.
+	AgentsToolsManagerCallerCheck(){ ## operation
+		local checkActing
+		checkActing="$( AgentsToolsActingMember )"
+		[ -n "$checkActing" ] || return 0
+		echo "$MDSC_CMD: $1: ⛔ ERROR: this session acts as $checkActing, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" >&2
+		return 1
+	}
+fi
+
 ## Guarded like MDAT_SKILLSET_ROOT below: identical behaviour when set, and
 ## no unbound-variable death for a caller that runs under `set -u`. No
 ## shipped caller does today -- this is idiom, not a fix for a live fault.

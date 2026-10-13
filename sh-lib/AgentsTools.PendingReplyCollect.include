@@ -45,7 +45,8 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 	AgentsToolsLocalLockTake "pending-reply-$1" 30 || return 1
 	markLock="$agentsLocalLockPath"
-	markOps="$MMDAPP/.local/temp/mdat-pending-reply-mark.$$.$RANDOM"
+	## Its own file, by mktemp: $$ is one for every subshell of one shell, and $RANDOM beside it is no promise.
+	markOps="$( mktemp "$MMDAPP/.local/temp/mdat-pending-reply-mark.XXXXXX" 2> /dev/null )" || markOps=""
 	if [ "$( AgentsToolsPendingReplyCollectFieldOf "$2" status )" = "reply-pending" ] ; then
 		printf 'upsert\tcollect\tended\n' > "$markOps" \
 			&& markBody="$( LC_ALL=C awk -v opsFile="$markOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$2" )" \
@@ -60,26 +61,29 @@ AgentsToolsPendingReplyMarkEnded(){ ## pending id, record file
 ## The sessions not known to have ended, as ` <id> <id> ... `: every session-id with a
 ## spawned-sessions row in state running (its process is alive on this host) or
 ## unknown-foreign (another host's, not closed, unmeasurable from here) -- the same render
-## and states the review hand-over reads. A session with no spawn record and a store of its own
-## (a root session) that asked is listed until that store says it ended
-## (AgentsToolsGrantsSessionEnded, the marker its SessionEnd hook writes), never by the age of
-## its ask; one with neither record nor store is not listed, as before.
+## and states the review hand-over reads. And every asker that is itself alive, said by the
+## one function that says it of an asker (AgentsToolsRegistryAskersLive, by the one rule a
+## run is recognised by): an ask carries the id of the run that asked, which is a session's
+## id only for a lone spawn and the founder of a coworking session, so a member that joined
+## a session and lives is listed by its own id, and one whose run has ended is not, whoever
+## else of its session lives. A session with no spawn record and a store of its own (a root
+## session) that asked is listed until that store says it ended (the marker its SessionEnd
+## hook writes, which that function reads), never by the age of its ask; one with neither
+## record nor store is listed only while a process runs as it.
 AgentsToolsPendingReplySessionsRunning(){
-	local runningIds runningRoot runningRecord runningSeen
-	type AgentsToolsRegistryRenderSpawnedSessions > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-	type AgentsToolsGrantsSessionEnded > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Grants.include"
+	local runningIds runningLine runningRoot
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 	runningIds="$( AgentsToolsRegistryRenderSpawnedSessions agents 2> /dev/null | LC_ALL=C awk '
 		NF == 13 && $2 != "-" && ( $13 == "running" || $13 == "unknown-foreign" ) && ! seen[$2]++ { printf "%s ", $2 ; }
 	' )"
-	while IFS= read -r runningRoot ; do
-		case "$runningRoot" in ''|*/*|.|..) continue ;; esac
-		runningSeen=""
-		for runningRecord in "$MMDAPP/.local/agents/spawned"/*/"$runningRoot.md" ; do
-			[ ! -f "$runningRecord" ] || runningSeen=1
-		done
-		[ -z "$runningSeen" ] && [ -d "$MMDAPP/.local/agents/sessions/$runningRoot" ] || continue
-		AgentsToolsGrantsSessionEnded "$MMDAPP/.local/agents/sessions/$runningRoot" || runningIds="$runningIds$runningRoot "
-	done <<< "$( LC_ALL=C awk 'FNR == 1 { dashes = 0 } $0 == "---" { dashes++ ; next } dashes == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) }' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | LC_ALL=C sort -u )"
+	while IFS= read -r runningLine ; do
+		runningRoot="${runningLine% *}"
+		case "${runningLine##* }" in
+			running) runningIds="$runningIds$runningRoot " ;;
+			no-spawn-record) [ ! -d "$MMDAPP/.local/agents/sessions/$runningRoot" ] || runningIds="$runningIds$runningRoot " ;;
+		esac
+	done <<< "$( LC_ALL=C awk 'FNR == 1 { dashes = 0 } $0 == "---" { dashes++ ; next } dashes == 1 && index( $0, "session-id: " ) == 1 { print substr( $0, 13 ) }' "$MMDAPP/.local/agents/pending"/*.md 2> /dev/null | LC_ALL=C sort -u \
+		| AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2> /dev/null )" )"
 	printf ' %s \n' "$runningIds"
 }
 

@@ -230,12 +230,14 @@ case "$1" in
 
 		## The spawn of the pass this loop started last, by its id: the newest spawn record that
 		## carries this loop's own receipt. The spawn proxy runs in this loop's own process, so the
-		## receipt it writes (`execution-receipt: spawn-proxy-<UTC stamp>-<pid>`) ends with this
-		## process's id, and nothing a pass spawns itself does. A pass that was ended leaves no
-		## status lines, so its record is how its session is known. Prints nothing for none.
+		## receipt it writes (`execution-receipt: spawn-proxy-<UTC stamp>-<pid>-<first part of the
+		## spawn's id>`, and with no such last part where it was written before a receipt had one)
+		## carries this process's id after its stamp, and nothing a pass spawns itself does. A pass
+		## that was ended leaves no status lines, so its record is how its session is known. Prints
+		## nothing for none.
 		AgentsToolsMainLoopPassSpawn() {
 			local passRecord=""
-			passRecord="$( LC_ALL=C grep -H -E "^execution-receipt: spawn-proxy-[0-9TZ]+-$$\$" "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null \
+			passRecord="$( LC_ALL=C grep -H -E "^execution-receipt: spawn-proxy-[0-9TZ]+-$$(-[0-9a-f]+)?\$" "$MMDAPP/.local/agents/spawned"/*/*.md 2> /dev/null \
 				| LC_ALL=C awk -F': ' '{ if ( $NF > newest ) { newest = $NF ; record = $1 ; } } END { sub( /:execution-receipt$/, "", record ) ; print record ; }' )" || passRecord=""
 			[ -n "$passRecord" ] && [ -f "$passRecord" ] || return 0
 			passRecord="${passRecord##*/}"

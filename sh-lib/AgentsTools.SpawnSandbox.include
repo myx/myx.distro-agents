@@ -295,11 +295,18 @@ AgentsToolsWaitDefaultSources(){
 ## Empties input/ of every sandbox on this host with no live session, and says which; and
 ## clears the harness scratch a run left in its tmp/ when it ended before its own cleanup.
 ## A sandbox recorded on another host, or with any session still running, is never touched.
+## Running is asked for each record of the one rule a run is recognised by, and of no match
+## of this sweep's own (AgentsToolsRegistrySpawnRuns, AgentsTools.Registries.include): a
+## process runs as the spawn by its own word, or the process its record names still lives. A
+## command line that only carries a spawn's id holds no sandbox: a process of the tooling
+## that waits on its session, or another run whose line holds this sandbox's path.
 AgentsToolsSpawnSandboxSweep(){ ## where
-	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive thisHost psText
+	local sweepRoot="$MMDAPP/.local/agents/spawned" sweepDir sweepRecord sweepSession sweepHost sweepLive thisHost
 	[ -d "$sweepRoot" ] || return 0
 	thisHost="$( hostname -s 2>/dev/null )" || thisHost="unknown"
-	psText="$( ps -A -ww -o args= 2>/dev/null )" || return 0
+	## A process list that cannot be read says nothing of any run: nothing is touched then.
+	ps -A -ww -o args= > /dev/null 2>&1 || return 0
+	type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
 	for sweepDir in "$sweepRoot"/*/ ; do
 		sweepDir="${sweepDir%/}"
 		[ -d "$sweepDir/input" ] || continue
@@ -317,7 +324,7 @@ AgentsToolsSpawnSandboxSweep(){ ## where
 			sweepHost="$( LC_ALL=C awk '/^host: /{ print substr($0, 7) ; exit ; }' "$sweepRecord" )"
 			if [ "$sweepHost" != "$thisHost" ] ; then sweepLive="other-host" ; break ; fi
 			[ -n "$sweepSession" ] || continue
-			case "$psText" in *"$sweepSession"*) sweepLive="running" ; break ;; esac
+			if AgentsToolsRegistrySpawnRuns "$sweepSession" "$sweepRecord" ; then sweepLive="running" ; break ; fi
 		done
 		[ -z "$sweepLive" ] || continue
 		if [ -n "$( find "$sweepDir/input" -mindepth 1 -maxdepth 1 2>/dev/null | head -1 )" ] ; then
@@ -503,8 +510,11 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 AgentsToolsSpawnProxyCloseSandbox(){ ## tracking file, outcome, exit code
 	local sandboxFile="$1" sandboxOutcome="$2" sandboxExit="$3" sandboxOps sandboxBody
 	[ -f "$sandboxFile" ] || return 0
-	sandboxOps="$MMDAPP/.local/temp/mdat-session-header-ops.$$"
 	mkdir -p "$MMDAPP/.local/temp" || return 0
+	## A temp file of this close's own, by mktemp and never by $$: the members one call
+	## started (--magic-spawn-session) close in subshells of that one shell, which have its
+	## $$, so two closing at once met on one name, and one read no changes and stayed started.
+	sandboxOps="$( mktemp "$MMDAPP/.local/temp/mdat-session-header-ops.XXXXXX" )" || return 0
 	{
 		## `status` carries the outcome, and `outcome` itself is deliberately absent:
 		## the entity model defines that name with a closed set of values for what an

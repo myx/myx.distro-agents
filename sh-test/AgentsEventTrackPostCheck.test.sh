@@ -1224,10 +1224,12 @@ env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TMPD
 	bash -c '
 		case "$MMDAPP" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: MMDAPP outside the rig tree" >&2 ; exit 99 ;; esac
 		case "$( command -v curl )" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: curl is not the rig fake" >&2 ; exit 99 ;; esac
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
 		AgentsEventTrackFeedOpen "$RIG_A" "$RIG_THREAD" ; AgentsEventTrackFeedOpen "$RIG_B" "$RIG_THREAD"
 		AgentsEventTrackFeedRun "$RIG_A" magic-coordinator "$RIG_THREAD" & feedA=$!
 		AgentsEventTrackFeedRun "$RIG_B" magic-tester "$RIG_THREAD" & feedB=$!
+		rigProcNote "$feedA" "$feedB"
 		for lineNo in 1 2 3 4 ; do
 			printf "2030-01-01T00:20:0%sZ TOOL Read path=/a/starter-%s.md -> ok 10B/1L 1ms\n" "$lineNo" "$lineNo" >> "$MMDAPP/.local/agents/sessions/$RIG_A/feed"
 			printf "2030-01-01T00:20:0%sZ TOOL Read path=/b/joiner-%s.md -> ok 10B/1L 1ms\n" "$lineNo" "$lineNo" >> "$MMDAPP/.local/agents/sessions/$RIG_B/feed"
@@ -1239,7 +1241,7 @@ env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" TMPD
 		printf "2030-01-01T00:20:07Z TOOL Read path=/a/starter-5.md -> ok 10B/1L 1ms\n" >> "$MMDAPP/.local/agents/sessions/$RIG_A/feed"
 		printf "2030-01-01T00:20:07Z TOOL Read path=/b/joiner-5.md -> ok 10B/1L 1ms\n" >> "$MMDAPP/.local/agents/sessions/$RIG_B/feed"
 		sleep 12
-		kill "$feedA" "$feedB" 2>/dev/null ; wait "$feedA" "$feedB" 2>/dev/null
+		rigProcSignal TERM "$feedA" "$feedB" ; wait "$feedA" "$feedB" 2>/dev/null
 	' > "$rigTmp/feed.out" 2> "$rigTmp/feed.err"
 rigFeedPosts(){ ## -> the numbers of the posts the feed made
 	local feedN feedTotal

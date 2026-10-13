@@ -159,8 +159,11 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 			echo "⚠️ WARNING: ${MDSC_CMD:-event-track}: the event-track thread lock of ${postStore##*/} could not be taken, so this post may open a second thread" >&2
 		fi
 		agentsEventTrackThread="$( AgentsToolsEventTrackThreadRead "$postDir" )"
-		postOut="$MMDAPP/.local/temp/mdat-event-track-post.$$"
-		if mkdir -p "$MMDAPP/.local/temp" 2>/dev/null \
+		## A file of this post's own, by mktemp and never by $$: the posts of two sessions from
+		## subshells of one shell (the members one call started) have one $$, so they met on one
+		## name and one took the other's post for its own.
+		postOut=""
+		if mkdir -p "$MMDAPP/.local/temp" 2>/dev/null && postOut="$( mktemp "$MMDAPP/.local/temp/mdat-event-track-post.XXXXXX" 2>/dev/null )" \
 			&& DistroAgentsTools --intern-op-event-track-post "$postMember" "${agentsEventTrackThread:-event-track}" "$@" > /dev/null 2> "$postOut" ; then
 			agentsEventTrackPost="$( LC_ALL=C awk -F= '
 				$1 == "SENT_MESSAGE_CHANNEL" { sentChannel = $2 ; }
@@ -173,7 +176,7 @@ if ! type AgentsToolsEventTrackThreadRead > /dev/null 2>&1 ; then
 			postRc=1
 			agentsEventTrackError="$( LC_ALL=C grep -m1 '⛔' "$postOut" 2>/dev/null )"
 		fi
-		rm -f "$postOut"
+		[ -z "$postOut" ] || rm -f "$postOut"
 		AgentsToolsLocalLockGive "$postLock"
 		return "$postRc"
 	}

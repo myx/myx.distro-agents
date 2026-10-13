@@ -48,13 +48,16 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigResolveInclude" ] || rigRefuse "the member workspace include is not at: $rigResolveInclude"
 [ -f "$rigRealTemplate" ] || rigRefuse "the brief template is not in the package: $rigRealTemplate"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsMemberWorkspaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
-( sleep 900 ; kill -TERM $$ 2> /dev/null ) > /dev/null 2>&1 &
-rigDog=$!
+rigProcNote $$
+( sleep 900 ; rigProcSignal TERM $$ ) > /dev/null 2>&1 &
+rigDog=$! ; rigProcNote "$rigDog"
 ## The watchdog itself is stopped before its sleep: a sleep ended first would let it signal a check that finished.
-trap 'rigDogSleep="$( pgrep -P "$rigDog" 2> /dev/null )" ; kill "$rigDog" 2> /dev/null ; [ -z "$rigDogSleep" ] || kill $rigDogSleep 2> /dev/null ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM "$rigDog" ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWork="$rigTmp/work" ; rigHome="$rigTmp/home" ; rigElsewhere="$rigHome/elsewhere/members"
 rigIndexFile="$rigHome/.agents/magic-team/members.registry"
 rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"
@@ -1234,8 +1237,8 @@ rigExclusion="$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -F -e '|*:|*:
 ## The Decisions append and the review implementations are the tooling's own: their <who> is the name recorded, not
 ## the member whose workspace the item lives in, and they run where their caller's records are. The place ops' second
 ## word is a place name or a path, and the namespace listing's a namespace, never a member.
-rigAssert "the entry's one exclusion line: the spawn proxy, the two operations that wrap it, the MCP execute, the Decisions append, the review implementations, the place ops, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|*:|*:-*'
-rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|//' )"
+rigAssert "the entry's one exclusion line: the spawn proxy, the two operations that wrap it, the MCP execute, the Decisions append, the review implementations, the place ops, the make operations, the manager's own operations, an empty second word, an option" "$rigExclusion" '--intern-op-agent-spawn-proxy:*|--magic-heartbeat-spawn-proxy:*|--magic-spawn-session:*|--intern-mcp-execute:*|--intern-op-decisions-append:*|--intern-op-review-*:*|--intern-directory-*:*|--member-directory-*:*|--member-namespace-list:*|--owner-workspace-*:*|--make-*:*|--manager-*:*|*:|*:-*'
+rigAssert "control: a sample entry without the wrapping operations is told apart" "$( printf -- '--intern-op-agent-spawn-proxy:*|--intern-mcp-execute:*|*:|*:-*\n' )" "$( printf '%s' "$rigExclusion" | LC_ALL=C sed 's/--magic-heartbeat-spawn-proxy:[*]|--magic-spawn-session:[*]|//; s/--intern-op-decisions-append:[*]|//; s/--intern-op-review-[*]:[*]|//; s/--intern-directory-[*]:[*]|--member-directory-[*]:[*]|--member-namespace-list:[*]|--owner-workspace-[*]:[*]|--make-[*]:[*]|--manager-[*]:[*]|//' )"
 rigAssert "an invited member's call is re-run whole in a subshell under its member set root, and only where that is not the root it already reads" "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '( export MDAT_SKILLSET_ROOT="$memberBrought" ; DistroAgentsTools "$@" )' || : ) $( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c -F -e '[ "$memberBrought" != "${MDAT_SKILLSET_ROOT:-}" ]' || : )" "1 1"
 rigAssert "no call is carried to another workspace: the entry switches to none"  "$( printf '%s\n' "$rigDispatchEntry" | LC_ALL=C grep -c "$rigSwitchFn " || : )" 0
 rigAssert "the resolver is called in its own file and nowhere else: by the bring, and beside it by what answers whether a member is invited, which workspace it is set up in, and where its own settings are read from" "$( LC_ALL=C grep -l "$rigResolveFn \"" "$rigHere"/*.include "$rigHere"/*.sh "$rigPackage/sh-scripts"/*.sh 2> /dev/null | LC_ALL=C sed 's|.*/||' | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "AgentsTools.MemberWorkspace.include "

@@ -12,6 +12,12 @@
 ## A run of a CLI that is given no session word is the process its record names
 ## (`run-process: <pid> <start>`), for as long as that same process lives: the rig's ps says
 ## when its own pids started, too.
+## And how an open ask is matched to a session: an ask carries the id of the run that asked, so
+## the ask of a run that joined a coworking session is an ask of that session, found through
+## that run's own row.
+## Holds the three columns appended after workspace as well -- started-at, resolved-at and
+## session-comment, each as the record holds it, `-` where it has none -- and that the render,
+## and a reader of the render, still count thirteen columns.
 ## Prints the time each side took per store.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -206,7 +212,7 @@ rigCompare "crafted stores, no blocked/ state" "$rigWs" "$rigData"
 rigNewRows="$rigTmp/out.SpawnedSessions.new"
 rigAssert "an empty sandbox is a no-session-record row" "$( grep -c '^s-empty - - - - no-session-record' "$rigNewRows" )" 1
 rigAssert "a record's tracking-name carries to later records of its sandbox" "$( grep -c '^renamed-x ' "$rigNewRows" )" 5
-rigAssert "the unreadable record is a row of dashes" "$( grep -c '^s-unread - - - - - - - - - -$' "$rigNewRows" )" 1
+rigAssert "the unreadable record is a row of dashes" "$( grep -c '^s-unread - - - - - - - - - - - - -$' "$rigNewRows" )" 1
 
 rigRenderCompare "crafted stores" "$rigWs" "$rigData" s4
 
@@ -287,6 +293,15 @@ rigRec r-dash a - "$rigNo-dash" "$rigHost" started
 rigRec r-nosession a "" "$rigNo-nosession" "$rigHost" started
 rigRec "r space tracking" a s-open "$rigNo-space" "$rigHost" started
 rigRec r-prefix a s-ope "$rigNo-prefix" "$rigHost" started
+## A coworking session, every run of it gone and unclosed: its founder, whose spawn id is the
+## session's id, a member that joined and asked, and one that joined and did not. The ask
+## carries the id of the run that asked, which is no session's id. And another session, of
+## which nobody asked; and a row with no spawn id, which an ask with no session id is not of.
+rigRec r-cow-founder a "s-cow-$$" "s-cow-$$" "$rigHost" started
+rigRec r-cow-joined a "s-cow-$$" "$rigNo-cow-joined" "$rigHost" started
+rigRec r-cow-mate a "s-cow-$$" "$rigNo-cow-mate" "$rigHost" started
+rigRec r-cow-other a "s-cow-other-$$" "$rigNo-cow-other" "$rigHost" started
+rigRec r-nospawn-quiet a s-quiet - "$rigHost" started
 mkdir -p "$rigRSp/r-empty"
 rigAsk ask-open s-open reply-pending
 rigAsk ask-closed s-closed received
@@ -295,6 +310,7 @@ rigAsk ask-hex 0x10 reply-pending
 rigAsk ask-backslash 'bs\x' reply-pending
 rigAsk ask-backslash-n 'bs\n' reply-pending
 rigAsk ask-dash - reply-pending
+rigAsk ask-cow-joined "$rigNo-cow-joined" reply-pending
 printf -- '---\nblocked-on: human\nsession-id: s-board\n---\n' > "$rigRData/board/running/task-b.md"
 printf -- '---\nsession-id: s-board-cleared\n---\n' > "$rigRData/board/blocked/task-c.md"
 rigRenderCompare "state-derivation store" "$rigRWs" "$rigRData" s-open
@@ -331,7 +347,41 @@ rigAssert "a blocked board item makes waiting" "$( rigStateOf r-board )" waiting
 rigAssert "awk's numeric == holds: 100 against an ask for 1e2" "$( rigStateOf r-numeric )" waiting
 rigAssert "a backslash id goes through the function itself" "$( rigStateOf r-backslash )" "$( ( MMDAPP="$rigRWs" ; . "$rigHere/AgentsTools.Registries.include" ; AgentsToolsRegistryDeriveState started no-process 'bs\x' ) )"
 rigAssert "a prefix of an open id is not open" "$( rigStateOf r-prefix )" unclosed
+rigAssert "the ask of a run that joined a session is an ask of that session: the run that asked is waiting" "$( rigStateOf r-cow-joined )" waiting
+rigAssert "and so are that session's other unclosed runs, as they are by its founder's ask" "$( rigStateOf r-cow-founder ):$( rigStateOf r-cow-mate )" "waiting:waiting"
+rigAssert "a session of which nobody asked is not" "$( rigStateOf r-cow-other )" unclosed
+rigAssert "a row with no spawn id is not matched by an ask with no session id" "$( rigStateOf r-nospawn-quiet ):$( LC_ALL=C awk '$3 == "-" && $5 == "reply-pending" { openDash++ ; } END { print openDash + 0 ; }' "$rigRWs/.local/agents/pending-replies.registry" )" "unclosed:1"
+rigAssert "asked of one session alone, the function answers the same" "$( ( MMDAPP="$rigRWs" ; . "$rigHere/AgentsTools.Registries.include" ; AgentsToolsRegistryPendingSessionOpen "s-cow-$$" && printf open || printf none ; AgentsToolsRegistryPendingSessionOpen "s-cow-other-$$" && printf :open || printf :none ; AgentsToolsRegistryPendingSessionOpen s-quiet && printf :open || printf :none ) )" "open:none:none"
 : > "$rigTmp/ps.list" ; : > "$rigTmp/ps.started"
+
+## --- the dates of a run and the name of its session: three columns appended after workspace ---
+rigDWs="$rigTmp/dated/ws"
+rigDSp="$rigDWs/.local/agents/spawned"
+rigDLive="rig-dated-live-$$"
+mkdir -p "$rigDSp/d-closed" "$rigDSp/d-empty" "$rigDSp/d-live" "$rigDSp/d-named" "$rigDWs/.local/agents/pending"
+printf -- '---\nsession-id: sd-closed\nspawn-id: pd-closed\nhost: elsewhere\nowner: o\nstatus: spawn-succeeded\nworkspace: wsd\nstarted-at: 2026-10-12 16:57 +0300\nresolved-at: 2026-10-12 17:40 +0300\n---\n' > "$rigDSp/d-closed/pd-closed.md"
+printf -- '---\nsession-id: sd-live\nspawn-id: %s\nhost: %s\nowner: o\nstatus: spawn-started\nworkspace: wsd\nstarted-at: 2026-10-13 09:05 +0300\n---\n' "$rigDLive" "$rigHost" > "$rigDSp/d-live/$rigDLive.md"
+printf -- '---\nsession-id: sd-named\nspawn-id: pd-named\nhost: elsewhere\nowner: o\nstatus: spawn-failed\nworkspace: wsd\nsession-comment: daily of Monday\n---\n' > "$rigDSp/d-named/pd-named.md"
+rigRun AgentsToolsRegistrySpawnedSessionsRows "$rigDWs" "" "$rigTmp/dated.rows" > /dev/null
+rigDatedRow(){ ## tracking name -- its row of the rows function, whole
+	LC_ALL=C awk -v wantTracking="$1" '$1 == wantTracking { print ; exit ; }' "$rigTmp/dated.rows"
+}
+rigAssert "a row of a closed run carries both dates after workspace, each with _ where the record has a space" "$( rigDatedRow d-closed )" "d-closed sd-closed - elsewhere o spawn-succeeded - pd-closed - - wsd 2026-10-12_16:57_+0300 2026-10-12_17:40_+0300 -"
+rigAssert "a row of a running run carries its start date, and - for the closing date" "$( rigDatedRow d-live )" "d-live sd-live - $rigHost o spawn-started - $rigDLive - - wsd 2026-10-13_09:05_+0300 - -"
+rigAssert "the row of an empty sandbox reads no-session-record, with - in each of the three new columns" "$( rigDatedRow d-empty )" "d-empty - - - - no-session-record - - - - - - - -"
+rigAssert "a row carries the comment of its session in the last column, and a record with none gives -" "$( rigDatedRow d-named | LC_ALL=C awk '{ print $12, $13, $14 }' ) / $( rigDatedRow d-live | LC_ALL=C awk '{ print $14 }' )" "- - daily_of_Monday / -"
+## The render rebuilds the registry file, with its new columns, and prints thirteen as before; a
+## reader that counts thirteen still finds its rows. The live run is in the rig's own process list.
+printf '900011 claude --verbose --session-id %s --agent rig-member the brief\n' "$rigDLive" > "$rigTmp/ps.list"
+rigRender AgentsToolsRegistryRenderSpawnedSessions "$rigDWs" "" "$rigTmp/dated.render" agents "" "" > /dev/null
+rigDatedWhole(){ ## -- the rows of the registry file as it lies, and how many of them have fourteen columns
+	LC_ALL=C awk 'NF == 14 { whole++ } END { print NR ":" whole + 0 }' "$rigDWs/.local/agents/spawned-sessions.registry" 2> /dev/null
+}
+rigAssert "the registry file the render rebuilt has its new columns: fourteen in each of its four rows" "$( rigDatedWhole )" "4:4"
+rigAssert "the render still prints thirteen columns for each of them, live and state last" "$( LC_ALL=C awk '$1 ~ /^d-/ { rows++ ; if ( NF == 13 ) thirteen++ ; } END { print rows + 0 ":" thirteen + 0 }' "$rigTmp/dated.render" ) $( LC_ALL=C awk '$1 == "d-closed" || $1 == "d-live" { printf "%s %s %s ", $11, $12, $13 }' "$rigTmp/dated.render" )" "4:4 wsd other-host finished wsd running running "
+rigAssert "a reader that counts thirteen columns still finds its rows: over that file, the collect of ended asks names the session of the live run as running" \
+	"$( ( MMDAPP="$rigDWs" ; unset MDAT_DATA_ROOT ; . "$rigHere/AgentsTools.PendingReplyCollect.include" ; AgentsToolsPendingReplySessionsRunning ) 2> /dev/null | LC_ALL=C tr -d ' ' ) $( rigDatedWhole )" "sd-live 4:4"
+: > "$rigTmp/ps.list"
 
 ## --- a copy of a live workspace's stores ---
 if [ -n "$rigLiveFrom" ] ; then

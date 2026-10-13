@@ -1,0 +1,454 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerConfig.include -- the --manager-config-* operations: the console's own
+## view of the settings of this workspace, as they are. Sourced from the `--manager-config-*)`
+## arm of AgentsTools.Manager.include; who may call was asked where the family is dispatched.
+##
+## FOR VIEWING. Nothing here writes: no setting, no registry, no file. A value is read by
+## the setting reader of the sibling package, one key a call (LocalTools.Config.include, as
+## AgentsContext.UseAgentsTools.include reads the team data directory), and the names of a
+## scope's keys by the names-only reader (AgentsToolsScopeKeyNames). The form of the setting
+## reader that prints every line of a scope prints a secret like any value: it is never
+## called here.
+##
+## A SECRET IS NEVER PRINTED, in no row and in no message: not its value, not a part of it,
+## not its length. Its line says that it is set, or that it is not. The digest does not even
+## hold one: whether a secret is set is asked through a pipe that keeps none of its text
+## (AgentsToolsManagerConfigHolds).
+##
+## WHICH KEY IS A SECRET. The tooling has no one list of them: the catalogue of the owner
+## setup marks each of its own keys secret or plain (AgentsToolsOwnerSetupOptionSpec), a
+## check names a secret call by call (--expect-secret), a harness leg names the credentials
+## it reads, and most keys of a member's scope stand in none of these. So the rule here is
+## the safe one, A KEY IS A SECRET UNLESS IT IS KNOWN NOT TO BE: the one place it is decided
+## is AgentsToolsManagerConfigKeySecret, below.
+##
+
+type AgentsToolsOwnerSetupOptionSpec > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OwnerSetupOptionSpec.include"
+type AgentsToolsPlacesListText > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Places.include"
+type AgentsToolsCliServiceWaitRound > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.CliService.include"
+type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
+
+## The subjects of the digest, in the order a person looks for them, which is the order
+## they are printed in whatever the order they are asked in.
+agentsManagerConfigSubjects="workspace cli systems loop scopes"
+
+## The last word of the name of a key whose value is known to be no secret: a place, a name,
+## a number or a switch. Asked only of a key the catalogue does not hold. A kind that is not
+## here is a secret until it is added: one word, on this line.
+agentsManagerConfigPlainWords="ALIAS CONVERSATIONS DIRECTORY DOMAIN EMAIL HOST ID LIMIT NAME PORT SECONDS SECURITY SITE TIER USER USERNAME WORKSPACE"
+
+## Whether a key is a secret: rc 0 when it is, rc 1 when it is known not to be.
+##   a key the catalogue holds is what the catalogue marks it, secret or plain;
+##   any other key whose name holds the word TOKEN, KEY, SECRET, PASSWORD or COOKIE is a secret;
+##   any other key is no secret only when the last word of its name is one of the plain kinds;
+##   and every key left is a secret: a name not met before is never shown.
+AgentsToolsManagerConfigKeySecret(){ ## key
+	local secretSpec secretWord
+	secretSpec="$( AgentsToolsOwnerSetupOptionSpec "$1" )" || secretSpec=""
+	if [ -n "$secretSpec" ] ; then
+		secretSpec="${secretSpec#*|}" ; secretSpec="${secretSpec#*|}"
+		[ "${secretSpec%%|*}" != "plain" ] || return 1
+		return 0
+	fi
+	case "_${1}_" in *_TOKEN_*|*_KEY_*|*_SECRET_*|*_PASSWORD_*|*_COOKIE_*) return 0 ;; esac
+	for secretWord in $agentsManagerConfigPlainWords ; do
+		[ "${1##*_}" != "$secretWord" ] || return 1
+	done
+	return 0
+}
+
+## Whether a value that is no secret by its key is one by what it holds: a password inside a
+## URL, `scheme://user:password@host`, as a clone URL or a prefix may carry one. rc 0 when it is.
+AgentsToolsManagerConfigValueSecret(){ ## value
+	case "$1" in *://*:*@*) return 0 ;; esac
+	return 1
+}
+
+## One value of one scope of this workspace, by the setting reader of the sibling package:
+## the last line that sets the key, and nothing where none does.
+AgentsToolsManagerConfigValue(){ ## scope, key
+	(
+		set -- --agents-config-option "$1" --select "$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) 2> /dev/null || :
+}
+
+## Whether a scope of this workspace holds a value under a key: rc 0 when it does. The value
+## goes through a pipe and into no variable, so a secret asked for here is held nowhere.
+AgentsToolsManagerConfigHolds(){ ## scope, key
+	AgentsToolsManagerConfigValue "$1" "$2" | LC_ALL=C grep -q .
+}
+
+## The same of a spawn setting: asked of the dispatcher's own operation, so it is read from
+## the workspace named to pay where one is (AgentsToolsConfigOptionElsewhere).
+AgentsToolsManagerConfigSpawnHolds(){ ## key
+	DistroAgentsTools --agents-config-option magic-team --select "$1" 2> /dev/null | LC_ALL=C grep -q .
+}
+
+## The keys the catalogue of the owner setup holds, one a line, in its own order: the labels
+## of its arms, read from the catalogue itself, which has no list of them beside its arms.
+AgentsToolsManagerConfigCatalogueKeys(){
+	LC_ALL=C sed -n 's/^		\([A-Z][A-Z0-9_]*\))$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.OwnerSetupOptionSpec.include" 2> /dev/null || :
+}
+
+## The scopes of this workspace, one a line: each scope file, by its name, whether it holds
+## a key or not.
+AgentsToolsManagerConfigScopeNames(){
+	local scopeFile
+	for scopeFile in "${MMDAPP%/}/.local/.agents"/*.agent.env ; do
+		[ -f "$scopeFile" ] || continue
+		scopeFile="${scopeFile##*/}"
+		printf '%s\n' "${scopeFile%.agent.env}"
+	done
+	return 0
+}
+
+## The keys a scope of this workspace holds whose names begin with a prefix, one a line,
+## each once, in the order of its file: names only, by the names-only reader. A line that is
+## a comment is no key, as the setting reader takes it. And only the name of a setting is a
+## key here, capital letters, digits and `_` after a first letter: what stands ahead of the
+## `=` of any other line may be anything, a secret pasted with an `=` in it among them, so
+## such a line is never listed. With `say` their count is noted, by scope, never by text.
+AgentsToolsManagerConfigScopeKeys(){ ## scope, key prefix (may be empty), `say` to note the lines left out (may be empty)
+	local keysText keysOne keysOdd=0
+	keysText="$( AgentsToolsScopeKeyNames "${MMDAPP%/}" "$1" "${2:-}" "" )" || keysText=""
+	while [ -n "$keysText" ] ; do
+		keysOne="${keysText%%, *}"
+		if [ "$keysOne" = "$keysText" ] ; then keysText="" ; else keysText="${keysText#*, }" ; fi
+		case "$keysOne" in
+			''|'#'*) continue ;;
+			[!ABCDEFGHIJKLMNOPQRSTUVWXYZ]*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) keysOdd=$(( keysOdd + 1 )) ; continue ;;
+		esac
+		printf '%s\n' "$keysOne"
+	done
+	[ "$keysOdd" = 0 ] || [ -z "${3:-}" ] || echo "# $MDSC_CMD --manager-config-digest: the scope '$1' holds $keysOdd line(s) whose name is not a setting's -- capital letters, digits and _ -- so they are not listed" >&2
+	return 0
+}
+
+## One `line` row. Every field is made one field: a run of whitespace in it reads `_`, and an
+## empty one reads `-`, as in a registry.
+AgentsToolsManagerConfigLine(){ ## subject, group, key, state, value (may be empty)
+	local lineField lineRow="line"
+	for lineField in "$1" "$2" "$3" "$4" "${5:-}" ; do
+		while : ; do
+			case "$lineField" in
+				*[[:space:]][[:space:]]*) lineField="${lineField//[[:space:]][[:space:]]/ }" ;;
+				*) break ;;
+			esac
+		done
+		lineField="${lineField//[[:space:]]/_}"
+		lineRow="$lineRow	${lineField:--}"
+	done
+	printf '%s\n' "$lineRow"
+}
+
+## The line of a path: set where the path is there, missing where it is not, with the path
+## either way.
+AgentsToolsManagerConfigPathLine(){ ## subject, group, key, path
+	if [ -n "$4" ] && [ -e "$4" ] ; then
+		AgentsToolsManagerConfigLine "$1" "$2" "$3" set "$4"
+	else
+		AgentsToolsManagerConfigLine "$1" "$2" "$3" missing "$4"
+	fi
+}
+
+## The line of one key of one scope of this workspace: a secret as set or not, with no
+## value; any other key with its value, and missing where it has none.
+AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
+	local keyValue
+	if AgentsToolsManagerConfigKeySecret "$4" ; then
+		if AgentsToolsManagerConfigHolds "$3" "$4" ; then
+			AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set ""
+		else
+			AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-missing ""
+		fi
+		return 0
+	fi
+	keyValue="$( AgentsToolsManagerConfigValue "$3" "$4" )" || keyValue=""
+	if [ -z "$keyValue" ] ; then
+		AgentsToolsManagerConfigLine "$1" "$2" "$4" missing ""
+	elif AgentsToolsManagerConfigValueSecret "$keyValue" ; then
+		AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set ""
+	else
+		AgentsToolsManagerConfigLine "$1" "$2" "$4" set "$keyValue"
+	fi
+}
+
+## THE WORKSPACE AND ITS PATHS: the root of the workspace, the origin the tooling runs from,
+## the root of the team data as the context resolved it, the two stores of the sessions, the
+## folder of the scopes; then each registered place with its path, as --owner-workspace-list
+## gives them, one that is absent or not known as missing.
+AgentsToolsManagerConfigWorkspace(){
+	local placeName placeKind placeCeiling placePath placeState
+	AgentsToolsManagerConfigPathLine workspace paths workspace-root "${MMDAPP%/}"
+	AgentsToolsManagerConfigPathLine workspace paths tooling-origin "${MDLT_ORIGIN%/}"
+	AgentsToolsManagerConfigPathLine workspace paths team-data-root "${MDAT_DATA_ROOT:-}"
+	AgentsToolsManagerConfigPathLine workspace paths session-records "${MMDAPP%/}/.local/agents/spawned"
+	AgentsToolsManagerConfigPathLine workspace paths session-stores "${MMDAPP%/}/.local/agents/sessions"
+	AgentsToolsManagerConfigPathLine workspace paths settings "${MMDAPP%/}/.local/.agents"
+	while IFS='	' read -r placeName placeKind placeCeiling placePath placeState ; do
+		[ -n "$placeName" ] || continue
+		[ "$placePath" != "-" ] || placePath=""
+		if [ "$placeState" = "present" ] ; then
+			AgentsToolsManagerConfigLine workspace places "$placeName" set "$placePath"
+		else
+			AgentsToolsManagerConfigLine workspace places "$placeName" missing "$placePath"
+		fi
+	done <<< "$( AgentsToolsPlacesListText "${MMDAPP%/}" )"
+	return 0
+}
+
+## THE CLI SERVICES. First what the workspace asks for: its service, its harness tier, its
+## one wait round for every service, and the workspace its spawn settings are read from.
+## Then each CLI the console knows, by the console's own declaration, and each harness leg
+## beside them: whether it is present, a leg by its file and a vendor CLI by its binary; the
+## credentials a leg declares for itself, each set or not, never shown; whether it is
+## usable, which a leg is with one of its credentials set and a vendor CLI where its binary
+## is, since it works off the sign-in of the machine; and its wait round.
+AgentsToolsManagerConfigCli(){
+	local cliHere="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib" cliKnown cliVendor cliLegs="" cliLeg cliName cliFile cliKey cliKeys cliValue cliPath cliUsable
+	for cliKey in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS ; do
+		cliValue="$( DistroAgentsTools --agents-config-option magic-team --select "$cliKey" 2> /dev/null )" || cliValue=""
+		if [ -n "$cliValue" ] ; then
+			AgentsToolsManagerConfigLine cli workspace "$cliKey" set "$cliValue"
+		else
+			AgentsToolsManagerConfigLine cli workspace "$cliKey" missing ""
+		fi
+	done
+	if cliPath="$( AgentsToolsSpawnSettingsWorkspace 2> /dev/null )" ; then
+		AgentsToolsManagerConfigLine cli workspace spawn-settings-workspace set "${cliPath:-${MMDAPP%/}}"
+	else
+		AgentsToolsManagerConfigLine cli workspace spawn-settings-workspace missing ""
+	fi
+	cliKnown="$( LC_ALL=C sed -n 's/^DAGC_KNOWN_CLIS="\(.*\)"$/\1/p' "$cliHere/AgentsConsoleShellScript.template.sh" 2> /dev/null )" || cliKnown=""
+	cliVendor="$( LC_ALL=C sed -n 's/^DAGC_VENDOR_CLIS="\(.*\)"$/\1/p' "$cliHere/AgentsConsoleShellScript.template.sh" 2> /dev/null )" || cliVendor=""
+	## A harness leg is a file that declares its provider, and its name is that file's, in
+	## small letters: one the console's list does not name yet stands after it, as in the
+	## console. Name and file are kept two lines a leg, since a path may hold any separator.
+	for cliFile in "$cliHere/"Agents*Harness.sh ; do
+		[ -f "$cliFile" ] || continue
+		LC_ALL=C grep -q '^HARNESS_PROVIDER_NAME=' "$cliFile" || continue
+		cliName="${cliFile##*/Agents}"
+		cliName="$( printf '%s' "${cliName%Harness.sh}" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		cliLegs="$cliLegs$cliName"$'\n'"$cliFile"$'\n'
+		case " $cliKnown " in *" $cliName "*) ;; *) cliKnown="$cliKnown${cliKnown:+ }$cliName" ;; esac
+	done
+	for cliName in $cliKnown ; do
+		cliKeys="" ; cliUsable="no" ; cliFile="" ; cliLeg=""
+		## A vendor name is never a leg's: it means the vendor's own binary, named without -native.
+		case " $cliVendor " in
+			*" $cliName "*) ;;
+			*)
+				while IFS= read -r cliPath ; do
+					if [ -z "$cliLeg" ] ; then cliLeg="$cliPath" ; continue ; fi
+					[ "$cliLeg" != "$cliName" ] || cliFile="$cliPath"
+					cliLeg=""
+				done <<< "$cliLegs"
+			;;
+		esac
+		if [ -n "$cliFile" ] ; then
+			AgentsToolsManagerConfigLine cli "$cliName" present set "$cliFile"
+			cliKeys="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$cliFile" 2> /dev/null | LC_ALL=C tr -c 'A-Z0-9_' ' ' )" || cliKeys=""
+			case "$cliKeys" in *[!\ ]*) ;; *) cliUsable="yes" ;; esac
+			for cliKey in $cliKeys ; do
+				if AgentsToolsManagerConfigSpawnHolds "$cliKey" ; then
+					AgentsToolsManagerConfigLine cli "$cliName" "$cliKey" secret-set ""
+					cliUsable="yes"
+				else
+					AgentsToolsManagerConfigLine cli "$cliName" "$cliKey" secret-missing ""
+				fi
+			done
+		elif cliPath="$( command -v "${cliName%-native}" 2> /dev/null )" && [ -n "$cliPath" ] ; then
+			AgentsToolsManagerConfigLine cli "$cliName" present set "$cliPath"
+			cliUsable="yes"
+		else
+			AgentsToolsManagerConfigLine cli "$cliName" present missing ""
+		fi
+		if [ "$cliUsable" = "yes" ] ; then
+			AgentsToolsManagerConfigLine cli "$cliName" usable set yes
+		else
+			AgentsToolsManagerConfigLine cli "$cliName" usable missing no
+		fi
+		AgentsToolsManagerConfigLine cli "$cliName" wait-round set "$( AgentsToolsCliServiceWaitRound "$cliName" )"
+	done
+	return 0
+}
+
+## THE OUTSIDE SYSTEMS, the team's own Slack first: the systems a member's settings are
+## named after (agentsMemberSettingSystems), each one group. One line a scope: each scope
+## the catalogue keeps a key of the system in, then each other scope that holds a key of it.
+## The line reads set where the scope holds a value under a key of the system, and missing
+## where it holds none; its value names what is lacking there, by key: each key of the
+## catalogue for that scope with no value, then each key the scope holds with none. A
+## system with no line of a scope has one line under no scope, missing. The catalogue is the
+## only list of the keys a system needs, and it holds the team's own: what a member's scope
+## lacks of a system beyond its empty keys is not known here, and not said.
+AgentsToolsManagerConfigSystems(){
+	local sysName sysGroup sysScope sysScopes sysCatalogue="" sysKey sysSpec sysKeys sysSeen sysLacking sysHolds sysAny
+	while IFS= read -r sysKey ; do
+		[ -n "$sysKey" ] || continue
+		sysSpec="$( AgentsToolsOwnerSetupOptionSpec "$sysKey" )" || sysSpec=""
+		[ -z "$sysSpec" ] || sysCatalogue="$sysCatalogue$sysKey ${sysSpec%%|*}"$'\n'
+	done <<< "$( AgentsToolsManagerConfigCatalogueKeys )"
+	for sysName in $agentsMemberSettingSystems ; do
+		sysGroup="$( printf '%s' "$sysName" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		sysScopes=""
+		while read -r sysKey sysScope ; do
+			case "$sysKey" in "$sysName"_*) ;; *) continue ;; esac
+			case $'\n'"$sysScopes" in *$'\n'"$sysScope"$'\n'*) ;; *) sysScopes="$sysScopes$sysScope"$'\n' ;; esac
+		done <<< "$sysCatalogue"
+		while IFS= read -r sysScope ; do
+			[ -n "$sysScope" ] || continue
+			case $'\n'"$sysScopes" in *$'\n'"$sysScope"$'\n'*) continue ;; esac
+			! AgentsToolsScopeHoldsKeys "${MMDAPP%/}" "$sysScope" "${sysName}_" || sysScopes="$sysScopes$sysScope"$'\n'
+		done <<< "$( AgentsToolsManagerConfigScopeNames )"
+		sysAny="false"
+		while IFS= read -r sysScope ; do
+			[ -n "$sysScope" ] || continue
+			sysAny="true" ; sysHolds="false" ; sysLacking="" ; sysKeys="" ; sysSeen=$'\n'
+			while read -r sysKey sysSpec ; do
+				case "$sysKey" in "$sysName"_*) ;; *) continue ;; esac
+				[ "$sysSpec" = "$sysScope" ] || continue
+				sysKeys="$sysKeys$sysKey"$'\n'
+			done <<< "$sysCatalogue"
+			sysKeys="$sysKeys$( AgentsToolsManagerConfigScopeKeys "$sysScope" "${sysName}_" )"
+			while IFS= read -r sysKey ; do
+				[ -n "$sysKey" ] || continue
+				case "$sysSeen" in *$'\n'"$sysKey"$'\n'*) continue ;; esac
+				sysSeen="$sysSeen$sysKey"$'\n'
+				if AgentsToolsManagerConfigHolds "$sysScope" "$sysKey" ; then
+					sysHolds="true"
+				else
+					sysLacking="$sysLacking${sysLacking:+,}$sysKey"
+				fi
+			done <<< "$sysKeys"
+			if [ "$sysHolds" = "true" ] ; then
+				AgentsToolsManagerConfigLine systems "$sysGroup" "$sysScope" set "$sysLacking"
+			else
+				AgentsToolsManagerConfigLine systems "$sysGroup" "$sysScope" missing "$sysLacking"
+			fi
+		done <<< "$sysScopes"
+		[ "$sysAny" = "true" ] || AgentsToolsManagerConfigLine systems "$sysGroup" "" missing ""
+	done
+	return 0
+}
+
+## THE MAIN LOOP AND THE HEARTBEAT, by what the tooling keeps of each. The main loop leaves
+## its state file after every iteration, which says how the last one ended and when; no file
+## says that a loop runs now, so none is said here. The heartbeat keeps its note in the team
+## data, with its lock: it runs while the note reads heartbeat-running and its recheck date
+## is not yet a minute past, which is what the lock operations take for a held lock.
+AgentsToolsManagerConfigLoop(){
+	local loopFile="${MMDAPP%/}/.local/agents/main-loop.state" loopLine loopKey
+	local loopNote="${MDAT_DATA_ROOT:-}/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
+	local loopState="" loopRecheck="" loopEpoch="" loopRuns="no"
+	if [ -f "$loopFile" ] && [ -r "$loopFile" ] ; then
+		AgentsToolsManagerConfigLine loop main-loop state-file set "$loopFile"
+		while IFS= read -r loopLine || [ -n "$loopLine" ] ; do
+			case "$loopLine" in
+				MAIN_LOOP_*=?*) AgentsToolsManagerConfigLine loop main-loop "${loopLine%%=*}" set "${loopLine#*=}" ;;
+				MAIN_LOOP_*=) AgentsToolsManagerConfigLine loop main-loop "${loopLine%%=*}" missing "" ;;
+			esac
+		done < "$loopFile"
+	else
+		AgentsToolsManagerConfigLine loop main-loop state-file missing "$loopFile"
+	fi
+	if [ -f "$loopNote" ] && [ -r "$loopNote" ] ; then
+		AgentsToolsManagerConfigLine loop heartbeat state-note set "$loopNote"
+		while IFS= read -r loopLine ; do
+			loopKey="${loopLine%%: *}"
+			loopLine="${loopLine#"$loopKey": }"
+			[ "$loopKey" != "state" ] || loopState="$loopLine"
+			[ "$loopKey" != "recheck-date" ] || loopRecheck="$loopLine"
+			if [ -n "$loopLine" ] ; then
+				AgentsToolsManagerConfigLine loop heartbeat "$loopKey" set "$loopLine"
+			else
+				AgentsToolsManagerConfigLine loop heartbeat "$loopKey" missing ""
+			fi
+		done <<< "$( LC_ALL=C awk -v headers="state"$'\034'"recheck-date"$'\034'"last-iteration-timestamp" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemFrontmatterPrintSelected.awk" "$loopNote" 2> /dev/null )"
+		if [ "$loopState" = "heartbeat-running" ] && [ -n "$loopRecheck" ] ; then
+			loopEpoch="$( printf '%s\n' "$loopRecheck" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsIsoToEpoch.awk" 2> /dev/null )" || loopEpoch=""
+			case "$loopEpoch" in
+				''|*[!0123456789]*) ;;
+				*) [ "$(( $( date +%s ) - loopEpoch ))" -ge 60 ] || loopRuns="yes" ;;
+			esac
+		fi
+	else
+		AgentsToolsManagerConfigLine loop heartbeat state-note missing "$loopNote"
+	fi
+	if [ "$loopRuns" = "yes" ] ; then
+		AgentsToolsManagerConfigLine loop heartbeat running set yes
+	else
+		AgentsToolsManagerConfigLine loop heartbeat running missing no
+	fi
+	return 0
+}
+
+## THE SCOPES WITH THEIR KEYS: each scope of this workspace that holds a key, one group a
+## scope, each key in the order of its file. A scope with no key is left out: the existence
+## of a scope file says nothing. A scope file that cannot be read is said, and left out, and
+## so is the count of the lines of a scope whose name is not a setting's.
+AgentsToolsManagerConfigScopes(){
+	local scopesName scopesKey
+	while IFS= read -r scopesName ; do
+		[ -n "$scopesName" ] || continue
+		if [ ! -r "${MMDAPP%/}/.local/.agents/$scopesName.agent.env" ] ; then
+			echo "# $MDSC_CMD --manager-config-digest: the scope '$scopesName' cannot be read, so its keys are not listed" >&2
+			continue
+		fi
+		while IFS= read -r scopesKey ; do
+			[ -n "$scopesKey" ] || continue
+			AgentsToolsManagerConfigKeyLine scopes "$scopesName" "$scopesName" "$scopesKey"
+		done <<< "$( AgentsToolsManagerConfigScopeKeys "$scopesName" "" say )"
+	done <<< "$( AgentsToolsManagerConfigScopeNames )"
+	return 0
+}
+
+case "$1" in
+
+	## The settings of this workspace as they are, by subject: TAB-separated rows a screen
+	## reads. Their form is the help entry's.
+	--manager-config-digest)
+		local digestOp="$1" digestName digestKnown digestFound digestWanted=" " digestLines digestLine digestCount
+		shift
+		for digestName in "$@" ; do
+			digestFound="false"
+			for digestKnown in $agentsManagerConfigSubjects ; do
+				[ "$digestKnown" != "$digestName" ] || digestFound="true"
+			done
+			if [ "$digestFound" != "true" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $digestOp: '$digestName' is none of its subjects -- nothing was printed. Its subjects: ${agentsManagerConfigSubjects// /, }" >&2
+				set +e ; return 1
+			fi
+			digestWanted="$digestWanted$digestName "
+		done
+		[ $# -gt 0 ] || digestWanted=" $agentsManagerConfigSubjects "
+		for digestName in $agentsManagerConfigSubjects ; do
+			case "$digestWanted" in *" $digestName "*) ;; *) continue ;; esac
+			case "$digestName" in
+				workspace) digestLines="$( AgentsToolsManagerConfigWorkspace )" || digestLines="" ;;
+				cli) digestLines="$( AgentsToolsManagerConfigCli )" || digestLines="" ;;
+				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
+				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ;;
+				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
+			esac
+			digestCount=0
+			if [ -n "$digestLines" ] ; then
+				while IFS= read -r digestLine ; do
+					digestCount=$(( digestCount + 1 ))
+				done <<< "$digestLines"
+			fi
+			printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
+			[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
+		done
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

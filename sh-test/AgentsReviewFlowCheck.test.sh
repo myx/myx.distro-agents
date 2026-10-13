@@ -26,10 +26,12 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsReviewFlowCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"
@@ -122,7 +124,7 @@ rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, f
 }
 rigLive(){ ## spawn-id -- a stand-in process, in the rig's process list under its own pid, running as the spawn id
 	bash -c 'sleep 300 ; :' "$1" > /dev/null 2>&1 < /dev/null &
-	rigLivePids="$rigLivePids $!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	printf '%s rig-run --session-id %s\n' "$!" "$1" >> "$rigTmp/ps.list"
 	disown "$!" 2> /dev/null || :
 }
@@ -441,7 +443,7 @@ rigAssert "DISMISSED went to the child"                    "$( rigPosts ):$( LC_
 rigAssert "the trashed copy records the ending"            "$( rigDecisions "$rigData/trash/dispatch-20261008T1200Z-tra.md" 'dismissed: trashed: sent DISMISSED' )" 1
 
 echo "-- 15. shutdown: every live child dismissed, recorded on its item --"
-for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done
+rigProcSignalWithChildren TERM $rigLivePids
 rigLivePids=""
 : > "$rigTmp/ps.list"
 sleep 1
@@ -454,7 +456,7 @@ rigRecord rig-live-sd2-$$ spawn-started CSDB00001:1700000000.001000 ""
 ## own --session-id or --resume word alone, so it is no live child and is not dismissed.
 rigRecord rig-held-sd3-$$ spawn-started CSDC00001:1700000000.001100 ""
 bash -c 'sleep 300 ; :' rig-other > /dev/null 2>&1 < /dev/null &
-rigLivePids="$rigLivePids $!"
+rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 printf '%s claude --add-dir %s/rig-held-sd3-%s/input --session-id rig-other-run-%s --agent keeper-myx Readable %s/rig-held-sd3-%s/input, as said by --session-id rig-held-sd3-%s\n' "$!" "$rigSpawned" "$$" "$$" "$rigSpawned" "$$" "$$" >> "$rigTmp/ps.list"
 disown "$!" 2> /dev/null || :
 rigItem running dispatch-20261008T1200Z-sd1 rig-live-sd1-$$
@@ -466,7 +468,7 @@ rigAssert "a spawn whose id only stands on another process's command line is no 
 rigAssert "the item records shutdown"                      "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: sent keeper-myx' )" 1
 
 echo "-- 16. TaskStop: the process stopped as before, the ending recorded --"
-for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done
+rigProcSignalWithChildren TERM $rigLivePids
 rigLivePids=""
 : > "$rigTmp/ps.list"
 rigLive rig-live-ts-$$
@@ -487,10 +489,10 @@ rigStandIn(){ ## -- starts the stand-in; sets rigStandPid, rigStandChild and rig
 	rm -f "$rigTmp/stand.child"
 	bash -c 'sleep 300 > /dev/null 2>&1 < /dev/null & echo "$!" > "$1" ; wait' rig-stand "$rigTmp/stand.child" > /dev/null 2>&1 < /dev/null &
 	rigStandPid=$!
-	rigLivePids="$rigLivePids $!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	disown "$!" 2> /dev/null || :
 	while [ "$standLeft" -gt 0 ] && [ ! -s "$rigTmp/stand.child" ] ; do sleep 0.25 ; standLeft=$(( standLeft - 1 )) ; done
-	rigStandChild="$( cat "$rigTmp/stand.child" 2> /dev/null )"
+	rigStandChild="$( cat "$rigTmp/stand.child" 2> /dev/null )" ; rigProcNote $rigStandChild
 	rigStandStart="$( LC_ALL=C ps -o lstart= -p "$rigStandPid" 2> /dev/null | LC_ALL=C awk 'NF { $1 = $1 ; gsub( / /, "_" ) ; print ; exit ; }' )"
 	[ -n "$rigStandChild" ] && [ -n "$rigStandStart" ] || rigRefuse "the stand-in console did not start, so nothing below would be measured"
 }
@@ -523,7 +525,7 @@ rigTool "$rigTmp/e4r" TaskStop '{"task_id":"dispatch-20261008T1200Z-nwru.md"}'
 rigEnv=()
 rigAssert "a recorded pid that another process has taken is never signalled: nothing is stopped, and that process and its child live on" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: NO-PROCESS' "$rigTmp/e4r" ):$( rigAlive "$rigStandPid" "$rigStandChild" )" 1:2
-kill "$rigStandChild" "$rigStandPid" 2> /dev/null
+rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 ## A run with no tracking item: its spawn record alone names it. TaskStop given the spawn's own
 ## id stops it by the one rule a run is recognised by (the process whose own --session-id or
 ## --resume word is that id, or the process its record names) and says there was no item to
@@ -532,7 +534,7 @@ kill "$rigStandChild" "$rigStandPid" 2> /dev/null
 rigStandInWord(){ ## command line text -- a stand-in process listed under its own pid with that line; sets rigWordPid
 	bash -c 'sleep 300 ; :' rig-word > /dev/null 2>&1 < /dev/null &
 	rigWordPid=$!
-	rigLivePids="$rigLivePids $!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	printf '%s %s\n' "$!" "$1" >> "$rigTmp/ps.list"
 	disown "$!" 2> /dev/null || :
 }
@@ -556,7 +558,7 @@ rigAssert "its result says plainly that there was no item to record the stop on,
 rigAssert "and nothing on the board is written"            "$( rigBoardSum )" "$rigBoardWas"
 rigAssert "a line holding that id inside another word or in its text, and a tooling command line naming it, are no run of it: neither is signalled" \
 	"$( rigAlive "$rigNoItemOther" "$rigNoItemTooling" )" 2
-kill "$rigNoItemOther" "$rigNoItemTooling" 2> /dev/null
+rigProcSignal TERM "$rigNoItemOther" "$rigNoItemTooling"
 rigStandIn
 rigRecord rig-noitem-noword-$$ spawn-started "" "" "" "run-process: $rigStandPid $rigStandStart
 "
@@ -579,7 +581,7 @@ rigTool "$rigTmp/e4x" TaskStop "{\"task_id\":\"rig-norecord-ts-$$\"}"
 rigEnv=()
 rigAssert "control: an id no spawn record names is not reached, though a process runs as it" \
 	"$( LC_ALL=C grep -c "^ERROR: no dispatch item matches handle rig-norecord-ts-$$ " "$rigTmp/e4x" ):$( LC_ALL=C grep -c '^STOP-RESULT' "$rigTmp/e4x" ):$( rigAlive "$rigWordPid" )" 1:0:1
-kill "$rigWordPid" 2> /dev/null
+rigProcSignal TERM "$rigWordPid"
 ## A spawn that joined a session: its item names the session as session-id and the spawn as
 ## spawn-id. Its own id reaches that item, and the stop is recorded there as for any item.
 rigStandInWord "rig-run --session-id rig-join-ts-$$"
@@ -624,8 +626,8 @@ sleep 1
 rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
 rigTool "$rigTmp/e4f" TaskStop '{"task_id":"dispatch-20261008T1200Z-fts.md"}'
 rigEnv=()
-rigAssert "a founding spawn stopped through its item: its own run alone is signalled, the two other participants of its session and the tooling line stay alive" \
-	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4f" ):$( rigAlive "$rigFoundPid" ):$( rigAlive "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" ):$( LC_ALL=C grep -c -F "TERM was sent to pid(s) $rigFoundPid and the process list no longer carries that session id." "$rigTmp/e4f" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-fts.md" 'dismissed: taskstop' )" 1:0:3:1:1
+rigAssert "a founding spawn stopped through its item: its own run alone is signalled, with the process it started, and the two other participants of its session and the tooling line stay alive" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4f" ):$( rigAlive "$rigFoundPid" ):$( rigAlive "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" ):$( LC_ALL=C grep -c -E "TERM was sent to pid\(s\) $rigFoundPid [0-9]+ and the process list no longer carries that session id\." "$rigTmp/e4f" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-fts.md" 'dismissed: taskstop' )" 1:0:3:1:1
 ## The id several participants share is the founding spawn's own: given as the handle it is the
 ## founding spawn's run that is asked for, and its item, never the first item on the board that
 ## holds the id, which here is a participant's.
@@ -636,7 +638,7 @@ rigTool "$rigTmp/e4s" TaskStop "{\"task_id\":\"rig-found-ts-$$\"}"
 rigEnv=()
 rigAssert "a session id several participants share reaches the item of the run asked for, not the first on the board: the founding spawn is stopped, the participants live" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4s" ):$( LC_ALL=C grep -c -F "Dispatch item dispatch-20261008T1200Z-fts.md, session rig-found-ts-$$." "$rigTmp/e4s" ):$( rigAlive "$rigFoundPid" ):$( rigAlive "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p1ts.md" 'dismissed: taskstop' )" 1:1:0:3:0
-kill "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling" 2> /dev/null
+rigProcSignal TERM "$rigPart1Pid" "$rigPart2Pid" "$rigFoundTooling"
 ## A session id that items name only as the session they joined, with no run and no spawn record
 ## of its own: nothing says which participant is meant, so it is refused in one line that lists
 ## the items and says to name one.
@@ -665,7 +667,95 @@ rigTool "$rigTmp/e4l" TaskStop "{\"task_id\":\"rig-lost-ts-$$\"}"
 rigEnv=()
 rigAssert "with a spawn record of that id and no item of its own, the founding spawn's run is stopped and said to have no item; the participants and their items are left alone" \
 	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4l" ):$( LC_ALL=C grep -c -F "No dispatch item names session rig-lost-ts-$$ as its own run, so there is no item to record a stop on." "$rigTmp/e4l" ):$( rigAlive "$rigLostPid" ):$( rigAlive "$rigPart3Pid" "$rigPart4Pid" ):$( rigDecisions "$rigData/board/running/dispatch-20261008T1100Z-p3ts.md" 'dismissed: taskstop' )" 1:1:0:2:0
-kill "$rigPart3Pid" "$rigPart4Pid" 2> /dev/null
+rigProcSignal TERM "$rigPart3Pid" "$rigPart4Pid"
+## A run with processes under it. A stop ends what the run started, to any depth, by the one walk
+## the manager's kill uses too (AgentsToolsRegistryRunProcesses): its tool command and that
+## command's own child. It never signals a process that runs as another spawn, nor the process that
+## started that one and waits for it, though both stand under the run.
+rigStandInKids(){ ## spawn id -- a stand-in run with a tool command that has a child, and a process whose child runs as another spawn; sets rigKidsPid, rigKidsTool, rigKidsDeep, rigKidsSuper and rigKidsOther
+	local kidsLeft=40
+	rm -f "$rigTmp/kids.tool" "$rigTmp/kids.deep" "$rigTmp/kids.super" "$rigTmp/kids.other"
+	bash -c '
+		bash -c "sleep 300 > /dev/null 2>&1 < /dev/null & echo \$! > \"\$1\" ; wait" rig-tool "$1.deep" > /dev/null 2>&1 < /dev/null &
+		echo "$!" > "$1.tool"
+		bash -c "sleep 300 > /dev/null 2>&1 < /dev/null & echo \$! > \"\$1\" ; wait" rig-super "$1.other" > /dev/null 2>&1 < /dev/null &
+		echo "$!" > "$1.super"
+		wait
+	' rig-kids "$rigTmp/kids" > /dev/null 2>&1 < /dev/null &
+	rigKidsPid=$!
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
+	disown "$!" 2> /dev/null || :
+	while [ "$kidsLeft" -gt 0 ] && { [ ! -s "$rigTmp/kids.tool" ] || [ ! -s "$rigTmp/kids.deep" ] || [ ! -s "$rigTmp/kids.super" ] || [ ! -s "$rigTmp/kids.other" ] ; } ; do sleep 0.25 ; kidsLeft=$(( kidsLeft - 1 )) ; done
+	rigKidsTool="$( cat "$rigTmp/kids.tool" 2> /dev/null )" ; rigKidsDeep="$( cat "$rigTmp/kids.deep" 2> /dev/null )"
+	rigKidsSuper="$( cat "$rigTmp/kids.super" 2> /dev/null )" ; rigKidsOther="$( cat "$rigTmp/kids.other" 2> /dev/null )"
+	[ -n "$rigKidsTool" ] && [ -n "$rigKidsDeep" ] && [ -n "$rigKidsSuper" ] && [ -n "$rigKidsOther" ] || rigRefuse "the stand-in run with its processes did not start, so nothing below would be measured"
+	rigLivePids="$rigLivePids $rigKidsTool $rigKidsDeep $rigKidsSuper $rigKidsOther" ; rigProcNote $rigKidsTool $rigKidsDeep $rigKidsSuper $rigKidsOther
+	printf '%s rig-run --session-id %s\n' "$rigKidsPid" "$1" >> "$rigTmp/ps.list"
+	printf '%s claude --session-id rig-kids-other-%s --agent keeper-myx\n' "$rigKidsOther" "$$" >> "$rigTmp/ps.list"
+}
+rigStandInKids "rig-kids-ts-$$"
+rigRecord rig-kids-ts-$$ spawn-started "" ""
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4k" TaskStop "{\"task_id\":\"rig-kids-ts-$$\"}"
+rigEnv=()
+rigAssert "a stop ends what the run started, to any depth: the run, its tool command and that command's own child are gone" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4k" ):$( rigAlive "$rigKidsPid" "$rigKidsTool" "$rigKidsDeep" )" 1:0
+rigAssert "and never a process that runs as another spawn, nor the process that started that one and waits for it, though they stand under the run" \
+	"$( rigAlive "$rigKidsSuper" "$rigKidsOther" )" 2
+rigProcSignal TERM "$rigKidsOther" "$rigKidsSuper"
+## A run whose tool command ignores the polite end. The run's own process ends on TERM, and then no
+## walk from the run leads to that command any more. A stop keeps what it signalled, each process
+## with when it began, and reads what is left by those processes themselves: without force its
+## result says the command is still running, and with force the command gets the hard kill.
+rigStandInHung(){ ## spawn id -- a stand-in run whose tool command ignores TERM; sets rigHungPid and rigHungTool
+	local hungLeft=40
+	rm -f "$rigTmp/hung.tool"
+	bash -c 'perl -e '"'"'$SIG{TERM} = "IGNORE" ; open( my $rigSaid, ">", $ARGV[0] ) ; print $rigSaid "$$\n" ; close( $rigSaid ) ; sleep 300'"'"' "$1" > /dev/null 2>&1 < /dev/null & wait' rig-hung "$rigTmp/hung.tool" > /dev/null 2>&1 < /dev/null &
+	rigHungPid=$!
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
+	disown "$!" 2> /dev/null || :
+	while [ "$hungLeft" -gt 0 ] && [ ! -s "$rigTmp/hung.tool" ] ; do sleep 0.25 ; hungLeft=$(( hungLeft - 1 )) ; done
+	rigHungTool="$( cat "$rigTmp/hung.tool" 2> /dev/null )"
+	[ -n "$rigHungTool" ] || rigRefuse "the stand-in run with a tool command that ignores TERM did not start, so nothing below would be measured"
+	rigLivePids="$rigLivePids $rigHungTool" ; rigProcNote "$rigHungTool"
+	printf '%s rig-run --session-id %s\n' "$rigHungPid" "$1" >> "$rigTmp/ps.list"
+}
+rigStandInHung "rig-hung-ts-$$"
+rigRecord rig-hung-ts-$$ spawn-started "" ""
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4h" TaskStop "{\"task_id\":\"rig-hung-ts-$$\"}"
+rigEnv=()
+rigAssert "a stop without force, of a run whose tool command ignores the polite end: the run's own process is gone, and the result says the command is still running, by its pid, and not that the run was stopped" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: STILL-RUNNING' "$rigTmp/e4h" ):$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4h" ):$( rigAlive "$rigHungPid" ):$( rigAlive "$rigHungTool" ):$( LC_ALL=C grep -c -E "and pid\(s\) $rigHungTool are still running two seconds later\. Nothing further was sent" "$rigTmp/e4h" )" 1:0:0:1:1
+## What that stop left is kept in the run's own store, each process with when it began. So the next
+## stop of that run finds the command, though it stands under no process of the run any more: with
+## force, as the result of the first said to call it, the command gets the hard kill.
+rigHungKept="$rigWs/.local/agents/sessions/rig-hung-ts-$$/stop.left"
+rigAssert "what the stop left is kept in the run's store: the command, by its pid and when it began, and nothing else" \
+	"$( LC_ALL=C awk 'END { print NR + 0 }' "$rigHungKept" 2> /dev/null ):$( LC_ALL=C awk -v wantPid="$rigHungTool" '$1 == wantPid && NF == 2 { hit++ } END { print hit + 0 }' "$rigHungKept" 2> /dev/null )" 1:1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4h2" TaskStop "{\"task_id\":\"rig-hung-ts-$$\",\"force\":true}"
+rigEnv=()
+rigAssert "a second call, with force, as the first result said: KILLED, the command is gone, and nothing is kept any more" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: KILLED' "$rigTmp/e4h2" ):$( LC_ALL=C grep -c '^STOP-RESULT: NO-PROCESS' "$rigTmp/e4h2" ):$( rigAlive "$rigHungTool" ):$( [ -e "$rigHungKept" ] && echo kept || echo cleared )" 1:0:0:cleared
+rigProcSignal KILL "$rigHungTool"
+rigStandInHung "rig-hung-force-$$"
+rigRecord rig-hung-force-$$ spawn-started "" ""
+sleep 1
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator )
+rigTool "$rigTmp/e4i" TaskStop "{\"task_id\":\"rig-hung-force-$$\",\"force\":true}"
+rigEnv=()
+rigAssert "with force the command gets the hard kill: it is gone with the run, and the result says KILLED" \
+	"$( LC_ALL=C grep -c '^STOP-RESULT: KILLED' "$rigTmp/e4i" ):$( LC_ALL=C grep -c '^STOP-RESULT: STOPPED' "$rigTmp/e4i" ):$( rigAlive "$rigHungPid" "$rigHungTool" )" 1:0:0
+## The same pid begun at another time is another process: a stop never sends it the hard kill for the
+## process it signalled. Held where the list of what a stop signalled is read (the manager's kill
+## reads it by the same function): a kept line whose start is no longer the process's own gives nothing.
+rigStandIn
+rigAssert "a kept pid that another process has taken since is none of what is left: the same pid with another start gives nothing, and with its own start gives the pid" \
+	"$( MMDAPP="$rigWs" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" bash -c '. "$1/AgentsTools.Registries.include" 2> /dev/null ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 Mon_Jan__1_00:00:00_2001" - | tr "\n" " " ; printf "/ " ; AgentsToolsRegistryRunLeft rig-no-such-run "$2 $3" - | tr "\n" " "' rig-left "$rigLib" "$rigStandPid" "$rigStandStart" )" "/ $rigStandPid "
+rigProcSignal TERM "$rigStandChild" "$rigStandPid"
 
 ## ---------------------------------------------------------------- a return resumed natively
 ## From here the rig's console is the real template, run on a stub `claude` (first on PATH,
@@ -840,7 +930,7 @@ rigAssert "a return that restarts a child which never ends comes back to its cal
 	"$( rigPiped "$rigTmp/nv" 40 --member-review-return magic-coordinator dispatch-20261008T1600Z-nv --message "redo the rig step" )" returned
 rigAssert "with what it did"                               "$( LC_ALL=C grep -c '^RETURN: restarted keeper-myx on dispatch-20261008T1600Z-nv, .*, resuming rig-old-nv$' "$rigTmp/nv" )" 1
 rigWaitFor 40 test -s "$rigTmp/never.pid"
-rigNever="$( cat "$rigTmp/never.pid" 2> /dev/null )"
+rigNever="$( cat "$rigTmp/never.pid" 2> /dev/null )" ; rigProcNote $rigNever
 rigAssert "while the child it restarted is still running"  "$( kill -0 "${rigNever:-0}" 2> /dev/null && printf running || printf gone )" running
 ## The other verdicts start no child: each returns at once beside a live one all the same.
 for rigVerb in accept reject follow-up ; do
@@ -864,7 +954,7 @@ printf '%s\n' '#!/bin/sh' \
 	'case "$1" in --version) echo "9.9.9 (rig claude)" ; exit 0 ;; auth) echo "{\"loggedIn\":true}" ; exit 0 ;; esac' \
 	'printf "📦 SubagentHandback\n" >&2' \
 	'printf "%s\n" "{\"type\":\"system\",\"subtype\":\"init\"}" "{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"rig\"}"' > "$rigTmp/bin/claude"
-[ -z "$rigNever" ] || kill "$rigNever" 2> /dev/null
+[ -z "$rigNever" ] || rigProcSignal TERM "$rigNever"
 rigWaitFor 60 test -f "$rigData/board/review/dispatch-20261008T1600Z-nv.md"
 rigWaitFor 30 test ! -d "$rigSpawned/trk-rs-nv/input"
 ## Its sandbox input is read-only while it stands: writable again, so this check's tree can go.

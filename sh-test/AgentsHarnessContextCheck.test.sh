@@ -23,6 +23,8 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 command -v git > /dev/null || rigRefuse "git is not installed"
 
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessContextCheck )" || exit 1
 trap '[ -n "${RIG_KEEP:-}" ] || rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
@@ -283,6 +285,7 @@ rigPosts(){ LC_ALL=C grep -c '^POST ' "$rigSlack" ; }
 ## The removed knobs set, to show they change nothing: the 5 seconds and the immediate kinds are fixed in code.
 ( MDAT_EVENT_TRACK_BATCH_SECONDS=1 MDAT_EVENT_TRACK_IMMEDIATE_KINDS=VERDICT AgentsEventTrackFeedRun "$rigSidF" magic-tester "CRIG:9.9" ) &
 rigFeedPid=$!
+rigProcNote "$rigFeedPid"
 sleep 3
 rigAssert "an ordinary line waits in the open post, whatever the removed knobs say" "$( rigPosts )" 0
 sleep 4
@@ -306,7 +309,7 @@ rigAssert "a session event (a restart) sends the open post at once: the ROUND th
 	"$( rigPosts ):$( LC_ALL=C awk '/^POST /{ n++ ; next } n == 3 && /^2030/ { printf "%s ", $2 }' "$rigSlack" )" "3:ROUND RESTART "
 printf '2030-01-01T00:01:04Z TOOL Glob pattern=* -> ok 1B/1L 1ms\n' >> "$rigFeed"
 sleep 5
-kill "$rigFeedPid" 2>/dev/null ; wait "$rigFeedPid" 2>/dev/null
+rigProcSignal TERM "$rigFeedPid" ; wait "$rigFeedPid" 2>/dev/null
 rigAssert "what is still open is posted when the poster is stopped" "$( rigPosts ):$( tail -2 "$rigSlack" | LC_ALL=C grep -c 'TOOL Glob' )" 4:1
 ## The buffer is `feed`, and `feed.posting` while a post of it is out. `feed.open` is the
 ## feed's switch (AgentsTools.EventTrackThread.include), which stays, and holds no line.

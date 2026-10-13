@@ -31,6 +31,8 @@ rigRegInclude="$rigHere/AgentsTools.Registries.include"
 rigPersona="magic-coordinator"
 rigOpName="--make-agents-indices"
 rigBuilderName="1201-agents-indices.sh"
+## what that builder, and the integrations run, call: the one operation, with no name, which makes every index
+rigBuilderCall="--make-harness-indices"
 rigNamesName="team-members-names"
 rigMembersName="team-members"
 
@@ -556,7 +558,7 @@ printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 's
 rigSeedSum="$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the four registries, the member index and the grants index, and keeps the other files: the folder holds those, the seeded log and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the build makes exactly the four registries, the member index, the grants index and the harness's own three indexes, and keeps the other files: the folder holds those, the seeded log and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index harness.hooks.index harness.roots.index mcp.servers.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
 rigAssert "the seeded log is untouched, and the two session registries are rebuilt from their stores, which hold nothing here: no seeded row is left" "$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" ) $( rigLines "$rigAgentsDir/spawned-sessions.registry" ) $( rigLines "$rigAgentsDir/pending-replies.registry" )" "$rigSeedSum 0 0"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
@@ -596,12 +598,12 @@ rigAssert "no warning for the reference-only member, the plain ones, the clients
 rigAssert "a note per file on stderr: the path and the row count"          "$( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigMembersFile (21 rows)" ) $( rigN "$rigTmp/build.err" "# DistroAgentsTools $rigOpName: wrote $rigNamesFile (21 rows)" )" "1 1"
 rigSum="$( cat "$rigMembersFile" "$rigNamesFile" | cksum )"
 rigBuild extra
-rigAssert "an extra argument is refused: exit 1, named, nothing on stdout" "$rigBuildRc $( rigN "$rigTmp/build.err" "$rigOpName takes no arguments, got: extra" ) $( rigLines "$rigTmp/build.out" )" "1 1 0"
+rigAssert "a word that is none of its names is refused: exit 1, named, nothing on stdout" "$rigBuildRc $( rigN "$rigTmp/build.err" "ERROR: DistroAgentsTools $rigOpName: 'extra' is none of what it builds -- nothing was built." ) $( rigLines "$rigTmp/build.out" )" "1 1 0"
 rigAssert "and both registries are as they were"                           "$( cat "$rigMembersFile" "$rigNamesFile" | cksum )" "$rigSum"
 rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
 rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
-rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 9"
+rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 12"
 cp "$rigLinkedFile" "$rigTmp/linked.keep"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild
@@ -780,17 +782,17 @@ rigLocalTools="$MDLT_ORIGIN/myx/myx.distro-.local/sh-scripts/DistroLocalTools.fn
 rigMakeInclude="$rigHere/AgentsTools.Make.include"
 rigAssert "the builder is in builders/source-prepare of the agents package" "$( [ -f "$rigBuilder" ] && printf present || printf absent ) $( ls "$rigPackage/builders" )" "present source-prepare"
 rigAssert "and nothing of it is under sh-lib"                              "$( [ -e "$rigHere/builders" ] && printf present || printf absent ) $( ls "$rigHere" | LC_ALL=C grep -c -F -- "$rigBuilderName" || : )" "absent 0"
-rigAssert "the builder runs the build once, as the bare agents script name"  "$( rigN "$rigBuilder" "$rigOpName" ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigOpName" "$rigBuilder" || : )" "1 1"
+rigAssert "the builder runs the build once, as the bare agents script name, with no name of a part"  "$( rigN "$rigBuilder" "DistroAgentsTools.fn.sh" ) $( LC_ALL=C grep -c -x -F -- "DistroAgentsTools.fn.sh $rigBuilderCall" "$rigBuilder" || : )" "1 1"
 rigAssert "the Local Tools script holds no call of the build, in any spelling" "$( LC_ALL=C grep -c -E -- 'make-agents-indices|1201-agents-indices|agents-indices' "$rigLocalTools" || : )" 0
 rigAssert "control: the same pattern does find the build's name in a sample"  "$( printf 'x --make-agents-indices\n' > "$rigTmp/sample.sh" ; LC_ALL=C grep -c -E -- 'make-agents-indices|agents-indices' "$rigTmp/sample.sh" || : )" 1
 rigWsArm="$( LC_ALL=C awk '/^\t--make-workspace-integrations\)/ { on = 1 } on { print } on && /^\t;;/ { exit }' "$rigMakeInclude" )"
-rigAssert "control: the make-workspace-integrations arm was cut out of the Make include" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- '--install-workspace-integrations' || : )" 1
-rigAssert "the arm calls the build once"                                   "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$rigOpName" || : )" 1
-rigAssert "the call is a whole line, with the failure return and no \"\$@\""  "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigOpName || { set +e ; return 1 ; }" || : )" 1
+rigAssert "control: the make-workspace-integrations arm was cut out of the Make include, with its two calls of the install, one a part" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -F -- '--install-workspace-integrations' || : )" 2
+rigAssert "the arm calls the build once"                                   "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -v '^[[:space:]]*#' | LC_ALL=C grep -c -F -- "$rigBuilderCall" || : )" 1
+rigAssert "the call is a whole line, with the failure return and no \"\$@\""  "$( printf '%s\n' "$rigWsArm" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t' )DistroAgentsTools $rigBuilderCall || { set +e ; return 1 ; }" || : )" 1
 rigFirstCall="$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / && $2 != "--intern-directory-register" { print $2 ; exit }' )"
-rigAssert "it is the first DistroAgentsTools call of the arm after the places registration, which its grants read" "$rigFirstCall $( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' )" "$rigOpName --intern-directory-register"
-rigAssert "and it comes before --make-console-command and --install-workspace-integrations" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" ordered
-rigAssert "control: a sample with the call after the console command is not ordered" "$( printf '\t\tDistroAgentsTools --make-console-command\n\t\tDistroAgentsTools %s\n\t\tDistroAgentsTools --install-workspace-integrations\n' "$rigOpName" | LC_ALL=C awk -v op="$rigOpName" '$0 ~ "DistroAgentsTools " op { a = NR } /DistroAgentsTools --make-console-command/ { b = NR } /DistroAgentsTools --install-workspace-integrations/ { c = NR } END { print ( a > 0 && a < b && b < c ) ? "ordered" : "not ordered" }' )" "not ordered"
+rigAssert "the arm starts with the places registration, which the grants read, then the console command" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/^\t\tDistroAgentsTools / { print $2 ; exit }' ) $rigFirstCall" "--intern-directory-register --make-console-command"
+rigAssert "and the build comes after the part of the install that writes the member registry and after the member homes, and before the part that reads the indices" "$( printf '%s\n' "$rigWsArm" | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR } /DistroAgentsTools --intern-member-home-register / { homes = NR } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" }' )" ordered
+rigAssert "control: a sample with the build ahead of the install is not ordered" "$( printf '\t\tDistroAgentsTools --make-harness-indices || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n\t\tDistroAgentsTools --intern-member-home-register || x\n\t\tDistroAgentsTools --install-workspace-integrations "$@" || x\n' | LC_ALL=C awk '/DistroAgentsTools --install-workspace-integrations / { if ( !first ) first = NR ; else second = NR } /DistroAgentsTools --intern-member-home-register / { homes = NR } /DistroAgentsTools --make-(harness|agents)-indices / { build = NR } END { print ( first && first < homes && homes < build && build < second ) ? "ordered" : "not ordered" }' )" "not ordered"
 rigRunBuilder(){ ## agents scripts directory on the path or none -- the builder run as the source-prepare build runs it, the rig workspace as the workspace; rc in rigRc
 	rigRc=0
 	( cd "$rigWs" && env -i HOME="$rigHome" PATH="${1:+$1:}$PATH" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" sh "$rigBuilder" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
@@ -806,10 +808,10 @@ rigAssert "control: with the agents scripts not on the path the builder fails 12
 echo "-- 20. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"
 rigHelpMd="$rigHere/help/Help.DistroAgentsTools.help.md"
-rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOpName"
+rigSyntax="📘 syntax: DistroAgentsTools.fn.sh $rigOpName [<name>...]"
 rigAssert "the syntax echo is in the help include, once, as a whole line"   "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : )" 1
 rigAssert "the syntax line is in the help.md, once, as a whole line"        "$( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : )" 1
-rigAssert "the help.md has the operation's entry, once, under its own heading line" "$( LC_ALL=C grep -c -x -- "$( printf '\t\t%s' "$rigOpName" )" "$rigHelpMd" || : )" 1
+rigAssert "the help.md has the operation's entry, once, under its own heading line" "$( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s [<name>...]' "$rigOpName" )" "$rigHelpMd" || : )" 1
 rigAssert "control: a sample holding the syntax line twice counts two"      "$( printf '%s\n%s\n' "$rigSyntax" "$rigSyntax" > "$rigTmp/sample.md" ; LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/sample.md" || : )" 2
 
 echo "-- 21. the keys are accepted by the config writer, in any locale --"

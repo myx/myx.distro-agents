@@ -2272,8 +2272,9 @@ AgentsHarnessDismissedNext(){
 ## itself, and two where it waits again, and is then sent TERM, as TaskStop sends it, by a
 ## process of its own that outlives this call. The run is recognised by its own word on its
 ## own command line, the one rule (AgentsToolsRegistryRunWords), so a command line that only
-## quotes the id is never signalled; where no process carries the id at all, it is the
-## process its launch started, with what that started (AgentsHarnessSessionPids).
+## quotes the id is never signalled; where no process runs as it by that word, whatever line
+## quotes the id, it is the process its launch started, with what that started
+## (AgentsHarnessSessionPids).
 harnessDismissedEnd=""
 AgentsHarnessDismissedAfter(){ ## tool name
 	local afterFile afterDelay afterSession afterGrace="${MDAT_DISMISSED_END_GRACE:-60}"
@@ -2668,62 +2669,79 @@ AgentsHarnessDispatchReceipt(){ ## item filename
 	printf 'spawn-proxy-%s-%s' "${nameText%%-spawn-proxy-*}" "${nameText##*-spawn-proxy-}"
 }
 
-## The live processes carrying a spawn id in their own command line. The console
-## passes --session-id to the CLI as this spawn's own id, so the spawn-id the dispatch
-## item records is also an OS handle -- which is what lets a stop reach a helper that
-## is cooperating in no way. The id travels in the environment, never in argv, so this never matches itself.
+## The live processes that run as a spawn. The console passes --session-id to the CLI as
+## this spawn's own id, so the spawn-id the dispatch item records is also an OS handle --
+## which is what lets a stop reach a helper that is cooperating in no way.
 ## -ww defeats the width truncation that would otherwise cut the id off a long CLI line.
-## With `own-word`, as a stop asks, which signals what this names: only the processes that run
-## as it, by the one rule a run is recognised by (AgentsToolsRegistryRunPids,
-## AgentsTools.Registries.include), its own --session-id or --resume word matched whole. A
-## line that merely holds the id, another participant's or the tooling's, is none of them.
-AgentsHarnessSessionWordPids(){ ## session id, optional `own-word`
-	if [ "${2:-}" = "own-word" ] ; then
-		type AgentsToolsRegistryRunPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
-		ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunPids "$1"
-		return 0
-	fi
-	export MDAT_HARNESS_WANT_SESSION="$1"
-	ps -A -ww -o pid=,args= 2>/dev/null | LC_ALL=C awk '
-		index($0, ENVIRON["MDAT_HARNESS_WANT_SESSION"]) > 0 { print $1 ; }
-	'
-}
-## The live processes of one spawn: those carrying its id in their own command line, as
-## above. Where no process carries it, the run is the process its spawn's record names (below).
-AgentsHarnessSessionPids(){ ## session id, optional `own-word` (as above)
-	local pidsFound pidsRecord pidsRun
-	pidsFound="$( AgentsHarnessSessionWordPids "$1" "${2:-}" )"
-	if [ -n "$pidsFound" ] ; then
-		printf '%s\n' "$pidsFound"
-		return 0
-	fi
-	## No process carries that id: the run of a CLI that is given no session word. Its process
-	## is the one its spawn's record names as the one its launch started, while that is still
-	## the same process (AgentsToolsRegistryRecordedRun, AgentsTools.Registries.include): that
-	## pid, then every process it started, however deep. A pid another process has taken since
-	## is never named here.
-	case "$1" in ''|*/*|.|..) return 0 ;; esac
-	[ -n "${MMDAPP:-}" ] || return 0
-	type AgentsToolsRegistryRecordedRun > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
-	for pidsRecord in "$MMDAPP/.local/agents/spawned"/*/"$1.md" ; do
-		[ -f "$pidsRecord" ] || continue
-		pidsRun="$( AgentsToolsRegistryRecordedRun "$pidsRecord" )" || continue
-		ps -A -o pid=,ppid= 2>/dev/null | LC_ALL=C awk -v topPid="$pidsRun" '
-			{ parentOf[$1] = $2 ; pidList[++pidTotal] = $1 ; }
-			END {
-				print topPid ; startedBy[topPid] = 1 ;
-				do {
-					grew = 0 ;
-					for ( pidAt = 1 ; pidAt <= pidTotal ; pidAt++ ) {
-						onePid = pidList[pidAt] ;
-						if ( ! ( onePid in startedBy ) && ( parentOf[onePid] in startedBy ) ) { startedBy[onePid] = 1 ; print onePid ; grew = 1 ; }
-					}
-				} while ( grew ) ;
-			}
-		'
-		return 0
-	done
+## For every caller alike, a stop that signals what this names and a read that only asks
+## whether the run lives: only the processes that run as it, by the one rule a run is
+## recognised by (AgentsToolsRegistryRunPids, AgentsTools.Registries.include), its own
+## --session-id or --resume word matched whole. A line that merely holds the id, another
+## participant's or the tooling's, is none of them: a process that waits on a session is
+## never that session's run. `own-word` is still taken, and asks for nothing more.
+AgentsHarnessSessionWordPids(){ ## session id, optional `own-word` (the reading every caller gets)
+	type AgentsToolsRegistryRunPids > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	ps -A -ww -o pid=,args= 2>/dev/null | AgentsToolsRegistryRunPids "$1"
 	return 0
+}
+## The live processes of one spawn. With `own-word`, as a stop asks, which signals what this
+## names: the run's own processes and every process they started, to any depth, by the one
+## walk the manager's kill uses too (AgentsToolsRegistryRunProcesses,
+## AgentsTools.Registries.include): never a process that runs as another spawn, nor the shell
+## that supervises one. Without it, as TaskOutput asks, which only reads whether the run
+## lives: those that run as it by their own word, as above; where none does, the same walk,
+## which then starts from the process the spawn's record names as the one its launch started.
+## No asking process is named to the walk: a member may stop the run it stands under, as it
+## always could.
+AgentsHarnessSessionPids(){ ## session id, optional `own-word` (as above)
+	local pidsFound
+	if [ "${2:-}" != "own-word" ] ; then
+		pidsFound="$( AgentsHarnessSessionWordPids "$1" )"
+		if [ -n "$pidsFound" ] ; then
+			printf '%s\n' "$pidsFound"
+			return 0
+		fi
+	fi
+	type AgentsToolsRegistryRunLeftKept > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	if [ "${2:-}" = "own-word" ] ; then
+		## And what an earlier stop of this run signalled and left, kept in the run's store: it
+		## stands under no process of the run any more, and is still the run's to end.
+		{ AgentsToolsRegistryRunProcesses "$1" "" - ; AgentsToolsRegistryRunLeftKept "$1" ; } | LC_ALL=C awk '$1 != "" && ! pidSaid[$1]++ { print $1 ; }'
+		return 0
+	fi
+	AgentsToolsRegistryRunProcesses "$1" "" -
+	return 0
+}
+
+## What a stop is about to signal, each process with when it began, as it is kept until the
+## stop reads what is left (AgentsToolsRegistryProcessesBegan). Loaded here, where it runs: the
+## lookups of a stop run inside command substitutions, so what they load is gone with them.
+AgentsHarnessStopKept(){ ## -- stdin: process ids, a line each
+	type AgentsToolsRegistryProcessesBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
+	AgentsToolsRegistryProcessesBegan
+}
+
+## Keeps in the run's own store what a stop signalled and found still there, for the next stop
+## or kill of that run (AgentsToolsRegistryRunLeftKeep); with nothing given, nothing is kept
+## any more. In a shell of its own: what it loads is not the harness's to hold.
+AgentsHarnessStopKeep(){ ## session id, the process ids still there (may be empty)
+	(
+		type AgentsToolsRegistryRunLeftKeep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || exit 0
+		AgentsToolsRegistryRunLeftKeep "$1" "$2"
+	) > /dev/null 2>&1 || :
+	return 0
+}
+
+## What is left of a run that a stop signalled: the processes it signalled that are still the
+## processes they were, and whatever the run's walk gives now, read in the one place the
+## manager's kill reads it too (AgentsToolsRegistryRunLeft, AgentsTools.Registries.include).
+## No asking process is named, as for the walk above.
+AgentsHarnessStopLeft(){ ## session id, the processes signalled as `<pid> <start>` lines (may be empty)
+	if type AgentsToolsRegistryRunLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null ; then
+		AgentsToolsRegistryRunLeft "$1" "$2" -
+		return 0
+	fi
+	AgentsHarnessSessionPids "$1" own-word
 }
 
 ## Spawns a helper session through the team spawn operation this package owns, and
@@ -2981,10 +2999,21 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 ## the process list has been read AGAIN and the process is gone -- a signal delivered
 ## is not a process ended, and the two must never read alike.
 ##
-## ONLY THE RUN ASKED FOR IS SIGNALLED. Its process is found by the one rule a run is
-## recognised by: its own --session-id or --resume word, or the process its spawn record
-## names and what that started; never by the id standing somewhere on a command line, which
-## every other participant of its session and the tooling hold too. A filename is its item.
+## WHAT IS SIGNALLED IS KEPT, each process with when it began, and what is left is read by
+## those processes themselves, beside the run's walk (AgentsHarnessStopLeft): a process the
+## run started that ignores TERM outlives the run's own process, and no walk from the run
+## leads to it any more. So it is said to be still running, and with force it gets the KILL.
+## The same pid begun at another time is another process, and is never signalled for the first.
+## What is still there when this call ends is kept in the run's own store (AgentsHarnessStopKeep),
+## and the next stop of the run, or a kill of it, starts from that too: a call again with
+## force, which the STILL-RUNNING result tells its caller to make, finds what this one left.
+##
+## ONLY THE RUN ASKED FOR IS SIGNALLED, WITH WHAT IT STARTED. Its process is found by the one
+## rule a run is recognised by: its own --session-id or --resume word, or the process its spawn
+## record names; never by the id standing somewhere on a command line, which every other
+## participant of its session and the tooling hold too. With it go the processes it started, to
+## any depth, and never one that runs as another spawn, nor the shell that supervises one
+## (AgentsHarnessSessionPids). A filename is its item.
 ## An id is the run that has it as its own: the item that names it as spawn-id (or, written
 ## before session-id and spawn-id were split, as session-id alone); else, with no item of
 ## its own, the spawn record of that name, which is what says the id is a run of this
@@ -2994,7 +3023,7 @@ AgentsHarnessToolTaskOutput(){ ## handle, byte offset, byte limit, output file
 ## reached, whatever process carries it.
 AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	local toolHandle="${3:-${4:-$1}}" toolForce="$2"
-	local itemPath itemName itemStatus sessionId stopPids stopPid survivors forceWanted=no
+	local itemPath itemName itemStatus sessionId stopPids stopPid stopKept="" survivors forceWanted=no
 	local stopRecord stopItems stopNamed stopOf stopCloses="The dispatch item is closed by the spawn operation itself rather than here, so its status may still read as started for a moment."
 	if [ -z "${MDAT_DATA_ROOT:-}" ] ; then
 		printf 'ERROR: MDAT_DATA_ROOT is not set in this process, so the dispatch records naming a helper session cannot be located. Nothing was signalled, and no session is implied to be absent.\n' ; return 0
@@ -3061,11 +3090,13 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 	## item there is nowhere to record it, which the result says.
 	[ -z "$itemPath" ] || "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-review-end "${harnessAgent:-unknown}" "$itemName" \
 		--reason taskstop --no-dismiss > /dev/null 2>&1 || :
+	stopKept="$( printf '%s\n' "$stopPids" | AgentsHarnessStopKept )" || stopKept=""
 	for stopPid in $stopPids ; do
 		kill -TERM "$stopPid" 2>/dev/null || :
 	done
 	sleep 2
-	survivors="$( AgentsHarnessSessionPids "$sessionId" own-word )"
+	survivors="$( AgentsHarnessStopLeft "$sessionId" "$stopKept" )"
+	AgentsHarnessStopKeep "$sessionId" "$survivors"
 	if [ -z "$survivors" ] ; then
 		printf 'STOP-RESULT: STOPPED\n%s.\nTERM was sent to pid(s) %s and %s.\n%s\n' "$stopOf" "$( printf '%s' "$stopPids" | tr '\n' ' ' )" "$stopGone" "$stopCloses" ; return 0
 	fi
@@ -3076,7 +3107,8 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 		kill -KILL "$stopPid" 2>/dev/null || :
 	done
 	sleep 2
-	survivors="$( AgentsHarnessSessionPids "$sessionId" own-word )"
+	survivors="$( AgentsHarnessStopLeft "$sessionId" "$stopKept" )"
+	AgentsHarnessStopKeep "$sessionId" "$survivors"
 	if [ -z "$survivors" ] ; then
 		printf 'STOP-RESULT: KILLED\n%s.\nTERM did not end it, KILL was sent because force was asked for, and %s.\nA KILLed CLI reaps none of its own children, so anything it had started may still be running.\n' "$stopOf" "$stopGone" ; return 0
 	fi

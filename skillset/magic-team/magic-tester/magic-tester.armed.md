@@ -12,6 +12,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 - Team-Member's (-specific) local procedures
 - Team-Member's (-specific) local rules
 - Domain knowledge: testing methodology
+  - Running the real test suite
   - Security/CRA
   - Idle-Tasks
 - Team-Member's (-specific) tooling
@@ -76,6 +77,10 @@ All statements apply at the same time, always. These rules override a magic-team
 # Domain knowledge: testing methodology
 
 Methodology modules: `reference/evidence-discipline.md` (what makes a check able to fail and a result mean what it says) and `reference/live-side-effect-verification.md` (verification where the real run has real consequences).
+
+## Running the real test suite
+
+A run of the runner that ends with status 124 stood still. Its last line and the file `stalled.txt` in its run folder name the tests that never ran and never ended; run those again, never the whole suite on their account alone.
 
 ## Security/CRA
 

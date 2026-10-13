@@ -150,11 +150,11 @@ case "$1" in
 			createDefaults="${createDefaults}default"$'\t'"date"$'\t'"$( date +"%Y-%m-%d %H:%M %z" )"$'\n'
 			createDefaults="${createDefaults}default"$'\t'"owner"$'\t'"$memberName"$'\n'
 			## Same ops file discipline as --intern-op-board-upsert-move-edit: a real path the
-			## awk reads, made and removed inside this one subshell.
+			## awk reads, made and removed inside this one subshell, and this call's own: by mktemp,
+			## never by $$, which every subshell of one shell shares.
 			content="$(
-				headerOpsFile="$MMDAPP/.local/temp/mdat-intern-op-inbox-headers.$$"
+				mkdir -p "$MMDAPP/.local/temp" && headerOpsFile="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-inbox-headers.XXXXXX" )" || exit 1
 				trap 'rm -f "$headerOpsFile"' EXIT
-				mkdir -p "$MMDAPP/.local/temp" || exit 1
 				printf '%s' "$createDefaults" > "$headerOpsFile" || exit 1
 				printf '%s\n' "$content" | LC_ALL=C awk -v opsFile="$headerOpsFile" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk"
 			)" || { set +e ; return 1 ; }

@@ -29,10 +29,12 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsReviewPromptCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
@@ -142,7 +144,7 @@ rigWork(){ ## review-by value (empty: none)
 	: > "$rigDir/transcript.log"
 	printf '%s\n' "$rigDir/transcript.log" > "$rigWs/.local/agents/sessions/$rigSpawn/transcript"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
-	rigLivePids="$rigLivePids $!"
+	rigLivePids="$rigLivePids $!" ; rigProcNote "$!"
 	printf '%s rig-run --session-id %s\n' "$!" "$rigSpawn" >> "$rigTmp/ps.list"
 	disown "$!" 2> /dev/null || :
 }

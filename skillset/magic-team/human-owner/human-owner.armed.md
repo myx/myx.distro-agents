@@ -24,7 +24,7 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 # Summary
 
-`human-owner` is a reference-only identity record: the point other files use when they mean "the human-owner".
+`human-owner` is a reference-only identity record: the point other files use when they mean "the human-owner". Its `SKILL.md` carries `status: reference-only`. No start starts it: the spawn proxy refuses every one. `--manager-team-member-list` shows it marked `reference-only` the same way.
 
 ## Goals
 
@@ -61,7 +61,7 @@ Steps:
 2. **ask-at-once**: Ask with `AskQuestion`, `ConfirmReadback`, `EscalateDecision`, `RequestPermission` or `ProposeApprove`, of the fitting kind in `magic-team/templates/escalation.document.format.md`, as soon as the assessment is done. The tooling delivers it on his direct channel and waits inside the call. One topic, the decision first.
 3. **keep-it-tracked**: A question whose answer binds the team is registered by `magic-coordinator` as a board item blocking the work it gates. A member with no coordinator present files it to `magic-coordinator` with `post-inquiry`.
 4. **wait-for-the-answer**: Wait per **wait-never-quit** in `magic-team/magic-team.armed.md`. No reply is never a verdict, neither a deny nor an allow.
-   - A follow-up goes into the same thread. Read the thread before re-asking.
+   - A follow-up goes into the same thread. Read the thread before re-asking, and the record's own `asker-live:` (`--member-pending-reply-read`): `no-process` or `session-ended` means nobody is there to take his answer.
    - A question settled elsewhere is closed by its asker with `--member-pending-reply-settle`.
 
 # Team-Member's (-specific) local rules

@@ -53,10 +53,12 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
+## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsChangeApprovalCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'for rigPid in $rigLivePids ; do pkill -P "$rigPid" 2> /dev/null ; kill "$rigPid" 2> /dev/null ; done ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; chmod -R u+w "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
 cp "$rigFixture" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl" || rigRefuse "could not install the fake curl"
 ## THE RIG'S OWN PROCESS LIST. Whether a session runs is read off a process list of the host
@@ -140,7 +142,7 @@ rigStart(){ ## scenario name
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
 	rigPid="$!"
-	rigLivePids="$rigLivePids $rigPid"
+	rigLivePids="$rigLivePids $rigPid" ; rigProcNote "$rigPid"
 	printf '%s rig-run --session-id %s\n' "$rigPid" "$rigSpawn" >> "$rigTmp/ps.list"
 	disown "$rigPid" 2> /dev/null || :
 }
@@ -419,7 +421,7 @@ rigRead
 rigAssert "his approve afterwards applies nothing" "$( rigReadLine 'ESCALATION: ' ):$( rigBytes "$rigWs/held/notes.md" )" "ESCALATION: $( rigId ) closed withdrawn:alpha\\nbeta\\ngamma\\ndelta\\n"
 rigStart died
 rigEdit edit "$rigWs/held/notes.md" beta BETA
-kill "$rigPid" 2> /dev/null ; wait "$rigPid" 2> /dev/null
+rigProcSignal TERM "$rigPid" ; wait "$rigPid" 2> /dev/null
 rigThread "$( rigClick +1 URIGOWNER )" ""
 rigRead
 rigAssert "a session found gone when his approve is read: dropped, nothing applied" "$( rigReadLine 'ESCALATION: ' ):$( rigField status ):$( rigField withdraw-reason ):$( rigBytes "$rigWs/held/notes.md" )" \

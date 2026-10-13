@@ -23,21 +23,83 @@ AgentsToolsPendingReplyField(){ ## record file, field name
 ## `PENDING-REPLY: <id>`, the header fields the read names, `question:` with the
 ## question's first line, then a blank line. -v owner keeps only that member's records,
 ## -v openOnly=1 only waiting ones, and -v countLine=1 ends with `PENDING-REPLIES: <n>`.
-AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or empty), count line (1 or empty), record files...
-	local scanOwner="$1" scanOpen="$2" scanCount="$3"
-	shift 3
-	LC_ALL=C awk -v wantOwner="$scanOwner" -v openOnly="$scanOpen" -v countLine="$scanCount" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsPendingReplyScan.awk" "$@" 2>/dev/null
+## An open record also says, before its question, whether the run that asked it is alive
+## (`asker-live:`): what was measured for its asking id, given here as the text
+## AgentsToolsPendingReplyAskers printed, and this host's name, by which the ask of another
+## host is told apart and left unmeasured.
+AgentsToolsPendingReplyScan(){ ## owner filter (empty for any), open only (1 or empty), count line (1 or empty), askers measured, record files...
+	local scanOwner="$1" scanOpen="$2" scanCount="$3" scanAskers="$4" scanHost
+	shift 4
+	scanHost="$( hostname -s 2>/dev/null )" || scanHost=""
+	[ -n "$scanHost" ] || scanHost="unknown"
+	printf '%s\n' "$scanAskers" | LC_ALL=C awk -v wantOwner="$scanOwner" -v openOnly="$scanOpen" -v countLine="$scanCount" -v askerHost="$scanHost" \
+		-f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsToolsPendingReplyScan.awk" - "$@" 2>/dev/null
+}
+
+## Whether the runs that asked are alive, for the asking ids on stdin, a line each: measured
+## now, by the one rule a run is recognised by (AgentsToolsRegistryAskersLive,
+## AgentsTools.Registries.include), and stored nowhere. The process list is read once, and
+## only when there is an id to ask about.
+AgentsToolsPendingReplyAskers(){ ## stdin: the asking ids, a line each
+	local askersIds
+	askersIds="$( cat )"
+	[ -n "$askersIds" ] || return 0
+	type AgentsToolsRegistryAskersLive > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+	printf '%s\n' "$askersIds" | AgentsToolsRegistryAskersLive "$( ps -A -ww -o pid=,args= 2>/dev/null )"
+}
+
+## Where the stores keep more of one ask than its record, for the read of that one record,
+## which prints it whole (AgentsToolsPendingReplyScan.awk, MDAT_PENDING_WHOLE). Sets
+## replyWholeBeside, the names of what lies beside the record, its id taken off;
+## replyWholeRefusal, the refusal record a permission names, in the store of the session that
+## asked, else of whichever session keeps it; and replyWholeChange, the folder of the held
+## change whose own record names this ask, in the store of the session that made it. Each is
+## empty where there is none. Only what a store of this workspace holds: no thread is read.
+AgentsToolsPendingReplyWholeFind(){ ## record file, pending id
+	local wholeEntry wholeName wholeSession wholeRefusal wholeAgents="$MMDAPP/.local/agents"
+	replyWholeBeside="" ; replyWholeRefusal="" ; replyWholeChange=""
+	for wholeEntry in "${1%.md}".* ; do
+		[ -e "$wholeEntry" ] || continue
+		wholeName="${wholeEntry##*/}" ; wholeName="${wholeName#"$2".}"
+		[ "$wholeName" = "md" ] || replyWholeBeside="$replyWholeBeside$wholeName "
+	done
+	replyWholeBeside="${replyWholeBeside% }"
+	wholeSession="$( AgentsToolsPendingReplyField "$1" session-id )"
+	wholeRefusal="$( AgentsToolsPendingReplyField "$1" refusal-id )"
+	case "$wholeRefusal" in
+		''|.|..|*/*) ;;
+		*)
+			for wholeEntry in "$wholeAgents/sessions/${wholeSession:-.}/$wholeRefusal.md" "$wholeAgents/sessions"/*/"$wholeRefusal.md" ; do
+				[ ! -f "$wholeEntry" ] || { replyWholeRefusal="$wholeEntry" ; break ; }
+			done
+		;;
+	esac
+	case "$wholeSession" in
+		''|.|..|*/*) ;;
+		*)
+			[ "$( AgentsToolsPendingReplyField "$1" kind )" != "change" ] || for wholeEntry in "$wholeAgents/sessions/$wholeSession/changes"/*/change ; do
+				[ -f "$wholeEntry" ] && LC_ALL=C grep -q -x -F "ask: $2" "$wholeEntry" || continue
+				replyWholeChange="${wholeEntry%/change}" ; break
+			done
+		;;
+	esac
+	return 0
 }
 
 case "$1" in
 
 	## Reads pending-reply records: one by id, or a list of the member's own, open by
-	## default. Read-only: it changes no record, and reads no thread.
+	## default. Read-only: it changes no record, and reads no thread. A list is also the
+	## reader that passes by: it rebuilds the pending-replies registry first, by the one
+	## rebuild function every other rebuild of it calls, so that file is current after any
+	## list. And each open record says whether the run that asked it is alive, measured in
+	## the same call. One record by its id rebuilds nothing: after the lines a list prints
+	## for it, it prints the whole of what the stores hold of that ask.
 	--member-pending-reply-read)
 		shift
 		MDSC_CMD="$MDSC_CMD --member-pending-reply-read"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
-		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readFile
+		local readMember="${1:-}" readId="" readAll="" readAnyOwner="" readFile readRegistry readAskers=""
 		shift || true
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -62,8 +124,22 @@ case "$1" in
 			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
 			readFile="$MMDAPP/.local/agents/pending/$readId.md"
 			[ -f "$readFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
-			AgentsToolsPendingReplyScan "" "" "" "$readFile"
+			[ "$( AgentsToolsPendingReplyField "$readFile" status )" != "reply-pending" ] \
+				|| readAskers="$( AgentsToolsPendingReplyField "$readFile" session-id | AgentsToolsPendingReplyAskers )"
+			AgentsToolsPendingReplyWholeFind "$readFile" "$readId"
+			MDAT_PENDING_WHOLE=1 MDAT_PENDING_BESIDE="$replyWholeBeside" MDAT_PENDING_REFUSAL="$replyWholeRefusal" MDAT_PENDING_CHANGE="$replyWholeChange" \
+				AgentsToolsPendingReplyScan "" "" "" "$readAskers" "$readFile"
 			return 0
+		fi
+		type AgentsToolsRegistryPendingRepliesRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+		readRegistry="$( AgentsToolsRegistryFile pending-replies )"
+		if AgentsToolsRegistryPendingRepliesRebuild ; then
+			## That an open ask has no live asker is found in this same call, from the rows just
+			## written: the asking ids of the asks still open, each measured now. It is never
+			## stored -- no registry holds liveness -- so it is said in what this prints.
+			readAskers="$( LC_ALL=C awk '$2 == "ask" && $5 == "reply-pending" && $3 != "-" && ! askerSeen[$3]++ { print $3 ; }' "$readRegistry" 2> /dev/null | AgentsToolsPendingReplyAskers )"
+		else
+			echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
 		fi
 		local readFiles=( "$MMDAPP/.local/agents/pending"/*.md )
 		if [ ! -f "${readFiles[0]}" ] ; then
@@ -73,7 +149,7 @@ case "$1" in
 		local readOwnerFilter="$readMember" readOpenFilter="1"
 		[ -z "$readAnyOwner" ] || readOwnerFilter=""
 		[ -z "$readAll" ] || readOpenFilter=""
-		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" 1 "${readFiles[@]}"
+		AgentsToolsPendingReplyScan "$readOwnerFilter" "$readOpenFilter" 1 "$readAskers" "${readFiles[@]}"
 		return 0
 	;;
 

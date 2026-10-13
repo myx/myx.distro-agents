@@ -76,8 +76,8 @@ case "$1" in
 			[ "${f##*/}" = "$oldName" ] && continue
 			if grep -q -F -- "$oldName" "$f" ; then
 				local tmp
-				tmp="$MMDAPP/.local/temp/mdat-intern-op-rename.$$"
-				mkdir -p "$MMDAPP/.local/temp" && : > "$tmp" || { set +e ; return 1 ; }
+				## A file of this rename's own, by mktemp and never by $$, which every subshell of one shell shares.
+				mkdir -p "$MMDAPP/.local/temp" && tmp="$( mktemp "$MMDAPP/.local/temp/mdat-intern-op-rename.XXXXXX" )" || { set +e ; return 1 ; }
 				LC_ALL=C awk '
 					BEGIN {
 						old = ENVIRON["MDAT_RENAME_OLD"] ;
