@@ -83,9 +83,10 @@ LOOKS = (
     ("o", "", "black", "green", False),
     ("O", "B", "red", "green", False),
     ("x", "RD", "black", "white", True),
-    ## the frame of the active window, with its title, and of another; a scroll bar
+    ## the frame of the active window, with its title, and of another, which is paler, as
+    ## the frame of every window is behind a dialog; a scroll bar
     ("F", "B", "white", "blue", True),
-    ("f", "", "white", "blue", False),
+    ("f", "", "cyan", "blue", False),
     ("s", "", "blue", "cyan", False),
     ## the shadow of what lies over the desktop: a menu, a dialog
     ("w", "D", "black", "black", True),
@@ -121,6 +122,13 @@ MARKS = {"separator": "│", "cut": "…", "plain": False,
 MARK_SELECTED = ">"
 MARK_READING = "~"
 MARK_OLD = "!"
+## What a window says while it waits for its first rows, its name in it, in a pale look.
+## One that was read and holds nothing, and one whose read failed, keep their own words.
+POPULATING = "Populating %s..."
+## The narrow column at the right end of a row of the list, after its tail: what the row
+## carries under "wide", a session the total of its tokens. Shown where a row has that
+## many cells, and that many cells wide, its figures one under another.
+LIST_WIDE = {"from": 34, "cells": 6}
 
 ## The root of the list, in its order: the id of each section and what it shows as.
 SECTIONS = (
@@ -886,6 +894,8 @@ class ManagerState:
         self.failed = {}
         self.forced = set()
         self.reading = {}
+        ## whether the screen has a reader of operations: only then does a window wait for rows
+        self.reads = False
         ## the counters of the status lines, by name, each from the read that counts it
         self.counters = {}
         ## how wide the left pane is now: what its own lines are broken to
@@ -1915,6 +1925,10 @@ def parseSessionLevels(text):
             row["session"] = session
             row["tail"] = (MARK_GONE + " " if session["control"] == "gone" else "") + session["state"]
             row["look"] = BOLD if session["state"] == "running" else PLAIN
+            if len(fields) >= 12:
+                ## the total of its tokens, the last field of its row: the narrow column of the list
+                session["tokens"] = fields[11]
+                row["wide"] = tokensShort(fields[11])
             sessions[fields[1]] = row
             levels["sessions"].append(row)
             levels["sessions/" + fields[1]] = []
@@ -1937,6 +1951,14 @@ def parseSessionLevels(text):
             if row["look"] == PLAIN:
                 row["look"] = DIM
     return levels
+
+
+## The total of the tokens of a session as its list row gives it, short: the number as
+## shortCount gives it, with the `+` the row ends it by where some of its runs are not
+## counted in, and what is no number as it is.
+def tokensShort(value):
+    more = "+" if value.endswith("+") else ""
+    return shortCount(value[:len(value) - len(more)]) + more
 
 
 ## The state of an agent, and its activity where it is alive: `running working`.
@@ -4487,14 +4509,16 @@ def checksSummary(state, path):
 
 ## ---- the public keys of this server: `Server Keys` ----
 
-## The fields of a `key` row of `--manager-keys-list`, after its first; a row that has more
-## fields than these ends with the whole public line of the key, as it is pasted, its
-## blanks kept. A public key is shown whole wherever the screen shows one, and its <short>
-## is never shown: only a secret is ever hidden or shortened. A `group` row names a group
-## and, as its last field, the label of that group: the groups stand in the order of the
+## The fields of a `key` row of `--manager-keys-list`, after its first; a row that has one
+## more ends with the whole public line of the key, as it is pasted, `_` for a blank. A
+## public key is shown whole wherever the screen shows one, and its <short> is never
+## shown: only a secret is ever hidden or shortened. And the fields of a `group` row,
+## which stands ahead of the keys of its group: how many keys, its label, and a note,
+## why none of its keys can be read, or `-`. The groups stand in the order of the
 ## operation, and the screen knows none by its name. And the state of a key whose public
 ## file can be read.
 KEY_FIELDS = ("key", "label", "group", "purpose", "type", "fingerprint", "short", "file", "state")
+GROUP_FIELDS = ("group", "keys", "label", "note")
 KEY_PRESENT = "present"
 ## What the view and the box of a key say of its whole line.
 KEY_SAYS = {
@@ -4524,17 +4548,18 @@ def parseKeyRows(text):
 
     def groupOf(name):
         if name not in byGroup:
-            byGroup[name] = {"key": name, "label": "", "keys": []}
+            byGroup[name] = {"key": name, "label": "", "note": "", "keys": []}
             groups.append(byGroup[name])
         return byGroup[name]
 
     for printed in text.split("\n"):
         fields = printed.split("\t")
-        if fields[0] == "group" and len(fields) >= 3:
-            groupOf(fields[1])["label"] = unspaced(fields[-1])
+        if fields[0] == "group" and len(fields) >= len(GROUP_FIELDS):
+            named = dict(zip(GROUP_FIELDS, fields[1:]))
+            groupOf(named["group"]).update(label=unspaced(named["label"]), note=unspaced(named.get("note", "-")).strip())
         elif fields[0] == "key" and len(fields) > len(KEY_FIELDS):
             held = dict(zip(KEY_FIELDS, fields[1:]))
-            held["line"] = absent(fields[-1]) if len(fields) > len(KEY_FIELDS) + 1 else ""
+            held["line"] = unspaced(fields[len(KEY_FIELDS) + 1]) if len(fields) > len(KEY_FIELDS) + 1 else ""
             groupOf(held["group"])["keys"].append(held)
     rows = []
     for group in groups:
@@ -4572,12 +4597,13 @@ def parseKeyRead(text):
 
 
 ## The whole public line of a key, where it is to be registered, and what stands for the
-## line while there is none: the line from its row of the list where that carries it,
-## else from the read of that one key, which also gives where it is registered.
+## line while there is none: the line as the read of that one key gives it, with its
+## blanks as they are, once that has come, and until then from its row of the list where
+## that carries it; the read also gives where the key is registered.
 def keyWholeOf(state, path, held):
     plan = state.plans.get("each:%s|%s" % (levelPattern(path), held["key"]))
     read = plan["rows"] if plan and not plan["error"] else None
-    line = held.get("line") or (read["paste"] if read else "")
+    line = (read["paste"] if read else "") or held.get("line", "")
     if line:
         note = ""
     elif plan is None:
@@ -4603,6 +4629,8 @@ def keyGroupLines(state, path, groups, width):
     lines = []
     for group in groups:
         lines.extend(([""] if lines else []) + [group["label"]])
+        if group["note"]:
+            lines.extend(wholeLines(group["note"], width, "  "))
         if not group["keys"]:
             lines.append("  no key")
         for held in group["keys"]:
@@ -6089,6 +6117,49 @@ def readMarks(state, key):
     return marks + " " if marks else ""
 
 
+## The name of the level the list is at, as its title names it, its marks aside.
+def levelName(state):
+    if not state.path:
+        return ROOT_TITLE
+    for row in levelRowsAt(state, state.path[:-1]):
+        if row["id"] == state.path[-1] and row["kind"] != "up":
+            return row["label"]
+    return state.path[-1]
+
+
+## What the list says while it waits for the first rows of its level (POPULATING), or "":
+## the read that fills it has not answered yet, and has not failed.
+def listWaits(state):
+    shown = listReadOf(state.path)
+    if not state.reads or not shown or shown[0] in state.levelsOf or shown[0] in state.failed:
+        return ""
+    return POPULATING % levelName(state)
+
+
+## What the left window says while it waits for its first rows (POPULATING), or "": it
+## holds no line yet, a read that fills it has not answered, and none of them has failed.
+## Its lines come from the read of the selected item, of its log in a mode that shows
+## one, or from the list of the level the row opens, which its summary is made of.
+@onShownLevel
+def viewWaits(state):
+    row = selectedRow(state)
+    view = state.view
+    if not state.reads or row is None or view["lines"]:
+        return ""
+    viewKey = viewKeyOf(state) or ""
+    waits = []
+    if logShown(state, row):
+        waits.append(("feed:" + viewKey, view["feed"] is None))
+    elif viewReadOf(state, row, "view") is not None:
+        waits.append(("view:" + viewKey, view["info"] is None))
+    opened = listReadOf(state.path + [row["id"]]) if row["dive"] else None
+    if opened:
+        waits.append((opened[0], opened[0] not in state.levelsOf))
+    if any(key in state.failed for key, waiting in waits) or not any(waiting for key, waiting in waits):
+        return ""
+    return POPULATING % row["label"]
+
+
 def listTitle(state):
     title = ROOT_TITLE
     if state.path:
@@ -6295,6 +6366,9 @@ def listRowParts(row, chosen, width, enters=False):
     shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
+    if row.get("wide") and width >= LIST_WIDE["from"]:
+        ## the narrow column after the tail
+        tail = (tail + " " if tail else "") + " " * max(0, LIST_WIDE["cells"] - textWidth(row["wide"])) + row["wide"]
     tailWidth = textWidth(tail)
     room = width if not tail or tailWidth + 4 > width else width - tailWidth - 1
     markAt = None
@@ -6404,6 +6478,8 @@ def drawCompact(surface, state, layout):
         if position < len(rows):
             putListRow(surface, state, listTop + offset, listLeft, rows[position], position == cursor["index"], listWidth)
             spot(state, listLeft, listTop + offset, listWidth, 1, ("row", position))
+        elif position == len(rows) and listWaits(state):
+            surface.put(listTop + offset, listLeft, cutToCells(" " + listWaits(state), listWidth), DIM)
         else:
             surface.put(listTop + offset, listLeft, " " * listWidth, PLAIN)
     contentHeight = viewContentHeight(state, layout)
@@ -6417,6 +6493,8 @@ def drawCompact(surface, state, layout):
     for offset in range(contentHeight - headHeight):
         surface.put(layout["bodyTop"] + headHeight + offset, 0, " ", lineLook(state.view, state.view["top"] + offset))
         putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1, placing)
+    if contentHeight > headHeight and viewWaits(state):
+        surface.put(layout["bodyTop"] + headHeight, 0, cutToCells(" " + viewWaits(state), viewWidth), DIM)
     said = lineSays(state, viewWidth, layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(layout["bodyTop"] + contentHeight + offset, 0, cutToCells(" " + text, viewWidth), BOLD if offset == 0 else PLAIN)
@@ -6496,10 +6574,12 @@ def drawStatusLine(surface, state, line, columns):
 ## the middle of the top border, `foot` in the bottom border from its left, and its right
 ## border a scroll bar where `bar` says that it holds more than it shows: how many it
 ## holds, the first one shown, how many it shows.
-def drawFrame(surface, box, title, active, foot="", bar=None):
+def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
     left, top, width, height = box
     marks = MARKS["frameOn" if active else "frame"]
-    look = FRAME_ON if active else FRAME
+    ## `lit`: whether it is drawn in the look of the active one, where that is not what
+    ## `active` says: behind a dialog no frame is, and the double line stays
+    look = FRAME_ON if (active if lit is None else lit) else FRAME
     room = width - 2
     bottom = top + height - 1
     surface.put(top, left, marks[0] + marks[1] * room + marks[2], look)
@@ -6580,6 +6660,8 @@ def drawLinesBody(surface, state, layout, box):
     scrollView(state, contentHeight - headHeight, 0)
     for offset in range(contentHeight - headHeight):
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
+    if contentHeight > headHeight and viewWaits(state):
+        surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
     said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)
@@ -6606,6 +6688,8 @@ def drawRowsBody(surface, state, layout, box):
         if position < len(rows):
             putListRow(surface, state, top + offset, column, rows[position], position == cursor["index"], room)
             spot(state, column, top + offset, room, 1, ("row", position))
+        elif position == len(rows) and listWaits(state):
+            surface.put(top + offset, column, cutToCells(" " + listWaits(state), room), DIM)
         else:
             surface.put(top + offset, column, " " * room, PLAIN)
     return (len(rows), cursor["top"], rowsHeight)
@@ -6622,7 +6706,7 @@ def drawWindow(surface, state, layout, window):
     held = BODIES[window["shows"]["body"]](surface, state, layout, box)
     foot = globals()[window["foot"]](state) if window.get("foot") else ""
     drawFrame(surface, box, globals()[window["title"]](state), state.focus == window["name"], foot,
-              held if window.get("bar") else None)
+              held if window.get("bar") else None, state.focus == window["name"] and state.dialog is None)
     rows = box[3] - 2
     if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
         ## the scroll bar: its upper half pages up, its lower half down
@@ -6758,6 +6842,7 @@ def screenTurn(surface, state, reader, now, key):
     layout = sizeTaken(surface, state)
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now
+    state.reads = reader is not None
     handleKey(state, key, layout)
     if key is not None:
         ## a key may have moved the split, or changed how the lines of the left window are set out

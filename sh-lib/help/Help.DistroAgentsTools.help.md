@@ -773,17 +773,17 @@
 			fail does a DM-open attempt using --human-owner-hint
 			(default `myx`) against the workspace's user list run.
 
-			That list lookup, the true last resort, asks one page at
-			a time and stops at the first page the hint matches -- a
-			one-person search, never a full-roster fetch held for
-			later.
+			That list lookup, the true last resort, is one bounded
+			fetch -- capped, never paginated: a cursor Slack offers
+			past that one page is not followed, so a match sitting
+			only past it is not found. A one-person search, never a
+			full-roster fetch held for later.
 
-			--user-name's own lookup pages and stops the same way: it
-			keeps asking only until every named query has a match, or
-			ENV_MAGIC_SWEEP_SLACK_MATCH_MAX matches (default 10, across
-			every name together) are found, or the page cap is reached
-			(ENV_MAGIC_SWEEP_SLACK_PAGE_MAX, default 20). No form of
-			this op fetches the whole user list and holds it, ever.
+			--user-name's own lookup is the same one bounded fetch,
+			its matches capped at 10 total, across every named query
+			together, inside the Python helper -- a fixed bound, not
+			a setting. No form of this op fetches more than that one
+			page, or holds it, ever.
 
 			--user-name/--channel-name repeat to resolve several names
 			in one pass. --raw needs one of them: a term to search for.

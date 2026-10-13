@@ -68,15 +68,18 @@ rigFull='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGH
 } > "$rigF/rows.--manager-check-run"
 rigHostFull='rig-host ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIhostHOSThostHOSThostHOSThostHOSThostHOSThostHOSThost'
 rigOursFull='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIoursOURSoursOURSoursOURSoursOURSoursOURSoursOURSours mdci@rig-host'
-rigKeyRow(){ ## key, label, group, purpose, type, fingerprint, file, state, the whole line or nothing -- a `key` row; its <short> is a text the screen must never show
-	if [ $# -ge 9 ] ; then rigRow key "$1" "$2" "$3" "$4" "$5" "$6" SHORT-never-shown "$7" "$8" "$9" ; else rigRow key "$1" "$2" "$3" "$4" "$5" "$6" SHORT-never-shown "$7" "$8" ; fi
+rigKeyRow(){ ## key, label, group, purpose, type, fingerprint, file, state, the whole line or nothing -- a `key` row, the line with `_` for a blank; its <short> is a text the screen must never show
+	if [ $# -ge 9 ] ; then rigRow key "$1" "$2" "$3" "$4" "$5" "$6" SHORT-never-shown "$7" "$8" "${9// /_}" ; else rigRow key "$1" "$2" "$3" "$4" "$5" "$6" SHORT-never-shown "$7" "$8" ; fi
 }
-## The keys as the list prints them once it names its groups and carries the whole line: three groups, each by a row
-## of its own with its label, in an order that is not the alphabet's, and under them four keys, one of them absent.
+## The keys as the list prints them since it names its groups and carries the whole line: four groups, each by a row
+## of its own ahead of its keys, with how many, its label and a note, in an order that is not the alphabet's, one of
+## them a group the screen was never told of, whose one key cannot be read, with why in its note; five keys in all.
 {
-	rigRow group trust-on-connect Keys_To_Trust_When_Connecting
-	rigRow group add-to-git Keys_To_Add_To_Git
-	rigRow group add-to-authorized-keys Our_Key_For_Targets_That_Welcome_Us
+	rigRow group trust-on-connect 1 Keys_To_Trust_When_Connecting -
+	rigRow group add-to-git 2 Keys_To_Add_To_Git -
+	rigRow group add-to-authorized-keys 1 Our_Key_For_Targets_That_Welcome_Us -
+	rigRow group kept-for-the-rig 1 Keys_Of_The_Rig no_public_key_can_be_read_at_/rig/kept.pub
+	rigKeyRow kept Kept_Key kept-for-the-rig 'a_key_of_a_group_no_screen_knows' - - /rig/kept.pub absent -
 	rigKeyRow deploy Deploy_Key add-to-git 'the_deploy_key_of_this_server,_to_list_on_each_git_repository_it_reads' ssh-ed25519 SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ /rig/mdci/deploy-keys/mdci.pub present "$rigFull"
 	rigKeyRow host-ed25519 Host_Key_ED25519 trust-on-connect 'an_ssh_host_key_of_this_server,_for_the_known_hosts_of_those_who_connect_to_it' ssh-ed25519 SHA256:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkj /rig/etc/ssh/ssh_host_ed25519_key.pub present "$rigHostFull"
 	rigKeyRow generated Generated_Key add-to-git 'the_key_made_for_this_server' - - /rig/mdci/.ssh/id_ed25519.pub absent -
@@ -286,11 +289,12 @@ get absent
 keys DOWN f
 get gf
 RIGSCRIPT
-rigAssert "entering it reads the list once, and each key that can be read once by its name, the deploy key once more for its box below; no period reads any again" "$( rigVal in.path ) $( rigVal in.rows ) $( rigCalled --manager-keys-list ) $( rigCalled '--manager-keys-read deploy' ) $( rigCalled '--manager-keys-read host-ed25519' ) $( rigCalled '--manager-keys-read ours' ) $( rigCalled '--manager-keys-read generated' ) $( rigVal aged.reading | LC_ALL=C grep -c -F keys )" "configuration/keys 8 1 2 1 1 0 0"
+rigAssert "entering it reads the list once, and each key that can be read once by its name, the deploy key once more for its box below; no period reads any again" "$( rigVal in.path ) $( rigVal in.rows ) $( rigCalled --manager-keys-list ) $( rigCalled '--manager-keys-read deploy' ) $( rigCalled '--manager-keys-read host-ed25519' ) $( rigCalled '--manager-keys-read ours' ) $( rigCalled '--manager-keys-read generated' ) $( rigVal aged.reading | LC_ALL=C grep -c -F keys )" "configuration/keys 10 1 2 1 1 0 0"
 rigAssert "the groups stand in the order of the operation, each by the label its row gives, its keys under it" "[$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )][$( rigCell row6 )][$( rigCell row7 )][$( rigCell row8 )]" "[ Keys To Trust When Connecting][ ~ Host Key ED25519][ Keys To Add To Git][ ~ Deploy Key][ ~ Generated Key ~ absent][ Our Key For Targets That Welcome…][ ~ Our Key]"
 rigAssert "on the row that goes up: each group under its label, each key with its fingerprint and its whole public line" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )][$( rigPane u 6 )] $( rigJoined u | LC_ALL=C grep -c -F 'rig-hostssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIhostHOSThostHOSThostHOSThostHOSThostHOSThostHOSThost' )" \
 	"[ Keys To Trust When Connecting][   Host Key ED25519][       SHA256:ZYXWVUTSRQPONMLKJIHGFEDCBAzyxwvutsrqponmlkj][       rig-host ssh-ed25519] 1"
 rigAssert "a key that cannot be read says so, and the key of ours for a target stands whole as the others" "$( rigPaneHolds u '       absent: /rig/mdci/.ssh/id_ed25519.pub' ) $( rigPaneHolds u ' Our Key For Targets That Welcome Us' ) $( rigJoined u | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIoursOURSoursOURSoursOURSoursOURSoursOURSoursOURSoursmdci@rig-host' ) $( rigJoined u | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1 1 1"
+rigAssert "a group the screen was never told of stands as the others, by its row, with the note of that row under its label" "$( rigPaneHolds u ' Keys Of The Rig' ) $( rigPaneHolds u '   no public key can be read at /rig/kept.pub' ) $( rigPaneHolds u '   Kept Key' ) $( rigPaneHolds u '       absent: /rig/kept.pub' )" "1 1 1 1"
 rigAssert "a group selected: the left window shows that group alone, and the key of a key says it is not for it" "$( rigVal g.selected ) [$( rigPane g 2 )][$( rigPane g 3 )] $( rigPaneHolds g ' Keys To Add To Git' ) [$( rigVal gf.selected )] [$( rigVal gf.notice )] [$( rigVal gf.dialog )]" "group trust-on-connect [ Keys To Trust When Connecting][ Keys To Trust When Connecting] 0 [group add-to-authorized-keys] [Full public line: for a server key, not for what is selected] []"
 rigAssert "a key selected: what it is for, its type, its fingerprint, its file, its group as the row named it" "$( rigVal d.selected ) [$( rigPane d 2 )][$( rigPane d 3 )][$( rigPane d 5 )][$( rigPane d 6 )][$( rigPane d 7 )][$( rigPane d 8 )]" \
 	"deploy [ Deploy Key][ the deploy key of this server, to list on each git repository it reads][ type        ssh-ed25519][ fingerprint SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ][ file        /rig/mdci/deploy-keys/mdci.pub][ group       Keys To Add To Git]"
