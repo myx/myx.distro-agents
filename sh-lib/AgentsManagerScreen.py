@@ -27,6 +27,7 @@
 import datetime
 import locale
 import os
+import re
 import shlex
 import signal
 import subprocess
@@ -127,6 +128,7 @@ SECTIONS = (
     ("sessions", "Sessions (Activity)"),
     ("pending", "Pending Questions"),
     ("team", "Team Members"),
+    ("places", "Locations (Places)"),
     ("consoles", "Consoles (Tools)"),
     ("settings", "Settings"),
     ("configuration", "Configuration"),
@@ -154,7 +156,9 @@ FIXED_ROWS = {
 ## "feed", its lines, read as a kind of its own; "log" is what `l` adds to it. "needs"
 ## names what a row must carry for the read to be made at all. "acts" is what can be done
 ## with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked
-## for, and never again because its period has passed (startDueReads). "peek": a list that
+## for, and never again because its period has passed (startDueReads). "seldom": a list that
+## is read whatever is shown is not read again because its period has passed either, but
+## while it is the list shown. "peek": a list that
 ## is read also while its section is the row the root stands on, since the left window
 ## then shows that section from its rows (wantedReads).
 ## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
@@ -202,6 +206,13 @@ READS = {
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
+    ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
+    ## kind of its own, since a path inside one of them stands by its name in the other
+    ## views (PLACED): once when the screen starts and when a read is asked for, and on the
+    ## period only while `Locations (Places)` is the list shown.
+    "list:places": {"operation": ["--manager-place-list"], "rows": "places", "kind": "places", "always": True, "seldom": True},
+    ## One location, whole: its row, what declares it, and what stands in it.
+    "view:places:record": {"operation": ["--manager-place-read", "{id}"], "rows": "place-read", "needs": "place"},
     "view::section": None,
     "view:sessions:launch": None,
     ## A session whole, and what its runs did: the lines its tracking thread shows.
@@ -312,6 +323,31 @@ DASHBOARD = {
     "bar": 10, "least": 34, "gap": 1,
 }
 
+## What the root `Locations (Places)` shows: the locations the tooling knows by a name, as
+## its operation prints them. "fields": the names of the fields of a `place` row after the
+## first. "here": the word of its field of that name that marks the workspace the console
+## runs in. "present": the state of a location that is there; one in another state shows
+## plainer. Looking only: nothing here changes a location.
+PLACES = {
+    "fields": ("key", "label", "kind", "ceiling", "path", "state", "here", "sessions"),
+    "here": "yes", "present": "present",
+}
+## The rule of the locations: a path that lies in a registered location shows as the key
+## of that location and what follows it there, `<place key>/rest`, the longest location
+## winning, the key in the look of a folder. It is a rule of the drawing alone: what the
+## screen holds, what it sends to an operation, a link and a command are never changed by
+## it. "real": the views where a path stands as it is, each by the root it is under and,
+## where that is not the whole root, by the ids of the rows and levels under it: the table
+## of the locations and the summary of one; the subject of the workspace's paths, in the
+## settings and in the configuration; and what is started with the whole terminal, whose
+## folder and command are exact. The raw mode of a log is such a view too, wherever it
+## is. "dialogs": the dialogs whose text takes the rule, the path as it is standing under
+## its paragraph as a line of its own: the answers to a pending question.
+PLACED = {
+    "real": {"places": None, "consoles": None, "settings": ("workspace",), "configuration": ("workspace",)},
+    "dialogs": ("answer", "reply", "reject", "dismiss"),
+}
+
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
 
 ## The styles of the interface, in the order the screen offers them: the name of each, and
@@ -343,7 +379,7 @@ KEYMAPS = {
 ## the screen takes with Alt, outside a dialog, where it is text. On another layout these
 ## do not come, and nothing is taken for them.
 OPTION_KEYS = {"≈": "x", "©": "g", "ß": "s", "µ": "m", "√": "v", "˙": "h", "œ": "q",
-               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5", "§": "6", "¶": "7", "•": "8"}
+               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5", "§": "6", "¶": "7", "•": "8", "ª": "9"}
 ## Esc and then a key within this many seconds is Alt with that key, where no menu and no
 ## dialog is open: the Meta every terminal delivers, also one that sends no Alt and keeps
 ## the function keys for itself. Esc alone closes a menu and a dialog at once, as before.
@@ -524,6 +560,8 @@ COMMANDS = (
      "does": ("go", ("pending",))},
     {"name": "team", "keys": ("3", "ALT-3"), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
+    {"name": "places", "keys": ("9", "ALT-9"), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
+     "does": ("go", ("places",))},
     {"name": "consoles", "keys": ("6", "ALT-6"), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
      "does": ("go", ("consoles",))},
     {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "S~e~ttings",
@@ -825,6 +863,9 @@ class ManagerState:
         ## what was asked to be started with the whole terminal, and is at the end of the
         ## turn of its key: {"label", "said", "words", "directory"} (askRun, runChild)
         self.child = None
+        ## the locations as the rule of the locations last took them from their rows: those
+        ## rows, the key of each path, and the pattern that finds one in a text (placesKnown)
+        self.placed = None
         ## the item the selection rests on, and since when (restLeft)
         self.restKey = None
         self.restSince = 0.0
@@ -1055,7 +1096,8 @@ def levelRows(state):
 ## with its runs. "pending": the asks. "routines": the routines to start by hand.
 ## "members": the team members. "digest": the subjects of the settings and of the
 ## configuration, and a level for each with its lines. "starts": what is started with the
-## whole terminal. "blocks": the blocks of the dashboard. No name: the stand-in below.
+## whole terminal. "blocks": the blocks of the dashboard. "places": the
+## locations. No name: the stand-in below.
 def parseLevels(readKey, form, text):
     if form == "sessions":
         return parseSessionLevels(text)
@@ -1076,6 +1118,8 @@ def parseLevels(readKey, form, text):
         return {level: parseKeyRows(text)}
     if form == "blocks":
         return {level: parseBlockRows(text)}
+    if form == "places":
+        return {level: parsePlaceRows(text)}
     return {level: parseRows(readKey, text)}
 
 
@@ -1280,8 +1324,9 @@ def scrollView(state, height, step, pages=0):
 ## Spawn`, its free prompt, and what it holds; the selected team member, and what the
 ## section of the members holds; the selected subject of the digest, a line of it, and
 ## what a root of the digest holds; the selected thing to start, and what `Consoles (Tools)` holds;
-## the blocks of the dashboard, and the one block of the selected row. None: the pane has
-## no such content, and shows what its own read gives.
+## the blocks of the dashboard, and the one block of the selected row; the selected
+## location, and what `Locations (Places)` holds. None: the pane has no such content, and
+## shows what its own read gives.
 def localView(state, row):
     if row is None:
         return None
@@ -1341,6 +1386,10 @@ def localView(state, row):
         return blocksView(state, row["id"])
     if (level == "dashboard" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "dashboard"):
         return blocksView(state)
+    if level == "places" and row.get("place"):
+        return placeLines(row["place"], state.viewWidth, state.view["info"])
+    if (level == "places" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "places"):
+        return placesSummary(state)
     return None
 
 
@@ -2317,6 +2366,8 @@ def openDialog(state, name, fill=None, about=None, title=None):
     for control in declared["controls"]:
         held = dict(control, lines=[], options=[], value=[] if control["kind"] == "checks" else "", top=0, at=0)
         held.update((fill or {}).get(control["name"], {}))
+        if name in PLACED["dialogs"] and held["lines"]:
+            held["lines"] = placedParagraphs(state, held["lines"])
         ids = [option[0] for option in held["options"]]
         if control["kind"] == "checks":
             held["value"] = list(held["value"])
@@ -4643,9 +4694,11 @@ def figureValue(figure):
 ## level; where the style has no colours the mark of the level stands ahead of the value.
 ## A figure that is a share has a bar and its hundredths after its value, or, where they
 ## do not fit beside it, a bar of its own under it, as wide as the box. A value too long
-## to stand beside its label stands under it, its start cut away where it is still too
-## long. Gives the lines and, for each, what of it is drawn in a look of its own.
-def blockBox(block, width):
+## to stand beside its label stands under it, at the right; one longer than a line stands
+## there whole, from the left, on as many lines as it takes. `place` is the rule of the locations for a value, where the view takes it: the
+## key of a location in a value then stands in its own look, while the value is whole.
+## Gives the lines and, for each, what of it is drawn in a look of its own.
+def blockBox(block, width, place=None):
     frame = MARKS["frame"]
     inner = max(1, width - 4)
     levels = dict(DASHBOARD["levels"])
@@ -4662,26 +4715,32 @@ def blockBox(block, width):
         level = levels.get(figure["level"])
         look = level["look"] if level else BOLD
         name = unspaced(figure["label"]) or figure["key"]
-        value = figureValue(figure)
+        value, keys = place(figureValue(figure)) if place else (figureValue(figure), [])
         if level and level["mark"] and not STYLE["colours"]:
+            keys = [(start + textWidth(level["mark"]) + 1, cells, keyLook) for start, cells, keyLook in keys]
             value = level["mark"] + " " + value
         share = min(100, int(figure["share"])) if figure["share"].isdigit() else None
         bar = min(DASHBOARD["bar"], inner - 5)
         beside = share is not None and bar > 0 and textWidth(name) + 2 + textWidth(value) + bar + 6 <= inner
         room = inner - (bar + 6 if beside else 0)
         if textWidth(name) + 2 + textWidth(value) > room:
-            ## the value under its label, at the right
+            ## the value under its label: at the right, or whole on its own lines
             put(name)
             name = ""
-            value = leftCut(value, room)
-        valueAt = room - textWidth(value)
-        spans = [(valueAt, textWidth(value), look)]
-        body = cutToCells(name, valueAt) + value
-        if beside:
-            filled = (share * bar + 50) // 100
-            body += " " + MARKS["barThumb"] * filled + MARKS["barTrack"] * (bar - filled) + " %3d%%" % share
-            spans += [(room + 1, filled, look), (room + 1 + filled, bar - filled, DIM)]
-        put(body, spans)
+            pieces = areaLines(value, room) if textWidth(value) > room else []
+            for number, piece in enumerate(pieces):
+                put(piece, [(0, textWidth(piece), look)] + [span for span in keys if not number and span[0] + span[1] <= textWidth(piece)])
+            if pieces:
+                value = None
+        if value is not None:
+            valueAt = room - textWidth(value)
+            spans = [(valueAt, textWidth(value), look)] + [(valueAt + start, cells, keyLook) for start, cells, keyLook in keys]
+            body = cutToCells(name, valueAt) + value
+            if beside:
+                filled = (share * bar + 50) // 100
+                body += " " + MARKS["barThumb"] * filled + MARKS["barTrack"] * (bar - filled) + " %3d%%" % share
+                spans += [(room + 1, filled, look), (room + 1 + filled, bar - filled, DIM)]
+            put(body, spans)
         if share is not None and not beside and inner > 8:
             bar = inner - 5
             filled = (share * bar + 50) // 100
@@ -4696,7 +4755,7 @@ def blockBox(block, width):
 ## width fit, all of one width but the last, which takes what is left; each block is set
 ## under the column that is the shortest so far, in the order the blocks come. Gives the
 ## lines and what of each is drawn in a look of its own, by the number of the line.
-def blockGrid(blocks, width):
+def blockGrid(blocks, width, place=None):
     gap = DASHBOARD["gap"]
     columns = max(1, min(len(blocks), (width + gap) // (DASHBOARD["least"] + gap)))
     widths = [(width - gap * (columns - 1)) // columns] * columns
@@ -4704,7 +4763,7 @@ def blockGrid(blocks, width):
     stacks = [[] for column in range(columns)]
     for block in blocks:
         column = min(range(columns), key=lambda index: len(stacks[index]))
-        stacks[column].extend(zip(*blockBox(block, widths[column])))
+        stacks[column].extend(zip(*blockBox(block, widths[column], place)))
     lines = []
     looks = {}
     for index in range(max(len(stack) for stack in stacks)):
@@ -4724,22 +4783,228 @@ def blockGrid(blocks, width):
 ## The dashboard for the left pane: every block the operation gave, as a grid; or the one
 ## block of the selected row, as wide as the window. None until its read has answered,
 ## and while what it would set out is what stands there already: the same rows, at the
-## same width, in the same style.
+## same width, in the same style, with the same locations known.
 def blocksView(state, only=None):
     rows = state.rows.get("dashboard")
     if rows is None:
         return None
-    stamp = (rows, only, state.viewWidth, STYLE["name"], MARKS["plain"])
+    places = state.rows.get("places")
+    stamp = (only, state.viewWidth, STYLE["name"], MARKS["plain"])
     kept = state.view.get("blocksFor")
-    if kept is not None and kept[0] is rows and kept[1:] == stamp[1:]:
+    if kept is not None and kept[0] is rows and kept[1] is places and kept[2] == stamp:
         return None
-    state.view["blocksFor"] = stamp
+    state.view["blocksFor"] = (rows, places, stamp)
     blocks = [row["block"] for row in rows if row.get("block") and only in (None, row["id"])]
     if not blocks:
         state.view["looks"] = {}
         return ["Nothing to show here: the operation gave no block."]
-    lines, state.view["looks"] = blockGrid(blocks, max(20, state.viewWidth - 2))
+    place = (lambda text: placedLine(state, text)) if placedShown(state) else None
+    lines, state.view["looks"] = blockGrid(blocks, max(20, state.viewWidth - 2), place)
     return lines
+
+
+## ---- the locations: `Locations (Places)`, and a path by the name of its location ----
+
+## The columns of the table of the locations after the mark of the one the console runs
+## in, and what of a location stands in each. Its key always shows; those after it show
+## in this order while the pane has room.
+PLACE_COLUMNS = (
+    ("PLACE", lambda place: place["key"]),
+    ("KIND", lambda place: place["kind"]),
+    ("CEILING", lambda place: absent(place["ceiling"])),
+    ("STATE", lambda place: place["state"]),
+    ("SESSIONS", lambda place: absent(place["sessions"])),
+)
+
+
+## The rows of the locations as one table, in the manner of the members' table and by its
+## rule: under a header, the mark of the location the console runs in, in the place an
+## icon has there, then the key of each and a word for each column, an absent one `-`.
+def placeTable(rows):
+    places = [row["place"] for row in rows]
+    words = [[column[1](place) or "-" for column in PLACE_COLUMNS] for place in places]
+    marks = [MARKS["on"] if place["here"] == PLACES["here"] else "" for place in places]
+    table = {"heads": [column[0] for column in PLACE_COLUMNS],
+             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
+                        for index, column in enumerate(PLACE_COLUMNS)],
+             "iconWidth": max([textWidth(mark) for mark in marks] + [0])}
+    for row, mark, line in zip(rows, marks, words):
+        row["table"] = table
+        row["cells"] = [mark] + line
+
+
+## What `--manager-place-list` printed, as rows: `place` rows of TAB-separated fields, in
+## the order they come. They show as a table (placeTable), each by its key, which is what
+## its read is asked by. The one the console runs in stands out; one that is not present
+## shows plainer. A line of another name, and one too short, is left out.
+def parsePlaceRows(text):
+    rows = []
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        if fields[0] != "place" or len(fields) <= len(PLACES["fields"]):
+            continue
+        place = dict(zip(PLACES["fields"], fields[1:]))
+        row = newRow(place["key"], place["key"], "record", False, fields)
+        row["place"] = place
+        if place["here"] == PLACES["here"]:
+            row["look"] = BOLD
+        if place["state"] != PLACES["present"]:
+            row["look"] = DIM
+        rows.append(row)
+    placeTable(rows)
+    return rows
+
+
+## What `--manager-place-read` printed of one location, after its own row: `info` rows, a
+## name and its value, and `stands` rows, what stands in it, each with its name and its path.
+def parsePlaceRead(text):
+    info = {"info": [], "stands": []}
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        if fields[0] == "info" and len(fields) >= 3:
+            info["info"].append((fields[1], absent(fields[2])))
+        elif fields[0] == "stands" and len(fields) >= 4:
+            info["stands"].append((fields[1], absent(fields[2]), fields[3]))
+    return info
+
+
+## The selected location for the left pane, from its row: its label, its key, its kind,
+## its ceiling, its path as it is, its state, whether the console runs in it, and how many
+## sessions name it. Once the read of that one location has come (info): what declares
+## it, and what stands in it, each with its path as it is. This is the summary of a
+## location: no path in it is shown by a location's name.
+def placeLines(place, width, info=None):
+    lines = fieldLines([
+        ("place", unspaced(place["label"]) or place["key"]),
+        ("key", place["key"]),
+        ("kind", place["kind"]),
+        ("ceiling", absent(place["ceiling"])),
+        ("path", absent(place["path"])),
+        ("state", place["state"]),
+        ("here", "the console runs in this one" if place["here"] == PLACES["here"] else ""),
+        ("sessions", "%s with a run that names it, of the sessions this workspace keeps" % place["sessions"]
+         if absent(place["sessions"]) else ""),
+    ], width)
+    if not isinstance(info, dict) or "stands" not in info:
+        return lines
+    lines.extend(fieldLines(info["info"], width))
+    if info["stands"]:
+        lines.extend(["", "What stands in it:"])
+        for what, name, path in info["stands"]:
+            lines.extend(hangLines("%s  %s" % (what + " " + name if name else what, path), width))
+    return lines
+
+
+## What `Locations (Places)` holds, for the left pane while the section itself or the row
+## that goes up is selected: how many there are, kind by kind as the operation names the
+## kinds, which one the console runs in, and how many are not present. None until its
+## read has answered.
+def placesSummary(state):
+    if "places" not in state.rows:
+        return None
+    places = [row["place"] for row in state.rows["places"] if row.get("place")]
+    if not places:
+        return ["No location is known here: the operation listed none."]
+    kinds = []
+    for place in places:
+        if place["kind"] not in [kind for kind, count in kinds]:
+            kinds.append([place["kind"], 0])
+        [entry for entry in kinds if entry[0] == place["kind"]][0][1] += 1
+    lines = ["%d location%s: %s." % (len(places), "" if len(places) == 1 else "s",
+                                     ", ".join("%d %s" % (count, kind) for kind, count in kinds))]
+    here = [place["key"] for place in places if place["here"] == PLACES["here"]]
+    if here:
+        lines.append("The console runs in %s." % here[0])
+    away = len([place for place in places if place["state"] != PLACES["present"]])
+    if away:
+        lines.append("%d of them %s not present on this machine." % (away, "is" if away == 1 else "are"))
+    lines.append("In the other views a path inside one of them stands by its name.")
+    return lines
+
+
+## The locations that have a path, for the rule of the locations: the key of each by its
+## path, and the pattern that finds the path of one in a text, the longest first, where
+## it is a path of its own there: nothing of a longer name stands ahead of it or after
+## it. Taken from the rows of the locations when those have changed. Where two share a
+## path the first in the list has it.
+def placesKnown(state):
+    rows = state.rows.get("places")
+    if state.placed is None or state.placed[0] is not rows:
+        paths = {}
+        for row in rows or ():
+            path = row["place"]["path"].rstrip("/") if row.get("place") else ""
+            if path.startswith("/") and len(path) > 1:
+                paths.setdefault(path, row["place"]["key"])
+        pattern = None
+        if paths:
+            pattern = re.compile("(?<![\\w./~+@-])(?:%s)(?=/|$|[^\\w.~+@-])" % "|".join(
+                re.escape(path) for path in sorted(paths, key=len, reverse=True)))
+        state.placed = (rows, paths, pattern)
+    return state.placed[1], state.placed[2]
+
+
+## A text by the rule of the locations: each path in it that lies in a location stands as
+## the key of that location and what follows it there. Gives the text, and where each key
+## stands in it: the cell it starts at, how many cells it takes, and the look of a folder.
+def placedLine(state, text):
+    paths, pattern = placesKnown(state)
+    if pattern is None or "/" not in text:
+        return text, []
+    parts = []
+    spans = []
+    at = 0
+    width = 0
+    for match in pattern.finditer(text):
+        key = paths[match.group(0)]
+        width += textWidth(text[at:match.start()])
+        spans.append((width, textWidth(key), FOLDER))
+        width += textWidth(key)
+        parts.append(text[at:match.start()] + key)
+        at = match.end()
+    return ("".join(parts) + text[at:], spans) if spans else (text, [])
+
+
+## Whether what the left window shows now takes the rule of the locations: not a view of
+## real paths (PLACED), and not the raw mode of a log.
+@onShownLevel
+def placedShown(state):
+    row = selectedRow(state)
+    if row is None or (logShown(state, row) and rawShown(state)):
+        return False
+    root = state.path[0] if state.path else row["id"] if row["kind"] == "section" else ""
+    if root in PLACED["real"]:
+        under = PLACED["real"][root]
+        if under is None or any(word in under for word in state.path[1:] + [row["id"]]):
+            return False
+    return True
+
+
+## The paragraphs of a text of a dialog by the rule of the locations: a paragraph that
+## holds a path inside a location shows that path by the key of the location, and each
+## such path stands under it as it is, whole, as a line of its own.
+def placedParagraphs(state, paragraphs):
+    paths, pattern = placesKnown(state)
+    if pattern is None:
+        return list(paragraphs)
+    shown = []
+    for paragraph in paragraphs:
+        paired = isinstance(paragraph, tuple)
+        text = paragraph[1] if paired else paragraph
+        real = []
+        for match in pattern.finditer(text):
+            end = match.end()
+            while end < len(text) and not text[end].isspace():
+                end += 1
+            path = text[match.start():end].rstrip(".,;:!?)]}'\"")
+            if path not in real:
+                real.append(path)
+        if not real:
+            shown.append(paragraph)
+            continue
+        placed = placedLine(state, text)[0]
+        shown.append((paragraph[0], placed) if paired else placed)
+        shown.extend(("", path) if paired else "  " + path for path in real)
+    return shown
 
 
 def handleKey(state, key, layout):
@@ -5354,8 +5619,11 @@ def startDueReads(state, reader, now):
         if reader.busy(kind) or (resting and kind in VIEW_PARTS):
             continue
         last = state.started.get(key)
-        ## a read that is made once is not due again because its period has passed
-        aged = now - last["at"] >= REFRESH_SECONDS and not (READS.get(key) or {}).get("once") if last else False
+        ## a read that is made once is not due again because its period has passed; neither
+        ## is one that is read seldom, but while it is the list shown
+        entry = READS.get(key) or {}
+        once = entry.get("once") or (entry.get("seldom") and key != (listReadOf(state.path) or ("",))[0])
+        aged = now - last["at"] >= REFRESH_SECONDS and not once if last else False
         due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
@@ -5451,6 +5719,8 @@ def applyResult(state, result):
             state.view["acts"] = parseAskActs(result["text"])
         elif entry.get("rows") == "member-read":
             state.view["info"] = parseMemberRead(result["text"])
+        elif entry.get("rows") == "place-read":
+            state.view["info"] = parsePlaceRead(result["text"])
         elif entry.get("rows") == "transcript":
             state.view["feed"] = parseTranscriptRead(result["text"])
             buildFeed(state, row)
@@ -5876,12 +6146,14 @@ def drawCompact(surface, state, layout):
             surface.put(listTop + offset, listLeft, " " * listWidth, PLAIN)
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
+    placing = placedShown(state)
     for offset in range(headHeight):
-        surface.put(layout["bodyTop"] + offset, 0, cutToCells(" " + state.view["head"][offset], viewWidth), PLAIN)
+        surface.put(layout["bodyTop"] + offset, 0, " ", PLAIN)
+        putLooked(surface, state, layout["bodyTop"] + offset, 1, state.view["head"][offset], viewWidth - 1, PLAIN, (), placing)
     scrollView(state, contentHeight - headHeight, 0)
     for offset in range(contentHeight - headHeight):
         surface.put(layout["bodyTop"] + headHeight + offset, 0, " ", lineLook(state.view, state.view["top"] + offset))
-        putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1)
+        putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1, placing)
     said = lineSays(state, viewWidth, layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(layout["bodyTop"] + contentHeight + offset, 0, cutToCells(" " + text, viewWidth), BOLD if offset == 0 else PLAIN)
@@ -5988,13 +6260,26 @@ def drawFrame(surface, box, title, active, foot="", bar=None):
 
 ## One line of what the left window holds, by its number, in exactly that many cells, in
 ## the look of what it is (lineLook); and over it what of that line is drawn in a look of
-## its own (the "looks" of the view), as far as the window shows it: never over the mark
-## of a line that is cut.
-def putViewLine(surface, state, line, column, position, room):
+## its own (the "looks" of the view). `placing`: the view takes the rule of the locations.
+def putViewLine(surface, state, line, column, position, room, placing=False):
     lines = state.view["lines"]
     text = lines[position] if position < len(lines) else ""
-    surface.put(line, column, cutToCells(text, room), lineLook(state.view, position))
-    spans = state.view["looks"].get(position, ()) if text else ()
+    putLooked(surface, state, line, column, text, room, lineLook(state.view, position),
+              state.view["looks"].get(position, ()) if text else (), placing)
+
+
+## A text of the left window in exactly that many cells, in that look, and over it the
+## parts of it that are drawn in a look of their own, each as the cell it starts at, how
+## many cells it takes and its look, as far as the window shows them: never over the mark
+## of a line that is cut. Where the view takes the rule of the locations (`placing`), a
+## path inside a location is drawn by the key of that location, the key in the look of a
+## folder: the line that is held is not changed.
+def putLooked(surface, state, line, column, text, room, look, spans, placing):
+    if placing and "/" in text:
+        placed, keys = placedLine(state, text)
+        if keys:
+            text, spans = placed, keys
+    surface.put(line, column, cutToCells(text, room), look)
     if not spans:
         return
     cells = []
@@ -6018,11 +6303,12 @@ def drawLinesBody(surface, state, layout, box):
     room = box[2] - 2
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
+    placing = placedShown(state)
     for offset in range(headHeight):
-        surface.put(top + offset, column, cutToCells(state.view["head"][offset], room), PLAIN)
+        putLooked(surface, state, top + offset, column, state.view["head"][offset], room, PLAIN, (), placing)
     scrollView(state, contentHeight - headHeight, 0)
     for offset in range(contentHeight - headHeight):
-        putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room)
+        putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
     said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)

@@ -776,11 +776,23 @@
 			That list lookup, the true last resort, asks one page at
 			a time and stops at the first page the hint matches -- a
 			one-person search, never a full-roster fetch held for
-			later. --user-name's own lookup is unaffected: it still
-			fetches one page, as before.
+			later.
+
+			--user-name's own lookup pages and stops the same way: it
+			keeps asking only until every named query has a match, or
+			ENV_MAGIC_SWEEP_SLACK_MATCH_MAX matches (default 10, across
+			every name together) are found, or the page cap is reached
+			(ENV_MAGIC_SWEEP_SLACK_PAGE_MAX, default 20). No form of
+			this op fetches the whole user list and holds it, ever.
 
 			--user-name/--channel-name repeat to resolve several names
-			in one pass. --raw includes the full API payloads.
+			in one pass. --raw needs one of them: a term to search for.
+			Given alone, with neither, it is refused before any
+			credential or network step runs. With --channel-name, it
+			additionally prints that one page's own raw payload
+			(`CHANNELS_JSON=`). With --user-name it changes nothing
+			further: a `USER_MATCH` row already carries what a match
+			needs, so --raw adds no second, wider form of it.
 
 			Exit code, with --resolve-human-owner-target: 0 a reachable
 			human-owner target is confirmed, 1 unresolved/unreachable.

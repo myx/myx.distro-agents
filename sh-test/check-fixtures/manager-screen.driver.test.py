@@ -157,6 +157,9 @@ class TextSurface:
 ##                                 buttons `how`, the list `pick`, and the buttons OK and Cancel. OK says what each
 ##                                 control holds, as `pressed ok: ...`, and refuses the name `no` inside the dialog
 ##   tell <title> | <paragraph> [/ <paragraph>...]   opens the message box with that title and that text
+##   opened <name> | <paragraph> [/ <paragraph>...]  opens that dialog of the screen's DIALOGS with that text in its
+##                                 control `about`, as the screen's own handlers open one; a paragraph `<name> :: <value>`
+##                                 is a pair of a name and its value
 ##   mouse <what> <column> <line>  one event of the mouse at that cell, counted from 0, as one turn of the screen:
 ##                                 click, double, up or down (the wheel)
 ##   mousekey <column> <line> <bit...>   what the screen makes of what curses reports of the mouse, the bits by their
@@ -361,6 +364,10 @@ def scriptRun(module):
             print("mousekey=%s" % (module.mouseKey(int(words[0]), int(words[1]), bits) or ""))
         elif command == "rigdialog":
             rigDialog(rest)
+        elif command == "opened":
+            paragraphs = [paragraph.strip() for paragraph in rest.partition("|")[2].split(" / ")]
+            module.openDialog(state, rest.partition("|")[0].strip(), {"about": {"lines": [
+                tuple(paragraph.split(" :: ", 1)) if " :: " in paragraph else paragraph for paragraph in paragraphs]}})
         elif command == "tell":
             module.tell(state, rest.partition("|")[0].strip(), [paragraph.strip() for paragraph in rest.partition("|")[2].split(" / ")])
         elif command == "box":

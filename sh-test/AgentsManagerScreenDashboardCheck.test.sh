@@ -11,7 +11,7 @@
 ## with its label in its top border and a line a figure, the label at the left and the value at the right; a count,
 ## a size and a span of time show short, a value of another unit as it is printed; a value stands in the palette
 ## entry of its level, and in a style with no colours a mark and bold tell the level; a figure that is a share has
-## a bar and its hundredths; a value too long for its line stands under its label; a block and a figure the screen
+## a bar and its hundredths; a value too long for its line stands under its label, whole; a block and a figure the screen
 ## never heard of are drawn as they come, also with more fields than are known, and a figure of no block is left
 ## out; the blocks stand side by side as a grid where the window is wide and one under another where it is
 ## narrow, and nothing is drawn past the window; Enter opens the root: its rows are the blocks, in the order of
@@ -143,7 +143,7 @@ rigAssert "a value of a unit nobody declared shows as it is printed, and a row w
 rigAssert "a figure of a block that was not printed, a line of another name and a block too short are left out" "$( rigHolds a 'Of No Block' ) $( rigHolds a 'another name' ) $( rigHolds a 'short' )" "0 0 0"
 rigAssert "a share has a bar of ten cells and its hundredths beside its value" "$( rigBoth a 'Share Used' ' 617.7G ■■■■■■■▒▒▒  70% │' )" "1"
 rigAssert "where they have no room beside the value, the bar stands under the figure, as wide as the box" "$( rigBoth a 'A Figure With A Long Label' ' 12 │' ) $( rigHolds a '│ ■■■■■■■■■■▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  33% │' )" "1 1"
-rigAssert "a value too long for its line stands under its label, its start cut away" "$( rigHolds a '│ Root Path  ' ) $( rigHolds a '…' ) $( rigHolds a 'small/box/END │' )" "1 1 1"
+rigAssert "a value longer than a line stands under its label whole, on as many lines as it takes, and nothing of it is cut" "$( rigHolds a '│ Root Path  ' ) $( rigHolds a '│ /rig/some/where/far/away/a/long/path │' ) $( rigHolds a '│ /that/fits/no/small/box/END  ' ) $( rigHolds a '…' )" "1 1 1 0"
 rigAssert "the label of a block stands out, and a value with no level too" "$( rigLookAt a ar 'Alpha Block' ) $( rigLookAt a ar '1.2M' )" "BBBBBBBBBBB BBBB"
 rigAssert "a value stands in the palette entry of its level: well, to look at, bad" "$( rigLookAt a ar 'yes' ) $( rigLookAt a ar '123.0M' ) $( rigLookAt a ar '2h 27m' )" "kkk WWWWWW XXXXXX"
 rigAssert "the bar of a share is drawn in the level of its figure, and what is left of it of less weight" "$( rigLookAt a ar '■■■■■■■▒▒▒' )" "kkkkkkkDDD"

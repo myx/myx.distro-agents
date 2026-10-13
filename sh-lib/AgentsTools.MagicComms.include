@@ -130,6 +130,14 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 		esac
 	done
 
+	## No form of this op fetches a whole list, ever, --raw included: --raw widens
+	## nothing of its own, it only let a caller see the full page a search already
+	## made. Refused up front, before any credential or network step runs.
+	if [ "$raw" = "true" ] && [ -z "$userNamesCsv" ] && [ -z "$channelNamesCsv" ] ; then
+		echo "⛔ ERROR: $MDSC_CMD --magic-comms-slack-resolve-ids: --raw needs --user-name or --channel-name, a term to search for. No form fetches the whole list." >&2
+		set +e ; return 1
+	fi
+
 	local token="" tokenSource
 	! AgentsToolsSlackOwnSettingsApply "$memberName" || token="$( DistroAgentsTools --agents-config-option "$memberName" --select SLACK_USER_TOKEN )"
 	if [ -n "$token" ] ; then
@@ -179,32 +187,50 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 
 	local usersJson="" channelsJson="" usersOk="not-requested" channelsOk="not-requested"
 	local usersOkRc=0 channelsOkRc=0
-	if [ "$raw" = "true" ] || [ -n "$userNamesCsv" ] ; then
-		usersJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" <<< "$authHeader" )"
-		usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
-		[ "$usersOkRc" = "0" ] || usersOk='-'
-	fi
-	if [ "$raw" = "true" ] || [ -n "$channelNamesCsv" ] ; then
-		channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @- --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" <<< "$authHeader" )"
-		channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || channelsOkRc=$?
-		[ "$channelsOkRc" = "0" ] || channelsOk='-'
-	fi
-
-	if [ "$raw" = "true" ] ; then
-		printf 'USERS_JSON=%s\n' "$usersJson"
-		printf 'CHANNELS_JSON=%s\n' "$channelsJson"
-	fi
 
 	if [ -n "$userNamesCsv" ] ; then
-		## Shrunk on receipt: the already-fetched page (shared with --raw's own untouched
-		## print above) is projected to id/name/display/real before Python ever sees it,
-		## on stdin -- never the page's own full JSON, in a variable or an environment slot.
-		printf '%s\n' "$usersJson" | LC_ALL=C awk -v array=members -v want=id,name,profile.display_name,profile.real_name \
-			-v mode=records -v dialect=slack -f "$slackJsonField" | USER_NAMES_CSV="$userNamesCsv" \
-			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveUserMatches.py"
+		## One bounded, paged, early-exit search -- never the whole roster, --raw
+		## included. Stops once ENV_MAGIC_SWEEP_SLACK_MATCH_MAX matches (default 10,
+		## across every named query together) are found, or the page cap is reached.
+		## Shrunk on receipt: a page's own full JSON is read only long enough to
+		## check ok and the next cursor; what reaches Python, on stdin, is
+		## id/name/display/real, one row per member, never a page body itself in a
+		## variable or an environment slot. --raw asks for nothing further here: a
+		## USER_MATCH row already carries what a caller needs from a match.
+		local userMatchMax="${ENV_MAGIC_SWEEP_SLACK_MATCH_MAX:-10}"
+		case "$userMatchMax" in ''|*[!0123456789]*|0) userMatchMax=10 ;; esac
+		local userPageCursor="" userPageIndex=0 userPageMax="${ENV_MAGIC_SWEEP_SLACK_PAGE_MAX:-20}"
+		case "$userPageMax" in ''|*[!0123456789]*|0) userPageMax=20 ;; esac
+		local userPageArgs=() userPageRecords="" userPageMatches="" userMatchCount=0
+		while : ; do
+			userPageIndex=$(( userPageIndex + 1 ))
+			userPageArgs=( -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" )
+			[ -z "$userPageCursor" ] || userPageArgs+=( --data-urlencode "cursor=$userPageCursor" )
+			usersJson="$( curl -sS --connect-timeout 10 --max-time 120 "${userPageArgs[@]}" <<< "$authHeader" )"
+			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
+			[ "$usersOkRc" = "0" ] || usersOk='-'
+			[ "$usersOk" = "true" ] || break
+			userPageRecords="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v array=members -v want=id,name,profile.display_name,profile.real_name \
+				-v mode=records -v dialect=slack -f "$slackJsonField" )"
+			userPageMatches="$( printf '%s\n' "$userPageRecords" | USER_NAMES_CSV="$userNamesCsv" \
+				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveUserMatches.py" )"
+			if [ -n "$userPageMatches" ] ; then
+				printf '%s\n' "$userPageMatches"
+				userMatchCount=$(( userMatchCount + $( printf '%s\n' "$userPageMatches" | LC_ALL=C grep -c '^USER_MATCH|' ) ))
+			fi
+			[ "$userMatchCount" -lt "$userMatchMax" ] || break
+			userPageCursor="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=response_metadata.next_cursor \
+				-v dialect=slack -f "$slackJsonField" 2>/dev/null )"
+			[ -n "$userPageCursor" ] || break
+			[ "$userPageIndex" -lt "$userPageMax" ] || break
+		done
 	fi
 
 	if [ -n "$channelNamesCsv" ] ; then
+		channelsJson="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.list -H @- --data-urlencode "types=public_channel,private_channel,im,mpim" --data-urlencode "exclude_archived=true" --data-urlencode "limit=1000" <<< "$authHeader" )"
+		channelsOk="$( printf '%s\n' "$channelsJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || channelsOkRc=$?
+		[ "$channelsOkRc" = "0" ] || channelsOk='-'
+		[ "$raw" != "true" ] || printf 'CHANNELS_JSON=%s\n' "$channelsJson"
 		CHANNELS_JSON="$channelsJson" CHANNEL_NAMES_CSV="$channelNamesCsv" \
 			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveChannelMatches.py"
 	fi
@@ -475,19 +501,6 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 			-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterAuthNameRc=$?
 		[ "$rosterAuthNameRc" = "0" ] && [ -n "$rosterAuthName" ] || rosterAuthName='-'
 
-		## Handles come from the SAME identity that enumerated the
-		## conversations: a roster naming a counterparty the reading token
-		## cannot see would be a name attached to nothing.
-		local rosterUserPages="" rosterUserRc=0
-		rosterUserPages="$( AgentsMagicCommsSlackListPaged "$memberName" "$rosterIdentity" users.list "" \
-			"--magic-comms-slack-conversations-roster ($rosterIdentity identity, handles)" )" || rosterUserRc=$?
-		local rosterHandles=""
-		if [ "$rosterUserRc" = "0" ] ; then
-			rosterHandles="$( printf '%s\n' "$rosterUserPages" | LC_ALL=C awk -v array=members -v want=id,name \
-				-v mode=records -v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || rosterHandles=""
-		fi
-		rosterUserPages=""
-
 		local rosterConvPages="" rosterConvRc=0
 		rosterConvPages="$( AgentsMagicCommsSlackListPaged "$memberName" "$rosterIdentity" conversations.list "$rosterTypes" \
 			"--magic-comms-slack-conversations-roster ($rosterIdentity identity, conversations)" )" || rosterConvRc=$?
@@ -507,6 +520,25 @@ AgentsToolsCommsSlackConversationsRoster(){ ## <team-member> [options] | --print
 			rosterFailCount=$(( rosterFailCount + 1 ))
 			continue
 		fi
+
+		## Handles come from the SAME identity that enumerated the conversations: a
+		## roster naming a counterparty the reading token cannot see would be a name
+		## attached to nothing. ONE users.info CALL PER DISTINCT COUNTERPARTY ID THIS
+		## SCAN ACTUALLY SAW ABOVE, never the whole workspace directory -- the
+		## directory is not the answer to "who is this conversation with", and a
+		## caller wanting it can ask users.list itself. A counterparty this call
+		## fails to name (gone, or a lookup error) is left unmapped, not a failure
+		## of the roster: the join below already reads an unmapped id as "-".
+		local rosterCounterpartyIds=""
+		rosterCounterpartyIds="$( printf '%s\n' "$rosterLines" | LC_ALL=C awk -F '\t' '$4 != "" && !seen[$4]++ { print $4 }' )"
+		local rosterHandles="" rosterInfoId rosterInfoResp rosterInfoName
+		for rosterInfoId in $rosterCounterpartyIds ; do
+			rosterInfoResp="$( DistroAgentsTools --intern-op-slack-call "$memberName" --api users.info --identity "$rosterIdentity" \
+				--form "user=$rosterInfoId" --context "--magic-comms-slack-conversations-roster ($rosterIdentity identity, one counterparty)" )" || continue
+			rosterInfoName="$( printf '%s\n' "$rosterInfoResp" | LC_ALL=C awk -v path=user.name -v optional=1 \
+				-v dialect=slack -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" )" || continue
+			[ -z "$rosterInfoName" ] || rosterHandles="$rosterHandles$rosterInfoId"$'\t'"$rosterInfoName"$'\n'
+		done
 
 		## The join is one awk over one value, not a scratch file: the handle map
 		## is a value, and a value that fits in a variable stays in one.

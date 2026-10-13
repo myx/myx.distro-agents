@@ -119,5 +119,20 @@ rigAssert "exactly one conversations.open call" "$( LC_ALL=C grep -c '^conversat
 rigAssert "and the target is reported reachable, sourced from it directly" \
 	"$( printf '%s' "$rigOut" | grep -c '^HUMAN_OWNER_TARGET|status=reachable|target=DRIGOPENED1|source=conversations.open|hint=-|user_id=URIGOWNERKNOWN$' )" 1
 
+## --raw with no term at all is refused, before any credential or network step.
+rigRun --raw
+rigAssert "--raw alone, no term, is refused" "$rigRc" 1
+rigAssert "naming why" "$( printf '%s' "$rigOut" | grep -c 'needs --user-name or --channel-name' )" 1
+rigAssert "and never reaches auth.test" "$( LC_ALL=C grep -c '^auth.test ' "$rigTmp/calls" )" 0
+
+## --user-name's own search pages and stops the same way: a match on page 2, two calls, not more.
+printf '{"ok":true,"members":[{"id":"URIGOTHER1","name":"someone-else","profile":{}}],"response_metadata":{"next_cursor":"PAGE2TOKEN"}}\n' \
+	> "$rigTmp/users-list-pages/page1"
+printf '{"ok":true,"members":[{"id":"URIGOWNER01","name":"myx","profile":{}}],"response_metadata":{"next_cursor":""}}\n' \
+	> "$rigTmp/users-list-pages/PAGE2TOKEN"
+rigRun --user-name myx
+rigAssert "--user-name pages the same way: exactly two users.list calls" "$( rigUsersListCalls )" 2
+rigAssert "and finds the match" "$( printf '%s' "$rigOut" | grep -c '^USER_MATCH|myx|URIGOWNER01|myx|' )" 1
+
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]
