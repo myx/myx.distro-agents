@@ -765,12 +765,16 @@
 
 			--resolve-human-owner-target additionally reports the
 			best-known reachable human-owner target. Resolution
-			order: the configured `human-owner` alias id first, then
-			(if unreachable) a DM-open attempt using --human-owner-hint
-			(default `myx`) against the workspace's user list.
+			order: if the configured `human-owner` alias is already
+			a Slack user id (U*/W*), straight to a DM-open on it --
+			no list, ever, for a workspace configured this way, this
+			being the common case. Else, the alias as a channel id,
+			read with conversations.info. Only once both of those
+			fail does a DM-open attempt using --human-owner-hint
+			(default `myx`) against the workspace's user list run.
 
-			That list lookup, when it is needed, asks one page at a
-			time and stops at the first page the hint matches -- a
+			That list lookup, the true last resort, asks one page at
+			a time and stops at the first page the hint matches -- a
 			one-person search, never a full-roster fetch held for
 			later. --user-name's own lookup is unaffected: it still
 			fetches one page, as before.
@@ -2930,11 +2934,14 @@
 			`workspace-personal`, `workspace-separate`,
 			`workspace-shared`, `local-machine-home`, `bash-default` or
 			`user-default`. Group `origin`, key `MDLT_CONSOLE_ORIGIN`,
-			where the consoles load their tools from. Group `detail`, key
-			`MDSC_DETAIL`, whether the tools say what they do as they do
-			it, as the environment of the call has it, `off` where it
-			has none: a command takes it from its verbose option or from
-			its caller, and no settings file holds it.
+			where every console of the workspace loads its tools from:
+			its own installed copy where no key is set, the first of its
+			choices, which has no value; or the `source` or the `.local`
+			of a registered workspace that has the tool family, listed at
+			the call; a path set by hand is shown as it is. Group
+			`detail`, key `MDLT_CONSOLE_DETAIL`, the verbosity of a
+			console the user starts: none where no key is set, `true` or
+			`full`, which the agents console alone reads today.
 			`control`: the two bounds of a request to the control thread
 			of a session, in seconds, each what is saved for the team or
 			else its default: group `request`, key
@@ -2946,12 +2953,24 @@
 			changeable setting, and nothing else: the one operation of
 			the settings that writes. <key> is the key of a line that
 			`--manager-config-digest --full` says can be changed, a line
-			of the `settings`, and <value> one that line takes. Four are
+			of the `settings`, and <value> one that line takes. Six are
 			declared. `MDAT_MANAGER_STYLE`, a `choice`, the user's own:
 			the interface style of the manager screen at its next start.
 			`MDLT_CONSOLE_HISTORY`, a `choice`, the user's own: where a
 			console keeps the shell history of the user, read at its next
-			start. `SESSION_CONTROL_REQUEST_SECONDS`, a `number` from 1
+			start. `MDLT_CONSOLE_ORIGIN`, a `choice`, the workspace's:
+			where its consoles load their tools from at their next start,
+			saved in `.local/MDLT.settings.env` under its root.
+			`MDLT_CONSOLE_DETAIL`, a `choice`, the user's own: the
+			verbosity of a console the user starts, which the agents
+			console alone reads today. AN EMPTY <value> REMOVES THE
+			SETTING, whichever it is: its key is taken out of the file,
+			no key with nothing after it is ever written, and the row
+			printed is `removed <key> <default> <scope> <where>`, with
+			the default the setting is at then, `-` where that is that
+			nothing is set. The first choice of such a setting has no
+			value: choosing it gives the empty one.
+			`SESSION_CONTROL_REQUEST_SECONDS`, a `number` from 1
 			to 60, and `SESSION_CONTROL_KILL_SECONDS`, a `number` from 5
 			to 600, the workspace's: the two bounds of a request to a
 			control thread, read at the next request. A setting of scope
@@ -4198,10 +4217,11 @@
 			settled leaves it.
 
 			An answered `ask:` source quiet five minutes past its
-			own `follow-floor` leaves a `--wait-default` call's
-			stored sources on its own -- the same pointer a later
-			clarification shifts, read directly, no second
-			timestamp kept. Said, never silent:
+			own last update leaves a `--wait-default` call's
+			stored sources on its own. That update is the newest
+			kept clarification line, read off the record directly;
+			`follow-floor` stays fixed at the close, so it is only
+			the fallback where none is kept yet. Said, never silent:
 			`WAIT-DROPPED-EXPIRED: ask:<pending-id> ... -- quiet 5
 			minutes past its last update; name it again
 			explicitly to keep watching it`, right after

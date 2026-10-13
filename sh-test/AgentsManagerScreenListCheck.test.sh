@@ -2,7 +2,7 @@
 ## Behavioural check on the list of the manager screen and on what a key does (sh-lib/AgentsManagerScreen.py), run
 ## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py): each
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
-## `Pending Questions`, `Team Members` and `Settings (Configuration)` in that order, the first one selected; Enter or
+## `Pending Questions`, `Team Members`, `Consoles (Tools)`, `Settings` and `Configuration` in that order, the first one selected; Enter or
 ## Right dives into a row, the first row below the root goes up, and so does Left, back onto the row that was dived
 ## into; inside `Sessions (Activity)` the first item is `Launch / Spawn`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
@@ -52,9 +52,10 @@ cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
 cells row5 6 85 119
+cells row6 7 85 119
 RIGSCRIPT
-rigAssert "the root holds the five sections in their order"          "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Consoles (Tools)...][ Settings (Configuration)...]"
-rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 5"
+rigAssert "the root holds the six sections in their order"           "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" "[>Sessions (Activity)...][ Pending Questions...][ Team Members...][ Consoles (Tools)...][ Settings...][ Configuration...]"
+rigAssert "the first one is selected, and the list has the focus"    "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "sessions 0 list 6"
 
 echo "-- Enter and Right dive in, the first row and Left go up --"
 rigScript <<'RIGSCRIPT'
@@ -104,14 +105,14 @@ rigScript <<'RIGSCRIPT'
 size 120 40
 keys UP
 get top
-keys DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 get last
 keys DOWN DOWN
 get still
 RIGSCRIPT
 rigAssert "Up on the first row stays there"                          "$( rigVal top.index )" 0
-rigAssert "Down reaches the last row"                                "$( rigVal last.index ) $( rigVal last.selected )" "4 settings"
-rigAssert "Down on the last row stays there, and does not wrap"      "$( rigVal still.index ) $( rigVal still.selected )" "4 settings"
+rigAssert "Down reaches the last row"                                "$( rigVal last.index ) $( rigVal last.selected )" "5 configuration"
+rigAssert "Down on the last row stays there, and does not wrap"      "$( rigVal still.index ) $( rigVal still.selected )" "5 configuration"
 
 echo "-- PageDown and PageUp, a hundred rows in a pane of twenty lines --"
 rigScript <<'RIGSCRIPT'

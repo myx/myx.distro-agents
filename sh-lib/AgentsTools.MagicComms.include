@@ -196,7 +196,11 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	fi
 
 	if [ -n "$userNamesCsv" ] ; then
-		USERS_JSON="$usersJson" USER_NAMES_CSV="$userNamesCsv" \
+		## Shrunk on receipt: the already-fetched page (shared with --raw's own untouched
+		## print above) is projected to id/name/display/real before Python ever sees it,
+		## on stdin -- never the page's own full JSON, in a variable or an environment slot.
+		printf '%s\n' "$usersJson" | LC_ALL=C awk -v array=members -v want=id,name,profile.display_name,profile.real_name \
+			-v mode=records -v dialect=slack -f "$slackJsonField" | USER_NAMES_CSV="$userNamesCsv" \
 			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveUserMatches.py"
 	fi
 
@@ -258,21 +262,46 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	humanAliasChannel="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^CHANNEL=//p' )"
 	local humanAliasUserId=""
 	humanAliasUserId="$( printf '%s\n' "$humanAliasResolved" | sed -n 's/^USER_ID=//p' )" || humanAliasUserId=""
-	if [ -n "$humanAliasChannel" ] ; then
-		humanAliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$humanAliasChannel" <<< "$authHeader" )"
-		if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
-			## This exit never reaches the hint path, so both list states are final here.
-			printf 'USERS_LIST_OK=%s\n' "$usersOk"
-			printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
-			echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
+	## A configured value that already IS a Slack user id (U*/W*, the alias loop above's own
+	## check) needs no search at all: open straight on it, the same one curl a hint match would
+	## reach for below. conversations.info takes a channel id, not a user id, and would only
+	## fail on one -- so this workspace's own SLACK_CHANNEL_HUMAN_OWNER=<user id> configuration
+	## never reaches the search fallback, or a users.list fetch, at all.
+	local knownHumanOwnerUserId=""
+	case "$humanAliasChannel" in
+		U*|W*) knownHumanOwnerUserId="$humanAliasChannel" ;;
+		"") humanAliasErr="unresolved" ;;
+		*)
+			humanAliasInfo="$( curl -sS --connect-timeout 10 --max-time 120 -G https://slack.com/api/conversations.info -H @- --data-urlencode "channel=$humanAliasChannel" <<< "$authHeader" )"
+			if printf '%s' "$humanAliasInfo" | grep -q '"ok":true' ; then
+				## This exit never reaches the hint path, so both list states are final here.
+				printf 'USERS_LIST_OK=%s\n' "$usersOk"
+				printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
+				echo "HUMAN_OWNER_TARGET|status=reachable|target=$humanAliasChannel|source=config-alias"
+				return 0
+			fi
+			local humanAliasErrRc=0
+			humanAliasErr=""
+			humanAliasErr="$( printf '%s\n' "$humanAliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || humanAliasErrRc=$?
+			[ "$humanAliasErrRc" = "0" ] || humanAliasErr='-'
+		;;
+	esac
+	if [ -n "$knownHumanOwnerUserId" ] ; then
+		local knownOpenResp knownOpenOk knownOpenErr knownOpenChannel knownOpenOkRc=0 knownOpenErrRc=0 knownOpenChannelRc=0
+		knownOpenResp="$( curl -sS --connect-timeout 10 --max-time 120 -X POST https://slack.com/api/conversations.open -H @- -H "Content-type: application/x-www-form-urlencoded" --data-urlencode "users=$knownHumanOwnerUserId" <<< "$authHeader" )"
+		knownOpenOk="$( printf '%s\n' "$knownOpenResp" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || knownOpenOkRc=$?
+		knownOpenErr="$( printf '%s\n' "$knownOpenResp" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || knownOpenErrRc=$?
+		knownOpenChannel="$( printf '%s\n' "$knownOpenResp" | LC_ALL=C awk -v path=channel.id -v dialect=slack -f "$slackJsonField" )" || knownOpenChannelRc=$?
+		[ "$knownOpenOkRc" = "0" ] || knownOpenOk='-'
+		[ "$knownOpenErrRc" = "0" ] || knownOpenErr='-'
+		printf 'USERS_LIST_OK=%s\n' "$usersOk"
+		printf 'CHANNELS_LIST_OK=%s\n' "$channelsOk"
+		if [ "$knownOpenOk" = "true" ] && [ "$knownOpenChannelRc" = "0" ] && [ -n "$knownOpenChannel" ] ; then
+			echo "HUMAN_OWNER_TARGET|status=reachable|target=$knownOpenChannel|source=conversations.open|hint=-|user_id=$knownHumanOwnerUserId"
 			return 0
 		fi
-		local humanAliasErrRc=0
-		humanAliasErr=""
-		humanAliasErr="$( printf '%s\n' "$humanAliasInfo" | LC_ALL=C awk -v path=error -v optional=1 -v dialect=slack -f "$slackJsonField" )" || humanAliasErrRc=$?
-		[ "$humanAliasErrRc" = "0" ] || humanAliasErr='-'
-	else
-		humanAliasErr="unresolved"
+		echo "HUMAN_OWNER_TARGET|status=unreachable|target=-|source=conversations.open|hint=-|user_id=$knownHumanOwnerUserId|error=$knownOpenErr|channel_id_reader_rc=$knownOpenChannelRc"
+		return 1
 	fi
 
 	## This op's own one-person lookup, never the shared roster pager
@@ -280,12 +309,15 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 	## first page the hint matches, so a match on page 1 of a large workspace
 	## never pays for page 2. Only when --raw/--user-name already fetched a
 	## page above (usersOk=true already) is that one page reused instead,
-	## unpaged, as before.
+	## unpaged, as before. SHRUNK ON RECEIPT either way: a page's own full JSON
+	## is read only long enough to check ok and the next cursor; what reaches
+	## Python, on stdin, is id/name/display/real alone, one row per member, never
+	## the page body itself in a variable Python's own environment copies.
 	local hintUserId=""
 	if [ "$usersOk" = "not-requested" ] ; then
 		local hintCursor="" hintPageIndex=0 hintPageMax="${ENV_MAGIC_SWEEP_SLACK_PAGE_MAX:-20}"
 		case "$hintPageMax" in ''|*[!0123456789]*|0) hintPageMax=20 ;; esac
-		local hintPageArgs=()
+		local hintPageArgs=() hintPageRecords=""
 		while : ; do
 			hintPageIndex=$(( hintPageIndex + 1 ))
 			hintPageArgs=( -G https://slack.com/api/users.list -H @- --data-urlencode "limit=1000" )
@@ -294,7 +326,9 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 			usersOk="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=ok -v dialect=slack -f "$slackJsonField" )" || usersOkRc=$?
 			[ "$usersOkRc" = "0" ] || usersOk='-'
 			[ "$usersOk" = "true" ] || break
-			hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
+			hintPageRecords="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v array=members -v want=id,name,profile.display_name,profile.real_name \
+				-v mode=records -v dialect=slack -f "$slackJsonField" )"
+			hintUserId="$( printf '%s\n' "$hintPageRecords" | HINT="$humanOwnerHint" \
 				python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 			[ -z "$hintUserId" ] || break
 			hintCursor="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v path=response_metadata.next_cursor \
@@ -303,7 +337,8 @@ AgentsToolsCommsSlackResolveIds(){ ## <team-member> [--user-name <name>]... [--c
 			[ "$hintPageIndex" -lt "$hintPageMax" ] || break
 		done
 	elif [ "$usersOk" = "true" ] ; then
-		hintUserId="$( USERS_JSON="$usersJson" HINT="$humanOwnerHint" \
+		hintUserId="$( printf '%s\n' "$usersJson" | LC_ALL=C awk -v array=members -v want=id,name,profile.display_name,profile.real_name \
+			-v mode=records -v dialect=slack -f "$slackJsonField" | HINT="$humanOwnerHint" \
 			python3 "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsSlackResolveHintUserId.py" )"
 	fi
 	## Every exit below passes here, and the config-alias exit above reports

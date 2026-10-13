@@ -109,5 +109,15 @@ rigAssert "a reachable configured alias short-circuits before any users.list cal
 rigAssert "and reports the alias as the source" \
 	"$( printf '%s' "$rigOut" | grep -c '^HUMAN_OWNER_TARGET|status=reachable|target=CRIGOWNERFAIL|source=config-alias$' )" 1
 
+## A configured value that is already a Slack user id (U*/W*) needs no search, and no
+## conversations.info either: conversations.open is reached directly on it.
+printf 'SLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNERKNOWN\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigRun --resolve-human-owner-target
+rigAssert "a configured user id makes no users.list call at all" "$( rigUsersListCalls )" 0
+rigAssert "nor a conversations.info call" "$( LC_ALL=C grep -c '^conversations.info ' "$rigTmp/calls" )" 0
+rigAssert "exactly one conversations.open call" "$( LC_ALL=C grep -c '^conversations.open ' "$rigTmp/calls" )" 1
+rigAssert "and the target is reported reachable, sourced from it directly" \
+	"$( printf '%s' "$rigOut" | grep -c '^HUMAN_OWNER_TARGET|status=reachable|target=DRIGOPENED1|source=conversations.open|hint=-|user_id=URIGOWNERKNOWN$' )" 1
+
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]

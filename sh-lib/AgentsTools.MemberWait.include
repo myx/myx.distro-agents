@@ -909,15 +909,20 @@ case "$1" in
 		## good (an answered one keeps its thread watched), and a default call that dropped it
 		## would leave the answer with nothing waiting for it.
 		##
-		## FIVE QUIET MINUTES, FROM THE LATEST MATCHING UPDATE, DROPS IT ON ITS OWN. A closed
-		## record's own follow-floor already IS that update's own ts -- the same pointer a later
-		## clarification shifts (AgentsHarnessAskKeepClarifications) -- so no second timestamp is
-		## kept here. Explicit, never silent: said on WAIT-DROPPED-EXPIRED below, every call it
-		## happens on. This only stops a DEFAULT call from reaching for the source on its own --
-		## naming it again, explicitly, is unaffected.
+		## FIVE QUIET MINUTES, FROM THE LATEST MATCHING UPDATE, DROPS IT ON ITS OWN. follow-floor
+		## is set once, at the close, and stays there (AgentsHarnessAskKeepClarifications keeps
+		## it fixed -- confirmed in AgentsHarnessAskRewaitCheck.test.sh, "the follow floor stays
+		## at the answer" holds even after a clarification is kept): it is the right floor for
+		## reading the thread, and the wrong one for "how long has it been quiet", which must
+		## reset on each new clarification too. The record's own kept clarification lines (`- <ts>
+		## <who>: <text>`) do move, so the newest of those -- falling back to follow-floor where
+		## none is kept yet -- is this update's own ts, with no second field to keep in step.
+		## Explicit, never silent: said on WAIT-DROPPED-EXPIRED below, every call it happens on.
+		## This only stops a DEFAULT call from reaching for the source on its own -- naming it
+		## again, explicitly, is unaffected.
 		local waitExpiredDrop=""
 		if [ "$waitMode" = "default" ] && [ -n "$waitStoredSources" ] ; then
-			local carrySource carryRecord carryStatus carryFloor carryNow
+			local carrySource carryRecord carryStatus carryActivity carryNow
 			carryNow="$( date +%s )"
 			for carrySource in $waitStoredSources ; do
 				case "$carrySource" in ask:*) ;; *) continue ;; esac
@@ -926,10 +931,11 @@ case "$1" in
 				[ -f "$carryRecord" ] || continue
 				carryStatus="$( LC_ALL=C sed -n 's/^status: //p' "$carryRecord" | head -1 )"
 				if [ "$carryStatus" != "reply-pending" ] ; then
-					carryFloor="$( LC_ALL=C sed -n 's/^follow-floor: //p' "$carryRecord" | head -1 )"
-					case "$carryFloor" in
+					carryActivity="$( LC_ALL=C awk '/^- [0-9]+\.[0-9]+ / { ts = $2 } END { print ts }' "$carryRecord" )"
+					[ -n "$carryActivity" ] || carryActivity="$( LC_ALL=C sed -n 's/^follow-floor: //p' "$carryRecord" | head -1 )"
+					case "$carryActivity" in
 						*[0-9]*)
-							if [ "$(( carryNow - ${carryFloor%%.*} ))" -ge 300 ] ; then
+							if [ "$(( carryNow - ${carryActivity%%.*} ))" -ge 300 ] ; then
 								waitExpiredDrop="$waitExpiredDrop$carrySource "
 								continue
 							fi

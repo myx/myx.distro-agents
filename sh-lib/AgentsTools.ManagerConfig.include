@@ -94,8 +94,8 @@ interface|||Interface Settings||
 interface|style|MDAT_MANAGER_STYLE|Interface Style|settings|How the manager screen is drawn: its windows, its frames and its colours. A change is the look of the screen at its next start, for this user in this workspace.
 console|||Console Behaviour||
 console|history|MDLT_CONSOLE_HISTORY|Console History Type|settings|Where a console of this workspace keeps the shell history of this user. A change is read by each console at its next start, and what a console wrote already stays in the file it wrote.
-console|origin|MDLT_CONSOLE_ORIGIN|Console Tooling Origin|configuration|Where the consoles of this workspace load their tools from. It is set when the workspace is installed, and a wrong one stops every console.
-console|detail|MDSC_DETAIL|Debug Output Mode|configuration|Whether the tools of this family say what they do as they do it, for whoever runs them with it on. A command takes it from its verbose option or from the environment of its caller, and no settings file holds it.
+console|origin|MDLT_CONSOLE_ORIGIN|Console Tooling Origin|settings|Which code every console of this workspace runs, from its next start: its own installed copy, or the tooling of a workspace that has it. A console and a session that run already keep what they started with, and it is changed for everybody who works here. An origin whose tooling is older or broken can leave every console of this workspace unable to start, the manager among them: then take the line of this key out of the settings file of the workspace by hand.
+console|detail|MDLT_CONSOLE_DETAIL|Console Verbosity|settings|How much the tools say of what they do in a console this user starts: nothing more, each step, or every detail for finding a fault. It is read at the next start of a console, and today by the agents console alone: the other consoles of the family do not read it yet.
 control|||Session Control||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread."
@@ -522,13 +522,25 @@ AgentsToolsManagerConfigScopes(){
 ##       of a request to a control thread, read at each request. A value that is no number
 ##       reads as the default, and a kill never depends on either. Their ranges are set
 ##       here: the tooling itself reads any whole number above nought.
+##   MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL   by the owner's own order. The origin is
+##       the workspace's, where every console loads its tooling from at its next start: what
+##       it takes is made at the call (`@origins`, AgentsToolsManagerConfigOrigins), and it
+##       is saved in the workspace's own settings file, which its row names after its other
+##       fields. The detail is the user's own, what MDSC_DETAIL is in a console the user
+##       starts: today the agents console alone reads it (console-agents-bashrc.rc).
+## AN EMPTY VALUE IS NO VALUE: the writer never saves one. Given an empty value it takes the
+## key out of the file, by the reader's own operation that removes one, and the setting is
+## its default again. A setting whose default is that nothing is set has an empty default
+## here, and the first of its choices has no value ahead of its `=`: choosing it is giving
+## the empty value.
 ## NOT HERE, each a line of the configuration: the CLI service, the harness tier and the wait
 ## round of the workspace (deployed; a round longer than a CLI allows ends the waits of
-## running sessions), where the consoles load their tools from (a wrong one stops every
-## console), and the debug output of the tools (MDSC_DETAIL: no file holds it). The tick and
-## the other seconds of a control thread are no line at all: a running thread reads them.
+## running sessions). The tick and the other seconds of a control thread are no line at all:
+## a running thread reads them.
 agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv|tv=Turbo Vision,mc=MC (Compact),bw=B/W
 console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|workspace-personal=Per User In This Workspace,workspace-separate=Per User And Per Console,workspace-shared=Shared By All Users,local-machine-home=In The Home Of The User,bash-default=The File Bash Uses,user-default=As The User Has It
+console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
+console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
 control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600"
 
@@ -583,6 +595,95 @@ AgentsToolsManagerConfigSystemValue(){ ## key
 	) 2> /dev/null || :
 }
 
+## The workspace's own settings file, and its two writers: the same reader in its scope of
+## the workspace, which saves a key for everybody and takes one out. Taking a key out of a
+## file that is not there makes none.
+AgentsToolsManagerConfigSystemFile(){
+	printf '%s\n' "${MMDAPP%/}/.local/MDLT.settings.env"
+}
+AgentsToolsManagerConfigSystemSave(){ ## key, value
+	(
+		set -- --system-config-option --upsert "$1" "$2"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) > /dev/null 2>&1
+}
+AgentsToolsManagerConfigSystemDrop(){ ## key
+	[ -f "$( AgentsToolsManagerConfigSystemFile )" ] || return 0
+	(
+		set -- --system-config-option --delete "$1"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) > /dev/null 2>&1
+}
+## Takes one of the user's own settings out of the user's file, by the reader in its scope of
+## the current user, for the user the operating system names.
+AgentsToolsManagerConfigUserDrop(){ ## key
+	local dropFile
+	dropFile="$( AgentsToolsManagerConfigUserFile )" || return 1
+	[ -f "$dropFile" ] || return 0
+	(
+		USER="$( id -un 2> /dev/null )" ; [ -n "$USER" ] || exit 1
+		set -- --custom-config-option --delete "$1"
+		. "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include"
+	) > /dev/null 2>&1
+}
+
+## THE ORIGINS A WORKSPACE MAY TAKE ITS TOOLING FROM, made at the call, `<value>=<label>` with
+## commas between: no value, its own installed copy; then the `source` of each registered
+## workspace that has the tool family there; then the `.local` of each that has it there, but
+## for this workspace's own, which is the default. A workspace is one the places know
+## (AgentsToolsPlacesMergedText) whose folder is there and can be entered. IT HAS THE FAMILY
+## where the three files stand that a console loads first from its origin: the context of
+## the agents console, which the context itself asks for before it takes a `source`, the
+## settings reader, and the context every other context loads.
+AgentsToolsManagerConfigOriginHas(){ ## origin
+	[ -f "$1/myx/myx.distro-agents/sh-lib/AgentsContext.include" ] && [ -f "$1/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ] && [ -f "$1/myx/myx.distro-system/sh-lib/SystemContext.include" ]
+}
+AgentsToolsManagerConfigOrigins(){
+	local originsName originsKind originsCeiling originsPath originsRest originsSource="" originsLocal="" originsSeen=$'\n' originsHere="${MMDAPP%/}"
+	while IFS=$'\t' read -r originsName originsKind originsCeiling originsPath originsRest ; do
+		[ "$originsKind" = "workspace" ] || continue
+		originsPath="${originsPath%/}"
+		case "$originsPath" in /*) ;; *) continue ;; esac
+		case "$originsPath$originsName" in *,*|*=*|*'|'*|*[[:space:]]*) continue ;; esac
+		case "$originsSeen" in *$'\n'"$originsPath"$'\n'*) continue ;; esac
+		originsSeen="$originsSeen$originsPath"$'\n'
+		[ -d "$originsPath" ] && [ -r "$originsPath" ] && [ -x "$originsPath" ] || continue
+		! AgentsToolsManagerConfigOriginHas "$originsPath/source" || originsSource="$originsSource,$originsPath/source=$originsName (source)"
+		[ "$originsPath" = "$originsHere" ] || ! AgentsToolsManagerConfigOriginHas "$originsPath/.local" || originsLocal="$originsLocal,$originsPath/.local=$originsName (.local)"
+	done <<< "$( AgentsToolsPlacesMergedText "$originsHere" quiet 2> /dev/null )"
+	printf '%s\n' "=<default> (own .local)$originsSource$originsLocal"
+}
+
+## What the origin is now and where that comes from, `<value> <source>`, as a console reads
+## it: the user's own setting first, then the workspace's. Its own installed copy, however it
+## is written, is no value, from `default`; its own source tree reads by its path. A value
+## that is none of those offered is given as it stands: a path set by hand.
+AgentsToolsManagerConfigOriginNow(){
+	local originValue originSource=user
+	originValue="$( AgentsToolsManagerConfigUserValue MDLT_CONSOLE_ORIGIN )" || originValue=""
+	case "$originValue" in ''|"''"|'""') originValue="" ;; esac
+	if [ -z "$originValue" ] ; then
+		originSource=workspace
+		originValue="$( AgentsToolsManagerConfigSystemValue MDLT_CONSOLE_ORIGIN )" || originValue=""
+	fi
+	originValue="${originValue#"${MMDAPP%/}/"}"
+	case "$originValue" in
+		''|"''"|'""'|.local) printf '%s\n' " default" ; return 0 ;;
+		source) originValue="${MMDAPP%/}/source" ;;
+	esac
+	case "$originValue" in *[[:space:]]*|*,*|*=*|*'|'*) printf '%s\n' " default" ; return 0 ;; esac
+	printf '%s %s\n' "$originValue" "$originSource"
+}
+
+## What a changeable setting takes, as its row says it or, where the row names a list made
+## at the call, as that list stands now.
+AgentsToolsManagerConfigSettingOffers(){ ## what its row says it takes
+	case "$1" in
+		@origins) AgentsToolsManagerConfigOrigins ;;
+		*) printf '%s\n' "$1" ;;
+	esac
+}
+
 ## The file the settings of the team are kept in, in this workspace.
 AgentsToolsManagerConfigTeamFile(){
 	printf '%s\n' "${MMDAPP%/}/.local/.agents/magic-team.agent.env"
@@ -601,6 +702,12 @@ AgentsToolsManagerConfigTeamValue(){ ## key
 ## value back.
 AgentsToolsManagerConfigTeamSave(){ ## key, value
 	DistroAgentsTools --agents-config-option magic-team --upsert "$1" "$2" > /dev/null 2>&1 < /dev/null
+}
+## Takes one setting of the team out of its file, by that same operation. Where the file is
+## not there, there is nothing to take out, and none is made.
+AgentsToolsManagerConfigTeamDrop(){ ## key
+	[ -f "$( AgentsToolsManagerConfigTeamFile )" ] || return 0
+	DistroAgentsTools --agents-config-option magic-team --delete "$1" > /dev/null 2>&1 < /dev/null
 }
 
 ## Whether a value is one a setting takes: rc 0 where it is. A choice takes the values of
@@ -647,7 +754,11 @@ AgentsToolsManagerConfigSettingNow(){ ## key, kind, places, default, what it tak
 
 ## Where a changeable setting is saved, `<scope> <file>` with a TAB between them: the user's
 ## own file where its row names `user`, else the settings of the team, the workspace's.
-AgentsToolsManagerConfigSettingPlace(){ ## places
+AgentsToolsManagerConfigSettingPlace(){ ## places, where its row says it is saved (may be empty)
+	if [ "${2:-}" = "system" ] ; then
+		printf 'workspace\t%s\n' "$( AgentsToolsManagerConfigSystemFile )"
+		return 0
+	fi
 	case " $1 " in
 		*" user "*) printf 'user\t%s\n' "$( AgentsToolsManagerConfigUserFile )" ;;
 		*" team "*) printf 'workspace\t%s\n' "$( AgentsToolsManagerConfigTeamFile )" ;;
@@ -660,29 +771,23 @@ AgentsToolsManagerConfigSettingPlace(){ ## places
 ## that comes from, what it takes, its kind, its scope and the file it is saved in. The
 ## labeller puts them where the form of the row has them.
 AgentsToolsManagerConfigDeclared(){ ## subject
-	local declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes declaredNow declaredScope declaredFile
-	while IFS='|' read -r declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes ; do
+	local declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes declaredSave declaredNow declaredScope declaredFile declaredOffers
+	while IFS='|' read -r declaredSubject declaredGroup declaredKey declaredKind declaredPlaces declaredDefault declaredTakes declaredSave ; do
 		[ "$declaredSubject" = "$1" ] && [ -n "$declaredKey" ] || continue
-		declaredNow="$( AgentsToolsManagerConfigSettingNow "$declaredKey" "$declaredKind" "$declaredPlaces" "$declaredDefault" "$declaredTakes" )" || declaredNow=""
+		declaredOffers="$( AgentsToolsManagerConfigSettingOffers "$declaredTakes" )" || declaredOffers=""
+		if [ "$declaredTakes" = "@origins" ] ; then
+			## The origin as it is, also where it is none of those offered: it is then one more
+			## of what the line lists, marked as set by hand.
+			declaredNow="$( AgentsToolsManagerConfigOriginNow )" || declaredNow=" default"
+			[ -z "${declaredNow%% *}" ] || AgentsToolsManagerConfigSettingTakes choice "$declaredOffers" "${declaredNow%% *}" read || declaredOffers="$declaredOffers,${declaredNow%% *}=${declaredNow%% *} (set by hand)"
+		else
+			declaredNow="$( AgentsToolsManagerConfigSettingNow "$declaredKey" "$declaredKind" "$declaredPlaces" "$declaredDefault" "$declaredOffers" )" || declaredNow=""
+		fi
+		declaredTakes="$declaredOffers"
 		declaredScope="" ; declaredFile=""
-		IFS=$'\t' read -r declaredScope declaredFile <<< "$( AgentsToolsManagerConfigSettingPlace "$declaredPlaces" )"
+		IFS=$'\t' read -r declaredScope declaredFile <<< "$( AgentsToolsManagerConfigSettingPlace "$declaredPlaces" "${declaredSave:-}" )"
 		AgentsToolsManagerConfigLine "$1" "$declaredGroup" "$declaredKey" set "${declaredNow%% *}" "${declaredNow#* }" "$declaredTakes" "$declaredKind" "$declaredScope" "$declaredFile"
 	done <<< "$agentsManagerConfigSettings"
-	return 0
-}
-
-## THE CONSOLE: what a console of this workspace does, by what every console's rc and every
-## context reads. Its changeable settings; then, for viewing, where the consoles load their
-## tools from, as the contexts read it, the user's own setting first, and whether the tools
-## say what they do as they do it, as the environment of this call has it (MDSC_DETAIL: a
-## command takes it from its verbose option or from its caller, and no file holds it).
-AgentsToolsManagerConfigConsole(){
-	local consoleOrigin
-	AgentsToolsManagerConfigDeclared console
-	consoleOrigin="$( AgentsToolsManagerConfigUserValue MDLT_CONSOLE_ORIGIN )" || consoleOrigin=""
-	[ -n "$consoleOrigin" ] || consoleOrigin="$( AgentsToolsManagerConfigSystemValue MDLT_CONSOLE_ORIGIN )" || consoleOrigin=""
-	AgentsToolsManagerConfigLine console origin MDLT_CONSOLE_ORIGIN set "${consoleOrigin:-.local}"
-	AgentsToolsManagerConfigLine console detail MDSC_DETAIL set "${MDSC_DETAIL:-off}"
 	return 0
 }
 
@@ -718,8 +823,7 @@ case "$1" in
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
 				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
-				interface|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
-				console) digestLines="$( AgentsToolsManagerConfigConsole )" || digestLines="" ;;
+				interface|console|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
 			esac
 			digestCount=0
 			if [ -n "$digestLines" ] ; then
@@ -737,18 +841,20 @@ case "$1" in
 
 	## Saves one changeable setting, a row of THE CHANGEABLE SETTINGS, and nothing else: the
 	## one operation here that writes. A key of the configuration is none of them, and is
-	## refused as any other. One row a program reads. Its form is the help entry's.
+	## refused as any other. AN EMPTY VALUE REMOVES THE SETTING: its key is taken out of the
+	## file, and no key with nothing after it is ever written. One row a program reads. Its
+	## form is the help entry's.
 	--manager-config-set)
-		local setOp="$1" setSubject setGroup setKey setKind setPlaces setDefault setTakes setKeys="" setFound="" setValues="" setHow="" setScope="" setFile="" setSaved
+		local setOp="$1" setSubject setGroup setKey setKind setPlaces setDefault setTakes setSave setKeys="" setFound="" setValues="" setHow="" setWhere="" setNone="" setScope="" setFile="" setSaved
 		shift
 		if [ $# -ne 2 ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $setOp: syntax is $setOp <key> <value>, got $# argument(s) -- nothing was saved" >&2
 			set +e ; return 1
 		fi
-		while IFS='|' read -r setSubject setGroup setKey setKind setPlaces setDefault setTakes ; do
+		while IFS='|' read -r setSubject setGroup setKey setKind setPlaces setDefault setTakes setSave ; do
 			[ -n "$setKey" ] || continue
 			setKeys="$setKeys${setKeys:+, }$setKey"
-			[ "$setKey" != "$1" ] || { setFound="$setKind" ; setValues="$setTakes" ; setHow="$setPlaces" ; }
+			[ "$setKey" != "$1" ] || { setFound="$setKind" ; setValues="$setTakes" ; setHow="$setPlaces" ; setWhere="${setSave:-}" ; setNone="$setDefault" ; }
 		done <<< "$agentsManagerConfigSettings"
 		## Nothing that was given is repeated in a refusal: a word that is no key and no value
 		## of a setting may be anything, a secret pasted by mistake among it.
@@ -756,16 +862,17 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $setOp: the key given is none of the changeable settings -- nothing was saved. Its keys: $setKeys" >&2
 			set +e ; return 1
 		fi
-		if ! AgentsToolsManagerConfigSettingTakes "$setFound" "$setValues" "$2" "" ; then
+		[ -z "$setFound" ] || setValues="$( AgentsToolsManagerConfigSettingOffers "$setValues" )" || setValues=""
+		if [ -n "$2" ] && ! AgentsToolsManagerConfigSettingTakes "$setFound" "$setValues" "$2" "" ; then
 			if [ "$setFound" = "number" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is no whole number from ${setValues%%..*} to ${setValues##*..}, which $1 takes -- nothing was saved" >&2
 			else
-				setValues="$( printf '%s\n' "$setValues" | LC_ALL=C sed -e 's/=[^,]*//g' -e 's/,/, /g' )"
+				setValues="$( printf '%s\n' "$setValues" | LC_ALL=C sed -e 's/^=[^,]*,//' -e 's/=[^,]*//g' -e 's/,/, /g' )"
 				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is none of the values of $1 -- nothing was saved. Its values: $setValues" >&2
 			fi
 			set +e ; return 1
 		fi
-		IFS=$'\t' read -r setScope setFile <<< "$( AgentsToolsManagerConfigSettingPlace "$setHow" )"
+		IFS=$'\t' read -r setScope setFile <<< "$( AgentsToolsManagerConfigSettingPlace "$setHow" "$setWhere" )"
 		if [ -z "$setFile" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $setOp: there is no file to save $1 in: the operating system gives the user who runs this call no name -- nothing was saved" >&2
 			set +e ; return 1
@@ -773,7 +880,30 @@ case "$1" in
 		## A setting of the workspace is changed for everybody. Whoever reaches this arm is the
 		## console's operator, who stands at least equal to magic-coordinator: a member's
 		## session, magic-coordinator's among them, was refused where the family is dispatched.
-		if [ "$setScope" = "user" ] ; then
+		## The empty value: the key is taken out, where the setting is kept, by the operation
+		## that removes one, and what the file holds of it then is read back. Its row says so,
+		## with the default the setting is at now.
+		if [ -z "$2" ] ; then
+			if [ "$setWhere" = "system" ] ; then
+				AgentsToolsManagerConfigSystemDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigSystemValue "$1" )" || setSaved="?"
+			elif [ "$setScope" = "user" ] ; then
+				AgentsToolsManagerConfigUserDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || setSaved="?"
+			else
+				AgentsToolsManagerConfigTeamDrop "$1" || :
+				setSaved="$( AgentsToolsManagerConfigTeamValue "$1" )" || setSaved="?"
+			fi
+			if [ -n "$setSaved" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD $setOp: $1 could not be removed: $setFile still holds it after the write" >&2
+				set +e ; return 1
+			fi
+			printf 'removed\t%s\t%s\t%s\t%s\n' "$1" "${setNone:--}" "$setScope" "${setFile//[[:space:]]/_}"
+			return 0
+		elif [ "$setWhere" = "system" ] ; then
+			AgentsToolsManagerConfigSystemSave "$1" "$2" || :
+			setSaved="$( AgentsToolsManagerConfigSystemValue "$1" )" || setSaved=""
+		elif [ "$setScope" = "user" ] ; then
 			AgentsToolsManagerConfigUserSave "$1" "$2" || :
 			setSaved="$( AgentsToolsManagerConfigUserValue "$1" )" || setSaved=""
 		else

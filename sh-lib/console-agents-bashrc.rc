@@ -12,6 +12,19 @@
 . "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-lib/AgentsContext.include"
 DistroAgentsContext --distro-from-source
 
+## The verbosity this user chose for the consoles of this workspace (MDLT_CONSOLE_DETAIL in the
+## user's own settings here, which the manager's Settings save): where one is chosen, it is
+## what MDSC_DETAIL is from here on, whatever the one who started the console had in the
+## environment; where none is, MDSC_DETAIL stays as the context left it. A --verbose on a
+## command still sets it for that command.
+case "$(
+	ReadConfig(){ . "$MDLT_ORIGIN/myx/myx.distro-.local/sh-lib/LocalTools.Config.include" ; }
+	ReadConfig --custom-config-option --select MDLT_CONSOLE_DETAIL 2> /dev/null
+)" in
+	true) export MDSC_DETAIL=true ;;
+	full) export MDSC_DETAIL=full ;;
+esac
+
 if [ -x "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin/myx.common" ] ; then
 	export MYXROOT="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common"
 	PATH="$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/bin:$PATH"

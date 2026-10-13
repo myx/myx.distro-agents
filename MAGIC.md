@@ -1910,17 +1910,16 @@ op's own option arm.
   the clarify op keeps each message once. That baseline must carry forward from call to call for this to
   hold: it does for `--wait-continue`, and for a `--wait-default` call over a source the stored wait
   already had, *whatever `--wait-since-utime` that call also names* -- `since_utime` is a Slack-source
-  floor and has no bearing on a non-Slack source's own baseline. Letting it gate the carry-forward too
-  was the defect behind "an answered question never leaves the Wait set, re-displaying the same closed
-  line on every poll" (2026-10-13): the unchanging closed line of a by-operation close read as new on
-  every call that also named a `since_utime`, forever. Settled, withdrawn and Decisions-closed questions
-  set no floor and leave the Wait set.
+  floor and has no bearing on a non-Slack source's own baseline. Gating the carry-forward on it too
+  breaks that baseline: the unchanging closed line of a by-operation close then reads as new on every
+  such call. Settled, withdrawn and Decisions-closed questions set no floor and leave the Wait set.
   **Two more ways an `ask:` item leaves a stored wait, besides the session ending**: `--unwait
   <kind>:<target>` (shorthand for `--wait-drop --wait-source <kind>:<target>`) drops it on demand, and an
-  answered one quiet five minutes past its own `follow-floor` -- the same pointer a clarification already
-  shifts -- drops out of a `--wait-default` call's stored sources on its own, said on
-  `WAIT-DROPPED-EXPIRED`, never silently. Neither blocks naming the same source again, explicitly, on a
-  later call.
+  answered one quiet five minutes past its own last update drops out of a `--wait-default` call's stored
+  sources on its own, said on `WAIT-DROPPED-EXPIRED`, never silently. "Its own last update" is the
+  newest kept clarification line, read off the record directly -- `follow-floor` stays fixed at the
+  close (above), so it is only the fallback where no clarification is kept yet. Neither this nor
+  `--unwait` blocks naming the same source again, explicitly, on a later call.
 - **One question, one thread of its own** (`AgentsTools.AskThread.include`). To a person or a
   conversation the question itself is one new top-level message, with no opener, in the member's DM or
   the bot's (`as_bot`); its thread is that question's whole conversation and is never joined by another

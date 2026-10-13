@@ -305,7 +305,7 @@ RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one] [one] sessions/s1 .."
 rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ Enter Open  Left Up  a Active  k Kill  u Read  m Menu  ^X Exit  Tab Window] [handled kill on s1]"
 rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[agent-one] [handled kill on a1]"
-rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn] [Team Members] [Pending Questions] [Settings (Configuration)]"
+rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn] [Team Members] [Pending Questions] [Settings]"
 
 echo "-- the mode of the left window and a toggle of a view are kept for the run: the raw log, all or active --"
 rigRun <<'RIGSCRIPT'

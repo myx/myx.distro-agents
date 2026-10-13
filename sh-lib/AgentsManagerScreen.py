@@ -64,6 +64,7 @@ PLAIN, BOLD, REVERSE, DIM = 0, 1, 2, 3
 DESKTOP, BAR, BAR_HOT, BAR_AT, BAR_ON, BAR_ON_HOT, BAR_OFF, FRAME_ON, FRAME, SCROLL, SHADOW = 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 BOX, BOX_FRAME, BOX_FIELD, BOX_ON, BOX_BUTTON, BOX_BUTTON_ON, BOX_SAYS = 15, 16, 17, 18, 19, 20, 21
 FOLDER = 22
+LEVEL_OK, LEVEL_WARN, LEVEL_BAD = 23, 24, 25
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -99,6 +100,10 @@ LOOKS = (
     ("!", "RB", "red", "white", False),
     ## the mark of a folder after the name of a row that Enter enters
     ("e", "B", "yellow", "blue", True),
+    ## a figure of the dashboard by its level: one that is well, one to look at, one that is bad
+    ("k", "", "green", "blue", True),
+    ("W", "B", "yellow", "blue", True),
+    ("X", "RB", "white", "red", True),
 )
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
@@ -118,11 +123,13 @@ MARK_OLD = "!"
 
 ## The root of the list, in its order: the id of each section and what it shows as.
 SECTIONS = (
+    ("dashboard", "Dashboard (Monitor)"),
     ("sessions", "Sessions (Activity)"),
     ("pending", "Pending Questions"),
     ("team", "Team Members"),
     ("consoles", "Consoles (Tools)"),
-    ("settings", "Settings (Configuration)"),
+    ("settings", "Settings"),
+    ("configuration", "Configuration"),
 )
 ROOT_TITLE = "/"
 ROW_UP = ".."
@@ -131,6 +138,7 @@ ROW_UP = ".."
 FIXED_ROWS = {
     "sessions": (("launch", "Launch / Spawn", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
+    "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
 }
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
@@ -146,9 +154,17 @@ FIXED_ROWS = {
 ## "feed", its lines, read as a kind of its own; "log" is what `l` adds to it. "needs"
 ## names what a row must carry for the read to be made at all. "acts" is what can be done
 ## with a row, read as one more part of it (VIEW_PARTS). "once": it is read when it is asked
-## for, and never again because its period has passed (startDueReads).
+## for, and never again because its period has passed (startDueReads). "peek": a list that
+## is read also while its section is the row the root stands on, since the left window
+## then shows that section from its rows (wantedReads).
+## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
+## because it was not read yet or its period has passed, and "said" is what the status
+## line says of it then.
 VIEW_PARTS = ("view", "feed", "acts")
 READS = {
+    ## The blocks of the dashboard, each with its figures, all from the one operation. It is
+    ## read on the period only while its root is selected or opened, and never else.
+    "list:dashboard": {"operation": ["--manager-dashboard-read"], "rows": "blocks", "peek": True},
     ## The coworking sessions with their runs, and last the row of counters of the status lines.
     "list:sessions": {"operation": ["--manager-session-list"], "active": ["--active"],
                       "rows": "sessions", "kind": "sessions", "always": True},
@@ -162,8 +178,27 @@ READS = {
                      "rows": "pending"},
     ## The members of the team as this workspace knows them, one row each.
     "list:team": {"operation": ["--manager-team-member-list"], "rows": "members"},
-    ## The settings of the workspace as they are, by subject. For viewing: no call changes one.
-    "list:settings": {"operation": ["--manager-config-digest"], "rows": "digest"},
+    ## The settings and the configuration of the workspace as they are, by subject: every
+    ## line with its description, whether and how it is changed, and, as its last field,
+    ## which of the two roots it is of (DIGEST_FIELDS). One read fills both roots, and under
+    ## each the level of every subject that has a line there (parseDigestLevels).
+    "list:settings": {"operation": ["--manager-config-digest", "--full"], "rows": "digest"},
+    "list:settings/*": {"from": "list:settings"},
+    "list:configuration": {"from": "list:settings"},
+    "list:configuration/*": {"from": "list:settings"},
+    ## The checks of the installation, by the owner's own read-only diagnosis of each part
+    ## of it: a row a check, with its state, why, and the command that mends it. It takes
+    ## up to a minute and some of it asks outside this machine, so it is made on demand
+    ## alone, and as a kind of its own, beside the lists.
+    "list:configuration/checker": {"operation": ["--manager-check-run"], "rows": "checks", "kind": "check", "demand": True,
+                                   "said": "it takes up to a minute"},
+    ## The public keys of this server, those to add to git and those to trust when
+    ## connecting, each with its fingerprint and its key shortened. Read on entering and
+    ## when it is asked for, not on the period.
+    "list:configuration/keys": {"operation": ["--manager-keys-list"], "rows": "keys", "once": True},
+    ## One of those keys whole: the line to paste, and where the deploy key is registered.
+    ## Read when its box opens, by the name of the key, and never before (askKeyLine).
+    "full:key": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True},
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
@@ -220,8 +255,8 @@ CALLS = {
     "answer": ["--manager-pending-reply-answer", "--id", "{id}", "--answer"],
     "reject": ["--manager-pending-reply-answer", "--id", "{id}", "--reject"],
     "dismiss": ["--manager-pending-reply-dismiss", "--id", "{id}"],
-    ## a setting that offers choices is saved for the user who runs the console, by its
-    ## key, the value chosen being the word after it
+    ## a setting is saved by its key, the value chosen or typed being the word after it,
+    ## as it was chosen or typed; whom it is saved for is the operation's to say
     "set": ["--manager-config-set", "{id}"],
 }
 ## What each of those is given the words typed beside it with, where any were typed.
@@ -255,6 +290,28 @@ STARTS = {
     "console": {"fields": ("key", "group", "label", "terminal"), "terminal": "terminal", "said": "console"},
 }
 
+## What the root `Dashboard (Monitor)` shows: blocks of figures, each block and each figure
+## as its operation prints it; the screen knows no block and no figure by its name, and
+## draws whatever comes. "block" and "figure": the names of the fields of such a row after
+## the first, as the family writes them, `_` for a blank and `-` for absent; what stands
+## after them in a row is left alone. "units": how a value shows by its unit, the name of
+## the function that makes it short for the eye; a value of another unit shows as it is
+## printed. "levels": the levels of a figure in their order, the worst last, each with
+## the look its value is drawn in and the mark that stands ahead of the value where the
+## style has no colours, so that bold and a mark tell it there. "bar": how many cells the
+## bar of a figure that is a share takes beside its value. "least": the least width of a
+## block: as many columns as blocks of that width fit are set side by side. "gap": the
+## cells between two columns.
+DASHBOARD = {
+    "block": ("key", "label", "figures"),
+    "figure": ("block", "key", "label", "value", "unit", "level", "share"),
+    "units": {"count": "shortCount", "bytes": "shortBytes", "seconds": "shortSpan"},
+    "levels": (("ok", {"look": LEVEL_OK, "mark": "+"}),
+               ("warn", {"look": LEVEL_WARN, "mark": "!"}),
+               ("bad", {"look": LEVEL_BAD, "mark": "!!"})),
+    "bar": 10, "least": 34, "gap": 1,
+}
+
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
 
 ## The styles of the interface, in the order the screen offers them: the name of each, and
@@ -286,7 +343,7 @@ KEYMAPS = {
 ## the screen takes with Alt, outside a dialog, where it is text. On another layout these
 ## do not come, and nothing is taken for them.
 OPTION_KEYS = {"≈": "x", "©": "g", "ß": "s", "µ": "m", "√": "v", "˙": "h", "œ": "q",
-               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5", "§": "6"}
+               "¡": "1", "™": "2", "£": "3", "¢": "4", "∞": "5", "§": "6", "¶": "7", "•": "8"}
 ## Esc and then a key within this many seconds is Alt with that key, where no menu and no
 ## dialog is open: the Meta every terminal delivers, also one that sends no Alt and keeps
 ## the function keys for itself. Esc alone closes a menu and a dialog at once, as before.
@@ -317,13 +374,15 @@ def setStyle(name):
 ## entries of READS it is filled from, by what their names begin with: the operation and
 ## the form of its rows stand there. "foot" names the function whose text stands in its
 ## bottom border, and "bar" says that its right border is a scroll bar while it holds more
-## than it shows. A command that no window names applies in every window.
+## than it shows. No window has a foot now: the borders are plain, and what stood in them,
+## the counters and the load, is the dashboard's. A command that no window names applies
+## in every window.
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
-     "shows": {"body": "lines", "reads": VIEW_PARTS}, "foot": "countersText",
+     "shows": {"body": "lines", "reads": VIEW_PARTS},
      "commands": ()},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
-     "shows": {"body": "rows", "reads": ("list",)}, "foot": "loadText", "bar": True,
+     "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
      "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter")},
 )
 ## The window the keys go to when the screen starts.
@@ -340,6 +399,9 @@ VIEW_MODES = (
     ("raw", {"label": "Raw log", "mark": "[raw]", "feed": True, "raw": True}),
 )
 VIEW_MODE_FIRST = "summary"
+## The look of a line of the left window by what it is in a log, where that is not the
+## plain one. "head": the head line of an entry, its time and who, paler than its body.
+LINE_LOOKS = {"head": DIM}
 
 ## The menus of the menu bar, in their order: the name of each and what it shows as, its hot
 ## letter between tildes. Alt with that letter opens it, and F10 opens the first.
@@ -384,7 +446,8 @@ MENUS = (
 ## asks first where it must and then calls the operations "calls" names in CALLS; while
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
 ## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
-## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit", and
+## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit",
+## "demand", which asks for the list shown where that is read on demand alone (READS), and
 ## ("mode", <name>), which takes the left window to that mode of VIEW_MODES, or to the
 ## next one where it names none. A command comes
 ## to a menu, to the status line and to its key from this one place: adding one is adding
@@ -415,7 +478,11 @@ COMMANDS = (
     {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link",
      "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
     {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
-     "views": ("settings",), "for": "a subject of the settings", "on": ("settings:record",), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+     "views": ("settings/*", "configuration/*"), "for": "a setting", "on": ("settings/*:record", "configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
+    {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",
+     "views": ("configuration/checker",), "does": ("demand",)},
+    {"name": "keyline", "keys": ("f",), "menu": ("view", 3), "label": "~F~ull public line", "status": "Full",
+     "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
     {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
      "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
@@ -449,6 +516,8 @@ COMMANDS = (
      "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "raw")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
+    {"name": "dashboard", "keys": ("8", "ALT-8"), "menu": ("go", 1), "label": "~D~ashboard (Monitor)",
+     "does": ("go", ("dashboard",))},
     {"name": "sessions", "keys": ("1", "ALT-1"), "menu": ("go", 1), "label": "~S~essions (Activity)",
      "does": ("go", ("sessions",))},
     {"name": "pending", "keys": ("2", "ALT-2"), "menu": ("go", 1), "label": "~P~ending Questions",
@@ -457,8 +526,10 @@ COMMANDS = (
      "does": ("go", ("team",))},
     {"name": "consoles", "keys": ("6", "ALT-6"), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
      "does": ("go", ("consoles",))},
-    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "Settings (~C~onfiguration)",
+    {"name": "settings", "keys": ("4", "ALT-4"), "menu": ("go", 1), "label": "S~e~ttings",
      "does": ("go", ("settings",))},
+    {"name": "configuration", "keys": ("7", "ALT-7"), "menu": ("go", 1), "label": "~C~onfiguration",
+     "does": ("go", ("configuration",))},
     {"name": "spawn", "keys": ("5", "ALT-5"), "menu": ("go", 2), "label": "~L~aunch / Spawn",
      "does": ("go", ("sessions", "launch"))},
     {"name": "line-up", "keys": ("UP",), "does": ("move", -1, 0)},
@@ -607,11 +678,28 @@ DIALOGS = {
                 "controls": ({"name": "about", "kind": "text"},
                              {"name": "words", "kind": "input", "label": "Reason, or none"}),
                 "buttons": (("dismiss", "Dismiss"), ("cancel", "Cancel"))},
+    ## a public key of this server whole, to copy: its line, read while the box is open
+    "keyline": {"title": "Public key", "reads": ("full:{kind}",),
+                "controls": ({"name": "text", "kind": "text"},),
+                "buttons": (("ok", "OK"),)},
     ## a setting that offers choices: what it is now, and its choices, one of them chosen
-    "setting": {"title": "Setting", "feeds": "setting",
+    "setting": {"title": "Setting", "feeds": "setting", "first": "choice",
                 "controls": ({"name": "about", "kind": "text"},
                              {"name": "choice", "kind": "radios", "label": "Choices"}),
                 "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## a setting that is a number: what it is now, and the number typed, which the one
+    ## that opens it labels with the range of the row (askSetting)
+    "setting-number": {"title": "Setting", "feeds": "setting", "first": "number",
+                       "controls": ({"name": "about", "kind": "text"},
+                                    {"name": "number", "kind": "input", "label": "A whole number",
+                                     "required": "nothing is saved: no number is typed"}),
+                       "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## a setting of any other kind: a short text, typed
+    "setting-text": {"title": "Setting", "feeds": "setting", "first": "words",
+                     "controls": ({"name": "about", "kind": "text"},
+                                  {"name": "words", "kind": "input", "label": "Its value",
+                                   "required": "nothing is saved: nothing is typed"}),
+                     "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
 }
 ## The handler of each dialog that does something: handler(state, dialog, button) is called
 ## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
@@ -656,10 +744,12 @@ ACTION_HANDLERS = {
     "reject": None,
     "dismiss": None,
     "link": None,
-    ## Enter on a subject of the settings that offers choices: askSetting, set where it is defined
+    ## Enter on a setting, inside a subject: the dialog of its kind: askSetting, set where it is defined
     "setting": None,
     ## Enter on a row of `Consoles (Tools)`: it is started with the whole terminal: askRun, set where it is defined
     "run": None,
+    ## the whole public line of the selected key of the server, in a box: askKeyLine, set where it is defined
+    "line": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
@@ -963,8 +1053,9 @@ def levelRows(state):
 ## The one place where what a list operation printed becomes rows, by level: the entry of
 ## the read names the form under "rows". "sessions": the sessions, and a level for each
 ## with its runs. "pending": the asks. "routines": the routines to start by hand.
-## "members": the team members. "digest": the subjects of the settings, each with its
-## lines. "starts": what is started with the whole terminal. No name: the stand-in below.
+## "members": the team members. "digest": the subjects of the settings and of the
+## configuration, and a level for each with its lines. "starts": what is started with the
+## whole terminal. "blocks": the blocks of the dashboard. No name: the stand-in below.
 def parseLevels(readKey, form, text):
     if form == "sessions":
         return parseSessionLevels(text)
@@ -976,9 +1067,15 @@ def parseLevels(readKey, form, text):
     if form == "members":
         return {level: parseMemberRows(text)}
     if form == "digest":
-        return {level: parseDigestRows(text)}
+        return parseDigestLevels(readKey, text)
     if form == "starts":
         return {level: parseStartRows(text)}
+    if form == "checks":
+        return {level: parseCheckRows(text)}
+    if form == "keys":
+        return {level: parseKeyRows(text)}
+    if form == "blocks":
+        return {level: parseBlockRows(text)}
     return {level: parseRows(readKey, text)}
 
 
@@ -1129,10 +1226,12 @@ def viewKeyOf(state):
 ## stands at its top and does not scroll, "lines" what scrolls under it, "top" the first
 ## of those in view. A pane that feeds follows its newest line until it is scrolled up.
 ## "info" is what the read of the item's facts gave, "feed" what the read of its lines
-## gave, and "lineKeys" says which entry of the feed each line belongs to.
+## gave, and "lineKeys" says which entry of the feed each line belongs to. "looks": what
+## of a line is drawn in a look of its own, by the number of the line, each as the cell
+## it starts at, how many cells it takes and its look (putViewLine).
 def newView(viewKey, feeds):
     return {"key": viewKey, "head": [], "lines": [], "top": 0, "feeds": feeds, "follow": feeds,
-            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None}
+            "info": None, "feed": None, "acts": None, "lineKeys": [], "built": None, "looks": {}}
 
 
 ## The left pane follows the selection: another item is shown from its first line, and
@@ -1156,6 +1255,7 @@ def followSelection(state):
     local = localView(state, row)
     if local is not None:
         state.view["lines"] = local
+        state.view["lineKeys"] = []
     state.view["head"] = viewHead(state, row)
     if state.view["feed"] is not None and state.view["built"] != (state.viewWidth, state.viewMode):
         buildFeed(state, row)
@@ -1178,9 +1278,10 @@ def scrollView(state, height, step, pages=0):
 ## What the left pane shows with no read of its own, from what a list read already holds:
 ## the selected ask, and what the section of asks holds; the selected routine of `Launch /
 ## Spawn`, its free prompt, and what it holds; the selected team member, and what the
-## section of the members holds; the selected subject of the settings, and what the
-## digest holds; the selected thing to start, and what `Consoles (Tools)` holds. None: the
-## pane has no such content, and shows what its own read gives.
+## section of the members holds; the selected subject of the digest, a line of it, and
+## what a root of the digest holds; the selected thing to start, and what `Consoles (Tools)` holds;
+## the blocks of the dashboard, and the one block of the selected row. None: the pane has
+## no such content, and shows what its own read gives.
 def localView(state, row):
     if row is None:
         return None
@@ -1218,14 +1319,28 @@ def localView(state, row):
         return memberLines(row["member"], state.viewWidth, state.view["info"])
     if (level == "team" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "team"):
         return membersSummary(state)
-    if level == "settings" and row.get("subject"):
+    if row.get("subject"):
         return subjectLines(row["subject"], state.viewWidth)
-    if (level == "settings" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "settings"):
-        return digestSummary(state)
+    if row.get("line"):
+        return settingLines(row["line"], state.viewWidth)
+    if digestRootOf(state, row):
+        return digestSummary(state, digestRootOf(state, row))
+    if row.get("check"):
+        return checkLines(row["check"], state.viewWidth)
+    if (level == "configuration/checker" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "checker"):
+        return checksSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
+    if row.get("serverKey"):
+        return serverKeyLines(row["serverKey"], state.viewWidth)
+    if (level == "configuration/keys" and row["kind"] == "up") or (level == "configuration" and row["kind"] == "keys"):
+        return serverKeysSummary(state, state.path if row["kind"] == "up" else state.path + [row["id"]])
     if level == "consoles" and row.get("start"):
         return startLines(row["start"], state.viewWidth)
     if (level == "consoles" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "consoles"):
         return startsSummary(state)
+    if level == "dashboard" and row.get("block"):
+        return blocksView(state, row["id"])
+    if (level == "dashboard" and row["kind"] == "up") or (level == "" and row["kind"] == "section" and row["id"] == "dashboard"):
+        return blocksView(state)
     return None
 
 
@@ -1935,10 +2050,15 @@ def sourceText(state, row):
 
 ## The lines of the feed as the pane shows them, and for each the entry it belongs to.
 ## First the lines of the session logs, run by run, each run under a line that names it
-## where there are several; then the feed, the newest last: the time of day here, the
-## member where the pane shows a whole session, and the text with its emoji, a long one
-## broken under itself. A line with the date stands where the day changes.
-def feedLines(feed, width, withMember):
+## where there are several; then the feed, the newest last, an entry a head line and its
+## body. The head is the time of day here and the member, both as the row gives them,
+## ended by a colon: its key says "head", and it is drawn paler (LINE_LOOKS). The body is
+## the text with its emoji on the lines after it, set in by the width of the time and one
+## blank, so every body starts in the same column; a long one is broken at words and
+## keeps that indent. Every entry has its own head, also where the same member spoke in
+## the same minute just before: the time of an entry is to the second, and none is left
+## out. A line with the date stands where the day changes.
+def feedLines(feed, width):
     room = max(10, width - 1)
     lines = []
     keys = []
@@ -1958,7 +2078,6 @@ def feedLines(feed, width, withMember):
         for more in parts[1:]:
             lines.append(" " * (indent + 2) + more)
             keys.append(key)
-    memberWidth = max([len(entry["member"]) for entry in feed["rows"]] or [0]) if withMember else 0
     day = None
     for entry in feed["rows"]:
         moment = isoEpoch(entry["time"])
@@ -1969,15 +2088,13 @@ def feedLines(feed, width, withMember):
             if entryDay:
                 lines.append(entryDay)
                 keys.append(("day", entryDay))
-        prefix = (time.strftime("%H:%M:%S", stamp) if stamp else entry["time"]) + " "
-        if withMember:
-            prefix += entry["member"].ljust(memberWidth) + " "
-        parts = wrapToCells(entry["text"], max(10, room - len(prefix)))
+        said = time.strftime("%H:%M:%S", stamp) if stamp else entry["time"]
+        indent = textWidth(said) + 1
         key = ("feed", entry["time"], entry["spawn"], entry["text"])
-        lines.append(prefix + parts[0])
-        keys.append(key)
-        for more in parts[1:]:
-            lines.append(" " * len(prefix) + more)
+        lines.append(said + (" " + entry["member"] if entry["member"] not in ("", "-") else "") + ":")
+        keys.append(("head",) + key[1:])
+        for part in wrapToCells(entry["text"], max(10, room - indent)):
+            lines.append(" " * indent + part)
             keys.append(key)
     return lines, keys
 
@@ -1988,12 +2105,19 @@ def feedLines(feed, width, withMember):
 def buildFeed(state, row):
     view = state.view
     held = view["lineKeys"][view["top"]] if not view["follow"] and view["top"] < len(view["lineKeys"]) else None
-    view["lines"], view["lineKeys"] = feedLines(view["feed"], state.viewWidth, bool(row and row.get("session")))
+    view["lines"], view["lineKeys"] = feedLines(view["feed"], state.viewWidth)
     view["built"] = (state.viewWidth, state.viewMode)
     if held is not None:
         places = [position for position, key in enumerate(view["lineKeys"]) if key == held]
         if places:
             view["top"] = min(places, key=lambda position: abs(position - view["top"]))
+
+
+## The look of the line of the left window at that place: of what it is in a log
+## (LINE_LOOKS), else the plain one.
+def lineLook(view, position):
+    keys = view["lineKeys"]
+    return LINE_LOOKS.get(keys[position][0], PLAIN) if position < len(keys) else PLAIN
 
 
 ## The mode of the left window now, its entry of VIEW_MODES; whether it shows the raw log;
@@ -3793,8 +3917,15 @@ ACTION_FITS["start"] = memberFits
 ACTION_REFUSALS["start"] = lambda state, row: "%s is not started: %s" % (row["member"]["name"], memberRefusal(row["member"])) if row and row.get("member") else ""
 
 
-## ---- the settings: `Settings (Configuration)` ----
+## ---- the settings and the configuration: `Settings`, `Configuration` ----
 
+## The fields of a `line` row of `--manager-config-digest --full`, after its first, as the
+## operation names them. "belongs", the last, is the root the line is of: the id of a
+## section of SECTIONS, taken as it is printed. The screen knows no subject and no
+## setting by its name: which root a line stands in, whether it is changed and how, is
+## all in its row.
+DIGEST_FIELDS = ("subject", "group", "key", "state", "value", "label", "description", "change", "kind",
+                 "scope", "source", "values", "where", "belongs")
 ## What each subject of the digest holds, in words, for the head of its pane. A subject
 ## that is not listed here shows by its name alone.
 SUBJECT_WORDS = {
@@ -3804,73 +3935,143 @@ SUBJECT_WORDS = {
     "loop": "the main loop and the heartbeat, as they last left their state",
     "scopes": "each scope that holds a key, with its keys",
     "interface": "how this console looks, saved for the user who runs it",
+    "console": "how the consoles of this workspace behave",
+    "control": "how long a console waits when it asks something of a session",
 }
-## What each <source> of a line that offers choices shows as, after its value: where the
-## value comes from. One that is not listed here shows as it is printed.
+## What each root of the digest holds, in words, under the counts of its summary.
+ROOT_WORDS = {
+    "settings": "What a user sets for himself, and what is changed while the workspace runs. Enter opens a subject, and Enter on a setting inside it changes that setting.",
+    "configuration": "What was set when the workspace was deployed and configured. For viewing: nothing of it is changed from here, a wizard will change it later.",
+}
+## What each <source> of a line shows as, after its value: where the value comes from.
+## One that is not listed here shows as it is printed.
 SOURCE_WORDS = {
     "environment": "named by the environment",
     "user": "saved for this user",
+    "workspace": "saved for the workspace",
     "default": "the default",
 }
-## The states of a line that say that something is not there.
+## What each <scope> of a line shows as: whom a change of it is for. And what the dialog
+## of a setting says OK does, by that scope: one saved for the workspace changes it for
+## everybody, and the dialog says so. One that is not listed shows as it is printed.
+SCOPE_WORDS = {
+    "user": "this user, in this workspace",
+    "workspace": "everybody who works in this workspace",
+}
+SCOPE_SAVES = {
+    "user": "OK saves it for the user who runs this console",
+    "workspace": "OK saves it for the WORKSPACE: it changes for everybody who works in it",
+}
+SCOPE_SAVES_OTHER = "OK saves it"
+## The states of a line that say that something is not there, and those of a secret: of
+## such a one only the state is ever shown.
 STATES_MISSING = ("missing", "secret-missing")
+STATES_SECRET = ("secret-set", "secret-missing")
+## The word of <change> that says a line is changed from here; any other is `no`, with
+## why not after a colon. And what stands for the reason where a row gives none.
+CHANGE_YES = "yes"
+CHANGE_SAYS = "it is not changed from here"
+## The kinds of a setting that is changed from here, by the word of its row: the dialog
+## of DIALOGS that changes one of that kind, the control of it that holds the value, and
+## what the <values> of the row are: "choices", <value>=<label> with commas between, in
+## the order to offer, or "range", <smallest>..<largest>. A kind that is not listed here
+## is changed as a short text.
+SETTING_KINDS = {
+    "choice": {"dialog": "setting", "control": "choice", "values": "choices"},
+    "number": {"dialog": "setting-number", "control": "number", "values": "range"},
+}
+SETTING_KIND_OTHER = {"dialog": "setting-text", "control": "words", "values": ""}
 
 
-## What `--manager-config-digest` printed, as rows: a `subject` row for each subject, in
-## the order of the operation, followed by its `line` rows, which the row of the subject
-## keeps. The last field of a row that has one more than its form is its label, with `_`
-## for a blank: a subject and a line show by it, and by the name or the key, as the
-## operation takes them, where a row has none. A line of nine fields offers choices: its
-## seventh says where its value comes from, its eighth lists them, <value>=<label> with
-## commas between. At the end of its row a subject shows how many of its lines are
-## missing, or else what its line that offers choices is set to.
-def parseDigestRows(text):
-    rows = []
-    bySubject = {}
-    for line in text.splitlines():
-        fields = line.split("\t")
+## What `--manager-config-digest --full` printed, as levels. A `subject` row names a
+## subject and its label; each `line` row after it is one line of that subject, by the
+## fields of DIGEST_FIELDS, and its last field names the root it stands in. Each root
+## this read fills (READS) holds the subjects that have a line there, in the order of the
+## operation, each a row that is entered; and the level of a subject in a root holds its
+## lines of that root, each by its label alone, or by its key where it has none. A line
+## of another root than those, and one too short to say its root, is left out. Of a
+## secret nothing but its state is kept: the value its row might carry is never held. At
+## the end of its row a subject shows how many of its lines are missing.
+def parseDigestLevels(readKey, text):
+    levels = dict((sectionId, []) for sectionId, sectionLabel in SECTIONS
+                  if (listReadOf([sectionId]) or ("",))[0] == readKey)
+    labels = {}
+    subjectFields = {}
+    held = {}
+    for printed in text.splitlines():
+        fields = printed.split("\t")
         if fields[0] == "subject" and len(fields) >= 3:
-            label = unspaced(fields[-1]) if len(fields) >= 4 else ""
-            row = newRow(fields[1], label or fields[1], "record", False, fields)
-            row["subject"] = {"name": fields[1], "label": label, "lines": []}
-            bySubject[fields[1]] = row
-            rows.append(row)
-        elif fields[0] == "line" and len(fields) >= 6 and fields[1] in bySubject:
-            held = {"group": absent(fields[2]), "key": absent(fields[3]), "state": fields[4], "value": absent(fields[5]),
-                    "label": unspaced(fields[-1]) if len(fields) >= 7 else "", "source": "", "choices": []}
-            if len(fields) >= 9:
-                held["source"] = absent(fields[6])
-                held["choices"] = [(choice.partition("=")[0], unspaced(choice.partition("=")[2]) or choice.partition("=")[0])
-                                   for choice in absent(fields[7]).split(",") if choice]
-            bySubject[fields[1]]["subject"]["lines"].append(held)
-    for row in rows:
+            labels[fields[1]] = unspaced(fields[-1]) if len(fields) >= 4 else ""
+            subjectFields[fields[1]] = fields
+        elif fields[0] == "line" and len(fields) > len(DIGEST_FIELDS) and fields[1] in labels:
+            setting = dict(zip(DIGEST_FIELDS, fields[1:]))
+            root, name = setting["belongs"], setting["subject"]
+            if root not in levels:
+                continue
+            if (root, name) not in held:
+                row = newRow(name, labels[name] or name, "record", True, subjectFields[name])
+                row["subject"] = {"name": name, "label": labels[name], "lines": []}
+                held[(root, name)] = row
+                levels[root].append(row)
+                levels[root + "/" + name] = []
+            line = {"subject": name, "group": absent(setting["group"]), "key": absent(setting["key"]),
+                    "state": setting["state"],
+                    "value": "" if setting["state"] in STATES_SECRET else absent(setting["value"]),
+                    "label": unspaced(setting["label"]), "description": unspaced(setting["description"]).strip(),
+                    "change": setting["change"], "kind": absent(setting["kind"]), "scope": absent(setting["scope"]),
+                    "source": absent(setting["source"]), "where": absent(setting["where"]), "choices": [], "range": None}
+            form = SETTING_KINDS.get(line["kind"], SETTING_KIND_OTHER)["values"]
+            values = absent(setting["values"])
+            if form == "choices":
+                line["choices"] = [(choice.partition("=")[0], unspaced(choice.partition("=")[2]) or choice.partition("=")[0])
+                                   for choice in values.split(",") if choice]
+            elif form == "range":
+                low, dots, high = values.partition("..")
+                line["range"] = (low, high) if low.isdigit() and high.isdigit() else None
+            lineRow = newRow(setting["group"] + " " + setting["key"],
+                             line["label"] or line["key"] or line["group"] or "-", "record")
+            lineRow["line"] = line
+            levels[root + "/" + name].append(lineRow)
+            held[(root, name)]["subject"]["lines"].append(line)
+    for row in held.values():
         missing = len([line for line in row["subject"]["lines"] if line["state"] in STATES_MISSING])
-        offered = settingOf(row)
         if missing:
             row["tail"] = "%d missing" % missing
-        elif offered is not None:
-            row["tail"] = dict(offered["choices"]).get(offered["value"], offered["value"])
-    return rows
+    return levels
 
 
-## The line of a subject that offers choices, the first of them, or None: the setting
-## Enter changes on that row.
-def settingOf(row):
-    for line in (row.get("subject") or {}).get("lines", ()) if row else ():
-        if line.get("choices"):
-            return line
-    return None
+## The root of the digest a row stands for, or None: the row of its section at the root
+## of the list, and the row that goes up inside it. A root of the digest is a section
+## whose list the read of the digest fills.
+def digestRootOf(state, row):
+    if row["kind"] == "section" and not state.path:
+        root = row["id"]
+    elif row["kind"] == "up" and len(state.path) == 1:
+        root = state.path[0]
+    else:
+        return None
+    shown = listReadOf([root])
+    return root if shown and shown[1].get("rows") == "digest" else None
+
+
+## Why a line is not changed from here, in the words of its row, or "" for one that is.
+def changeRefusal(line):
+    answer, colon, reason = line["change"].partition(":")
+    if answer == CHANGE_YES:
+        return ""
+    return unspaced(reason).strip() or CHANGE_SAYS
 
 
 ## What one line of the digest reads as. A secret reads only as configured or not: the
-## value of its row is never looked at. A scope of an outside system reads as set, with
-## the keys it lacks, or as missing them; a CLI is usable or not; any other line by its
-## value, a missing one marked as that.
-def digestWords(subjectName, line):
+## value of its row is never looked at. A line that offers choices reads as the label of
+## the one it is set to. A scope of an outside system reads as set, with the keys it
+## lacks, or as missing them; a CLI is usable or not; any other line by its value, a
+## missing one marked as that.
+def valueWords(subjectName, line):
     value = line["value"]
     if line.get("choices"):
-        return dict(line["choices"]).get(value, value) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
-    if line["state"] in ("secret-set", "secret-missing"):
+        return dict(line["choices"]).get(value, value)
+    if line["state"] in STATES_SECRET:
         return settingWords(line["state"], "")
     if subjectName == "systems" and line["state"] == "set":
         return "set" + (", lacks " + value.replace(",", ", ") if value else "")
@@ -3883,12 +4084,16 @@ def digestWords(subjectName, line):
     return settingWords(line["state"], value)
 
 
-## The selected subject of the settings for the left pane: what it holds, how many lines
+## The same, and after it where the value comes from, for a line whose row says so.
+def digestWords(subjectName, line):
+    return valueWords(subjectName, line) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
+
+
+## The selected subject of the digest for the left pane: what it holds, how many lines
 ## and how many of them missing, then its lines group by group, each group under a line of
 ## its own: the mark of a missing one, its label, what it reads as, and after that its
 ## key, the detail, where its label is not the key. A subject and a line with no label
-## show by the name and the key. Under the lines, what Enter changes where a line offers
-## choices, and the style this screen is drawn in where that is not what the line says.
+## show by the name and the key. Under the lines, what Enter does: it opens the subject.
 def subjectLines(subject, width):
     words = SUBJECT_WORDS.get(subject["name"], "")
     missing = len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
@@ -3910,42 +4115,84 @@ def subjectLines(subject, width):
             lines.extend(hangLines("%s %s  %s%s" % (
                 MARK_MISSING if line["state"] in STATES_MISSING else " ",
                 key + " " * max(0, keyWidth - textWidth(key)), digestWords(subject["name"], line), detail), width))
-    for line in subject["lines"]:
-        if line.get("choices"):
-            lines.extend(["", "Enter changes %s: %s." % (line.get("label") or line["key"], ", ".join(label for value, label in line["choices"]))])
-            if line["key"] == STYLE_VARIABLE and STYLE["name"] != line["value"]:
-                lines.append("This screen is drawn in %s now." % STYLE["label"])
+    lines.extend(["", "Enter opens it: its lines one by one, each with what it is and whether it is changed from here."])
     return lines
 
 
-## Whether Enter changes something on that row: a subject with a line that offers choices.
+## The selected line of a subject for the left pane, from its row: what it is now first,
+## of a secret only its state; the style this screen is drawn in where that is not what
+## the line says; its description; then its key, its group, its state, where its value
+## comes from, whom a change is for, what it takes, the file it is saved in, and whether
+## Enter changes it, or why not, in the words of its row.
+def settingLines(line, width):
+    value = valueWords(line["subject"], line)
+    lines = fieldLines([("value", value + (" (%s)" % line["value"] if line["choices"] and value != line["value"] else ""))], width)
+    if line["key"] == STYLE_VARIABLE and STYLE["name"] != line["value"]:
+        lines.append("This screen is drawn in %s now." % STYLE["label"])
+    if line["description"]:
+        lines.append("")
+        lines.extend(wrapToCells(line["description"], max(10, width - 1)))
+    lines.append("")
+    refusal = changeRefusal(line)
+    lines.extend(fieldLines([
+        ("key", line["key"]),
+        ("group", line["group"]),
+        ("state", line["state"]),
+        ("source", SOURCE_WORDS.get(line["source"], line["source"])),
+        ("scope", SCOPE_WORDS.get(line["scope"], line["scope"])),
+        ("takes", ", ".join(label for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
+        ("saved in", line["where"]),
+        ("change", "no: " + refusal if refusal else "Enter changes it"),
+    ], width))
+    return lines
+
+
+## Whether Enter changes that row: a line whose row says it is changed from here.
 def settingFits(state, row):
-    return settingOf(row) is not None
+    return bool(row and row.get("line")) and not changeRefusal(row["line"])
 
 
-## Enter on a subject of the settings: the dialog of its line that offers choices, with
-## what it is now and its choices as radio buttons. The style of the interface stands on
-## the one this screen is drawn in. A subject that offers none takes no Enter.
+## Why Enter changes nothing on a line that is not changed from here: the words of its row.
+def settingRefusal(state, row):
+    return changeRefusal(row["line"]) if row and row.get("line") else CHANGE_SAYS
+
+
+## Enter on a setting: the dialog of its kind (SETTING_KINDS), with what it is now, its key
+## and whom OK saves it for: its choices as radio buttons, on the one it is set to; a
+## number to type, with the range it takes; or a short text. The style of the interface
+## stands on the one this screen is drawn in. Nothing of a secret is put into a field.
 def askSetting(state, row):
-    line = settingOf(row)
-    if line is None:
+    line = row.get("line") if row else None
+    if line is None or changeRefusal(line):
         return ""
     state.answer = None
+    kind = SETTING_KINDS.get(line["kind"], SETTING_KIND_OTHER)
     own = line["key"] == STYLE_VARIABLE
-    openDialog(state, "setting", {
-        "about": {"lines": [("now", digestWords(row["subject"]["name"], line)), ("key", line["key"]),
-                            "OK saves it for the user who runs this console%s. Space chooses." % (
-                                ", and this screen takes it at once" if own else "")]},
-        "choice": {"options": list(line["choices"]), "value": STYLE["name"] if own else line["value"]},
-    }, {"line": line, "viewKey": viewKeyOf(state)}, line.get("label") or line["key"])
+    saves = SCOPE_SAVES.get(line["scope"], SCOPE_SAVES_OTHER) + (", and this screen takes it at once" if own else "")
+    fill = {"about": {"lines": [("now", digestWords(line["subject"], line)), ("key", line["key"]),
+                                saves + (". Space chooses." if kind["values"] == "choices" else ".")]}}
+    if kind["values"] == "choices":
+        fill[kind["control"]] = {"options": list(line["choices"]), "value": STYLE["name"] if own else line["value"]}
+    elif kind["values"] == "range" and line["range"]:
+        fill[kind["control"]] = {"value": line["value"], "label": "A whole number from %s to %s" % line["range"]}
+    else:
+        fill[kind["control"]] = {"value": line["value"]}
+    openDialog(state, kind["dialog"], fill, {"line": line, "viewKey": viewKeyOf(state)}, line.get("label") or line["key"])
     return ""
 
 
-## OK in the dialog of a setting: the style of the interface is taken by this screen at
-## once, and the choice is saved through the operation, once, by the key of the line.
+## OK in the dialog of a setting: the choice, or what was typed, as it stands, is saved
+## through the operation, once, by the key of the line; the style of the interface is
+## taken by this screen at once. A number that is not one of the range of its row is not
+## sent: the dialog says so and stays, and nothing is called.
 def submitSetting(state, dialog, button):
     line = dialog["about"]["line"]
-    value = dialogValue(dialog, "choice")
+    kind = SETTING_KINDS.get(line["kind"], SETTING_KIND_OTHER)
+    value = dialogValue(dialog, kind["control"])
+    if kind["values"] == "range" and line["range"]:
+        low, high = line["range"]
+        if not (value.isdigit() and str(int(value)) == value and int(low) <= int(value) <= int(high)):
+            return "nothing is saved: it takes a whole number from %s to %s, written with its digits alone" % (low, high)
     says = "%s: %s" % (line.get("label") or line["key"], dict(line["choices"]).get(value, value))
     if line["key"] == STYLE_VARIABLE:
         setStyle(value)
@@ -3969,21 +4216,246 @@ def settingAnswer(text, says, width):
 
 ACTION_HANDLERS["setting"] = askSetting
 ACTION_FITS["setting"] = settingFits
-ACTION_REFUSALS["setting"] = lambda state, row: "nothing of this subject is changed from here"
-DIALOG_HANDLERS["setting"] = submitSetting
+ACTION_REFUSALS["setting"] = settingRefusal
+for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + [SETTING_KIND_OTHER]):
+    DIALOG_HANDLERS[dialogName] = submitSetting
 
 
-## What the digest holds, for the left pane while the section itself or the row that goes
-## up is selected. None until its read has answered.
-def digestSummary(state):
-    if "settings" not in state.rows:
+## What a root of the digest holds, for the left pane while its section or the row that
+## goes up inside it is selected: how many subjects, lines and missing ones, and what the
+## root is. None until the read of the digest has answered.
+def digestSummary(state, root):
+    if root not in state.rows:
         return None
-    subjects = [row["subject"] for row in state.rows["settings"] if row.get("subject")]
+    subjects = [row["subject"] for row in state.rows[root] if row.get("subject")]
     total = sum(len(subject["lines"]) for subject in subjects)
     missing = sum(len([line for line in subject["lines"] if line["state"] in STATES_MISSING]) for subject in subjects)
     return ["%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
-                                                      total, "" if total == 1 else "s", missing),
-            "Enter changes a setting on a subject that offers choices; the others are for viewing."]
+                                                      total, "" if total == 1 else "s", missing)] + (
+        [""] + wrapToCells(ROOT_WORDS[root], max(10, state.viewWidth - 1)) if root in ROOT_WORDS else [])
+
+
+## ---- the checks of the installation: `Config Checker` ----
+
+## The fields of a `check` row of `--manager-check-run`, after its first, and those of its
+## last row, `summary`. The reason has `_` for a blank; the remedy is a command, printed
+## with its blanks, and is shown as it is; an absent one is `-`.
+CHECK_FIELDS = ("domain", "section", "key", "label", "state", "reason", "remedy")
+CHECK_SUMMARY = ("checks", "ok", "warn", "fail", "skipped", "seconds")
+## The look of the row of a check, by its state as the operation prints it, which stands
+## at the end of the row. A state that is not listed here is drawn plain.
+CHECK_LOOKS = {"ok": PLAIN, "warn": BOLD, "fail": BOLD, "skipped": DIM}
+## What the folder says of the checks under their counts.
+CHECKS_SAY = ("It is the read-only diagnosis of each part of the installation: it changes nothing, "
+              "it takes up to a minute, and some of it asks outside this machine.")
+
+
+## What `--manager-check-run` printed, as rows, in the order they come: a check by its
+## label, its state at the end of its row. Each keeps the counts of the row `summary`.
+def parseCheckRows(text):
+    rows = []
+    summary = {}
+    for printed in text.split("\n"):
+        fields = printed.split("\t")
+        if fields[0] == "check" and len(fields) > len(CHECK_FIELDS):
+            check = dict(zip(CHECK_FIELDS, fields[1:]))
+            row = newRow(" ".join(fields[1:4]), unspaced(check["label"]) or absent(check["key"]) or check["domain"], "record")
+            row["check"] = check
+            row["tail"] = check["state"]
+            row["look"] = CHECK_LOOKS.get(check["state"], PLAIN)
+            rows.append(row)
+        elif fields[0] == "summary" and len(fields) > len(CHECK_SUMMARY):
+            summary.update(zip(CHECK_SUMMARY, fields[1:]))
+    for row in rows:
+        row["checked"] = summary
+    return rows
+
+
+## The selected check for the left pane: its state first, then why, in the words of the
+## check, then the command that mends it, as it is printed, and where the check is from.
+## The screen runs no remedy.
+def checkLines(check, width):
+    lines = fieldLines([("state", check["state"])], width)
+    reason = unspaced(check["reason"]).strip()
+    if reason:
+        lines.append("")
+        lines.extend(wrapToCells(reason, max(10, width - 1)))
+    lines.append("")
+    lines.extend(fieldLines([("remedy", absent(check["remedy"])), ("domain", check["domain"]),
+                             ("section", absent(check["section"])), ("key", absent(check["key"]))], width))
+    if absent(check["remedy"]):
+        lines.extend(["", "The remedy is a command for a console: the screen runs none."])
+    return lines
+
+
+## What `Config Checker` holds, for the left pane while its row or the row that goes up
+## inside it is selected: that the checks were not run yet, or how many there are by
+## their states and how long the run took; and the key that runs them, or that they run.
+def checksSummary(state, path):
+    shown = listReadOf(path)
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        lines = ["The checks were not run yet in this run of the screen."]
+    elif not rows:
+        lines = ["The last run gave no check."]
+    else:
+        summary = rows[0]["checked"]
+        counts = ", ".join("%s %s" % (summary[name], name) for name in CHECK_SUMMARY[1:-1] if name in summary)
+        lines = ["%d check%s%s%s." % (len(rows), "" if len(rows) == 1 else "s", ": " + counts if counts else "",
+                                       ", in %s seconds" % summary["seconds"] if summary.get("seconds") else "")]
+    running = bool(shown) and shown[0] in state.reading.values()
+    says = "They are running now." if running else "%s runs them%s." % (commandKeys(commandNamed("check"))[0], "" if rows is None else " again")
+    return lines + [""] + wrapToCells(says + " " + CHECKS_SAY, max(10, state.viewWidth - 1))
+
+
+## ---- the public keys of this server: `Server Keys` ----
+
+## The fields of a `key` row of `--manager-keys-list`, after its first. What each group
+## shows as, in the order the folder sets them out; a group that is not listed shows as
+## it is printed. And the state of a key whose public file can be read.
+KEY_FIELDS = ("key", "label", "group", "purpose", "type", "fingerprint", "short", "file", "state")
+KEY_GROUPS = (
+    ("add-to-git", "Keys to add to git"),
+    ("trust-on-connect", "Keys to trust when connecting"),
+)
+KEY_PRESENT = "present"
+## What the box of a key says while its line is read, and where none came.
+KEY_SAYS = {
+    "reading": "Its public line is being read.",
+    "failed": "Its public line could not be read:",
+    "none": "The operation printed no line to paste for it.",
+    "copy": "The whole line, to copy as one line: where it is broken here it goes on with nothing between.",
+    "register": "It is listed as a deploy key on each of these repositories:",
+}
+
+
+## What `--manager-keys-list` printed, as rows, in the order they come: a key by its
+## label; one whose public file cannot be read has its state at the end of its row.
+def parseKeyRows(text):
+    rows = []
+    for printed in text.split("\n"):
+        fields = printed.split("\t")
+        if fields[0] != "key" or len(fields) <= len(KEY_FIELDS):
+            continue
+        held = dict(zip(KEY_FIELDS, fields[1:]))
+        row = newRow(held["key"], unspaced(held["label"]) or held["key"], "record")
+        row["serverKey"] = held
+        if held["state"] != KEY_PRESENT:
+            row["tail"] = held["state"]
+            row["look"] = DIM
+        rows.append(row)
+    return rows
+
+
+## What `--manager-keys-read <key>` printed: the line to paste, with its blanks as they
+## are printed, and the repositories the deploy key is registered on, each a project and
+## its address.
+def parseKeyRead(text):
+    read = {"paste": "", "registers": []}
+    for printed in text.split("\n"):
+        name, tab, rest = printed.partition("\t")
+        if name == "paste":
+            read["paste"] = rest
+        elif name == "register" and rest:
+            read["registers"].append(tuple((rest.split("\t") + [""])[:2]))
+    return read
+
+
+## The selected key for the left pane: its fingerprint and its key shortened first, or
+## that no public key can be read; what it is for; then its name, its group, its type,
+## its state and its public file; and the key that shows its whole line.
+def serverKeyLines(held, width):
+    present = held["state"] == KEY_PRESENT
+    if present:
+        lines = ["fingerprint %s" % held["fingerprint"], "short key   %s" % held["short"]]
+    else:
+        lines = ["%s: no public key can be read at its file" % held["state"]]
+    purpose = unspaced(held["purpose"]).strip()
+    if purpose:
+        lines.append("")
+        lines.extend(wrapToCells(purpose, max(10, width - 1)))
+    lines.append("")
+    lines.extend(fieldLines([("key", held["key"]), ("group", dict(KEY_GROUPS).get(held["group"], held["group"])),
+                             ("type", absent(held["type"])), ("state", held["state"]), ("file", absent(held["file"]))], width))
+    if present:
+        lines.extend(["", "%s shows its whole public line, in a box to copy." % commandKeys(commandNamed("keyline"))[0]])
+    return lines
+
+
+## What `Server Keys` holds, for the left pane while its row or the row that goes up
+## inside it is selected: the keys group by group, the groups of KEY_GROUPS first, each
+## key with its fingerprint and its key shortened. None until its read has answered.
+def serverKeysSummary(state, path):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    keys = [row["serverKey"] for row in rows if row.get("serverKey")]
+    if not keys:
+        return ["The operation listed no key of this server."]
+    groups = [group for group, label in KEY_GROUPS]
+    groups.extend(held["group"] for held in keys if held["group"] not in groups and not groups.append(held["group"]))
+    lines = []
+    for group in groups:
+        ofGroup = [held for held in keys if held["group"] == group]
+        if not ofGroup:
+            continue
+        lines.extend(([""] if lines else []) + [dict(KEY_GROUPS).get(group, group)])
+        for held in ofGroup:
+            lines.append("  " + (unspaced(held["label"]) or held["key"]))
+            if held["state"] == KEY_PRESENT:
+                lines.extend(["      " + held["fingerprint"], "      " + held["short"]])
+            else:
+                lines.append("      %s: %s" % (held["state"], absent(held["file"])))
+    return lines + [""] + wrapToCells("Public keys alone, as the operation gives them: the screen reads no file. "
+                                      "The whole line of a key is shown from its own row.", max(10, state.viewWidth - 1))
+
+
+## Whether the whole line of that row can be shown: a key whose public file can be read.
+def keyLineFits(state, row):
+    return bool(row and row.get("serverKey")) and row["serverKey"]["state"] == KEY_PRESENT
+
+
+## The whole public line of the selected key, in a box to copy: it is read anew for the
+## box, by the name of the key, and the box says so until it has come (fillKeyLine).
+def askKeyLine(state, row):
+    if not keyLineFits(state, row):
+        return ""
+    held = row["serverKey"]
+    target = {"kind": "key", "id": held["key"]}
+    state.plans.pop("full:" + target["kind"], None)
+    state.forced.add("full:" + target["kind"])
+    fillKeyLine(state, openDialog(state, "keyline", None, {"target": target, "serverKey": held},
+                                  unspaced(held["label"]) or held["key"]))
+    return ""
+
+
+## The box of a key as it stands now, at every turn while it is open: that its line is
+## being read, that it could not be, or the line whole, set out so that it is broken only
+## where the box is full, and under it where the deploy key is registered.
+def fillKeyLine(state, dialog):
+    held = dialog["about"]["serverKey"]
+    target = dialog["about"]["target"]
+    key = "full:" + target["kind"]
+    plan = state.plans.get(key)
+    if plan is None or plan["words"] != readWords(READS[key], state, {"id": target["id"]}, False):
+        lines = [KEY_SAYS["reading"]]
+    elif plan["error"]:
+        lines = [KEY_SAYS["failed"], plan["error"]]
+    elif not plan["rows"]["paste"]:
+        lines = [KEY_SAYS["none"]]
+    else:
+        lines = [("group", dict(KEY_GROUPS).get(held["group"], held["group"])), ("type", absent(held["type"])),
+                 "fingerprint " + held["fingerprint"], KEY_SAYS["copy"], " " + plan["rows"]["paste"]]
+        if plan["rows"]["registers"]:
+            lines.append(KEY_SAYS["register"])
+            lines.extend(" %s  %s" % register for register in plan["rows"]["registers"])
+    dialogControl(dialog, "text")["lines"] = lines
+
+
+ACTION_HANDLERS["line"] = askKeyLine
+ACTION_FITS["line"] = keyLineFits
+ACTION_REFUSALS["line"] = lambda state, row: "no public key can be read there"
+DIALOG_FILLS["keyline"] = fillKeyLine
 
 
 ## ---- what is started with the whole terminal: `Consoles (Tools)` ----
@@ -4104,6 +4576,172 @@ def runChild(surface, state):
 ## menu open to that menu, and with a line open to that line. Else Esc and then a key
 ## within META_SECONDS is Alt with that key. Otherwise Alt with the hot letter of a menu opens it, and any
 ## other key is the key of a command of COMMANDS, or of none.
+## ---- the dashboard: blocks of figures ----
+
+## A size in bytes for the eye: 512B, 123.0M, 14.1G.
+def shortBytes(value):
+    if not value.isdigit():
+        return value
+    number = float(value)
+    for unit in ("B", "K", "M", "G"):
+        if number < 1024:
+            return "%d%s" % (number, unit) if unit == "B" else "%.1f%s" % (number, unit)
+        number /= 1024.0
+    return "%.1fT" % number
+
+
+## A span of time in seconds for the eye, by its two largest parts: 42s, 12m 5s, 2h 27m, 13d 4h.
+def shortSpan(value):
+    if not value.isdigit():
+        return value
+    seconds = int(value)
+    if seconds < 60:
+        return "%ds" % seconds
+    if seconds < 3600:
+        return "%dm %ds" % (seconds // 60, seconds % 60)
+    if seconds < 86400:
+        return "%dh %dm" % (seconds // 3600, seconds % 3600 // 60)
+    return "%dd %dh" % (seconds // 86400, seconds % 86400 // 3600)
+
+
+## What `--manager-dashboard-read` printed, as rows: a row for each `block`, in the order
+## they come, which keeps the `figure` rows that name it, in theirs. A figure of a block
+## that was not printed, and a row too short to be either, is left out; what a row holds
+## after the fields DASHBOARD names is left alone. A block shows by its label, and at the
+## end of its line the level of its worst figure, as the operation names it, where that is
+## not the first of the levels.
+def parseBlockRows(text):
+    rows = []
+    byKey = {}
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        if fields[0] == "block" and len(fields) > len(DASHBOARD["block"]):
+            block = dict(zip(DASHBOARD["block"], fields[1:]), figures=[])
+            row = newRow(block["key"], unspaced(block["label"]) or block["key"], "record", False, fields)
+            row["block"] = block
+            byKey[block["key"]] = row
+            rows.append(row)
+        elif fields[0] == "figure" and len(fields) > len(DASHBOARD["figure"]) and fields[1] in byKey:
+            byKey[fields[1]]["block"]["figures"].append(dict(zip(DASHBOARD["figure"], fields[1:])))
+    order = [name for name, level in DASHBOARD["levels"]]
+    for row in rows:
+        worst = max([order.index(figure["level"]) for figure in row["block"]["figures"] if figure["level"] in order] + [0])
+        if worst:
+            row["tail"] = order[worst]
+    return rows
+
+
+## What a figure shows as its value: short for the eye by its unit (DASHBOARD), else as it
+## is printed.
+def figureValue(figure):
+    shorten = DASHBOARD["units"].get(figure["unit"])
+    return globals()[shorten](figure["value"]) if shorten else figure["value"]
+
+
+## One block as a box of exactly that many cells a line: its label in the top border, and
+## a line a figure, its label at the left and its value at the right, in the look of its
+## level; where the style has no colours the mark of the level stands ahead of the value.
+## A figure that is a share has a bar and its hundredths after its value, or, where they
+## do not fit beside it, a bar of its own under it, as wide as the box. A value too long
+## to stand beside its label stands under it, its start cut away where it is still too
+## long. Gives the lines and, for each, what of it is drawn in a look of its own.
+def blockBox(block, width):
+    frame = MARKS["frame"]
+    inner = max(1, width - 4)
+    levels = dict(DASHBOARD["levels"])
+    label = fitToCells(unspaced(block["label"]) or block["key"], max(1, width - 6))
+    top = frame[0] + frame[1] + " " + label.rstrip() + " "
+    lines = [cutToCells(top + frame[1] * max(0, width - textWidth(top) - 1), width - 1) + frame[2]]
+    looks = [[(3, textWidth(label.rstrip()), BOLD)]]
+
+    def put(body, spans=()):
+        lines.append(frame[3] + " " + cutToCells(body, inner) + " " + frame[3])
+        looks.append([(2 + start, cells, look) for start, cells, look in spans if cells > 0])
+
+    for figure in block["figures"]:
+        level = levels.get(figure["level"])
+        look = level["look"] if level else BOLD
+        name = unspaced(figure["label"]) or figure["key"]
+        value = figureValue(figure)
+        if level and level["mark"] and not STYLE["colours"]:
+            value = level["mark"] + " " + value
+        share = min(100, int(figure["share"])) if figure["share"].isdigit() else None
+        bar = min(DASHBOARD["bar"], inner - 5)
+        beside = share is not None and bar > 0 and textWidth(name) + 2 + textWidth(value) + bar + 6 <= inner
+        room = inner - (bar + 6 if beside else 0)
+        if textWidth(name) + 2 + textWidth(value) > room:
+            ## the value under its label, at the right
+            put(name)
+            name = ""
+            value = leftCut(value, room)
+        valueAt = room - textWidth(value)
+        spans = [(valueAt, textWidth(value), look)]
+        body = cutToCells(name, valueAt) + value
+        if beside:
+            filled = (share * bar + 50) // 100
+            body += " " + MARKS["barThumb"] * filled + MARKS["barTrack"] * (bar - filled) + " %3d%%" % share
+            spans += [(room + 1, filled, look), (room + 1 + filled, bar - filled, DIM)]
+        put(body, spans)
+        if share is not None and not beside and inner > 8:
+            bar = inner - 5
+            filled = (share * bar + 50) // 100
+            put(MARKS["barThumb"] * filled + MARKS["barTrack"] * (bar - filled) + " %3d%%" % share,
+                [(0, filled, look), (filled, bar - filled, DIM)])
+    lines.append(frame[4] + frame[1] * max(0, width - 2) + frame[5])
+    looks.append([])
+    return lines, looks
+
+
+## Blocks as a grid that fills that many cells: as many columns as blocks of the least
+## width fit, all of one width but the last, which takes what is left; each block is set
+## under the column that is the shortest so far, in the order the blocks come. Gives the
+## lines and what of each is drawn in a look of its own, by the number of the line.
+def blockGrid(blocks, width):
+    gap = DASHBOARD["gap"]
+    columns = max(1, min(len(blocks), (width + gap) // (DASHBOARD["least"] + gap)))
+    widths = [(width - gap * (columns - 1)) // columns] * columns
+    widths[-1] = width - gap * (columns - 1) - sum(widths[:-1])
+    stacks = [[] for column in range(columns)]
+    for block in blocks:
+        column = min(range(columns), key=lambda index: len(stacks[index]))
+        stacks[column].extend(zip(*blockBox(block, widths[column])))
+    lines = []
+    looks = {}
+    for index in range(max(len(stack) for stack in stacks)):
+        text = ""
+        spans = []
+        for column, stack in enumerate(stacks):
+            left = sum(widths[:column]) + gap * column
+            boxText, boxSpans = stack[index] if index < len(stack) else (" " * widths[column], ())
+            text += (" " * gap if column else "") + boxText
+            spans.extend((left + start, cells, look) for start, cells, look in boxSpans)
+        lines.append(text.rstrip())
+        if spans:
+            looks[index] = spans
+    return lines, looks
+
+
+## The dashboard for the left pane: every block the operation gave, as a grid; or the one
+## block of the selected row, as wide as the window. None until its read has answered,
+## and while what it would set out is what stands there already: the same rows, at the
+## same width, in the same style.
+def blocksView(state, only=None):
+    rows = state.rows.get("dashboard")
+    if rows is None:
+        return None
+    stamp = (rows, only, state.viewWidth, STYLE["name"], MARKS["plain"])
+    kept = state.view.get("blocksFor")
+    if kept is not None and kept[0] is rows and kept[1:] == stamp[1:]:
+        return None
+    state.view["blocksFor"] = stamp
+    blocks = [row["block"] for row in rows if row.get("block") and only in (None, row["id"])]
+    if not blocks:
+        state.view["looks"] = {}
+        return ["Nothing to show here: the operation gave no block."]
+    lines, state.view["looks"] = blockGrid(blocks, max(20, state.viewWidth - 2))
+    return lines
+
+
 def handleKey(state, key, layout):
     if key is None or key == "RESIZE":
         return
@@ -4447,6 +5085,17 @@ def runCommand(state, command, layout, key=None):
         readNow(state)
     elif does[0] == "menu":
         openMenu(state, 0)
+    elif does[0] == "demand":
+        ## the list shown is read on demand alone: it is asked for now, once, unless it runs
+        shown = listReadOf(state.path)
+        if shown and shown[1].get("demand"):
+            ## what the status line says of it stands until it has answered (applyResult)
+            state.noticeOf = shown[0]
+            if shown[0] in state.reading.values() or shown[0] in state.forced:
+                state.notice = "%s: it is running" % commandSaid(command)
+            else:
+                state.forced.add(shown[0])
+                state.notice = "%s: asked of the tooling%s" % (commandSaid(command), ", " + shown[1]["said"] if shown[1].get("said") else "")
     elif does[0] == "style":
         names = [name for name, style in STYLES]
         setStyle(names[(names.index(STYLE["name"]) + 1) % len(names)])
@@ -4613,6 +5262,13 @@ def wantedReads(state):
     if shown:
         own = shown[0] == "list:" + levelKey(state.path)
         wanted.append((shown[1].get("kind", "list"), shown[0], readWords(shown[1], state, values, own)))
+    elif not state.path:
+        ## the list of the section the root stands on, where the left window shows that
+        ## section from its rows ("peek"): read while it is selected, as while it is opened
+        row = selectedRow(state)
+        peeked = READS.get("list:" + row["id"]) if row is not None and row["kind"] == "section" else None
+        if peeked and peeked.get("peek"):
+            wanted.append((peeked.get("kind", "list"), "list:" + row["id"], readWords(peeked, state, {})))
     for key in sorted(READS):
         entry = READS[key]
         if entry and entry.get("always") and not (shown and shown[0] == key):
@@ -4660,7 +5316,9 @@ def viewReadOf(state, row, part):
 ## What is shown is read at the next chance, whatever the period says.
 def readNow(state):
     for kind, key, words in wantedReads(state):
-        state.forced.add(key)
+        ## one that is read on demand alone is asked for by its own command, not by this
+        if not (READS.get(key) or {}).get("demand"):
+            state.forced.add(key)
 
 
 ## How long the selection must still rest on its item before the reads of that one item
@@ -4698,7 +5356,7 @@ def startDueReads(state, reader, now):
         last = state.started.get(key)
         ## a read that is made once is not due again because its period has passed
         aged = now - last["at"] >= REFRESH_SECONDS and not (READS.get(key) or {}).get("once") if last else False
-        due = key in state.forced or last is None or last["words"] != words or aged
+        due = key in state.forced or (not (READS.get(key) or {}).get("demand") and (last is None or last["words"] != words or aged))
         if due and reader.start(kind, key, words):
             state.started[key] = {"at": now, "words": words}
             state.forced.discard(key)
@@ -4753,6 +5411,15 @@ def applyResult(state, result):
         ## what a kill would do is its confirmation's own: that says what was read, or that
         ## it could not be, and no box does
         state.plans[key] = {"words": result["words"], "rows": parseKillRows(result["text"]),
+                            "error": result["error"] if result["status"] != 0 else ""}
+        return
+    if (READS.get(key) or {}).get("demand") and state.noticeOf == key:
+        ## what was asked for on demand has answered: the status line no longer says it was asked
+        state.notice = ""
+        state.noticeOf = None
+    if (READS.get(key) or {}).get("rows") == "key-read":
+        ## a key whole is its box's own: that shows what was read, or that it could not be
+        state.plans[key] = {"words": result["words"], "rows": parseKeyRead(result["text"]),
                             "error": result["error"] if result["status"] != 0 else ""}
         return
     if result["status"] != 0:
@@ -5047,7 +5714,7 @@ def drawMenuBar(surface, state, columns):
         putParts(surface, 0, columns - partsWidth(right), right, columns)
 
 
-## The counters in the bottom border of the left window, from the row of counters: the sessions running
+## The counters of the compact style's bottom status line, from the row of counters: the sessions running
 ## and paused, the agents working and waiting, the asks that wait. Empty until that row
 ## was read; marked as old where its read last failed.
 def countersText(state):
@@ -5212,11 +5879,9 @@ def drawCompact(surface, state, layout):
     for offset in range(headHeight):
         surface.put(layout["bodyTop"] + offset, 0, cutToCells(" " + state.view["head"][offset], viewWidth), PLAIN)
     scrollView(state, contentHeight - headHeight, 0)
-    viewLines = state.view["lines"]
     for offset in range(contentHeight - headHeight):
-        position = state.view["top"] + offset
-        text = " " + viewLines[position] if position < len(viewLines) else ""
-        surface.put(layout["bodyTop"] + headHeight + offset, 0, cutToCells(text, viewWidth), PLAIN)
+        surface.put(layout["bodyTop"] + headHeight + offset, 0, " ", lineLook(state.view, state.view["top"] + offset))
+        putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1)
     said = lineSays(state, viewWidth, layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(layout["bodyTop"] + contentHeight + offset, 0, cutToCells(" " + text, viewWidth), BOLD if offset == 0 else PLAIN)
@@ -5232,15 +5897,6 @@ def drawCompact(surface, state, layout):
     else:
         surface.put(layout["inputLine"], 0, cutToCells(" " + state.notice, viewWidth), PLAIN)
     surface.put(layout["bottomLine"], 0, bottomLineText(state, columns), REVERSE)
-
-
-## The load average of the host as the row of counters gives it, marked as old where that
-## read last failed: what stands in the bottom border of the list. Empty until that row
-## was read.
-def loadText(state):
-    if "load" not in state.counters:
-        return ""
-    return "load %s%s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "")
 
 
 ## The word of a command in the status line now: of one that toggles, what its key will do.
@@ -5330,6 +5986,29 @@ def drawFrame(surface, box, title, active, foot="", bar=None):
         surface.put(bottom, left + 2, " " + fitToCells(foot, room - 4) + " ", look)
 
 
+## One line of what the left window holds, by its number, in exactly that many cells, in
+## the look of what it is (lineLook); and over it what of that line is drawn in a look of
+## its own (the "looks" of the view), as far as the window shows it: never over the mark
+## of a line that is cut.
+def putViewLine(surface, state, line, column, position, room):
+    lines = state.view["lines"]
+    text = lines[position] if position < len(lines) else ""
+    surface.put(line, column, cutToCells(text, room), lineLook(state.view, position))
+    spans = state.view["looks"].get(position, ()) if text else ()
+    if not spans:
+        return
+    cells = []
+    total = 0
+    for cluster, clusterWidth in textCells(text):
+        cells.append((total, cluster, clusterWidth))
+        total += clusterWidth
+    limit = room if total <= room else room - 1
+    for start, count, look in spans:
+        part = "".join(cluster for at, cluster, clusterWidth in cells if start <= at and at + clusterWidth <= min(start + count, limit))
+        if part:
+            surface.put(line, column + start, part, look)
+
+
 ## The body of a window that shows lines: what is selected in the list. Its head, which
 ## does not scroll; under it its lines; and at its foot the keys of the item, or, while a
 ## line is typed in, what that line says of itself.
@@ -5342,10 +6021,8 @@ def drawLinesBody(surface, state, layout, box):
     for offset in range(headHeight):
         surface.put(top + offset, column, cutToCells(state.view["head"][offset], room), PLAIN)
     scrollView(state, contentHeight - headHeight, 0)
-    viewLines = state.view["lines"]
     for offset in range(contentHeight - headHeight):
-        position = state.view["top"] + offset
-        surface.put(top + headHeight + offset, column, cutToCells(viewLines[position] if position < len(viewLines) else "", room), PLAIN)
+        putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room)
     said = lineSays(state, layout["viewWidth"], layout["viewHeight"])
     for offset, text in enumerate(said):
         surface.put(top + contentHeight + offset, column, cutToCells(text, room), BOLD if offset == 0 else PLAIN)

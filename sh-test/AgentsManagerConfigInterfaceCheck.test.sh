@@ -149,17 +149,17 @@ echo "-- 5. a value that is no style is refused --"
 rigOwnBefore="$( rigSum "$rigOwn" )"
 rigNoValue="⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of $rigKey -- nothing was saved. Its values: tv, mc, bw"
 rigBad=""
-for rigOne in zz TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "" "$rigSecret" ; do
+for rigOne in zz TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "$rigSecret" ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	[ "$( rigRefused "$rigNoValue" )" = "1 0 1 1" ] && [ "$( rigSum "$rigOwn" )" = "$rigOwnBefore" ] || rigBad="$rigBad [$rigOne: $( rigRefused "$rigNoValue" )]"
 done
-rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, one in capitals, one with a space, a label, a pair, a pattern, an empty one, a pasted secret" "${rigBad:- each refused}" " each refused"
+rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, one in capitals, one with a space, a label, a pair, a pattern, a pasted secret" "${rigBad:- each refused}" " each refused"
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
-rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_HISTORY, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS"
+rigNoKey="⛔ ERROR: DistroAgentsTools $rigWrite: the key given is none of the changeable settings -- nothing was saved. Its keys: $rigKey, MDLT_CONSOLE_HISTORY, MDLT_CONSOLE_ORIGIN, MDLT_CONSOLE_DETAIL, SESSION_CONTROL_REQUEST_SECONDS, SESSION_CONTROL_KILL_SECONDS"
 rigBad=""
-for rigOne in MDLT_CONSOLE_ORIGIN SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
+for rigOne in MDSC_DETAIL SLACK_BOT_TOKEN style mdat_manager_style "$rigKey=bw" "$rigKey " "*" "" ; do
 	rigRun "$rigWrite" "$rigOne" bw
 	[ "$( rigRefused "$rigNoKey" )" = "1 0 1 1" ] && [ "$( rigSum "$rigOwn" )" = "$rigOwnBefore" ] || rigBad="$rigBad [$rigOne: $( rigRefused "$rigNoKey" )]"
 done
@@ -190,12 +190,12 @@ rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigWrite" "$rigKey" tv
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, by the one rule of the family, and nothing is saved" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "DistroAgentsTools: ${rigWrite#--}: ⛔ ERROR: this session acts as keeper-rig, and a --manager-* operation is the console's own, never run from inside a member's session -- nothing was done" ) $( rigSum "$rigOwn" )" "1 0 1 $rigOwnBefore"
-rigAssert "the include of the settings names the writer of the scope of the current user once, beside the one of the scope of the team, and no form of the reader that removes a setting" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "2 1"
+rigAssert "the include of the settings names the writer of the scope of the current user once, among the six forms of the reader that save or remove a declared setting" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "6 1"
 rigAssert "and the writer makes no temp file of its own: the include names no \$\$ and no mktemp" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '\$\$' -e 'mktemp' || : )" "0"
 
 echo "-- 9. the values offered are the styles of the screen --"
 rigAssert "each value and its label is a style the screen declares, in the screen's order, and there is no other" "$( LC_ALL=C awk '/^STYLES = \($/ { on = 1 ; next } on && /^\)$/ { exit } on' "$rigScreen" | LC_ALL=C sed -n 's/^    ("\([^"]*\)", {"label": "\([^"]*\)".*$/\1=\2/p' | LC_ALL=C tr ' ' '_' | LC_ALL=C tr '\n' ',' )" "$rigChoices,"
-rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "4 none-lacking"
+rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "6 none-lacking"
 rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigScreen" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigScreen" )" "tv $rigKey"
 
 echo "-- 10. the help pair --"

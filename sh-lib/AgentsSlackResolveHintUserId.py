@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-import json
+## Reads shrunk users.list rows from stdin -- one member per line, tab-separated
+## id/name/display_name/real_name, as AgentsHarnessJsonField.awk's own records mode
+## projects them (sh-lib/AgentsTools.MagicComms.include, AgentsToolsCommsSlackResolveIds).
+## Never the full users.list JSON: that stayed in the shell, shrunk before this ran.
 import os
+import sys
 
-resp = json.loads(os.environ.get("USERS_JSON", "{}"))
 hint = os.environ.get("HINT", "").strip().lower()
 if not hint:
     raise SystemExit(0)
 
-members = resp.get("members") or []
-for member in members:
-    profile = member.get("profile") or {}
-    candidates = [
-        member.get("name", ""),
-        profile.get("display_name", ""),
-        profile.get("real_name", ""),
-    ]
-    if any(hint == (candidate or "").lower() for candidate in candidates):
-        print(member.get("id", ""))
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    cols = line.split("\t")
+    cols += [""] * (4 - len(cols))
+    member_id, name, display_name, real_name = cols[:4]
+    if hint in (name.lower(), display_name.lower(), real_name.lower()):
+        print(member_id)
         break

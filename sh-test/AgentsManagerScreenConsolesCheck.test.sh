@@ -132,7 +132,7 @@ keys m
 turn
 show g
 RIGSCRIPT
-rigAssert "the root list holds it after the team members and ahead of the settings, as a folder" "[$( rigVal root4 )] [$( rigVal root5 )]" "[ Consoles (Tools)...] [ Settings (Configuration)...]"
+rigAssert "the root list holds it after the team members and ahead of the settings, as a folder" "[$( rigVal root4 )] [$( rigVal root5 )]" "[ Consoles (Tools)...] [ Settings...]"
 rigAssert "until it is entered its list is not read, whatever time passes" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 0"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"
@@ -143,7 +143,7 @@ rigAssert "on the row that goes up the left window shows the folder itself: how 
 	"[ Consoles (Tools)][ 4 to start: 1 shell, 1 agents, 2 distro.][ Enter starts one with the whole terminal; the screen is back when it ends.]"
 rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
-rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)              6 │' )" 1
+rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1
 
 echo "-- the left window shows the selected console --"
 rigCase shown
