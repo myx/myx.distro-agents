@@ -695,7 +695,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   the founder alone. The ending is recorded first, under the name the console's user has in the
   operating system -- the record carries `killed-by` and `killed-at`, reason `manager-kill` -- then a
   polite end goes to the run's own processes, and the hard kill to what is still there two seconds
-  later. The handback retry never resumes a record that carries `killed-at`.
+  later. The handback retry never resumes a record that carries `killed-at`. Its own bound ends with its
+  own sleep, and the lines of a missing handback are said only after the record is closed
+  (`AgentsToolsSpawnProxyHandbackNotice`).
   `AgentsManagerSessionKillCheck` is its test.
 - **A kill and `TaskStop` find a run's processes by one walk**, `AgentsToolsRegistryRunProcesses`: the
   run's own processes and every process they started, to any depth; never a process group, the run's
@@ -768,12 +770,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   inherit the exports.
 - **Every start that does not wait is detached, whatever its caller**, a caller with no session id
   included: its own process group, hangup ignored, its output in its session log. Only a `--wait` start
-  with no parent session stays in the group of its caller.
+  with no parent session stays in the group of its caller. Its shell also holds a polite end, an
+  interrupt and a quit until its close is done (`AgentsToolsSpawnProxyHeld`), whether sent to it or to
+  the group it leads, saying each in the run's log; the hold comes off once the record, the item and
+  the posts are done.
 - **A detached spawn closes every descriptor it inherited** (`4>&-` on each backgrounded launch, its
   output tail and its event-track feed loop): the fourth descriptor a caller holds open to learn when a
   whole process tree has exited is never left open by a child meant to outlive that caller, so a review
   reading for that close gets its verdict back at once instead of waiting on a descriptor nothing will
-  ever close.
+  ever close. Its standard input is `/dev/null`.
 - **Spawn environment**: `MDAT_SPAWN_AGENT` (acting member), `MDAT_SPAWN_LAUNCH_MARKER`,
   `MDAT_SPAWN_SESSION_ID`, `MDAT_SPAWN_SANDBOX_ROOT(_REAL)`, and once a coworking session exists
   `MDAT_SESSION_ID`/`MDAT_SESSION_THREAD`, which nested spawns inherit, so a child joins its parent's
@@ -830,7 +835,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   each later launch), `supervisor-process` (`<pid> <start>`, the shell that supervises the run and
   closes this record: the process the proxy starts for a run that is not waited for, the process the
   call runs in for a waited one; the handback retry leaves it as it was; kept on the closed record).
-  Beside it: `event-track.thread` and `session.thread`
+  Which shell supervises is read before the launch (`AgentsToolsSpawnProxyShellNote`), not looked up
+  again after it. Beside it: `event-track.thread` and `session.thread`
   (`<channel>:<ts>`). A coworking session shares one sandbox named by the session id. The start post
   names `paying-workspace` and `member-workspace` only where either differs from the workspace the
   session runs from.
@@ -871,6 +877,13 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   record's `supervisor-process` still lives: `alive`, `gone` or `unknown`, rc 0 for each -- a record
   with no such header, of another host, or cut short reads `unknown`, never `gone`. No reader asks it
   yet. `AgentsSpawnSupervisorRecordCheck` is its test.
+- **The close of a run, in order**: handback retry, record, item, tokens, launch notice, the lines of a
+  missing handback, end post and finish flag, asks collected. The record is put in place by one rename
+  and its close is tried twice (`AgentsToolsSpawnProxyCloseSandbox` over
+  `AgentsToolsSpawnProxyCloseSandboxOnce`), a failure said on stderr. A waiting shell holds `INT` and
+  `TERM` and ignores a broken pipe from the end of its run to the end of its close. A return that
+  resumes a harness context records its restart in a subshell of its own. `AgentsSpawnSupervisorHoldsCheck`
+  is the test.
 - **A `--dispatch-doc:none` spawn writes nothing under `$MDAT_DATA_ROOT`.** Under `--wait` its output
   goes to the caller's stderr. Async, it goes to `$MMDAPP/.local/agents/sessions/<spawn-id>/session.log`,
   never to a returned caller's stderr (a `2>&1` capture would hang). The launch marker separates a real
@@ -1012,8 +1025,12 @@ contracts are here.
   (`$MMDAPP/.local/temp/agent-mcp.$$/`) is removed.
 - **`execute`**: `command` starts, `job` addresses an existing job (read first), so `required` is empty.
   Foreground `timeout` defaults to 600 s, capped at 3600; a bad value takes the default. On expiry the
-  partial output is kept at a named path, and the call's process group is ended by `AgentsMcpCallWatch`,
-  only while its leader is still the process that began when the watchdog started.
+  answer goes out at once: it says the call was asked to end, and that whatever of it is left is killed
+  five seconds after. The partial output is kept at a named path, and the call's process group is ended
+  by `AgentsMcpCallWatch`, only while its leader is still the process that began when the watchdog
+  started. The handler ends its watchdog, and waits for it, only while it has not fired; one that has
+  already fired is neither signalled nor waited for, and finishes by itself. The same holds for a
+  served harness tool at its own bound.
   `background:true` returns job id, pid and log; `job` polls by
   byte cursor; `action:"kill"` signals the job's group only while its leader is still the process
   `jobs/<id>/pid` names (`<pid> <start>`), and answers `NOT signalled`, as an error, for a file with no
@@ -1930,7 +1947,10 @@ op's own option arm.
   `sessions/<own id>/feed.open`; only what starts a poster switches the feed on, so a thread recorded for
   a session with no poster buffers nothing. It posts into the session's thread, never one of its own. A
   detached run's own feed poster goes on through a hangup, as the run does: it traps a hangup only where
-  one is not already ignored where it starts, and is ended by its proxy when the run ends.
+  one is not already ignored where it starts, and is ended by its proxy when the run ends, only while
+  its pid is still the process the proxy started (`AgentsToolsSpawnProxyHelperBegan`,
+  `AgentsToolsSpawnProxyHelperEnd`), as the poller of the launch and the reader of a waited run's log
+  are; one not signalled is not waited for.
 - **Event-track subjects are `session` and `run`.** The thread's root post is the session's start, the
   starting spawn's own run start inside it; a spawn that joins an already-running session posts its own
   start as a reply, never a root; a run's end is that one participant's own end, never the session's.

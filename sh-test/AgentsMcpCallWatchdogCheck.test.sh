@@ -9,7 +9,7 @@
 ## Drives a real `--intern-mcp-server --run` over stdio on a copy of the origin whose harness is a stand-in that
 ## stays as the scenario says, with the rig's own process list for the one reading a process is kept by (its pid,
 ## its state, when it began) and the rig's own clock (the 3600 seconds of a served call pass in three, the five
-## between the polite end and the hard one in two). Held here:
+## between the polite end and the hard one in three). Held here:
 ##   1. THE GROUP OF A KEPT PROCESS (sh-lib/AgentsTools.Registries.include), on stand-in groups of this check's
 ##      own: AgentsToolsRegistryGroupBegan gives the members of a group only while its leader is still the process
 ##      that was kept, and nothing for the same number begun at another time or kept with no start;
@@ -24,12 +24,20 @@
 ##      whose handler was ended hard still ends its call; a member of the group that ignored the polite end, the
 ##      leader gone, is ended by the hard one, by its own pid. THE GROUP'S NUMBER TAKEN BETWEEN THE TWO ENDS IS NOT
 ##      SIGNALLED: neither as a group nor any kept member that began at another time.
+##      ONCE A WATCHDOG HAS FIRED IT IS LEFT TO FINISH, its handler alive: the handler collects the leader the
+##      polite end ended and answers at once, with what is known then (the call was asked to end, and whatever of
+##      it is left is killed five seconds after); a member of the group that ignored the polite end, and the
+##      leader's own child that did, still run when the answer is out, and are ended by the hard one, by their own
+##      pids. A WATCHDOG THAT HAS NOT FIRED IS ENDED WITH ITS CALL: when a call that came back in time is answered,
+##      nothing of its watchdog is left.
 ##   3. THE KILL ACTION OF A JOB. The pid file of a job holds `<pid> <start>`. A running job is polled, and
 ##      killed as a group. A job whose number another process has taken reads as finished and nothing is
 ##      signalled. A pid file with no start, as jobs were kept before, is not signalled by the number alone: the
 ##      caller is told so, as an error. A Monitor job is still ended at its deadline.
 ## Red: with the watchdog and the kill action as they were (a probe of the number, then the group signalled), the
-## taken numbers of 2 and 3 are signalled: the processes that have them are ended, and a timeout is said.
+## taken numbers of 2 and 3 are signalled: the processes that have them are ended, and a timeout is said. With a
+## handler that ends its watchdog whether that has fired or not, what ignored the polite end runs to its own end
+## while its caller is told that it was killed.
 ## Offline: one mktemp tree, the watched processes lines of shell that wait, no endpoint and no console started.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -73,12 +81,15 @@ for rigEntry in "$rigPackage"/* ; do
 done
 rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 
-## THE STAND-IN FOR THE HARNESS: one served call. It names the handler that started it (the process above the
-## shell it runs under), stays for the seconds given, says that it came to its own end, and answers. With
-## RIG_CALL=deaf-member it first leaves a member of its group that ignores the polite end.
+## THE STAND-IN FOR THE HARNESS: one served call. It names itself and the handler that started it (the process
+## above the shell it runs under), stays for the seconds given, says that it came to its own end, and answers.
+## With RIG_CALL=deaf-member it first leaves a member of its group that ignores the polite end; with
+## RIG_CALL=deaf-harness it ignores the polite end itself, the leader's own child, and so does what it starts.
 cat > "$rigTmp/origin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" <<'RIGHARNESS'
 #!/usr/bin/env bash
+[ "${RIG_CALL:-}" != deaf-harness ] || trap '' TERM
 cat > /dev/null
+echo "$$" > "$RIG_DIR/harness.pid"
 rigHandler="$( ps -o ppid= -p "$PPID" 2> /dev/null | tr -d ' ' )"
 ps -o args= -p "$rigHandler" > "$RIG_DIR/handler.args" 2> /dev/null
 printf '%s\n' "$rigHandler" > "$RIG_DIR/handler.pid.new" && mv "$RIG_DIR/handler.pid.new" "$RIG_DIR/handler.pid"
@@ -92,9 +103,13 @@ wait "$!"
 echo "RIG-TOOL-OUTPUT"
 RIGHARNESS
 ## THE RIG'S CLOCK: the bound of a served call passes in RIG_WATCH_SECONDS, the five seconds before a hard end in
-## RIG_GRACE_SECONDS; every other wait is the host's.
+## RIG_GRACE_SECONDS; every other wait is the host's. The two waits of a watchdog say which processes they are:
+## the one for its bound (3600 seconds, or RIG_WATCH_VALUE, the timeout of the scenario's script) in watch.pid,
+## the one before its hard end in grace.pid.
 cat > "$rigTmp/bin/sleep" <<'RIGSLEEP'
 #!/bin/sh
+[ "${1:-}" != "${RIG_WATCH_VALUE:-3600}" ] || echo "$$" > "$RIG_DIR/watch.pid"
+[ "${1:-}" != 5 ] || echo "$$" > "$RIG_DIR/grace.pid"
 [ "${1:-}" != 3600 ] || exec "$RIG_REAL_SLEEP" "$RIG_WATCH_SECONDS"
 [ "${1:-}" != 5 ] || exec "$RIG_REAL_SLEEP" "$RIG_GRACE_SECONDS"
 exec "$RIG_REAL_SLEEP" "$@"
@@ -204,14 +219,14 @@ rigAssert "kept pids that other processes have taken, each begun at another time
 rigProcSignal KILL $rigLeft
 
 ## ONE LIFE OF A SERVER OF THE RIG: what the feeder writes is its wire in, what it answers is kept in wire.
-rigServe(){ ## scenario, process list (host, taken, taken-late), call of the stand-in harness, seconds it stays, deaf to the polite end or empty, the feeder, its arguments
-	local serveDir="$rigTmp/$1" servePs="$2" serveCall="$3" serveStays="$4" serveDeaf="$5" serveFeeder="$6"
-	shift 6
+rigServe(){ ## scenario, process list (host, taken, taken-late), call of the stand-in harness, seconds it stays, deaf to the polite end or empty, seconds the bound of a served call passes in, the bound as the watchdog is given it (3600, or the timeout of the script), the feeder, its arguments
+	local serveDir="$rigTmp/$1" servePs="$2" serveCall="$3" serveStays="$4" serveDeaf="$5" serveWatch="$6" serveValue="$7" serveFeeder="$8"
+	shift 8
 	mkdir -p "$serveDir/ws/.local/temp"
 	"$serveFeeder" "$serveDir" "$@" | (
 		unset MDAT_MCP_SERVED_MARKER MDAT_SPAWN_AGENT MDAT_SPAWN_SESSION_ID MDAT_HARNESS_WAIT_TIMEOUT CLAUDE_CODE_ENTRYPOINT
 		cd "$serveDir/ws" || exit 1
-		export RIG_DIR="$serveDir" RIG_PS="$servePs" RIG_CALL="$serveCall" RIG_STAYS="$serveStays" RIG_REAL_SLEEP="$rigRealSleep" RIG_REAL_PS="$rigRealPs" RIG_WATCH_SECONDS=3 RIG_GRACE_SECONDS=2
+		export RIG_DIR="$serveDir" RIG_PS="$servePs" RIG_CALL="$serveCall" RIG_STAYS="$serveStays" RIG_REAL_SLEEP="$rigRealSleep" RIG_REAL_PS="$rigRealPs" RIG_WATCH_SECONDS="$serveWatch" RIG_WATCH_VALUE="$serveValue" RIG_GRACE_SECONDS=3
 		## deaf: the polite end is ignored by the server and by everything it starts, the call among it
 		[ -z "$serveDeaf" ] || trap '' TERM
 		PATH="$rigTmp/bin:$PATH" HOME="$rigTmp/home" MMDAPP="$serveDir/ws" MDLT_ORIGIN="$rigTmp/origin" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
@@ -224,6 +239,18 @@ rigInit(){
 ## The feeders. One request and no more.
 rigFeedOne(){ ## scenario folder, the request
 	rigInit ; printf '%s\n' "$2"
+}
+## One request, and at the moment its answer is on the wire, which processes of the scenario still run: the member
+## that ignores the polite end, the harness, the watched process, and the two waits of the watchdog.
+rigFeedAnswer(){ ## scenario folder, the request
+	local answerTurns=250 answerName answerPid
+	rigInit ; printf '%s\n' "$2"
+	while ! LC_ALL=C grep -q '"id":2,' "$1/wire" 2> /dev/null && [ "$answerTurns" -gt 0 ] ; do "$rigRealSleep" 0.2 ; answerTurns=$(( answerTurns - 1 )) ; done
+	LC_ALL=C grep -q '"id":2,' "$1/wire" 2> /dev/null || return 0
+	for answerName in deaf harness watched watch grace ; do
+		answerPid="$( cat "$1/$answerName.pid" 2> /dev/null )"
+		if [ -z "$answerPid" ] ; then echo none ; elif kill -0 "$answerPid" 2> /dev/null ; then echo runs ; else echo gone ; fi > "$1/$answerName.at-answer"
+	done
 }
 ## One request, and its handler ended hard once the call runs: the watchdog is then alone with a number.
 rigFeedOrphan(){ ## scenario folder, the request
@@ -265,34 +292,42 @@ rigFeedMonitor(){ ## scenario folder
 }
 rigServed='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"Read","arguments":{"path":"/nonexistent/rig"}}}'
 rigScript='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"sleep $RIG_STAYS & echo $! > $RIG_DIR/watched.pid ; wait $! ; : > $RIG_DIR/watched.ended ; echo RIG-SCRIPT-OUTPUT","timeout":2}}}'
+## The same script with a timeout it comes back well within, and one that ignores the polite end, with what it starts.
+rigScriptInTime='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"sleep $RIG_STAYS & echo $! > $RIG_DIR/watched.pid ; wait $! ; : > $RIG_DIR/watched.ended ; echo RIG-SCRIPT-OUTPUT","timeout":30}}}'
+rigScriptDeaf='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute","arguments":{"command":"trap \"\" TERM ; sleep $RIG_STAYS & echo $! > $RIG_DIR/watched.pid ; wait $! ; : > $RIG_DIR/watched.ended ; echo RIG-SCRIPT-OUTPUT","timeout":2}}}'
 
 ## Every scenario has a server of its own and they run side by side: none waits for another.
-rigServe served-quick       host       plain       0  ""   rigFeedOne "$rigServed" &
-rigServe served-hangs       host       plain       9  ""   rigFeedOne "$rigServed" &
-rigServe served-taken       taken      plain       7  ""   rigFeedOne "$rigServed" &
-rigServe served-deaf        host       plain       10 deaf rigFeedOne "$rigServed" &
-rigServe served-deaf-taken  taken-late plain       10 deaf rigFeedOne "$rigServed" &
-rigServe orphan-deaf        host       deaf-member 10 ""   rigFeedOrphan "$rigServed" &
-rigServe orphan-deaf-taken  taken-late deaf-member 10 ""   rigFeedOrphan "$rigServed" &
-rigServe script-quick       host       plain       0  ""   rigFeedOne "$rigScript" &
-rigServe script-hangs       host       plain       9  ""   rigFeedOne "$rigScript" &
-rigServe script-taken       taken      plain       6  ""   rigFeedOne "$rigScript" &
-rigServe job-kept           host       plain       12 ""   rigFeedJob kept &
-rigServe job-taken          host       plain       7  ""   rigFeedJob taken &
-rigServe job-bare           host       plain       7  ""   rigFeedJob bare &
-rigServe job-monitor        host       plain       12 ""   rigFeedMonitor &
+rigServe served-quick       host       plain        0  ""   3  3600 rigFeedOne "$rigServed" &
+rigServe served-in-time     host       plain        2  ""   30 3600 rigFeedAnswer "$rigServed" &
+rigServe served-hangs       host       plain        9  ""   3  3600 rigFeedOne "$rigServed" &
+rigServe served-taken       taken      plain        7  ""   3  3600 rigFeedOne "$rigServed" &
+rigServe served-deaf        host       plain        11 deaf 3  3600 rigFeedOne "$rigServed" &
+rigServe served-deaf-taken  taken-late plain        11 deaf 3  3600 rigFeedOne "$rigServed" &
+rigServe orphan-deaf        host       deaf-member  11 ""   3  3600 rigFeedOrphan "$rigServed" &
+rigServe orphan-deaf-taken  taken-late deaf-member  11 ""   3  3600 rigFeedOrphan "$rigServed" &
+rigServe live-deaf-member   host       deaf-member  11 ""   3  3600 rigFeedAnswer "$rigServed" &
+rigServe live-deaf-child    host       deaf-harness 11 ""   3  3600 rigFeedAnswer "$rigServed" &
+rigServe script-quick       host       plain        0  ""   3  2    rigFeedOne "$rigScript" &
+rigServe script-in-time     host       plain        2  ""   3  30   rigFeedAnswer "$rigScriptInTime" &
+rigServe script-hangs       host       plain        9  ""   3  2    rigFeedOne "$rigScript" &
+rigServe script-taken       taken      plain        6  ""   3  2    rigFeedOne "$rigScript" &
+rigServe script-deaf        host       plain        11 ""   3  2    rigFeedAnswer "$rigScriptDeaf" &
+rigServe job-kept           host       plain        12 ""   3  3600 rigFeedJob kept &
+rigServe job-taken          host       plain        7  ""   3  3600 rigFeedJob taken &
+rigServe job-bare           host       plain        7  ""   3  3600 rigFeedJob bare &
+rigServe job-monitor        host       plain        12 ""   3  3600 rigFeedMonitor &
 wait
 
 echo "-- 2a. a served call: answered as before, ended at its bound where it hangs, never by a number another process has taken --"
 rigAssert "control: the stand-in was started by a request handler of the rig's server" "$( LC_ALL=C grep -c -e '--intern-mcp-request' "$rigTmp/served-quick/handler.args" 2> /dev/null || : )" 1
 rigAssert "a served call that comes back is answered with what it printed, as no error" "$( rigBecame served-quick watched ) $( rigSaid served-quick 2 'RIG-TOOL-OUTPUT' ) $( rigIsError served-quick 2 ) $( rigSaid served-quick 2 'timed out' )" "ended-by-itself 1 false 0"
-rigAssert "a served call that does not come back is ended at its bound, and its caller is told that it timed out and was killed, as an error" \
-	"$( rigBecame served-hangs watched ) $( rigSaid served-hangs 2 '[Read timed out after 3600s and was killed; partial output above is kept at: ' ) $( rigIsError served-hangs 2 )" "ended-before-its-time 1 true"
+rigAssert "a served call that does not come back is ended at its bound, and its caller is told, as an error, that it timed out and was asked to end, that whatever is left of it is killed five seconds after, and where its output is kept" \
+	"$( rigBecame served-hangs watched ) $( rigSaid served-hangs 2 '[Read timed out after 3600s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: ' ) $( rigIsError served-hangs 2 ) $( rigSaid served-hangs 2 'and was killed' )" "ended-before-its-time 1 true 0"
 rigAssert "control: the watchdog asked the process list when that pid began, as it started and at its bound" "$( rigReadings served-taken )" 2
 rigAssert "at the bound the pid began at another time than the call did: nothing is signalled, the process that has the number runs to its own end, and no timeout is said" \
 	"$( rigBecame served-taken watched ) $( rigSaid served-taken 2 'RIG-TOOL-OUTPUT' ) $( rigIsError served-taken 2 ) $( rigSaid served-taken 2 'timed out' )" "ended-by-itself 1 false 0"
 rigAssert "a call that ignores the polite end is ended by the hard one, as a group, while its leader is still the process the watchdog was started for" \
-	"$( rigBecame served-deaf watched ) $( rigSaid served-deaf 2 'timed out after 3600s and was killed' )" "ended-before-its-time 1"
+	"$( rigBecame served-deaf watched ) $( rigSaid served-deaf 2 'timed out after 3600s and was asked to end' )" "ended-before-its-time 1"
 rigAssert "control: before the hard end the watchdog asked again, of the leader and of the members it had kept" "$( rigReadings served-deaf-taken )" 4
 rigAssert "the number taken between the two ends: the hard one is sent neither to the group of that number nor to a kept member, and the process that has the number runs to its own end" \
 	"$( rigBecame served-deaf-taken watched )" "ended-by-itself"
@@ -307,11 +342,29 @@ rigAssert "the leader gone and the kept member's number taken between the two en
 
 echo "-- 2c. a script of execute: the same watchdog --"
 rigAssert "a script that comes back is answered with what it printed, as no error" "$( rigBecame script-quick watched ) $( rigSaid script-quick 2 'RIG-SCRIPT-OUTPUT' ) $( rigIsError script-quick 2 ) $( rigSaid script-quick 2 'timed out' )" "ended-by-itself 1 false 0"
-rigAssert "a script that does not come back is ended at its timeout, and its caller is told that it timed out and was killed, as an error" \
-	"$( rigBecame script-hangs watched ) $( rigSaid script-hangs 2 '[timed out after 2s and was killed; partial output above is kept at: ' ) $( rigIsError script-hangs 2 )" "ended-before-its-time 1 true"
+rigAssert "a script that does not come back is ended at its timeout, and its caller is told, as an error, that it timed out and was asked to end, that whatever is left of it is killed five seconds after, and where its output is kept" \
+	"$( rigBecame script-hangs watched ) $( rigSaid script-hangs 2 '[timed out after 2s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: ' ) $( rigIsError script-hangs 2 ) $( rigSaid script-hangs 2 'and was killed' )" "ended-before-its-time 1 true 0"
 rigAssert "control: the watchdog asked the process list when that pid began, as it started and at its bound" "$( rigReadings script-taken )" 2
 rigAssert "at the timeout the pid began at another time than the script did: nothing is signalled, the process that has the number runs to its own end, and no timeout is said" \
 	"$( rigBecame script-taken watched ) $( rigSaid script-taken 2 'RIG-SCRIPT-OUTPUT' ) $( rigIsError script-taken 2 ) $( rigSaid script-taken 2 'timed out' )" "ended-by-itself 1 false 0"
+
+echo "-- 2d. its handler alive: a watchdog that has fired is left to finish, one that has not is ended with its call --"
+rigAt(){ ## scenario, name of a process (deaf, harness, watched, watch, grace) -- whether it ran when the answer was on the wire: runs, gone, none
+	cat "$rigTmp/$1/$2.at-answer" 2> /dev/null || printf 'no-answer'
+}
+rigAssert "control: the watchdog of each call that came back in time had begun the wait for its bound" "$( rigAt served-in-time watch | LC_ALL=C grep -c -v -x -e none -e no-answer ) $( rigAt script-in-time watch | LC_ALL=C grep -c -v -x -e none -e no-answer )" "1 1"
+rigAssert "a served call that comes back in time is answered as before, and when its answer is out nothing of its watchdog is left" \
+	"$( rigBecame served-in-time watched ) $( rigSaid served-in-time 2 'RIG-TOOL-OUTPUT' ) $( rigIsError served-in-time 2 ) $( rigSaid served-in-time 2 'timed out' ) watchdog-$( rigAt served-in-time watch )" "ended-by-itself 1 false 0 watchdog-gone"
+rigAssert "a script that comes back in time is answered as before, and when its answer is out nothing of its watchdog is left" \
+	"$( rigBecame script-in-time watched ) $( rigSaid script-in-time 2 'RIG-SCRIPT-OUTPUT' ) $( rigIsError script-in-time 2 ) $( rigSaid script-in-time 2 'timed out' ) watchdog-$( rigAt script-in-time watch )" "ended-by-itself 1 false 0 watchdog-gone"
+rigAssert "a member of the call's group ignores the polite end: the caller is answered at once, while that member and the watchdog's wait for its hard end still run, and is told what is known then" \
+	"member-$( rigAt live-deaf-member deaf ) watchdog-$( rigAt live-deaf-member grace ) $( rigSaid live-deaf-member 2 '[Read timed out after 3600s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: ' ) $( rigIsError live-deaf-member 2 )" "member-runs watchdog-runs 1 true"
+rigAssert "and the hard end comes all the same, the leader long collected: the call and the member that ignored the polite end are both ended before their time" \
+	"$( rigBecame live-deaf-member watched ) $( rigBecame live-deaf-member deaf )" "ended-before-its-time ended-before-its-time"
+rigAssert "the leader's own child ignores the polite end while the leader ends at once: the caller is answered while that child still runs, and the child and what it started are ended by the hard one" \
+	"child-$( rigAt live-deaf-child harness ) watchdog-$( rigAt live-deaf-child grace ) $( rigSaid live-deaf-child 2 'timed out after 3600s and was asked to end' ) $( rigBecame live-deaf-child watched )" "child-runs watchdog-runs 1 ended-before-its-time"
+rigAssert "a script that ignores the polite end: the caller is answered while it still runs, told what is known then, and the script is ended by the hard one" \
+	"script-$( rigAt script-deaf watched ) watchdog-$( rigAt script-deaf grace ) $( rigSaid script-deaf 2 '[timed out after 2s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: ' ) $( rigBecame script-deaf watched )" "script-runs watchdog-runs 1 ended-before-its-time"
 
 echo "-- 3. the kill action of a job: by the group, only while its leader is still the process its pid file names --"
 rigJobPid="$( LC_ALL=C sed 's/ .*//' "$rigTmp/job-kept/pid.kept" 2> /dev/null )"
@@ -327,8 +380,8 @@ rigAssert "a Monitor job is still ended at its deadline, its group read from the
 	"$( rigBecame job-monitor job ) $( rigSaid job-monitor 3 '[job 2 (rig watch): timed out after 1000ms and was killed]' )" "ended-before-its-time 1"
 
 echo "-- the request keeps each process it ends by the one reading the tooling keeps a process by --"
-rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, and a job is kept and read with when it began through AgentsToolsRegistryProcessesBegan" \
-	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRegistryProcessesBegan' )" "0 2 2"
+rigAssert "the include probes no call by its number before it ends a group, both watchdogs are the one function, each handler ends its watchdog only where that has not fired, and a job is kept and read with when it began through AgentsToolsRegistryProcessesBegan" \
+	"$( rigCode "$rigInclude" | LC_ALL=C grep -c -e 'kill -0 "\$mcpCmdPid"' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -e '^[[:space:]]*AgentsMcpCallWatch "\$mcp[A-Za-z]*" "\$mcpCmdPid" "\$mcpKillFile" 3>&- &$' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -x -e '[[:space:]]*if \[ ! -f "\$mcpKillFile" \] ; then' ) $( rigCode "$rigInclude" | LC_ALL=C grep -c -F '"$mcpJobPid" | AgentsToolsRegistryProcessesBegan' )" "0 2 2 2"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MCP CALL WATCHDOG CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

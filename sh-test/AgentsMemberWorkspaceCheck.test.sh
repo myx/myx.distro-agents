@@ -50,6 +50,8 @@ rigRefuse(){
 [ -f "$rigRealTemplate" ] || rigRefuse "the brief template is not in the package: $rigRealTemplate"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsMemberWorkspaceCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
@@ -57,7 +59,7 @@ rigProcNote $$
 ( sleep 900 ; rigProcSignal TERM $$ ) > /dev/null 2>&1 &
 rigDog=$! ; rigProcNote "$rigDog"
 ## The watchdog itself is stopped before its sleep: a sleep ended first would let it signal a check that finished.
-trap 'rigProcSignalWithChildren TERM "$rigDog" ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM "$rigDog" ; wait "$rigDog" 2> /dev/null ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWork="$rigTmp/work" ; rigHome="$rigTmp/home" ; rigElsewhere="$rigHome/elsewhere/members"
 rigIndexFile="$rigHome/.agents/magic-team/members.registry"
 rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"

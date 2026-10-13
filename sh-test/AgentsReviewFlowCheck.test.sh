@@ -28,10 +28,12 @@ rigRefuse(){
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t AgentsReviewFlowCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
-trap 'rigProcSignalWithChildren TERM $rigLivePids ; rm -rf -- "$rigTmp"' EXIT
+trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigData="$rigTmp/data"
 rigWs="$rigTmp/ws"
 rigSpawned="$rigWs/.local/agents/spawned"

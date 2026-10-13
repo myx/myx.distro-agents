@@ -22,6 +22,9 @@
 ## stored for it, with when, as the registry holds them (session-state, session-state-at),
 ## beside the state that is derived here at each call; and whether that thread lives, which
 ## no registry holds: it is measured at each call (AgentsToolsManagerSessionControls).
+## One starts: the control thread of a session where it does not live, by the one function
+## every starter of a thread calls, and with --all the check the advance input scan and the
+## main loop make too (AgentsTools.SessionControlStart.include).
 ##
 
 type AgentsToolsRegistryMeasureRows > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
@@ -760,6 +763,107 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerSessionKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
+		return 0
+	;;
+
+	## The control thread of one session started where it does not live, or, with --all, of
+	## every session of this workspace that needs one and has none alive: the check now of the
+	## manager, the one the advance input scan and the main loop make too
+	## (AgentsTools.SessionControlStart.include). One row a session, TAB-separated, their form
+	## the help entry's. A thread is started detached and is asked only whether it took the
+	## lock of its session, within a bound; no process is ended, and no agent is involved.
+	--manager-session-control-start)
+		local controlOp="$1" controlId="" controlAll="" controlSyntax="(--session-id <id>|--all)"
+		local controlTab=$'\t' controlBs='\' controlLines="" controlAnswer="" controlFailed=0 controlDeadline=0 controlLeft=0
+		local controlSession controlWord controlPid controlWhy controlHosts controlOutcome
+		local scopeSession="" scopeRun="" scopeMeasured="" scopeListed="" scopeControl=""
+		shift
+		while [ $# -gt 0 ] ; do
+			case "$1" in
+				--session-id)
+					if [ $# -lt 2 ] || [ -z "$2" ] || [ "$2" = "-" ] ; then
+						echo "⛔ ERROR: $MDSC_CMD $controlOp: --session-id needs an id -- syntax is $controlSyntax" >&2
+						set +e ; return 1
+					fi
+					controlId="$2" ; shift 2
+				;;
+				--all) controlAll="all" ; shift ;;
+				*)
+					echo "⛔ ERROR: $MDSC_CMD $controlOp: syntax is $controlSyntax, got: $1" >&2
+					set +e ; return 1
+				;;
+			esac
+		done
+		if [ -z "$controlId$controlAll" ] || { [ -n "$controlId" ] && [ -n "$controlAll" ] ; } ; then
+			echo "⛔ ERROR: $MDSC_CMD $controlOp: syntax is $controlSyntax: one session by its id, or --all, and not both" >&2
+			set +e ; return 1
+		fi
+		type AgentsToolsSessionControlStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include"
+		if [ -n "$controlAll" ] ; then
+			## The check now: every session of the workspace is read, and a line comes back for
+			## each that needed a thread and had none alive.
+			controlLines="$( AgentsToolsSessionControlCheckWorkspace )" || {
+				echo "⛔ ERROR: $MDSC_CMD $controlOp: the sessions registry could not be rebuilt in $MMDAPP/.local/agents -- nothing was started" >&2
+				set +e ; return 1
+			}
+		else
+			## One session by name, the id taken as the read of a session takes it: the registry
+			## of the runs is rebuilt first, always, so that a run that joined the session a
+			## moment ago is among its rows. A start by name is made at once: the pause of the
+			## check is not asked.
+			if [ -d "$MMDAPP/.local/agents/spawned" ] && ! AgentsToolsRegistrySpawnedSessionsRebuild ; then
+				echo "⛔ ERROR: $MDSC_CMD $controlOp: the sessions registry could not be rebuilt in $MMDAPP/.local/agents -- nothing was started" >&2
+				set +e ; return 1
+			fi
+			AgentsToolsManagerSessionScope "$controlOp" "$controlId" "" "nothing was started" || { set +e ; return 1 ; }
+			controlSession="$scopeSession"
+			controlAnswer="$( printf '%s\n' "$controlSession" | AgentsToolsSessionControlLive )" || controlAnswer=""
+			controlWord="" ; controlHosts=""
+			## What the rows of the session say, their thirteen first words being the measured row.
+			read -r controlPid controlWord controlHosts <<< "$( printf '%s' "$scopeMeasured" | LC_ALL=C cut -d ' ' -f 1-13 | AgentsToolsSessionControlJudged )" || :
+			if [ -n "$controlAnswer" ] ; then
+				controlLines="$controlSession alive ${controlAnswer#* }"
+			elif [ "$controlWord" = "finished" ] ; then
+				controlLines="$controlSession needless - every run of it has closed its record, and a finished session needs no thread"
+			elif [ "$controlWord" = "foreign" ] ; then
+				controlLines="$controlSession failed - its open records are runs of another host ($controlHosts), which cannot be watched from here"
+			elif [ "$controlWord" = "unmeasured" ] ; then
+				controlLines="$controlSession failed - its open records name no host or no run, so that no run of it can be told alive or gone from here"
+			elif [ "$controlWord" != "running" ] && [ "$controlWord" != "open" ] ; then
+				controlLines="$controlSession failed - the rows of its runs could not be read as a session"
+			elif AgentsToolsSessionControlWaited "$controlSession" ; then
+				controlLines="$controlSession needless - the start that opened it is one its caller waits on, and that caller watches it"
+			else
+				controlAnswer="$( AgentsToolsSessionControlStart "$controlSession" )" || :
+				controlLines="$controlSession ${controlAnswer:-failed - the start said nothing}"
+			fi
+		fi
+		## What became of each start is asked before its row is printed, all of them within one
+		## bound: a thread holds its session within a second or so of its start.
+		controlDeadline=$(( SECONDS + agentsSessionControlHoldSeconds ))
+		while read -r controlSession controlWord controlPid controlWhy ; do
+			[ -n "$controlSession" ] || continue
+			if [ "$controlWord" = "started" ] ; then
+				controlLeft=$(( controlDeadline - SECONDS ))
+				[ "$controlLeft" -gt 0 ] || controlLeft=0
+				controlAnswer="$( AgentsToolsSessionControlStartOutcome "$controlSession" "$controlPid" "$controlLeft" )" || :
+				read -r controlWord controlPid controlWhy <<< "${controlAnswer:-failed - nothing could be read of the start}" || :
+			fi
+			case "$controlWord" in
+				started|alive) controlOutcome="$controlWord" ;;
+				needless) controlOutcome="not-needed" ;;
+				held) controlOutcome="not-started" ;;
+				*) controlOutcome="not-started" ; controlFailed=$(( controlFailed + 1 )) ;;
+			esac
+			controlWhy=${controlWhy//"$controlBs"/"$controlBs$controlBs"}
+			controlWhy=${controlWhy//"$controlTab"/"${controlBs}t"}
+			printf 'control\t%s\t%s\t%s\t%s\n' "$controlSession" "$controlOutcome" "${controlPid:--}" "${controlWhy:--}"
+		done <<< "$controlLines"
+		[ -n "$controlLines" ] || echo "# $MDSC_CMD $controlOp: no session of this workspace needs its control thread started, so nothing was started" >&2
+		if [ "$controlFailed" -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $controlOp: $controlFailed control thread(s) could not be started -- see the not-started row(s)" >&2
+			set +e ; return 1
+		fi
 		return 0
 	;;
 

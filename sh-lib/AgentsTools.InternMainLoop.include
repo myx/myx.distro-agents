@@ -279,6 +279,29 @@ case "$1" in
 				&& mv -f "$MMDAPP/.local/agents/pending-remind.last.$$" "$MMDAPP/.local/agents/pending-remind.last" \
 				&& echo "# $MDSC_CMD --intern-main-loop: $( tail -1 "$MMDAPP/.local/agents/pending-remind.last" )" >&2 \
 				|| { rm -f "$MMDAPP/.local/agents/pending-remind.last.$$" ; echo "# $MDSC_CMD --intern-main-loop: the pending-reply reminders could not run" >&2 ; }
+			## The on-demand check of the health of the sessions, included here because the loop
+			## runs: the control thread of each session of this workspace that is not finished and
+			## has none alive is started, detached and never waited for
+			## (AgentsToolsSessionControlCheckWorkspace, AgentsTools.SessionControlStart.include).
+			## Local files and the process list only, in a subshell of its own. Logged, never
+			## fatal: a check that fails leaves the iteration as it was.
+			local mainLoopControl="" mainLoopControlSession mainLoopControlWord mainLoopControlPid mainLoopControlWhy mainLoopControlStarted="" mainLoopControlCount=0
+			if mainLoopControl="$(
+				set +e
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" || exit 1
+				. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include" || exit 1
+				AgentsToolsSessionControlCheckWorkspace 2> /dev/null
+			)" ; then
+				while read -r mainLoopControlSession mainLoopControlWord mainLoopControlPid mainLoopControlWhy ; do
+					case "$mainLoopControlWord" in
+						started) mainLoopControlStarted="$mainLoopControlStarted $mainLoopControlSession" ; mainLoopControlCount=$(( mainLoopControlCount + 1 )) ;;
+						failed) echo "# $MDSC_CMD --intern-main-loop: the control thread of session $mainLoopControlSession could not be started: $mainLoopControlWhy" >&2 ;;
+					esac
+				done <<< "$mainLoopControl"
+				[ "$mainLoopControlCount" -eq 0 ] || echo "# $MDSC_CMD --intern-main-loop: started the control thread of $mainLoopControlCount session(s):$mainLoopControlStarted" >&2
+			else
+				echo "# $MDSC_CMD --intern-main-loop: the control threads of the sessions could not be checked -- the iteration goes on" >&2
+			fi
 			## The spawn runs --wait, so without these lines the caller is silent for a whole iteration.
 			echo "# $MDSC_CMD --intern-main-loop: heartbeat iteration starting" >&2
 			## Named here so the choice is visible from the output itself, not only

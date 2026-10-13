@@ -136,7 +136,9 @@ AgentsMcpJobDeadline(){ ## seconds, milliseconds, job directory
 ## process's whole life. The call leads a process group of its own (set -m) and the whole group is
 ## ended: TERM first, for a script with traps of its own, KILL five seconds later for what ignores
 ## it. The kill file is written before the first signal, and only where one is sent, so the handler
-## tells a timeout from the call's own exit.
+## tells a timeout from the call's own exit. ITS HANDLER ENDS IT ONLY WHILE IT HAS NOT FIRED: with the call
+## that came back in time. Once the kill file is there it is left to finish, whether or not the handler has
+## collected the leader, so what ignored the polite end is still ended by the hard one.
 ## A WATCHDOG WHOSE HANDLER WAS ENDED HARD LIVES ON, and wakes at its bound, up to hours later, with
 ## a number: by then the pid may be another process, and as a group it is every process of a
 ## stranger's group. So it keeps when the call began, read as the watchdog starts by the one reading
@@ -418,8 +420,16 @@ case "$1" in
 					fi
 
 					wait "$mcpCmdPid" || mcpExitCode=$?
-					kill -TERM -- "-$mcpWatchPid" 2>/dev/null
-					wait "$mcpWatchPid" 2>/dev/null
+					## The watchdog is ended with a call that came back in time. One that has fired, its
+					## kill file written, is left to finish: the leader it asked to end is collected here at
+					## once, and what ignored that is ended five seconds on. The answer does not wait for it.
+					## One ended here as it was about to fire may have left its kill file: it finishes
+					## nothing, so no timeout is said for it.
+					if [ ! -f "$mcpKillFile" ] ; then
+						kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+						wait "$mcpWatchPid" 2>/dev/null
+						[ ! -f "$mcpKillFile" ] || rm -f "$mcpKillFile"
+					fi
 					## Stopped before the result is sent: past the stop file no frame is written.
 					if [ -n "$mcpBeatPid" ] ; then
 						: > "$mcpBeatStop"
@@ -432,7 +442,9 @@ case "$1" in
 					mcpIsError='false'
 					if [ -f "$mcpKillFile" ] ; then
 						mcpIsError='true'
-						mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after ${mcpToolWatch}s and was killed; partial output above is kept at: $mcpOutFile]"
+						## What is known as the answer goes out: the watchdog asked the call's group to end, and
+						## ends what is left of it five seconds after it asked.
+						mcpOutput="$mcpOutput"$'\n'"[$mcpToolName timed out after ${mcpToolWatch}s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: $mcpOutFile]"
 						rm -f "$mcpKillFile"
 					elif [ 0 -ne "$mcpExitCode" ] ; then
 						## The harness exits non-zero on its own ERROR result, which is
@@ -654,8 +666,12 @@ case "$1" in
 					set +m
 
 					wait "$mcpCmdPid" || mcpExitCode=$?
-					kill -TERM -- "-$mcpWatchPid" 2>/dev/null
-					wait "$mcpWatchPid" 2>/dev/null
+					## Ended with a script that came back in time; left to finish once it has fired, as above.
+					if [ ! -f "$mcpKillFile" ] ; then
+						kill -TERM -- "-$mcpWatchPid" 2>/dev/null
+						wait "$mcpWatchPid" 2>/dev/null
+						[ ! -f "$mcpKillFile" ] || rm -f "$mcpKillFile"
+					fi
 					set +e
 
 					mcpOutput="$( < "$mcpOutFile" )"
@@ -665,7 +681,7 @@ case "$1" in
 						## The partial output is kept and its path named: a timeout is when
 						## the caller most needs to see how far the command got.
 						mcpIsError='true'
-						mcpOutput="$mcpOutput"$'\n'"[timed out after ${mcpTimeout}s and was killed; partial output above is kept at: $mcpOutFile]"
+						mcpOutput="$mcpOutput"$'\n'"[timed out after ${mcpTimeout}s and was asked to end; whatever of it is left is killed five seconds after that; partial output above is kept at: $mcpOutFile]"
 						rm -f "$mcpKillFile"
 					elif [ 0 -ne "$mcpExitCode" ] ; then
 						mcpIsError='true'

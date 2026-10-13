@@ -167,6 +167,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run]
+📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>
@@ -3055,6 +3056,55 @@
 			cannot be rebuilt; exit 1 after its rows where a run could not
 			be ended.
 
+		--manager-session-control-start (--session-id <id>|--all)
+			One of the console's own operations (see Notes). Starts the
+			control thread of a coworking session of this workspace where
+			that thread does not live: the tooling's own process that
+			watches the runs of one session on this host and keeps its
+			state, and no agent. It ends no process and asks nobody
+			anything. <id> is taken as --manager-session-read takes it: a
+			session's id, or the own id of a run, which names the session
+			that run belongs to. A session needs a thread while it is not
+			finished: a run of it is alive on this host, or the record of
+			a run of this host is still open. A finished session needs
+			none, and neither does one that a start its caller waits on
+			opened. One whose open records are all runs of another host,
+			or name no host or no run, cannot be watched from here. A
+			thread that lives is left alone. `--all` is the check now: it
+			reads every session of the workspace and starts the thread of
+			each that needs one and has none alive. The advance input scan
+			and each iteration of the main loop make that same check. So
+			that a thread which ends at once is not started over and over,
+			the check leaves a session alone for five minutes after the
+			last line of the log of its thread was written; a start by
+			`--session-id` is made at once. The registry
+			`spawned-sessions` is rebuilt first, always. A thread is
+			started detached: a process group of its own, a hangup
+			ignored, its output in `control/log` of the session's folder,
+			`.local/agents/sessions/<session-id>/`. The operation then
+			waits until each thread it started holds the lock of its
+			session, which takes a second or so, ten seconds at most for
+			all of them. Prints one row, TAB-separated, on stdout, for the
+			session <id> names, and with `--all` for each session that
+			needed a thread and had none alive:
+			`control <session-id> <outcome> <pid> <reason>`
+			<outcome> is `started` where a thread was started and holds
+			its session, `alive` where one lives already and nothing was
+			started, `not-needed` for a session that needs none, and
+			`not-started` where one was needed and none could be started,
+			or, with `--all`, where the five minutes leave the session
+			alone. <pid> is the process of the thread. <reason> says in
+			words why none was started, or what became of one that was: a
+			thread that is refused at its start says why in its log, and
+			that is the reason given. An absent value reads `-`. <reason>
+			is free text, written exact, with its spaces: a TAB reads `\t`
+			and a backslash `\\`. With `--all` and no session that needs a
+			thread: no row, a note on stderr, and exit 0. Exit 1, nothing
+			printed and nothing started, with one error line, where no
+			record carries <id>, or the registry cannot be rebuilt; exit 1
+			after its rows where a thread could not be started, or where
+			the session <id> names cannot be watched from here.
+
 		--manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
 			One of the console's own operations (see Notes). Starts one
 			member with a prompt, in a new coworking session of its own,
@@ -4443,6 +4493,18 @@
 			event-track thread of the calling spawn's coworking
 			session, when it has one. A
 			second scan changes nothing more.
+
+			And it starts the control thread of each session of this
+			workspace that is not finished and has none alive: a run of
+			it is alive on this host, or the record of a run of this
+			host is still open. It is the check
+			`--manager-session-control-start --all` makes, which each
+			iteration of the main loop makes too. A thread is the
+			tooling's own process and no agent, started detached and
+			never waited for. What was started is one more line of that
+			same post, and no line of the scan's output; a thread that
+			could not be started is one warning on stderr, and the scan
+			goes on.
 
 			It also hands a board-review item whose `review-by` names a
 			session that has ended (no live row for it, or no row and

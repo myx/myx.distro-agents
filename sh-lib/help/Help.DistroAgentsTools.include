@@ -228,6 +228,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]" >&
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>" >&2

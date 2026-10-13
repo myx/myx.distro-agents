@@ -22,8 +22,10 @@ rigRefuse(){
 
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
+## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
 rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
-trap 'rm -rf -- "$rigTmp"' EXIT
+trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds
 ## one of its ids for a run of its own, and another copy of this check for its own. So the ps
@@ -125,7 +127,8 @@ rigScan(){ ## result file -- one --magic-advance-input-scan pass
 	[ "$( cat "$1.rc" )" = 0 ] || rigRefuse "--magic-advance-input-scan failed in the rig: $( tail -2 "$1.err" )"
 }
 rigSnap(){ ## rig name -- every file of that rig's workspace and data root with its checksum, one line each
-	( cd "$rigTmp/$1" && find ws data -type f | LC_ALL=C sort | while IFS= read -r snapFile ; do printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ; done )
+	## But the folder control/ of a session: it is its control thread's own, which a scan starts and which writes on between two scans (AgentsSessionControlScanCheck holds what a scan does there).
+	( cd "$rigTmp/$1" && find ws data -type f ! -path '*/control/*' | LC_ALL=C sort | while IFS= read -r snapFile ; do printf '%s %s\n' "$snapFile" "$( cksum < "$snapFile" )" ; done )
 }
 rigSame(){ ## file, file -- same or different
 	cmp -s "$1" "$2" && printf same || printf different

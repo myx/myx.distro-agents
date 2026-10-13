@@ -98,7 +98,7 @@ AgentsToolsAdvanceLockHeadCheck(){
 
 ## Closes what a dead spawn left open, silently on stdout, so the reads after it see the moved items: a started sandbox record whose session
 ## is dead (a local one by process list, any other by age), the dispatch item it links, a running dispatch item whose own record already ended,
-## and a review item whose reviewer session has ended.
+## and a review item whose reviewer session has ended. And starts the control thread of each session that needs one and has none alive.
 AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 	local staleHours="$1" spawnRoot="$MMDAPP/.local/agents/spawned"
 	local measureText startedRows rowTracking rowSession rowParent rowHost rowOwner rowStatus rowExit rowSpawn rowAgentLog rowSessionThread rowWorkspace rowLive rowState
@@ -107,6 +107,7 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 	## The one place the outcome word of a closed-by-tooling spawn is spelled; the status values are `spawn-` and `dispatch-` plus it.
 	local endedOutcome="ended-without-close"
 	local recordPath recordCandidate recordStatus recordExit rowSide linkField linkStem itemName itemState itemPath itemSpawn itemOutput targetState closeOutcome
+	local controlLines controlSession controlWord controlPid controlWhy controlStarted="" controlCount=0
 	measureText="$( AgentsToolsRegistryRenderSpawnedSessions agents )"
 	case "$measureText" in
 		*"**NOTE:** no scan was made"*) return 0 ;;
@@ -224,6 +225,19 @@ AgentsToolsAdvanceSpawnHousekeeping(){ ## stale hours, calling member
 			housekeepingLog="${housekeepingLog}housekeeping: $itemName review-by -> magic-coordinator"$'\n'
 		fi
 	done
+	## The on-demand check of the health of the sessions: the control thread of each session that is not finished and has none alive is started,
+	## detached and never waited for (AgentsToolsSessionControlCheck, AgentsTools.SessionControlStart.include). By the rows measured above, once
+	## the dead records are closed: nothing is measured for it. One line of the report says what was started, and only when a thread was;
+	## a thread that could not be started is one warning, and the scan goes on.
+	type AgentsToolsSessionControlCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SessionControlStart.include" 2> /dev/null || :
+	controlLines="$( printf '%s\n' "$measureText" | AgentsToolsSessionControlCheck 2> /dev/null )" || controlLines=""
+	while read -r controlSession controlWord controlPid controlWhy ; do
+		case "$controlWord" in
+			started) controlStarted="$controlStarted $controlSession" ; controlCount=$(( controlCount + 1 )) ;;
+			failed) echo "⚠️ WARNING: $MDSC_CMD --magic-advance-input-scan: the control thread of session $controlSession could not be started: $controlWhy" >&2 ;;
+		esac
+	done <<< "$controlLines"
+	[ "$controlCount" -eq 0 ] || housekeepingLog="${housekeepingLog}housekeeping: started the control thread of $controlCount session(s):$controlStarted"$'\n'
 	## What was done never enters the scan's output; it goes to the event-track thread of this spawn's coworking session.
 	AgentsToolsHousekeepingReport "$2" "${housekeepingLog%$'\n'}"
 	return 0
