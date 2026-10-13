@@ -5,8 +5,10 @@
 ## paged or not -- that fetch is one explicit ask, --resolve-human-owner-target,
 ## never a side effect of asking for an identity. With that flag given, the
 ## fallback search asks users.list exactly once and never follows a cursor,
-## even one Slack offers: capped, never paginated. A fake curl first on PATH
-## logs each method and cursor; every token is a literal. Offline by construction.
+## even one Slack offers: capped, never paginated. A capped result and a total
+## miss each print one SEARCH_HINT line naming how many users were searched; a
+## clean match prints none. A fake curl first on PATH logs each method and
+## cursor; every token is a literal. Offline by construction.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -89,6 +91,8 @@ rigRun --resolve-human-owner-target
 rigAssert "a match on page 1 makes exactly one users.list call" "$( rigUsersListCalls )" 1
 rigAssert "and the human-owner target is reported reachable" \
 	"$( printf '%s' "$rigOut" | grep -c '^HUMAN_OWNER_TARGET|status=reachable|' )" 1
+rigAssert "a clean hint match prints no SEARCH_HINT line" \
+	"$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|' )" 0
 
 ## Put the no-match page back, with a cursor Slack offers to a further page that
 ## holds the match -- and prove that cursor is never followed: one bounded fetch,
@@ -100,6 +104,8 @@ rigAssert "no match on the one page fetched: exactly one users.list call, the cu
 	"$( rigUsersListCalls )" 1
 rigAssert "the match that sits only on page 2 is not found" \
 	"$( printf '%s' "$rigOut" | grep -c '^HUMAN_OWNER_TARGET|status=reachable|' )" 0
+rigAssert "and the total miss prints one SEARCH_HINT line naming the one user searched" \
+	"$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|searched=1|note=repeating this same call changes nothing -- narrow the term, or give a known id$' )" 1
 
 ## Control: the configured alias, when it IS reachable, needs no users.list at all.
 mkdir -p "$rigTmp/conversations-info-ok"
@@ -133,6 +139,8 @@ printf '{"ok":true,"members":[{"id":"URIGOWNER01","name":"myx","profile":{}}],"r
 rigRun --user-name myx
 rigAssert "--user-name makes exactly one users.list call, cursor offered or not" "$( rigUsersListCalls )" 1
 rigAssert "and finds the page-1 match" "$( printf '%s' "$rigOut" | grep -c '^USER_MATCH|myx|URIGOWNER01|myx|' )" 1
+rigAssert "a clean --user-name match prints no SEARCH_HINT line" \
+	"$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|' )" 0
 
 ## Put a no-match page back with the same cursor, to prove a match sitting only on
 ## page 2 is not found by --user-name either.
@@ -143,6 +151,8 @@ printf '{"ok":true,"members":[{"id":"URIGOWNER01","name":"myx","profile":{}}],"r
 rigRun --user-name myx
 rigAssert "still exactly one users.list call" "$( rigUsersListCalls )" 1
 rigAssert "the page-2-only match is not found" "$( printf '%s' "$rigOut" | grep -c '^USER_MATCH|' )" 0
+rigAssert "and the total miss prints one SEARCH_HINT line naming the one user searched" \
+	"$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|searched=1|note=repeating this same call changes nothing -- narrow the term, or give a known id$' )" 1
 
 ## The match cap is a fixed 10, not a setting: eleven queries, eleven members on
 ## the one page, each matching its own query exactly -- only 10 USER_MATCH lines
@@ -155,6 +165,8 @@ done
 printf '{"ok":true,"members":[%s],"response_metadata":{"next_cursor":""}}\n' "$rigCapMembers" > "$rigTmp/users-list-pages/page1"
 rigRun --user-name "$rigCapNames"
 rigAssert "eleven real matches on one page, the cap still holds at 10" "$( printf '%s' "$rigOut" | LC_ALL=C grep -c '^USER_MATCH|' )" 10
+rigAssert "and the capped result prints one SEARCH_HINT line naming all eleven users searched" \
+	"$( printf '%s' "$rigOut" | grep -c '^SEARCH_HINT|searched=11|note=repeating this same call changes nothing -- narrow the term, or give a known id$' )" 1
 
 printf '\n%d passed, %d failed\n' "$rigPasses" "$rigFails"
 [ "$rigFails" = 0 ]
