@@ -30,7 +30,7 @@
 
 type AgentsToolsRegistryTeamMembersRebuild > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 type AgentsToolsMemberInvitedWorkspace > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
-type AgentsToolsTeamMemberKindIcon > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 
 ## The rows of this workspace's team-members registry, rebuilt now, in ownRows of the caller,
 ## as the file holds them: `member workspace link-kind skillset-path`. rc 1, with one line,
@@ -109,10 +109,16 @@ AgentsToolsManagerTeamMemberNames(){ ## member, registry file
 
 ## The `status` of a member's SKILL.md, in statusWord of the caller: `reference-only` for a
 ## member nobody is started as. `-` where the file gives none or is not there. No registry
-## holds it.
+## holds it. The team's own entry reads `the-team`, whatever its file says: it is the team
+## itself and no member, and nobody is started as it either
+## (AgentsToolsTeamMemberIsTeam, AgentsTools.TeamRegistry.include).
 AgentsToolsManagerTeamMemberStatus(){ ## member set root, member
 	local statusLine statusFront=""
 	statusWord="-"
+	if AgentsToolsTeamMemberIsTeam "$2" ; then
+		statusWord="the-team"
+		return 0
+	fi
 	[ -f "$1/$2/SKILL.md" ] || return 0
 	while IFS= read -r statusLine || [ -n "$statusLine" ] ; do
 		case "$statusFront:$statusLine" in

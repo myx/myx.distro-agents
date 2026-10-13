@@ -28,6 +28,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The questions that wait on an answer: what may be done with one, and doing it.
+	--manager-pending-reply-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerPendingReply.include"
+		return $?
+	;;
+
 	## The routines the members carry, and which of them the session spawner starts by itself.
 	--manager-routine-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerRoutine.include"

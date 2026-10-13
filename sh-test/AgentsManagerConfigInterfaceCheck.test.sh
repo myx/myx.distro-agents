@@ -6,8 +6,8 @@
 ## this check is the rig's own, and what that user saved in the real workspace is never read and never written,
 ## which the last section asserts.
 ## Held: with nothing saved the subject has one line, the interface style, with its key, the default as its value,
-## `default` as where it comes from and the values to choose from with their labels, the two new fields at the END
-## of the digest's own row; the environment names a style ahead of a saved one, and a name that is no style counts
+## `default` as where it comes from and the values to choose from with their labels, its two own fields after the
+## six of the digest's row, and then the label every row ends with; the environment names a style ahead of a saved one, and a name that is no style counts
 ## as not given wherever it stands; a setting of the same key in the workspace's own file is not read. The writer
 ## saves each of the three styles, prints one row with the key, the value now saved and the file, keeps every other
 ## line of the user's file and leaves no temp file; a value that is no style, a key that is no interface setting
@@ -103,13 +103,13 @@ rigOtherBefore="$( rigSum "$rigOther" )"
 echo "-- 1. the subject of the interface, with nothing saved --"
 rigRun "$rigRead" interface
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, the two new fields at the end of the row" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\nline\tinterface\tstyle\t%s\tset\ttv\tdefault\t%s' "$rigKey" "$rigChoices" )"
+rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv\tdefault\t%s\tInterface_Style' "$rigKey" "$rigChoices" )"
 rigAssert "reading made nothing: the user has no settings file and no folder, and the rig is as it was" "$( rigSum "$rigOwn" ) $( [ -e "${rigOwn%/*}" ] && echo folder || echo no-folder ) $( rigTree )" "absent no-folder $rigTreeBefore"
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
 rigRun "$rigRead"
 rigAssert "in the whole digest it is the last of the subjects, with the same rows" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems loop scopes interface / $( cksum < "$rigTmp/alone" )"
-rigAssert "every other line of the digest keeps the six fields it had" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 != "interface" { rows++ ; if ( NF != 6 ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
+rigAssert "every other line of the digest has the six fields it had, and its label" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 != "interface" { rows++ ; if ( NF != 7 ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
 
 echo "-- 2. the environment names a style --"
 rigPre=( "$rigKey=mc" ) ; rigRun "$rigRead" interface ; rigPre=()
@@ -195,6 +195,7 @@ rigAssert "and the writer makes no temp file of its own: the include names no \$
 
 echo "-- 9. the values offered are the styles of the screen --"
 rigAssert "each value and its label is a style the screen declares, in the screen's order, and there is no other" "$( LC_ALL=C awk '/^STYLES = \($/ { on = 1 ; next } on && /^\)$/ { exit } on' "$rigScreen" | LC_ALL=C sed -n 's/^    ("\([^"]*\)", {"label": "\([^"]*\)".*$/\1=\2/p' | LC_ALL=C tr ' ' '_' | LC_ALL=C tr '\n' ',' )" "$rigChoices,"
+rigAssert "a setting of the interface cannot come without its label: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^interface|$rigGroup|$rigOne|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigInterfaceSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigInterfaceSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "1 none-lacking"
 rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigScreen" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigScreen" )" "tv $rigKey"
 
 echo "-- 10. the help pair --"
@@ -210,7 +211,7 @@ rigForm(){ ## heading, row kind -- the form line of that row in that entry, its 
 rigAssert "the writer has its syntax echo, its syntax line and its entry, once each, and in no other form" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigSyntax\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s <key> <value>' "$rigWrite" )" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigWrite" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -F -- "syntax: DistroAgentsTools.fn.sh $rigWrite" "$rigHelpMd" || : )" "1 1 1 1 1"
 rigAssert "its entry gives the form of its row, which is the row it prints" "$( rigForm "$rigWrite <key> <value>" saved )" "saved <key> <value> <file>"
 rigAssert "its entry says whose setting it saves, that the others' are not touched, and names the refusals" "$( for rigWord in 'the user who runs' 'another user' 'nothing was saved' 'MDLT.settings.env' ; do rigEntry "$rigWrite <key> <value>" | LC_ALL=C tr -s ' \t\n' ' ' | LC_ALL=C grep -c -F -e "$rigWord" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyy"
-rigAssert "the entry of the digest gives the form of a line of the interface, with its two fields at the end" "$( rigForm "$rigRead [<subject>...]" 'line interface' )" "line interface <group> <key> <state> <value> <source> <choices>"
+rigAssert "the entry of the digest gives the form of a line of the interface, with its two fields after the value and its label the last" "$( rigForm "$rigRead [<subject>...]" 'line interface' )" "line interface <group> <key> <state> <value> <source> <choices> <label>"
 rigRun "$rigRead" interface
 rigAssert "and each line of the interface printed has exactly those fields" "$( LC_ALL=C awk -F'\t' -v wantFields="$( rigForm "$rigRead [<subject>...]" 'line interface' | LC_ALL=C awk '{ print NF }' )" '$1 == "line" { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
 rigAssert "the entry of the digest names the subject, the three places a value comes from, and the key of the style" "$( for rigWord in interface user environment default "$rigKey" ; do rigEntry "$rigRead [<subject>...]" | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyy"

@@ -120,14 +120,14 @@ rigAssert "the screen starts in the Turbo Vision style, and nothing is drawn pas
 rigAssert "the first line is the menu bar: the system mark, the menus, and at its right end the workspace, the machine and the clock" "$( rigLine a 1 | rigSqueeze )" " ≡ Go Session Member View Help ws-rig@rig-host 12:34:56 "
 rigAssert "each menu has its hot letter in a look of its own"        "$( rigRole r 1 1 36 )" "mmmmhmmmhmmmmmmmmhmmmmmmmhmmmmmhmmmm"
 rigAssert "the @ between the workspace and the machine has a look of its own, apart from the two names, also with no colour" "[$( rigVal where )] $( rigRole r 1 95 110 ) $( rigRole k 1 95 110 )" "[ws-rig@rig-host  12:34:56] mmmmmm@mmmmmmmmm RRRRRRHRRRRRRRRR"
-rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[..] [Sessions / Activity]"
-rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────────────────── .. ───────────────────────────────────────┐╔══════ Sessions / Activity ═══════╗]"
+rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[Sessions / Activity] [Sessions / Activity]"
+rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌────────────────────────────── Sessions / Activity ───────────────────────────────┐╔══════ Sessions / Activity ═══════╗]"
 rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
 rigAssert "the counters stand in the bottom border of the left window, and the load in that of the list" "[$( rigVal foot )] [$( rigVal load )]" "[running 2  paused 0  working 1  waiting 2  pending 3] [load 0.42]"
-rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a All/active  F5 Read  F10 Menu  Alt-X Exit  Tab Window] mhhhhhmmm"
-rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═══════════════════════════════════════ .. ═══════════════════════════════════════╗┌────── Sessions / Activity ───────┐]"
-rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a All/active  l Log  F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
+rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  Alt-X Exit  Tab Window] mhhhhhmmm"
+rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔══════════════════════════════ Sessions / Activity ═══════════════════════════════╗┌────── Sessions / Activity ───────┐]"
+rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'
@@ -191,7 +191,7 @@ get still
 RIGSCRIPT
 rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal mc.style ) [$( rigVal mc.notice )]" "tv mc [interface style: MC (Compact)]"
 rigAssert "the compact style has a status line on top: the workspace, the machine, the load and the clock" "$( rigLine c 1 | rigSqueeze )" " ws-rig@rig-host load 0.42 12:34:56 "
-rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Left Up  a All/active  F5 Read  F10 Menu  Alt-X Exit"
+rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Left Up  a Active  u Read  m Menu  q Exit  Tab Window"
 rigAssert "it spends nothing on frames: one column parts the two panes, and the list has a line more" "$( rigHas c '║' ) $( rigHas c '┌' ) $( rigHas c '└' ) $( rigHas c '│' ) $( rigVal mc.listHeight ) $( rigVal mc.viewHeight )" "0 0 0 38 37 36"
 rigAssert "its @ stands apart too, in a line that is otherwise in one look" "$( rigLine ck 1 | LC_ALL=C tr -d R )" "B"
 rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-32 )] $( rigHas cmenu '│ Sessions / Activity       Alt-1 │' )" "go:sessions [ ≡ Go Session Member View Help] 1"
@@ -206,7 +206,7 @@ MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Sessions / Activity" '\ex' "$rigPyt
 rigAssert "on a terminal with no colours it comes up all the same, and sets none" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc ) $( rigVal pty.errorAfterLeft )" "yes no 0 none"
 rigPty 100 30 "Sessions / Activity" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
 rigAssert "started in the style B/W it sets no colour on a terminal that has them" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
-MDAT_MANAGER_STYLE=mc rigPty 100 30 "a All/active  F5 Read" q "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+MDAT_MANAGER_STYLE=mc rigPty 100 30 "a Active  u Read" q "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the environment names the style of a start: the compact one comes up, and q ends it" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then

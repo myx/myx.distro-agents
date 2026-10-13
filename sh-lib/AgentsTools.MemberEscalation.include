@@ -980,7 +980,52 @@ AgentsToolsEscalationRecord(){ ## request id
 	printf '%s' "$MMDAPP/.local/agents/pending/$1.md"
 }
 
+## The verdict one line typed at a console gives for this record, by the one reader of a
+## reply's first line (AgentsEscalationVerdict.awk), which is given that line as the one
+## reply of an accepted account: a kind's own word, the number of an option, and whatever
+## words follow the word in the shapes that reader takes. Prints "<verdict>" or
+## "<verdict> -- <words>"; nothing where the line names no answer of the kind.
+AgentsToolsEscalationTypedVerdict(){ ## record file, the line as typed
+	local typedOptions="" typedOut=""
+	[ ! -f "${1%.md}.options" ] || typedOptions="$( cat "${1%.md}.options" )"
+	typedOut="$( printf '1.000001 | CONSOLE | %s\n' "${2//$'\n'/ }" \
+		| MDAT_VERDICT_WORDS=1 MDAT_VERDICT_KIND="$( AgentsToolsEscalationField "$1" kind )" MDAT_VERDICT_OPTIONS="$typedOptions" MDAT_VERDICT_AUTHORS="CONSOLE" \
+			MDAT_VERDICT_FOLDER="$( AgentsToolsEscalationFolderOffered "$1" )" MDAT_VERDICT_PROJECT="$( AgentsToolsEscalationFolderOffered "$1" project )" \
+			MDAT_VERDICT_SELECT="$( AgentsToolsEscalationField "$1" select )" MDAT_VERDICT_ASKING="" \
+			LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsEscalationVerdict.awk" 2>/dev/null )" || typedOut=""
+	typedOut="${typedOut%%$'\t'*}"
+	case "$typedOut" in ''|RETURNED) return 0 ;; esac
+	printf '%s\n' "$typedOut"
+}
+
+## THE TRACE of an answer given at a console: one line more in the question's own thread, by
+## the team bot whatever identity asked, which says it came from the console, by which
+## account and with which answer (the note template, `# Ask`, console-answered or
+## console-rejected). Never fails its caller: a line not posted is one stderr warning, and
+## the answer stands.
+AgentsToolsEscalationConsoleTrace(){ ## record file, request id, block (console-answered|console-rejected), account, verdict, its text (may be empty)
+	local traceChannel traceThread traceTo traceText traceArgs
+	traceChannel="$( AgentsToolsEscalationField "$1" channel )" ; traceThread="$( AgentsToolsEscalationField "$1" thread-ts )"
+	[ -n "$traceChannel" ] && [ -n "$traceThread" ] || return 0
+	traceText="$( ASKP_F_by="$4" ASKP_F_option="$5" ASKP_F_text="$6" AgentsToolsEscalationNote "Ask/$3" )" || traceText=""
+	if [ -z "$traceText" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so could not be filled from its template (tooling-note.post.format.md, Ask/$3)" >&2
+		return 0
+	fi
+	traceArgs=( "$( AgentsToolsEscalationField "$1" owner )" "$traceChannel:$traceThread" --from-stdin --identity-bot )
+	traceTo="$( AgentsToolsEscalationField "$1" address-to )"
+	[ -z "$traceTo" ] || traceArgs=( "${traceArgs[@]}" --address-to "$traceTo" )
+	printf '%s\n' "$traceText" | DistroAgentsTools --intern-op-comms-slack-send-message "${traceArgs[@]}" > /dev/null 2>&1 \
+		|| echo "⚠️ WARNING: $MDSC_CMD: $2 is answered from the console, but the line that says so was not posted in $traceChannel:$traceThread" >&2
+	return 0
+}
+
 case "$1" in
+
+	## DEFINITIONS-ONLY SOURCE: a caller sourcing this file for its helpers. Nothing to dispatch.
+	--definitions-only)
+		:
+	;;
 
 	## The member stub. It reads threads under the named member's own credentials, so a
 	## spawned session names only itself (AgentsToolsActingMemberCheck); tooling calls the
@@ -1293,12 +1338,22 @@ case "$1" in
 
 	## The addressee answers as itself. The --magic-* stub is the coordinator answering a
 	## question addressed to another member, on its behalf, signed as the coordinator.
-	--member-escalation-answer|--magic-escalation-answer)
+	## The console's arm comes here too (--manager-pending-reply-answer, sourced by
+	## AgentsTools.ManagerPendingReply.include, which says whose word the answer is): the same
+	## apply, for every kind a reply answers, with the answer as it was typed.
+	--member-escalation-answer|--magic-escalation-answer|--manager-pending-reply-answer)
 		local answerOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $answerOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 		local answerMember="$1" answerId="$2" answerVerdict="$3" answerText="${4:-}" answerFile answerKind answerOwner answerTo answerOptionLine answerFound=""
+		## From the console: the fifth word is the account at the console, the sixth `reject`
+		## where the answer is the kind's own negative one.
+		local answerConsole="" answerBlock="console-answered"
+		if [ "$answerOp" = "--manager-pending-reply-answer" ] ; then
+			answerConsole="${5:-unknown}"
+			[ "${6:-}" != "reject" ] || answerBlock="console-rejected"
+		fi
 		if [ -z "$answerMember" ] || [ -z "$answerId" ] || [ -z "$answerVerdict" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <request-id> <verdict> [text]" >&2
 			set +e ; return 1
@@ -1322,19 +1377,25 @@ case "$1" in
 				! AgentsToolsRoutineIsExecutor "$answerTo" "$answerMember" || answerAddressee="$answerMember"
 			;;
 		esac
-		if { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerAddressee" ] ; } || [ "$answerMember" = "$answerOwner" ] ; then
+		## An operator at the console is nobody's asker, whoever's word its answer has.
+		if [ -z "$answerConsole" ] && { { [ "$answerOp" = "--member-escalation-answer" ] && [ "$answerMember" != "$answerAddressee" ] ; } || [ "$answerMember" = "$answerOwner" ] ; } ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $answerId is addressed to ${answerTo:-nobody} and asked by ${answerOwner:-nobody}, so $answerMember cannot answer it" >&2
 			set +e ; return 1
 		fi
 		## The answering session comes from the caller's own environment, never from an
 		## argument, and is recorded beside the member. One the question pinned must match.
 		local answerSession="${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" answerPinned
+		## An operator of the console answers from no session. What the record keeps in its
+		## place names the console and the account, `console:<account>`: so the asking run's
+		## Wait takes the answer from the record, as it takes any answer given through an
+		## operation (AgentsWaitProbeAsk), and a question pinned to one session is no bar to it.
+		[ -z "$answerConsole" ] || answerSession="console:$answerConsole"
 		if [ -z "$answerSession" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: this caller carries no session id, so the answer cannot be bound to a session and is not applied; $answerId stays open" >&2
 			set +e ; return 1
 		fi
 		answerPinned="$( AgentsToolsEscalationField "$answerFile" answerer-session )"
-		if [ -n "$answerPinned" ] && [ "$answerPinned" != "$answerSession" ] ; then
+		if [ -z "$answerConsole" ] && [ -n "$answerPinned" ] && [ "$answerPinned" != "$answerSession" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $answerId may be answered only from session $answerPinned, and this caller is session $answerSession; it stays open" >&2
 			set +e ; return 1
 		fi
@@ -1348,7 +1409,29 @@ case "$1" in
 			set +e ; return 1
 		fi
 		## One form on the record whichever way the answer came: a Slack reply is read lowercased.
-		answerVerdict="$( printf '%s' "$answerVerdict" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		if [ -n "$answerConsole" ] ; then
+			## Typed at a console: read as the first line of a reply is, by the same reader, so a
+			## kind's own word, the number of an option and the words after a word all stand. A
+			## plain question with no answer form takes words alone: they are its answer, kept
+			## as the first line of a reply is kept.
+			local answerTyped="$answerVerdict"
+			if { [ -z "$answerKind" ] || [ "$answerKind" = "question" ] ; } && [ -z "$( AgentsToolsEscalationField "$answerFile" select )" ] ; then
+				answerVerdict="$( printf '%s' "$answerTyped${answerText:+ $answerText}" | LC_ALL=C tr -s '\r\n\t' '   ' )" ; answerText=""
+				case "$answerVerdict" in *[!\ ]*) answerFound=1 ;; esac
+			else
+				answerVerdict="$( AgentsToolsEscalationTypedVerdict "$answerFile" "$answerTyped" )"
+				case "$answerVerdict" in
+					*' -- '*) [ -n "$answerText" ] || answerText="${answerVerdict#* -- }" ; answerVerdict="${answerVerdict%% -- *}" ;;
+				esac
+				[ -z "$answerVerdict" ] || answerFound=1
+			fi
+			if [ -z "$answerFound" ] ; then
+				echo "$MDSC_CMD: ⛔ ERROR: \"$answerTyped\" is not an answer of this ${answerKind:-question}, so nothing is applied and $answerId stays open" >&2
+				set +e ; return 1
+			fi
+		else
+			answerVerdict="$( printf '%s' "$answerVerdict" | LC_ALL=C tr 'A-Z' 'a-z' )"
+		fi
 		case "$answerKind:$answerVerdict" in
 			readback:yes|readback:no|readback:correct|permission:deny|permission:allow-once|permission:allow-session|permission:allow-task) answerFound=1 ;;
 			permission-set:allow-set|permission-set:deny|permission-set:edit) answerFound=1 ;;
@@ -1378,6 +1461,7 @@ case "$1" in
 			echo "$MDSC_CMD: ⛔ ERROR: the answer $answerVerdict for $answerId was not applied" >&2
 			set +e ; return 1
 		}
+		[ -z "$answerConsole" ] || AgentsToolsEscalationConsoleTrace "$answerFile" "$answerId" "$answerBlock" "$answerConsole" "$answerVerdict" "$answerText"
 		return 0
 	;;
 

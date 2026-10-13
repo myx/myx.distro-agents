@@ -131,6 +131,7 @@ rigOthers(){ ## how many starts were neither the list of the sessions nor the ki
 
 echo "-- the kill key asks first, and says exactly what will be killed --"
 rigCase esc
+rigBoxHas(){ printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || : ; } ## tag, text -- how many lines of that drawing of a dialog hold the text
 rigScript <<'RIGSCRIPT'
 keys ENTER
 wait sessions 30
@@ -141,10 +142,12 @@ cells onKeys 37 1 83
 keys k
 get asked
 show d
+box b
 cells askedLine 38 1 83
 keys y e
 get typing
 cells typingLine 38 1 83
+box t
 keys ESC
 turn
 get esc
@@ -152,13 +155,13 @@ said escLine
 cells escKeys 37 1 83
 RIGSCRIPT
 rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS1 [keys: k kill  l log]"
-rigAssert "k opens the line to type in, and asks for the word"       "[$( rigVal asked.dialog )] [$( rigVal askedLine )] $( rigVal asked.cursor )" "[kill the session, 2 agents? type yes:|] [kill the session, 2 agents? type yes:] 38,39"
-rigAssert "above the line stands what will be killed: the session by its name and its id" "[$( rigPane d 32 )][$( rigPane d 33 )]" "[ KILL the session daily of Monday][ session $rigS1]"
-rigAssert "each agent that is alive, with its state and its own id"  "[$( rigPane d 34 )][$( rigPane d 35 )][$( rigPane d 36 )]" \
-	"[ Its 2 live agents end the hard way: no closure runs, none is asked anything.][   magic-coordinator  running waiting  $rigS1][   magic-tester       running working  $rigR2]"
-rigAssert "how many are left as they are, and how to back out"       "[$( rigPane d 37 )][$( rigPane d 38 )]" "[ 2 other agents are not alive on this host: they are left as they are.][ Type yes and Enter to kill. Esc, or anything else, kills nothing.]"
+rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to kill ' ) $( rigBoxHas b '[ Kill ]  [ Cancel ]' )" "[kill:word|] [Kill the session] 1 1"
+rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║ KILL the session daily of Monday ' ) $( rigBoxHas b "║ session $rigS1 " )" "1 1"
+rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║ Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║   magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║   magic-tester       running working  $rigR2 " )" "1 1 1"
+
+rigAssert "how many are left as they are, and how to back out"     "$( rigBoxHas b '║ 2 other agents are not alive on this host: they are left as they are. ' ) $( rigBoxHas b '║ The word yes, typed whole, and Kill or Enter: that kills. Cancel and Esc ' )" "1 1"
 rigAssert "the pane of the session stays above it, and nothing spills" "[$( rigPane d 3 )] $( rigVal asked.spills )" "[ state     running] 0"
-rigAssert "what is typed shows in the line"                          "[$( rigVal typing.dialog )] [$( rigVal typingLine )]" "[kill the session, 2 agents? type yes:|ye] [kill the session, 2 agents? type yes: ye]"
+rigAssert "what is typed shows in the field"                       "[$( rigVal typing.dialog )] $( rigBoxHas t '║ ye ' )" "[kill:word|ye] 1"
 rigAssert "Esc closes the line: the bottom line is empty again, and the keys of the item are back" "[$( rigVal esc.dialog )] [$( rigVal esc.notice )] [$( rigVal escLine )] [$( rigVal escKeys )]" "[] [] [] [keys: k kill  l log]"
 rigAssert "and no operation was called but the list"                 "$( rigKills ) $( rigOthers ) $( rigVal esc.calls ) [$( rigVal esc.reading )]" "0 0 0 []"
 
@@ -185,7 +188,7 @@ show z
 cells afterRow 4 85 119
 cells afterKeys 37 1 83
 RIGSCRIPT
-rigAssert "until Enter nothing is called"                            "[$( rigVal typed.dialog )] [$( rigVal typed.reading )]" "[kill the session, 2 agents? type yes:|yes] []"
+rigAssert "until Enter nothing is called"                            "[$( rigVal typed.dialog )] [$( rigVal typed.reading )]" "[kill:word|yes] []"
 rigAssert "Enter on the word starts the kill, beside the screen"     "[$( rigVal asked.dialog )] $( rigVal asked.reading ) [$( rigVal askedLine )]" "[] action:kill:$rigS1 [kill asked of the tooling: the session daily of Monday]"
 rigAssert "the operation is called once, with the id of that session and nothing more" "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigS1]]"
 rigAssert "nothing goes to its standard input, and nothing else is called" "$( [ -e "$MANAGER_SCREEN_RIG/stdin.--manager-session-kill" ] && printf input || printf none ) $( rigOthers )" "none 0"
@@ -210,6 +213,7 @@ cells onKeys 37 1 83
 keys k
 get asked
 show d
+box b
 keys y e s ENTER
 wait action 30
 get answered
@@ -217,10 +221,10 @@ show a
 said answeredLine
 RIGSCRIPT
 rigAssert "an agent that joined the session is selected"             "$( rigVal on.path ) $( rigVal on.selected ) [$( rigVal onKeys )]" "sessions/$rigS1 $rigR2 [keys: k kill  l log]"
-rigAssert "the line asks for the word, naming the agent"             "[$( rigVal asked.dialog )]" "[kill the agent magic-tester? type yes:|]"
-rigAssert "above it: that agent alone, by its own id, and of which session" "[$( rigPane d 34 )][$( rigPane d 35 )][$( rigPane d 36 )]" \
-	"[ KILL the agent magic-tester alone][ run $rigR2, running working][ of the session daily of Monday ($rigS1)]"
-rigAssert "and that the others run on"                               "[$( rigPane d 37 )][$( rigPane d 38 )]" "[ It ends the hard way: no closure runs, it is asked nothing. The others run on.][ Type yes and Enter to kill. Esc, or anything else, kills nothing.]"
+rigAssert "the dialog asks for the word, naming the agent"          "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )]" "[kill:word|] [Kill the agent magic-tester]"
+rigAssert "it says: that agent alone, by its own id, and of which session" "$( rigBoxHas b '║ KILL the agent magic-tester alone ' ) $( rigBoxHas b "║ run $rigR2, running working " ) $( rigBoxHas b "║ of the session daily of Monday ($rigS1) " )" "1 1 1"
+
+rigAssert "and that the others run on"                              "$( rigBoxHas b '║ It ends the hard way: no closure runs, it is asked nothing. The others ' )" "1"
 rigAssert "the operation is called once, with the run's own id and --run" "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigR2][--run]]"
 rigAssert "and never with the id of its session"                     "$( LC_ALL=C grep -c -F -- "$rigS1" "$MANAGER_SCREEN_RIG/words" || : )" 0
 rigAssert "the answer of that one run is shown"                      "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )]" "[kill: 1 ended] [ the kill, answered 02:30:00:][   magic-tester       ended][]"
@@ -236,14 +240,15 @@ get on
 keys k
 get asked
 show d
+box b
 keys y e s ENTER
 wait action 30
 get answered
 said answeredLine
 RIGSCRIPT
 rigAssert "the founder is selected: its id is the id of its session" "$( rigVal on.path ) $( rigVal on.selected )" "sessions/$rigS1 $rigS1"
-rigAssert "the line says that it alone is ended, not the session"    "[$( rigVal asked.dialog )] [$( rigPane d 33 )][$( rigPane d 34 )][$( rigPane d 37 )]" \
-	"[kill the agent magic-coordinator? type yes:|] [ KILL the agent magic-coordinator alone][ run $rigS1, running waiting][ It is the founder: its id is its session's. It alone is ended, not the session.]"
+rigAssert "the dialog says that it alone is ended, not the session"  "[$( rigVal asked.dialog )] $( rigBoxHas b '║ KILL the agent magic-coordinator alone ' ) $( rigBoxHas b "║ run $rigS1, running waiting " ) $( rigBoxHas b '║ It is the founder: its id is its session' )" "[kill:word|] 1 1 1"
+
 rigAssert "the operation is called once, with that id and --run"     "$( rigKills ) [$( rigKillWords )]" "1 [[--manager-session-kill][--session-id][$rigS1][--run]]"
 rigAssert "never with the id alone, which would end the whole session" "$( rigCalled "$rigKillSession" ) $( rigCalled "$rigKillFounder" )" "0 1"
 rigAssert "the founder alone is answered for"                        "[$( rigVal answeredLine )]" "[kill: 1 ended]"
@@ -256,26 +261,32 @@ wait sessions 30
 keys DOWN DOWN
 keys k y e ENTER
 get part
-said partLine
+keys ESC
 keys k Y E S ENTER
 get capitals
+keys ESC
 keys k SPACE y e s ENTER
 get spaceBefore
+keys ESC
 keys k y e s SPACE ENTER
 get spaceAfter
+keys ESC
 keys k y e s s ENTER
 get more
+keys ESC
 keys k n o ENTER
 get no
+keys ESC
 keys k ENTER
 get nothing
+keys ESC
 turn 3
 get end
 RIGSCRIPT
-rigNothing="nothing was killed: the word typed was not yes"
-rigAssert "a part of the word kills nothing, and the bottom line says so" "[$( rigVal part.dialog )] [$( rigVal part.notice )] [$( rigVal partLine )]" "[] [$rigNothing] [$rigNothing]"
-rigAssert "neither do capitals, a space before it or after it, or a letter more" "[$( rigVal capitals.notice )][$( rigVal spaceBefore.notice )][$( rigVal spaceAfter.notice )][$( rigVal more.notice )]" "[$rigNothing][$rigNothing][$rigNothing][$rigNothing]"
-rigAssert "nor another word, nor no word at all"                     "[$( rigVal no.notice )][$( rigVal nothing.notice )]" "[$rigNothing][$rigNothing]"
+rigNothing="nothing is killed: the word typed is not yes"
+rigAssert "a part of the word kills nothing: the dialog stays open, and says so" "[$( rigVal part.dialog )] [$( rigVal part.dialogSays )]" "[kill:word|ye] [$rigNothing]"
+rigAssert "neither do capitals, a space before it or after it, or a letter more" "[$( rigVal capitals.dialogSays )][$( rigVal spaceBefore.dialogSays )][$( rigVal spaceAfter.dialogSays )][$( rigVal more.dialogSays )]" "[$rigNothing][$rigNothing][$rigNothing][$rigNothing]"
+rigAssert "nor another word, nor no word at all"                     "[$( rigVal no.dialogSays )][$( rigVal nothing.dialogSays )]" "[$rigNothing][$rigNothing]"
 rigAssert "the operation was never called"                           "$( rigKills ) $( rigOthers ) $( rigVal end.calls ) [$( rigVal end.reading )]" "0 0 0 []"
 
 echo "-- a row that cannot be killed says so, and nothing is asked --"
@@ -392,7 +403,7 @@ keys y e s ENTER
 wait action 30
 get answered
 RIGSCRIPT
-rigAssert "with the focus on the left pane, k asks and the word kills" "$( rigVal asked.focus ) [$( rigVal asked.dialog )] $( rigKills ) [$( rigKillWords )]" "view [kill the session, 2 agents? type yes:|] 1 [[--manager-session-kill][--session-id][$rigS1]]"
+rigAssert "with the focus on the left pane, k asks and the word kills" "$( rigVal asked.focus ) [$( rigVal asked.dialog )] $( rigKills ) [$( rigKillWords )]" "view [kill:word|] 1 [[--manager-session-kill][--session-id][$rigS1]]"
 
 echo "-- a kill that was confirmed is carried out whole, also when the screen ends first --"
 rigEnded(){ ## the arguments of a start, tenths of a second to wait at most -- how many starts with exactly those came to their own end by then

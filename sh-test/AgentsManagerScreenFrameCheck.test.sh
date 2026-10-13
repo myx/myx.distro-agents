@@ -99,7 +99,7 @@ rigAssert "the first line is the menu bar, across the whole width, a hot letter 
 rigAssert "the last line is the status line, across the whole width, a key in it apart"   "$( rigLine k 40 | LC_ALL=C tr H R ) $( rigLine k 40 | LC_ALL=C cut -c1-10 )" "$( rigRepeat R 120 ) RHHHHHRRRR"
 rigAssert "the column between the panes does not cross them"         "[$( rigVal sepTop )][$( rigVal sepBottom )]" "[][]"
 rigAssert "the top line shows the workspace and the clock"           "$( rigLine a 1 | LC_ALL=C sed -e 's/  */ /g' )" " ≡ Go Session Member View Help ws-rig 12:34:56 "
-rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a All/active  F5 Read  F10 Menu  Alt-X Exit  Tab Window"
+rigAssert "the bottom line shows the key hints"                      "$( rigLine a 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Open  a Active  u Read  m Menu  Alt-X Exit  Tab Window"
 rigAssert "nothing was drawn past the end of a line"                 "$( rigVal d.spills )" 0
 
 echo "-- at 80 columns by 24 lines --"
@@ -124,7 +124,7 @@ get b
 size 80 24
 get c
 size 20 5
-keys q
+keys ALT-x
 get q
 RIGSCRIPT
 rigAssert "one line says that the terminal is too small"             "[$( rigLine a 1 )]" "[Too small: 20x5 (ne…]"
@@ -194,7 +194,7 @@ rigAssert "the column between the panes and the cut mark are drawn in one byte e
 rigAssert "what such a terminal cannot show is given as ?, cell for cell" "[$( rigVal given )]" "[a??b?c?]"
 
 echo "-- the real screen on a pseudo-terminal: the quit key --"
-rigPty 80 24 "Sessions / Activity" q "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigPty 80 24 "Sessions / Activity" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "the screen came up"                                       "$( rigVal pty.frame ) $( rigVal pty.entered ) $( rigVal pty.modeTaken )" "yes yes yes"
 rigAssert "the quit key ends it with status 0"                       "$( rigVal pty.rc )" 0
 rigAssert "the terminal is left as it was"                           "$( rigVal pty.left ) $( rigVal pty.modeBack )" "yes yes"

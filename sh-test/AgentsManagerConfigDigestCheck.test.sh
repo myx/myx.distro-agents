@@ -22,6 +22,10 @@
 ## none is made. Offline; only the rig's own tree is read.
 ## The sixth subject, the interface settings of the user, has its own check, AgentsManagerConfigInterfaceCheck,
 ## with the one operation of this family's settings that writes: here it is held only in its place.
+## THE LABELS: every row ends with what a screen calls it, its last field: capitalised words, more than one, their
+## blanks written `_`. Held: the six labels of the subjects; the label of each line the include prints under a key
+## of its own, each from its own row of the one declaration; a line whose key is not the include's by the rule of
+## its row, the words of the key or the name after a word; a line no row fits gets `-`, on which this check fails.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -153,23 +157,23 @@ rigRun "$rigOp"
 cp "$rigTmp/out" "$rigTmp/whole"
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the subjects come in the one order: the workspace, the CLI services, the outside systems, the main loop, the scopes, the interface" "$( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )" "workspace cli systems loop scopes interface "
-rigAssert "every row has the fields of its kind: 3 of a subject, 6 of a line, 8 of a line of the interface, and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "subject" ) ? 3 : ( $1 == "line" ) ? ( $2 == "interface" ? 8 : 6 ) : -1 ; if ( NF != want ) bad++ ; } END { print ( NR > 20 ? "rows" : "few" ) ":" bad + 0 }' "$rigTmp/out" )" "rows:0"
+rigAssert "every row has the fields of its kind, its label the last: 4 of a subject, 7 of a line, 9 of a line of the interface, and no line is of another kind" "$( LC_ALL=C awk -F'\t' '{ want = ( $1 == "subject" ) ? 4 : ( $1 == "line" ) ? ( $2 == "interface" ? 9 : 7 ) : -1 ; if ( NF != want ) bad++ ; } END { print ( NR > 20 ? "rows" : "few" ) ":" bad + 0 }' "$rigTmp/out" )" "rows:0"
 rigAssert "a subject row counts the lines after it, and every line stands under its own subject" "$( LC_ALL=C awk -F'\t' '$1 == "subject" { if ( name != "" && said != seen ) bad++ ; name = $2 ; said = $3 ; seen = 0 ; next ; } $1 == "line" { if ( $2 != name ) bad++ ; seen++ ; } END { if ( said != seen ) bad++ ; print bad + 0 }' "$rigTmp/out" )" "0"
 rigAssert "every state is one of the four, and no field is empty or holds a space" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $5 != "set" && $5 != "missing" && $5 != "secret-set" && $5 != "secret-missing" { bad++ ; } { for ( i = 1 ; i <= NF ; i++ ) if ( $i == "" || $i ~ / / ) bad++ ; } END { print bad + 0 }' "$rigTmp/out" )" "0"
 
 echo "-- 2. the workspace and its paths --"
 rigWant="$( {
-	printf 'subject\tworkspace\t10\n'
-	printf 'line\tworkspace\tpaths\tworkspace-root\tset\t%s\n' "$rigWs"
-	printf 'line\tworkspace\tpaths\ttooling-origin\tset\t%s\n' "$rigOrigin"
-	printf 'line\tworkspace\tpaths\tteam-data-root\tset\t%s\n' "$rigData"
-	printf 'line\tworkspace\tpaths\tsession-records\tmissing\t%s\n' "$rigAgents/spawned"
-	printf 'line\tworkspace\tpaths\tsession-stores\tmissing\t%s\n' "$rigAgents/sessions"
-	printf 'line\tworkspace\tpaths\tsettings\tset\t%s\n' "$rigScopes"
-	printf 'line\tworkspace\tplaces\t.skillset-shared\tmissing\t%s\n' "$rigHome/.claude/skills"
-	printf 'line\tworkspace\tplaces\t.skillset-.local\tset\t%s\n' "$rigSkills"
-	printf 'line\tworkspace\tplaces\tws\tset\t%s\n' "$rigWs"
-	printf 'line\tworkspace\tplaces\tdocs\tset\t%s\n' "$rigTmp/docs"
+	printf 'subject\tworkspace\t10\tWorkspace_Paths\n'
+	printf 'line\tworkspace\tpaths\tworkspace-root\tset\t%s\tWorkspace_Root\n' "$rigWs"
+	printf 'line\tworkspace\tpaths\ttooling-origin\tset\t%s\tTooling_Origin\n' "$rigOrigin"
+	printf 'line\tworkspace\tpaths\tteam-data-root\tset\t%s\tTeam_Data_Root\n' "$rigData"
+	printf 'line\tworkspace\tpaths\tsession-records\tmissing\t%s\tSession_Records\n' "$rigAgents/spawned"
+	printf 'line\tworkspace\tpaths\tsession-stores\tmissing\t%s\tSession_Stores\n' "$rigAgents/sessions"
+	printf 'line\tworkspace\tpaths\tsettings\tset\t%s\tScope_Settings_Folder\n' "$rigScopes"
+	printf 'line\tworkspace\tplaces\t.skillset-shared\tmissing\t%s\tRegistered_Place_.skillset-shared\n' "$rigHome/.claude/skills"
+	printf 'line\tworkspace\tplaces\t.skillset-.local\tset\t%s\tRegistered_Place_.skillset-.local\n' "$rigSkills"
+	printf 'line\tworkspace\tplaces\tws\tset\t%s\tRegistered_Place_ws\n' "$rigWs"
+	printf 'line\tworkspace\tplaces\tdocs\tset\t%s\tRegistered_Place_docs\n' "$rigTmp/docs"
 } )"
 rigAssert "the whole subject, byte for byte: the root of the workspace, the origin of the tooling, the root of the team data, the session stores and the settings, then each place with its path" "$( rigPart workspace "$rigTmp/out" )" "$rigWant"
 rigAssert "a path that is not there reads missing, with the path it would have: no session has run in the rig" "$( rigLine workspace paths session-records )" "missing $rigAgents/spawned"
@@ -188,15 +192,15 @@ rigAssert "each CLI has its wait round: the vendor claude's own, the safe one of
 
 echo "-- 4. the scopes: a scope with no key is left out, a secret is masked, a plain key shows its value --"
 rigWant="$( {
-	printf 'subject\tscopes\t6\n'
-	printf 'line\tscopes\tmagic-team\tSLACK_BOT_TOKEN\tsecret-set\t-\n'
-	printf 'line\tscopes\tmagic-team\tJIRA_API_TOKEN\tsecret-set\t-\n'
-	printf 'line\tscopes\tmagic-team\tSPAWN_CLI_SERVICE\tset\tclaude\n'
-	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_MAGIC_TEAM\tset\tC0RIGTEAM01\n'
-	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_HUMAN_OWNER\tset\tU0RIGOWNER1\n'
-	printf 'line\tscopes\tmagic-team\tANTHROPIC_API_KEY\tsecret-set\t-\n'
+	printf 'subject\tscopes\t6\tScope_Settings\n'
+	printf 'line\tscopes\tmagic-team\tSLACK_BOT_TOKEN\tsecret-set\t-\tSlack_Bot_Token\n'
+	printf 'line\tscopes\tmagic-team\tJIRA_API_TOKEN\tsecret-set\t-\tJira_API_Token\n'
+	printf 'line\tscopes\tmagic-team\tSPAWN_CLI_SERVICE\tset\tclaude\tSpawn_CLI_Service\n'
+	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_MAGIC_TEAM\tset\tC0RIGTEAM01\tSlack_Channel_Magic_Team\n'
+	printf 'line\tscopes\tmagic-team\tSLACK_CHANNEL_HUMAN_OWNER\tset\tU0RIGOWNER1\tSlack_Channel_Human_Owner\n'
+	printf 'line\tscopes\tmagic-team\tANTHROPIC_API_KEY\tsecret-set\t-\tAnthropic_API_Key\n'
 } )"
-rigAssert "the whole subject, byte for byte: the one scope that holds keys, each key in the order of its file" "$( rigPart scopes "$rigTmp/out" )" "$rigWant"
+rigAssert "the whole subject, byte for byte: the one scope that holds keys, each key in the order of its file, each labelled by the words of its key" "$( rigPart scopes "$rigTmp/out" )" "$rigWant"
 rigAssert "the rig has four scope files and three of them are empty: the digest shows one scope" "$( ls "$rigScopes" | LC_ALL=C grep -c -e '\.agent\.env$' ) $( rigGroups scopes )" "4 magic-team"
 rigAssert "a key the catalogue marks secret is masked: it reads as set, and nothing of its value is printed" "$( rigLine scopes magic-team SLACK_BOT_TOKEN )" "secret-set -"
 rigAssert "a key with the shape of a secret is masked though no catalogue names it, as a key the catalogue marks" "$( . "$rigHere/AgentsTools.OwnerSetupOptionSpec.include" ; AgentsToolsOwnerSetupOptionSpec JIRA_API_TOKEN | LC_ALL=C grep -c . ) $( rigLine scopes magic-team JIRA_API_TOKEN )" "0 secret-set -"
@@ -249,14 +253,14 @@ rigAssert "the workspace's own wait round and tier are read: every CLI's round i
 
 echo "-- 6. the outside systems: configured or not, with what is lacking by key name --"
 rigWant="$( {
-	printf 'subject\tsystems\t7\n'
-	printf 'line\tsystems\tslack\tmagic-team\tset\tSLACK_WORKSPACE_DOMAIN,SLACK_CHANNEL_EVENT_TRACK,SLACK_CHANNEL_EVENT_ALERT\n'
-	printf 'line\tsystems\tslack\tmagic-coordinator\tmissing\tSLACK_USER_TOKEN\n'
-	printf 'line\tsystems\temail\tmagic-coordinator\tset\tEMAIL_SMTP_HOST\n'
-	printf 'line\tsystems\tjira\tmagic-team\tset\t-\n'
-	printf 'line\tsystems\tconfluence\tmagic-team\tmissing\tCONFLUENCE_SPACE\n'
-	printf 'line\tsystems\ttrello\tmagic-coordinator\tset\t-\n'
-	printf 'line\tsystems\tgoogle\tmagic-coordinator\tset\t-\n'
+	printf 'subject\tsystems\t7\tOutside_Systems\n'
+	printf 'line\tsystems\tslack\tmagic-team\tset\tSLACK_WORKSPACE_DOMAIN,SLACK_CHANNEL_EVENT_TRACK,SLACK_CHANNEL_EVENT_ALERT\tScope_magic-team\n'
+	printf 'line\tsystems\tslack\tmagic-coordinator\tmissing\tSLACK_USER_TOKEN\tScope_magic-coordinator\n'
+	printf 'line\tsystems\temail\tmagic-coordinator\tset\tEMAIL_SMTP_HOST\tScope_magic-coordinator\n'
+	printf 'line\tsystems\tjira\tmagic-team\tset\t-\tScope_magic-team\n'
+	printf 'line\tsystems\tconfluence\tmagic-team\tmissing\tCONFLUENCE_SPACE\tScope_magic-team\n'
+	printf 'line\tsystems\ttrello\tmagic-coordinator\tset\t-\tScope_magic-coordinator\n'
+	printf 'line\tsystems\tgoogle\tmagic-coordinator\tset\t-\tScope_magic-coordinator\n'
 } )"
 rigAssert "the whole subject, byte for byte: each system in the tooling's own order, the team's own Slack first, each scope that holds it as set or missing, with the keys it lacks" "$( rigPart systems "$rigTmp/out" )" "$rigWant"
 rigAssert "the team's own Slack is configured, and lacks three keys of the catalogue, named in its order" "$( rigLine systems slack magic-team )" "set SLACK_WORKSPACE_DOMAIN,SLACK_CHANNEL_EVENT_TRACK,SLACK_CHANNEL_EVENT_ALERT"
@@ -269,19 +273,19 @@ rigAssert "in a workspace with no setting each system reads missing: the team's 
 echo "-- 7. the main loop and the heartbeat --"
 rigRun "$rigOp" loop
 rigWant="$( {
-	printf 'subject\tloop\t12\n'
-	printf 'line\tloop\tmain-loop\tstate-file\tset\t%s\n' "$rigAgents/main-loop.state"
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_OUTCOME\tset\tsucceeded\n'
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_ITERATION_UTC\tset\t2026-10-13T00:10:00Z\n'
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_CONSECUTIVE_FAILURES\tset\t0\n'
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_CURRENT_DELAY_SECONDS\tset\t29\n'
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA\tset\tskipped\n'
-	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA_CONSECUTIVE_FAILURES\tset\t0\n'
-	printf 'line\tloop\theartbeat\tstate-note\tset\t%s\n' "$rigNote"
-	printf 'line\tloop\theartbeat\tstate\tset\theartbeat-running\n'
-	printf 'line\tloop\theartbeat\trecheck-date\tset\t2099-01-01_00:00_+0000\n'
-	printf 'line\tloop\theartbeat\tlast-iteration-timestamp\tset\t2026-10-12T19:54:21Z\n'
-	printf 'line\tloop\theartbeat\trunning\tset\tyes\n'
+	printf 'subject\tloop\t12\tMain_Loop_And_Heartbeat\n'
+	printf 'line\tloop\tmain-loop\tstate-file\tset\t%s\tMain_Loop_State_File\n' "$rigAgents/main-loop.state"
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_OUTCOME\tset\tsucceeded\tMain_Loop_Last_Outcome\n'
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_LAST_ITERATION_UTC\tset\t2026-10-13T00:10:00Z\tMain_Loop_Last_Iteration_UTC\n'
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_CONSECUTIVE_FAILURES\tset\t0\tMain_Loop_Consecutive_Failures\n'
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_CURRENT_DELAY_SECONDS\tset\t29\tMain_Loop_Current_Delay_Seconds\n'
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA\tset\tskipped\tMain_Loop_Team_Data\n'
+	printf 'line\tloop\tmain-loop\tMAIN_LOOP_TEAM_DATA_CONSECUTIVE_FAILURES\tset\t0\tMain_Loop_Team_Data_Consecutive_Failures\n'
+	printf 'line\tloop\theartbeat\tstate-note\tset\t%s\tHeartbeat_State_Note\n' "$rigNote"
+	printf 'line\tloop\theartbeat\tstate\tset\theartbeat-running\tHeartbeat_State\n'
+	printf 'line\tloop\theartbeat\trecheck-date\tset\t2099-01-01_00:00_+0000\tHeartbeat_Recheck_Date\n'
+	printf 'line\tloop\theartbeat\tlast-iteration-timestamp\tset\t2026-10-12T19:54:21Z\tHeartbeat_Last_Iteration\n'
+	printf 'line\tloop\theartbeat\trunning\tset\tyes\tHeartbeat_Running\n'
 } )"
 rigAssert "the whole subject, byte for byte: the main loop by what its last iteration left, the heartbeat by its note, running while its lock is held" "$rigRc $( cat "$rigTmp/out" )" "0 $rigWant"
 rigNoteWrite heartbeat-running '2026-10-01 00:00 +0000'
@@ -291,7 +295,7 @@ rigNoteWrite heartbeat-finished '2099-01-01 00:00 +0000'
 rigRun "$rigOp" loop
 rigAssert "a heartbeat that has finished does not run, whatever its recheck date" "$( rigLine loop heartbeat state ) / $( rigLine loop heartbeat running )" "set heartbeat-finished / missing no"
 rigRunIn "$rigTmp/ws-bare" "$rigOp" loop
-rigAssert "a workspace where no main loop has run and no heartbeat has a note says so: each reads missing, with the path it would have" "$rigRc $( cat "$rigTmp/out" | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '/' )" "0 subject loop 3/line loop main-loop state-file missing $rigTmp/ws-bare/.local/agents/main-loop.state/line loop heartbeat state-note missing $rigTmp/ws-bare/.local/agents/team-data-root/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md/line loop heartbeat running missing no/"
+rigAssert "a workspace where no main loop has run and no heartbeat has a note says so: each reads missing, with the path it would have" "$rigRc $( cat "$rigTmp/out" | LC_ALL=C tr '\t' ' ' | LC_ALL=C tr '\n' '/' )" "0 subject loop 3 Main_Loop_And_Heartbeat/line loop main-loop state-file missing $rigTmp/ws-bare/.local/agents/main-loop.state Main_Loop_State_File/line loop heartbeat state-note missing $rigTmp/ws-bare/.local/agents/team-data-root/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md Heartbeat_State_Note/line loop heartbeat running missing no Heartbeat_Running/"
 rigNoteWrite heartbeat-running '2099-01-01 00:00 +0000'
 
 echo "-- 8. one subject, or some, by name --"
@@ -312,7 +316,7 @@ rigAssert "and so does an option it does not take, after a name it has: before a
 
 echo "-- 9. it only reads --"
 rigRunIn "$rigTmp/ws-bare" "$rigOp"
-rigAssert "a workspace with no setting at all still has its digest: six subjects, no scope, no CLI asked for, and its team data not there yet" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( rigPart scopes "$rigTmp/out" | LC_ALL=C tr '\t' ' ' ) / $( rigLine cli workspace SPAWN_CLI_SERVICE ) / $( rigLine workspace paths team-data-root )" "0 workspace cli systems loop scopes interface / subject scopes 0 / missing - / missing $rigTmp/ws-bare/.local/agents/team-data-root"
+rigAssert "a workspace with no setting at all still has its digest: six subjects, no scope, no CLI asked for, and its team data not there yet" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( rigPart scopes "$rigTmp/out" | LC_ALL=C tr '\t' ' ' ) / $( rigLine cli workspace SPAWN_CLI_SERVICE ) / $( rigLine workspace paths team-data-root )" "0 workspace cli systems loop scopes interface / subject scopes 0 Scope_Settings / missing - / missing $rigTmp/ws-bare/.local/agents/team-data-root"
 rigAssert "no call so far wrote, made or removed a file of the rig: its workspaces, its home, its skills and its place are as they were" "$( rigTree )" "$rigTreeBefore"
 rigAssert "the include never asks the reader for every line of a scope, the form that prints a secret like any value" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--select-all' -e '--select --all' -e '--all' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--select "' | LC_ALL=C awk '{ print ( $1 > 0 ) ? "one-key-a-call" : "no-read" }' )" "0 one-key-a-call"
 rigAssert "and the digest writes no setting: the include names one form of the reader that changes one, in the scope of the current user, which is the writer of an interface setting (AgentsManagerConfigInterfaceCheck), and no other" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -e '--upsert' -e '--delete' | LC_ALL=C grep -c -v -F -e '--custom-config-option --upsert' || : )" "1 0"
@@ -341,7 +345,7 @@ rigAssert "the operation has its syntax echo, its syntax line and its entry, onc
 rigForm(){ ## row kind -- the form line of that row in the entry, its back quotes and its indent taken off
 	rigEntry | LC_ALL=C sed -n -e 's/^[[:space:]]*`\('"$1"' <.*>\)`$/\1/p'
 }
-rigAssert "its entry gives the form of each of the two rows" "$( rigForm subject ) | $( rigForm line )" "subject <subject> <lines> | line <subject> <group> <key> <state> <value>"
+rigAssert "its entry gives the form of each of the two rows" "$( rigForm subject ) | $( rigForm line )" "subject <subject> <lines> <label> | line <subject> <group> <key> <state> <value> <label>"
 rigRun "$rigOp"
 rigAssert "and every row printed has exactly the fields its form names, a line of the interface apart, whose own form has two more" "$( for rigKind in subject line ; do LC_ALL=C awk -F'\t' -v wantKind="$rigKind" -v wantFields="$( rigForm "$rigKind" | LC_ALL=C awk '{ print NF }' )" '$1 == wantKind && !( $1 == "line" && $2 == "interface" ) { rows++ ; if ( NF != wantFields ) bad++ ; } END { printf "%s:%s ", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" ; done )" "rows:0 rows:0 "
 rigAssert "the entry names the six subjects and the four states" "$( for rigWord in workspace cli systems loop scopes interface set missing secret-set secret-missing ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "yyyyyyyyyy"
@@ -351,7 +355,42 @@ rigAssert "control: the entry was cut up to the next operation's heading" "$( ri
 rigRun --help-syntax
 rigAssert "--help-syntax prints its line, once" "$rigRc $( LC_ALL=C grep -c -x -F -- "$rigSyntax" "$rigTmp/err" || : )" "0 1"
 
-echo "-- 12. no secret of the rig stands anywhere in what was printed --"
+echo "-- 12. the labels: what a screen calls each subject and each line --"
+rigInclude="$rigHere/AgentsTools.ManagerConfig.include"
+rigLabel(){ ## file, subject, group, key -- the label of that line in the file: its last field
+	LC_ALL=C awk -F'\t' -v wantSubject="$2" -v wantGroup="$3" -v wantKey="$4" '$1 == "line" && $2 == wantSubject && $3 == wantGroup && $4 == wantKey { print $NF ; }' "$1"
+}
+rigLabelRule(){ ## file -- its rows against the rule of a label: `rows:<how many break it>`, `few` ahead of the colon where the file holds too few rows to say
+	LC_ALL=C awk -F'\t' '$1 == "subject" || $1 == "line" {
+		rows++ ; label = $NF ; words = split( label, word, "_" )
+		named = ( $1 == "line" && ( ( $2 == "workspace" && $3 == "places" ) || ( $2 == "systems" && $4 != "-" ) ) ) ? 1 : 0
+		if ( label == "-" || words < 2 || label !~ /^[A-Z]/ || ( $1 == "line" && label == $4 ) ) { bad++ ; next }
+		for ( at = 1 ; at <= words - named ; at++ ) if ( word[at] !~ /^[A-Z0-9]/ ) { bad++ ; break }
+	} END { print ( rows > 20 ? "rows" : "few" ) ":" bad + 0 }' "$1"
+}
+## The one declaration, as the include holds it, and the words it writes in capitals: what the controls below
+## give the labeller, with a line of their own making.
+rigTable="$( LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigInclude" | LC_ALL=C sed -e 's/^agentsManagerConfigLabels="//' -e 's/"$//' )"
+rigCapitals="$( LC_ALL=C sed -n 's/^agentsManagerConfigLabelCapitals="\(.*\)"$/\1/p' "$rigInclude" )"
+rigNamed(){ ## subject, group, key -- the label the declaration gives a line of that name, by the labeller itself
+	{ printf '%s\n' "$rigTable" ; printf '\034\n' ; printf 'line\t%s\t%s\t%s\tset\tx\n' "$1" "$2" "$3" ; } | LC_ALL=C awk -v capitals="$rigCapitals" -f "$rigHere/AgentsManagerConfigLabels.awk" 2> /dev/null | LC_ALL=C awk -F'\t' '{ print $NF }'
+}
+rigAssert "each subject row ends with its label" "$( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s=%s ", $2, $NF }' "$rigTmp/whole" )" "workspace=Workspace_Paths cli=CLI_Services systems=Outside_Systems loop=Main_Loop_And_Heartbeat scopes=Scope_Settings interface=Interface_Settings "
+rigRun "$rigOp"
+cp "$rigTmp/out" "$rigTmp/whole-late"
+rigRunIn "$rigTmp/ws-bare" "$rigOp"
+rigAssert "every row has a label that keeps the rule, in the first digest, in the last and in that of a workspace with no setting: none is absent, none is one word, none is the bare key, each begins with a capital letter and so does each of its words, the name of a place or of a scope apart" "$( rigLabelRule "$rigTmp/whole" ) $( rigLabelRule "$rigTmp/whole-late" ) $( rigLabelRule "$rigTmp/out" )" "rows:0 rows:0 rows:0"
+rigAssert "a system that no scope holds has its one line labelled so" "$( rigLabel "$rigTmp/out" systems email - )" "No_Scope_Configured"
+rigAssert "the paths of the workspace, and a registered place by its name" "$( for rigOne in workspace-root tooling-origin team-data-root session-records session-stores settings ; do printf '%s ' "$( rigLabel "$rigTmp/whole" workspace paths "$rigOne" )" ; done )/ $( rigLabel "$rigTmp/whole" workspace places docs )" "Workspace_Root Tooling_Origin Team_Data_Root Session_Records Session_Stores Scope_Settings_Folder / Registered_Place_docs"
+rigAssert "what the workspace asks of its CLI services, and the lines of one CLI, a credential by the words of its key" "$( for rigOne in SPAWN_CLI_SERVICE SPAWN_HARNESS_TIER WAIT_ROUND_SECONDS spawn-settings-workspace ; do printf '%s ' "$( rigLabel "$rigTmp/whole" cli workspace "$rigOne" )" ; done )/ $( for rigOne in present ANTHROPIC_API_KEY usable wait-round ; do printf '%s ' "$( rigLabel "$rigTmp/whole" cli claude "$rigOne" )" ; done )" "Spawn_CLI_Service Spawn_Harness_Tier Wait_Round_Seconds Spawn_Settings_Workspace / CLI_Present Anthropic_API_Key CLI_Usable CLI_Wait_Round "
+rigAssert "the main loop, what its state file holds by the words of the key, and the heartbeat" "$( rigLabel "$rigTmp/whole" loop main-loop state-file ) $( rigLabel "$rigTmp/whole" loop main-loop MAIN_LOOP_LAST_ITERATION_UTC ) / $( for rigOne in state-note state recheck-date last-iteration-timestamp running ; do printf '%s ' "$( rigLabel "$rigTmp/whole" loop heartbeat "$rigOne" )" ; done )" "Main_Loop_State_File Main_Loop_Last_Iteration_UTC / Heartbeat_State_Note Heartbeat_State Heartbeat_Recheck_Date Heartbeat_Last_Iteration Heartbeat_Running "
+rigAssert "the style of the interface by its own name, and the key of every line still in its own field: the lines are found by the keys they had" "$( rigLabel "$rigTmp/whole" interface style MDAT_MANAGER_STYLE ) $( rigLabel "$rigTmp/whole-late" scopes magic-coordinator EMAIL_SMTP_PORT )" "Interface_Style Email_SMTP_Port"
+rigAssert "the include has the one declaration of the labels, and the labels come from it: control, a line it has no row for gets the label -, which the rule above fails" "$( LC_ALL=C grep -c -e '^agentsManagerConfigLabels="' "$rigInclude" || : ) $( printf '%s\n' "$rigTable" | LC_ALL=C grep -c -e '|' | LC_ALL=C awk '{ print ( $1 > 20 ) ? "rows" : "few" }' ) [$( rigNamed workspace paths no-such-line )] [$( rigNamed loop heartbeat no-such-header )] [$( rigNamed nonesuch any ANY_KEY )] [$( rigNamed workspace paths workspace-root )]" "1 rows [-] [-] [-] [Workspace_Root]"
+rigAssert "the rule of a key's own words: a key of one word gets a second, an empty word is none, a word of the include's list stands in capitals" "$( rigNamed scopes any-scope PORT ) $( rigNamed scopes any-scope KEY_2__URL ) $( rigNamed cli any-cli XAI_API_KEY ) [$rigCapitals]" "Port_Setting Key_2_URL XAI_API_Key [API CLI ID IMAP SMTP URL UTC XAI]"
+rigAssert "every line the include prints under a key of its own has its own row in the declaration, none left to a row for any key: each key it names where it makes a line, and each key the workspace asks its CLI services by" "$( rigLacking="" ; rigCount=0 ; while read -r rigOwner rigOne ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; printf '%s\n' "$rigTable" | LC_ALL=C grep -q -e "^$rigOwner|[^|]*|$rigOne|." || rigLacking="$rigLacking $rigOwner/$rigOne" ; done <<< "$( { LC_ALL=C sed -n 's/^.*AgentsToolsManagerConfig\(Path\)\{0,1\}Line \([a-z][a-z]*\) [^ ]* \([a-z][a-z-]*\) .*$/\2 \3/p' "$rigInclude" ; LC_ALL=C sed -n 's/^	for cliKey in \([A-Z_ ]*\) ; do$/\1/p' "$rigInclude" | LC_ALL=C tr ' ' '\n' | LC_ALL=C sed -e 's/^/cli /' ; } | LC_ALL=C sort -u )" ; printf '%s%s' "$( [ "$rigCount" -ge 16 ] && echo many || echo "few:$rigCount" )" "${rigLacking:- none-lacking}" )" "many none-lacking"
+rigAssert "the entry of the help says what a label is, and names the label of each subject" "$( rigEntry | LC_ALL=C grep -c -F -e '<label> is what a screen calls' || : ) $( for rigWord in 'Workspace Paths' 'CLI Services' 'Outside Systems' 'Main Loop And Heartbeat' 'Scope Settings' 'Interface Settings' ; do rigEntry | LC_ALL=C grep -c -F -- "\`$rigWord\`" | LC_ALL=C awk '{ printf "%s", ( $1 > 0 ) ? "y" : "n" }' ; done )" "1 yyyyyy"
+
+echo "-- 13. no secret of the rig stands anywhere in what was printed --"
 rigAssert "control: each of the thirteen fake secrets stands in a scope file of the rig, whole" "$( while IFS= read -r rigOne ; do LC_ALL=C grep -l -F -e "$rigOne" "$rigScopes"/*.agent.env > /dev/null 2>&1 && printf y || printf n ; done < "$rigTmp/secrets" )" "yyyyyyyyyyyyy"
 rigAssert "control: what every call printed, on both streams, was kept, and a plain value of the rig stands in it" "$( LC_ALL=C grep -c -F -e 'coordinator@rig.example' "$rigTmp/all" | LC_ALL=C awk '{ print ( $1 > 0 ) ? "kept" : "lost" }' ) $( LC_ALL=C grep -c -e '^subject' "$rigTmp/all" | LC_ALL=C awk '{ print ( $1 > 20 ) ? "many" : "few" }' )" "kept many"
 rigAssert "the mark of the fake secrets stands nowhere in it" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"

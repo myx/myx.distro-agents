@@ -129,7 +129,8 @@ class TextSurface:
 ##   turn [<count>]                turns with no key
 ##   wait <kind> <seconds>         turns, in real time, until no call of that kind runs; the selection is taken as
 ##                                 rested first, so the reads of the selected item are started
-##   rows <level> <id>=<label>...  the rows of a level, as if its operation had printed them
+##   rows <level> <id>=<label>...  the rows of a level, as if its operation had printed them; `+` ahead of an id
+##                                 makes its row one that Enter dives into
 ##   rowsgen <level> <count>       the same, <count> generated rows r001.. labelled `row 001`..
 ##   view <count>                  <count> lines in the left pane;  viewline <text>  one more line
 ##   dialog <prompt>               opens the line to type in; what is submitted shows as `submitted: <text>`
@@ -138,6 +139,10 @@ class TextSurface:
 ##                                 buttons `how`, the list `pick`, and the buttons OK and Cancel. OK says what each
 ##                                 control holds, as `pressed ok: ...`, and refuses the name `no` inside the dialog
 ##   tell <title> | <paragraph> [/ <paragraph>...]   opens the message box with that title and that text
+##   mouse <what> <column> <line>  one event of the mouse at that cell, counted from 0, as one turn of the screen:
+##                                 click, double, up or down (the wheel)
+##   mousekey <column> <line> <bit...>   what the screen makes of what curses reports of the mouse, the bits by their
+##                                 names in curses, as `mousekey=<key>`, empty where it makes nothing of it
 ##   box <tag> [roles|looks]       the open dialog as drawn, line by line, with the two cells at its right and the line
 ##                                 under it, where its shadow falls: as text, or as show, roles and looks give a screen
 ##   handler <action>              gives that action a handler that says `handled <action> on <row id>`, on every row
@@ -247,6 +252,7 @@ def scriptRun(module):
             ("keyWait", "%.3f" % module.keyWait(state, clock[0]) if hasattr(module, "keyWait") else ""),
             ("counters", ",".join("%s=%s" % pair for pair in sorted(state.counters.items()))),
             ("failed", ",".join(sorted(state.failed))),
+            ("forced", ",".join(sorted(state.forced))),
             ("spills", surface.spills), ("frames", surface.frames), ("puts", surface.puts),
             ("cursor", "" if surface.cursorAt is None else "%d,%d" % surface.cursorAt),
         ]
@@ -309,7 +315,7 @@ def scriptRun(module):
                 turn()
             turn()
         elif command == "rows":
-            setRows(words[0], [module.newRow(word.partition("=")[0], word.partition("=")[2], "record") for word in words[1:]])
+            setRows(words[0], [module.newRow(word.partition("=")[0].lstrip("+"), word.partition("=")[2], "record", word.startswith("+")) for word in words[1:]])
         elif command == "rowsgen":
             setRows(words[0], [module.newRow("r%03d" % number, "row %03d" % number, "record") for number in range(1, int(words[1]) + 1)])
         elif command == "view":
@@ -320,6 +326,13 @@ def scriptRun(module):
             state.view["lines"].append(rest)
         elif command == "dialog":
             module.openLine(state, rest, lambda dialogState, text: "submitted: " + text)
+        elif command == "mouse":
+            turn("MOUSE:%s:%s:%s" % (words[0], words[1], words[2]))
+        elif command == "mousekey":
+            bits = 0
+            for name in words[2:]:
+                bits |= getattr(module.curses, name, module.WHEEL_DOWN if name == "BUTTON5_PRESSED" else 0)
+            print("mousekey=%s" % (module.mouseKey(int(words[0]), int(words[1]), bits) or ""))
         elif command == "rigdialog":
             rigDialog(rest)
         elif command == "tell":

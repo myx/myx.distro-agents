@@ -42,6 +42,9 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - reminder
   - forwarded
   - now-yours
+  - console-answered
+  - console-rejected
+  - console-dismissed
 - Reasons
   - not-held
 - Words
@@ -242,6 +245,25 @@ Forwarded by {{by}}. The answer in this thread is the verdict for this request.[
 
 ```
 A permission request asked by {{member}} is now yours to answer, {{address-to}}. {{reason}}, so that answer is not applied. Answer it with the escalation answer operation, naming request `{{request-id}}`.
+```
+
+## console-answered
+
+```
+🖥️ Answered from the console by {{by}}: `{{option}}`[[ -- {{text}}]]
+```
+
+## console-rejected
+
+```
+🖥️ Rejected from the console by {{by}}: `{{option}}`[[ -- {{text}}]]
+```
+
+## console-dismissed
+
+```
+🖥️ Dismissed from the console by {{by}}[[: {{reason}}]]
+This question no longer needs an answer.
 ```
 
 # Reasons

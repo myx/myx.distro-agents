@@ -18,7 +18,7 @@
 ##
 
 type AgentsToolsSpawnRoutineExecutorsRoster > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnRoutine.include"
-type AgentsToolsTeamMemberReferenceOnly > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+type AgentsToolsTeamMemberIsTeam > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
 
 ## The rows --manager-routine-list prints: one for each routine file, by owner, then by
 ## selector. Nothing is written. A value's own whitespace goes out as `_` and an absent one
@@ -71,6 +71,13 @@ AgentsToolsManagerRoutineRows(){ ## the operation as it was called
 					## holds one (AgentsToolsTeamMemberStartCheck). The roster is what the rule printed.
 					while IFS= read -r rowsExecutor ; do
 						[ -n "$rowsExecutor" ] || continue
+						## Nor as the team itself, named in a list beside members: alone it is any
+						## member, above (AgentsToolsTeamMemberIsTeam, which that check asks first).
+						if AgentsToolsTeamMemberIsTeam "$rowsExecutor" ; then
+							rowsStart="not-startable"
+							rowsReason="its executor $rowsExecutor is the team itself and no member of it, which is never started"
+							break
+						fi
 						if AgentsToolsTeamMemberReferenceOnly "$( AgentsToolsTeamMemberDirectory "$rowsExecutor" )" ; then
 							rowsStart="not-startable"
 							rowsReason="its executor $rowsExecutor is an identity record, which is never started"

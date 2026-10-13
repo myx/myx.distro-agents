@@ -329,7 +329,7 @@ wait feed 30
 keys LEFT
 wait view 30
 wait feed 30
-keys l
+turn
 wait feed 30
 get s
 show s
@@ -337,7 +337,7 @@ RIGSCRIPT
 rigAssert "l on an agent takes the feed away at once, and asks for the raw log of that run, each time it is pressed for it" "$( rigVal pressed.rawLog ) $( rigVal pressed.viewLines ) $( rigPaneHolds pressed 'step' ) $( rigVal pressed.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -c '^feed:' ) $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run --log" )" "yes 0 0 1 2"
 rigAssert "the pane shows the end of the raw log, and says what it shows" "$( rigVal raw.viewLines ) $( rigVal raw.follow ) [$( rigPane raw 14 )][$( rigPane raw 37 )]" "30 yes [ lines     the raw log, its session log][   -> tool: log line 30]"
 rigAssert "l again shows the feed"                                   "$( rigVal back.rawLog ) [$( rigPane back 14 )][$( rigPane back 37 )]" "no [ lines     the feed, from its transcript][ 02:00:40 💻 step 40 of the tester — execute job 40 · 1 s]"
-rigAssert "the raw log is asked for of the selected item: another item shows its feed" "$( rigVal other.selected ) $( rigVal other.rawLog )" "$rigS1 no"
+rigAssert "the raw log is the choice of the user for the run of the screen: another item shows its raw log too" "$( rigVal other.selected ) $( rigVal other.rawLog )" "$rigS1 yes"
 rigAssert "l on a session shows the logs of its runs, each under a line that names its run" "$( rigVal s.selected ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1 --log" ) [$( rigPane s 18 )][$( rigPane s 19 )][$( rigPane s 20 )][$( rigPane s 21 )][$( rigPane s 22 )]" \
 	"$rigS1 1 [ magic-coordinator 11111111, its session log:][ coordinator log 1][ coordinator log 2][ magic-tester a2a2a2a2, its session log:][ tester log 1]"
 rigAssert "and says which run has none"                              "[$( rigPane s 17 )][$( rigPane s 23 )]" "[ lines     the raw logs of 3 runs: 1 with no session log (keeper-myx)][]"

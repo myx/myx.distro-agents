@@ -9,7 +9,8 @@
 ## thread. A call that would start several members and names one such member starts none of them. A member set up
 ## only in another workspace of the machine is refused by its SKILL.md there. The refusal is by that status line and
 ## not by a name: the same member with `status: active` starts, and so does every member that was started before --
-## one with `status: active`, one with no SKILL.md, the team's own persona magic-team, and a caller that is no member.
+## one with `status: active`, one with no SKILL.md, and a caller that is no member. The team's own entry magic-team is
+## no identity record either, and is refused by a rule of its own, in a line of its own (AgentsTeamNotMemberCheck).
 ## --manager-spawn-member refuses in the same line, under its own name, and --manager-routine-list says not-startable,
 ## with the reason in words, for a routine whose executors name such a member. THE CHECK IS ONE: one function says
 ## what a reference-only member is, one function refuses a start, the spawn proxy asks it before it makes anything,
@@ -172,7 +173,8 @@ printf -- '---\nname: keeper-ref\nstatus: reference-only\n---\n\n# keeper-ref\n'
 rigRun "$rigProxy" keeper-plain --dispatch-doc:create --context rig-reference-only
 rigAssert "control: a member with no SKILL.md starts as before: nothing says it is an identity record" "$( [ -e "$rigSkills/keeper-plain/SKILL.md" ] && echo has-skill-file || echo no-skill-file ) $rigRc $( LC_ALL=C grep -c -e '^STATUS=started$' "$rigTmp/out" )" "no-skill-file 0 1"
 rigRun "$rigProxy" magic-team --dispatch-doc:create --context rig-reference-only
-rigAssert "control: the team's own persona, whose status is active, starts as before" "$( LC_ALL=C grep -c -x 'status: active' "$rigSkills/magic-team/SKILL.md" ) $rigRc $( LC_ALL=C grep -c -e '^STATUS=started$' "$rigTmp/out" )" "1 0 1"
+rigAssert "the team's own entry, whose status is active, is no identity record and is not refused as one: the rule of its own refuses it, in its own line, and nothing is started" \
+	"$( LC_ALL=C grep -c -x 'status: active' "$rigSkills/magic-team/SKILL.md" ) $rigRc $( rigRefused magic-team "$rigProxy" ) $( LC_ALL=C grep -c -F -- 'magic-team is the team itself and no member of it' "$rigTmp/err" || : ) $( LC_ALL=C grep -c -e '^STATUS=started$' "$rigTmp/out" || : )" "1 1 0 1 0"
 rigRun "$rigProxy" rig-meta-caller --dispatch-doc:none --context rig-reference-only
 rigAssert "control: a caller that is no member, with no folder at all, starts as before" "$( [ -e "$rigSkills/rig-meta-caller" ] && echo has-folder || echo no-folder ) $rigRc $( LC_ALL=C grep -c -e '^STATUS=started$' "$rigTmp/out" )" "no-folder 0 1"
 rigSettle

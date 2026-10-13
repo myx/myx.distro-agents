@@ -37,6 +37,56 @@ type AgentsToolsScopeKeyNames > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro
 ## they are printed in whatever the order they are asked in.
 agentsManagerConfigSubjects="workspace cli systems loop scopes interface"
 
+## THE LABELS: what a screen calls each subject and each line, in the one declaration of them.
+## One row on a line of its own, `<subject>|<group>|<key>|<label>`:
+##   a row with no group and no key names the subject itself;
+##   <group> and <key> name a line as the digest prints it, an absent key as `-`. `*` stands
+##   for any, and a word that ends with `*` for every word that begins so. The first row that
+##   fits a line names it, so the row of one key stands ahead of a row for any;
+##   <label> is capitalised words, more than one, never the bare key. `{words}` in it stands
+##   for the words of the key itself, capitalised, with `Setting` after a key of one word;
+##   `{name}` for the key as it stands, where the key is a name: a place's, a scope's.
+## A row for any key is for lines whose keys are not this file's: the places registered, the
+## scopes and their keys, the credentials a harness leg declares, what the main loop left in
+## its state file. Every line this file prints under a key of its own has a row of its own,
+## so a new one cannot come without its label: a line that no row fits gets the label `-`,
+## and AgentsManagerConfigDigestCheck fails on it.
+agentsManagerConfigLabels="workspace|||Workspace Paths
+workspace|paths|workspace-root|Workspace Root
+workspace|paths|tooling-origin|Tooling Origin
+workspace|paths|team-data-root|Team Data Root
+workspace|paths|session-records|Session Records
+workspace|paths|session-stores|Session Stores
+workspace|paths|settings|Scope Settings Folder
+workspace|places|*|Registered Place {name}
+cli|||CLI Services
+cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service
+cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier
+cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds
+cli|workspace|spawn-settings-workspace|Spawn Settings Workspace
+cli|*|present|CLI Present
+cli|*|usable|CLI Usable
+cli|*|wait-round|CLI Wait Round
+cli|*|*|{words}
+systems|||Outside Systems
+systems|*|-|No Scope Configured
+systems|*|*|Scope {name}
+loop|||Main Loop And Heartbeat
+loop|main-loop|state-file|Main Loop State File
+loop|main-loop|MAIN_LOOP_*|{words}
+loop|heartbeat|state-note|Heartbeat State Note
+loop|heartbeat|state|Heartbeat State
+loop|heartbeat|recheck-date|Heartbeat Recheck Date
+loop|heartbeat|last-iteration-timestamp|Heartbeat Last Iteration
+loop|heartbeat|running|Heartbeat Running
+scopes|||Scope Settings
+scopes|*|*|{words}
+interface|||Interface Settings
+interface|style|MDAT_MANAGER_STYLE|Interface Style"
+
+## The words of a key that stand whole in capitals in a label made of the key's own words.
+agentsManagerConfigLabelCapitals="API CLI ID IMAP SMTP URL UTC XAI"
+
 ## The last word of the name of a key whose value is known to be no secret: a place, a name,
 ## a number or a switch. Asked only of a key the catalogue does not hold. A kind that is not
 ## here is a secret until it is added: one word, on this line.
@@ -178,6 +228,18 @@ AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
 	else
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" set "$keyValue"
 	fi
+}
+
+## Gives the rows of a subject their labels: reads its `subject` row and its `line` rows,
+## and prints each with its label as one more field at its end, by THE LABELS
+## (AgentsManagerConfigLabels.awk). No subject and no line maker knows a label: a row gets
+## its own here, in the one place every row of the digest passes.
+AgentsToolsManagerConfigLabelled(){
+	{
+		printf '%s\n' "$agentsManagerConfigLabels"
+		printf '\034\n'
+		cat
+	} | LC_ALL=C awk -v capitals="$agentsManagerConfigLabelCapitals" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerConfigLabels.awk"
 }
 
 ## THE WORKSPACE AND ITS PATHS: the root of the workspace, the origin the tooling runs from,
@@ -538,8 +600,10 @@ case "$1" in
 					digestCount=$(( digestCount + 1 ))
 				done <<< "$digestLines"
 			fi
-			printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
-			[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
+			{
+				printf 'subject\t%s\t%s\n' "$digestName" "$digestCount"
+				[ -z "$digestLines" ] || printf '%s\n' "$digestLines"
+			} | AgentsToolsManagerConfigLabelled
 		done
 		return 0
 	;;

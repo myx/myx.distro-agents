@@ -161,6 +161,11 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --magic-heartbeat-spawn-proxy: syntax is <team-member> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <audit-item-name>] [--from-audit <vault-item-name>] [--session-thread:event-track|magic-team] [--description <text>] [--wait]" >&2
 			set +e ; return 1
 		fi
+		## The team itself is no member, and is refused in the line every start refuses it
+		## in, ahead of the list below: the one check of a start, which the proxy asks again
+		## of whoever passes here (AgentsToolsTeamMemberStartCheck, AgentsTools.TeamRegistry.include).
+		type AgentsToolsTeamMemberStartCheck > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include"
+		AgentsToolsTeamMemberStartCheck "$callingMember" "" "--magic-heartbeat-spawn-proxy" || { set +e ; return 1 ; }
 		case "$callingMember" in
 			magic-coordinator|routine-heartbeat)
 				;;

@@ -161,7 +161,10 @@ case "$1" in
 	## closes as withdrawn, with the reason and no verdict, so it answers, grants and decides
 	## nothing; reminders stop with it, and a short note in its thread tells the person it is
 	## no longer needed. Only the member that asked it, on either stub.
-	--member-pending-reply-settle|--magic-pending-reply-settle)
+	## The console's arm comes here too (--manager-pending-reply-dismiss, sourced by
+	## AgentsTools.ManagerPendingReply.include): the same withdraw, of any member's question,
+	## by whoever is at the console.
+	--member-pending-reply-settle|--magic-pending-reply-settle|--manager-pending-reply-dismiss)
 		local settleOp="$1"
 		shift
 		MDSC_CMD="$MDSC_CMD $settleOp"
@@ -183,6 +186,15 @@ case "$1" in
 				;;
 			esac
 		done
+		## From the console: the first word is the account at the console, and what is done is
+		## the withdraw. The record says who by `console:<account>`, a reason is not required,
+		## and the note in the thread is the team bot's, whatever identity asked.
+		local settleConsole="" settleBy="" settleSaid=""
+		if [ "$settleOp" = "--manager-pending-reply-dismiss" ] ; then
+			settleConsole="${settleMember:-unknown}" ; settleBy="console:$settleConsole" ; settleMember="magic-coordinator" ; settleWithdraw=1
+			settleSaid="$settleReason"
+			[ -n "$settleReason" ] || settleReason="dismissed from the console, no reason given"
+		fi
 		if [ -z "$settleMember" ] || [ -z "$settleId" ] || [ -z "$settleReason" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: syntax is <team-member> <pending-id> --reason <text> [--withdraw]" >&2
 			set +e ; return 1
@@ -197,13 +209,17 @@ case "$1" in
 		settleFile="$MMDAPP/.local/agents/pending/$settleId.md"
 		[ -f "$settleFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $settleId" >&2 ; set +e ; return 1 ; }
 		settleOwner="$( AgentsToolsPendingReplyField "$settleFile" owner )"
-		if { [ "$settleOp" = "--member-pending-reply-settle" ] || [ -n "$settleWithdraw" ] ; } && [ "$settleOwner" != "$settleMember" ] ; then
+		if [ -z "$settleConsole" ] && { [ "$settleOp" = "--member-pending-reply-settle" ] || [ -n "$settleWithdraw" ] ; } && [ "$settleOwner" != "$settleMember" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $settleId was asked by ${settleOwner:-nobody}, so $settleMember cannot $( [ -n "$settleWithdraw" ] && printf withdraw || printf settle ) it; it stays as it is" >&2
 			set +e ; return 1
 		fi
+		## What is then done to the question's own post is done in its asker's name, as the
+		## asker's own withdraw does it.
+		[ -z "$settleConsole" ] || settleMember="$settleOwner"
+		[ -n "$settleConsole" ] || settleSaid="$settleReason"
 		if [ -n "$settleWithdraw" ] ; then
 			DistroAgentsTools --intern-op-pending-reply-close "$settleId" --if-open --status withdrawn \
-				--withdrawn-by "$settleMember" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
+				--withdrawn-by "${settleBy:-$settleMember}" --withdraw-reason "$settleReason" --context "$MDSC_CMD" || settleRc=$?
 			case "$settleRc" in
 				0) ;;
 				3) return 0 ;;
@@ -217,12 +233,13 @@ case "$1" in
 			if [ -n "$settleChannel" ] && [ -n "$settleThread" ] ; then
 				## It carries the addressee of the question it withdraws, as the question named it.
 				local settleArgs=( "$settleMember" "$settleChannel:$settleThread" --from-stdin ) settleTo
-				[ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
+				[ -z "$settleConsole" ] && [ "$( AgentsToolsPendingReplyField "$settleFile" ask-identity )" != "bot" ] || settleArgs=( "${settleArgs[@]}" --identity-bot )
 				settleTo="$( AgentsToolsPendingReplyField "$settleFile" address-to )"
 				[ -z "$settleTo" ] || settleArgs=( "${settleArgs[@]}" --address-to "$settleTo" )
 				## Its text is the note template's (sh-lib/templates/tooling-note.post.format.md, `# Ask`, withdrawn).
 				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
-				settleNote="$( ASKP_BLOCK="Ask/withdrawn" ASKP_F_member="$settleMember" ASKP_F_reason="$settleReason" ASKP_F_address_to="$settleTo" \
+				## From the console it is the line of a dismissal (console-dismissed), which names the account.
+				settleNote="$( ASKP_BLOCK="Ask/$( [ -n "$settleConsole" ] && printf 'console-dismissed' || printf 'withdrawn' )" ASKP_F_by="$settleConsole" ASKP_F_member="$settleMember" ASKP_F_reason="$settleSaid" ASKP_F_address_to="$settleTo" \
 					AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || settleNote=""
 				[ -n "$settleNote" ] || echo "⚠️ WARNING: $MDSC_CMD: $settleId is withdrawn, but the note that says so could not be filled from its template (tooling-note.post.format.md, Ask/withdrawn)" >&2
 				printf '%s\n' "$settleNote" | DistroAgentsTools --intern-op-comms-slack-send-message "${settleArgs[@]}" > /dev/null 2>&1 \

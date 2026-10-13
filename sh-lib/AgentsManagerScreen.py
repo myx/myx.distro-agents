@@ -200,13 +200,27 @@ KILL_WORD = "yes"
 ## under a menu bar and over a status line; without them the screen is compact, two panes
 ## between two status lines with one column between them and nothing spent on frames.
 ## "colours": it is drawn in the colours of LOOKS where the terminal has them; without them,
-## and on a terminal that has none, in bold, reverse and dim alone. The same windows, menus,
+## and on a terminal that has none, in bold, reverse and dim alone. "keys": its key map,
+## an entry of KEYMAPS. The same windows, menus,
 ## commands and keys are drawn in every style: adding a style is adding an entry here.
 STYLES = (
-    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True}),
-    ("mc", {"label": "MC (Compact)", "frames": False, "colours": False}),
-    ("bw", {"label": "B/W", "frames": True, "colours": False}),
+    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True, "keys": "tv"}),
+    ("mc", {"label": "MC (Compact)", "frames": False, "colours": False, "keys": "mc"}),
+    ("bw", {"label": "B/W", "frames": True, "colours": False, "keys": "tv"}),
 )
+## The key maps: the key map is the style's ("keys" there names it). Each gives the keys of
+## the commands whose keys are not the same in every style, by the name of the command;
+## every other command has the keys COMMANDS gives it. Turbo Vision's map ends the screen
+## with Alt-X and by the Exit item of its menu, and a bare `q` does nothing there; the
+## compact style keeps the map the screen had before it had styles, with `q`.
+KEYMAPS = {
+    "tv": {"exit": ("ALT-x",)},
+    "mc": {"exit": ("q", "ALT-x")},
+}
+## Esc and then a key within this many seconds is Alt with that key, where no menu and no
+## dialog is open: the Meta every terminal delivers, also one that sends no Alt and keeps
+## the function keys for itself. Esc alone closes a menu and a dialog at once, as before.
+META_SECONDS = 1.0
 ## The style a screen starts in where nothing names another, and the variable of the
 ## environment that names one for a start.
 STYLE_FIRST = "tv"
@@ -256,9 +270,15 @@ MENUS = (
 )
 
 ## The commands, each declared once. "keys": its keys, the first being the one its menu and
-## the status line show. "menu": its menu and its group there, a line parting two groups,
+## the status line show, where the key map of the style gives it no others (KEYMAPS). The
+## first is always a key every terminal delivers: a function key and Alt with a letter do
+## not arrive from every terminal, so a function key stands second, behind a plain key,
+## and Alt with a letter is also Esc and then that letter (META_SECONDS). "menu": its menu and its group there, a line parting two groups,
 ## and "label" what it shows as there, its hot letter between tildes. "status": its word in
-## the status line, shown while it applies. "on": the rows it acts on, by their level and
+## the status line, shown while it applies; a command that toggles how a view shows names
+## under "toggle" what it toggles in the state, which is kept for the run of the screen
+## whatever is selected, and has two words there, what its key will do while that is off
+## and while it is on. "on": the rows it acts on, by their level and
 ## kind; with none it acts wherever its window has the keys. "only": its key is its own on
 ## those rows alone, and another command's elsewhere. "does": what it does. ("action",
 ## <name>) is the handler of that action (ACTION_HANDLERS) with the selected row, which
@@ -269,12 +289,12 @@ MENUS = (
 ## to a menu, to the status line and to its key from this one place: adding one is adding
 ## an entry here. Where two commands share a key, the first that applies has it.
 COMMANDS = (
-    {"name": "help", "keys": ("F1",), "menu": ("help", 1), "label": "~K~eys", "status": "Help",
+    {"name": "help", "keys": ("?", "F1"), "menu": ("help", 1), "label": "~K~eys",
      "does": ("action", "help")},
-    {"name": "read", "keys": ("F5",), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
+    {"name": "read", "keys": ("u", "F5"), "menu": ("view", 1), "label": "~R~ead now", "status": "Read",
      "does": ("read",)},
-    {"name": "menu", "keys": ("F10",), "status": "Menu", "does": ("menu",)},
-    {"name": "exit", "keys": ("ALT-x", "q"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
+    {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
+    {"name": "exit", "keys": ("ALT-x",), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
      "does": ("quit",)},
     {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
      "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
@@ -286,9 +306,9 @@ COMMANDS = (
      "does": ("up",)},
     {"name": "focus", "keys": ("TAB", "F6"), "menu": ("view", 2), "label": "~N~ext window", "status": "Window",
      "does": ("focus",)},
-    {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": "All/active",
+    {"name": "filter", "keys": ("a",), "menu": ("view", 1), "label": "~A~ll or active", "status": ("Active", "All"), "toggle": "activeOnly",
      "does": ("filter",)},
-    {"name": "style", "keys": ("F9",), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
+    {"name": "style", "keys": ("i", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "kill"), "calls": ("kill:session", "kill:run")},
     {"name": "control", "keys": ("c",), "menu": ("session", 1), "label": "~C~ontrol thread", "status": "Control",
@@ -301,7 +321,7 @@ COMMANDS = (
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "stop")},
     {"name": "restart", "keys": ("R",), "menu": ("session", 3), "label": "Res~t~art",
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "restart")},
-    {"name": "log", "keys": ("l",), "menu": ("session", 1), "label": "~L~og: feed or raw", "status": "Log",
+    {"name": "log", "keys": ("l",), "menu": ("session", 1), "label": "~L~og: feed or raw", "status": ("Raw log", "Feed"), "toggle": "rawLog",
      "on": ("sessions:record", "sessions/*:record"), "does": ("action", "log")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
@@ -383,6 +403,12 @@ DIALOGS = {
                               "empty": "the members are being read"},
                              {"name": "task", "kind": "input", "label": "What the session is to work on"}),
                 "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## the confirmation of a kill: exactly what will be killed, and the word that confirms
+    ## it, typed whole
+    "kill": {"title": "Kill", "feeds": "kill",
+             "controls": ({"name": "about", "kind": "text"},
+                          {"name": "word", "kind": "input", "label": "Type %s to kill" % KILL_WORD}),
+             "buttons": (("kill", "Kill"), ("cancel", "Cancel"))},
     ## the start of a routine the spawner starts as its executors: what its session is to
     ## work on, and the name of that session
     "routine": {"title": "Start the routine", "feeds": "launch",
@@ -409,7 +435,7 @@ DIALOG_HANDLERS = {}
 DIALOG_FILLS = {}
 ## The width a dialog takes at most, and how many lines of a list of options and of a
 ## field of several lines it shows, where the terminal has them.
-DIALOG_COLUMNS = 72
+DIALOG_COLUMNS = 78
 DIALOG_OPTIONS = 8
 DIALOG_AREA = 4
 
@@ -433,7 +459,7 @@ ACTION_HANDLERS = {
     "prompt": None,
     ## starts the selected team member with a prompt: askStart, set where it is defined
     "start": None,
-    ## shows the keys of the screen, from COMMANDS: the task of the help window builds it
+    ## shows the keys of the screen, from COMMANDS: askHelp, set where it is defined
     "help": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
@@ -467,6 +493,14 @@ class ManagerState:
         ## the dialog that is open and has the keys (openDialog), and those that wait for it to close
         self.dialog = None
         self.waiting = []
+        ## the clock of the turn, which only goes forward, and when Esc was pressed with
+        ## nothing open to close: the key after it, in time, is Alt with that key
+        self.now = 0.0
+        self.metaAt = None
+        ## what the last drawing drew that a click can mean: its rectangle and what it stands for (spot)
+        self.spots = []
+        ## how deep the screen is in looking at what the left window shows (shownLevel)
+        self.shown = 0
         self.notice = ""
         self.noticeOf = None
         ## the reads: when each was last started and with which words, which failed last
@@ -816,7 +850,59 @@ def goUp(state):
 
 ## ---- the left pane ----
 
-## Which item the left pane shows: the level and the row selected there.
+## The level the left window looks at. It is the level shown, with the row selected there;
+## but while the selection stands on the row that goes up, or on nothing, inside a
+## container, it is the level above, with the row of that container: the left window then
+## shows the container itself, as its own row showed it one level up, and the commands
+## that act on it apply. One rule for every level: a section at the root, `Launch / Spawn`,
+## a session.
+def shownPath(state):
+    if not state.path:
+        return state.path
+    row = selectedRow(state)
+    return state.path[:-1] if row is None or row["kind"] == "up" else state.path
+
+
+## While it is entered, the state stands at the level the left window looks at (shownPath),
+## the selection of that level on the row of the container: what is asked of the selected
+## row in it is asked of what the left window shows. `shift` false leaves the level as it
+## is, for a command whose key is its own on the rows of the list alone.
+class shownLevel:
+    def __init__(self, state, shift=True):
+        self.state = state
+        self.shift = shift
+
+    def __enter__(self):
+        state = self.state
+        self.kept = state.path
+        if self.shift and not state.shown:
+            shown = shownPath(state)
+            if shown is not state.path:
+                for index, row in enumerate(levelRowsAt(state, shown)):
+                    if row["id"] == state.path[-1] and row["kind"] != "up":
+                        state.cursors[levelKey(shown)] = dict(state.cursors.get(levelKey(shown), {"top": 0}),
+                                                              key=rowKey(row), index=index)
+                        break
+                state.path = shown
+        state.shown += 1
+        return state
+
+    def __exit__(self, kind, failure, trace):
+        self.state.shown -= 1
+        self.state.path = self.kept
+        return False
+
+
+## A function of the state that is about what the left window shows: it runs at that level.
+def onShownLevel(function):
+    def atShownLevel(state, *arguments):
+        with shownLevel(state):
+            return function(state, *arguments)
+    return atShownLevel
+
+
+## Which item the left pane shows: the level it looks at and the row selected there.
+@onShownLevel
 def viewKeyOf(state):
     row = selectedRow(state)
     if row is None:
@@ -836,13 +922,14 @@ def newView(viewKey, feeds):
 
 ## The left pane follows the selection: another item is shown from its first line, and
 ## nothing of the item before is left. What the pane shows from a list read already made
-## (localView, viewHead) is set out again each time, so it follows that read too.
+## (localView, viewHead) is set out again each time, so it follows that read too. A choice
+## of how a view shows, the feed or the raw log, is the user's for the run of the screen:
+## it is kept as the selection moves.
+@onShownLevel
 def followSelection(state):
     viewKey = viewKeyOf(state)
     row = selectedRow(state)
     if viewKey != state.view["key"]:
-        ## the raw log is asked for of the item that is selected: another item shows its feed
-        state.rawLog = False
         state.view = newView(viewKey, viewReadOf(state, row, "feed") is not None)
         ## a pane that is made new holds nothing of its item: its reads are due again,
         ## whenever they were last made
@@ -924,6 +1011,7 @@ def placeOf(state, row):
 ## the actions COMMANDS gives its level and kind, in their order, and ahead of them the
 ## key that starts something there and is another command's elsewhere, each once its
 ## handler is built and while it acts on the row as it is now.
+@onShownLevel
 def itemKeysText(state):
     row = selectedRow(state)
     if row is None:
@@ -936,9 +1024,9 @@ def itemKeysText(state):
         if not actionShown(state, row, command["does"][1]):
             continue
         if command.get("only"):
-            keys.insert(0, "%s start" % keyShown(command["keys"][0]))
+            keys.insert(0, "%s start" % keyShown(commandKeys(command)[0]))
         else:
-            keys.append("%s %s" % (command["keys"][0], command["does"][1]))
+            keys.append("%s %s" % (commandKeys(command)[0], command["does"][1]))
     return "keys: " + "  ".join(keys) if keys else ""
 
 
@@ -1638,6 +1726,7 @@ def feedLines(feed, width, withMember):
 
 ## The lines of the pane are set out from its feed, at the width the pane has now. A pane
 ## that was scrolled up stays on the entry that stood at its top, wherever that now is.
+@onShownLevel
 def buildFeed(state, row):
     view = state.view
     held = view["lineKeys"][view["top"]] if not view["follow"] and view["top"] < len(view["lineKeys"]) else None
@@ -1977,7 +2066,8 @@ def dialogStatus(dialog):
 
 
 ## The paragraphs of a text of a dialog as lines of that width: a text is broken between
-## words, and pairs that follow one another are set out as facts, their names in a column.
+## words, one that begins with a space is set out already and is broken only where it is
+## full, and pairs that follow one another are set out as facts, their names in a column.
 def dialogTextLines(control, width):
     lines = []
     pairs = []
@@ -1989,7 +2079,8 @@ def dialogTextLines(control, width):
             lines.extend(fieldLines(pairs, width))
             pairs = []
         if paragraph is not None:
-            lines.extend(wrapToCells(paragraph, width))
+            ## a line that begins with a space is set out already: it is broken only where it is full
+            lines.extend(areaLines(paragraph, width) if paragraph.startswith(" ") else wrapToCells(paragraph, width))
     return lines
 
 
@@ -2093,6 +2184,7 @@ def drawDialog(surface, state, columns, lines):
     what, focusIndex, focused = dialogFocus(dialog)
     column = left + 2
     last = plan["buttonsLine"]
+    spot(state, left, top, width, height, ("dialog",))
     for part in plan["parts"]:
         control = dialog["controls"][part["index"]]
         on = control is focused
@@ -2105,11 +2197,13 @@ def drawDialog(surface, state, columns, lines):
         if kind == "input":
             typed, typedWidth = tailToCells(control["value"], inner - 1)
             surface.put(part["line"], column, cutToCells(typed, inner), BOX_ON if on else BOX_FIELD)
+            spot(state, column, part["line"], inner, 1, ("field", part["index"]))
             if on:
                 surface.cursor(part["line"], column + typedWidth)
             continue
         if kind == "area":
             held = areaLines(control["value"], inner - 1)[-rows:]
+            spot(state, column, part["line"], inner, rows, ("field", part["index"]))
             for offset in range(rows):
                 surface.put(part["line"] + offset, column, cutToCells(held[offset] if offset < len(held) else "", inner),
                             BOX_ON if on else BOX_FIELD)
@@ -2139,6 +2233,8 @@ def drawDialog(surface, state, columns, lines):
             if control["top"] + offset < len(held):
                 text, look = held[control["top"] + offset]
                 surface.put(part["line"] + offset, column, cutToCells(text, inner), look)
+                if kind != "text" and control["options"]:
+                    spot(state, column, part["line"] + offset, inner, 1, ("option", part["index"], control["top"] + offset))
         if control["top"] > 0:
             surface.put(part["line"], left + width - 2, MARKS["barUp"], BOX_FRAME)
         if control["top"] + rows < len(held):
@@ -2152,6 +2248,7 @@ def drawDialog(surface, state, columns, lines):
         if column + textWidth(label) > left + width - 2:
             break
         surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BOX_BUTTON)
+        spot(state, column, last, textWidth(label), 1, ("button", index))
         column += textWidth(label) + 2
 
 
@@ -2216,8 +2313,7 @@ def killFits(state, row):
     return target is not None and bool(target["runs"])
 
 
-## What the confirmation of a kill says above its line, exactly: what is ended, by which
-## id, and how.
+## What the confirmation of a kill says, exactly: what is ended, by which id, and how.
 def killSays(target):
     if target["kind"] == "session":
         alive = target["runs"]
@@ -2241,12 +2337,12 @@ def killSays(target):
                  "It ends the hard way: no closure runs, it is asked nothing. The others run on."]
         if run["spawn"] == run["session"]:
             lines.append("It is the founder: its id is its session's. It alone is ended, not the session.")
-    lines.append("Type %s and Enter to kill. Esc, or anything else, kills nothing." % KILL_WORD)
+    lines.append("The word %s, typed whole, and Kill or Enter: that kills. Cancel and Esc kill nothing." % KILL_WORD)
     return lines
 
 
-## `k`: asks for the confirmation of the kill of the selected session or agent, in the
-## line to type in, and says above it exactly what will be killed. A row that is no
+## `k`: asks for the confirmation of the kill of the selected session or agent, in a
+## dialog that says exactly what will be killed. A row that is no
 ## session and no agent, and one with no live run, says in a box that there is nothing to
 ## kill, and nothing is asked.
 def askKill(state, row):
@@ -2256,26 +2352,28 @@ def askKill(state, row):
     if not target["runs"]:
         return tell(state, "Kill", "k: nothing to kill: %s" % ("no agent of this session is alive" if target["kind"] == "session"
                                                                 else "this agent is not alive"))
-    if target["kind"] == "session":
-        prompt = "kill the session, %d agent%s? type %s:" % (
-            len(target["runs"]), "" if len(target["runs"]) == 1 else "s", KILL_WORD)
-    else:
-        prompt = "kill the agent %s? type %s:" % (target["label"], KILL_WORD)
     state.answer = None
     ## the answer belongs to the item the key was pressed on, whatever is selected when it comes
     target["viewKey"] = viewKeyOf(state)
-    openLine(state, prompt, lambda dialogState, text: submitKill(dialogState, target, text), "", killSays(target))
+    openDialog(state, "kill", {"about": {"lines": killSays(target)}}, {"target": target},
+               "Kill the session" if target["kind"] == "session" else "Kill the agent %s" % target["label"])
     return ""
 
 
-## The confirmation of a kill was typed. Exactly the word kills: the operation is called
-## once, with the id of what the line named. Anything else kills nothing.
-def submitKill(state, target, text):
-    if text != KILL_WORD:
-        return "nothing was killed: the word typed was not %s" % KILL_WORD
+## Kill in the dialog of a kill. Exactly the word kills: the operation is called once,
+## with the id of what the dialog named. Any other word is refused there, and kills nothing.
+def submitKill(state, dialog, button):
+    target = dialog["about"]["target"]
+    if dialogValue(dialog, "word") != KILL_WORD:
+        return "nothing is killed: the word typed is not %s" % KILL_WORD
     askCall(state, "kill", target["id"], callWords("kill:" + target["kind"], target["id"]), None,
             {"viewKey": target["viewKey"]})
-    return "kill asked of the tooling: the %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"])
+    state.notice = "kill asked of the tooling: the %s %s" % ("session" if target["kind"] == "session" else "agent", target["label"])
+    state.noticeOf = None
+    return None
+
+
+DIALOG_HANDLERS["kill"] = submitKill
 
 
 ## What each <outcome> of a `kill` row means, in words, and the words it is counted under
@@ -2978,14 +3076,19 @@ def digestSummary(state):
 ## ---- what a key does ----
 
 ## One key, on the state alone. With a dialog open the key goes to that dialog, with a
-## menu open to that menu, and with a line open to that line. Otherwise Alt with the hot letter of a menu opens it, and any
+## menu open to that menu, and with a line open to that line. Else Esc and then a key
+## within META_SECONDS is Alt with that key. Otherwise Alt with the hot letter of a menu opens it, and any
 ## other key is the key of a command of COMMANDS, or of none.
 def handleKey(state, key, layout):
     if key is None or key == "RESIZE":
         return
     if layout is None:
-        if key in commandNamed("exit")["keys"]:
+        if key in commandKeys(commandNamed("exit")):
             state.quit = True
+        return
+    if key.startswith("MOUSE:"):
+        what, column, line = key.split(":")[1:4]
+        mouseEvent(state, what, int(column), int(line), layout)
         return
     if state.dialog is not None:
         dialogKey(state, key)
@@ -2996,12 +3099,199 @@ def handleKey(state, key, layout):
     if state.line is not None:
         lineKey(state, key)
         return
+    if key == "ESC":
+        state.metaAt = state.now
+        return
+    if state.metaAt is not None:
+        ## Esc and then a key, in time: Alt with that key
+        if metaPending(state) and len(key) == 1 and key != " ":
+            key = "ALT-" + key.lower()
+        state.metaAt = None
     if key.startswith("ALT-") and menuOfLetter(key[4:]) is not None:
         openMenu(state, menuOfLetter(key[4:]))
         return
     command = commandOfKey(state, key)
     if command is not None:
         runCommand(state, command, layout, key)
+
+
+## ---- the help ----
+
+## `?`, F1: the keys of the screen in a box, from the declaration and in the key map of the
+## style: first those that act now, on what is selected in the active window, then the
+## others, then the menus, and last what every dialog takes.
+def askHelp(state, row):
+    acting = []
+    others = []
+    for command in COMMANDS:
+        if not command.get("label") and not command.get("status"):
+            continue
+        keys = ", ".join(keyShown(key) for key in commandKeys(command))
+        words = hotText(command["label"]) if command.get("label") else statusWord(state, command)
+        if command["does"][0] == "action" and ACTION_HANDLERS.get(command["does"][1]) is None:
+            words += " (not built)"
+        (acting if commandApplies(state, command) else others).append((keys, words))
+    menuKey = keyShown(commandKeys(commandNamed("menu"))[0])
+    return tell(state, "Keys", [
+        "The keys that act now, on what is selected in the active window:",
+    ] + acting + [
+        "The other keys, which act in the other window or on another kind of row:",
+    ] + others + [
+        "The menus: %s opens the menu bar. Esc and then its letter, or Alt with that letter, opens one:" % menuKey,
+    ] + [(hotLetter(label), hotText(label)) for menuName, label in MENUS] + [
+        "Up, Down, PgUp and PgDn move in the active window. In a dialog Tab and Shift-Tab go from control to"
+        " control, Space toggles a box and chooses a radio button, Enter presses the first button or the one the"
+        " keys are on, and Esc cancels. The mouse does what these keys do.",
+    ], "information")
+
+
+ACTION_HANDLERS["help"] = askHelp
+
+
+## ---- the mouse ----
+
+## The engine notes each thing it draws that a click can mean: its rectangle and what it
+## stands for, a window, a row of the list, a half of a scroll bar, a menu of the bar, an
+## item of the open menu, a key of the status line, the open dialog and its fields, its
+## options and its buttons. A click is looked up in what the last drawing noted, the thing
+## drawn last first, so there is no table of places beside the declaration.
+def spot(state, left, top, width, height, what):
+    state.spots.append((left, top, width, height, what))
+
+
+## What was drawn at that cell, of those sorts or of any, or None.
+def spotAt(state, column, line, sorts=None):
+    for left, top, width, height, what in reversed(state.spots):
+        if left <= column < left + width and top <= line < top + height and (sorts is None or what[0] in sorts):
+            return what
+    return None
+
+
+## The bit of the wheel turned down, for a Python whose curses does not name it.
+WHEEL_DOWN = 0x200000
+
+
+## What the terminal reported of the mouse, as a key of the screen, `MOUSE:<what>:<column>:<line>`,
+## or None for what the screen does not act on. The first button let go, or pressed and
+## let go as one click, is `click`: a press alone is nothing, so one click of the hand is
+## one click here however the terminal reports it. A double click is `double`, and the
+## wheel is `up` and `down`. `buttons` are the bits curses gives.
+def mouseKey(column, line, buttons):
+    names = (("click", ("BUTTON1_RELEASED", "BUTTON1_CLICKED")), ("double", ("BUTTON1_DOUBLE_CLICKED",)),
+             ("up", ("BUTTON4_PRESSED",)), ("down", ("BUTTON5_PRESSED",)))
+    for what, bits in names:
+        if any(buttons & getattr(curses, bit, WHEEL_DOWN if bit == "BUTTON5_PRESSED" else 0) for bit in bits):
+            return "MOUSE:%s:%d:%d" % (what, column, line)
+    return None
+
+
+## The key a status line shows under that name, or None for a pair of keys shown as one.
+def keyOfShown(shown):
+    for key, word in KEY_WORDS.items():
+        if word == shown:
+            return key
+    if shown == "Space":
+        return " "
+    if shown.startswith("Alt-"):
+        return "ALT-" + shown[4:].lower()
+    return None if "/" in shown else shown
+
+
+## One event of the mouse, on the state alone. It does nothing the keys cannot do. A key
+## of the status line does what that key does, in every state. With a dialog open: a button
+## is pressed, a box toggled, a radio button or a row of a list chosen, a field given the
+## keys, the wheel scrolls its text, and a click outside it does nothing. With a menu open:
+## an item is chosen, a name of the bar opens that menu or closes its own, and a click
+## anywhere else closes the menu. Else: a name of the menu bar opens that menu; a window
+## gets the keys; a row of the list is selected, and opened as Enter opens it when it was
+## selected already or the click is a double one; a half of the scroll bar pages; and the
+## wheel moves in the window under the pointer.
+def mouseEvent(state, what, column, line, layout):
+    clicked = what in ("click", "double")
+    step = 1 if what == "down" else -1
+    key = spotAt(state, column, line, ("key",))
+    if key is not None and clicked:
+        if keyOfShown(key[1]) is not None:
+            handleKey(state, keyOfShown(key[1]), layout)
+        return
+    if state.dialog is not None:
+        dialog = state.dialog
+        if not clicked:
+            for held in dialog["controls"]:
+                if held["kind"] == "text":
+                    held["top"] = max(0, held["top"] + step)
+                    break
+            return
+        hit = spotAt(state, column, line, ("button", "option", "field"))
+        if hit is None:
+            return
+        stops = dialogStops(dialog)
+        if hit[0] == "button":
+            dialog["focus"] = stops.index(("button", hit[1]))
+            pressButton(state, dialog["buttons"][hit[1]][0])
+            return
+        control = dialog["controls"][hit[1]]
+        dialog["focus"] = stops.index(("control", hit[1]))
+        if hit[0] == "option":
+            control["at"] = hit[2]
+            chosen = control["options"][hit[2]][0]
+            if control["kind"] != "checks":
+                control["value"] = chosen
+            elif chosen in control["value"]:
+                control["value"].remove(chosen)
+            else:
+                control["value"].append(chosen)
+        return
+    if state.menu is not None:
+        if not clicked:
+            return
+        hit = spotAt(state, column, line, ("item", "menu"))
+        if hit is None or (hit[0] == "menu" and hit[1] == state.menu["menu"]):
+            state.menu = None
+        elif hit[0] == "menu":
+            openMenu(state, hit[1])
+        else:
+            state.menu["item"] = hit[1]
+            chooseItem(state, menuItems(MENUS[state.menu["menu"]][0])[hit[1]], layout)
+        return
+    if not clicked:
+        ## the window under the pointer, or the active one where the pointer is not known
+        window = spotAt(state, column, line, ("window",)) or ("window", state.focus)
+        if window[1] == "list":
+            moveSelection(state, listRowsHeight(state, layout), step)
+        else:
+            scrollView(state, viewScrollHeight(state, layout), step * 3)
+        return
+    hit = spotAt(state, column, line)
+    if hit is None:
+        return
+    if hit[0] == "menu":
+        openMenu(state, hit[1])
+    elif hit[0] == "window":
+        state.focus = hit[1]
+    elif hit[0] == "bar":
+        state.focus = "list"
+        moveSelection(state, listRowsHeight(state, layout), 0, hit[1])
+    elif hit[0] == "row":
+        height = listRowsHeight(state, layout)
+        index = cursorOf(state, levelRows(state), height)["index"]
+        again = what == "double" or (state.focus == "list" and index == hit[1])
+        state.focus = "list"
+        moveSelection(state, height, hit[1] - index)
+        if again:
+            command = commandOfKey(state, "ENTER")
+            if command is not None:
+                runCommand(state, command, layout, "ENTER")
+
+
+## The keys of a command in the style of now: those its key map gives it, else its own.
+def commandKeys(command):
+    return KEYMAPS.get(STYLE.get("keys"), {}).get(command["name"], command["keys"])
+
+
+## Whether Esc was pressed and the key after it would still be taken as Alt with it.
+def metaPending(state):
+    return state.metaAt is not None and state.now - state.metaAt <= META_SECONDS
 
 
 def commandNamed(name):
@@ -3025,7 +3315,7 @@ def commandWindow(command):
 def commandOfKey(state, key):
     place = placeOf(state, selectedRow(state))
     for command in COMMANDS:
-        if key not in command["keys"] or commandWindow(command) not in (None, state.focus):
+        if key not in commandKeys(command) or commandWindow(command) not in (None, state.focus):
             continue
         if command.get("only") and (place not in command["on"] or ACTION_HANDLERS.get(command["does"][1]) is None):
             continue
@@ -3044,7 +3334,13 @@ def commandApplies(state, command):
     if does[0] == "action":
         if ACTION_HANDLERS.get(does[1]) is None:
             return False
-        return "on" not in command or (placeOf(state, row) in command["on"] and actionShown(state, row, does[1]))
+        if "on" not in command:
+            return True
+        ## an action acts on what the left window shows: on the container too, while the
+        ## selection stands on the row that goes up inside it
+        with shownLevel(state, not command.get("only")):
+            row = selectedRow(state)
+            return placeOf(state, row) in command["on"] and actionShown(state, row, does[1])
     if does[0] == "up":
         return bool(state.path)
     if does[0] == "open":
@@ -3090,9 +3386,10 @@ def runCommand(state, command, layout, key=None):
         handler = ACTION_HANDLERS.get(does[1])
         state.noticeOf = None
         if handler is None:
-            state.notice = tell(state, command["name"].capitalize(), "%s: %s is not built yet" % (key or command["keys"][0], does[1]))
+            state.notice = tell(state, command["name"].capitalize(), "%s: %s is not built yet" % (key or commandKeys(command)[0], does[1]))
         else:
-            state.notice = handler(state, selectedRow(state)) or ""
+            with shownLevel(state, not command.get("only")):
+                state.notice = handler(state, selectedRow(state)) or ""
 
 
 ## ---- the menus ----
@@ -3143,7 +3440,7 @@ def menuKey(state, key, layout):
         menu["item"] = index
     elif key == "ENTER":
         chooseItem(state, items[menu["item"]], layout)
-    elif key == commandNamed("exit")["keys"][0]:
+    elif key == commandKeys(commandNamed("exit"))[0]:
         state.quit = True
     elif key.startswith("ALT-"):
         if menuOfLetter(key[4:]) is not None:
@@ -3187,6 +3484,27 @@ def listReadOf(path):
     return (key, entry) if entry else None
 
 
+## The reads of what the left window shows, its facts and its lines: (kind, key, words).
+@onShownLevel
+def shownReads(state):
+    wanted = []
+    row = selectedRow(state)
+    values = {"level": state.path[-1] if state.path else ""}
+    for part in ("view", "feed"):
+        entry = viewReadOf(state, row, part)
+        if entry:
+            values["id"] = row["id"]
+            wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
+    return wanted
+
+
+## The row the left window shows, and its entry in READS for that part of it, or nothing.
+@onShownLevel
+def shownRead(state, part):
+    row = selectedRow(state)
+    return row, viewReadOf(state, row, part) or {}
+
+
 ## What the screen as it stands asks the tooling for: (kind, key, words) for the list of
 ## the level shown, for every list that is read whatever is shown, for the view of the
 ## row selected, and for what the open dialog offers, each where READS names an operation.
@@ -3202,12 +3520,7 @@ def wantedReads(state):
         entry = READS[key]
         if entry and entry.get("always") and not (shown and shown[0] == key):
             wanted.append((entry.get("kind", "list"), key, readWords(entry, state, {})))
-    row = selectedRow(state)
-    for part in ("view", "feed"):
-        entry = viewReadOf(state, row, part)
-        if entry:
-            values["id"] = row["id"]
-            wanted.append((part, part + ":" + viewKeyOf(state), readWords(entry, state, values)))
+    wanted.extend(shownReads(state))
     ## what the open dialog offers is read while it is open
     for key in DIALOGS[state.dialog["name"]].get("reads", ()) if state.dialog is not None else ():
         if READS.get(key) and key not in [wantedKey for kind, wantedKey, words in wanted]:
@@ -3241,6 +3554,7 @@ def readNow(state):
 ## How long the selection must still rest on its item before the reads of that one item
 ## start: 0 once it has rested, and where nothing is read of the item. Which item the
 ## selection rests on, and since when, is noted here.
+@onShownLevel
 def restLeft(state, now):
     selected = viewKeyOf(state)
     if selected != state.restKey:
@@ -3339,8 +3653,7 @@ def applyResult(state, result):
         state.levelsOf[key] = list(levels)
         state.counters.update(readCounters(entry.get("rows"), result["text"]))
     else:
-        row = selectedRow(state)
-        entry = viewReadOf(state, row, key[:4]) or {}
+        row, entry = shownRead(state, key[:4])
         if entry.get("rows") == "session-read":
             state.view["info"] = parseSessionRead(result["text"])
         elif entry.get("rows") == "ask":
@@ -3470,13 +3783,16 @@ def listTitle(state):
     return readMarks(state, shown[0] if shown else "list:" + levelKey(state.path)) + title
 
 
+@onShownLevel
 def viewTitle(state):
     row = selectedRow(state)
     if row is None:
         return ""
     marks = readMarks(state, "view:" + (viewKeyOf(state) or "")) + readMarks(state, "feed:" + (viewKeyOf(state) or ""))
     marks = "".join(mark for mark in (MARK_READING, MARK_OLD) if mark in marks)
-    return (marks + " " if marks else "") + row["label"]
+    ## the raw log in place of the feed, where the item has lines: the toggle shows in the title
+    form = " [log]" if state.rawLog and viewReadOf(state, row, "feed") is not None else ""
+    return (marks + " " if marks else "") + row["label"] + form
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one
@@ -3565,6 +3881,10 @@ def whereParts(state):
 def drawMenuBar(surface, state, columns):
     surface.put(0, 0, " " * columns, BAR)
     after = putParts(surface, 0, 0, menuBarParts(state), columns)
+    column = textWidth(MARKS["system"]) + 2
+    for index, (menuName, label) in enumerate(MENUS):
+        spot(state, column, 0, textWidth(hotText(label)) + 2, 1, ("menu", index))
+        column += textWidth(hotText(label)) + 2
     ## where the bar is too narrow for all of it, the end of it stays: the clock
     right = tailParts(whereParts(state), columns - after - 1)
     if partsWidth(right) >= 10:
@@ -3671,6 +3991,9 @@ def drawCompact(surface, state, layout):
     listLeft = layout["listLeft"]
     listWidth = layout["listWidth"]
     drawCompactTop(surface, state, columns)
+    panesHeight = layout["inputLine"] - layout["titleLine"] + 1
+    spot(state, 0, layout["titleLine"], viewWidth, panesHeight, ("window", "view"))
+    spot(state, listLeft, layout["titleLine"], listWidth, panesHeight, ("window", "list"))
     surface.put(layout["titleLine"], 0, cutToCells(" " + viewTitle(state), viewWidth),
                 REVERSE if state.focus == "view" else BOLD)
     surface.put(layout["titleLine"], listLeft, cutToCells(" " + listTitle(state), listWidth),
@@ -3695,6 +4018,7 @@ def drawCompact(surface, state, layout):
             look = rows[position].get("look", PLAIN)
             if chosen:
                 look = REVERSE if state.focus == "list" else BOLD
+            spot(state, listLeft, listTop + offset, listWidth, 1, ("row", position))
         surface.put(listTop + offset, listLeft, text, look)
     contentHeight = viewContentHeight(state, layout)
     headHeight = min(len(state.view["head"]), contentHeight)
@@ -3732,6 +4056,14 @@ def loadText(state):
     return "load %s%s" % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "")
 
 
+## The word of a command in the status line now: of one that toggles, what its key will do.
+def statusWord(state, command):
+    word = command.get("status")
+    if isinstance(word, tuple):
+        return word[1 if getattr(state, command["toggle"]) else 0]
+    return word
+
+
 ## The keys the status line names now, each with its word: only those that act for what
 ## has the keys. While a dialog is open, the keys of that dialog and of the control they
 ## are on, and no other; while a menu is open, or the line to type in, the keys of that.
@@ -3739,6 +4071,7 @@ def loadText(state):
 ## what is selected: first those that are that window's own or act on the selected row,
 ## in their order, and after them those that work in every window, the menu, the exit,
 ## the other window, which are so the first to be left out where the line is too short.
+## After Esc, while the key after it is taken as Alt with it, the letters that then act.
 def statusItems(state):
     if state.dialog is not None:
         return dialogStatus(state.dialog)
@@ -3746,12 +4079,17 @@ def statusItems(state):
         return list(STATUS_KEYS["menu"])
     if state.line is not None:
         return list(STATUS_KEYS["line"])
+    if metaPending(state):
+        ## after Esc: the keys that are Alt with a letter, each by its letter alone
+        return ([(hotLetter(label), hotText(label)) for menuName, label in MENUS]
+                + [(key[4:], statusWord(state, command) or hotText(command["label"])) for command in COMMANDS
+                   for key in commandKeys(command) if key.startswith("ALT-")])
     own = []
     everywhere = []
     for command in COMMANDS:
         if command.get("status") and commandApplies(state, command):
             wide = commandWindow(command) is None and "on" not in command
-            (everywhere if wide else own).append((keyShown(command["keys"][0]), command["status"]))
+            (everywhere if wide else own).append((keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
 
 
@@ -3770,6 +4108,7 @@ def drawStatusLine(surface, state, line, columns):
             break
         surface.put(line, column, key, BAR_HOT)
         surface.put(line, column + textWidth(key) + 1, word, BAR)
+        spot(state, column, line, width, 1, ("key", key))
         column += width + 2
     if notice and columns - column > 2:
         surface.put(line, column, MARKS["separator"] + " " + cutToCells(notice, columns - column - 2), BAR)
@@ -3851,6 +4190,7 @@ def drawRowsBody(surface, state, layout, box):
             look = rows[position].get("look", PLAIN)
             if chosen:
                 look = REVERSE if state.focus == "list" else BOLD
+            spot(state, column, top + offset, room, 1, ("row", position))
         surface.put(top + offset, column, text, look)
     return (len(rows), cursor["top"], rowsHeight)
 
@@ -3862,10 +4202,16 @@ BODIES = {"lines": drawLinesBody, "rows": drawRowsBody}
 ## One window of WINDOWS, drawn from its declaration: its body, then its frame around it.
 def drawWindow(surface, state, layout, window):
     box = layout["boxes"][window["name"]]
+    spot(state, box[0], box[1], box[2], box[3], ("window", window["name"]))
     held = BODIES[window["shows"]["body"]](surface, state, layout, box)
     foot = globals()[window["foot"]](state) if window.get("foot") else ""
     drawFrame(surface, box, globals()[window["title"]](state), state.focus == window["name"], foot,
               held if window.get("bar") else None)
+    rows = box[3] - 2
+    if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
+        ## the scroll bar: its upper half pages up, its lower half down
+        spot(state, box[0] + box[2] - 1, box[1] + 1, 1, rows // 2, ("bar", -1))
+        spot(state, box[0] + box[2] - 1, box[1] + 1 + rows // 2, 1, rows - rows // 2, ("bar", 1))
 
 
 ## The pull-down of the menu that is open, under its name in the menu bar: a frame, its
@@ -3876,7 +4222,7 @@ def drawMenu(surface, state, layout):
     items = menuItems(MENUS[menu["menu"]][0])
     listed = [command for command in items if command is not None]
     labelWidth = max(textWidth(hotText(command["label"])) for command in listed)
-    keyWidth = max(textWidth(keyShown(command["keys"][0])) for command in listed)
+    keyWidth = max(textWidth(keyShown(commandKeys(command)[0])) for command in listed)
     width = labelWidth + keyWidth + 6
     left = 3 + sum(textWidth(hotText(label)) + 2 for menuName, label in MENUS[:menu["menu"]])
     left = max(0, min(left, layout["columns"] - width - 2))
@@ -3892,11 +4238,12 @@ def drawMenu(surface, state, layout):
             surface.put(line, left, MARKS["rule"][0] + MARKS["rule"][1] * (width - 2) + MARKS["rule"][2], BAR)
             continue
         on = index == menu["item"]
+        spot(state, left + 1, line, width - 2, 1, ("item", index))
         look = BAR_ON if on else BAR if commandApplies(state, command) else BAR_OFF
         hotLook = look if look == BAR_OFF else BAR_ON_HOT if on else BAR_HOT
         surface.put(line, left, frame[3], BAR)
         column = putParts(surface, line, left + 1, hotParts(" " + command["label"], look, hotLook), width - 2)
-        keyText = keyShown(command["keys"][0])
+        keyText = keyShown(commandKeys(command)[0])
         surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
         surface.put(line, left + width - 1, frame[3], BAR)
         surface.put(line, left + width, "  ", SHADOW)
@@ -3917,6 +4264,7 @@ def drawScreen(surface, state):
     layout = layoutOf(columns, lines)
     surface.clear()
     surface.cursor(None, None)
+    state.spots = []
     if layout is not None and state.dialog is not None:
         state.dialog["plan"] = dialogPlan(state.dialog, columns, lines)
     if layout is None:
@@ -3972,6 +4320,7 @@ def screenTurn(surface, state, reader, now, key):
     state.viewWidth = layout["viewWidth"] if layout else 0
     state.viewHeight = layout["viewHeight"] if layout else 0
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
+    state.now = now
     handleKey(state, key, layout)
     if reader is not None:
         for result in reader.collect():
@@ -4000,6 +4349,16 @@ class CursesSurface:
             curses.KEY_F1: "F1", curses.KEY_F5: "F5", curses.KEY_F6: "F6", curses.KEY_F9: "F9", curses.KEY_F10: "F10",
         }
         self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE"}
+        ## the mouse, where the terminal reports one: its first button at once, with no wait
+        ## for a second click, and the wheel. A terminal that reports none changes nothing.
+        ## Where the pointer was last, for a turn of the wheel that comes with no place.
+        self.pointer = (-1, -1)
+        try:
+            curses.mousemask(curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED | curses.BUTTON1_CLICKED
+                             | curses.BUTTON4_PRESSED | getattr(curses, "BUTTON5_PRESSED", WHEEL_DOWN))
+            curses.mouseinterval(0)
+        except (curses.error, AttributeError):
+            pass
 
     ## What each look of LOOKS is on this terminal, twice: in bold, reverse and dim alone,
     ## and in its colours, or None where the terminal has not eight of them.
@@ -4078,6 +4437,17 @@ class CursesSurface:
         if got is None:
             return None
         if isinstance(got, int):
+            if got == getattr(curses, "KEY_MOUSE", -1):
+                try:
+                    device, column, line, depth, buttons = curses.getmouse()
+                except curses.error:
+                    ## a curses that has no fifth button reports the wheel turned down as an
+                    ## event of the mouse it cannot give: that, and nothing else, comes so
+                    if hasattr(curses, "BUTTON5_PRESSED"):
+                        return None
+                    return "MOUSE:down:%d:%d" % self.pointer
+                self.pointer = (column, line)
+                return mouseKey(column, line, buttons)
             if got in self.keyNames:
                 return self.keyNames[got]
             if got < 0 or got > 255:

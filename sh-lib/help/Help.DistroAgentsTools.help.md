@@ -164,6 +164,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [<subject>...]
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-interface-set <key> <value>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
+📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-list [--active]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-read --session-id <id> [--run]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]
@@ -2769,9 +2772,24 @@
 			TAB-separated fields on stdout, the first naming the row. An
 			absent value reads `-`, and a value's own whitespace reads `_`,
 			as in a registry.
-			`subject <subject> <lines>`
-			`line <subject> <group> <key> <state> <value>`
+			`subject <subject> <lines> <label>`
+			`line <subject> <group> <key> <state> <value> <label>`
 			A subject row is followed by its lines, which it counts.
+			<label> is what a screen calls the subject or the line, the
+			last field of every row: capitalised words, more than one,
+			their blanks written `_`. <subject> and <key> stay the names
+			a call takes. The labels have one declaration. The subjects
+			are `Workspace Paths`, `CLI Services`, `Outside Systems`,
+			`Main Loop And Heartbeat`, `Scope Settings` and
+			`Interface Settings`. A line the tooling prints under a key
+			of its own has a label of its own, as `Workspace Root` or
+			`Interface Style`. A line whose key is not the tooling's has
+			one by rule: a key of a scope, a credential of a harness leg
+			and what the main loop left in its state file by the words
+			of the key, capitalised, as `Slack Bot Token`; a registered
+			place and a scope of an outside system by its name, after
+			`Registered Place` and `Scope`. A line that no row of the
+			declaration fits has the label `-`.
 			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
 			Nothing of the value of a secret is printed, in no row and in
 			no message: not a part of it, not its length. Its line reads
@@ -2818,9 +2836,9 @@
 			A line whose name is not a setting's, capital letters, digits
 			and `_`, is never listed: a note on stderr counts them.
 			`interface`: the interface settings of the user who runs the
-			call, one line a setting, each with two more fields at the
-			end of its row:
-			`line interface <group> <key> <state> <value> <source> <choices>`
+			call, one line a setting, each with two more fields after
+			its value, ahead of its label:
+			`line interface <group> <key> <state> <value> <source> <choices> <label>`
 			<group> is a short name of the setting and <key> its key, as
 			`--manager-config-interface-set` takes it. <state> is `set`
 			and <value> what the setting is now. <source> says where that
@@ -2889,8 +2907,10 @@
 			which is any member, or hold a name that is no member of any
 			workspace of this machine, or a member whose `SKILL.md` says
 			`status: reference-only`, an identity record, which is never
-			started, or where more than one routine file answers to the
-			selector. It is `broken` where the file
+			started, or `magic-team` in a list beside members, the team
+			itself, which is no member and is never started, or where
+			more than one routine file answers to the selector. It is
+			`broken` where the file
 			fails the routine contract: no frontmatter block, or no
 			executors or maintainers. <reason> says in words why a
 			routine is not `startable`, and is `-` for one that is.
@@ -2910,6 +2930,55 @@
 			every other row, so a console tells such a routine by this
 			field and not by the words of <reason>. With no routine file
 			at all, a note on stderr and no row.
+
+		--manager-pending-reply-read --id <pending-id>
+			One of the console's own operations (see Notes). What can be
+			done with one pending question, as TAB-separated rows, an
+			absent value `-`. It changes nothing and reads no thread.
+			First `question`, <pending-id>, its status, kind, answer form,
+			asker, addressee, the member an answer from the console
+			stands as, `answer` where words alone are its answer or
+			`words` where words may go with an answer, the word --reject
+			gives, `yes` where it can be dismissed, and the web link of
+			its message. Then, while it is open, one row for each answer
+			it takes: `answer`, the number of the option, the word, what
+			becomes of it (`settles`; `up-the-chain`, an allow of what
+			that member does not hold; `not-taken`, a verdict that is the
+			human-owner's own), and the option's label.
+
+		--manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
+			One of the console's own operations (see Notes). Answers one
+			open question of any member, through the one answer operation
+			(--member-escalation-answer): the same apply, close and
+			confirmation as an answer read from its thread. --answer takes
+			a word of the kind, the number of an option, or, for a plain
+			question, the words that are its answer; --reject gives the
+			kind's own negative answer; --text adds words to an answer.
+			The answer stands as the member the read names: an allow that
+			member does not hold goes up the chain, and a review, a held
+			change and a proposal are refused. The record keeps
+			`answered-session: console:<account>`, and one line by the
+			team bot in the question's thread says it was answered from
+			the console, by which account and with what; a line not
+			posted is a warning, and the answer stands. Prints one row:
+			`answered` or `rejected`, <pending-id>, the verdict, the
+			member it stands as, `console:<account>`, its words; or
+			`up-the-chain`, <pending-id>, who it is addressed to now, the
+			member, `console:<account>`, the reason. Refused, rc 1, one
+			line, nothing changed: no such question, one not pending or
+			answered already, an answer the kind does not have, a reject
+			of a kind with no negative answer.
+
+		--manager-pending-reply-dismiss --id <pending-id> [--reason <text>]
+			One of the console's own operations (see Notes). Closes one
+			open question of any member with no answer, as its asker's own
+			withdraw does (--member-pending-reply-settle --withdraw): the
+			record closes as withdrawn, `withdrawn-by: console:<account>`,
+			with the reason; it answers, grants and decides nothing; one
+			line by the team bot in its thread says it was dismissed from
+			the console and by which account. Prints one row: `dismissed`,
+			<pending-id>, `console:<account>`, the reason. Refused, rc 1,
+			one line: no such question, or one not pending.
 
 		--manager-session-list [--active]
 			One of the console's own operations (see Notes). Lists the
@@ -3199,9 +3268,11 @@
 			brings as every start does. A name that is no member is
 			refused. So is a member whose `SKILL.md` says
 			`status: reference-only`, such as `human-owner`: an identity
-			record is never started. The session runs as that member,
-			whoever is at the console; the operating system runs it as
-			the user that runs the console.
+			record is never started. So is `magic-team`: it is the team
+			itself and no member of it, and the team is never started.
+			The session runs as that member, whoever is at the console;
+			the operating system runs it as the user that runs the
+			console.
 			**Hazard: no secret belongs in the prompt** -- the console
 			puts a brief on the CLI's own command line, visible in `ps`
 			on the host.
@@ -3238,7 +3309,10 @@
 			names the member and its workspace cannot be reached, its
 			other fields then `-`. <status> is the `status` of its
 			`SKILL.md`: `reference-only` is a member nobody is started
-			as. <live> is `running` while a run of it in a session of
+			as. The row of `magic-team` reads `the-team` there, whatever
+			its `SKILL.md` says: it is the team itself and no member,
+			and nobody is started as it either.
+			<live> is `running` while a run of it in a session of
 			this workspace has a live process on this host, else
 			`no-process`. <icon> is the icon the member table of
 			`--install-skillset-symlinks` shows the member with: the
@@ -5014,6 +5088,11 @@
 			`executors` do, is refused in one line before its first
 			spawn, so no member of the call is started. A name that is
 			no member is refused the same way, before the first spawn.
+			`magic-team` is the team itself and no member of it, and is
+			never started either: a call that names it among its
+			members is refused the same way, and starts none of them.
+			A routine whose `executors` are `magic-team` alone still
+			means any member, as above.
 
 			The first member spawned starts the session; every
 			further one joins it by the session id the first spawn's

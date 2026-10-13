@@ -331,8 +331,6 @@ rigToolingList(){
 		'sh-lib/AgentsHarnessHooks.sh|1|kill -TERM "$hookWatchPid"|@own-watch' \
 		'sh-lib/AgentsHarnessMcpClient.sh|1|= "$runBegan" ] && kill -TERM "$runPid"|@still-itself' \
 		'sh-lib/AgentsHarnessMcpClient.sh|1|kill -TERM "$runWatchPid"|@own-watch' \
-		'sh-lib/AgentsManagerScreen.py|1|kill the session, %d agent%s? type %s:|@text' \
-		'sh-lib/AgentsManagerScreen.py|1|kill the agent %s? type %s:|@text' \
 		'sh-lib/AgentsManagerScreen.py|1|kill asked of the tooling: the %s %s|@text' \
 		'sh-lib/AgentsManagerScreen.py|1|call["process"].terminate()|@uncollected' \
 		'sh-lib/AgentsManagerScreen.py|1|call["process"].kill()|@uncollected' \

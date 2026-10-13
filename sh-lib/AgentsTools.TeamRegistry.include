@@ -197,13 +197,35 @@ AgentsToolsTeamMemberReferenceOnly(){ ## member directory
 	[ -n "${1:-}" ] && [ -f "$1/SKILL.md" ] && LC_ALL=C grep -q '^status: reference-only' "$1/SKILL.md" 2> /dev/null
 }
 
+## Whether a name is the team's own: the entry of the member set that is the team itself
+## and no member of it. magic-team is the team's identifier and the persona of the whole
+## team, with no work of its own. It has a folder in the member set as a member has, for
+## the files every member shares, its routines and its names, and a message is addressed
+## to it as to a member, so the member directory above still lists it, and its registries
+## keep its row. THE ONE PLACE that says which entry it is, and BY ITS NAME, the only
+## honest way today: no entry says in a field of its own that it is the team (its SKILL.md
+## reads `status: active`, as a member's does), and the tooling holds the team's
+## identifier nowhere but as this word, the name of its shared directory and of its scope
+## of settings. A team under another name is one more word here, until an entry says it.
+AgentsToolsTeamMemberIsTeam(){ ## member
+	[ "${1:-}" = "magic-team" ]
+}
+
 ## NOTHING RUNS AS AN IDENTITY RECORD. The one check of a start: rc 1, and one plain line on
 ## stderr that names the member, where its directory is a reference-only one; rc 0, and
 ## nothing said, for any other. The one place every start goes through asks it before it
 ## makes anything (--intern-op-agent-spawn-proxy). An operation that would make something
 ## first, or start one member before it reaches another, asks it too, ahead of that
 ## (--magic-spawn-session, --manager-spawn-member): never a check of its own.
+## NOR AS THE TEAM ITSELF, which is no member of it (AgentsToolsTeamMemberIsTeam, below):
+## asked first, of the name alone, so the team is refused in a line of its own whether or
+## not a folder was found for it. --magic-heartbeat-spawn-proxy asks this check too, ahead
+## of its own list of who it starts for.
 AgentsToolsTeamMemberStartCheck(){ ## member, member directory, the operation asked, as the line names it
+	if AgentsToolsTeamMemberIsTeam "${1:-}" ; then
+		echo "⛔ ERROR: $MDSC_CMD $3: $1 is the team itself and no member of it, and the team is never started: a run is a member's, so name the members -- nothing was started" >&2
+		return 1
+	fi
 	AgentsToolsTeamMemberReferenceOnly "${2:-}" || return 0
 	echo "⛔ ERROR: $MDSC_CMD $3: $1 is an identity record, and an identity record is never started: its SKILL.md says status: reference-only -- nothing was started" >&2
 	return 1

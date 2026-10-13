@@ -12,7 +12,13 @@
 ## another is open waits for it. The status line names only the keys that act for what has the keys: those of the
 ## active window and of the selected row first and those of every window after them, the first to go where the line
 ## is short; those of a menu while one is open; those of a dialog, by the control the keys are on, while one is open.
-## The compact style's bottom line follows the same rule, and the dialogs are drawn in every style.
+## The compact style's bottom line follows the same rule, and the dialogs are drawn in every style. The keys every
+## terminal delivers: a plain key opens the menu bar, reads now, asks for help and takes the next style; Esc and
+## then a letter is Alt with that letter, for the menus and for the exit; and the key map is the style's, so a
+## bare q ends the screen in the compact style alone. Inside a container, with the selection on the row that goes
+## up, the left window shows the container itself and its keys act on it. A toggle of a view, the raw log in place
+## of the feed, all or active, is kept for the run of the screen whatever is selected. The help lists the keys
+## from the declaration.
 ## Offline: nothing but the screen's own code runs, and no operation of the tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -212,12 +218,131 @@ cells onMember 39 0 120
 keys k
 get wrongKey
 RIGSCRIPT
-rigAssert "the list active on Launch / Spawn: what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ Enter Open  Left Up  a All/active  F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
-rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ Left Up  a All/active  k Kill  c Control  l Log  F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
-rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  l Log  F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
+rigAssert "the list active on Launch / Spawn: what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ Enter Open  Left Up  a Active  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ Left Up  a Active  k Kill  c Control  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ k Kill  c Control  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
 rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ Enter Choose  Esc Close  Left/Right Menus  Up/Down Items]"
-rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ Left Up  a All/active  k Kill]"
-rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ Left Up  a All/active  n Start  F5 Read  F10 Menu  Alt-X Exit  Tab Window]"
+rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ Left Up  a Active  k Kill  c Control]"
+rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ Left Up  a Active  n Start  u Read  m Menu  Alt-X Exit  Tab Window]"
+
+echo "-- the keys every terminal delivers: a plain key, or Esc and then a letter; no function key and no Alt --"
+rigRun <<'RIGSCRIPT'
+keys m
+get byM
+keys ESC
+get closed
+keys ESC
+turn
+cells afterEsc 39 0 120
+keys s
+get byEscS
+keys ESC x
+get afterMenuEsc
+keys ESC
+advance 2
+keys x
+get late
+keys q
+get bareQ
+keys u
+get read
+keys ?
+get help
+keys ESC
+keys m RIGHT RIGHT RIGHT
+turn
+show v
+keys ESC i
+get styled
+keys q
+get mcQ
+RIGSCRIPT
+rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:sessions []"
+rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  m Member  v View  h Help  x Exit  1 Sessions / Activity  2 Pending Questions  3 Team Members]"
+rigAssert "Esc and then the hot letter of a menu opens that menu, as Alt with that letter does" "$( rigVal byEscS.menu )" "session:kill"
+rigAssert "the Esc that closed a menu is no Alt for the key after it, and neither is one whose key comes too late" "[$( rigVal afterMenuEsc.menu )] $( rigVal afterMenuEsc.quit ) $( rigVal late.quit )" "[] no no"
+rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal bareQ.quit )" "no"
+rigAssert "u reads now, and ? opens the help: the keys from the declaration, those that act now first" "$( rigVal read.forced ) [$( rigVal help.dialogTitle )] $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'The keys that act now, on what is selected in the active window: / ?, F1: Keys / u, F5: Read now / m, F10: Menu / Alt-X: Exit' )" "list:sessions [Keys] 1"
+rigAssert "then the other keys, one whose action is not built saying so, and the menus by their letters" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'p: Pause (not built)' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F '/ g: Go / s: Session / m: Member / v: View / h: Help /' )" "1 1"
+rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                     u │' ) $( rigHas v '│ Interface style: the next    i │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 0 0"
+rigAssert "i takes the next style, and in the compact key map q ends the screen" "$( rigVal styled.style ) $( rigVal mcQ.quit )" "mc yes"
+
+echo "-- inside a container, on the row that goes up, the left window shows the container, and its keys act on it --"
+rigRun <<'RIGSCRIPT'
+rows sessions +s1=one s2=two
+rows sessions/s1 a1=agent-one
+handler kill
+handler log
+keys DOWN DOWN
+turn
+border outside 1 0 84
+keys ENTER
+turn
+get in
+border inside 1 0 84
+cells st 39 0 120
+keys k
+get onUp
+keys DOWN
+turn
+border child 1 0 84
+keys k
+get onChild
+keys ALT-5
+turn
+get launch
+border launchTitle 1 0 84
+keys ALT-3
+turn
+border teamTitle 1 0 84
+keys ALT-2
+turn
+border pendingTitle 1 0 84
+keys ALT-4
+turn
+border settingsTitle 1 0 84
+RIGSCRIPT
+rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one] [one] sessions/s1 .."
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ Enter Open  Left Up  a Active  k Kill  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window] [handled kill on s1]"
+rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[agent-one] [handled kill on a1]"
+rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn] [Team Members] [Pending Questions] [Settings / Configuration]"
+
+echo "-- a toggle of a view is kept for the run: the raw log, all or active --"
+rigRun <<'RIGSCRIPT'
+rows sessions +s1=one s2=two
+rows sessions/s1 a1=agent-one
+table feed:sessions:record --rig-feed
+table feed:sessions/*:record --rig-feed
+keys DOWN DOWN l
+turn
+get on
+border onTitle 1 0 84
+cells onStatus 39 0 120
+keys DOWN
+turn
+get moved
+border movedTitle 1 0 84
+keys UP ENTER
+get inside
+keys DOWN
+get child
+keys LEFT TAB TAB m ESC
+get back
+keys a
+keys ALT-2 ALT-3 ALT-4 ALT-1
+advance 11
+turn
+get roots
+keys l
+turn
+get off
+cells offStatus 39 0 120
+RIGSCRIPT
+rigAssert "l takes the raw log: the title of the left window says so, and the status line names what l will do now" "$( rigVal on.rawLog ) [$( rigVal onTitle )] [$( rigVal onStatus )]" "yes [one [log]] [ Enter Open  Left Up  a Active  l Feed  u Read  m Menu  Alt-X Exit  Tab Window]"
+rigAssert "moving to another session keeps it: that one shows its raw log too" "$( rigVal moved.rawLog ) [$( rigVal movedTitle )]" "yes [two [log]]"
+rigAssert "so do opening a session, moving to an agent, leaving, changing window, a menu" "$( rigVal inside.rawLog ) $( rigVal inside.path ) $( rigVal child.rawLog ) $( rigVal child.selected ) $( rigVal back.rawLog )" "yes sessions/s1 yes a1 yes"
+rigAssert "all or active is kept through the four roots and a tick, and the raw log with it" "$( rigVal roots.filter ) $( rigVal roots.path ) $( rigVal roots.rawLog )" "active sessions yes"
+rigAssert "l again takes the feed back, and the status line names what each toggle will do now: the raw log, and all, since only the active are shown" "$( rigVal off.rawLog ) [$( rigVal offStatus )]" "no [ Enter Open  Left Up  a All  l Raw log  u Read  m Menu  Alt-X Exit  Tab Window]"
 
 echo "-- every style draws the dialogs, and the compact bottom line follows the keys too --"
 rigRun <<'RIGSCRIPT'
@@ -247,8 +372,8 @@ box mcd
 box mcr roles
 RIGSCRIPT
 rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 5 1 4 ) $( rigRole bwk 8 1 4 )" "gG 57 HRBB HR.."
-rigAssert "the compact style's bottom line: the keys of the list and of the selected row, then those of every window, the menu key among them" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^c|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Left Up  a All/active  k Kill  l Log  F5 Read  F10 Menu  Alt-X Exit  Tab Window"
-rigAssert "with its left pane active the list's own keys are gone"   "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cl|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " k Kill  l Log  F5 Read  F10 Menu  Alt-X Exit  Tab Window"
+rigAssert "the compact style's bottom line: the keys of the list and of the selected row, then those of every window, the menu key among them" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^c|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Left Up  a Active  k Kill  l Raw log  u Read  m Menu  q Exit  Tab Window"
+rigAssert "with its left pane active the list's own keys are gone"   "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cl|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " k Kill  l Raw log  u Read  m Menu  q Exit  Tab Window"
 rigAssert "with a menu open it names the keys of the menu"           "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cm|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
 rigAssert "and with a dialog open the keys of the dialog, which is drawn framed there too, with no shadow" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cd|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' ) $( rigVal mc.dialogBox ) $( rigHas mcd '╔════════════════ A dialog of the rig ═════════════════╗' ) $( rigRole mcr 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigVal mc.spills )" " Enter OK  Tab Next  Esc Cancel 32,6,56,28 1 gG 0"
 

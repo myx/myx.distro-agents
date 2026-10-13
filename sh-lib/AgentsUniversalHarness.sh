@@ -5007,6 +5007,14 @@ AgentsHarnessAskResolve(){ ## pending reply id, kind, question tag, wait output,
 			AgentsHarnessAskKeepClarifications "$askPendingId" "$askClarify" "$( printf '%s\n' "$askAnswerBody" | LC_ALL=C awk '/^[0-9]+\.[0-9]+ \| / { ts = $1 ; } END { print ts ; }' )" close > /dev/null
 		;;
 	esac
+	## A plain question answered through an operation, the console's among them, stands in no
+	## thread: its record carries the words and who gave them (answered-session says it came
+	## that way), and they are given to its asker as a verdict and its giver are.
+	if [ "$askOutcome:$toolKind:$askVerdict" = "RECEIVED:question:" ] && [ -z "$askForm" ] && [ -n "$askPendingId" ] \
+		&& [ "$( AgentsHarnessAskRecordField "$askPendingId" status )" = "reply-received" ] && [ -n "$( AgentsHarnessAskRecordField "$askPendingId" answered-session )" ] ; then
+		askVerdict="$( AgentsHarnessAskRecordField "$askPendingId" verdict )"
+		askReadLines="ANSWERED-BY: $( AgentsHarnessAskRecordField "$askPendingId" answered-by )"
+	fi
 	printf 'ASK-RESULT: %s\n' "$askOutcome"
 	[ -z "$askVerdict" ] || printf 'VERDICT: %s\n' "$askVerdict"
 	[ -z "$askReadLines" ] || printf '%s\n' "$askReadLines" | LC_ALL=C grep -E '^(VERDICT-TEXT|ANSWERED-BY|CLOSED-BY|GRANT|CHANGE): ' || :
@@ -5105,6 +5113,13 @@ AgentsHarnessWaitAskResolve(){ ## wait output file
 		## Withdrawn by its asker: nothing more to take, and it leaves the Wait set.
 		if [ "$resolveStatus" = "withdrawn" ] ; then
 			printf 'NOTE: pending reply %s is withdrawn, so nothing that arrives there is taken as an answer, and it leaves your Wait set.\n' "$resolveId"
+			## Dismissed from the console, its record says so and by which account: said as that, with the reason given there.
+			case "$( AgentsHarnessAskRecordField "$resolveId" withdrawn-by )" in
+				console:*)
+					printf 'It was dismissed from the console by %s. Reason: %s. That is no answer: nothing was answered, granted or decided.\n' \
+						"$( AgentsHarnessAskRecordField "$resolveId" withdrawn-by | LC_ALL=C sed 's/^console://' )" "$( AgentsHarnessAskRecordField "$resolveId" withdraw-reason )"
+				;;
+			esac
 			AgentsHarnessAskWaitItem drop "$resolveId" || :
 			continue
 		fi
