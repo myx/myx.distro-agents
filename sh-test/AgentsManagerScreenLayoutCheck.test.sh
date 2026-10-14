@@ -140,7 +140,7 @@ size 40 30
 get smallest
 size 300 30
 get huge
-style mc
+style magic
 size 100 30
 get compact
 keys [
@@ -151,7 +151,7 @@ RIGSCRIPT
 rigAssert "at 60 columns the declared share is 18 cells, and the list is drawn its smallest, 20" "$( rigWide narrow )" "39 40 20 []"
 rigAssert "at the smallest terminal too"                             "$( rigVal smallest.layout ) $( rigWide smallest )" "ok 19 20 20 []"
 rigAssert "at 300 columns the declared share is 90 cells, and the list is drawn its largest, 80" "$( rigWide huge )" "219 220 80 []"
-rigAssert "the compact style takes the same split"                   "$( rigVal compact.style ) $( rigWide compact ) / $( rigWide compactMoved ) / $( rigWide compactNarrow )" "mc 69 70 30 [] / 64 65 35 [0.3500] / 38 39 21 [0.3500]"
+rigAssert "Magic takes the same split"                               "$( rigVal compact.style ) $( rigWide compact ) / $( rigWide compactMoved ) / $( rigWide compactNarrow )" "magic 69 70 30 [] / 64 65 35 [0.3500] / 38 39 21 [0.3500]"
 
 echo "-- the mouse on the border between the windows --"
 rigBare <<'RIGSCRIPT'

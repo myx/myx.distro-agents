@@ -192,7 +192,7 @@ cells cut 2 41 59
 plaintext given a🚀b│c…
 get a
 RIGSCRIPT
-rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each: on the first row of the root, the dashboard" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [ Dashboard (Mo+...] 0"
+rigAssert "the column between the panes and the cut mark, which stands ahead of the mark of a folder, are drawn in one byte each: on the first row of the root, the dashboard" "[$( rigVal sep )] [$( rigVal cut )] $( rigVal a.spills )" "[|] [ Dashboard (Mon+ >] 0"
 rigAssert "what such a terminal cannot show is given as ?, cell for cell" "[$( rigVal given )]" "[a??b?c?]"
 
 ## The real screen comes up on the first row of its root, the dashboard: its name in the title of the left window is what is waited for.

@@ -134,8 +134,8 @@ rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of t
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C sed -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigListRow(){ ## what a row shows as, its tail -- that row of the list, a session that can be opened, as it is drawn in its 34 cells with the mark of a folder after its name, not selected
-	printf ' %-*s %s' "$(( 32 - ${#2} ))" "$1..." "$2"
+rigListRow(){ ## what a row shows as, its tail -- that row of the list, a session that can be opened, as it is drawn in its 34 cells with the mark of a folder at its right edge, not selected
+	printf ' %-*s %s ►' "$(( 30 - ${#2} ))" "$1" "$2"
 }
 rigCalled(){ ## the arguments of a start -- how many times the stand-in was started with exactly those
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/calls" || :

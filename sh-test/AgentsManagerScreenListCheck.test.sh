@@ -57,7 +57,7 @@ cells row6 7 85 119
 cells row7 8 85 119
 cells row8 9 85 119
 RIGSCRIPT
-rigAssert "the root holds the eight sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[>Dashboard (Monitor)...][ Sessions (Activity)...][ Pending Questions...][ Team Members...][ Locations (Places)...][ Consoles (Tools)...][ Settings...][ Configuration...]"
+rigAssert "the root holds the eight sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[>Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][ Locations (Places)              ►][ Consoles (Tools)                ►][ Settings                        ►][ Configuration                   ►]"
 rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 8"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
@@ -81,7 +81,7 @@ get root
 RIGSCRIPT
 rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions (Activity)  [all]]"
 rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVal inRow1 )] $( rigVal in.selected )" "[>..] .."
-rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn...]"
+rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn                  ►]"
 rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity) [wrap]]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
 rigAssert "Enter dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."

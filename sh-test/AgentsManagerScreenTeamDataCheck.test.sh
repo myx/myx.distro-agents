@@ -104,6 +104,9 @@ rigScript(){ ## the commands of the driver on standard input, after the ones tha
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
+rigFolderHolds(){ ## tag, text -- how many lines of that whole screen hold the text and, on the same line, the mark of a folder: a row that is one
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -F -- "$2" | LC_ALL=C grep -c -F '►' || :
+}
 rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
@@ -175,12 +178,12 @@ get in
 show in
 RIGSCRIPT
 rigAssert "where the dashboard says the team data is there, Team Data is the fifth of nine roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "9 4 Team Data"
-rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch / Spawn has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *[0-9]* ' -e 'Configuration  *[0-9]* ' -e 'Launch / Spawn  *[0-9]* ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch / Spawn|"
+rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch / Spawn has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch / Spawn  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch / Spawn|"
 rigAssert "selected, its summary says where the team data is, that it is there and its size, and the mode of the workspace" "$( rigHolds on '│Team data, there:' ) $( rigHolds on '│  /rig/ws/team-data ' ) $( rigHolds on '│  Team Data Present: yes' ) $( rigHolds on '│  Team Data Size: 77.5M' ) $( rigHolds on '│mode      Team Rig, saved for the workspace; a full team rig' )" "1 1 1 1 1"
 rigAssert "its git state, nicely: where it stands and what it tracks, ahead and behind, what is not committed, its last commit, and in words of their own what is not level, with the worst level" "$( rigHolds on '│Git: on main, tracking origin/main.' ) $( rigHolds on '│  2 ahead and 1 behind, as of its last fetch' ) $( rigHolds on '│  3 paths not committed' ) $( rigHolds on '│  last commit 2h 5m ago: the last change' ) $( rigHolds on '│It is behind its remote by 1; ahead of its remote by 2; 3 paths' )" "1 1 1 1 1"
 rigAssert "then the remote and the branch of the team data, its board by state, and the main loop, judged on a full team rig" "$( rigHolds on 'remote    git@rig.invalid:team-data.git' ) $( rigHolds on "branch    not set: the tooling's own" ) $( rigHolds on 'Its board, the items by state: running 43, review 142.' ) $( rigHolds on 'The main loop and the heartbeat:' ) $( rigHolds on 'Main Loop Last Outcome: failed  (bad)' )" "1 1 1 1 1"
 rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
-rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds in ' Operations...' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "teamdata 8 1 1 1 0"
+rigAssert "entered, it holds Operations, its three stores and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "teamdata 8 1 1 1 0"
 
 echo "-- 2. the main loop by the mode of the workspace --"
 rigCase plain rig plain

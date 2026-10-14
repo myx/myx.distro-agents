@@ -12,10 +12,10 @@
 ## another is open waits for it. The status line names only the keys that act for what has the keys: those of the
 ## active window and of the selected row first and those of every window after them, the first to go where the line
 ## is short; those of a menu while one is open; those of a dialog, by the control the keys are on, while one is open.
-## The compact style's bottom line follows the same rule, and the dialogs are drawn in every style. The keys every
+## The dialogs are drawn in every style, in Magic with its own marks. The keys every
 ## terminal delivers: a plain key opens the menu bar, reads now, asks for help and takes the next style; Esc and
-## then a letter is Alt with that letter, for the menus and for the exit; and the key map is the style's, so a
-## bare q ends the screen in the compact style alone. Inside a container, with the selection on the row that goes
+## then a letter is Alt with that letter, for the menus and for the exit; and the key map is the style's: a bare q
+## ends the screen in none. Inside a container, with the selection on the row that goes
 ## up, the left window shows the container itself and its keys act on it. A toggle of a view, the raw log in place
 ## of the feed, all or active, is kept for the run of the screen whatever is selected. The help lists the keys
 ## from the declaration.
@@ -255,7 +255,7 @@ show v
 keys ESC i
 get styled
 keys q
-get mcQ
+get bwQ
 RIGSCRIPT
 rigAssert "m opens the menu bar, and Esc closes it at once"          "$( rigVal byM.menu ) [$( rigVal closed.menu )]" "go:dashboard []"
 rigAssert "after Esc, with nothing to close, the status line names the letters that then act" "[$( rigVal afterEsc )]" "[ g Go  s Session  v View  h Help  x Exit  1 Dashboard (Monitor)  2 Sessions (Activity)  3 Pending Questions]"
@@ -266,7 +266,7 @@ rigAssert "the help names the keys as the style does" "$( rigVal help.dialogHold
 rigAssert "u reads now, and ? opens the help: the keys from the declaration, those that act now first" "$( rigVal read.forced ) [$( rigVal help.dialogTitle )] $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'The keys that act now, on what is selected in the active window: / u, F5: Read now / m, F10: Menu / ^X, Alt-X: Exit' )" "list:sessions [Keys] 1"
 rigAssert "then the other keys, one whose action is not built saying so, and the menus by their letters" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'p: Pause (not built)' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F '/ g: Go / s: Session / m: Member / c: Console / v: View / q: Question / h: Help /' )" "1 1"
 rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       i │' ) $( rigHas v '│ Next window                   TAB │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 1 0 0"
-rigAssert "i takes the next style, and in the compact key map q ends the screen" "$( rigVal styled.style ) $( rigVal mcQ.quit )" "mc yes"
+rigAssert "i takes the next style, Basic B/W, and a bare q ends nothing there either" "$( rigVal styled.style ) $( rigVal bwQ.quit )" "bw no"
 
 echo "-- inside a container, on the row that goes up, the left window shows the container, and its keys act on it --"
 rigRun <<'RIGSCRIPT'
@@ -345,7 +345,7 @@ rigAssert "so do opening a session, moving to an agent, leaving, changing window
 rigAssert "all or active is kept through the four roots and a tick, and the raw log with it" "$( rigVal roots.filter ) $( rigVal roots.path ) $( rigVal roots.rawLog )" "active sessions yes"
 rigAssert "l takes the log, the feed alone, and the status line names what each key will show now: the two other modes, and all, since only the active are shown" "$( rigVal off.rawLog ) $( rigVal off.viewMode ) [$( rigVal offStatus )]" "no log [ ENTER Open  BSP Up  a All  b Summary  g Raw log  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
-echo "-- every style draws the dialogs, and the compact bottom line follows the keys too --"
+echo "-- every style draws the dialogs, Magic in its own marks --"
 rigRun <<'RIGSCRIPT'
 handler kill
 keys DOWN DOWN
@@ -355,28 +355,17 @@ turn
 box bw roles
 box bwk looks
 keys ESC
-style mc
-turn
-show c
-keys TAB
-turn
-show cl
-keys TAB F10
-turn
-show cm
-keys ESC
+style magic
 rigdialog What the rig asks.
 turn
-get mc
-show cd
-box mcd
-box mcr roles
+get mg
+show md
+box mgd
+box mgr roles
 RIGSCRIPT
 rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 5 1 4 ) $( rigRole bwk 8 1 4 )" "gG 57 HRBB HR.."
-rigAssert "the compact style's bottom line: the keys of the list and of the selected row, then those of every window, the menu key among them" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^c|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Backspace Up  a Active  k Kill  u Read  m Menu  q Exit  Tab Window  ? Help"
-rigAssert "with its left pane active the list's own keys are gone"   "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cl|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " w Cut  k Kill  u Read  m Menu  q Exit  Tab Window  ? Help"
-rigAssert "with a menu open it names the keys of the menu"           "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cm|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
-rigAssert "and with a dialog open the keys of the dialog, which is drawn framed there too, with no shadow" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cd|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' ) $( rigVal mc.dialogBox ) $( rigHas mcd '╔════════════════ A dialog of the rig ═════════════════╗' ) $( rigRole mcr 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigVal mc.spills )" " Enter OK  Tab Next  Esc Cancel 32,6,56,28 1 gG 0"
+rigAssert "Magic: the same dialog in a heavy frame, its title between the junctions, a slim shadow, raised buttons, one line more for their shadow" "$( rigHas mgd '┏━' ) $( rigHas mgd '┫ A dialog of the rig ┣' ) $( rigHas mgd '┓▖' ) $( rigHas mgd ' »OK« ▖' ) $( rigVal mg.dialogBox )" "1 1 1 1 32,5,56,29"
+rigAssert "its status line names the keys of the dialog, in its own names"  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^md|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " ⏎ OK  ⇥ Next  ⎋ Cancel"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN DIALOG CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

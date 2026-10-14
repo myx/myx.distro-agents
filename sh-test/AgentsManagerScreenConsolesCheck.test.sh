@@ -136,7 +136,7 @@ RIGSCRIPT
 rigRootLine(){ ## text -- the number of the line of the screen, as first shown, that holds the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
-rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members...' )" -lt "$( rigRootLine ' Consoles (Tools)...' )" ] && [ "$( rigRootLine ' Consoles (Tools)...' )" -lt "$( rigRootLine ' Settings...' )" ] && echo in-that-order )" "in-that-order"
+rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles (Tools)  ' )" ] && [ "$( rigRootLine ' Consoles (Tools)  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles (Tools)  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
 rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 12"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"
@@ -250,7 +250,7 @@ rigAssert "the terminal was resized while the child ran: the screen is drawn in 
 rigAssert "with the keys on the left window Enter starts nothing"    "$( rigVal sized.children ) $( rigVal tab.children ) $( rigVal tab.focus )" "2 2 view"
 
 echo "-- the three styles draw it --"
-for rigStyle in tv mc bw ; do
+for rigStyle in tv bw magic ; do
 	rigCase "style-$rigStyle"
 	rigScript <<RIGSCRIPT
 style $rigStyle

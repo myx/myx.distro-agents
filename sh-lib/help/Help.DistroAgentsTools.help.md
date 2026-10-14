@@ -2956,8 +2956,8 @@
 			are the values that may be chosen, in the order they are
 			offered, joined by commas, each `<value>=<label>`. One
 			setting now, the interface style of the manager screen:
-			group `style`, key `MDAT_MANAGER_STYLE`, value `tv`, `mc` or
-			`bw`.
+			group `style`, key `MDAT_MANAGER_STYLE`, value `tv`, `bw` or
+			`magic`.
 			`console`: what a console of this workspace does. Group
 			`history`, key `MDLT_CONSOLE_HISTORY`, where a console keeps
 			the shell history of the user, which every console reads at

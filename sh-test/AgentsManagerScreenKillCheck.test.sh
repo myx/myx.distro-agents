@@ -230,7 +230,7 @@ rigAssert "the left pane shows the answer for each run: ended, killed, was not r
 rigAssert "and one that was not signalled, with why"                 "[$( rigPane a 7 )][$( rigPane a 8 )] $( rigVal answered.answer )" "[   magic-developer    not signalled: it has no id of its own][] 5"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
 rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 9 )]" \
-	"$rigS1 [>daily of Monday...       finished] [ the kill, answered 02:30:00:][ state     finished]"
+	"$rigS1 [>daily of Monday        finished ►] [ the kill, answered 02:30:00:][ state     finished]"
 rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[]"
 
 echo "-- on an agent the kill takes the agent's own id, with --run --"

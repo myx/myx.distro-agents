@@ -181,12 +181,15 @@ echo "-- Team Members lists the members --"
 rigIconCells(){ ## name -- that value with each icon of the fixture written as the two cells the screen gives it
 	rigVal "$1" | LC_ALL=C sed -e 's/👤/##/' -e 's/🤖/##/' -e 's/🔏/##/' -e 's/⚒️/##/'
 }
-rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or three of them where the pane has room for no more -- one line of the table, in the columns the fixture gives it; a member that is a folder is named with the mark of one, which its column has room for
+rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or three of them where the pane has room for no more -- one line of the table, in the columns the fixture gives it
 	case $# in
-		6) printf ' %-2s %-20s %-7s %-8s %-6s %s' "$@" ;;
-		4) printf ' %-2s %-20s %-7s %s' "$@" ;;
-		3) printf ' %-2s %-20s %s' "$@" ;;
+		6) printf ' %-2s %-17s %-7s %-8s %-6s %s' "$@" ;;
+		4) printf ' %-2s %-17s %-7s %s' "$@" ;;
+		3) printf ' %-2s %-17s %s' "$@" ;;
 	esac
+}
+rigMarked(){ ## a row of the list on standard input -- the row without the mark of a folder at its right edge, and the blanks ahead of it: the table as it is drawn
+	LC_ALL=C sed 's/  *►$//'
 }
 rigTableHead="$( rigTableLine '' MEMBER RUN STATUS KIND WHERE )"
 rigCase list
@@ -244,22 +247,23 @@ rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
 rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "team list:team 1 0"
 rigAssert "the members stand in a table: a header that names its columns, under it the row that goes up, then every member in the order of the operation, with its icon, its name, whether it runs now, its status, its kind and where it is set up" \
-	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal head )][$( rigVal row1 )][$( rigIconCells row3 )][$( rigIconCells row4 )][$( rigVal row7 )]" \
-	"[Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator... - active magic here )][$( rigTableLine '##' keeper-myx... running active keeper here )][]"
+	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal head )][$( rigVal row1 )][$( rigIconCells row3 | rigMarked )][$( rigIconCells row4 | rigMarked )][$( rigVal row7 )]" \
+	"[Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
+rigAssert "a member that is a folder has the mark of one at the right edge of its row; the header and a member that is none have none" "$( rigVal row3 | LC_ALL=C grep -c '  ►$' ) $( rigVal head | LC_ALL=C grep -c '►' ) $( rigVal row6 | LC_ALL=C grep -c '►' )" "1 0 0"
 rigAssert "each column starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
-	"[$( rigIconCells row2 )][$( rigIconCells row5 )][$( rigIconCells row6 )]" \
-	"[$( rigTableLine '##' human-owner... - ref-only human here )][$( rigTableLine '##' keeper-far... - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
+	"[$( rigIconCells row2 | rigMarked )][$( rigIconCells row5 | rigMarked )][$( rigIconCells row6 )]" \
+	"[$( rigTableLine '##' human-owner - ref-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
 rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
 rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 162 162 )$( rigLooks k 5 162 162 )$( rigLooks k 9 162 162 )$( rigLooks k 3 162 166 )$( rigLooks k 6 162 162 )" "BDD......"
 rigAssert "a pane of 44 cells has room for the status, shown by its short word, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
-	"$(( $( rigVal mid.listWidth ) - 2 )) [$( rigVal midHead )][$( rigIconCells midRow2 )][$( rigIconCells midRow4 )][$( rigVal midRow6 )]" \
-	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner... - ref-only )][$( rigTableLine '##' keeper-myx... running active )][$( rigTableLine '' keeper-gone - - )]"
+	"$(( $( rigVal mid.listWidth ) - 2 )) [$( rigVal midHead )][$( rigIconCells midRow2 | rigMarked )][$( rigIconCells midRow4 | rigMarked )][$( rigVal midRow6 )]" \
+	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - ref-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
 rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
-	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 )][$( rigIconCells narrowRow3 )][$( rigIconCells narrowRow4 )][$( rigIconCells narrowRow5 )][$( rigVal narrowRow6 )]" \
-	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner... - )][$( rigTableLine '##' magic-coordinator... - )][$( rigTableLine '##' keeper-myx... running )][$( rigTableLine '##' keeper-far... - )][$( rigTableLine '' keeper-gone - )]"
+	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 | rigMarked )][$( rigIconCells narrowRow3 | rigMarked )][$( rigIconCells narrowRow4 | rigMarked )][$( rigIconCells narrowRow5 | rigMarked )][$( rigVal narrowRow6 )]" \
+	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
 rigAssert "a pane at its smallest, 18 cells inside its frame, shows the icon and the name alone, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
-	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 )][$( rigIconCells tinyRow4 )] $( rigVal tiny.spills )" \
-	"18 [    MEMBER][ ## magic-coor…...][ ## keeper-myx...] 0"
+	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 | rigMarked )][$( rigIconCells tinyRow4 | rigMarked )] $( rigVal tiny.spills )" \
+	"18 [    MEMBER][ ## magic-coord…][ ## keeper-myx] 0"
 rigAssert "on the row that goes up the left pane says what the section holds: how many, who runs now, who is not started from here and why" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )][$( rigPane u 6 )]" "[ 5 members, 1 with a live run.][ Running now: keeper-myx.][ 2 of them are not started from here.][   human-owner: its status is reference-only: nobody is started as this member]"
 rigAssert "k is no key of this view, and n on the row that goes up says in the status line what it is for" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[][Start: for a team member, not for what is selected] []"
 
@@ -376,7 +380,7 @@ rigAssert "the operation is called once, for that member, with the name as one w
 rigAssert "the prompt is on its standard input, whole, with a line end" "$( rigInput 'fix the index, please' ) $( rigOthers )" "same 0"
 rigAssert "what the operation printed is shown: the session, the member, the name, the item" "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )][$( rigPane a 8 )]" \
 	"[started: keeper-myx, session $rigNew] [ the start, answered 02:30:00:][ session   $rigNew][ member    keeper-myx][ name      the index][ item      dispatch-20261013T023000Z-spawn-proxy-1][]"
-rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ the index...              running][ daily of Monday...        running]"
+rigAssert "the list of the sessions is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ the index               running ►][ daily of Monday         running ►]"
 
 echo "-- no name, an empty prompt, Esc --"
 rigCase bare
@@ -503,7 +507,7 @@ box pbox
 RIGSCRIPT
 rigSize=""
 rigTeamLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -n -F 'magic-team' | LC_ALL=C sed -e 's/:.*$//' | head -1 )"
-rigAssert "the row of the team itself is listed, with the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u 'magic-team           -       the-team team' )" "magic-team 1"
+rigAssert "the row of the team itself is listed, with the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u 'magic-team        -       the-team team' )" "magic-team 1"
 rigAssert "it shows plainer, as every member that is not started from here" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n "${rigTeamLine:-1}p" | LC_ALL=C cut -c162-162 )" "D"
 rigAssert "n on it starts nothing: the status line says why, in the words of its row" "[$( rigVal no.dialog )] [$( rigVal no.notice )] $( rigCalled '--manager-spawn-member magic-team' )" "[] [Start: magic-team is not started: its status is the-team: nobody is started as this member] 0"
 rigAssert "the dialog of a start, titled by the member and listing those that are started from here, does not offer that row" "$( rigVal first.selected ) [$( rigVal dlg.dialog )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'keeper-myx' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'magic-team' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'human-owner' )" "keeper-myx [prompt:prompt|] 2 0 0"

@@ -13,10 +13,11 @@
 ## hot letter any menu: a pull-down in a frame with its items, their hot letters, their keys at the right, a line
 ## between two groups, its shadow, and an item that does not apply greyed; the arrows move, Enter and the hot letter of
 ## an item choose it, which does what the key of that command does, an item that does not apply is not chosen, and Esc
-## closes. The styles of STYLES: F9 takes the next one at once; the compact one draws the two panes between two status
-## lines with no frame at all, and its menu all the same; B/W draws what Turbo Vision draws; a name that is no style
-## is refused. On a real terminal with colours the screen sets colours, on one with none it comes up all the same and
-## sets none, a style without colours sets none on a terminal that has them, and Alt-X ends it with status 0.
+## closes. The styles of STYLES: F9 takes the next one at once; Basic B/W draws what Turbo Vision draws; a name that is
+## no style is refused, the retired compact one among them, and named in the environment it leaves the default. On a
+## real terminal with colours the screen sets colours, on one with none it comes up all the same and sets none, a style
+## without colours sets none on a terminal that has them, Magic sets the shades of a terminal of 256 colours, and Alt-X
+## ends it with status 0.
 ## The menus follow the view, the level the list is at: a menu with no command of the view is not in the bar, the commands
 ## of a view all stand in its menus, and one that does not apply to the row selected is greyed and, tried, says why.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
@@ -172,6 +173,26 @@ rigAssert "the hot letter of an item chooses it"                     "[$( rigVal
 rigAssert "an item that does not apply is not chosen: the menu stays, nothing is done, and the status line says why" "$( rigVal grey.menu ) [$( rigVal grey.notice )] [$( rigVal grey.dialog )]" "member:start [Start: for a team member, not for what is selected] []"
 rigAssert "Alt-X ends the screen"                                    "$( rigVal out.quit )" "yes"
 
+echo "-- the shadow of a menu stands beside each of its rows, a line between two groups as much as an item --"
+for rigStyle in tv magic ; do
+	rigRun <<RIGSCRIPT
+style $rigStyle
+keys F10
+show sh
+roles shr
+RIGSCRIPT
+	## Turbo Vision's shadow is two cells wide, Magic's slim one a single cell; the right edge of the pull-down is read off
+	## its first item, and the line between two groups is a row of it whose text holds the left junction of the rule
+	rigWide=2 ; [ "$rigStyle" = tv ] || rigWide=1
+	rigEdge="$( rigLine shr 3 | LC_ALL=C sed -e 's/^\(...[mhoOx]*\).*/\1/' )" ; rigEdge="${#rigEdge}"
+	rigBeside="" ; rigRow=3
+	while [ "$( rigRole shr "$rigRow" 4 4 )" = m ] ; do
+		case "$( rigLine sh "$rigRow" )" in *├*) rigBeside="$rigBeside $( rigRole shr "$rigRow" $(( rigEdge + 1 )) $(( rigEdge + rigWide )) )" ;; esac
+		rigRow=$(( rigRow + 1 ))
+	done
+	rigAssert "in the style $rigStyle the cells beside each line between two groups of a menu are its shadow, as beside an item" "$( rigVal style.refused )[$( rigRole shr 3 $(( rigEdge + 1 )) $(( rigEdge + rigWide )) )] [${rigBeside# }]" "$( [ "$rigStyle" = tv ] && echo '[ww] [ww ww ww]' || echo '[z] [z z z]' )"
+done
+
 echo "-- the menus follow the view --"
 rigRun <<'RIGSCRIPT'
 cells barSessions 0 0 40
@@ -222,29 +243,22 @@ rigRun <<'RIGSCRIPT'
 get tv
 show t
 keys F9
-get mc
-show c
-looks ck
-keys F10
-get cm
-show cmenu
-keys ESC F9
 get bw
 show b
+keys F9
+get magic
 keys F9
 get back
 style nonsense
 get still
+style mc
+get retired
 RIGSCRIPT
-rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal mc.style ) [$( rigVal mc.notice )]" "tv mc [interface style: MC (Compact)]"
-rigAssert "the compact style has a status line on top: the workspace, the machine, the load and the clock" "$( rigLine c 1 | rigSqueeze )" " ws-rig@rig-host load 0.42 12:34:56 "
-rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Backspace Up  a Active  u Read  m Menu  q Exit"
-rigAssert "it spends nothing on frames: one column parts the two panes, and the list has a line more" "$( rigHas c '║' ) $( rigHas c '┌' ) $( rigHas c '└' ) $( rigHas c '│' ) $( rigVal mc.listHeight ) $( rigVal mc.viewHeight )" "0 0 0 38 37 36"
-rigAssert "its @ stands apart too, in a line that is otherwise in one look" "$( rigLine ck 1 | LC_ALL=C tr -d R )" "B"
-rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions (Activity)          2 │' )" "go:dashboard [ ≡ Go Session View Help ws-rig@rig-host] 1"
-rigAssert "B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
+rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal bw.style ) [$( rigVal bw.notice )] $( rigVal magic.style ) [$( rigVal magic.notice )]" "tv bw [interface style: Basic B/W] magic [interface style: Magic]"
+rigAssert "Basic B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
 rigAssert "and after the last style comes the first again"          "$( rigVal back.style )" "tv"
 rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal style.refused ) $( rigVal still.style )" "nonsense tv"
+rigAssert "the compact style is retired: its name is no style any more" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^style.refused=//p' | LC_ALL=C tr '\n' ' ' )$( rigVal retired.style )" "nonsense mc tv"
 
 echo "-- the real screen, on a terminal with colours and on one with none --"
 rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
@@ -252,14 +266,18 @@ rigAssert "on a terminal with colours the screen comes up in its colours, and Al
 MANAGER_SCREEN_PTY_TERM=vt100 rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "on a terminal with no colours it comes up all the same, and sets none" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc ) $( rigVal pty.errorAfterLeft )" "yes no 0 none"
 rigPty 100 30 "Sessions (Activity)" '\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
-rigAssert "started in the style B/W it sets no colour on a terminal that has them" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
-MDAT_MANAGER_STYLE=mc rigPty 100 30 "a Active  u Read" q "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
-rigAssert "the environment names the style of a start: the compact one comes up, and q ends it" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
+rigAssert "started in the style Basic B/W it sets no colour on a terminal that has them" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.rc )" "yes no 0"
+MDAT_MANAGER_STYLE=mc rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
+rigAssert "the environment names the retired compact style: the default comes up instead, in its colours, and Ctrl-X ends it" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.shades ) $( rigVal pty.rc )" "yes yes no 0"
+MANAGER_SCREEN_PTY_TERM=xterm-256color rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
+rigAssert "started in Magic on a terminal of 256 colours it sets the shades of that palette, and Ctrl-X ends it" "$( rigVal pty.frame ) $( rigVal pty.shades ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes yes 0 yes none"
+rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style magic
+rigAssert "and on a terminal of eight colours in the eight" "$( rigVal pty.frame ) $( rigVal pty.colours ) $( rigVal pty.shades ) $( rigVal pty.rc )" "yes yes no 0"
 
 echo "-- the machine's name stands whole: in a narrow top line the workspace gives way first, then the seconds, then the start of the machine's name --"
 mkdir -p "$rigTmp/long" ; : > "$rigTmp/long/calls" ; echo rows > "$rigTmp/long/mode"
 printf 'counters\t2\t0\t1\t2\t3\t0.42\tmagic-mac-studio.office.example.net\n' > "$rigTmp/long/rows.--manager-session-list"
-for rigStyle in tv mc ; do
+for rigStyle in tv ; do
 	MANAGER_SCREEN_RIG="$rigTmp/long" rigScript <<RIGSCRIPT
 style $rigStyle
 tools bash $MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.test.sh
@@ -289,13 +307,12 @@ RIGSCRIPT
 	rigAssert "then the clock loses its seconds, and only then the machine's name its start, never its end" "[$( rigVal w90 | LC_ALL=C sed -e 's/^ *//' )] [$( rigVal w60 )]" "[…@…ic-mac-studio.office.example.net  12:34] [ ≡  Go  View  Help  …@…ample.net  12:34]"
 	rigAssert "the @ keeps its own look"                                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^r60|//p' | LC_ALL=C sed -n '1p' | LC_ALL=C tr -d -c '@' )" "@"
 done
-rigAssert "the compact style cuts in the same order: the workspace first, the machine's name whole beside the load and the clock" "[$( rigVal c60 )]" "[ …i@magic-mac-studio.office.example.net load 0.42  12:34:56]"
 
 echo "-- the exit: Esc and then x as a terminal sends it and as a hand types it, Ctrl-X, and what Option types on a Mac --"
 rigPty 100 30 "Sessions (Activity)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "Esc, and x a moment after it, typed by hand, ends the real screen in Turbo Vision" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
 rigPty 100 30 "Sessions (Activity)" '\e\px' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" --style bw
-rigAssert "and in B/W"                                                "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
+rigAssert "and in Basic B/W"                                          "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left )" "yes 0 yes"
 rigPty 100 30 "Sessions (Activity)" '\x18' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
 rigAssert "Ctrl-X ends the real screen: the key every terminal delivers" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.errorAfterLeft )" "yes 0 yes none"
 rigPty 100 30 "Sessions (Activity)" 'm\p\ex' "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools"
@@ -315,7 +332,7 @@ get tvOut
 RIGSCRIPT
 rigAssert "the status line of Turbo Vision names Ctrl-X as the exit, and so does the item of its menu" "$( rigVal tvStatus | LC_ALL=C grep -c -F '^X Exit' ) $( rigVal tvStatus | LC_ALL=C grep -c -F 'Alt-' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -c -F '│ Exit                    ^X │' )" "1 0 1"
 rigAssert "Ctrl-X ends the screen in Turbo Vision"                    "$( rigVal tvOut.quit )" "yes"
-for rigStyle in bw mc ; do
+for rigStyle in bw magic ; do
 	rigScript <<RIGSCRIPT
 style $rigStyle
 size 120 40
@@ -326,7 +343,6 @@ get out
 RIGSCRIPT
 	rigAssert "Ctrl-X ends the screen in the style $rigStyle"            "$( rigVal out.quit )" "yes"
 done
-rigAssert "the compact style names q, as before"                      "$( rigVal status | LC_ALL=C grep -c -F 'q Exit' )" "1"
 rigScript <<'RIGSCRIPT'
 size 120 40
 turn
@@ -373,7 +389,7 @@ spec = importlib.util.spec_from_file_location("screen", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 keys = ("ENTER", "TAB", "ESC", "LEFT", "RIGHT", "UP", "DOWN", "BACKSPACE", "PGUP", "PGDN")
-for style in ("tv", "bw", "mc", "symbols"):
+for style in ("tv", "bw", "symbols"):
     if style == "symbols":
         m.STYLE["names"] = "symbols"
     else:
@@ -385,7 +401,6 @@ RIGPY
 )"
 rigAssert "Turbo Vision: capitals, and the arrows of the IBM PC set for Left and Right; a click on each finds its key" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^tv ' )" "tv ENTER TAB ESC ← → UP DN BSP PgUp PgDn | 5 3 3 1 1 2 2 3 4 4 | True ←/→ UP/DN"
 rigAssert "B/W: the same" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^bw ' )" "bw ENTER TAB ESC ← → UP DN BSP PgUp PgDn | 5 3 3 1 1 2 2 3 4 4 | True ←/→ UP/DN"
-rigAssert "the compact style: the names it had" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^mc ' )" "mc Enter Tab Esc Left Right Up Down Backspace PgUp PgDn | 5 3 3 4 5 2 4 9 4 4 | True Left/Right Up/Down"
 rigAssert "the set of symbols: one cell each, and no emoji" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^symbols ' )" "symbols ⏎ ⇥ ⎋ ← → ↑ ↓ ⌫ PgUp PgDn | 1 1 1 1 1 1 1 1 4 4 | True ←/→ ↑/↓"
 
 if [ "$rigFailCount" -ne 0 ] ; then

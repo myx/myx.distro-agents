@@ -110,7 +110,7 @@ RIGROWS
 {
 	rigRow subject interface 2 Interface
 	rigRow subject slack 3 Slack
-	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,mc=MC /rig/conf settings
+	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,magic=Magic /rig/conf settings
 	rigRow line interface screen period set 10 Period Seconds_between_reads yes number user file 1..60 /rig/conf settings
 	rigRow line slack app channel set C123 Channel The_channel no:set_at_deployment text workspace file - /rig/conf configuration
 	rigRow line slack app token secret-set hidden-value Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration
@@ -195,14 +195,14 @@ border t5 1 0 84
 style bw
 turn
 border t6 1 0 84
-style mc
+style magic
 turn
 show m
 RIGSCRIPT
 rigAssert "wrapped, as the screen starts: the title says so, on every row" "[$( rigVal t0 )] [$( rigVal t1 )]" "[Dashboard (Monitor) [wrap]] [Sessions (Activity) [wrap]]"
 rigAssert "w in the left window: the title says cut, and still does when the selection has moved" "[$( rigVal t2 )] [$( rigVal t3 )]" "[Sessions (Activity) [cut]] [Pending Questions [cut]]"
 rigAssert "a thing that has a log: the wrap state stands beside its mode, cut and then wrapped again" "[$( rigVal t4 )] [$( rigVal t5 )]" "[daily of Monday [summary] [cut]] [daily of Monday [summary] [wrap]]"
-rigAssert "with no colours and in the compact style too" "[$( rigVal t6 )] $( rigHolds m 'daily of Monday [summary] [wrap]' )" "[daily of Monday [summary] [wrap]] 1"
+rigAssert "with no colours and in Magic too" "[$( rigVal t6 )] $( rigHolds m 'daily of Monday [summary] [wrap]' )" "[daily of Monday [summary] [wrap]] 1"
 
 echo "-- Help has its word in the status line --"
 rigCase help

@@ -67,6 +67,7 @@ DESKTOP, BAR, BAR_HOT, BAR_AT, BAR_ON, BAR_ON_HOT, BAR_OFF, FRAME_ON, FRAME, SCR
 BOX, BOX_FRAME, BOX_FIELD, BOX_ON, BOX_BUTTON, BOX_BUTTON_ON, BOX_SAYS = 15, 16, 17, 18, 19, 20, 21
 FOLDER = 22
 LEVEL_OK, LEVEL_WARN, LEVEL_BAD = 23, 24, 25
+TITLE_ON, TITLE, SHADE, BOX_SHADE = 26, 27, 28, 29
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -108,9 +109,59 @@ LOOKS = (
     ("k", "", "green", "blue", True),
     ("W", "B", "yellow", "blue", True),
     ("X", "RB", "white", "red", True),
+    ## the title in the top border of the active window and of a dialog, and of another
+    ## window, where a style sets it apart from its frame (STYLES "titles"); the slim shadow
+    ## of a menu or a dialog over a window, and of a raised button inside a dialog ("shadow")
+    ("T", "R", "white", "blue", True),
+    ("t", "", "cyan", "blue", False),
+    ("z", "D", "black", "blue", False),
+    ("Z", "D", "black", "white", False),
 )
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
+## The colours of a style that has its own (STYLES "looks"), for each look of LOOKS by its
+## number; the letter and the look with no colours stay those of LOOKS. Each gives, for a
+## terminal of eight or sixteen colours, its text, its ground and whether the text is bright,
+## as LOOKS does; and for one of 256 colours (curses.COLORS) the exact shades of its text
+## and its ground, by their numbers in the terminal's own palette, the cube of 6x6x6 (16
+## to 231) and the ramp of greys (232 to 255), and whether the text is bold. The palette
+## of the terminal is never changed, and no colour of 24 bits is asked for.
+STYLE_LOOKS = {
+    ## Magic: after the later Norton Utilities. Light grey windows with dark text, a deep
+    ## blue desktop, one blue for what has the keys, a grey bar, buttons on pale cyan.
+    "magic": {
+        PLAIN: ("black", "white", False, 235, 254, False),
+        BOLD: ("blue", "white", True, 18, 254, True),
+        REVERSE: ("white", "blue", True, 231, 25, True),
+        DIM: ("black", "white", True, 243, 254, False),
+        DESKTOP: ("black", "blue", False, 25, 24, False),
+        BAR: ("black", "white", False, 235, 250, False),
+        BAR_HOT: ("red", "white", False, 124, 250, True),
+        BAR_AT: ("blue", "white", False, 18, 250, False),
+        BAR_ON: ("white", "blue", True, 231, 25, False),
+        BAR_ON_HOT: ("yellow", "blue", True, 220, 25, True),
+        BAR_OFF: ("black", "white", True, 244, 250, False),
+        FRAME_ON: ("blue", "white", True, 25, 254, True),
+        FRAME: ("cyan", "white", False, 246, 254, False),
+        SCROLL: ("blue", "white", False, 25, 254, False),
+        SHADOW: ("black", "black", True, 240, 240, False),
+        BOX: ("black", "white", False, 235, 252, False),
+        BOX_FRAME: ("blue", "white", True, 25, 252, True),
+        BOX_FIELD: ("black", "cyan", False, 235, 231, False),
+        BOX_ON: ("white", "blue", True, 231, 25, True),
+        BOX_BUTTON: ("black", "cyan", False, 235, 152, False),
+        BOX_BUTTON_ON: ("white", "blue", True, 231, 25, True),
+        BOX_SAYS: ("red", "white", False, 124, 252, True),
+        FOLDER: ("blue", "white", True, 25, 254, True),
+        LEVEL_OK: ("black", "green", False, 28, 254, True),
+        LEVEL_WARN: ("black", "yellow", False, 130, 254, True),
+        LEVEL_BAD: ("white", "red", True, 231, 160, True),
+        TITLE_ON: ("white", "blue", True, 231, 25, True),
+        TITLE: ("black", "white", False, 235, 250, False),
+        SHADE: ("black", "white", False, 240, 254, False),
+        BOX_SHADE: ("black", "white", False, 243, 252, False),
+    },
+}
 
 ## The marks of the drawing. plainMarks() changes them for a terminal that is not UTF-8.
 ## A frame is its corner at the top left, its line across, its corner at the top right,
@@ -121,8 +172,25 @@ MARKS = {"separator": "│", "cut": "…", "plain": False,
          "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•",
          ## what stands inside the brackets of the button Enter presses where the keys are on no button
          "default": "»«",
-         ## what stands after the name of a row that Enter enters, a folder: never what is cut
-         "folder": "..."}
+         ## what stands at the right edge of a row that Enter dives into, a folder (a row whose
+         ## Enter opens a dialog has "dialog" after its name): never what is cut
+         "folder": "►", "dialog": "...",
+         ## a box that is ticked and one that is not, a radio button that is chosen and one that
+         ## is not; what stands at each side of a title in a frame that is not active, and in one
+         ## that is; a slim shadow: its corner at the top right, its side, its corner at the bottom
+         ## left, its line under, its corner at the bottom right
+         "checks": ("[X] ", "[ ] "), "radios": ("(*) ", "( ) "), "title": (" ", " "), "titleOn": (" ", " "),
+         "shadow": "▖▌▝▀▘"}
+## The marks of a style that has its own (STYLES "marks"), where they are not those of MARKS:
+## on a terminal that is not UTF-8 the marks of MARKS stand (plainMarks), in every style.
+STYLE_MARKS = {
+    ## Magic: a heavy frame for what has the keys and a light one for the rest, the titles
+    ## between the junctions of their frame, a dotted line between two groups of a menu, a
+    ## thin track with a solid thumb, and boxes and radio buttons of one cell
+    "magic": {"frame": "┌─┐│└┘", "frameOn": "┏━┓┃┗┛", "rule": "├╌┤",
+              "barTrack": "┊", "barThumb": "█", "title": ("┤", "├"), "titleOn": ("┫", "┣"),
+              "checks": ("▣ ", "□ "), "radios": ("◉ ", "○ ")},
+}
 MARK_SELECTED = ">"
 MARK_READING = "~"
 MARK_OLD = "!"
@@ -520,29 +588,36 @@ PLACED = {
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
 
 ## The styles of the interface, in the order the screen offers them: the name of each, and
-## what it is. "label": what it shows as. "frames": the windows stand in frames on a desktop,
-## under a menu bar and over a status line; without them the screen is compact, two panes
-## between two status lines with one column between them and nothing spent on frames.
-## "colours": it is drawn in the colours of LOOKS where the terminal has them; without them,
+## what it is. "label": what it shows as. Every style stands its windows in frames on a
+## desktop, under a menu bar and over a status line. "colours": it is drawn in the colours of LOOKS where the terminal has them; without them,
 ## and on a terminal that has none, in bold, reverse and dim alone. "keys": its key map,
 ## an entry of KEYMAPS. "names": what its menus, its status line and its help name the keys
-## by, an entry of KEY_NAMES; with none, KEY_WORDS alone. The same windows, menus,
-## commands and keys are drawn in every style: adding a style is adding an entry here.
+## by, an entry of KEY_NAMES; with none, KEY_WORDS alone. What a style may switch on besides,
+## each a feature of the drawing that any style can take: "looks", its own colours, an entry
+## of STYLE_LOOKS, on a terminal of 256 colours in that palette's exact shades; "marks",
+## its own marks, an entry of STYLE_MARKS; "titles", the title of a window and of a dialog
+## in a look of its own (TITLE_ON, TITLE) between the marks of its frame; "shadow" "slim",
+## the shadow of a menu and of a dialog half a cell wide and half a line deep, of quarter
+## and half blocks, where without it the style with colours has two cells of shadow; and
+## "buttons" "raised", a button in a dialog a face with a slim shadow beside and under it,
+## where without it a button stands between brackets. The same windows, menus, commands
+## and keys are drawn in every style: adding a style is adding an entry here. The compact
+## style (`mc`) is retired, and its drawing with it: a name that is no style leaves the
+## first (setStyle, main), so a saved `mc` starts the screen in Turbo Vision.
 STYLES = (
-    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True, "keys": "tv", "names": "classic"}),
-    ("mc", {"label": "MC (Compact)", "frames": False, "colours": False, "keys": "mc"}),
-    ("bw", {"label": "B/W", "frames": True, "colours": False, "keys": "tv", "names": "classic"}),
+    ("tv", {"label": "Turbo Vision", "colours": True, "keys": "tv", "names": "classic"}),
+    ("bw", {"label": "Basic B/W", "colours": False, "keys": "tv", "names": "classic"}),
+    ("magic", {"label": "Magic", "colours": True, "keys": "tv", "names": "symbols",
+               "looks": "magic", "marks": "magic", "titles": True, "shadow": "slim", "buttons": "raised"}),
 )
 ## The key maps: the key map is the style's ("keys" there names it). Each gives the keys of
 ## the commands whose keys are not the same in every style, by the name of the command;
 ## every other command has the keys COMMANDS gives it. Turbo Vision's map ends the screen
 ## with Ctrl-X, which every terminal delivers with no setting and which is the key its
 ## status line and its menu name, with Alt-X and by the Exit item of its menu, and a bare
-## `q` does nothing there; the compact style keeps the map the screen had before it had
-## styles, with `q`.
+## `q` does nothing there.
 KEYMAPS = {
     "tv": {"exit": ("CTRL-x", "ALT-x")},
-    "mc": {"exit": ("q", "CTRL-x", "ALT-x")},
 }
 ## What the Option key of a Mac types with a letter or a digit on a US layout, where the
 ## terminal does not send Option as Meta: each counts as Alt with that key, for the keys
@@ -569,6 +644,30 @@ def setStyle(name):
     STYLE.clear()
     STYLE.update(dict(STYLES)[name], name=name)
     return True
+
+
+## A mark of the drawing in the style of now: its own (STYLE_MARKS), else that of MARKS. On a
+## terminal that is not UTF-8 that of MARKS, which plainMarks() made of one byte.
+def styleMark(name):
+    if MARKS["plain"]:
+        return MARKS[name]
+    return STYLE_MARKS.get(STYLE.get("marks"), {}).get(name, MARKS[name])
+
+
+## A slim shadow of a box, of quarter and half blocks in that look: half a cell wide at its
+## right, from half a line under its top, and half a line deep under it, from half a cell
+## after its left. Nothing of it below the line `last`, or past the column `columns`.
+def drawSlimShadow(surface, box, last, columns, look):
+    left, top, width, height = box
+    marks = styleMark("shadow")
+    if left + width < columns:
+        surface.put(top, left + width, marks[0], look)
+        for line in range(top + 1, min(top + height, last + 1)):
+            surface.put(line, left + width, marks[1], look)
+    if top + height <= last:
+        surface.put(top + height, left, marks[2] + marks[3] * (width - 1), look)
+        if left + width < columns:
+            surface.put(top + height, left + width, marks[4], look)
 
 
 
@@ -1322,7 +1421,7 @@ def wrapToCells(text, width):
 def plainMarks():
     MARKS.update({"separator": "|", "cut": "+", "plain": True, "frame": "+-+|++", "frameOn": "#=#|##", "rule": "+-+",
                   "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "on": "*",
-                  "default": "><"})
+                  "default": "><", "folder": ">", "shadow": "     "})
 
 
 ## A text for a terminal that is not UTF-8: what it cannot show becomes `?`, cell for cell.
@@ -1391,8 +1490,7 @@ def windowBoxes(columns, lines, split=None):
     return boxes
 
 
-## Where everything stands at that size in the style of now, or None where the terminal
-## is too small. With frames: the
+## Where everything stands at that size, or None where the terminal is too small. The
 ## first line is the menu bar and the last the status line; between them is the desktop
 ## with its windows, each in its frame: the list takes three tenths of the width, between
 ## a quarter and a third, and the window on the left the rest. "viewWidth" is the left
@@ -1405,15 +1503,6 @@ def windowBoxes(columns, lines, split=None):
 def layoutOf(columns, lines, split=None):
     if columns < MIN_COLUMNS or lines < MIN_LINES:
         return None
-    if not STYLE["frames"]:
-        ## the compact style: the first and the last line are the status lines, the second
-        ## holds the titles, one column parts the panes, and the last line of the left pane
-        ## is the line to type in, beside which the list goes on
-        listWidth = splitWidth(columns, split)
-        viewWidth = columns - listWidth - 1
-        return {"columns": columns, "lines": lines, "boxes": None, "viewWidth": viewWidth, "separator": viewWidth,
-                "listLeft": viewWidth + 1, "listWidth": listWidth, "topLine": 0, "titleLine": 1, "bodyTop": 2,
-                "viewHeight": lines - 4, "listHeight": lines - 3, "inputLine": lines - 2, "bottomLine": lines - 1}
     boxes = windowBoxes(columns, lines, split)
     listWidth = boxes["list"][2]
     viewWidth = boxes["view"][2] - 1
@@ -3382,7 +3471,9 @@ def dialogPlan(dialog, columns, lines):
         ## the big dialog: its first text takes the room the rest of it leaves
         parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - 1)
     gap = 1
-    over = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + 1 - room
+    ## the line of the buttons, and in a style with raised buttons the line of their shadow
+    foot = 2 if STYLE.get("buttons") == "raised" else 1
+    over = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot - room
     for kinds in (("text",), ("checks", "radios", "list"), ("area",)):
         for part in parts:
             if over > 0 and part["kind"] in kinds:
@@ -3391,7 +3482,7 @@ def dialogPlan(dialog, columns, lines):
                 over -= cut
     if over > 0:
         gap = 0
-    inside = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + 1
+    inside = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot
     height = max(1, min(inside, room)) + 2
     left = (columns - width) // 2
     top = 1 + max(0, (lines - 2 - height) // 2)
@@ -3402,7 +3493,7 @@ def dialogPlan(dialog, columns, lines):
         line += part["label"] + part["height"] + gap
     texts = [part for part in parts if part["kind"] == "text"]
     return {"box": (left, top, width, height), "inner": inner, "parts": parts, "says": says, "saysLine": line,
-            "buttonsLine": top + height - 2,
+            "buttonsLine": top + height - 1 - foot,
             "long": any(part["holds"] > part["height"] for part in texts),
             "page": texts[0]["height"] if texts else 1}
 
@@ -3417,16 +3508,17 @@ def drawDialog(surface, state, columns, lines):
     plan = dialog["plan"]
     left, top, width, height = plan["box"]
     inner = plan["inner"]
-    marks = MARKS["frameOn"]
+    marks = styleMark("frameOn")
     surface.put(top, left, marks[0] + marks[1] * (width - 2) + marks[2], BOX_FRAME)
-    title = " " + fitToCells(dialog["title"], width - 6) + " "
-    surface.put(top, left + (width - textWidth(title)) // 2, title, BOX_FRAME)
+    putTitle(surface, top, left, width, dialog["title"], BOX_FRAME, "titleOn", TITLE_ON)
     for offset in range(1, height - 1):
         surface.put(top + offset, left, marks[3], BOX_FRAME)
         surface.put(top + offset, left + 1, " " * (width - 2), BOX)
         surface.put(top + offset, left + width - 1, marks[3], BOX_FRAME)
     surface.put(top + height - 1, left, marks[4] + marks[1] * (width - 2) + marks[5], BOX_FRAME)
-    if STYLE["colours"]:
+    if STYLE.get("shadow") == "slim":
+        drawSlimShadow(surface, plan["box"], lines - 2, columns, SHADE)
+    elif STYLE["colours"]:
         for offset in range(1, height):
             surface.put(top + offset, left + width, "  ", SHADOW)
         if top + height <= lines - 2:
@@ -3470,9 +3562,9 @@ def drawDialog(surface, state, columns, lines):
             held = []
             for position, (optionId, label) in enumerate(control["options"]):
                 if kind == "checks":
-                    mark = "[X] " if optionId in control["value"] else "[ ] "
+                    mark = styleMark("checks")[0 if optionId in control["value"] else 1]
                 elif kind == "radios":
-                    mark = "(*) " if optionId == control["value"] else "( ) "
+                    mark = styleMark("radios")[0 if optionId == control["value"] else 1]
                 else:
                     mark = (MARK_SELECTED if optionId == control["value"] else " ") + " "
                 held.append((mark + label, BOX_ON if on and position == control["at"] else BOX_FIELD if kind == "list" else BOX))
@@ -3489,25 +3581,31 @@ def drawDialog(surface, state, columns, lines):
                 if kind != "text" and control["options"]:
                     spot(state, column, part["line"] + offset, inner, 1, ("option", part["index"], control["top"] + offset))
         if control["top"] > 0:
-            surface.put(part["line"], left + width - 2, MARKS["barUp"], BOX_FRAME)
+            surface.put(part["line"], left + width - 2, styleMark("barUp"), BOX_FRAME)
         if control["top"] + rows < len(held):
-            surface.put(part["line"] + rows - 1, left + width - 2, MARKS["barDown"], BOX_FRAME)
+            surface.put(part["line"] + rows - 1, left + width - 2, styleMark("barDown"), BOX_FRAME)
     for offset, text in enumerate(plan["says"]):
         if plan["saysLine"] + offset < last:
             surface.put(plan["saysLine"] + offset, column, cutToCells(text, inner), BOX_SAYS)
     ## Each button between its brackets; the first, which Enter presses where the keys are on
     ## no button, with the marks of the default inside them, whichever has the keys. The button
     ## that has the keys, and no other, stands in the look of the keys: plain, greyed or that one,
-    ## each in the same cells, so a move of the keys changes a look and no character.
+    ## each in the same cells, so a move of the keys changes a look and no character. A raised
+    ## button is its face, blanks where the brackets were, with a slim shadow beside and under it.
     labels = [("[%s%s%s]" % (MARKS["default"][0], label, MARKS["default"][1]) if index == 0 else "[ %s ]" % label)
               for index, (name, label) in enumerate(dialog["buttons"])]
+    raised = STYLE.get("buttons") == "raised"
+    if raised:
+        labels = [" " + label[1:-1] + " " for label in labels]
     column = left + max(2, (width - sum(textWidth(label) + 2 for label in labels) + 2) // 2)
     for index, label in enumerate(labels):
-        if column + textWidth(label) > left + width - 2:
+        if column + textWidth(label) + (1 if raised else 0) > left + width - 2:
             break
         ## a button that would act is greyed while a required input is not there
         off = dialog["buttons"][index][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None
         surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BAR_OFF if off else BOX_BUTTON)
+        if raised:
+            drawSlimShadow(surface, (column, last, textWidth(label), 1), last + 1, left + width - 1, BOX_SHADE)
         spot(state, column, last, textWidth(label), 1, ("button", index))
         column += textWidth(label) + 2
 
@@ -4539,10 +4637,10 @@ def memberTable(rows):
              "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
                         for index, column in enumerate(MEMBER_COLUMNS)],
              "iconWidth": max([textWidth(member["icon"]) for member in members] + [0])}
-    ## the first column holds the mark of a folder after the name of a member that is one
+    ## a member that is a folder has the mark of one at the right edge of its row, and every
+    ## row and the header leave room for it (listRowParts)
     if any(row["dive"] for row in rows):
         table["marks"] = True
-        table["widths"][0] += textWidth(MARKS["folder"])
     for row, member, line in zip(rows, members, words):
         row["table"] = table
         row["cells"] = [member["icon"]] + line
@@ -7602,16 +7700,6 @@ def drawMenuBar(surface, state, columns):
         putParts(surface, 0, columns - partsWidth(right), right, columns)
 
 
-## The counters of the compact style's bottom status line, from the row of counters: the sessions running
-## and paused, the agents working and waiting, the asks that wait. Empty until that row
-## was read; marked as old where its read last failed.
-def countersText(state):
-    if "running" not in state.counters:
-        return ""
-    text = "  ".join("%s %s" % (name, state.counters.get(name, "-")) for name in COUNTER_NAMES[:5])
-    return text + (" " + MARK_OLD if "list:sessions" in state.failed else "")
-
-
 ## The table the rows of the list shown are drawn as, where they are those of one: its
 ## header is the line above them, which stays in place while they scroll. None for a
 ## list with no table.
@@ -7625,7 +7713,8 @@ def listTableOf(state):
 ## The header of a table in exactly that many cells, set in under the cell of the mark of
 ## the selection: the names of the columns that fit there.
 def listHeadText(table, width):
-    return cutToCells(" " + tableLineText(table, [""] + table["heads"], width - 1), width)
+    edge = folderEdge(width) if table.get("marks") else 0
+    return cutToCells(" " + tableLineText(table, [""] + table["heads"], width - 1 - edge), width)
 
 
 ## How many lines the rows of the list have: the pane's, less the one a header takes.
@@ -7643,155 +7732,61 @@ def rowEnters(state, row):
                for command in COMMANDS)
 
 
+## How many cells at the right edge of a row the mark of a folder takes, with the blank
+## ahead of it, in a list that many cells wide: none where the list is too narrow for it.
+def folderEdge(width):
+    taken = textWidth(styleMark("folder")) + 1
+    return taken if width >= taken + 5 else 0
+
+
 ## One row of the list in exactly that many cells: the mark of the selection, what the row
 ## shows as, and at the end of the line what the row carries as its tail, its state. A row
-## of a table shows as its cells in the columns that fit. A row that Enter enters has the
-## mark of a folder after its name: a name too long for its room is cut ahead of that
-## mark, which is never cut itself. Gives the text, and where in it the mark stands, or None.
-def listRowParts(row, chosen, width, enters=False):
+## of a table shows as its cells in the columns that fit. A row that Enter dives into, a
+## folder, has the mark of a folder at the right edge of the row, after a blank, and the
+## rest of the row the cells ahead of them, as every row of a table that holds a folder
+## has, so that its columns stand under its header. A row whose Enter opens a dialog has
+## the mark of that after its name: a name too long for its room is cut ahead of that mark,
+## which is never cut itself. Gives the text, where in it a mark stands, or None, and the mark.
+def listRowParts(row, chosen, width, enters=False, dives=False):
     cells = row.get("cells")
-    if enters and row.get("table") and row["table"].get("marks"):
-        ## a folder of a table: the mark of a folder after its first column, in the look of
-        ## its row, which the column leaves room for; a name too long for the line is cut
-        ## ahead of the mark, which is never cut itself
-        room = width - 1 - (row["table"]["iconWidth"] + 1 if row["table"]["iconWidth"] else 0) - textWidth(MARKS["folder"])
-        cells = [cells[0], (cells[1] if textWidth(cells[1]) <= room else cutToCells(cells[1], max(1, room))) + MARKS["folder"]] + cells[2:]
+    edge = folderEdge(width) if dives or (row.get("table") or {}).get("marks") else 0
+    width -= edge
     shown = tableLineText(row["table"], cells, width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
-    if row.get("wide") and width >= LIST_WIDE["from"]:
+    if row.get("wide") and width + edge >= LIST_WIDE["from"]:
         ## the narrow column after the tail
         tail = (tail + " " if tail else "") + " " * max(0, LIST_WIDE["cells"] - textWidth(row["wide"])) + row["wide"]
     tailWidth = textWidth(tail)
     room = width if not tail or tailWidth + 4 > width else width - tailWidth - 1
     markAt = None
-    mark = MARKS["folder"]
-    if enters and not row.get("table") and room > textWidth(mark) + 2:
+    mark = MARKS["dialog"]
+    if enters and not dives and not row.get("table") and room > textWidth(mark) + 2:
         if textWidth(head) > room - textWidth(mark):
             head = cutToCells(head, room - textWidth(mark))
         markAt = textWidth(head)
         head += mark
     text = cutToCells(head, room)
-    return (text if room == width else text + " " + cutToCells(tail, tailWidth)), markAt
+    text = text if room == width else text + " " + cutToCells(tail, tailWidth)
+    if edge:
+        ## in a table the mark stands in the look of its row, as every cell of the table does
+        mark = styleMark("folder")
+        markAt = width + 1 if dives and not row.get("table") else None
+        text += " " + (mark if dives else " " * textWidth(mark))
+    return text, markAt, mark
 
 
 ## One row of the list, drawn in that many cells: in its own look, or in the look of the
-## selection; the mark of a folder in its own palette entry, but on the row the selection
-## is on, whose bar is whole.
+## selection; the mark of a folder, or of a dialog, in the palette entry of a folder, but on
+## the row the selection is on, whose bar is whole. The row that goes up is no folder.
 def putListRow(surface, state, line, column, row, chosen, width):
-    text, markAt = listRowParts(row, chosen, width, rowEnters(state, row))
+    text, markAt, mark = listRowParts(row, chosen, width, rowEnters(state, row), row["dive"] and row.get("kind") != "up")
     look = row.get("look", PLAIN)
     if chosen:
         look = REVERSE if state.focus == "list" else BOLD
     surface.put(line, column, text, look)
     if markAt is not None and not chosen:
-        surface.put(line, column + markAt, MARKS["folder"], FOLDER)
-
-
-## ---- the compact style: two panes between two status lines, nothing spent on frames ----
-
-## The workspace by the name of its folder, and after an `@` the machine the tooling runs
-## on, as the row of counters names it; the workspace alone until that row names one.
-def whereText(state):
-    name = os.path.basename(state.workspace.rstrip("/"))
-    return name + "@" + state.counters["host"] if state.counters.get("host", "-") not in ("", "-") else name
-
-
-## The top status line of the compact style: the workspace by the name of its folder, the load average of the
-## host as the row of counters gives it, marked as old where that read last failed, and
-## the clock.
-def topLineText(state, columns):
-    load = ""
-    if "load" in state.counters:
-        load = "load %s%s  " % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "")
-    ## the workspace gives way first, then the seconds of the clock, then the start of the machine's name
-    name, host, clock = whereShown(state, columns, textWidth(load) + 3)
-    right = load + clock + " "
-    rightWidth = textWidth(right)
-    if rightWidth >= columns:
-        return cutToCells(right, columns)
-    return cutToCells(" " + name + ("@" + host if host else ""), columns - rightWidth) + right
-
-
-## The top line of the compact style: its status line, or, while a menu is open, the menu
-## bar. The `@` between the workspace and the machine stands in a look of its own.
-def drawCompactTop(surface, state, columns):
-    if state.menu is not None:
-        drawMenuBar(surface, state, columns)
-        return
-    text = topLineText(state, columns)
-    surface.put(0, 0, text, REVERSE)
-    load = "load %s%s  " % (state.counters["load"], " " + MARK_OLD if "list:sessions" in state.failed else "") if "load" in state.counters else ""
-    name, host, clock = whereShown(state, columns, textWidth(load) + 3)
-    if host and text.startswith(" " + name + "@"):
-        surface.put(0, 1 + textWidth(name), "@", BOLD)
-
-
-## The bottom status line of the compact style: the counters, and after them the keys
-## that act for what has the keys now, each with its word, as the status line of the
-## other styles names them (statusItems), as many as fit whole.
-def bottomLineText(state, columns):
-    text = " " + countersText(state)
-    for key, word in statusItems(state):
-        item = ("  " if text.strip() else "") + key + " " + word
-        if textWidth(text) + textWidth(item) > columns:
-            break
-        text += item
-    return cutToCells(text, columns)
-
-
-## The whole screen in the compact style, between its two status lines: the titles, the
-## column between the panes, the list, what is selected there, and the line to type in.
-def drawCompact(surface, state, layout):
-    columns = layout["columns"]
-    viewWidth = layout["viewWidth"]
-    listLeft = layout["listLeft"]
-    listWidth = layout["listWidth"]
-    drawCompactTop(surface, state, columns)
-    panesHeight = layout["inputLine"] - layout["titleLine"] + 1
-    spot(state, 0, layout["titleLine"], viewWidth, panesHeight, ("window", "view"))
-    spot(state, listLeft, layout["titleLine"], listWidth, panesHeight, ("window", "list"))
-    spot(state, layout["separator"], layout["titleLine"], 1, panesHeight, ("split",))
-    surface.put(layout["titleLine"], 0, cutToCells(" " + viewTitle(state), viewWidth),
-                REVERSE if state.focus == "view" else BOLD)
-    surface.put(layout["titleLine"], listLeft, cutToCells(" " + listTitle(state), listWidth),
-                REVERSE if state.focus == "list" else BOLD)
-    for line in range(layout["titleLine"], layout["inputLine"] + 1):
-        surface.put(line, layout["separator"], MARKS["separator"], PLAIN if state.splitHeld is None else REVERSE)
-    rows = levelRows(state)
-    listTop = layout["bodyTop"]
-    listHeight = listRowsHeight(state, layout)
-    listTable = listTableOf(state)
-    if listTable:
-        surface.put(listTop, listLeft, listHeadText(listTable, listWidth), PLAIN)
-        listTop += 1
-    cursor = cursorOf(state, rows, listHeight)
-    for offset in range(listHeight):
-        position = cursor["top"] + offset
-        if position < len(rows):
-            putListRow(surface, state, listTop + offset, listLeft, rows[position], position == cursor["index"], listWidth)
-            spot(state, listLeft, listTop + offset, listWidth, 1, ("row", position))
-        elif position == len(rows) and listWaits(state):
-            surface.put(listTop + offset, listLeft, cutToCells(" " + listWaits(state), listWidth), DIM)
-        else:
-            surface.put(listTop + offset, listLeft, " " * listWidth, PLAIN)
-    contentHeight = viewContentHeight(state, layout)
-    headHeight = min(len(state.view["head"]), contentHeight)
-    placing = placedShown(state)
-    panOf(state, viewWidth - 1)
-    for offset in range(headHeight):
-        surface.put(layout["bodyTop"] + offset, 0, " ", PLAIN)
-        putLooked(surface, state, layout["bodyTop"] + offset, 1, state.view["head"][offset], viewWidth - 1, PLAIN, (), placing)
-    scrollView(state, contentHeight - headHeight, 0)
-    for offset in range(contentHeight - headHeight):
-        surface.put(layout["bodyTop"] + headHeight + offset, 0, " ", lineLook(state.view, state.view["top"] + offset))
-        putViewLine(surface, state, layout["bodyTop"] + headHeight + offset, 1, state.view["top"] + offset, viewWidth - 1, placing)
-    if contentHeight > headHeight and viewWaits(state):
-        surface.put(layout["bodyTop"] + headHeight, 0, cutToCells(" " + viewWaits(state), viewWidth), DIM)
-    if contentHeight < layout["viewHeight"]:
-        surface.put(layout["bodyTop"] + contentHeight, 0, cutToCells(" " + itemKeysText(state), viewWidth), BOLD)
-    surface.put(layout["inputLine"], 0, cutToCells(" " + state.notice, viewWidth), PLAIN)
-    surface.put(layout["bottomLine"], 0, bottomLineText(state, columns), REVERSE)
+        surface.put(line, column + markAt, mark, FOLDER)
 
 
 ## The word of a command in the status line now: of one that toggles, what its key will do.
@@ -7850,13 +7845,32 @@ def drawStatusLine(surface, state, line, columns):
         surface.put(line, column, MARKS["separator"] + " " + cutToCells(notice, columns - column - 2), BAR)
 
 
+## A title in the middle of the top border of a box that many cells wide, in the look of its
+## frame, between the marks `ends` of the style names for that frame (" " and " " in MARKS).
+## In a style with "titles" the title stands with a blank at each side in a look of its own,
+## `chip`, between those marks in the look of the frame; a mark that is a blank is left out
+## there, so the title stands where it stands without them.
+def putTitle(surface, line, left, width, title, look, ends, chip):
+    before, after = styleMark(ends)
+    text = fitToCells(title, width - 4 - textWidth(before) - textWidth(after))
+    if not STYLE.get("titles"):
+        text = before + text + after
+        surface.put(line, left + (width - textWidth(text)) // 2, text, look)
+        return
+    before, after = before.strip(), after.strip()
+    column = left + (width - textWidth(text) - 2 - textWidth(before) - textWidth(after)) // 2
+    surface.put(line, column, before, look)
+    surface.put(line, column + textWidth(before), " " + text + " ", chip)
+    surface.put(line, column + textWidth(before) + textWidth(text) + 2, after, look)
+
+
 ## The frame of a window: double for the active one and single for another, its title in
 ## the middle of the top border, `foot` in the bottom border from its left, and its right
 ## border a scroll bar where `bar` says that it holds more than it shows: how many it
 ## holds, the first one shown, how many it shows.
 def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
     left, top, width, height = box
-    marks = MARKS["frameOn" if active else "frame"]
+    marks = styleMark("frameOn" if active else "frame")
     ## `lit`: whether it is drawn in the look of the active one, where that is not what
     ## `active` says: behind a dialog no frame is, and the double line stays
     look = FRAME_ON if (active if lit is None else lit) else FRAME
@@ -7864,8 +7878,7 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
     bottom = top + height - 1
     surface.put(top, left, marks[0] + marks[1] * room + marks[2], look)
     if title and room >= 6:
-        text = " " + fitToCells(title, room - 4) + " "
-        surface.put(top, left + 1 + (room - textWidth(text)) // 2, text, look)
+        putTitle(surface, top, left, width, title, look, "titleOn" if active else "title", TITLE_ON if look == FRAME_ON else TITLE)
     rows = height - 2
     barred = bar is not None and bar[0] > bar[2] and rows >= 3
     thumb = 1 + bar[1] * (rows - 3) // max(1, bar[0] - bar[2]) if barred else 0
@@ -7873,7 +7886,7 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
         surface.put(top + 1 + offset, left, marks[3], look)
         if barred:
             mark = "barUp" if offset == 0 else "barDown" if offset == rows - 1 else "barThumb" if offset == thumb else "barTrack"
-            surface.put(top + 1 + offset, left + width - 1, MARKS[mark], SCROLL)
+            surface.put(top + 1 + offset, left + width - 1, styleMark(mark), SCROLL)
         else:
             surface.put(top + 1 + offset, left + width - 1, marks[3], look)
     surface.put(bottom, left, marks[4] + marks[1] * room + marks[5], look)
@@ -8007,7 +8020,9 @@ def drawMenu(surface, state, layout):
     width = labelWidth + keyWidth + 6
     left = 3 + sum(textWidth(hotText(MENUS[index][1])) + 2 for index in menusShown(state) if index < menu["menu"])
     left = max(0, min(left, layout["columns"] - width - 2))
-    frame = MARKS["frame"]
+    frame = styleMark("frame")
+    rule = styleMark("rule")
+    slim = STYLE.get("shadow") == "slim"
     last = layout["lines"] - 2
     surface.put(1, left, frame[0] + frame[1] * (width - 2) + frame[2], BAR)
     line = 1
@@ -8015,8 +8030,11 @@ def drawMenu(surface, state, layout):
         if line + 1 >= last:
             break
         line += 1
+        ## the shadow beside every row, a line between two groups as much as an item
+        if not slim:
+            surface.put(line, left + width, "  ", SHADOW)
         if command is None:
-            surface.put(line, left, MARKS["rule"][0] + MARKS["rule"][1] * (width - 2) + MARKS["rule"][2], BAR)
+            surface.put(line, left, rule[0] + rule[1] * (width - 2) + rule[2], BAR)
             continue
         on = index == menu["item"]
         spot(state, left + 1, line, width - 2, 1, ("item", index))
@@ -8029,9 +8047,11 @@ def drawMenu(surface, state, layout):
         keyText = keyShown(commandKeys(command)[0]) if commandKeys(command) else ""
         surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
         surface.put(line, left + width - 1, frame[3], BAR)
-        surface.put(line, left + width, "  ", SHADOW)
     line += 1
     surface.put(line, left, frame[4] + frame[1] * (width - 2) + frame[5], BAR)
+    if slim:
+        drawSlimShadow(surface, (left, 1, width, line), last, layout["columns"], SHADE)
+        return
     surface.put(line, left + width, "  ", SHADOW)
     if line + 1 <= last:
         surface.put(line + 1, left + 2, " " * width, SHADOW)
@@ -8039,7 +8059,7 @@ def drawMenu(surface, state, layout):
 
 ## The whole screen, drawn again from the state in the style of now: every cell of every
 ## line, so nothing of an earlier drawing, of an earlier size or of another style is left.
-## The compact style has a drawing of its own (drawCompact). With frames: the desktop first, then each window
+## The desktop first, then each window
 ## of WINDOWS on it, the line to type in where it is open, the menu bar, the dialog that
 ## is open, drawn over the windows in every style, the status line, and the menu that is open.
 def drawScreen(surface, state):
@@ -8062,14 +8082,6 @@ def drawScreen(surface, state):
     if layout is None:
         if columns > 0 and lines > 0:
             surface.put(0, 0, cutToCells("Too small: %dx%d (needs %dx%d)" % (columns, lines, MIN_COLUMNS, MIN_LINES), columns), PLAIN)
-        surface.show()
-        return
-    if not STYLE["frames"]:
-        drawCompact(surface, state, layout)
-        if state.dialog is not None:
-            drawDialog(surface, state, columns, lines)
-        if state.menu is not None:
-            drawMenu(surface, state, layout)
         surface.show()
         return
     ## the desktop shows where no window stands
@@ -8311,7 +8323,10 @@ class CursesSurface:
             signal.signal(signal.SIGTTOU, kept)
 
     ## What each look of LOOKS is on this terminal, twice: in bold, reverse and dim alone,
-    ## and in its colours, or None where the terminal has not eight of them.
+    ## and in its colours, or None where the terminal has not eight of them. The colours are
+    ## given for each set a style can name (STYLE_LOOKS), under its name, and under None those
+    ## of LOOKS: on a terminal of 256 colours a set takes its exact shades, else its eight. A
+    ## set the terminal has not the pairs of colours for is left out: its style draws without.
     def looksOf(self):
         flags = {"B": curses.A_BOLD, "R": curses.A_REVERSE, "D": curses.A_DIM}
         plain = []
@@ -8325,16 +8340,30 @@ class CursesSurface:
                 return plain, None
             ## what is drawn with no colour stands in the terminal's own two, not in white on black
             curses.use_default_colors()
-            coloured = []
             pairs = {}
-            for letter, mono, text, ground, bright in LOOKS:
+
+            def pairOf(text, ground, bold):
                 if (text, ground) not in pairs:
-                    curses.init_pair(len(pairs) + 1, getattr(curses, "COLOR_" + text.upper()), getattr(curses, "COLOR_" + ground.upper()))
+                    curses.init_pair(len(pairs) + 1, text, ground)
                     pairs[(text, ground)] = len(pairs) + 1
-                coloured.append(curses.color_pair(pairs[(text, ground)]) | (curses.A_BOLD if bright else 0))
-            return plain, coloured
+                return curses.color_pair(pairs[(text, ground)]) | (curses.A_BOLD if bold else 0)
+
+            def named(name):
+                return getattr(curses, "COLOR_" + name.upper())
+            coloured = {None: [pairOf(named(text), named(ground), bright) for letter, mono, text, ground, bright in LOOKS]}
         except (curses.error, AttributeError):
             return plain, None
+        fine = curses.COLORS >= 256
+        for name, own in STYLE_LOOKS.items():
+            try:
+                looks = []
+                for number, (letter, mono, text, ground, bright) in enumerate(LOOKS):
+                    text, ground, bright, fineText, fineGround, bold = own.get(number, (text, ground, bright, None, None, False))
+                    looks.append(pairOf(fineText, fineGround, bold) if fine and fineText is not None else pairOf(named(text), named(ground), bright))
+                coloured[name] = looks
+            except (curses.error, AttributeError):
+                pass
+        return plain, coloured
 
     def size(self):
         lines, columns = self.window.getmaxyx()
@@ -8342,7 +8371,8 @@ class CursesSurface:
 
     ## The looks of the style of now: its colours where it has them and the terminal too.
     def looks(self):
-        return self.coloured if STYLE["colours"] and self.coloured is not None else self.plain
+        coloured = self.coloured.get(STYLE.get("looks")) if STYLE["colours"] and self.coloured is not None else None
+        return coloured if coloured is not None else self.plain
 
     def clear(self):
         self.apart, self.puts, self.wide = {}, {}, {}

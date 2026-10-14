@@ -99,7 +99,7 @@ show rs
 cells rList3 4 85 119
 RIGSCRIPT
 rigAssert "the sessions are being read, and none has come yet"       "$( rigVal w.path ) $( rigVal w.reading ) $( rigVal w.rows )" "sessions list:sessions 2"
-rigAssert "the list says what it waits for, under its fixed rows"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Launch / Spawn...][ Populating Sessions (Activity)...]"
+rigAssert "the list says what it waits for, under its fixed rows"     "[$( rigVal wList1 )][$( rigVal wList2 )][$( rigVal wList3 )]" "[>..][ Launch / Spawn                  ►][ Populating Sessions (Activity)...]"
 rigAssert "and the left window, which shows the folder itself, on its first line" "[$( rigVal wView )]" "[Populating Sessions (Activity)...]"
 rigAssert "both in the pale look"                                    "[$( rigLook wr 2 1 83 )][$( rigLook wr 4 85 119 )]" "[D][D]"
 rigAssert "once the rows have come neither says it"                  "$( rigVal r.rows ) $( rigHolds rs 'Populating' ) [$( rigVal rList3 | LC_ALL=C cut -c1-16 )]" "6 0 [ daily of Monday]"
@@ -194,10 +194,10 @@ get n
 cells n1 4 71 99
 RIGSCRIPT
 rigAssert "at 120 columns a row of the list has 34 cells"             "$( rigVal k.listWidth ) $( rigVal k.rows ) $( rigVal k.spills )" "36 6 0"
-rigAssert "a session shows the total of its tokens, short, after its state" "[$( rigVal k1 )]" "[ daily of Monday... running  57.1M]"
-rigAssert "one with runs left out keeps its mark, one with no figure shows that, the figures one under another" "[$( rigVal k2 )][$( rigVal k3 )]" "[ the retro...      finished  523K+][ grooming...       finished      -]"
-rigAssert "a row without that field has no column"                   "[$( rigVal k4 )]" "[ an old one...            finished]"
-rigAssert "a narrower list shows none"                               "$( rigVal n.listWidth ) [$( rigVal n1 )] $( rigVal n.spills )" "30 [ daily of Monday...  running] 0"
+rigAssert "a session shows the total of its tokens, short, after its state" "[$( rigVal k1 )]" "[ daily of Monday  running  57.1M ►]"
+rigAssert "one with runs left out keeps its mark, one with no figure shows that, the figures one under another" "[$( rigVal k2 )][$( rigVal k3 )]" "[ the retro       finished  523K+ ►][ grooming        finished      - ►]"
+rigAssert "a row without that field has no column"                   "[$( rigVal k4 )]" "[ an old one             finished ►]"
+rigAssert "a narrower list shows none"                               "$( rigVal n.listWidth ) [$( rigVal n1 )] $( rigVal n.spills )" "30 [ daily of Monday   running ►] 0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LOOKS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

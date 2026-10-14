@@ -76,6 +76,9 @@ rigScript(){ ## the commands of the driver on standard input, after the ones tha
 rigVal(){ ## name -- the value of the first `<name>=` line
 	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1=//p" | head -1
 }
+rigFolderHolds(){ ## tag, text -- how many lines of that whole screen hold the text and, on the same line, the mark of a folder: a row that is one
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -F -- "$2" | LC_ALL=C grep -c -F '►' || :
+}
 rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
@@ -118,7 +121,7 @@ keys BACKSPACE DOWN
 wait focus 10
 show vault
 RIGSCRIPT
-rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, then its blocks" "$( rigVal in.rows ) $( rigHolds in ' Operations...' ) $( rigHolds in ' Board...' ) $( rigHolds in ' Audit...' ) $( rigHolds in ' Vault...' ) $( rigHolds in '║ Team Data ' )" "6 1 1 1 1 1"
+rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, then its blocks" "$( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigFolderHolds in ' Board ' ) $( rigFolderHolds in ' Audit ' ) $( rigFolderHolds in ' Vault ' ) $( rigHolds in '║ Team Data ' )" "6 1 1 1 1 1"
 rigAssert "Board selected says what it holds, folder by folder, from its read" "$( rigVal board.selectedLabel ) $( rigHolds board '│Board: 3 items in 2 folders.' ) $( rigHolds board '│  running 2' ) $( rigHolds board '│  review  1' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 1 1 1 1"
 rigAssert "a folder of it selected says how many items and how much, the newest first" "$( rigHolds running '│running: 2 items, 1.5K.' ) $( rigHolds running '│  task-20261001T0900Z-a.md' ) $( rigWords '[--manager-team-data-read][board][running]' )" "1 1 1"
 rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
@@ -178,9 +181,9 @@ keys DOWN
 keys ENTER
 get jumped
 RIGSCRIPT
-rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigHolds on '>keeper-rig...' ) $( rigHolds on 'keeper-far...' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
+rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
 rigAssert "its own summary counts its grants by kind and says that Permissions holds them" "$( rigHolds on '│its grants: 3, floor 2, standing 1' ) $( rigHolds on '│  Permissions holds them as a table.' ) $( rigHolds on 'ws:source/x/**' )" "1 1 0"
-rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds in ' Permissions...' ) $( rigHolds in ' Skillset Files...' ) $( rigHolds in ' Sessions...' ) $( rigHolds in ' Member Help...' )" "team/keeper-rig 5 1 1 1 1"
+rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
 rigAssert "Permissions selected counts its grants by kind, from the read of the member" "$( rigHolds perms '│3 grants: floor 2, standing 1.' ) $( rigWords '[--manager-team-member-read][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
 rigAssert "inside, its grants are a table under a heading for each kind" "$( rigHolds grant ' COVERS ' ) $( rigHolds grant ' ACCESS ' ) $( rigHolds grant ' floor (2)' ) $( rigHolds grant ' standing (1)' ) $( rigVal grant.selectedLabel )" "1 1 1 1 ws:source/**/README.md"
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"

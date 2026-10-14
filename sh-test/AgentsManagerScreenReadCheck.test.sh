@@ -96,7 +96,7 @@ rigAssert "the level asks at once, and the call runs beside the screen" "$( rigV
 rigAssert "the operation is --manager-session-list, started once"    "$( rigCalls ) [$( rigCall 1 )]" "1 [--manager-session-list]"
 rigAssert "what it printed is rows under Launch / Spawn, a record a line, its fields split at each TAB" \
 	"[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )]" \
-	"[>..][ Launch / Spawn...][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
+	"[>..][ Launch / Spawn                  ►][ s1  alpha  running][ s2  beta  finished][ s3  gamma  finished][]"
 rigAssert "nothing is read any more, and nothing is marked"          "$( rigVal a.rows ) [$( rigVal a.reading )] [$( rigVal a.failed )] [$( rigVal title )]" "5 [] [] [Sessions (Activity)  [all]]"
 
 echo "-- a: the active ones are asked for, at once --"
@@ -133,7 +133,7 @@ get again
 RIGSCRIPT
 rigSecondsTaken=$(( SECONDS - rigSecondsBefore ))
 rigAssert "the call was started, and runs"                           "$( rigCalls ) $( rigVal started.reading ) $( rigVal started.index )" "1 list:sessions 0"
-rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn...]"
+rigAssert "Down moves the selection at once, while it runs"          "$( rigVal moved.index ) $( rigVal moved.selected ) $( rigVal moved.reading ) [$( rigVal row2 )]" "1 launch list:sessions [>Launch / Spawn                  ►]"
 rigAssert "the title carries the mark of a read, over what is known so far" "[$( rigVal title )]" "[~ Sessions (Activity)  [all]]"
 rigAssert "every other key goes on working too"                      "$( rigVal again.index ) $( rigVal again.focus ) $( rigVal again.reading )" "0 list list:sessions"
 rigAssert "none of that waited for the five seconds of the call"     "$( [ "$rigSecondsTaken" -lt 4 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes

@@ -458,7 +458,8 @@ def scriptRun(module):
 ## size, as a window that is resized, with no signal). Where the environment names texts in MANAGER_SCREEN_PTY_TRACE,
 ## <name>=<text> with | between them, the same marks read in a text, the names are printed in the order their
 ## texts stand in what was written to the terminal, each as often as it stands there (trace). Printed: how it ended
-## (rc), whether <wait-for> was drawn (frame), whether the terminal's mode was changed
+## (rc), whether <wait-for> was drawn (frame), whether a colour of the eight was set (colours) and a shade of a
+## palette of 256 (shades), whether the terminal's mode was changed
 ## while it ran (modeTaken) and is afterwards what it was before (modeBack), whether the
 ## other screen of the terminal was entered and left again (entered, left), and where it
 ## last wrote ERROR once the screen was up: after it had left (errorAfterLeft), and that
@@ -559,6 +560,8 @@ def ptyRun(arguments):
     print("pty.frame=%s" % ("yes" if during is not None else "no"))
     ## whether a colour was set on the terminal at any time: a text or a ground of the eight
     print("pty.colours=%s" % ("yes" if re.search(rb"\x1b\[(?:[0-9]+;)*(?:3[0-7]|4[0-7])(?:;[0-9]+)*m", output) else "no"))
+    ## whether a shade of a palette of 256 colours was set, as a text or a ground, by its number there
+    print("pty.shades=%s" % ("yes" if re.search(rb"\x1b\[(?:[0-9]+;)*[34]8;5;[0-9]+(?:;[0-9]+)*m", output) else "no"))
     print("pty.modeTaken=%s" % ("yes" if during is not None and during != before else "no"))
     print("pty.modeBack=%s" % ("unknown" if after is None else "yes" if modeOf(after) == modeOf(before) else "no"))
     print("pty.entered=%s" % ("yes" if entered != -1 else "no"))

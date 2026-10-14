@@ -156,7 +156,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "4 [ Config Checker...][ Server Keys...][ Workspace Paths...]"
+rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "4 [ Config Checker ~ ►][ Server Keys ~ ►][ Workspace Paths ~ ►]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 5 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -271,8 +271,8 @@ show d
 cells dStatus 39 0 120
 style bw
 show dbw
-style mc
-show dmc
+style magic
+show dmagic
 style tv
 keys f
 get asked
@@ -300,7 +300,7 @@ rigAssert "a key selected: what it is for, its type, its fingerprint, its file, 
 	"deploy [ Deploy Key [wrap]][ the deploy key of this server, to list on each git repository it reads][ type        ssh-ed25519][ fingerprint SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ][ file        /rig/mdci/deploy-keys/mdci.pub][ group       Keys To Add To Git]"
 rigAssert "then its whole public line, as it is pasted, what goes on set further in" "[$( rigPane d 12 )][$( rigPane d 13 )] $( rigPane d 14 | LC_ALL=C grep -c '^       AAAAC3NzaC1lZDI1NTE5AAAAIabc' ) $( rigJoined d | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "[ Its public line, whole, as it is pasted:][   ssh-ed25519] 1 1"
 rigAssert "where it is to be registered, and the key that shows it alone, which the status line names" "$( rigPaneHolds d ' It is to be registered on each of these repositories:' ) $( rigPaneHolds d '   myx/myx.common git@github.com:myx/myx.common.git' ) $( rigPaneHolds d '   myx/myx.distro-agents git@github.com:myx/myx.distro-agents.git' ) $( rigPaneHolds d ' f shows it alone, in a box to copy.' ) [$( rigVal dStatus | sed 's/  *$//' )]" "1 1 1 1 [ f Full  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
-rigAssert "it is whole in B/W and in the compact style too"          "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmc | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
+rigAssert "it is whole in Basic B/W and in Magic too"                "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmagic | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
 rigAssert "the shortened key of a row is nowhere on the screen, and no line of the left window is cut" "$( rigScreenHolds u 'SHORT-never' ) $( rigScreenHolds g 'SHORT-never' ) $( rigScreenHolds d 'SHORT-never' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -e '^u|' -e '^d|' | LC_ALL=C sed -e 's/│║.*$//' | LC_ALL=C grep -c -F '…' )" "0 0 0 0"
 rigAssert "f opens the box of that key alone, which says that its line is being read" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] [$( rigVal asked.dialogHolds )]" "[keyline:ok|] [Deploy Key] [Its public line is being read.]"
 rigAssert "it is read anew for the box, by the name of the key, and stands whole there, broken only where the box is full" "$( rigCalled '--manager-keys-read deploy' ) $( rigBoxHolds b '║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJ ║' ) $( rigBoxHolds b '║ KLMNOPQRSTUVWXYZ0123 mdci@rig-host' ) $( rigBoxHolds b '[»OK«]' )" "2 1 1 1"

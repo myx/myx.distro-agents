@@ -98,7 +98,7 @@ rigAssert "the screen is started once, for the rig workspace, with the tool as i
 rigAssert "another user's saved style and the one in the workspace's own settings file are not taken, and the start wrote nothing" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigWs/.local/home/rig-other-user/MDLT.settings.env" "$rigWs/.local/MDLT.settings.env" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' ) $( rigTree )" "2 $rigTreeBefore"
 
 echo "-- 2. the user's saved style is the look of the next start --"
-for rigOne in mc bw tv ; do
+for rigOne in magic bw tv ; do
 	rigSave "$rigOne"
 	rigStart
 	rigAssert "$rigOne is saved: it is handed on as --style" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style $rigOne none"
@@ -106,20 +106,23 @@ done
 rigSave zz
 rigStart
 rigAssert "a saved name that is no style counts as not saved: no style is handed on" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing none"
+rigSave mc
+rigStart
+rigAssert "so does a saved compact style, which is retired: the screen takes its default" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing none"
 
 echo "-- 3. the environment ahead of the saved style --"
-rigSave mc
+rigSave magic
 rigTreeBefore="$( rigTree )"
 rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigAssert "with a style in the environment no option is handed on: the screen reads the environment itself, and sees it" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing bw"
 rigPre=( "$rigKey=zz" ) ; rigStart ; rigPre=()
-rigAssert "a name in the environment that is no style counts as not given: the saved style is handed on, ahead of it" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style mc zz"
+rigAssert "a name in the environment that is no style counts as not given: the saved style is handed on, ahead of it" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style magic zz"
 rigSave
 rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigAssert "with nothing saved the environment's style is left to the screen as before" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing bw"
 
 echo "-- 4. an explicit --style ahead of both --"
-rigSave mc
+rigSave magic
 rigStart --style tv
 rigAssert "with a style saved, the one on the command is handed on" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style tv none"
 rigPre=( "$rigKey=bw" ) ; rigStart --style tv ; rigPre=()
@@ -127,19 +130,19 @@ rigAssert "with a style saved and another in the environment, the one on the com
 rigSave
 rigStart --style bw
 rigAssert "with nothing saved and nothing in the environment, the one on the command is handed on" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style bw none"
-rigSave mc
+rigSave magic
 rigStart --style zz
 rigAssert "a name on the command is handed on as it was given, also one that is no style: the screen says what it does with it" "$rigRc $( rigHanded )" "0 --style zz"
 
 echo "-- 5. the start only reads, and ends as the screen ends --"
-rigSave mc
+rigSave magic
 rigTreeBefore="$( rigTree )"
 rigStart
 rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigStart --style tv
 rigAssert "three starts, by the saved style, by the environment and by the command, wrote no file of the rig" "$( rigTree )" "$rigTreeBefore"
 rigPre=( "RIG_SCREEN_RC=7" ) ; rigStart ; rigPre=()
-rigAssert "the status the screen ends with is the status of the start" "$rigRc $( rigHanded )" "7 --style mc"
+rigAssert "the status the screen ends with is the status of the start" "$rigRc $( rigHanded )" "7 --style magic"
 
 echo "-- 6. what the start does not take --"
 rigRefusedStart(){ ## -- the last start: its rc, how often the screen was started, whether the syntax of the start was said

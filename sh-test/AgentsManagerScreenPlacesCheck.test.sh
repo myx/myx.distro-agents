@@ -174,7 +174,7 @@ get out
 show s
 EOF
 rigAssert "the list of the locations is read when the screen starts, with no argument, though another root is shown" "$( rigVal start.selected ) $( rigCalled --manager-place-list )" "dashboard 1"
-rigAssert "the root list holds it after the team members, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A1 -F 'Team Members' | LC_ALL=C grep -c -F 'Locations (Places)...' )" "[ Team Members...] [ Locations (Places)...] 1"
+rigAssert "the root list holds it after the team members, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A1 -F 'Team Members' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Team Members ►] [ Locations (Places) ►] 1"
 rigAssert "9 goes there: the row that goes up and a row a location, in the order of the operation, and a line that is no row of one is left out" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigHolds t 'another name' ) $( rigHolds t 'short' )" "[places] 6 0 0"
 rigAssert "the table has a header: the key, the kind, the ceiling, the state, the sessions, and no column of a host" "[$( rigListLine t 'PLACE' )] $( rigHolds t 'HOST' )" "[ PLACE KIND CEILING STATE SESSIONS] 0"
 rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196] [ gone-work workspace read-write absent 0]"
@@ -201,7 +201,7 @@ get n
 style bw
 turn
 get b
-style mc
+style magic
 turn
 show c
 get c

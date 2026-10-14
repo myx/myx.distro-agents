@@ -25,7 +25,7 @@ rigScreen="$rigHere/AgentsManagerScreen.py"
 rigRead="--manager-config-digest"
 rigWrite="--manager-config-set"
 rigKey="MDAT_MANAGER_STYLE"
-rigChoices="tv=Turbo_Vision,mc=MC_(Compact),bw=B/W"
+rigChoices="tv=Turbo_Vision,bw=Basic_B/W,magic=Magic"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -46,7 +46,7 @@ rigUser="$( id -un )" || rigRefuse "the name of the user who runs this check can
 rigOwn="$rigWs/.local/home/$rigUser/MDLT.settings.env"
 rigOther="$rigWs/.local/home/rig-other-user/MDLT.settings.env"
 rigShared="$rigWs/.local/MDLT.settings.env"
-printf '%s=mc\nMDLT_CONSOLE_HISTORY=bash-default\n' "$rigKey" > "$rigOther"
+printf '%s=magic\nMDLT_CONSOLE_HISTORY=bash-default\n' "$rigKey" > "$rigOther"
 ## The workspace's own settings file holds the key too: that file is everybody's, and is not where a user's style is kept.
 printf 'MDLT_CONSOLE_ORIGIN=.local\n%s=bw\n' "$rigKey" > "$rigShared"
 : > "$rigWs/.local/.agents/keeper-rig.agent.env" ; : > "$rigWs/.local/.agents/magic-team.agent.env"
@@ -105,22 +105,24 @@ rigRun "$rigRead" interface
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
 rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv\tdefault\t%s\tInterface_Style' "$rigKey" "$rigChoices" )"
 rigAssert "reading made nothing: the user has no settings file and no folder, and the rig is as it was" "$( rigSum "$rigOwn" ) $( [ -e "${rigOwn%/*}" ] && echo folder || echo no-folder ) $( rigTree )" "absent no-folder $rigTreeBefore"
-rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "1 1"
+rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
 rigRun "$rigRead"
 rigAssert "in the whole digest it stands after the scopes, with the same rows (the rig is no team rig: no main loop stands ahead of them)" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems scopes interface console control / $( cksum < "$rigTmp/alone" )"
 rigAssert "every other line of the digest has the six fields it had, and its label" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 != "interface" { rows++ ; if ( NF != 7 ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
 
 echo "-- 2. the environment names a style --"
+rigPre=( "$rigKey=magic" ) ; rigRun "$rigRead" interface ; rigPre=()
+rigAssert "the style the environment names is the value, and the line says that it comes from there" "$rigRc [$( rigStyle )]" "0 [magic environment $rigChoices]"
 rigPre=( "$rigKey=mc" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "the style the environment names is the value, and the line says that it comes from there" "$rigRc [$( rigStyle )]" "0 [mc environment $rigChoices]"
+rigAssert "the retired compact style, named in the environment, counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
 rigPre=( "$rigKey=zz" ) ; rigRun "$rigRead" interface ; rigPre=()
 rigAssert "a name in the environment that is no style counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
 rigPre=( "$rigKey=" ) ; rigRun "$rigRead" interface ; rigPre=()
 rigAssert "and so does an empty one" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
 
 echo "-- 3. the writer saves each of the three styles --"
-for rigOne in mc bw tv ; do
+for rigOne in magic bw tv ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	rigSaved="$rigRc $( rigTroubles ) [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] [$( cat "$rigOwn" 2> /dev/null )]"
 	rigRun "$rigRead" interface
@@ -128,32 +130,35 @@ for rigOne in mc bw tv ; do
 done
 rigAssert "the row of the writer has exactly the fields of its form, TAB between them" "$( rigRun "$rigWrite" "$rigKey" tv ; LC_ALL=C awk -F'\t' '{ print NR, NF, $1 }' "$rigTmp/out" )" "1 5 saved"
 printf '# a note of the user\nMDLT_CONSOLE_HISTORY=workspace-shared\n' >> "$rigOwn"
-rigRun "$rigWrite" "$rigKey" mc
-rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=mc|MDLT_CONSOLE_HISTORY=workspace-shared|"
-rigRun "$rigWrite" "$rigKey" mc
-rigAssert "saving the value that is saved already is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey mc user $rigOwn] 1"
+rigRun "$rigWrite" "$rigKey" magic
+rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=magic|MDLT_CONSOLE_HISTORY=workspace-shared|"
+rigRun "$rigWrite" "$rigKey" magic
+rigAssert "saving the value that is saved already is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey magic user $rigOwn] 1"
 rigAssert "no temp file is left beside the user's file" "$( ls -A "${rigOwn%/*}" | LC_ALL=C tr '\n' ' ' )" "MDLT.settings.env "
 
 echo "-- 4. the environment ahead of the saved style --"
 rigPre=( "$rigKey=bw" ) ; rigRun "$rigRead" interface ; rigPre=()
 rigAssert "with a style saved and another in the environment, the environment's is the value" "$rigRc [$( rigStyle )]" "0 [bw environment $rigChoices]"
 rigPre=( "$rigKey=zz" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "a name in the environment that is no style leaves the saved one" "$rigRc [$( rigStyle )]" "0 [mc user $rigChoices]"
+rigAssert "a name in the environment that is no style leaves the saved one" "$rigRc [$( rigStyle )]" "0 [magic user $rigChoices]"
 cp "$rigOwn" "$rigTmp/own.kept"
 printf '%s=zz\n' "$rigKey" > "$rigOwn"
 rigRun "$rigRead" interface
 rigAssert "a saved name that is no style, written by hand, counts as not saved: the default, and the name is not printed" "$rigRc [$( rigStyle )] $( LC_ALL=C grep -c -e 'zz' "$rigTmp/out" "$rigTmp/err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "0 [tv default $rigChoices] 0"
+printf '%s=mc\n' "$rigKey" > "$rigOwn"
+rigRun "$rigRead" interface
+rigAssert "so does a saved compact style, which is retired: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
 cp "$rigTmp/own.kept" "$rigOwn"
 
 echo "-- 5. a value that is no style is refused --"
 rigOwnBefore="$( rigSum "$rigOwn" )"
-rigNoValue="⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of $rigKey -- nothing was saved. Its values: tv, mc, bw"
+rigNoValue="⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of $rigKey -- nothing was saved. Its values: tv, bw, magic"
 rigBad=""
-for rigOne in zz TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "$rigSecret" ; do
+for rigOne in zz mc TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "$rigSecret" ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	[ "$( rigRefused "$rigNoValue" )" = "1 0 1 1" ] && [ "$( rigSum "$rigOwn" )" = "$rigOwnBefore" ] || rigBad="$rigBad [$rigOne: $( rigRefused "$rigNoValue" )]"
 done
-rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, one in capitals, one with a space, a label, a pair, a pattern, a pasted secret" "${rigBad:- each refused}" " each refused"
+rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, the retired compact style, one in capitals, one with a space, a label, a pair, a pattern, a pasted secret" "${rigBad:- each refused}" " each refused"
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
@@ -179,7 +184,7 @@ echo "-- 7. the settings of another user are never touched --"
 rigAssert "after every call so far the other user's file is as it was, byte for byte, and so is every other file of the rig: the workspace's own settings, the scopes" "$( rigSum "$rigOther" ) $( rigTree )" "$rigOtherBefore $rigTreeBefore"
 rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigWrite" "$rigKey" bw ; rigPre=()
 rigAssert "with the environment naming the other user, the style is still saved for the user who runs the call, and the row names that user's file" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigOwn" )" "0 [saved $rigKey bw user $rigOwn] 1"
-rigAssert "and the other user's file is as it was" "$( rigSum "$rigOther" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "$rigOtherBefore 1"
+rigAssert "and the other user's file is as it was" "$( rigSum "$rigOther" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "$rigOtherBefore 1"
 rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigRead" interface ; rigPre=()
 rigAssert "it is read from the same user's file too: the other user's style is not shown" "$rigRc [$( rigStyle )]" "0 [bw user $rigChoices]"
 rigAssert "nothing but the one file of the user who runs the calls was written in the rig, and no folder was made beside the two users'" "$( rigTree ) $( ls -A "$rigWs/.local/home" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$rigTreeBefore $( printf '%s\n' rig-other-user "$rigUser" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"

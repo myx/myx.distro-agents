@@ -117,7 +117,7 @@ RIGROWS
 {
 	rigRow subject interface 2 Interface
 	rigRow subject slack 3 Slack
-	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,mc=MC /rig/conf settings
+	rigRow line interface screen style set tv Style How_the_screen_is_drawn yes choice user file tv=Turbo_Vision,magic=Magic /rig/conf settings
 	rigRow line interface screen period set 10 Period Seconds_between_reads yes number user file 1..60 /rig/conf settings
 	rigRow line slack app channel set C123 Channel The_channel no:set_at_deployment text workspace file - /rig/conf configuration
 	rigRow line slack app token secret-set hidden-value Bot_token The_token_of_the_bot no:set_at_deployment text workspace file - /rig/conf configuration

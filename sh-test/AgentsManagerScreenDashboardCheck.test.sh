@@ -179,13 +179,13 @@ turn
 wait list 5
 show n
 get n
-style mc
+style magic
 turn
 show c
 get c
 EOF
 rigAssert "in a narrow one they stand one under another, and nothing is drawn past the window" "$( rigBoth n '┌─ Alpha Block ─' '┌─ Beta Block ─' ) $( rigHolds n '┌─ Alpha Block ─' ) $( rigVal n.spills )" "0 1 0"
-rigAssert "the compact style draws the same blocks" "$( rigHolds c '┌─ Alpha Block ─' ) $( rigBoth c 'Warned Size' ' ! 123.0M │' ) $( rigVal c.spills )" "1 1 0"
+rigAssert "Magic draws the same blocks, a level in its colours" "$( rigHolds c '┌─ Alpha Block ─' ) $( rigBoth c 'Warned Size' ' 123.0M │' ) $( rigVal c.spills )" "1 1 0"
 
 echo "-- Enter opens it: the blocks are its rows; the row that goes up shows it whole, a block's row that block"
 rigCase opened

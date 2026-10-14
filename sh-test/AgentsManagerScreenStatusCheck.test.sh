@@ -133,14 +133,9 @@ wait sessions 30
 get late
 border load 38 84 120
 border foot 38 0 84
-style mc
-turn
-cells compactTop 0 0 120
-cells compactBottom 39 0 120
 RIGSCRIPT
 rigAssert "not before the period has passed"                         "[$( rigVal early.reading )]" "[]"
 rigAssert "then by itself, and the screen holds what the new row holds; the borders stay plain" "$( rigCalls ) $( rigVal late.counters ) [$( rigVal load )] [$( rigVal foot )]" "2 load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] []"
-rigAssert "the compact style, which has no borders, still shows the load and the counters in its two status lines" "$( rigVal compactTop | LC_ALL=C grep -c -F -- ' load 1.25 ' ) $( rigVal compactBottom | LC_ALL=C grep -c -F -- ' running 3  paused 0  working 2  waiting 2  pending 4  ' )" "1 1"
 
 echo "-- the clock goes on when the read fails --"
 rigCase fail rows rows fail fail rows
@@ -155,10 +150,6 @@ get bad
 cells badTop 0 0 120
 border badFoot 38 0 84
 border badLoad 38 84 120
-style mc
-turn
-cells badCompactTop 0 0 120
-cells badCompactBottom 39 0 120
 style tv
 turn
 keys ESC
@@ -175,8 +166,7 @@ said mendedLine
 RIGSCRIPT
 rigAssert "the read failed"                                          "[$( rigVal bad.failed )]" "[list:sessions]"
 rigAssert "the clock still moves"                                    "[$( rigVal badTop | rigSqueeze | LC_ALL=C sed -e 's/^.* //' )]" "[02:31:00]"
-rigAssert "the counters stay as they were, marked as old: in the screen's state, and in the bottom line of the compact style, where they still stand" "$( rigVal bad.counters ) [$( rigVal badFoot )] $( rigVal badCompactBottom | LC_ALL=C grep -c -F -- ' running 2  paused 0  working 1  waiting 2  pending 3 !  ' )" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [] 1"
-rigAssert "the load average stays too, marked as old, in the top line of the compact style" "[$( rigVal badLoad )] $( rigVal badCompactTop | LC_ALL=C grep -c -F -- ' load 0.42 !  ' )" "[] 1"
+rigAssert "the counters stay as they were, marked as old, in the screen's state; the borders stay plain" "$( rigVal bad.counters ) [$( rigVal badFoot )] [$( rigVal badLoad )]" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [] []"
 rigAssert "what the read wrote is shown in a box"                      "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a second failure changes nothing"                         "[$( rigVal worse.failed )] $( rigVal worse.counters )" "[list:sessions] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "a good read takes the marks and the error line away, and brings the new counters" "[$( rigVal mended.failed )] $( rigVal mended.counters ) [$( rigVal mendedLoad )] [$( rigVal mendedFoot )] [$( rigVal mendedLine )]" \
