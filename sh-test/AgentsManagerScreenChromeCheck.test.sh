@@ -205,11 +205,57 @@ cells hangTop 1 3 31
 RIGSCRIPT
 rigAssert "Magic menu: no edge row between the bar and the first item, which stands on the line under the bar between its sides, its shadow beside it" "$( rigVal style.refused )[$( rigVal hangTop )] $( rigRole hangr 2 4 6 ) $( rigHas hang '▛' )" "[  Dashboard (Monitor)   1] moO 0"
 rigAssert "and its bottom a thin line, the shadow half a line under it (the lines over and under the windows hold such a line too)" "$( rigHas hang "$( rigRepeat ▁ 27 )" ) $( rigHas hang "$( rigRepeat ▄ 27 )" )" "3 1"
+rigAssert "Magic menu: its shadow at its right starts beside its second item; beside its first stays what lies there" "$( [ "$( rigRole hangr 2 31 31 )" = z ] && echo shadow || echo under ) $( rigRole hangr 3 31 31 )" "under z"
 rigRun <<'RIGSCRIPT'
 keys F10
 cells tvTop 1 3 7
 RIGSCRIPT
 rigAssert "Turbo Vision keeps the top border of its pull-down" "[$( rigVal tvTop )]" "[┌───]"
+rigRun <<'RIGSCRIPT'
+style nu
+turn
+roles edr
+cells edTop 1 0 120
+RIGSCRIPT
+rigAssert "Magic windows: each title a tab at the left of the line over it, three cells in" "$( rigVal style.refused )[$( rigVal edTop )]" "[$( rigRepeat ▁ 3 ) Sessions (Activity) [wrap] $( rigRepeat ▁ 52 ) $( rigRepeat ▁ 3 ) Sessions (Activity) $( rigRepeat ▁ 11 )]"
+rigAssert "Magic windows: the shadow of the right column starts beside a window's second line; beside its first stays the desktop, as beside its top" "$( rigRole edr 2 84 84 ) $( rigRole edr 3 84 84 ) $( rigRole edr 4 84 84 )" "v v w"
+
+echo "-- Magic's scroll bar: in the cells of the shadow, a line lower than in the other styles, its arrows and thumb ▍ white on the shadow's black, grey and ▎ in another window --"
+rigRun <<'RIGSCRIPT'
+style nu
+turn
+roles nbr
+cells nbFirst 2 119 120
+cells nbUp 3 119 120
+cells nbThumb 4 119 120
+cells nbTrack 30 119 120
+cells nbDown 38 119 120
+keys TAB
+turn
+roles nbo
+cells nbOffUp 3 119 120
+cells nbOffThumb 4 119 120
+keys TAB
+turn
+mouse click 119 38
+get nbPaged
+RIGSCRIPT
+rigBarColours="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+for name in ("nu-system", "nu-blue", "nu-gray"):
+    arrows, thumb, track, shadow = (module.STYLE_LOOKS[name][look] for look in (module.SCROLL, module.THUMB, module.TRACK, module.SHADOW))
+    shown = " ".join("%s/%s%s" % (look[:2] + ("b" if look[2] else "",) if look[3] is None else look[3:5] + ("b" if look[5] else "",))
+                     for look in (arrows, thumb, track))
+    print("%s %s %s" % (name, shown, arrows[1] == thumb[1] == track[1] == shadow[1] and arrows[4] == thumb[4] == track[4] == shadow[4]))
+RIGPY
+)"
+rigAssert "Magic's scroll bar starts a line lower than Turbo Vision's: beside the window's first line the desktop, ↑ beside its second, ↓ on its last line, the thumb ▍ and the track blank" "$( rigVal style.refused )[$( rigVal nbFirst )][$( rigVal nbUp )][$( rigVal nbThumb )][$( rigVal nbTrack )][$( rigVal nbDown )] $( rigRole nbr 3 120 120 )$( rigRole nbr 4 120 120 )$( rigRole nbr 5 120 120 )$( rigRole nbr 31 120 120 )$( rigRole nbr 39 120 120 )" "[][↑][▍][][↓] Vs#|s"
+rigAssert "in a window that is not active its arrows and its thumb, ▎, in the track's look" "[$( rigVal nbOffUp )][$( rigVal nbOffThumb )] $( rigRole nbo 4 120 120 )$( rigRole nbo 5 120 120 )" "[↑][▎] ||"
+rigAssert "a click on Magic's ↓, on the window's last line, pages down as the lower half of the bar does" "$( [ "$( rigVal nbPaged.index )" -gt 30 ] && echo down || rigVal nbPaged.index ) $( rigVal nbPaged.spills )" "down 0"
+rigAssert "in each of Magic's colours, on the black of the shadow: the arrows white and bold, the thumb white, and the track's look, which the arrows and the thumb of another window take, grey" "$( printf '%s\n' "$rigBarColours" | LC_ALL=C tr '\n' ' ' )" "nu-system white/blackb white/blackb white/black True nu-blue 231/16b 231/16 244/16 True nu-gray 231/16b 231/16 244/16 True "
 
 echo "-- the menus follow the view --"
 rigRun <<'RIGSCRIPT'

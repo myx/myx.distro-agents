@@ -70,6 +70,7 @@ LEVEL_OK, LEVEL_WARN, LEVEL_BAD = 23, 24, 25
 TITLE_ON, TITLE, SHADE, BOX_SHADE = 26, 27, 28, 29
 EDGE_ON, EDGE_ON_SHADE, EDGE, EDGE_SHADE, TRACK, THUMB, KEY_CHIP = 30, 31, 32, 33, 34, 35, 36
 BOX_BUTTON_DEF, ALERT, ALERT_FRAME, ALERT_HEAD, ALERT_SHADE = 37, 38, 39, 40, 41
+BOX_EDGE = 42
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -122,8 +123,9 @@ LOOKS = (
     ("Z", "D", "white", "black", False),
     ## where a style draws the edges of a window of blocks (STYLES "edges"): the thin line of
     ## the active window on its own colour, at its bottom, and on the desktop, over it; the
-    ## same of another window; the track of a slim scroll bar and its thumb, each the ground
-    ## of its cells; a key of the status line as a chip ("chips")
+    ## same of another window; the track of a slim scroll bar, the ground of its cells, the look
+    ## too of its arrows and thumb in a window that is not active, and its thumb, a mark on it;
+    ## a key of the status line as a chip ("chips")
     ("E", "", "white", "blue", True),
     ("V", "", "white", "black", True),
     ("a", "D", "black", "blue", False),
@@ -139,6 +141,9 @@ LOOKS = (
     ("q", "RB", "white", "red", True),
     ("Y", "RB", "yellow", "red", True),
     ("y", "D", "black", "red", False),
+    ## the thin line at the foot of a dialog, where a style draws edges of blocks: in the colour
+    ## of the ground of its title tab, on the dialog's own
+    ("L", "RB", "white", "white", True),
 )
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
@@ -151,10 +156,11 @@ MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 ## of the terminal is never changed, and no colour of 24 bits is asked for.
 STYLE_LOOKS = {
     ## Magic in its blue colours (nu-blue), those of the pictures of the Norton Utilities on blue
-    ## (the About box of 7.0, the Disk Editor, Calibrate's window and alert): windows of periwinkle blue like the desktop, white
+    ## (the About box of 7.0, the Disk Editor, Calibrate's window and alert): windows of periwinkle blue on a dark grey desktop, white
     ## text and yellow for what stands out, the active one in a thin white line at its top and
-    ## bottom and another in a dark one, black shadows, a dark blue scroll bar; a white menu bar with red hot letters,
-    ## the open menu in reverse; cyan dialogs with black text, a thin dark outline, a white title strip,
+    ## bottom and another in a dark one, black shadows, a scroll bar on that black, its arrows and thumb white, grey in another window; a light grey menu bar (cyan on eight colours),
+    ## apart from the white title strip under it, with red hot letters,
+    ## the open menu in reverse; cyan dialogs with black text, a white title strip, their thin outline white as it,
     ## light grey buttons with the default's text in red, the one with the keys white; amber
     ## keys in the status line; dark red with a yellow title for what was refused or failed.
     "nu-blue": {
@@ -162,16 +168,16 @@ STYLE_LOOKS = {
         BOLD: ("yellow", "blue", True, 228, 63, True),
         REVERSE: ("black", "cyan", False, 16, 87, False),
         DIM: ("cyan", "blue", False, 189, 63, False),
-        DESKTOP: ("blue", "blue", True, 69, 63, False),
-        BAR: ("black", "white", False, 16, 231, False),
-        BAR_HOT: ("red", "white", False, 160, 231, True),
-        BAR_AT: ("blue", "white", False, 21, 231, False),
+        DESKTOP: ("black", "black", True, 240, 238, False),
+        BAR: ("black", "cyan", False, 16, 252, False),
+        BAR_HOT: ("red", "cyan", False, 124, 252, True),
+        BAR_AT: ("blue", "cyan", False, 21, 252, False),
         BAR_ON: ("white", "black", True, 231, 16, True),
         BAR_ON_HOT: ("red", "black", True, 203, 16, True),
-        BAR_OFF: ("black", "white", True, 246, 231, False),
+        BAR_OFF: ("black", "cyan", True, 245, 252, False),
         FRAME_ON: ("white", "blue", True, 231, 63, True),
         FRAME: ("cyan", "blue", False, 104, 63, False),
-        SCROLL: ("black", "white", False, 16, 252, False),
+        SCROLL: ("white", "black", True, 231, 16, True),
         SHADOW: ("black", "black", False, 16, 16, False),
         BOX: ("black", "cyan", False, 16, 87, False),
         BOX_FRAME: ("black", "cyan", False, 16, 87, False),
@@ -189,21 +195,22 @@ STYLE_LOOKS = {
         SHADE: ("blue", "black", False, 63, 16, False),
         BOX_SHADE: ("cyan", "black", False, 87, 16, False),
         EDGE_ON: ("white", "blue", False, 231, 63, False),
-        EDGE_ON_SHADE: ("white", "blue", False, 231, 63, False),
+        EDGE_ON_SHADE: ("white", "black", False, 231, 238, False),
         EDGE: ("black", "blue", False, 16, 63, False),
-        EDGE_SHADE: ("black", "blue", False, 16, 63, False),
-        TRACK: ("black", "cyan", False, 16, 19, False),
-        THUMB: ("black", "white", False, 16, 153, False),
+        EDGE_SHADE: ("black", "black", True, 16, 238, False),
+        TRACK: ("white", "black", False, 244, 16, False),
+        THUMB: ("white", "black", True, 231, 16, False),
         KEY_CHIP: ("black", "yellow", False, 16, 214, True),
         BOX_BUTTON_DEF: ("red", "white", False, 160, 252, True),
         ALERT: ("white", "red", True, 231, 124, False),
         ALERT_FRAME: ("white", "red", True, 231, 124, True),
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
+        BOX_EDGE: ("white", "cyan", False, 231, 87, False),
     },
     ## Magic in its grey colours (nu-gray), those of the picture on grey (the Disk Doctor): the
     ## dark grey desktop, windows of the deep blue of the scroll bars with white text and yellow
-    ## for what stands out, periwinkle dialogs with a thin dark outline and a white title strip, grey bars for
+    ## for what stands out, periwinkle dialogs with a white title strip and their thin outline white as it, grey bars for
     ## buttons, the one with the keys white with blue text, the selection a white bar with blue
     ## text, a white menu bar, red keys in the status line, the dark red alert.
     "nu-gray": {
@@ -220,7 +227,7 @@ STYLE_LOOKS = {
         BAR_OFF: ("black", "white", True, 245, 252, False),
         FRAME_ON: ("white", "blue", True, 231, 19, True),
         FRAME: ("cyan", "blue", False, 103, 19, False),
-        SCROLL: ("black", "white", False, 16, 250, False),
+        SCROLL: ("white", "black", True, 231, 16, True),
         SHADOW: ("black", "black", False, 16, 16, False),
         BOX: ("white", "blue", True, 231, 63, False),
         BOX_FRAME: ("black", "blue", False, 16, 63, False),
@@ -241,18 +248,19 @@ STYLE_LOOKS = {
         EDGE_ON_SHADE: ("white", "black", False, 231, 238, False),
         EDGE: ("black", "blue", False, 16, 19, False),
         EDGE_SHADE: ("black", "black", True, 16, 238, False),
-        TRACK: ("black", "cyan", False, 16, 63, False),
-        THUMB: ("black", "white", False, 16, 231, False),
+        TRACK: ("white", "black", False, 244, 16, False),
+        THUMB: ("white", "black", True, 231, 16, False),
         KEY_CHIP: ("white", "red", True, 231, 124, True),
         BOX_BUTTON_DEF: ("blue", "white", False, 19, 250, True),
         ALERT: ("white", "red", True, 231, 124, False),
         ALERT_FRAME: ("white", "red", True, 231, 124, True),
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
+        BOX_EDGE: ("white", "blue", False, 231, 63, False),
     },
 }
 ## Magic in the terminal's own colours (nu-system): its own choice of the eight named ones, those
-## of its blue plan (a blue desktop and windows, cyan dialogs, a white bar with red hot letters,
+## of its blue plan (blue windows on a black desktop, cyan dialogs, a cyan bar with red hot letters,
 ## black shadows), as the terminal draws them, on a terminal of 256 colours too.
 STYLE_LOOKS["nu-system"] = dict((look, own[:3] + (None, None, False)) for look, own in STYLE_LOOKS["nu-blue"].items())
 ## Turbo Vision in exact shades, each the shade of the colour of the PC it was drawn in: the
@@ -346,6 +354,8 @@ for bwName, bwShades in BW_SHADES.items():
 MARKS = {"separator": "│", "cut": "…", "plain": False,
          "frame": "┌─┐│└┘", "frameOn": "╔═╗║╚╝", "rule": "├─┤", "shade": "░", "system": "≡",
          "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•",
+         ## the thumb of a scroll bar in a window that is not active, where a style marks it apart
+         "barThumbOff": "■",
          ## what stands inside the brackets of the button Enter presses where the keys are on no button
          "default": "»«",
          ## what stands at the right edge of a row that Enter dives into, a folder (a row whose
@@ -375,13 +385,14 @@ MARKS = {"separator": "│", "cut": "…", "plain": False,
 ## on a terminal that is not UTF-8 the marks of MARKS stand (plainMarks), in every style.
 STYLE_MARKS = {
     ## Magic: outlines (MARKS "rim"), a line between two groups of a menu from side to side, a
-    ## slim scroll bar of whole cells with an arrow in a box at each end, a tick and a dot for
+    ## slim scroll bar in the cells of the shadow, its thumb ▍ on its track (▎ in a window that is
+    ## not active), with an arrow at each end, a tick and a dot for
     ## what is chosen and a faint dot for what is not, and a shadow a cell wide at the right of
     ## a box and half a line deep under it: drawn in a look whose ground is the black of the
     ## shadow and whose text is the colour under it, so the black of each cell is its ground,
     ## which joins the next line's with no gap, and the lower half block on the bottom edge of
     ## a cell under it draws what lies under; the corner under its left is left as it lies
-    "magic": {"rule": " ─ ", "barUp": "↑", "barDown": "↓", "barTrack": " ", "barThumb": " ",
+    "magic": {"rule": " ─ ", "barUp": "↑", "barDown": "↓", "barTrack": " ", "barThumb": "▍", "barThumbOff": "▎",
               "checks": ("✓ ", "· "), "radios": ("• ", "· "), "shadow": (" ", " ", "", "▄", "▄")},
     ## Turbo Vision: the shadow of a raised button (drawGroundShadow): ▅ beside its face, the
     ## shadow over the dialog, and ▅ under it from one cell after its left, the dialog over the
@@ -522,11 +533,11 @@ SUMMARIES = {
     "teamdata/board": {"lines": "storeSummary"},
     "teamdata/audit": {"lines": "storeSummary"},
     "teamdata/vault": {"lines": "storeSummary"},
-    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "few": 8} for storeId, storeLabel in TEAM_DATA_STORES},
+    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "few": 20} for storeId, storeLabel in TEAM_DATA_STORES},
     "team/*/permissions": {"lines": "grantsSummary"},
     "team/*/files": {"lines": "filesSummary", "few": 12},
     "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
-    "team/*/help": {"lines": "helpSummary"},
+    "team/*/help": {"lines": "helpSummary", "chapters": "manuals"},
     "manuals": {"lines": "helpSummary"},
 }
 
@@ -669,7 +680,7 @@ READS = {
                                     "rows": "session-read", "needs": "session"},
     "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
                                     "log": ["--log"], "rows": "transcript", "needs": "session"},
-    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True},
+    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True, "also": ("list:manuals",)},
     ## The root `Manuals (Help)`: what a user calls, the syntax lines it shows of itself,
     ## and every operation of the help, each an item as in a member's `Member Help`.
     "list:manuals": {"operation": ["--manager-help-read"], "rows": "manuals", "once": True},
@@ -805,7 +816,9 @@ PLACED = {
 ## of STYLE_LOOKS, on a terminal of 256 colours in that palette's exact shades, and taken
 ## where the terminal has colours also by a style without "colours"; "marks",
 ## its own marks, an entry of STYLE_MARKS; "titles", the title of a window and of a dialog
-## in a look of its own (TITLE_ON, TITLE) between the marks of its frame; "shadow" "slim",
+## in a look of its own (TITLE_ON, TITLE) between the marks of its frame, in the middle of
+## its top, and with "titles" "left" on a terminal that is UTF-8 (styleDraws) at its left,
+## TITLE_INSET cells in; "shadow" "slim",
 ## the shadow of a menu and of a dialog half a cell wide and half a line deep, of quarter
 ## and half blocks, where without it the style with colours has two cells of shadow; and
 ## "buttons" "raised", a button in a dialog a face with a slim shadow beside and under it,
@@ -821,8 +834,9 @@ PLACED = {
 ## and a dialog stand in their own colour, a thin line on the bottom edge of the line over
 ## them, drawn on what lies outside, their title a tab on it, and on the bottom edge of their
 ## last line, with no mark at their sides, where the change of colour is the edge (MARKS
-## "rim"); a window's right column is the shadow it casts, from the line under its top
-## (drawEdges), and its scroll bar is slim, in that column; "menus" "hung", a
+## "rim"); a window's right column is the shadow it casts, from its second line under its top
+## (drawEdges), and its scroll bar is slim, in that column, and with "barLower" that many lines
+## lower than the frame's first, its ↓ then on the window's last line (barLower); "menus" "hung", a
 ## menu hangs from the menu bar with no top border, its first item on the line under the
 ## bar, its sides, its bottom and its shadow as in every style; "chips", a key of the
 ## status line a chip in a colour of its own (KEY_CHIP); "fields" "bracketed", a field to
@@ -842,8 +856,8 @@ PLACED = {
 ## "nu-system" (its choice of the terminal's eight): its "schemes" name the one each takes.
 STYLES = (
     ("nu", {"label": "Magic", "colours": True, "keys": "tv", "names": "symbols",
-            "looks": "nu-gray", "marks": "magic", "titles": True, "shadow": "slim", "buttons": "bars",
-            "edges": "blocks", "menus": "hung", "chips": True, "fields": "bracketed", "levels": True,
+            "looks": "nu-gray", "marks": "magic", "titles": "left", "shadow": "slim", "buttons": "bars",
+            "edges": "blocks", "barLower": 1, "menus": "hung", "chips": True, "fields": "bracketed", "levels": True,
             "bare": "gray", "schemes": (("system", {"looks": "nu-system"}), ("blue", {"looks": "nu-blue"}), ("gray", {"looks": "nu-gray"}))}),
     ("tv", {"label": "Turbo Vision", "colours": True, "keys": "tv", "names": "classic",
             "marks": "tv", "shadow": "dim", "buttons": "raised", "icons": True,
@@ -959,13 +973,16 @@ def boxMarks(name):
 
 ## A slim shadow of a box, of quarter and half blocks in that look: half a cell wide at its
 ## right, from half a line under its top, and half a line deep under it, from half a cell
-## after its left. A mark that is empty is not drawn: what lies there stays. Nothing of it
-## below the line `last`, or past the column `columns`.
-def drawSlimShadow(surface, box, last, columns, look):
+## after its left. A mark that is empty is not drawn: what lies there stays. Without its
+## `corner` its corner at the top right is not drawn either, and what lies there stays: its
+## side starts on the line under, as Turbo Vision's shadow does. Nothing of it below the line
+## `last`, or past the column `columns`.
+def drawSlimShadow(surface, box, last, columns, look, corner=True):
     left, top, width, height = box
     marks = styleMark("shadow")
     if left + width < columns:
-        surface.put(top, left + width, marks[0], look)
+        if corner:
+            surface.put(top, left + width, marks[0], look)
         for line in range(top + 1, min(top + height, last + 1)):
             surface.put(line, left + width, marks[1], look)
     if top + height <= last:
@@ -1055,6 +1072,9 @@ SPLIT = {"step": 0.05, "least": 20, "most": 80}
 WRAP_FIRST = True
 WRAP_MARK = "[wrap]"
 CUT_MARK = "[cut]"
+## What the title of the left window says of a table of the items of a folder: every row, or its first.
+ROWS_MARK = "[all rows]"
+FEW_ROWS_MARK = "[%d rows]"
 UNWRAPPED_WIDTH = 1000
 PAN_STEP = 8
 ## The modes of the left window for a thing that has a log, a session or an agent: one at
@@ -1069,6 +1089,11 @@ VIEW_MODES = (
     ("raw", {"label": "Raw log", "mark": "[raw]", "feed": True, "raw": True}),
 )
 VIEW_MODE_FIRST = "summary"
+## The mode of the left window where it shows a Markdown text or the help (markdownShown):
+## one of its own, "summary" rendered or "raw" as it is, by the keys of those two modes.
+## It is the user's for the run too, and kept apart from the mode of a session: the raw log
+## of a session leaves a text rendered, and a text shown raw leaves a session as it was.
+TEXT_MODE_FIRST = "summary"
 ## The look of a line of the left window by what it is in a log, where that is not the
 ## plain one. "head": the head line of an entry, its time and who, paler than its body.
 LINE_LOOKS = {"head": DIM}
@@ -1231,6 +1256,11 @@ COMMANDS = (
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
+    ## the left window's own where it shows the items of a folder of the team data as a
+    ## table: every row of it, or its first rows again (itemRowsShown)
+    {"name": "rows", "keys": ("e",), "menu": ("view", 5), "label": "~E~very row or the first", "status": ("All rows", "First rows"), "toggle": "allRows",
+     "views": tuple("teamdata/%s" % storeId for storeId, storeLabel in TEAM_DATA_STORES) + tuple("teamdata/%s/*" % storeId for storeId, storeLabel in TEAM_DATA_STORES),
+     "for": "a folder of more items than its table shows", "does": ("rows",)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "colours", "keys": ("i",), "menu": ("view", 3), "label": "~I~nterface colours: the next", "does": ("colours",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
@@ -1571,8 +1601,12 @@ class ManagerState:
         self.view = newView(None, False)
         ## the mode of the left window of a session or an agent, of VIEW_MODES
         self.viewMode = VIEW_MODE_FIRST
+        ## the mode of the left window of a Markdown text and of the help (TEXT_MODE_FIRST)
+        self.textMode = TEXT_MODE_FIRST
         ## whether the left window wraps its long lines, or cuts them and scrolls sideways
         self.wrap = WRAP_FIRST
+        ## whether a table of the items of a folder shows every row, or its first (itemRowsShown)
+        self.allRows = False
         ## the split between the windows as the user moved it, the share of the width the
         ## right one takes, or None; and how the mouse holds its border: None, "pressed"
         ## by a button that is down, "held" by a click, until the next one
@@ -1814,7 +1848,7 @@ def wrapToCells(text, width):
 ## For a terminal that is not UTF-8: marks of one byte, and plainText() for what is drawn.
 def plainMarks():
     MARKS.update({"separator": "|", "cut": "+", "plain": True, "frame": "+-+|++", "frameOn": "#=#|##", "rule": "+-+",
-                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "on": "*",
+                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "barThumbOff": "#", "on": "*",
                   "default": "><", "folder": ">", "shadow": "     ", "focus": "><", "icons": ("[#]", "[|]")})
 
 
@@ -2037,10 +2071,13 @@ def parseLevels(readKey, form, text):
         return {level: rows, WHOLE_OF + level: whole}
     if form == "manuals":
         ## what a user calls stands first, to the first empty line: that is what the
-        ## root shows of itself; every operation after it, as a member's help gives its own
+        ## root shows of itself; every operation after it, as a member's help gives its own;
+        ## the chapters of the help, rows of their own, kept for a member's `Member Help`
+        text, chapters = parseHelpChapters(text)
         usage = text.partition("\n\n")
         rows, whole = parseHelpRows(usage[2])
-        return {level: rows, WHOLE_OF + level: [{"lines": [line.expandtabs(4) for line in usage[0].splitlines()]}]}
+        return {level: rows, WHOLE_OF + level: [{"lines": [line.expandtabs(4) for line in usage[0].splitlines()]}],
+                CHAPTERS_OF + level: chapters}
     return {level: parseRows(readKey, text)}
 
 
@@ -2434,6 +2471,8 @@ def viewHead(state, row):
 ## member, beside the rows of their level: under the level, behind these words.
 STORE_OF = "store:"
 WHOLE_OF = "whole:"
+## Where the chapters of the help are kept, by the level whose read gave them (parseHelpChapters).
+CHAPTERS_OF = "chapters:"
 
 
 ## What `--manager-team-data-read <store>` printed: the rows of its folders, each a folder
@@ -2454,14 +2493,16 @@ def parseStoreRows(text):
     return rows + parseItemRows(text), store
 
 
-## The `item` rows of a read of the team data: each by its name, its size at the end of its line.
+## The `item` rows of a read of the team data: each by its name, its size at the end of its line;
+## and what the read gives of its front matter, its type, status, owner and date, where it does.
 def parseItemRows(text):
     rows = []
     for line in text.splitlines():
         fields = line.split("\t")
         if fields[0] == "item" and len(fields) >= 6:
             row = newRow(fields[3], fields[3], "item", False, fields)
-            row["item"] = {"bytes": fields[4], "stamp": fields[5]}
+            row["item"] = {"name": fields[3], "bytes": fields[4], "stamp": fields[5]}
+            row["item"].update((name, unspaced(value)) for name, value in zip(ITEM_FRONT, fields[6:10]))
             row["tail"] = shortBytes(fields[4])
             rows.append(row)
     return rows
@@ -2491,8 +2532,46 @@ def storeSummary(state, path, row, form):
     return lines
 
 
-## The summary of a folder of a store: how many items it holds and how much, and the first
-## of them, the newest first where their names are dated.
+## What the read of a folder gives of each item's front matter, in its order after the stamp.
+ITEM_FRONT = ("type", "status", "owner", "date")
+## The columns of the table of a folder's items: its name, what its front matter gives, its
+## date, or the stamp of its name where it gives none, and its size. A column no item of the
+## table has a word for is left out; the others show in this order while the pane has room.
+ITEM_COLUMNS = (
+    ("NAME", lambda item: item["name"]),
+    ("TYPE", lambda item: item.get("type", "")),
+    ("DATE", lambda item: item.get("date", "")[:16] or stampText(item["stamp"])),
+    ("OWNER", lambda item: item.get("owner", "")),
+    ("STATUS", lambda item: item.get("status", "")),
+    ("SIZE", lambda item: shortBytes(item["bytes"])),
+)
+## The first column, the name, is shortened so that the others fit, to no fewer cells than these.
+ITEM_NAME_LEAST = 24
+
+
+## The stamp of an item's name, `<YYYYMMDD>T<HHMM>`, as a date: `2026-10-01 09:00`.
+def stampText(stamp):
+    if len(stamp) != 13 or not (stamp[:8] + stamp[9:]).isdigit():
+        return ""
+    return "%s-%s-%s %s:%s" % (stamp[:4], stamp[4:6], stamp[6:8], stamp[9:11], stamp[11:])
+
+
+## Items of a folder for the left pane, lines of that many cells: a table under its header
+## (ITEM_COLUMNS), by the rule of every table: a column that does not fit is left out whole,
+## and the first, the name, is shortened so that the others fit, to no fewer than
+## ITEM_NAME_LEAST cells. With the lines not wrapped the pane is wide enough for all of it.
+def itemTableLines(items, width):
+    columns = [column for column in ITEM_COLUMNS if any(column[1](item) for item in items)]
+    words = [[column[1](item) or "-" for column in columns] for item in items]
+    table = {"heads": [column[0] for column in columns], "iconWidth": 0,
+             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words]) for index, column in enumerate(columns)]}
+    table["widths"][0] = min(table["widths"][0], max(ITEM_NAME_LEAST, width - 1 - sum(1 + cells for cells in table["widths"][1:])))
+    return [(" " + tableLineText(table, [""] + line, width - 1)).rstrip() for line in [table["heads"]] + words]
+
+
+## The summary of a folder of a store: how many items it holds and how much, then its items
+## as a table, the newest first where their names are dated: its first rows, or every row
+## while `e` shows them all, and how many more there are.
 def itemsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -2502,10 +2581,27 @@ def itemsSummary(state, path, row, form):
         return ["%s: empty. It holds no items." % row["label"]]
     size = sum(int(held["item"]["bytes"]) for held in items if held["item"]["bytes"].isdigit())
     lines = ["%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), ""]
-    lines.extend(hangLines(held["label"], state.viewWidth)[0] for held in items[:form["few"]])
-    if len(items) > form["few"]:
-        lines.append("  and %d more" % (len(items) - form["few"]))
+    shown = items if state.allRows else items[:form["few"]]
+    lines.extend(itemTableLines([held["item"] for held in shown], state.viewWidth - 1))
+    if len(items) > len(shown):
+        lines.append("  and %d more" % (len(items) - len(shown)))
     return lines
+
+
+## How many rows the table of a folder's items shows at first, where the left window shows
+## such a table of more items than that: then `e` shows every row of it, or the first again.
+## None where it does not.
+@onShownLevel
+def itemRowsShown(state):
+    row = selectedRow(state)
+    if row is None or not row["dive"] or row["kind"] == "up":
+        return None
+    path = state.path + [row["id"]]
+    form = SUMMARIES.get(levelPattern(path)) or {}
+    if form.get("lines") != "itemsSummary":
+        return None
+    items = [held for held in state.rows.get(levelKey(path), ()) if held.get("item")]
+    return form["few"] if len(items) > form["few"] else None
 
 
 ## ---- a team member as a folder: its grants, its files, its sessions, its help ----
@@ -2521,7 +2617,7 @@ GRANT_COLUMNS = (
     ("ENDS", lambda grant: grant["ends"]),
 )
 GRANT_COVERS_CELLS = 40
-## In a member's own summary the table follows the pane: where it is too narrow for every
+## In the left pane the table follows the pane: where it is too narrow for every
 ## column, the first is shortened, to no fewer cells than these, so that the others fit.
 GRANT_COVERS_LEAST = 16
 
@@ -2596,7 +2692,8 @@ def grantKindLines(state, row, width):
     return lines
 
 
-## The summary of `Permissions`: how many grants, by kind.
+## The summary of `Permissions`: how many grants, by kind, as the caption of the table of
+## them, fitted to the pane (grantTableLines).
 def grantsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -2604,7 +2701,7 @@ def grantsSummary(state, path, row, form):
     grants = [held["grant"] for held in rows if held.get("grant")]
     if not grants:
         return ["No grants."]
-    return ["%d grants: %s." % (len(grants), grantCounts(grants)), "", "Enter opens them as a table, by kind; a selected grant shows whole."]
+    return ["%d grants: %s." % (len(grants), grantCounts(grants))] + grantTableLines(grants, state.viewWidth - 1)
 
 
 ## What `--manager-team-member-files` printed: a file a row, by its path in the member's
@@ -2681,13 +2778,42 @@ def parseHelpRows(text):
     return rows, [{"lines": lines}]
 
 
-## The summary of `Member Help`: the member's help whole, as the tooling gives it. And of
-## `Manuals (Help)`: what a user calls, the first part of its read. Each rendered (helpLines).
+## The chapters of the help that `--manager-help-read` prints after its operations, a row a
+## line: `chapter`, `head` for a line before the first option or `foot` for one after them,
+## and the line as it is written. The text without them, and the lines of each part, with
+## no empty line at either end.
+def parseHelpChapters(text):
+    kept = []
+    parts = {"head": [], "foot": []}
+    for line in text.splitlines():
+        fields = line.split("\t", 2)
+        if fields[0] == "chapter" and len(fields) == 3 and fields[1] in parts:
+            parts[fields[1]].append(fields[2].expandtabs(4))
+        else:
+            kept.append(line)
+    for lines in parts.values():
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+    return "\n".join(kept), [parts]
+
+
+## The summary of `Member Help`: the text of the help before its first option, the member's
+## syntax lines, then the chapters after the options, the chapters from the read of the level
+## its form names ("chapters"); None until both have come. And of `Manuals (Help)`: what a
+## user calls, the first part of its read. Each rendered (helpLines).
 def helpSummary(state, path, row, form):
     whole = state.rows.get(WHOLE_OF + levelKey(path))
     if not whole:
         return None
-    return helpLines(state, row, whole[0]["lines"])
+    lines = whole[0]["lines"]
+    if form.get("chapters"):
+        chapters = state.rows.get(CHAPTERS_OF + form["chapters"])
+        if not chapters:
+            return None
+        lines = chapters[0]["head"] + [""] + [line for line in lines if line.startswith("📘")] + [""] + chapters[0]["foot"]
+    return helpLines(state, row, lines)
 
 
 ## ---- the asks that wait for an answer ----
@@ -3439,6 +3565,17 @@ def rawShown(state):
     return modeOf(state)["raw"]
 
 
+## Whether a Markdown text or the help is shown as it is, in the mode of a text (TEXT_MODE_FIRST);
+## and the mode of the left window for the row selected: that of a text where it shows one.
+def textRawShown(state):
+    return state.textMode == "raw"
+
+
+@onShownLevel
+def modeNow(state):
+    return state.textMode if markdownShown(state, selectedRow(state)) else state.viewMode
+
+
 def logShown(state, row):
     return modeOf(state)["feed"] and viewReadOf(state, row, "feed") is not None
 
@@ -3475,29 +3612,31 @@ def helpShown(state, row):
 
 
 ## The lines of the left window for a text of the help, the block of an operation or a summary:
-## rendered (helpMarkdownLines), but in the raw mode, where they are as the help gives them; the
-## looks of the window go with them. Set out again only when the text, the width of the window
-## or the marks have changed, so never on a tick.
+## rendered (helpMarkdownLines), but in the raw mode of a text, where they are as the help gives
+## them, a long one broken to the window (rawLines); the looks of the window go with them. Set
+## out again only when the text, the width of the window, the marks or the mode have changed,
+## so never on a tick.
 def helpLines(state, row, lines):
     view = state.view
-    if not markdownShown(state, row) or rawShown(state):
+    if not markdownShown(state, row):
         view["looks"] = {}
         return lines
-    stamp = (lines, state.viewWidth, MARKS["plain"])
+    stamp = (lines, state.viewWidth, MARKS["plain"], state.textMode)
     if view.get("helpFor") != stamp:
         view["helpFor"] = stamp
-        view["helpText"] = helpMarkdownLines(lines, state.viewWidth)
+        view["helpText"] = (rawLines(lines, state.viewWidth), {}) if textRawShown(state) else helpMarkdownLines(lines, state.viewWidth)
     view["looks"] = view["helpText"][1]
     return view["helpText"][0]
 
 
 ## The lines of the left window from the text a read gave as it is (applyResult): a Markdown
-## one rendered (markdownLines), but in the raw mode, and any other as it is. Set out again
-## only when the text, the width of the window, its mode (setViewMode empties it) or the
-## marks have changed, so never on a tick; the window keeps its place in the text, as a share.
+## one rendered (markdownLines), but in the raw mode of a text, and any other as it is, a long
+## line broken to the window (rawLines). Set out again only when the text, the width of the
+## window, its mode (setViewMode empties it) or the marks have changed, so never on a tick;
+## the window keeps its place in the text, as a share.
 def viewText(state, row):
     view = state.view
-    rendered = markdownShown(state, row) and not rawShown(state)
+    rendered = markdownShown(state, row) and not textRawShown(state)
     stamp = (view["text"], state.viewWidth, state.viewMode, rendered, MARKS["plain"])
     if view.get("textFor") == stamp:
         return
@@ -3506,9 +3645,48 @@ def viewText(state, row):
     if rendered:
         view["lines"], view["looks"] = markdownLines(view["text"], state.viewWidth)
     else:
-        view["lines"], view["looks"] = view["text"].splitlines(), {}
+        view["lines"], view["looks"] = rawLines(view["text"].splitlines(), state.viewWidth), {}
     if before and view["top"]:
         view["top"] = view["top"] * len(view["lines"]) // before
+
+
+## The lines of a text shown as it is, to that width of the window: a line that fits stays
+## exactly as it is; a longer one is broken between its words, each piece with the blanks of
+## the line as they are inside it, the first set in as far as the line is and the others two
+## cells more; the blanks where it breaks go with the break, and a word longer than a piece is
+## broken where the piece ends. While lines are cut the window is wide (UNWRAPPED_WIDTH), so
+## they stand whole.
+def rawLines(lines, width):
+    room = max(10, width - 1)
+    out = []
+    for line in lines:
+        if textWidth(line) <= room:
+            out.append(line)
+            continue
+        text = line.expandtabs(4)
+        after = " " * (min(len(text) - len(text.lstrip(" ")), room // 2) + 2)
+        piece, used = "", 0
+        for word in re.findall(r" +|[^ ]+", text):
+            cells = textCells(word)
+            wordWidth = sum(cell[1] for cell in cells)
+            if used + wordWidth <= room:
+                piece += word
+                used += wordWidth
+                continue
+            if piece.strip():
+                out.append(piece.rstrip(" "))
+                piece, used = after, len(after)
+            if word.startswith(" "):
+                continue
+            for cluster, clusterWidth in cells:
+                if used + clusterWidth > room and piece.strip():
+                    out.append(piece)
+                    piece, used = after, len(after)
+                piece += cluster
+                used += clusterWidth
+        if piece.strip():
+            out.append(piece.rstrip(" "))
+    return out
 
 
 ## The blocks of a Markdown text by the start of a line, and what is inside a line of it: a
@@ -3858,7 +4036,9 @@ def markdownLines(text, width):
 ## markdownLines gives them. Its layout is its own (Help.DistroAgentsTools.help.md), and it is
 ## read by it: a syntax line, and the head of an entry, a line that names an operation or an
 ## option of it with what is set in under it, or another such head, right after it, stands as
-## it is, a head in the look of a heading; the lines set in under a head are its text, Markdown,
+## it is, a head in the look of a heading; the heading of a chapter, `##  Notes:` at the start of
+## its line, is a heading of Markdown; the lines set in under a head are its text, Markdown, its
+## shell examples code (helpExamplesFenced),
 ## set out by markdownLines to the width that is left and set in as far as they are. Every line
 ## is broken to the window, so a summary (folderSummary) breaks none of them again.
 def helpMarkdownLines(lines, width):
@@ -3869,7 +4049,7 @@ def helpMarkdownLines(lines, width):
         after = lines[number + 1] if number + 1 < len(lines) else ""
         indent = len(lines[number]) - len(word)
         afterIndent = len(after) - len(after.lstrip(" "))
-        heads[number] = word.startswith("📘") or (word.startswith("--") and bool(after.strip()) and (
+        heads[number] = word.startswith("📘") or (indent == 0 and word.startswith("#")) or (word.startswith("--") and bool(after.strip()) and (
             afterIndent > indent or (afterIndent == indent and heads[number + 1] and after.lstrip(" ").startswith("--"))))
     out = []
     spansOf = {}
@@ -3880,6 +4060,14 @@ def helpMarkdownLines(lines, width):
         if not line.strip():
             if out and out[-1]:
                 out.append("")
+            number += 1
+        elif heads[number] and line.startswith("#"):
+            ## the heading of a chapter of the help, `##  Notes:`, a heading of Markdown
+            text, spans = markdownLines(line, width)
+            for at, part in enumerate(text):
+                if at in spans:
+                    spansOf[len(out)] = spans[at]
+                out.append(part)
             number += 1
         elif heads[number]:
             look = None if line.lstrip(" ").startswith("📘") else MARKDOWN_LOOKS["h3"]
@@ -3896,7 +4084,7 @@ def helpMarkdownLines(lines, width):
                 end += 1
             while not lines[end - 1].strip():
                 end -= 1
-            text, spans = markdownLines("\n".join(part[indent:] for part in lines[number:end]), width - indent)
+            text, spans = markdownLines(helpExamplesFenced([part[indent:] for part in lines[number:end]]), width - indent)
             for at, part in enumerate(text):
                 if at in spans:
                     spansOf[len(out)] = [(cell + indent, cells, look) for cell, cells, look in spans[at]]
@@ -3905,6 +4093,27 @@ def helpMarkdownLines(lines, width):
     while out and not out[-1]:
         out.pop()
     return out, spansOf
+
+
+## A text of the help as Markdown, its shell examples fenced: a paragraph whose first line is
+## a comment of the shell, `# ` and its words, as the help writes an example (its Examples),
+## is code, shown as it is written, its comments, its own fences and its blanks with it, where
+## Markdown would read that line as a heading. The help writes no heading inside a text. The
+## fence is one no line of the help closes (four tildes).
+def helpExamplesFenced(lines):
+    out = []
+    example = False
+    for at, line in enumerate(lines):
+        if example and not line.strip():
+            out.append("~~~~")
+            example = False
+        elif not example and line.startswith("# ") and (at == 0 or not lines[at - 1].strip()):
+            out.append("~~~~")
+            example = True
+        out.append(line)
+    if example:
+        out.append("~~~~")
+    return "\n".join(out)
 
 
 ## The agents of a session in a few words, from its row: how many, and how many of each
@@ -4318,9 +4527,12 @@ def areaLines(text, width):
 ## and DIALOG_COLUMNS, and never wider than the terminal less two cells at each side; how
 ## wide its inside is; each control with the line of its label, its first line and how
 ## many lines it has; the lines of what it refuses and the line of its buttons, the last
-## inside its frame. Where the terminal has not the lines for all of it, a text gives its
-## lines first, down to one, then a list of options, then a field of several lines, and
-## last the empty lines between the controls: what is cut there scrolls. "long" says that
+## inside its frame, but for an empty line under it where the buttons cast no shadow, as the
+## line of their shadow is in another style; and an empty line under its top in every style.
+## Where the terminal has not the lines for all of it, the empty lines under its top and
+## under its buttons give way first, then the empty lines between the controls, then a text
+## gives its lines, down to one, then a list of options, and last a field of several lines:
+## what is cut there scrolls. "long" says that
 ## a text holds more than it shows, and "page" how many lines of it show.
 def dialogPlan(dialog, columns, lines):
     wanted = max(textWidth(dialog["title"]) + 2, sum(textWidth(label) + 6 for name, label in dialog["buttons"]))
@@ -4345,33 +4557,40 @@ def dialogPlan(dialog, columns, lines):
         height = 1 if kind == "input" else DIALOG_AREA if kind == "area" else max(1, holds) if kind == "text" else max(1, min(holds, DIALOG_OPTIONS))
         parts.append({"index": index, "kind": kind, "label": 1 if control.get("label") else 0, "height": height, "holds": holds})
     says = wrapToCells(dialog["says"], inner)[:2] if dialog["says"] else []
-    if big:
-        ## the big dialog: its first text takes the room the rest of it leaves
-        parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - 1)
-    gap = 1
     ## the line of the buttons, and in a style with raised buttons the line of their shadow
     foot = 2 if STYLE.get("buttons") in ("raised", "bars") else 1
-    over = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot - room
+    if big:
+        ## the big dialog: its first text takes the room the rest of it leaves, the empty lines
+        ## between its parts kept and those under its top and its buttons given way
+        parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - foot)
+    gap = 1
+    ## the empty line under its top, and that under buttons that cast no shadow
+    lead, tail = 1, 2 - foot
+    over = lead + sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot + tail - room
+    if over > 0:
+        over -= lead + tail
+        lead = tail = 0
+    if over > 0:
+        over -= gap * len(parts)
+        gap = 0
     for kinds in (("text",), ("checks", "radios", "list"), ("area",)):
         for part in parts:
             if over > 0 and part["kind"] in kinds:
                 cut = min(over, part["height"] - 1)
                 part["height"] -= cut
                 over -= cut
-    if over > 0:
-        gap = 0
-    inside = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot
+    inside = lead + sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + foot + tail
     height = max(1, min(inside, room)) + 2
     left = (columns - width) // 2
     top = 1 + max(0, (lines - 2 - height) // 2)
-    line = top + 1
+    line = top + 1 + lead
     for part in parts:
         part["labelLine"] = line if part["label"] else None
         part["line"] = line + part["label"]
         line += part["label"] + part["height"] + gap
     texts = [part for part in parts if part["kind"] == "text"]
     return {"box": (left, top, width, height), "inner": inner, "parts": parts, "says": says, "saysLine": line,
-            "buttonsLine": top + height - 1 - foot,
+            "buttonsLine": top + height - 1 - foot - tail,
             "long": any(part["holds"] > part["height"] for part in texts),
             "page": texts[0]["height"] if texts else 1}
 
@@ -4392,9 +4611,12 @@ def drawDialog(surface, state, columns, lines):
     body, rim, shade = (ALERT, ALERT_FRAME, ALERT_SHADE) if alert else (BOX, BOX_FRAME, BOX_SHADE)
     marks = boxMarks("frameOn")
     ## where a style draws edges of blocks, its top line is drawn on what lies under it, a window,
-    ## in the look of a line over a window's colour, and its shadow falls from the line under it
+    ## in the look of a line over a window's colour, and its last line on its own colour, each
+    ## line in the colour of the ground of its title tab (that of what was refused or failed white
+    ## as its rim), and its shadow falls from the line under its first, as Turbo Vision's
     edged = styleDraws("edges", "blocks")
-    head = (EDGE_ON if alert else EDGE) if edged else rim
+    head = EDGE_ON if edged else rim
+    edge = BOX_EDGE if edged and not alert else rim
     surface.put(top, left, marks[0] + marks[1] * (width - 2) + marks[2], head)
     putTitle(surface, top, left, width, dialog["title"], head, "titleOn", ALERT_HEAD if alert else TITLE_ON)
     ## in a style with "icons" the box that closes it, at the left of its top border, does what Esc does
@@ -4405,9 +4627,9 @@ def drawDialog(surface, state, columns, lines):
         surface.put(top + offset, left, marks[3], rim)
         surface.put(top + offset, left + 1, " " * (width - 2), body)
         surface.put(top + offset, left + width - 1, marks[4], rim)
-    surface.put(top + height - 1, left, marks[5] + marks[6] * (width - 2) + marks[7], rim)
+    surface.put(top + height - 1, left, marks[5] + marks[6] * (width - 2) + marks[7], edge)
     if STYLE.get("shadow") == "slim":
-        drawSlimShadow(surface, (left, top + 1, width, height - 1) if edged else plan["box"], lines - 2, columns, SHADE)
+        drawSlimShadow(surface, (left, top + 1, width, height - 1) if edged else plan["box"], lines - 2, columns, SHADE, False)
     elif STYLE.get("shadow") == "dim":
         drawDimShadow(surface, plan["box"], lines - 2, columns, SHADOW)
     elif STYLE["colours"]:
@@ -5538,27 +5760,29 @@ MEMBER_COLUMNS = (
 )
 
 
-## The rows of the members as one table, like the member table of the installer: under a
-## header, each member's icon, its name, whether it runs now, its status, its kind and
-## where it is set up, in columns as wide as their widest word, an absent one `-`. The
-## icon is the one the operation gave, and no icon is named here. It is measured in cells
-## as every text of the screen is, so a wide one, and one an emoji selector makes wide,
-## take two; a member with none keeps that place empty. Each row gets its table, which
-## all of them share, and its own cells in it: its icon, then a word for each column.
-def memberTable(rows):
-    members = [row["member"] for row in rows]
+## The members as one table, like the member table of the installer, for the left pane, in
+## lines of that many cells: under a header, each member's icon, its name, whether it runs
+## now, its status, its kind and where it is set up, in columns as wide as their widest
+## word, an absent one `-`. The icon is the one the operation gave, and no icon is named
+## here. It is measured in cells as every text of the screen is, so a wide one, and one an
+## emoji selector makes wide, take two; a member with none keeps that place empty.
+def memberTableLines(members, width):
     words = [[column[1](member) or "-" for column in MEMBER_COLUMNS] for member in members]
     table = {"heads": [column[0] for column in MEMBER_COLUMNS],
              "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
                         for index, column in enumerate(MEMBER_COLUMNS)],
              "iconWidth": max([textWidth(member["icon"]) for member in members] + [0])}
-    ## a member that is a folder has the mark of one at the right edge of its row, and every
-    ## row and the header leave room for it (listRowParts)
-    if any(row["dive"] for row in rows):
-        table["marks"] = True
-    for row, member, line in zip(rows, members, words):
-        row["table"] = table
-        row["cells"] = [member["icon"]] + line
+    return [(" " + tableLineText(table, cells, width - 1)).rstrip()
+            for cells in [[""] + table["heads"]] + [[member["icon"]] + line for member, line in zip(members, words)]]
+
+
+## The rows of the members as a list, as every list is: each member's icon ahead of its
+## name, the icons in a place as wide as the widest of them, so that every name starts at
+## the same cell; a member with none keeps that place empty.
+def memberLeads(rows):
+    iconWidth = max([textWidth(row["member"]["icon"]) for row in rows] + [0])
+    for row in rows:
+        row["lead"] = cutToCells(row["member"]["icon"], iconWidth) + " " if iconWidth else ""
 
 
 ## One line of a table in that many cells: the icon, where the table has one, the first
@@ -5580,7 +5804,8 @@ def tableLineText(table, cells, width):
 
 ## What `--manager-team-member-list` printed, as rows: `member` rows of TAB-separated
 ## fields, in the order they come, this workspace's own members first. The members show
-## as a table (memberTable). One with a live run stands out. One that is not started from
+## as a list, each by its icon and its name (memberLeads), and as a table in the left pane
+## (memberTableLines). One with a live run stands out. One that is not started from
 ## here, whose status is `reference-only` or whose workspace is `not-present`, shows
 ## plainer: dimmed. The last field is the member's icon: a row without it, as the
 ## operation printed a row before it gave one, is a member with no icon.
@@ -5603,7 +5828,7 @@ def parseMemberRows(text):
         if memberRefusal(member):
             row["look"] = DIM
         rows.append(row)
-    memberTable(rows)
+    memberLeads(rows)
     return rows
 
 
@@ -5666,13 +5891,11 @@ def settingWords(settingState, value):
     return settingState + (" " + value if value else "")
 
 
-## The selected member for the left pane. From its row of the list: its mark and names,
-## its kind, its status, whether a run of it is alive, the workspace it is set up in, and
-## whether `n` starts it, or why not. Once the read of that one member has come (info):
-## what it is for; its information, the bullets of its basic.md; the sessions of this
-## workspace it has a run in, those with a live run first, as the operation gives them;
-## its workspace, by its paths; its settings, a secret one only as configured or not; and
-## last its grants, under their counts, as the table `Permissions` holds them.
+## The selected member for the left pane, its basic information alone. From its row of the
+## list: its mark and names, its kind, its status, whether a run of it is alive, the
+## workspace it is set up in, and whether `n` starts it, or why not. Once the read of that
+## one member has come (info): what it is for, and its information, the bullets of its
+## basic.md. Its sessions, its grants and its skillset are folders of its own (MEMBER_FOLDERS).
 def memberLines(member, width, info=None):
     names = " ".join(word for word in (member["first"], member["family"]) if word)
     refusal = memberRefusal(member)
@@ -5692,41 +5915,18 @@ def memberLines(member, width, info=None):
     if info is None:
         if member["setUp"] == "not-present":
             return lines + ["", "nothing more is read of it: its workspace cannot be reached from this machine"]
-        return lines + ["", "its information, its sessions, its grants and its settings: not read yet"]
+        return lines + ["", "Team-member information: not read yet"]
     if info["bullets"]:
-        lines.extend(["", "its information:"])
+        lines.extend(["", "Team-member information:"])
         for name, text in info["bullets"]:
             lines.extend(hangLines("%s: %s" % (name, text), width))
-    alive = len([session for session in info["sessions"] if any(run["live"] == "running" for run in session["runs"])])
-    lines.extend(["", "the sessions it is in: %d%s" % (len(info["sessions"]), ", %d with a live run of it" % alive if alive else "")])
-    for session in info["sessions"]:
-        told = "; ".join("%s %s" % (runStateText(run), "since " + unspaced(run["started"]) if run["resolved"] == "-"
-                                    else "until " + unspaced(run["resolved"])) for run in session["runs"])
-        lines.append("  %s %s %s" % (cutToCells(session["name"] or session["id"], 24), cutToCells(session["state"], 9), told))
-    lines.extend(["", "its workspace:"])
-    for name, shown in (("workspace", "path"), ("home", "home"), ("link-kind", "link"), ("skillset-path", "skillset"), ("persona", "persona")):
-        if facts.get(name):
-            lines.extend(hangLines("%-9s %s" % (shown, facts[name]), width))
-    lines.extend(["", "its settings: %d" % len(info["settings"])])
-    keyWidth = min(34, max([len(setting["key"]) for setting in info["settings"]] or [0]))
-    for setting in info["settings"]:
-        if setting["state"] == "elsewhere":
-            words = "read in the workspace it is set up in"
-        else:
-            words = settingWords(setting["state"], setting["value"])
-        lines.extend(hangLines("%s %s  %s" % (
-            MARK_MISSING if setting["state"] in ("missing", "secret-missing") else " ",
-            setting["key"].ljust(keyWidth), words), width))
-    lines.extend(["", "its grants: %d%s" % (len(info["grants"]), (", " + grantCounts(info["grants"])) if info["grants"] else "")])
-    if info["grants"]:
-        lines.extend(grantTableLines(info["grants"], width - 1))
     return lines
 
 
 ## What `Team Members` holds, for the left pane while the section itself or the row that
 ## goes up is selected: how many members, how many with a live run and which; how many
-## are not started from here, and which, under each cause. None until its read has
-## answered.
+## are not started from here, and which, under each cause; then the members as a table
+## (memberTableLines). None until its read has answered.
 def membersSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -5745,6 +5945,8 @@ def membersSummary(state, path, row, form):
                 causes.append(cause)
         for cause in causes:
             lines.extend(hangLines("%s: %s" % (", ".join(name for name, other in refused if other == cause), cause), state.viewWidth))
+    if members:
+        lines.extend([""] + memberTableLines(members, state.viewWidth - 1))
     return lines
 
 
@@ -7346,7 +7548,7 @@ def placedLine(state, text):
 @onShownLevel
 def placedShown(state):
     row = selectedRow(state)
-    if row is None or ((logShown(state, row) or markdownShown(state, row)) and rawShown(state)):
+    if row is None or (logShown(state, row) and rawShown(state)) or (markdownShown(state, row) and textRawShown(state)):
         return False
     root = state.path[0] if state.path else row["id"] if row["kind"] == "section" else ""
     if root in PLACED["real"]:
@@ -7734,6 +7936,9 @@ def commandRefusal(state, command):
     if does[0] == "demand":
         ## it asks for a list that is read on demand alone: the one shown, or the one of the folder selected
         return "" if demandRead(state) else other
+    if does[0] == "rows":
+        ## a table of the items of a folder that holds more than it shows at first
+        return "" if itemRowsShown(state) else other
     if does[0] == "pan":
         ## wrapped lines hold nothing to the side
         return REFUSALS["wrapped"] % said if state.wrap else ""
@@ -7807,11 +8012,19 @@ def runCommand(state, command, layout, key=None):
         state.noticeOf = None
         state.notice = "interface style: %s" % styleLabel()
     elif does[0] == "mode":
-        names = [name for name, mode in VIEW_MODES]
-        setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
+        ## a Markdown text or the help has a mode of its own (TEXT_MODE_FIRST)
+        with shownLevel(state):
+            text = markdownShown(state, selectedRow(state))
+        if text and does[1]:
+            state.textMode = does[1]
+        else:
+            names = [name for name, mode in VIEW_MODES]
+            setViewMode(state, does[1] or names[(names.index(state.viewMode) + 1) % len(names)])
     elif does[0] == "wrap":
         state.wrap = not state.wrap
         state.view["left"] = 0
+    elif does[0] == "rows":
+        state.allRows = not state.allRows
     elif does[0] == "pan":
         ## the pane is brought within what it holds when it is drawn (panOf)
         state.view["left"] = max(0, state.view.get("left", 0) + (1 if key == "RIGHT" else -1) * PAN_STEP)
@@ -8519,7 +8732,11 @@ def viewTitle(state):
     form = " " + modeOf(state)["mark"] if viewReadOf(state, row, "feed") is not None else ""
     ## and a text that is Markdown, whether it is rendered or raw
     if markdownShown(state, row):
-        form = " " + (modeOf(state)["mark"] if rawShown(state) else MARKDOWN["mark"])
+        form = " " + (dict(VIEW_MODES)["raw"]["mark"] if textRawShown(state) else MARKDOWN["mark"])
+    ## and a table of the items of a folder, whether every row of it shows or its first
+    few = itemRowsShown(state)
+    if few:
+        form += " " + (ROWS_MARK if state.allRows else FEW_ROWS_MARK % few)
     ## and whether its long lines are wrapped or cut: the title says it always
     return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap else CUT_MARK)
 
@@ -8713,7 +8930,7 @@ def listRowParts(row, chosen, width, enters=False, dives=False):
     cells = row.get("cells")
     edge = folderEdge(width) if dives or (row.get("table") or {}).get("marks") else 0
     width -= edge
-    shown = tableLineText(row["table"], cells, width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
+    shown = tableLineText(row["table"], cells, width - 1) if row.get("table") else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width + edge >= LIST_WIDE["from"]:
@@ -8780,7 +8997,7 @@ def statusItems(state):
     own = []
     everywhere = []
     for command in COMMANDS:
-        if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", state.viewMode):
+        if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", modeNow(state)):
             wide = commandWindow(command) is None and "on" not in command
             (everywhere if wide else own).append((keysShown(command["shown"]) if command.get("shown") else keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
@@ -8815,7 +9032,9 @@ def drawStatusLine(surface, state, line, columns):
 ## frame, between the marks `ends` of the style names for that frame (" " and " " in MARKS).
 ## In a style with "titles" the title stands with a blank at each side in a look of its own,
 ## `chip`, between those marks in the look of the frame; a mark that is a blank is left out
-## there, so the title stands where it stands without them.
+## there, so the title stands where it stands without them. With "titles" "left" it stands at
+## the left, TITLE_INSET cells in, and is cut to leave at least as many cells at its right, on
+## a terminal that is UTF-8: on another in the middle, as every style draws there.
 def putTitle(surface, line, left, width, title, look, ends, chip):
     before, after = styleMark(ends)
     text = fitToCells(title, width - 4 - textWidth(before) - textWidth(after))
@@ -8825,9 +9044,17 @@ def putTitle(surface, line, left, width, title, look, ends, chip):
         return
     before, after = before.strip(), after.strip()
     column = left + (width - textWidth(text) - 2 - textWidth(before) - textWidth(after)) // 2
+    if styleDraws("titles", "left"):
+        text = fitToCells(title, max(0, width - 2 * TITLE_INSET - 2 - textWidth(before) - textWidth(after)))
+        column = left + TITLE_INSET
     surface.put(line, column, before, look)
     surface.put(line, column + textWidth(before), " " + text + " ", chip)
     surface.put(line, column + textWidth(before) + textWidth(text) + 2, after, look)
+
+
+## How many cells in from the left of its top a title stands where a style sets it at the
+## left (STYLES "titles" "left"), and how many at least stay at its right.
+TITLE_INSET = 3
 
 
 ## The frame of a window: double for the active one and single for another, its title in
@@ -8873,10 +9100,12 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
 ## drawn as the active one, else EDGE_SHADE), its title a tab on that line; the window in its
 ## own colour, no mark at its left, where the change of colour is the edge, its last line
 ## with a thin line on its bottom edge (EDGE_ON, EDGE), and its right column the shadow it
-## casts, whole black cells (SHADOW) from the line under its top: no cell of the layout is
-## spent. Where `bar` says that it holds more than it shows, that column is a slim scroll bar:
+## casts, whole black cells (SHADOW) from its second line under its top, as Turbo Vision's
+## shadow, the desktop beside its top and its first line: no cell of the layout is spent. Where `bar` says that it holds more than it shows, that column is a slim scroll bar:
 ## an arrow in a box at each end, and between them the track with a thumb as long as the
-## share it shows, where that stands.
+## share it shows, where that stands; as many lines lower than the window's first as the
+## style says (barLower), as long, its ↓ then on the window's last line; its arrows and thumb
+## in a look of their own where the window is active (SCROLL, THUMB), else in the track's.
 def drawEdges(surface, box, title, lit, bar):
     left, top, width, height = box
     rim = styleMark("rim")
@@ -8886,20 +9115,30 @@ def drawEdges(surface, box, title, lit, bar):
     if title and width >= 8:
         putTitle(surface, top, left, width - 1, title, shade, "titleOn" if lit else "title", TITLE_ON if lit else TITLE)
     barred = bar is not None and bar[0] > bar[2] and rows >= 3
+    lower = barLower() if barred else 0
     if barred:
         size = max(1, (rows - 2) * bar[2] // bar[0])
         start = 1 + (rows - 2 - size) * bar[1] // max(1, bar[0] - bar[2])
     for offset in range(rows):
         surface.put(top + 1 + offset, left, rim[3], look)
-        if not barred:
-            surface.put(top + 1 + offset, left + width - 1, rim[4], SHADOW)
-        elif offset in (0, rows - 1):
-            surface.put(top + 1 + offset, left + width - 1, styleMark("barUp" if offset == 0 else "barDown"), SCROLL)
-        else:
-            thumb = start <= offset < start + size
-            surface.put(top + 1 + offset, left + width - 1, styleMark("barThumb" if thumb else "barTrack"), THUMB if thumb else TRACK)
     surface.put(top + height - 1, left, rim[5] + rim[6] * (width - 2), look)
-    surface.put(top + height - 1, left + width - 1, rim[4], SHADOW)
+    ## the right column, from the window's first line to its last: the shadow, or the scroll bar
+    for offset in range(rows + 1):
+        place = offset - lower
+        if not barred or not 0 <= place < rows:
+            surface.put(top + 1 + offset, left + width - 1, rim[4], shade if offset == 0 and rows else SHADOW)
+        elif place in (0, rows - 1):
+            surface.put(top + 1 + offset, left + width - 1, styleMark("barUp" if place == 0 else "barDown"), SCROLL if lit else TRACK)
+        else:
+            thumb = start <= place < start + size
+            mark = ("barThumb" if lit else "barThumbOff") if thumb else "barTrack"
+            surface.put(top + 1 + offset, left + width - 1, styleMark(mark), THUMB if thumb and lit else TRACK)
+
+
+## How many lines lower than a window's first its scroll bar stands: the style's "barLower"
+## where it draws the edges of its windows (drawEdges), else none, as a frame draws it.
+def barLower():
+    return STYLE.get("barLower", 0) if styleDraws("edges", "blocks") else 0
 
 
 ## One line of what the left window holds, by its number, in exactly that many cells, in
@@ -9007,9 +9246,10 @@ def drawWindow(surface, state, layout, window):
               held if window.get("bar") else None, state.focus == window["name"] and state.dialog is None)
     rows = box[3] - 2
     if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
-        ## the scroll bar: its upper half pages up, its lower half down
-        spot(state, box[0] + box[2] - 1, box[1] + 1, 1, rows // 2, ("bar", -1, window["name"]))
-        spot(state, box[0] + box[2] - 1, box[1] + 1 + rows // 2, 1, rows - rows // 2, ("bar", 1, window["name"]))
+        ## the scroll bar, where it stands (barLower): its upper half pages up, its lower half down
+        lower = barLower()
+        spot(state, box[0] + box[2] - 1, box[1] + 1 + lower, 1, rows // 2, ("bar", -1, window["name"]))
+        spot(state, box[0] + box[2] - 1, box[1] + 1 + lower + rows // 2, 1, rows - rows // 2, ("bar", 1, window["name"]))
 
 
 ## The pull-down of the menu that is open, under its name in the menu bar: a frame, its
@@ -9054,7 +9294,7 @@ def drawMenu(surface, state, layout):
         hotLook = look if look == BAR_OFF else BAR_ON_HOT if on else BAR_HOT
         surface.put(line, left, frame[3], BAR)
         ## the mode the left window is in is marked
-        lead = MARKS["on"] if command["does"] == ("mode", state.viewMode) else " "
+        lead = MARKS["on"] if command["does"] == ("mode", modeNow(state)) else " "
         column = putParts(surface, line, left + 1, hotParts(lead + command["label"], look, hotLook), width - 2)
         keyText = keyShown(commandKeys(command)[0]) if commandKeys(command) else ""
         surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
@@ -9062,7 +9302,7 @@ def drawMenu(surface, state, layout):
     line += 1
     surface.put(line, left, frame[5] + frame[6] * (width - 2) + frame[7], BAR)
     if slim:
-        drawSlimShadow(surface, (left, 1, width, line), last, layout["columns"], SHADE)
+        drawSlimShadow(surface, (left, 1, width, line), last, layout["columns"], SHADE, False)
         return
     if dim:
         drawDimShadow(surface, (left, 1, width, line), last, layout["columns"], SHADOW)

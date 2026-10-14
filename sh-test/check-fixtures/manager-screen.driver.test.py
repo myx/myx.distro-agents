@@ -278,7 +278,7 @@ def scriptRun(module):
             ("filter", "active" if state.activeOnly else "all"),
             ("viewTop", state.view["top"]), ("viewLines", len(state.view["lines"])),
             ("viewHead", len(state.view["head"])), ("follow", "yes" if state.view["follow"] else "no"),
-            ("rawLog", "yes" if module.rawShown(state) else "no"), ("viewMode", state.viewMode),
+            ("rawLog", "yes" if module.rawShown(state) else "no"), ("viewMode", state.viewMode), ("textMode", getattr(state, "textMode", "")),
             ("wrap", "yes" if state.wrap else "no"), ("viewLeft", state.view.get("left", 0)),
             ("split", "" if state.split is None else "%.4f" % state.split), ("splitHeld", state.splitHeld or ""),
             ("notice", state.notice),

@@ -6,20 +6,21 @@
 ## on its standard input, and prints the fixture kept for those arguments: rows in the forms
 ## `--manager-team-member-list`, `--manager-team-member-read` and `--manager-spawn-member` print.
 ## Held: entering the section asks `--manager-team-member-list` once and lists every member in the order of the
-## operation, as a table under a header: its icon, which is the last field of its row and nothing else, its name,
-## whether it runs now, its status, its kind and where it is set up, each column at the same cell in every row,
-## under an icon of two cells, under one that a variation selector makes wide, and in a row with none, as the
-## operation printed a row before it gave an icon; one with a live run stands out; one that is not started from
-## here, whose status is `reference-only` or whose workspace cannot be reached, shows plainer; the table fits the
-## pane it is drawn in: the icon and the name always show, then each column in its order while it fits whole, the
-## header with them, whether a member runs the last to be lost, and nothing but a name is ever cut; a selected
+## operation, as every list is, a row a member: its icon, which is the last field of its row and nothing else, and
+## its name, at the same cell in every row, under an icon of two cells, under one that a variation selector makes
+## wide, and in a row with none, as the operation printed a row before it gave an icon, and the mark of a folder;
+## one with a live run stands out; one that is not started from here, whose status is `reference-only` or whose
+## workspace cannot be reached, shows plainer; the section itself, or the row that goes up, shows in the left pane
+## under what the section holds the members as a table under a header: the icon, the name, whether it runs now, its
+## status, its kind and where it is set up, each column at the same cell in every row; the table fits the pane it is
+## drawn in: the icon and the name always show, then each column in its order while it fits whole, the header with
+## them, whether a member runs the last to be lost, and nothing but a name is ever cut; a selected
 ## member is read by its name, `--manager-team-member-read <member>`, only
 ## once the selection has rested on it, and until then the pane shows what the list holds of it; then the left pane
-## shows its mark and names, its kind, its status, whether a run of it is alive, its workspace and what it is for,
-## its information, the sessions it is in with the member's own runs, its workspace by its paths, its settings, a
-## secret setting only as configured or not and never anything of its value, a missing one marked, and last its
-## grants under their counts, as the table Permissions holds them;
-## the pane scrolls with the focus on it; the left pane names `n start` on a member that can be started and on no
+## shows its basic information alone: its mark and names, its kind, its status, whether a run of it is alive, its
+## workspace and what it is for, and under `Team-member information:` the bullets of its basic.md; nothing of its
+## sessions, its paths, its settings or its grants, which have folders and places of their own, and never anything
+## of the value of a secret setting; the pane keeps its place with the focus on it; the left pane names `n start` on a member that can be started and on no
 ## other; `n` opens the line for one line of prompt, then for a name that may be left empty, and calls
 ## `--manager-spawn-member <member> [--session-name-or-comment <name>]` once, with the line on its standard input
 ## and no word of it among its arguments; an empty line starts nothing; Esc at either step starts nothing; `n` on
@@ -189,10 +190,15 @@ rigTableLine(){ ## icon, name, run, status, kind, where, or the first four or th
 		3) printf ' %-2s %-17s %s' "$@" ;;
 	esac
 }
-rigMarked(){ ## a row of the list on standard input -- the row without the mark of a folder at its right edge, and the blanks ahead of it: the table as it is drawn
-	LC_ALL=C sed 's/  *►$//'
+rigMarked(){ ## a row of the list on standard input -- the row without the mark of a folder at its right edge, and the blanks ahead of it: the row as it is drawn. The stand-in terminal gives an icon that a variation selector makes wide one cell, where the screen counts two, so such a row ends a cell early there and its mark, drawn once more where it belongs, stands twice
+	LC_ALL=C sed -e 's/►$//' -e 's/►$//' -e 's/  *$//'
 }
 rigTableHead="$( rigTableLine '' MEMBER RUN STATUS KIND WHERE )"
+rigPaneUnder(){ ## tag, text, count -- that many lines of the left pane of that screen from the one that is exactly the text, each between brackets, each icon of the fixture written as its two cells
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' \
+		| LC_ALL=C sed -e 's/👤/##/' -e 's/🤖/##/' -e 's/🔏/##/' -e 's/⚒️/##/' \
+		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
+}
 rigCase list
 rigSize="227 40"
 rigScript <<'RIGSCRIPT'
@@ -209,14 +215,13 @@ turn
 get in
 show u
 border title 1 159 227
-cells head 2 160 226
-cells row1 3 160 226
-cells row2 4 160 226
-cells row3 5 160 226
-cells row4 6 160 226
-cells row5 7 160 226
-cells row6 8 160 226
-cells row7 9 160 226
+cells row1 2 160 226
+cells row2 3 160 226
+cells row3 4 160 226
+cells row4 5 160 226
+cells row5 6 160 226
+cells row6 7 160 226
+cells row7 8 160 226
 looks k
 keys k
 get kill
@@ -224,48 +229,43 @@ turn
 keys n
 get start
 turn
-size 154 40
+size 66 40
+turn
 get mid
-cells midHead 2 109 153
-cells midRow2 4 109 153
-cells midRow4 6 109 153
-cells midRow6 8 109 153
-size 127 40
+show mid
+size 54 40
+turn
 get narrow
-cells narrowHead 2 90 126
-cells narrowRow2 4 90 126
-cells narrowRow3 5 90 126
-cells narrowRow4 6 90 126
-cells narrowRow5 7 90 126
-cells narrowRow6 8 90 126
+show narrow
 size 47 40
+turn
 get tiny
-cells tinyHead 2 28 46
-cells tinyRow3 5 28 46
-cells tinyRow4 6 28 46
+show tiny
+cells tinyRow3 4 28 46
+cells tinyRow4 5 28 46
 RIGSCRIPT
 rigSize=""
 rigAssert "until the section is entered the members are not read"    "$( rigVal on.selected ) [$( rigVal on.reading )]" "team []"
 rigAssert "entering it asks the operation that lists the members, once" "$( rigVal asked.path ) $( rigVal asked.reading ) $( rigCalled --manager-team-member-list ) $( rigOthers )" "team list:team 1 0"
-rigAssert "the members stand in a table: a header that names its columns, under it the row that goes up, then every member in the order of the operation, with its icon, its name, whether it runs now, its status, its kind and where it is set up" \
-	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal head )][$( rigVal row1 )][$( rigIconCells row3 | rigMarked )][$( rigIconCells row4 | rigMarked )][$( rigVal row7 )]" \
-	"[Team Members] 6 [$rigTableHead][>..][$( rigTableLine '##' magic-coordinator - active magic here )][$( rigTableLine '##' keeper-myx running active keeper here )][]"
-rigAssert "a member that is a folder has the mark of one at the right edge of its row; the header and a member that is none have none" "$( rigVal row3 | LC_ALL=C grep -c '  ►$' ) $( rigVal head | LC_ALL=C grep -c '►' ) $( rigVal row6 | LC_ALL=C grep -c '►' )" "1 0 0"
-rigAssert "each column starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
+rigAssert "the members stand in a list as every list does, no header: the row that goes up, then every member in the order of the operation, its icon and its name" \
+	"[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigIconCells row3 | rigMarked )][$( rigIconCells row4 | rigMarked )][$( rigVal row7 )] $( rigScreenHolds u ' MEMBER ' )" \
+	"[Team Members] 6 [>..][ ## magic-coordinator][ ## keeper-myx][] 1"
+rigAssert "a member that is a folder has the mark of one at the right edge of its row; a member that is none has none" "$( rigVal row3 | LC_ALL=C grep -c '  ►$' ) $( rigVal row6 | LC_ALL=C grep -c '►' )" "1 0"
+rigAssert "each name starts at the same cell in every row: under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon, which the operation printed before it gave one" \
 	"[$( rigIconCells row2 | rigMarked )][$( rigIconCells row5 | rigMarked )][$( rigIconCells row6 )]" \
-	"[$( rigTableLine '##' human-owner - ref-only human here )][$( rigTableLine '##' keeper-far - active keeper elsewhere )][$( rigTableLine '' keeper-gone - - - not-present )]"
+	"[ ## human-owner][ ## keeper-far][    keeper-gone]"
 rigAssert "the icon drawn is the last field of the member's row and nothing else: its mark is drawn nowhere in the list" "[$( rigVal row2 | LC_ALL=C sed 's/ human-owner.*$//' )][$( rigVal row5 | LC_ALL=C sed 's/ keeper-far.*$//' )] $( rigScreenHolds u ':myx:' ) $( rigScreenHolds u "$( LC_ALL=C awk -F'\t' '$2 == "keeper-far" { print $3 }' "$rigF/rows.--manager-team-member-list" )" )" "[ 👤][ ⚒️] 0 0"
-rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the header and the other members are plain" "$( rigLooks k 7 162 162 )$( rigLooks k 5 162 162 )$( rigLooks k 9 162 162 )$( rigLooks k 3 162 166 )$( rigLooks k 6 162 162 )" "BDD......"
-rigAssert "a pane of 44 cells has room for the status, shown by its short word, and for no more: the kind and where a member is set up are left out whole, of the header too, and no line is cut" \
-	"$(( $( rigVal mid.listWidth ) - 2 )) [$( rigVal midHead )][$( rigIconCells midRow2 | rigMarked )][$( rigIconCells midRow4 | rigMarked )][$( rigVal midRow6 )]" \
-	"44 [$( rigTableLine '' MEMBER RUN STATUS )][$( rigTableLine '##' human-owner - ref-only )][$( rigTableLine '##' keeper-myx running active )][$( rigTableLine '' keeper-gone - - )]"
-rigAssert "a pane of 36 cells shows the icon, the name and whether the member runs, of every member, the status left out whole, and no line is cut" \
-	"$(( $( rigVal narrow.listWidth ) - 2 )) [$( rigVal narrowHead )][$( rigIconCells narrowRow2 | rigMarked )][$( rigIconCells narrowRow3 | rigMarked )][$( rigIconCells narrowRow4 | rigMarked )][$( rigIconCells narrowRow5 | rigMarked )][$( rigVal narrowRow6 )]" \
-	"36 [$( rigTableLine '' MEMBER RUN )][$( rigTableLine '##' human-owner - )][$( rigTableLine '##' magic-coordinator - )][$( rigTableLine '##' keeper-myx running )][$( rigTableLine '##' keeper-far - )][$( rigTableLine '' keeper-gone - )]"
-rigAssert "a pane at its smallest, 18 cells inside its frame, shows the icon and the name alone, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
-	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigVal tinyHead )][$( rigIconCells tinyRow3 | rigMarked )][$( rigIconCells tinyRow4 | rigMarked )] $( rigVal tiny.spills )" \
-	"18 [    MEMBER][ ## magic-coord…][ ## keeper-myx] 0"
+rigAssert "one with a live run stands out; one nobody is started as, and one whose workspace cannot be reached, show plainer; the other members are plain" "$( rigLooks k 6 162 162 )$( rigLooks k 4 162 162 )$( rigLooks k 8 162 162 )$( rigLooks k 5 162 166 )$( rigLooks k 7 162 162 )" "BDD......"
+rigAssert "a list pane at its smallest, 18 cells inside its frame, shows the icon and the name, a name too long for it cut with the mark of a cut text; nothing was drawn past a pane at any width" \
+	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigIconCells tinyRow3 | rigMarked )][$( rigIconCells tinyRow4 | rigMarked )] $( rigVal tiny.spills ) $( rigVal mid.spills ) $( rigVal narrow.spills )" \
+	"18 [ ## magic-coord…][ ## keeper-myx] 0 0 0"
 rigAssert "on the row that goes up the left pane says what the section holds: how many, who runs now, who is not started from here and why" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )][$( rigPane u 6 )]" "[ 5 members, 1 with a live run.][ Running now: keeper-myx.][ 2 of them are not started from here.][   human-owner: its status is reference-only: nobody is started as this member]"
+rigAssert "and under it, after a blank line, the members as a table: a header that names its columns, then every member in the order of the operation, with its icon, its name, whether it runs now, its status, its kind and where it is set up, each column at the same cell in every row, under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon" \
+	"[$( rigPane u 7 )][$( rigPane u 8 )] $( rigPaneUnder u " $rigTableHead" 6 )" \
+	"[   keeper-gone: its workspace cannot be reached from this machine][] [ $rigTableHead][ $( rigTableLine '##' human-owner - ref-only human here )][ $( rigTableLine '##' magic-coordinator - active magic here )][ $( rigTableLine '##' keeper-myx running active keeper here )][ $( rigTableLine '##' keeper-far - active keeper elsewhere )][ $( rigTableLine '' keeper-gone - - - not-present )]"
+rigAssert "a left pane too narrow for every column leaves out whole each that does not fit, of the header too, the last first: where a member is set up, then its kind, then its status, then whether it runs; the icon and the name always show" \
+	"$( rigVal mid.viewWidth ) $( rigPaneUnder mid " $( rigTableLine '' MEMBER RUN STATUS )" 2 ) $( rigVal narrow.viewWidth ) $( rigPaneUnder narrow " $( rigTableLine '' MEMBER RUN )" 2 ) $( rigVal tiny.viewWidth ) $( rigPaneUnder tiny "$( printf '  %-2s %s' '' MEMBER )" 4 )" \
+	"$( rigVal mid.viewWidth ) [ $( rigTableLine '' MEMBER RUN STATUS )][ $( rigTableLine '##' human-owner - ref-only )] $( rigVal narrow.viewWidth ) [ $( rigTableLine '' MEMBER RUN )][ $( rigTableLine '##' human-owner - )] $( rigVal tiny.viewWidth ) [$( printf '  %-2s %s' '' MEMBER )][  ## human-owner][  ## magic-coordinator][  ## keeper-myx]"
 rigAssert "k is no key of this view, and n on the row that goes up says in the status line what it is for" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[][Start: for a team member, not for what is selected] []"
 
 echo "-- a selected member is read once the selection has rested, and shown --"
@@ -290,20 +290,14 @@ show m
 cells keysLine 37 1 83
 RIGSCRIPT
 rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
-rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ its information, its sessions, its grants and its settings: not read yet]"
+rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ Team-member information: not read yet]"
 rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read keeper-myx' ) $( rigOthers )" "view:team|record:keeper-myx 1 0"
 rigAssert "its status, whether a run of it is alive, its workspace, and that n starts it" "[$( rigPane m 6 )][$( rigPane m 7 )][$( rigPane m 8 )][$( rigPane m 9 )]" \
 	"[ status    active][ process   a run of it is alive][ workspace ws-rig, set up here][ start     n starts it with a prompt, in a session of its own]"
 rigAssert "what it is for, a long text broken to the pane"           "[$( rigPane m 10 )][$( rigPane m 11 )]" "[ for       Source-content steward for the common tools and the distro tools of the][           rig, their scripts and their help.]"
-rigAssert "its information, the bullets of its basic.md"             "[$( rigPane m 13 )][$( rigPane m 14 )][$( rigPane m 15 )]" "[ its information:][   Description: source-content authority for the rig.][   Name: Sage Bourne.]"
-rigAssert "the sessions it is in, the one with its live run first, each with its own run" "[$( rigPane m 17 )][$( rigPane m 18 )][$( rigPane m 19 )]" \
-	"[ the sessions it is in: 2, 1 with a live run of it][   daily of Monday          running   running working since 2026-10-12 16:57 +0000][   22222222-0000-4000-8000… finished  finished until 2026-10-11 14:51 +0000]"
-rigAssert "its workspace, by its paths, a path with an underscore as it is written" "[$( rigPane m 21 )][$( rigPane m 22 )][$( rigPane m 23 )][$( rigPane m 24 )][$( rigPane m 25 )]" \
-	"[ its workspace:][   path      /rig/ws-rig][   home      /rig/home_of/ws-rig][   link      source-symlink][   skillset  myx/util.workspace-rig/skillset/keeper-myx]"
-rigAssert "its settings: a secret only as configured or not, a plain one by its value, a missing one marked" "[$( rigPane m 27 )][$( rigPane m 28 )][$( rigPane m 29 )][$( rigPane m 30 )][$( rigPane m 31 )]" \
-	"[ its settings: 5][     SLACK_BOT_TOKEN   configured][   ! SLACK_USER_TOKEN  not configured][     EMAIL_USER        keeper_myx@rig.example][   ! TRELLO_BOARD      missing]"
-rigAssert "last its grants, counted by kind, over the table Permissions holds: its header, then a heading for each kind" "[$( rigPane m 34 )][$( rigPane m 35 )][$( rigPane m 36 )]" \
-	"[ its grants: 2, standing 1, session 1][$( printf '  %-20s %-6s %-30s %s' COVERS ACCESS FROM ENDS )][  standing (1)]"
+rigAssert "its information, the bullets of its basic.md, under Team-member information" "[$( rigPane m 13 )][$( rigPane m 14 )][$( rigPane m 15 )]" "[ Team-member information:][   Description: source-content authority for the rig.][   Name: Sage Bourne.]"
+rigAssert "and nothing more: no sessions, no paths, no settings and no grants, though the read gave them all" \
+	"[$( rigPane m 16 )] $( rigScreenHolds m 'sessions it is in' ) $( rigScreenHolds m '/rig/home_of/ws-rig' ) $( rigScreenHolds m 'SLACK_USER_TOKEN' ) $( rigScreenHolds m 'its grants' ) $( rigScreenHolds m 'COVERS' ) $( rigPaneHolds m ' its information:' )" "[] 0 0 0 0 0 0"
 rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-myx" )" "0 0 1"
 rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigVal keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
 
@@ -330,10 +324,10 @@ show far
 cells farKeys 17 1 83
 RIGSCRIPT
 rigSize=""
-rigAssert "the pane starts at the top of the member"                 "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 37 no"
-rigAssert "with the focus on it, PageDown shows its next page"       "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' its workspace:' )" "view 15 1"
-rigAssert "and reaches its last lines, a setting read in another workspace and a row of the table for each grant, each column whole where the pane has room for all of them" \
-	"$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' 'ws-rig:source/myx/**' write ws-rig:namespace none )" ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' '/rig/other/**' read 'pass-0007 by magic-coordinator' '2026-10-14 10:00 +0000' )" ) $( rigVal end.spills )" "1 1 1 0"
+rigAssert "the pane starts at the top of the member, its basic information alone" "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 13 no"
+rigAssert "with the focus on it, PageDown keeps it at its top: its basic information is all it holds" "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' Team-member information:' )" "view 0 1"
+rigAssert "and at its end nothing of its settings or its grants: no setting read in another workspace, no row of a grant" \
+	"$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' 'ws-rig:source/myx/**' write ws-rig:namespace none )" ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' '/rig/other/**' read 'pass-0007 by magic-coordinator' '2026-10-14 10:00 +0000' )" ) $( rigVal end.spills )" "0 0 0 0"
 rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigVal farKeys )]" "1 1 [keys: n start]"
 
 echo "-- n, a prompt and a name start that member --"
@@ -506,10 +500,14 @@ keys n
 turn
 get dlg
 box pbox
+keys ESC
+keys UP UP UP UP UP UP
+turn
+show top
 RIGSCRIPT
 rigSize=""
 rigTeamLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -n -F 'magic-team' | LC_ALL=C sed -e 's/:.*$//' | head -1 )"
-rigAssert "the row of the team itself is listed, with the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u 'magic-team        -       the-team team' )" "magic-team 1"
+rigAssert "the row of the team itself is listed, and the table of the left pane gives it the status word its row gives" "$( rigVal t.selected ) $( rigScreenHolds u ' magic-team ' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigScreenHolds top 'magic-team        -       the-team team' )" "magic-team 1 1"
 rigAssert "it shows plainer, as every member that is not started from here" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n "${rigTeamLine:-1}p" | LC_ALL=C cut -c162-162 )" "D"
 rigAssert "n on it starts nothing: the status line says why, in the words of its row" "[$( rigVal no.dialog )] [$( rigVal no.notice )] $( rigCalled '--manager-spawn-member magic-team' )" "[] [Start: magic-team is not started: its status is the-team: nobody is started as this member] 0"
 rigAssert "the dialog of a start, titled by the member and listing those that are started from here, does not offer that row" "$( rigVal first.selected ) [$( rigVal dlg.dialog )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'keeper-myx' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'magic-team' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^pbox|' | LC_ALL=C grep -c -F 'human-owner' )" "keeper-myx [prompt:prompt|] 2 0 0"

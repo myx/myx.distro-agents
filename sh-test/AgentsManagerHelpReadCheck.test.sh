@@ -6,7 +6,9 @@
 ## --intern and not --member, not --librarian"), tried also in a rig origin whose help has an operation of four
 ## families more; the bare call is as it was. Then one empty line, then the syntax lines of every operation and the
 ## entry of every operation of the manual, as --member-help prints those of a member's operations (the same two awk
-## files, every operation on their list): no help of its own.
+## files, every operation on their list): no help of its own. Last the chapters of the help file but its options, a
+## row a line, `chapter`, `head` or `foot`, the line as it is written: the lines after its syntax lines to the heading
+## of its options, and the lines after its options, which a member's `Member Help` shows around its syntax lines.
 ## Refused in one line, rc 1, nothing on stdout: any argument. THE CALLER RULE of the family holds. And its help
 ## pair. Offline; only the help files of the origin are read.
 set -u
@@ -106,6 +108,22 @@ rigNames "$rigHelpMd" > "$rigTmp/names.md"
 rigNames "$rigTmp/rest.md" > "$rigTmp/names.read"
 rigAssert "an entry for every operation the manual has one for, and for no other" "$( LC_ALL=C grep -c '' "$rigTmp/names.md" | LC_ALL=C awk '{ print ( $1 > 100 ) }' ) $( cmp -s "$rigTmp/names.md" "$rigTmp/names.read" && echo same || echo differs )" "1 same"
 rigAssert "each entry with its text as the manual gives it: its own and that of --member-help" "$( LC_ALL=C grep -c -x -F -e "$( printf '\t\t--manager-help-read' )" -e "$( printf '\t\t--member-help <team-member>' )" "$rigTmp/rest" ) $( LC_ALL=C grep -c -F -e 'every operation of the manual' "$rigTmp/rest" | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "2 1"
+
+echo "-- 3b. last the chapters of the help file but its options, a row a line --"
+LC_ALL=C awk -F'\t' '$1 == "chapter" && $2 == "head"' "$rigTmp/rest" | LC_ALL=C cut -f3- > "$rigTmp/head.read"
+LC_ALL=C awk -F'\t' '$1 == "chapter" && $2 == "foot"' "$rigTmp/rest" | LC_ALL=C cut -f3- > "$rigTmp/foot.read"
+rigOptionsAt="$( LC_ALL=C grep -n -x -F '##  Options:' "$rigHelpMd" | LC_ALL=C cut -d: -f1 )"
+rigAfterAt="$( LC_ALL=C awk -v at="$rigOptionsAt" 'NR > at && /^## / { print NR ; exit }' "$rigHelpMd" )"
+rigSyntaxTo="$( LC_ALL=C awk '!/^📘 syntax:/ { print NR - 1 ; exit }' "$rigHelpMd" )"
+LC_ALL=C sed -n "$(( rigSyntaxTo + 1 )),${rigOptionsAt}p" "$rigHelpMd" > "$rigTmp/head.md"
+LC_ALL=C sed -n "${rigAfterAt},\$p" "$rigHelpMd" > "$rigTmp/foot.md"
+rigAssert "the chapter rows stand last, each a row of three fields, head or foot" \
+	"$( LC_ALL=C awk -F'\t' 'seen && $1 != "chapter" { bad++ } $1 == "chapter" { seen = 1 ; rows++ ; if ( $2 != "head" && $2 != "foot" ) bad++ } END { print ( rows > 0 ) ? "rows" : "none", bad + 0 }' "$rigTmp/rest" )" "rows 0"
+rigAssert "head: the lines of the file after its syntax lines to the heading of its options, the last of them, as written" \
+	"$( [ "$rigOptionsAt" -gt "$rigSyntaxTo" ] && [ "$rigSyntaxTo" -gt 100 ] && echo found ) $( cmp -s "$rigTmp/head.md" "$rigTmp/head.read" && echo same || echo differs ) $( tail -1 "$rigTmp/head.read" )" "found same ##  Options:"
+rigAssert "foot: the lines after its options, from the heading of the next chapter to the end, as written" \
+	"$( [ -n "$rigAfterAt" ] && echo found ) $( cmp -s "$rigTmp/foot.md" "$rigTmp/foot.read" && echo same || echo differs ) $( LC_ALL=C grep -c -x -F '##  Notes:' "$rigTmp/foot.read" )" "found same 1"
+rigAssert "no syntax line and no option of the manual among the chapters" "$( cat "$rigTmp/head.read" "$rigTmp/foot.read" | LC_ALL=C grep -c -e '^📘 syntax:' -e "$( printf '^\t\t--manager-help-read$' )" )" "0"
 
 echo "-- 4. what it refuses, the caller rule of the family, and its help pair --"
 rigRun "$rigRead" extra

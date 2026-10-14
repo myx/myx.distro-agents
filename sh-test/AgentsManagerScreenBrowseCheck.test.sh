@@ -5,16 +5,20 @@
 ## call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each
 ## start and prints the fixture.
 ## Held: `Team Data` holds Board, Audit and Vault as folders after Operations; a store selected says what it holds,
-## folder by folder, and a store that is empty or not there says so plainly; a folder of it lists its items, and a
+## folder by folder, and a store that is empty or not there says so plainly; a folder of it selected shows its items
+## as a table, from the front matter the read gives, a column no item has a word for left out, its first rows, and
+## `e`, named in the status line and in the title, every row; entered it lists its items, and a
 ## selected item shows its text, read by its store, its folder (`-` the store itself) and its name. A member of
 ## `Team Members` is a folder, with the mark of one after its name, but one whose workspace cannot be reached; its
-## own summary shows its grants last, under their counts, as the table Permissions holds, fitted to the pane: the
-## first column shortened so that the others fit, one that still does not left out whole, and with the lines not
-## wrapped the whole table, scrolled sideways; inside it, Permissions is its grants
+## own summary shows its basic information alone, nothing of its settings or its grants; inside it, Permissions
+## selected shows its grants as a table under their counts, fitted to the pane: the first column shortened so that
+## the others fit, one that still does not left out whole, and with the lines not wrapped the whole table, scrolled
+## sideways; and entered is its grants
 ## as a table under a heading for each kind, a selected grant whole; Skillset Files its files, a selected one shown
 ## whole where it is text and never read where it is not; Sessions the sessions it is in, each opening where a
-## session does, in Sessions (Activity); Member Help its help as the tooling gives a member its help, whole on the
-## folder, and an item for each operation, its block alone, one with no block saying so. The operations are called
+## session does, in Sessions (Activity); Member Help on the folder the text of the help before its first option, the
+## member's syntax lines, then the chapters after the options, the chapters by --manager-help-read, rendered, and none
+## of the blocks of its operations, and inside an item for each operation, its block alone, one with no block saying so. The operations are called
 ## exactly as the tooling has them. Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -50,7 +54,7 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 	printf 'block\tteam-data\tTeam_Data\t2\nfigure\tteam-data\troot\tTeam_Data_Root\t/rig/td\t-\t-\t-\nfigure\tteam-data\tpresent\tTeam_Data_Present\tyes\t-\tok\t-\n' > "rows.--manager-dashboard-read"
 	cp "rows.--manager-dashboard-read" "rows.--manager-dashboard-read team-data team-data-git loop"
 	printf 'store\tboard\tpresent\t2\t0\nfolder\tboard\trunning\t2\nfolder\tboard\treview\t1\n' > "rows.--manager-team-data-read board"
-	printf 'item\tboard\trunning\ttask-20261001T0900Z-a.md\t1200\t20261001T0900\nitem\tboard\trunning\ttask-b.md\t336\t-\n' > "rows.--manager-team-data-read board running"
+	printf 'item\tboard\trunning\ttask-20261001T0900Z-a.md\t1200\t20261001T0900\ttask\trunning\tkeeper-rig\t2026-10-01_09:00_+0000\nitem\tboard\trunning\ttask-b.md\t336\t-\t-\t-\t-\t-\n' > "rows.--manager-team-data-read board running"
 	printf -- '---\ntitle: A\n---\nThe body of task a.\n' > "rows.--manager-team-data-read board running task-20261001T0900Z-a.md"
 	printf 'store\taudit\tpresent\t1\t1\nfolder\taudit\t2026-10\t0\nitem\taudit\t-\tdeclaration-20260928T0000Z-x.md\t5\t20260928T0000\n' > "rows.--manager-team-data-read audit"
 	printf 'A declaration.\n' > "rows.--manager-team-data-read audit - declaration-20260928T0000Z-x.md"
@@ -91,6 +95,9 @@ rigUnder(){ ## tag, text, count -- that many lines of the left pane of that scre
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║).*$//' -e 's/  *$//' \
 		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
 }
+rigItemLine(){ ## the words of a row of the table of a folder's items, in the columns the fixture gives it -- that row as the table draws it
+	printf ' %-24s %-4s %-16s %-10s %-7s %s' "$@"
+}
 rigGrantLine(){ ## the cells of its first column, then the words of a row of the table of grants, all four or the first two -- that row as the table draws it
 	local coversCells="$1" ; shift
 	case $# in
@@ -116,6 +123,7 @@ keys ENTER
 wait list 10
 keys DOWN
 wait focus 10
+get running
 show running
 keys ENTER
 wait list 10
@@ -136,7 +144,10 @@ show vault
 RIGSCRIPT
 rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, then its blocks" "$( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigFolderHolds in ' Board ' ) $( rigFolderHolds in ' Audit ' ) $( rigFolderHolds in ' Vault ' ) $( rigHolds in '║ Team Data ' )" "6 1 1 1 1 1"
 rigAssert "Board selected says what it holds, folder by folder, from its read" "$( rigVal board.selectedLabel ) $( rigHolds board '│Board: 3 items in 2 folders.' ) $( rigHolds board '│  running 2' ) $( rigHolds board '│  review  1' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 1 1 1 1"
-rigAssert "a folder of it selected says how many items and how much, the newest first" "$( rigHolds running '│running: 2 items, 1.5K.' ) $( rigHolds running '│  task-20261001T0900Z-a.md' ) $( rigWords '[--manager-team-data-read][board][running]' )" "1 1 1"
+rigAssert "a folder of it selected says how many items and how much, then its items as a table, the newest first, from the one read of the folder: the name, then what the front matter gives, its type, its date, its owner and its status, and the size; one with no front matter and no stamp has none" \
+	"$( rigUnder running 'running: 2 items, 1.5K.' 5 ) $( rigWords '[--manager-team-data-read][board][running]' )" \
+	"[running: 2 items, 1.5K.][][$( rigItemLine NAME TYPE DATE OWNER STATUS SIZE )][$( rigItemLine task-20261001T0900Z-a.md task '2026-10-01 09:00' keeper-rig running 1.2K )][$( rigItemLine task-b.md - - - - 336B )] 1"
+rigAssert "a folder of no more items than it shows has no key for every row: e is named nowhere" "$( rigHolds running 'All rows' ) $( rigHolds running 'and 0 more' )" "0 0"
 rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
 rigAssert "an item in the store itself is read by - for its folder" "$( rigHolds audit '│A declaration.' ) $( rigWords '[--manager-team-data-read][audit][-][declaration-20260928T0000Z-x.md]' )" "1 1"
 rigAssert "an empty vault says so plainly" "$( rigHolds vault '│Vault: empty. It holds no items.' )" "1"
@@ -152,6 +163,45 @@ wait focus 10
 show vault
 RIGSCRIPT
 rigAssert "a vault that is not there says so plainly" "$( rigHolds vault '│Vault: there is none in this team data: it has no such folder.' )" "1"
+
+echo "-- 1b. a folder of more items than the table shows: its first rows, and e every row --"
+rigCase many
+printf 'store\tboard\tpresent\t1\t0\nfolder\tboard\tbacklog\t25\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board"
+for rigNo in $( seq -w 1 25 ) ; do printf 'item\tboard\tbacklog\titem-%s.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board backlog"
+rigScript <<'RIGSCRIPT'
+turn
+wait list 10
+keys 5
+wait list 10
+keys DOWN DOWN
+wait focus 10
+keys ENTER
+wait list 10
+keys DOWN
+wait focus 10
+get first
+show first
+keys e
+turn
+get all
+show all
+keys e
+turn
+show again
+keys ENTER
+wait list 10
+keys DOWN
+turn
+show inside
+RIGSCRIPT
+rigAssert "the first 20 of them, the columns no item has a word for left out, and how many more" \
+	"$( rigUnder first 'backlog: 25 items, 2.4K.' 4 ) $( rigHolds first '│ item-' ) $( rigUnder first "$( printf ' %-10s %s' item-20.md 100B )" 2 )" \
+	"[backlog: 25 items, 2.4K.][][$( printf ' %-10s %s' NAME SIZE )][$( printf ' %-10s %s' item-01.md 100B )] 20 [$( printf ' %-10s %s' item-20.md 100B )][  and 5 more]"
+rigAssert "the status line names e for every row, and the title says that the first 20 show" "$( rigHolds first ' e All rows ' ) $( rigHolds first 'backlog [20 rows]' )" "1 1"
+rigAssert "e: every row, the status line names it for the first rows again, the title says all rows, and nothing is read again" \
+	"$( rigVal all.selected ) $( rigHolds all '│ item-' ) $( rigHolds all '│  and 5 more' ) $( rigHolds all ' e First rows ' ) $( rigHolds all 'backlog [all rows]' ) $( rigWords '[--manager-team-data-read][board][backlog]' )" "backlog 25 0 1 1 1"
+rigAssert "e once more: the first 20 again" "$( rigHolds again '│ item-' ) $( rigHolds again '│  and 5 more' )" "20 1"
+rigAssert "inside the folder, an item selected: e is named nowhere" "$( rigHolds inside 'All rows' ) $( rigHolds inside 'First rows' ) $( rigHolds inside 'rows]' )" "0 0 0"
 
 echo "-- 2. a team member is a folder --"
 rigCase member
@@ -195,18 +245,19 @@ keys ENTER
 get jumped
 RIGSCRIPT
 rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
-rigAssert "its own summary shows its grants last, after its settings, under their counts: the table Permissions holds, its header, a heading for each kind and a row for each grant" \
-	"$( rigUnder on 'its settings: 0' 9 )" \
-	"[its settings: 0][][its grants: 3, floor 2, standing 1][$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )]"
+rigAssert "its own summary shows its basic information alone: nothing of its settings or its grants, no table of them" "$( rigHolds on 'its settings' ) $( rigHolds on 'its grants' ) $( rigHolds on ' COVERS ' ) $( rigHolds on 'ws:source/**/README.md' ) $( rigHolds on '│for       A rig keeper' )" "0 0 0 0 1"
 rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
 rigAssert "Permissions selected counts its grants by kind, from the read of the member" "$( rigHolds perms '│3 grants: floor 2, standing 1.' ) $( rigWords '[--manager-team-member-read][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
+rigAssert "and right under its counts, as their caption, its grants as the table of the member's own summary: its header, a heading for each kind and a row for each grant; no hint stands before it" \
+	"$( rigUnder perms '3 grants: floor 2, standing 1.' 7 ) $( rigHolds perms 'Enter opens them' )" \
+	"[3 grants: floor 2, standing 1.][$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )] 0"
 rigAssert "inside, its grants are a table under a heading for each kind" "$( rigHolds grant ' COVERS ' ) $( rigHolds grant ' ACCESS ' ) $( rigHolds grant ' floor (2)' ) $( rigHolds grant ' standing (1)' ) $( rigVal grant.selectedLabel )" "1 1 1 1 ws:source/**/README.md"
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"
 rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
 rigAssert "one that is no text says so and is never read" "$( rigHolds icon '│resources/icon.png: 1.4K, no text: it is not shown.' ) $( rigWords '[--manager-team-member-files][keeper-rig][resources/icon.png]' )" "1 0"
 rigAssert "Sessions selected counts the sessions it is in; Enter on one opens it where a session does" "$( rigHolds sessions '│1 session: 1 running' ) $( rigVal jumped.path )" "1 sessions/sess-1"
 
-echo "-- 2b. the grants in a member's own summary follow the width of the pane --"
+echo "-- 2b. the grants of a member, the table Permissions shows selected, follow the width of the pane --"
 rigCase widths
 rigScript <<'RIGSCRIPT'
 turn
@@ -215,6 +266,10 @@ keys 4
 wait list 10
 keys DOWN
 wait view 10
+keys ENTER
+wait list 10
+keys DOWN
+wait focus 10
 size 64 36
 turn
 get fit
@@ -235,8 +290,8 @@ get panned
 show panned
 RIGSCRIPT
 rigAssert "a pane too narrow for every column shortens the first, the path it covers, so that the others fit" \
-	"$( rigVal fit.viewWidth ) $( rigUnder fit 'its grants: 3, floor 2, standing 1' 4 )" \
-	"43 [its grants: 3, floor 2, standing 1][$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read floor none )]"
+	"$( rigVal fit.viewWidth ) $( rigUnder fit '3 grants: floor 2, standing 1.' 4 )" \
+	"43 [3 grants: floor 2, standing 1.][$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read floor none )]"
 rigAssert "a narrower one shortens it no further, and leaves out whole each column after it that still does not fit, of the header too" \
 	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantLine 16 COVERS ACCESS )" 3 ) $( rigVal narrow.spills )" \
 	"31 [$( rigGrantLine 16 COVERS ACCESS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read )] 0"
@@ -246,6 +301,8 @@ rigAssert "with the lines not wrapped the table is whole, its first column uncut
 
 echo "-- 3. Member Help --"
 rigCase help
+printf 'chapter\thead\t\nchapter\thead\t**HEAD-TEXT-OF-THE-HELP** before the summary.\nchapter\thead\t\nchapter\thead\t##  Summary:\nchapter\thead\t\nchapter\thead\t\t\tThe rig tool, in short.\nchapter\thead\t\nchapter\thead\t##  Options:\nchapter\tfoot\t##  Notes:\nchapter\tfoot\t\nchapter\tfoot\t\t\tFOOT-TEXT-OF-THE-HELP after the options.\nchapter\tfoot\t\nchapter\tfoot\t##  Examples:\nchapter\tfoot\t\nchapter\tfoot\t\t\t# Start the rig,\nchapter\tfoot\t\t\t# then stop it\nchapter\tfoot\t\t\t```\nchapter\tfoot\t\t\trig  --start   now\nchapter\tfoot\t\t\t```\n' \
+	> "$MANAGER_SCREEN_RIG/rows.--manager-help-read"
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
@@ -265,7 +322,13 @@ show entry
 keys DOWN
 show none
 RIGSCRIPT
-rigAssert "Member Help selected shows the member's help whole, as the tooling gives it" "$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( rigWords '[--member-help][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1 1 1"
+rigAssert "Member Help selected shows the text of the help before its first option, the member's syntax lines, then the chapters after the options, in that order, and no block of an operation" \
+	"$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR } /--console-list/ && !b { b = NR } /FOOT-TEXT/ { c = NR } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" }' )" \
+	"1 1 1 0 0 in-order"
+rigAssert "the syntax lines are the member's, by --member-help, and the chapters are read by --manager-help-read" "$( rigWords '[--member-help][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-help-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
+rigAssert "the examples of the help, a paragraph whose first line is a comment of the shell, show as they are written, as code, set in: a comment is no heading, a fence and runs of blanks are kept" \
+	"$( rigHolds whole '│          # Start the rig,' ) $( rigHolds whole '│          # then stop it' ) $( rigHolds whole '│          ```' ) $( rigHolds whole '│          rig  --start   now' ) $( rigHolds whole '│        Start the rig,' ) $( rigHolds whole '━' )" "1 1 2 1 0 0"
+rigAssert "the chapters are Markdown: a heading without its marks, strong words without theirs, the text under a heading as a paragraph" "$( rigHolds whole '│Summary:' ) $( rigHolds whole '│Notes:' ) $( rigHolds whole '##' ) $( rigHolds whole '**' ) $( rigHolds whole '│        The rig tool, in short.' )" "1 1 0 0 1"
 rigAssert "inside, an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.rows ) $( rigHolds entry ' --member-help ' ) $( rigHolds entry ' --member-board-item-read ' ) $( rigHolds entry ' --console-list ' )" "4 1 1 1"
 rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--member-board-item-read <team-member> <item-name> --board-state <state>' ) $( rigHolds entry '│    Reads one item.' ) $( rigHolds entry 'Prints its help.' )" "1 1 0"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"

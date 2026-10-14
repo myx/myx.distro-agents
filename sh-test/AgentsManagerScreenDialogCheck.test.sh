@@ -12,7 +12,9 @@
 ## another is open waits for it. The status line names only the keys that act for what has the keys: those of the
 ## active window and of the selected row first and those of every window after them, the first to go where the line
 ## is short; those of a menu while one is open; those of a dialog, by the control the keys are on, while one is open.
-## The dialogs are drawn in every style, in Magic with its own marks. The keys every
+## The dialogs are drawn in every style, in Magic with its own marks; each has an empty line under its top, and one
+## under its buttons where they cast no shadow; in Magic its lines are in the colour of the ground of its title tab,
+## that tab stands at its left, and its shadow at its right starts beside its second line. The keys every
 ## terminal delivers: a plain key opens the menu bar, reads now, asks for help and takes the next style; Esc and
 ## then a letter is Alt with that letter, for the menus and for the exit; and the key map is the style's: a bare q
 ## ends the screen in none. Inside a container, with the selection on the row that goes
@@ -106,18 +108,18 @@ keys ENTER
 get done
 said doneLine
 RIGSCRIPT
-rigAssert "the dialog opens over the screen, the keys on its first control" "$( rigVal o.dialog ) [$( rigVal o.dialogTitle )] $( rigVal o.dialogBox ) $( rigVal o.spills )" "rig:name|typed [A dialog of the rig] 32,5,56,29 0"
+rigAssert "the dialog opens over the screen, the keys on its first control" "$( rigVal o.dialog ) [$( rigVal o.dialogTitle )] $( rigVal o.dialogBox ) $( rigVal o.spills )" "rig:name|typed [A dialog of the rig] 32,5,56,30 0"
 rigAssert "it is framed, with its title in its top border, and holds its text" "$( rigHas d '╔═[■]════════════ A dialog of the rig ═════════════════╗' ) $( rigHas d '║ What the rig asks. ' ) $( rigHas d '╚══════════════════════════════════════════════════════╝' )" "1 1 1"
 rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (•) another ' ) $( rigHas d '║ > first ' ) $( rigHas d ' »OK« ▅   Cancel  ▅' )" "1 1 1 1 1 1 1 1"
-rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 30 3 58 )" "gGww none $( rigRepeat w 56 )"
-rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 5 1 4 ) $( rigRole r 8 1 4 ) $( rigRole r 27 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbggbbbbbbbbbbg 9,39"
+rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 31 3 58 )" "gGww none $( rigRepeat w 56 )"
+rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 6 1 4 ) $( rigRole r 9 1 4 ) $( rigRole r 28 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbggbbbbbbbbbbg 10,39"
 rigAssert "the status line names the keys of the dialog alone: in a field, Enter, Tab and Esc" "[$( rigVal st1 )]" "[ ENTER OK  TAB Next  ESC Cancel]"
 rigAssert "what is typed goes into the field, a space too"            "$( rigVal typed.dialog )" "rig:name|typedx y"
 rigAssert "Tab goes to the next control; in a field of several lines Enter is a new line" "[$( rigVal st2 )] $( rigVal area.dialog )" "[ ENTER New line  TAB Next  ESC Cancel] rig:notes|a\\nb"
 rigAssert "Space toggles the box the keys are on, and Up and Down move among the boxes" "[$( rigVal st3 )] $( rigVal who.dialog )" "[ Space Toggle  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:who|b,a,c"
 rigAssert "Space chooses the radio button the keys are on"            "[$( rigVal st4 )] $( rigVal how.dialog )" "[ Space Choose  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:how|x"
 rigAssert "Up and Down pick in a list, and stop at its end"           "[$( rigVal st5 )] $( rigVal pick.dialog )" "[ UP/DN Pick  ENTER OK  TAB Next  ESC Cancel] rig:pick|p3"
-rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 27 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnggbbbbbbbbbbg [ ←/→ Buttons  ENTER OK  TAB Next  ESC Cancel]"
+rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 28 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnggbbbbbbbbbbg [ ←/→ Buttons  ENTER OK  TAB Next  ESC Cancel]"
 rigAssert "Right goes to the next button, which Enter would then press" "$( rigVal onCancel.dialog ) [$( rigVal st7 )]" "rig:cancel| [ ←/→ Buttons  ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "Right goes around to the first button, and Shift-Tab back to the control before it" "$( rigVal back.dialog )" "rig:pick|p3"
 rigAssert "no key of a window, of a menu or of the screen works while the dialog is open" "$( rigVal held.dialog ) $( rigVal held.quit ) [$( rigVal held.menu )] $( rigVal held.filter ) $( rigVal held.focus ) [$( rigVal held.notice )]" "rig:pick|p3 no [] all list []"
@@ -145,7 +147,7 @@ keys TAB TAB TAB TAB TAB SPACE
 get spaced
 RIGSCRIPT
 rigAssert "what the handler refuses stands in the dialog, which stays open" "$( rigVal refused.dialog ) [$( rigVal refused.dialogSays )] $( rigHas d '║ the rig refuses the name no ' ) [$( rigVal refused.notice )]" "rig:name|no [the rig refuses the name no] 1 []"
-rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 27 1 6 ) $( rigHas d ' »OK« ▅   Cancel  ▅' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,5,56,30"
+rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 28 1 6 ) $( rigHas d ' »OK« ▅   Cancel  ▅' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,4,56,31"
 rigAssert "Esc closes the dialog and calls nothing"                  "[$( rigVal esc.dialog )] [$( rigVal esc.notice )]" "[] []"
 rigAssert "Shift-Tab from the first control goes around to the last button, and Space presses it: Cancel calls nothing" "$( rigVal last.dialog ) [$( rigVal cancelled.dialog )] [$( rigVal cancelled.notice )]" "rig:cancel| [] []"
 rigAssert "Space on OK presses it"                                   "[$( rigVal spaced.dialog )] [$( rigVal spaced.notice )]" "[] [pressed ok: name=typed notes= who=b how=y pick=p1]"
@@ -158,6 +160,7 @@ turn
 get m
 box b1
 cells st1 11 0 60
+cells mFirst 2 11 49
 keys DOWN
 turn
 box b2
@@ -176,10 +179,11 @@ cells st4 11 0 60
 keys ESC
 get none
 RIGSCRIPT
-rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 ' »OK« ▅' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 05' ) $( rigHas b1 'line 06' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
+rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 ' »OK« ▅' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 06' ) $( rigHas b1 'line 07' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
+rigAssert "on a terminal too short for all of it the empty lines under its top and under its buttons give way first, then those between its parts, before its text loses a line" "[$( rigVal mFirst )]" "[ line 01]"
 rigAssert "a mark says that it goes on below, and the status line names what scrolls it" "$( rigHas b1 '▼' ) $( rigHas b1 '▲' ) [$( rigVal st1 )]" "1 0 [ ENTER OK  UP/DN Scroll  ESC Close]"
-rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 06' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
-rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 05' ) $( rigHas b3 'line 06' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
+rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 07' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
+rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 04' ) $( rigHas b3 'line 05' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
 rigAssert "the box has the keys: q does not end the screen"          "$( rigVal still.dialog ) $( rigVal still.quit )" "message:ok| no"
 rigAssert "a box that comes while one is open waits for it"          "[$( rigVal queued.dialogTitle )] $( rigVal queued.waiting )" "[The start failed] 1"
 rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║ a text that is broken to the box it stands in, ' ) $( rigHas b4 '║ all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ ENTER OK  ESC Close]"
@@ -363,8 +367,8 @@ show md
 box mgd
 box mgr roles
 RIGSCRIPT
-rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 5 1 4 ) $( rigRole bwk 8 1 4 )" "gG 57 HRBB HR.."
-rigAssert "Magic: the same dialog in its own colour, a thin line on the bottom edge of the line over it, its title a tab on it, and of its last line, nothing on the top of a cell, its shadow, its buttons bars, one line more for their shadow" "$( rigHas mgd '▁▁' ) $( rigHas mgd '▁ A dialog of the rig ▁' ) $( rigHas mgd '▔' ) $( rigHas mgd '▀' ) $( rigHas mgd '    OK        Cancel   ' ) $( rigVal mg.dialogBox )" "2 1 0 0 1 32,5,56,29"
+rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 6 1 4 ) $( rigRole bwk 9 1 4 )" "gG 57 HRBB HR.."
+rigAssert "Magic: the same dialog in its own colour, a thin line on the bottom edge of the line over it, its title a tab on it, and of its last line, nothing on the top of a cell, its shadow, its buttons bars, one line more for their shadow" "$( rigHas mgd '▁▁' ) $( rigHas mgd '▁ A dialog of the rig ▁' ) $( rigHas mgd '▔' ) $( rigHas mgd '▀' ) $( rigHas mgd '    OK        Cancel   ' ) $( rigVal mg.dialogBox )" "2 1 0 0 1 32,5,56,30"
 rigAssert "its status line names the keys of the dialog, in its own names"  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^md|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " ⏎ OK  ⇥ Next  ⎋ Cancel"
 
 echo "-- Turbo Vision: the shadow of a raised button is the ground of its cells --"
@@ -404,7 +408,80 @@ text, ground, fineText, fineGround = colours(module.BOX)
 print(said + " dialog " + ground + ("" if fineGround is None else " %d" % fineGround))
 RIGPY
 }
-rigAssert "beside the face ▅ in the black of the shadow on the dialog, and under it, from one cell after its left, ▅ in the colour of the dialog on the black of the shadow: blocks on the cell's bottom edge, no half block, so the two meet into one shadow; in each of its colours" "$( for rigOne in s:tv-system b:tv-blue g:tv-gray ; do rigTag="t${rigOne%%:*}" ; printf '[%s %s %s %s %s %s %s]' "$( rigHas "$rigTag" ' »OK« ▅   Cancel  ▅' )" "$( rigHas "$rigTag" ' ▅▅▅▅▅▅  ▅▅▅▅▅▅▅▅▅▅' )" "$( rigHas "$rigTag" '▄' )" "$( rigHas "$rigTag" '▀' )" "$( rigRole "${rigTag}r" 28 20 38 )" "$( rigGround "${rigOne#*:}" "$( rigRole "${rigTag}r" 27 26 26 )" )" "$( rigGround "${rigOne#*:}" "$( rigRole "${rigTag}r" 28 21 21 )" )" ; done )" "[1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white dialog white white/black dialog white][1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white 16/248 dialog white 248 white/black 248/16 dialog white 248][1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white 16/248 dialog white 248 white/black 248/16 dialog white 248]"
+rigAssert "beside the face ▅ in the black of the shadow on the dialog, and under it, from one cell after its left, ▅ in the colour of the dialog on the black of the shadow: blocks on the cell's bottom edge, no half block, so the two meet into one shadow; in each of its colours" "$( for rigOne in s:tv-system b:tv-blue g:tv-gray ; do rigTag="t${rigOne%%:*}" ; printf '[%s %s %s %s %s %s %s]' "$( rigHas "$rigTag" ' »OK« ▅   Cancel  ▅' )" "$( rigHas "$rigTag" ' ▅▅▅▅▅▅  ▅▅▅▅▅▅▅▅▅▅' )" "$( rigHas "$rigTag" '▄' )" "$( rigHas "$rigTag" '▀' )" "$( rigRole "${rigTag}r" 29 20 38 )" "$( rigGround "${rigOne#*:}" "$( rigRole "${rigTag}r" 28 26 26 )" )" "$( rigGround "${rigOne#*:}" "$( rigRole "${rigTag}r" 29 21 21 )" )" ; done )" "[1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white dialog white white/black dialog white][1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white 16/248 dialog white 248 white/black 248/16 dialog white 248][1 1 0 0 gZZZZZZggZZZZZZZZZZ black/white 16/248 dialog white 248 white/black 248/16 dialog white 248]"
+
+echo "-- a dialog's chrome: an empty line on its top in every style; in Magic its lines in the colour of its title tab, its title at the left, its shadow from its second line --"
+rigRun <<'RIGSCRIPT'
+style tv-system
+rigdialog What the rig asks.
+turn
+get tv
+cells tvUnder 6 33 87
+cells tvText 7 33 87
+keys ESC
+style bw-system
+rigdialog What the rig asks.
+turn
+get bw
+cells bwUnder 6 33 87
+cells bwText 7 33 87
+cells bwButtons 32 33 87
+cells bwFoot 33 33 87
+keys ESC
+style nu-blue
+rigdialog What the rig asks.
+turn
+get nb
+cells nbUnder 6 33 87
+cells nbText 7 33 87
+cells nbTop 5 32 88
+box nbr roles
+keys ESC
+style nu-gray
+rigdialog What the rig asks.
+turn
+box ngr roles
+keys ESC
+style nu-system
+rigdialog What the rig asks.
+turn
+box nsr roles
+keys ESC
+size 120 24
+style nu-blue
+rigdialog What the rig asks.
+turn
+box nbd
+box nbs roles
+keys ESC
+size 60 12
+tell A title far longer than the box that holds it can show | line 01 / line 02 / line 03 / line 04 / line 05 / line 06 / line 07 / line 08 / line 09 / line 10
+turn
+get long
+cells longTop 1 2 58
+RIGSCRIPT
+rigLineOnTab(){ ## style, letter of a line, letter of a title tab -- "same" where the text of the line is the ground of the tab, on a terminal of eight colours and on one of 256, else the colours of both
+	"$rigPython" -I -B - "$rigScreen" "$1" "$2" "$3" <<'RIGPY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module.setStyle(sys.argv[2])
+own = module.STYLE_LOOKS.get(module.STYLE.get("looks"), {})
+def colours(letter):
+    look = [number for number, entry in enumerate(module.LOOKS) if entry[0] == letter][0]
+    entry = own.get(look)
+    return (module.LOOKS[look][2], module.LOOKS[look][3], None, None) if entry is None else (entry[0], entry[1], entry[3], entry[4])
+line, tab = colours(sys.argv[3]), colours(sys.argv[4])
+print("same" if line[0] == tab[1] and line[2] == tab[3] else "%s/%s %s/%s on %s/%s %s/%s" % (line + tab))
+RIGPY
+}
+rigDown="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^nbd|//p' | LC_ALL=C grep -n '↓' | head -1 | LC_ALL=C cut -d: -f1 )"
+rigAssert "every style: under the top of a dialog an empty line, as under its buttons, its text on the line after it, the dialog a line taller" "$( for rigOne in tv bw nb ; do printf '[%s %s %s]' "$( rigVal "$rigOne.dialogBox" )" "$( rigVal "${rigOne}Under" )" "$( rigVal "${rigOne}Text" )" ; done )" "[32,5,56,30   What the rig asks.][32,5,56,30   What the rig asks.][32,5,56,30   What the rig asks.]"
+rigAssert "Basic B/W, whose buttons cast no shadow: an empty line under its buttons too" "[$( rigVal bwButtons | LC_ALL=C sed -e 's/^ *//' )] [$( rigVal bwFoot )]" "[[»OK«]  [ Cancel ]] []"
+rigAssert "Magic: the line over a dialog and the line at its foot in the colour of the ground of its title tab, in each of its colours; the marks of a scroll in the look they had" "$( for rigOne in nb:nu-blue ng:nu-gray ns:nu-system ; do rigTag="${rigOne%%:*}r" ; printf '[%s %s]' "$( rigLineOnTab "${rigOne#*:}" "$( rigRole "$rigTag" 1 2 2 )" T )" "$( rigLineOnTab "${rigOne#*:}" "$( rigRole "$rigTag" 30 2 2 )" T )" ; done ) $( rigRole nbs "${rigDown:-1}" 55 55 ) $( rigGround nu-blue G )" "[same same][same same][same same] G black/cyan 16/87 dialog cyan 87"
+rigAssert "Magic: the title tab of a dialog at its left, three cells in; a long one cut to leave three cells of the line at its right" "[$( rigVal nbTop )] [$( rigVal longTop )]" "[$( rigRepeat ▁ 3 ) A dialog of the rig $( rigRepeat ▁ 32 )] [$( rigRepeat ▁ 3 ) A title far longer than the box that holds it c… $( rigRepeat ▁ 3 )]"
+rigAssert "Magic: the shadow at the right of a dialog starts beside its second line; beside its first stays what lies there" "$( [ "$( rigRole nbr 2 57 57 )" = z ] && echo shadow || echo under ) $( rigRole nbr 3 57 57 )" "under z"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN DIALOG CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

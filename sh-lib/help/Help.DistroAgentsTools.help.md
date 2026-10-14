@@ -3235,8 +3235,13 @@
 			every operation of the manual: the syntax lines
 			that `--help-syntax` prints, and the entry of each operation,
 			its syntax lines and its text, as `--member-help` prints those
-			of a member's operations. Takes no argument: one is refused
-			in one line, rc 1, nothing on stdout.
+			of a member's operations; then the chapters of the help file
+			but its options, one row a line, TAB-separated:
+			`chapter <head|foot> <line>`, `head` for a line before the
+			first option, the heading of the options the last of them,
+			`foot` for one after the options, the line as it is written.
+			Takes no argument: one is refused in one line, rc 1, nothing
+			on stdout.
 
 		--manager-keys-list
 			One of the console's own operations (see Notes). Lists the
@@ -3846,11 +3851,14 @@
 			value's own whitespace reads `_`, an absent one `-`.
 			`store <store> <state> <folders> <items>`
 			`folder <store> <folder> <items>`
-			`item <store> <folder> <name> <bytes> <stamp>`
+			`item <store> <folder> <name> <bytes> <stamp> <type> <status> <owner> <date>`
 			<state> is `present` or `absent`, and an absent store has no
 			other row. <stamp> is the `<YYYYMMDD>T<HHMM>` of the item's
 			name where it has one: those items come first, the newest
-			first, then the others by their names. Nothing deeper than a
+			first, then the others by their names. <type>, <status>,
+			<owner> and <date> are those fields of the item's front
+			matter, its lines between a first line `---` and the next,
+			where it gives them; nothing after it is read. Nothing deeper than a
 			folder is listed. Exit 1 with one error line, and nothing on
 			stdout, for a word that is no store, a name that is not bare,
 			a folder or an item that is not there, and where no team data

@@ -9,7 +9,8 @@
 ## showing its block alone, and one whose syntax names it with no block in the help says so plainly; on the row that
 ## goes up the folder shows itself. The help is Markdown (the owner: "better to show them as MD to terminal"): an
 ## operation's block shows rendered, its heading, its code and its list each in its look, its syntax line as it is,
-## and its title says so; the raw mode (`g`) shows it as it is and the summary mode (`b`) renders it again; the root's
+## and its title says so; a shell example in it, a paragraph whose first line is a comment of the shell, shows as it is
+## written, as code, its comment no heading; the raw mode (`g`) shows it as it is and the summary mode (`b`) renders it again; the root's
 ## view is rendered too. The operation is called exactly as the tooling has it. Offline: no operation of the real
 ## tooling is called.
 set -u
@@ -43,7 +44,8 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
 	cd "$MANAGER_SCREEN_RIG" || exit 1
-	printf '📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>\n📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain>\n📘 syntax: DistroAgentsTools.fn.sh [--help]\n\n📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>\n📘 syntax: DistroAgentsTools.fn.sh --console-list\n\t\t--agents-config-option <id> <op>\n\t\t\tReads or writes one option.\n\n\t\t\t### Its kinds\n\n\t\t\t- `read_one`: prints it.\n\t\t\t- **write**: sets it.\n\n\t\t--owner-setup-<domain>\n\t\t--owner-setup-<domain> --apply\n\t\t\tSets up one domain.\n\t\t\tIts second line.\n\n' > "rows.--manager-help-read"
+	printf '📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>\n📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain>\n📘 syntax: DistroAgentsTools.fn.sh [--help]\n\n📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>\n📘 syntax: DistroAgentsTools.fn.sh --console-list\n\t\t--agents-config-option <id> <op>\n\t\t\tReads or writes one option.\n\n\t\t\t### Its kinds\n\n\t\t\t- `read_one`: prints it.\n\t\t\t- **write**: sets it.\n\n\t\t\t# read one option\n\t\t\trig-tool a  --select   KEY\n\n\t\t--owner-setup-<domain>\n\t\t--owner-setup-<domain> --apply\n\t\t\tSets up one domain.\n\t\t\tIts second line.\n\n' > "rows.--manager-help-read"
+	printf 'chapter\thead\t##  Summary:\nchapter\thead\t\t\tCHAPTER-HEAD-TEXT\nchapter\thead\t##  Options:\nchapter\tfoot\t##  Notes:\nchapter\tfoot\t\t\t--chapter-foot-text after the options\n' >> "rows.--manager-help-read"
 	: > "$MANAGER_SCREEN_RIG/calls"
 	: > "$MANAGER_SCREEN_RIG/words"
 	echo rows > "$MANAGER_SCREEN_RIG/mode"
@@ -121,6 +123,7 @@ show none
 RIGSCRIPT
 rigAssert "an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds entry ' --agents-config-option ' ) $( rigHolds entry ' --owner-setup-<domain> ' ) $( rigHolds entry ' --console-list ' )" "manuals 4 1 1 1"
 rigAssert "on the row that goes up the folder shows itself: the first part of the read" "$( rigHolds up '│📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain>' ) $( rigHolds up 'Sets up one domain.' )" "1 0"
+rigAssert "the chapters the read gives after its operations are no operation and stand neither in the root's view nor among its items" "$( rigHolds up 'CHAPTER-HEAD-TEXT' ) $( rigHolds up 'Summary' ) $( rigHolds up 'chapter-foot-text' ) $( rigHolds entry 'chapter-foot-text' ) $( rigHolds none 'chapter-foot-text' ) $( rigHolds none 'Notes' )" "0 0 0 0 0 0"
 rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--agents-config-option <id> <op>' ) $( rigHolds entry '│    Reads or writes one option.' ) $( rigHolds entry 'Sets up one domain.' ) $( rigHolds second '│--owner-setup-<domain> --apply' ) $( rigHolds second '│    Sets up one domain. Its second line.' )" "1 1 0 1 1"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"
 
@@ -148,7 +151,9 @@ RIGSCRIPT
 rigAssert "its heading shows without its marks, a line under it, in the look of a heading" "$( rigHolds md '│    Its kinds' ) $( rigHolds md '###' ) $( rigHolds md '│    ┄┄┄┄┄┄┄┄┄ ' ) $( rigLookOf md mdr 'Its kinds' )" "1 0 1 BBBBBBBBB"
 rigAssert "its list has its marks, its code and its strong words show without their marks, each in its look" "$( rigHolds md '│    • read_one: prints it.' ) $( rigHolds md '`' ) $( rigHolds md '**' ) $( rigLookOf md mdr '• read_one' ) $( rigLookOf md mdr 'write: sets' )" "1 0 0 e.DDDDDDDD BBBBB......"
 rigAssert "its syntax line stands as it is, in the look of a heading, and its title says it is rendered" "$( rigHolds md '│--agents-config-option <id> <op>' ) $( rigLookOf md mdr '--agents-config-option <id> <op>' ) $( rigHolds md '--agents-config-option [markdown]' )" "1 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB 1"
-rigAssert "the raw mode shows the block as it is, and says so" "$( rigVal raw.viewMode ) $( rigHolds raw '│    ### Its kinds' ) $( rigHolds raw '│    - `read_one`: prints it.' ) $( rigHolds raw '--agents-config-option [raw]' )" "raw 1 1 1"
+rigAssert "a shell example in a block shows as it is written, as code, set in: its comment no heading, its runs of blanks kept" \
+	"$( rigHolds md '│      # read one option' ) $( rigHolds md '│      rig-tool a  --select   KEY' ) $( rigHolds md '│    read one option' ) $( rigLookOf md mdr '# read one option' )" "1 1 0 DDDDDDDDDDDDDDDDD"
+rigAssert "the raw mode shows the block as it is, and says so" "$( rigVal raw.textMode ) $( rigHolds raw '│    ### Its kinds' ) $( rigHolds raw '│    - `read_one`: prints it.' ) $( rigHolds raw '--agents-config-option [raw]' )" "raw 1 1 1"
 rigAssert "the summary mode renders it again" "$( rigHolds back '│    Its kinds' ) $( rigHolds back '###' ) $( rigHolds back '--agents-config-option [markdown]' )" "1 0 1"
 rigAssert "the root's view is rendered too, its syntax lines as they are, and its title says so" "$( rigHolds root '│📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>' ) $( rigHolds root 'Manuals (Help) [markdown]' )" "1 1"
 

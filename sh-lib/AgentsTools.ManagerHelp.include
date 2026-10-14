@@ -10,7 +10,7 @@
 ## that: what a user calls, the syntax lines of the help but those of the families it leaves
 ## out, named in one line below; then every operation of the manual, by the two awk files
 ## --member-help prints a member's operations by (AgentsTools.MemberHelp.include), with every
-## operation on their list.
+## operation on their list; then the chapters of the help file but its options, a row a line.
 ##
 
 case "$1" in
@@ -39,6 +39,15 @@ case "$1" in
 		local -x MDAT_MEMBER_HELP_NAMES='--*'
 		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpToolingLinesFilter.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include" || { set +e ; return 1 ; }
 		LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMemberHelpEntriesRender.awk" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" || { set +e ; return 1 ; }
+		## The chapters of the help file but its options, which a member's `Member Help` shows around
+		## the member's syntax lines: each line a row, `chapter`, then `head` for one before the first
+		## option, the heading of the options the last of them, or `foot` for one after the options,
+		## then the line as it is written. The syntax lines that open the file are not among them; the
+		## options are where the entries above are read from (AgentsMemberHelpEntriesRender.awk).
+		LC_ALL=C awk '
+			/^## / { inOptions = ( $0 ~ /^##  Options:/ ) ; if ( inOptions ) { print "chapter\thead\t" $0 ; past = 1 ; next } }
+			inOptions || ( !past && /^📘 syntax:/ ) { next }
+			{ print "chapter\t" ( past ? "foot" : "head" ) "\t" $0 }' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" || { set +e ; return 1 ; }
 		return 0
 	;;
 

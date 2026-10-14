@@ -6,7 +6,9 @@
 ## Held: a store prints its row, then its folders, the board's in the order of its states and the others after
 ## them, the audit's newest month first, each with how many items it holds, then the items that lie in the store
 ## itself; a folder prints its items, those whose name is dated the newest first, then the others by name, each
-## with its size and the stamp of its name; an item prints its text as it lies; a store that is not there says so
+## with its size and the stamp of its name, then the type, the status, the owner and the date of its front matter,
+## its lines between a first line `---` and the next, where it gives them, the first of each, a blank `_`, and
+## nothing after the front matter; an item prints its text as it lies; a store that is not there says so
 ## in its one row, and one that is empty says it holds nothing. A member's files are listed by their paths inside
 ## its folder, sorted, with their size and whether they are text, dot files and links aside; one of them prints
 ## whole where it is text. Refused in one line, rc 1, nothing on stdout: a word that is no store, a name that is
@@ -31,7 +33,7 @@ rigRoot="$rigWs/.local/agents/team-data-root"
 mkdir -p "$rigWs/.local/.agents" "$rigBare/.local/.agents" "$rigHome" "$rigRoot/board/running" "$rigRoot/board/review" "$rigRoot/board/odd-state" \
 	"$rigRoot/board/backlog" "$rigRoot/audit/2026-09" "$rigRoot/audit/2026-10" "$rigRoot/audit/2026-10/deeper" "$rigRoot/vault" \
 	"$rigSkills/keeper-rig/resources" "$rigSkills/keeper-rig/.hidden" "$rigTmp/outside"
-printf 'running a\n' > "$rigRoot/board/running/task-alpha.md"
+printf -- '---\ntype: task\nstatus: in progress\nowner: keeper-rig\ndate: 2026-10-01 09:00 +0000\ntitle: Alpha\n---\nrunning a\nstatus: not this\n' > "$rigRoot/board/running/task-alpha.md"
 printf 'running b\n' > "$rigRoot/board/running/task-20261001T0900Z-beta.md"
 printf 'running c, with no stamp and no suffix\n' > "$rigRoot/board/running/epic-gamma"
 printf 'review\n' > "$rigRoot/board/review/proposal-delta.md"
@@ -84,7 +86,7 @@ rigAssert "the board: present, its folders in the order of its states, the other
 	"0 store board present 4 0|folder board running 3|folder board review 1|folder board backlog 0|folder board odd-state 1|"
 rigRun "$rigData" audit
 rigAssert "the audit: the newest month first, then the items in the audit itself" "$rigRc $( rigOut )" \
-	"0 store audit present 2 1|folder audit 2026-10 2|folder audit 2026-09 1|item audit - declaration-20260928T0000Z-output-style.md 5 20260928T0000|"
+	"0 store audit present 2 1|folder audit 2026-10 2|folder audit 2026-09 1|item audit - declaration-20260928T0000Z-output-style.md 5 20260928T0000 - - - -|"
 rigRun "$rigData" vault
 rigAssert "an empty vault says it holds nothing, in its one row" "$rigRc $( rigOut )" "0 store vault present 0 0|"
 rigRunWs="$rigBare"
@@ -94,13 +96,13 @@ rigAssert "a store that is not there says so, in its one row" "$rigRc $( rigOut 
 
 echo "-- 2. a folder: its items --"
 rigRun "$rigData" board running
-rigAssert "dated items first, the newest first, then the others by name, each with its size and its stamp" "$rigRc $( rigOut )" \
-	"0 item board running task-20261001T0900Z-beta.md 10 20261001T0900|item board running epic-gamma 39 -|item board running task-alpha.md 10 -|"
+rigAssert "dated items first, the newest first, then the others by name, each with its size and its stamp, then the type, status, owner and date its front matter gives, its blanks as _, each - where it gives none, and nothing after its front matter" "$rigRc $( rigOut )" \
+	"0 item board running task-20261001T0900Z-beta.md 10 20261001T0900 - - - -|item board running epic-gamma 39 - - - - -|item board running task-alpha.md 126 - task in_progress keeper-rig 2026-10-01_09:00_+0000|"
 rigRun "$rigData" audit 2026-10
 rigAssert "a name's own blank reads _, and nothing deeper than the folder nor a dot file is listed" "$rigRc $( rigOut )" \
-	"0 item audit 2026-10 transcript-20261014T0200Z-a_talk.md 6 20261014T0200|item audit 2026-10 session-20261013T0100Z-keeper-rig-2.log 24 20261013T0100|"
+	"0 item audit 2026-10 transcript-20261014T0200Z-a_talk.md 6 20261014T0200 - - - -|item audit 2026-10 session-20261013T0100Z-keeper-rig-2.log 24 20261013T0100 - - - -|"
 rigRun "$rigData" audit -
-rigAssert "the store itself as a folder, by -" "$rigRc $( rigOut )" "0 item audit - declaration-20260928T0000Z-output-style.md 5 20260928T0000|"
+rigAssert "the store itself as a folder, by -" "$rigRc $( rigOut )" "0 item audit - declaration-20260928T0000Z-output-style.md 5 20260928T0000 - - - -|"
 
 echo "-- 3. an item: its text as it lies --"
 rigRun "$rigData" audit 2026-10 session-20261013T0100Z-keeper-rig-2.log
@@ -150,7 +152,7 @@ for rigSyntax in "$rigData <store> [<folder> [<item>]]" "$rigFiles <team-member>
 	[ "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigSyntax" )" "$rigHelpMd" || : )" = "1 1 1" ] || rigBad="$rigBad [$rigSyntax]"
 done
 rigAssert "each has its syntax echo, its syntax line and its entry, once each" "${rigBad:-each paired}" "each paired"
-rigAssert "the entry of the team data read gives the form of each of its rows" "$( LC_ALL=C grep -c -x -F -e '			`store <store> <state> <folders> <items>`' -e '			`folder <store> <folder> <items>`' -e '			`item <store> <folder> <name> <bytes> <stamp>`' -e '			`file <path> <bytes> <text>`' "$rigHelpMd" || : )" "4"
+rigAssert "the entry of the team data read gives the form of each of its rows" "$( LC_ALL=C grep -c -x -F -e '			`store <store> <state> <folders> <items>`' -e '			`folder <store> <folder> <items>`' -e '			`item <store> <folder> <name> <bytes> <stamp> <type> <status> <owner> <date>`' -e '			`file <path> <bytes> <text>`' "$rigHelpMd" || : )" "4"
 rigAssert "the family's include has one arm for the team data, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-team-data-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerTeamData.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
 
 if [ "$rigFails" -ne 0 ] ; then

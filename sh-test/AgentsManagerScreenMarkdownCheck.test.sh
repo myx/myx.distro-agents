@@ -8,7 +8,9 @@
 ## words, an underscore inside a word and in code kept, its lists with their marks and nesting, a long item wrapped under
 ## its own text, its links as their text, its code without its fences, its table in columns with a line under its head,
 ## its rule and its quote, each part in its look (MARKDOWN_LOOKS); the title says [markdown]. The raw mode (`g`) shows
-## the file as it is and says [raw]; the summary mode (`b`) renders it again. It is set out once for each width and
+## the file as it is and says [raw]; the summary mode (`b`) renders it again. A text has that mode of its own, rendered
+## first: the raw log of a session leaves it rendered, and its raw mode leaves the mode of a session as it was; shown
+## raw, a line longer than the window is broken at its words, its own runs of blanks kept, and with the lines cut it stands whole. It is set out once for each width and
 ## not on a tick: a line put into the window stays through turns and goes with a new size, which sets it out again,
 ## narrower. A text that is no Markdown shows as it is; a text longer than the bound is rendered that far and the rest
 ## follows as it is, under a line that says so. Offline: no operation of the real tooling is called.
@@ -165,7 +167,7 @@ rigAssert "a long item wraps under its own text, and a link shows as its text" "
 rigAssert "code shows without its fences, set in, in the look of code" "$( rigHolds md '│  echo "code_block_line"' ) $( rigHolds md '```' ) $( rigLookOf md mdr 'echo' )" "1 0 DDDD"
 rigAssert "a table stands in columns, a line under its head, a column aligned to the right" "$( rigHolds md '│  Key │ Value ' ) $( rigHolds md '│  ────┼──────' ) $( rigHolds md '│  a_b │     1 ' ) $( rigLookOf md mdr 'Key' )" "1 1 1 BBB"
 rigAssert "a rule and a quote" "$( rigHolds md '│────────────────────────────────────────' ) $( rigHolds md '││ A quoted line.' ) $( rigLookOf md mdr 'A quoted' )" "1 1 DDDDDDDD"
-rigAssert "the raw mode shows the file as it is, and says so" "$( rigVal raw.viewMode ) $( rigHolds raw '│# The rig keeper' ) $( rigHolds raw '│```sh' ) $( rigHolds raw '│| Key | Value |' ) $( rigHolds raw '│- first item' ) $( rigHolds raw 'SKILL.md [raw] [wrap]' )" "raw 1 1 1 1 1"
+rigAssert "the raw mode shows the file as it is, and says so" "$( rigVal raw.textMode ) $( rigHolds raw '│# The rig keeper' ) $( rigHolds raw '│```sh' ) $( rigHolds raw '│| Key | Value |' ) $( rigHolds raw '│- first item' ) $( rigHolds raw 'SKILL.md [raw] [wrap]' )" "raw 1 1 1 1 1"
 rigAssert "the summary mode renders it again" "$( rigHolds back '│The rig keeper ' ) $( rigHolds back '│# The rig keeper' ) $( rigHolds back 'SKILL.md [markdown] [wrap]' )" "1 0 1"
 rigAssert "it is set out once: a line put into the window stays through turns" "$( rigVal held.viewLines )" "$(( $( rigVal wide.viewLines ) + 1 ))"
 rigAssert "a new size sets it out again, narrower" "$( rigHolds narrow 'MARKER-LINE' ) $( [ "$( rigVal narrow.viewLines )" -gt "$( rigVal wide.viewLines )" ] && echo more || echo "not more: $( rigVal narrow.viewLines ) of $( rigVal wide.viewLines )" )" "0 more"
@@ -193,6 +195,45 @@ get item
 show item
 RIGSCRIPT
 rigAssert "a board item is rendered: its front matter, its heading, its list" "$( rigVal item.selected ) $( rigHolds item '│title: A' ) $( rigHolds item '│Task A ' ) $( rigHolds item '│━━━━━━ ' ) $( rigHolds item '│• step one' ) $( rigHolds item 'task-a.md [markdown] [wrap]' )" "task-a.md 1 1 1 1 1"
+
+echo "-- 3. a text has a mode of its own, rendered first; raw, its long lines are wrapped --"
+rigCase textmode
+printf -- '---\ntitle: A\n---\n# Task A\n\nRAWSTART one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty-one twenty-two twenty-three twenty-four twenty-five RAWEND\n\nSPACED  aa   bb    cc  dd   ee    ff  gg   hh    ii  jj   kk    ll  mm   nn    oo  pp   qq    rr  ss   tt    uu  vv   ww    xx  yy   zz    END2\n' \
+	> "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board running task-a.md"
+rigScript <<'RIGSCRIPT'
+turn
+wait list 10
+mode raw
+keys 5
+wait list 10
+keys DOWN DOWN
+wait focus 10
+keys ENTER
+wait list 10
+keys DOWN
+wait focus 10
+keys ENTER
+wait list 10
+keys DOWN
+wait view 10
+get first
+show first
+keys g
+turn
+get raw
+show raw
+keys TAB w
+turn
+show cut
+RIGSCRIPT
+rigAssert "the raw log of a session leaves a Markdown text rendered: a text has a mode of its own, rendered first" \
+	"$( rigVal first.viewMode ) $( rigVal first.textMode ) $( rigHolds first 'task-a.md [markdown] [wrap]' ) $( rigHolds first '│Task A ' )" "raw summary 1 1"
+rigAssert "g shows that text raw, and leaves the mode of a session as it was" "$( rigVal raw.textMode ) $( rigVal raw.viewMode ) $( rigHolds raw 'task-a.md [raw] [wrap]' ) $( rigHolds raw '│# Task A' )" "raw raw 1 1"
+rigAssert "raw, a line longer than the window is broken at its words, none of it cut, the rest set in under it" \
+	"$( rigHolds raw '│RAWSTART one two' ) $( rigHolds raw 'RAWEND' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^raw|' | LC_ALL=C grep 'RAWSTART' | LC_ALL=C grep -c -F '…' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^raw|' | LC_ALL=C grep -c -E '│  [a-z-]+ .*RAWEND' )" "1 1 0 1"
+rigAssert "raw, a line broken keeps its own runs of blanks in each piece, broken between words" \
+	"$( rigHolds raw '│SPACED  aa   bb    cc  dd   ee    ff' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^raw|' | LC_ALL=C grep -c -E '│  [a-z]{2}  {1,3}[a-z]{2}  {1,3}[a-z]{2}' ) $( rigHolds raw 'END2' )" "1 1 1"
+rigAssert "with the lines cut, the long line stands whole, cut at the window" "$( rigHolds cut 'RAWSTART one two' ) $( rigHolds cut 'RAWEND' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^cut|' | LC_ALL=C grep 'RAWSTART' | LC_ALL=C grep -c -F '…' ) $( rigHolds cut 'task-a.md [raw] [cut]' )" "1 0 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN MARKDOWN CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
