@@ -68,12 +68,15 @@ agentsManagerConfigSubjects="workspace cli systems loop scopes interface console
 agentsManagerConfigLabels="workspace|||Workspace Paths||
 workspace|paths||Workspace Folders||
 workspace|places||Registered Places||
+workspace|mode||Workspace Role||
 workspace|paths|workspace-root|Workspace Root|configuration|The root folder of this workspace, which every path of the tooling starts from. It is where the workspace was installed.
 workspace|paths|tooling-origin|Tooling Origin|configuration|The source tree the tooling runs from. It follows the console origin of the workspace, at the next start of a console.
 workspace|paths|team-data-root|Team Data Root|configuration|The folder that holds the board and the inboxes of the team. It follows the team data directory the owner setup saves.
 workspace|paths|session-records|Session Records|configuration|The folder the record of every started run is kept in. The tooling makes it at the first start of a run.
 workspace|paths|session-stores|Session Stores|configuration|The folder each session keeps its own store in. The tooling makes it at the first session.
 workspace|paths|settings|Scope Settings Folder|configuration|The folder that holds one settings file for each scope, the team's and each member's. Only its owner and its group can read it.
+workspace|mode|MDAT_WORKSPACE_MODE|Workspace Mode|configuration|What this workspace is to the team. Just agents: it works inline and can start sessions with the native consoles of this computer, but keeps no documents, no reflections and the like. Remote rig client: it will start sessions on a remote rig or dispatch documents to it; that is not built yet, so it acts as just agents for now. Team rig: it is a rig itself, which uses and maintains the team data here, with a shared persistence for it or none. The installer of the workspace sets it in the settings of the team, and where nothing sets it the workspace is just agents.
+workspace|mode|full-team-rig|Full Team Rig|configuration|Whether this workspace is a full team rig: a team rig whose team data has a shared persistence configured, today a git remote. Only a full team rig checks the team data and the main loop and judges them. It is measured at the call.
 workspace|places|*|Registered Place {name}|configuration|The path of the place registered under this name. A place is registered and forgotten by the owner's own operations, or declared by a project.
 cli|||CLI Services||
 cli|workspace||Workspace Defaults||
@@ -119,13 +122,30 @@ control|kill||Control Kill||
 control|request|SESSION_CONTROL_REQUEST_SECONDS|Control Request Seconds|settings|How many seconds a console waits for the control thread of a session to take a request. After that the console takes the request back and carries it out itself, and a change is read at the next request.
 control|kill|SESSION_CONTROL_KILL_SECONDS|Control Kill Seconds|settings|How many seconds the carrying out of a kill request may take before it ends its own work. A change is read at the next request, by the console and by the control thread."
 
+## THE MODE OF THE WORKSPACE, the owner's: what this workspace is to the team, one of
+## three, set by the installer of the workspace in the settings of the team, where the
+## tooling keeps the workspace's own settings (AgentsToolsManagerConfigTeamFile), and read
+## by AgentsToolsManagerConfigMode alone. `just-agents`: it works inline and can start
+## sessions with the native consoles of this computer, but keeps no documents, no
+## reflections and the like. `rig-client`: it will start sessions on a remote rig or
+## dispatch documents to it; declared and not built, it acts as `just-agents`. `team-rig`:
+## it is a rig itself, which uses and maintains the team data here, with a shared
+## persistence for it or none; no server setup makes one so, its installer does. Where
+## nothing sets one of them it is `just-agents`: nothing is inferred. A FULL TEAM RIG is a
+## `team-rig` whose team data has a shared persistence configured, today a git remote:
+## only a full team rig checks the main loop and judges it. Only a team rig has a main
+## loop at all. What `just-agents` does not do is its meaning here, and nothing more yet.
+agentsManagerConfigModeKey="MDAT_WORKSPACE_MODE"
+agentsManagerConfigModes="just-agents rig-client team-rig"
+agentsManagerConfigModeTakes="just-agents=Just Agents,rig-client=Remote Rig Client,team-rig=Team Rig"
+
 ## The words of a key that stand whole in capitals in a label made of the key's own words.
 agentsManagerConfigLabelCapitals="API CLI ID IMAP SMTP URL UTC XAI"
 
 ## The last word of the name of a key whose value is known to be no secret: a place, a name,
 ## a number or a switch. Asked only of a key the catalogue does not hold. A kind that is not
 ## here is a secret until it is added: one word, on this line.
-agentsManagerConfigPlainWords="ALIAS CONVERSATIONS DIRECTORY DOMAIN EMAIL HOST ID LIMIT NAME PORT SECONDS SECURITY SITE TIER USER USERNAME WORKSPACE"
+agentsManagerConfigPlainWords="ALIAS CONVERSATIONS DIRECTORY DOMAIN EMAIL HOST ID LIMIT MODE NAME PORT SECONDS SECURITY SITE TIER USER USERNAME WORKSPACE"
 
 ## Whether a key is a secret: rc 0 when it is, rc 1 when it is known not to be.
 ##   a key the catalogue holds is what the catalogue marks it, secret or plain;
@@ -283,13 +303,22 @@ AgentsToolsManagerConfigLabelled(){ ## `full` (may be empty)
 ## folder of the scopes; then each registered place with its path, as --owner-workspace-list
 ## gives them, one that is absent or not known as missing.
 AgentsToolsManagerConfigWorkspace(){
-	local placeName placeKind placeCeiling placePath placeState
+	local placeName placeKind placeCeiling placePath placeState modeValue modeSource modeFull
 	AgentsToolsManagerConfigPathLine workspace paths workspace-root "${MMDAPP%/}"
 	AgentsToolsManagerConfigPathLine workspace paths tooling-origin "${MDLT_ORIGIN%/}"
 	AgentsToolsManagerConfigPathLine workspace paths team-data-root "${MDAT_DATA_ROOT:-}"
 	AgentsToolsManagerConfigPathLine workspace paths session-records "${MMDAPP%/}/.local/agents/spawned"
 	AgentsToolsManagerConfigPathLine workspace paths session-stores "${MMDAPP%/}/.local/agents/sessions"
 	AgentsToolsManagerConfigPathLine workspace paths settings "${MMDAPP%/}/.local/.agents"
+	## The mode, with where it comes from, what it takes, its kind, its scope and its file, as
+	## a changeable line has them; it belongs to the configuration all the same.
+	read -r modeValue modeSource modeFull <<< "$( AgentsToolsManagerConfigMode )" || :
+	AgentsToolsManagerConfigLine workspace mode "$agentsManagerConfigModeKey" set "${modeValue:-just-agents}" "${modeSource:-default}" "$agentsManagerConfigModeTakes" choice workspace "$( AgentsToolsManagerConfigTeamFile )"
+	if [ "$modeFull" = "yes" ] ; then
+		AgentsToolsManagerConfigLine workspace mode full-team-rig set yes
+	else
+		AgentsToolsManagerConfigLine workspace mode full-team-rig missing no
+	fi
 	while IFS='	' read -r placeName placeKind placeCeiling placePath placeState ; do
 		[ -n "$placeName" ] || continue
 		[ "$placePath" != "-" ] || placePath=""
@@ -300,6 +329,25 @@ AgentsToolsManagerConfigWorkspace(){
 		fi
 	done <<< "$( AgentsToolsPlacesListText "${MMDAPP%/}" )"
 	return 0
+}
+
+## The mode of this workspace, `<mode> <source> <full>`: the mode the settings of the team
+## set, `workspace`, else `just-agents`, `default` (THE MODE OF THE WORKSPACE); and `yes`
+## where it is a full team rig, a `team-rig` whose team data has a git remote, else `no`. Whether
+## the remote is set is asked through a pipe that keeps no text of it, of the scope the
+## catalogue of the owner setup names for it.
+AgentsToolsManagerConfigMode(){
+	local modeValue modeSource="workspace" modeFull="no" modeSpec
+	modeValue="$( AgentsToolsManagerConfigTeamValue "$agentsManagerConfigModeKey" )" || modeValue=""
+	case " $agentsManagerConfigModes " in
+		*" ${modeValue:-.} "*) ;;
+		*) modeValue="just-agents" ; modeSource="default" ;;
+	esac
+	if [ "$modeValue" = "team-rig" ] ; then
+		modeSpec="$( AgentsToolsOwnerSetupOptionSpec TEAM_DATA_GIT_REMOTE 2> /dev/null )" || modeSpec=""
+		[ -z "$modeSpec" ] || ! AgentsToolsManagerConfigHolds "${modeSpec%%|*}" TEAM_DATA_GIT_REMOTE || modeFull="yes"
+	fi
+	printf '%s %s %s\n' "$modeValue" "$modeSource" "$modeFull"
 }
 
 ## THE CLI SERVICES. First what the workspace asks for: its service, its harness tier, its
@@ -446,6 +494,8 @@ AgentsToolsManagerConfigLoop(){
 	local loopFile="${MMDAPP%/}/.local/agents/main-loop.state" loopLine loopKey
 	local loopNote="${MDAT_DATA_ROOT:-}/inboxes/magic-coordinator/note-20260809T155000Z-heartbeat-state-and-lock.md"
 	local loopState="" loopRecheck="" loopEpoch="" loopRuns="no"
+	## Only a team rig runs the main loop: in any other mode nothing of it is said.
+	case "$( AgentsToolsManagerConfigMode )" in "team-rig "*) ;; *) return 0 ;; esac
 	if [ -f "$loopFile" ] && [ -r "$loopFile" ] ; then
 		AgentsToolsManagerConfigLine loop main-loop state-file set "$loopFile"
 		while IFS= read -r loopLine || [ -n "$loopLine" ] ; do
@@ -840,7 +890,7 @@ case "$1" in
 				workspace) digestLines="$( AgentsToolsManagerConfigWorkspace )" || digestLines="" ;;
 				cli) digestLines="$( AgentsToolsManagerConfigCli )" || digestLines="" ;;
 				systems) digestLines="$( AgentsToolsManagerConfigSystems )" || digestLines="" ;;
-				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ;;
+				loop) digestLines="$( AgentsToolsManagerConfigLoop )" || digestLines="" ; [ -n "$digestLines" ] || continue ;;
 				scopes) digestLines="$( AgentsToolsManagerConfigScopes )" || digestLines="" ;;
 				interface|console|control) digestLines="$( AgentsToolsManagerConfigDeclared "$digestName" )" || digestLines="" ;;
 			esac

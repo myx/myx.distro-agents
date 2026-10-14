@@ -67,7 +67,12 @@ $1 == "line" {
 	}
 	description = at ? worded( rowDescription[at], $4 ) : "-"
 	belongs = ( at && rowBelongs[at] != "" ) ? rowBelongs[at] : "-"
-	if ( NF >= 11 ) held = base OFS label OFS description OFS "yes" OFS $9 OFS $10 OFS $7 OFS $8 OFS $11 OFS belongs
+	## a line of the configuration that has the fields of a changeable one keeps them, and is not changed here either
+	if ( NF >= 11 ) {
+		reason = ( belongs == "configuration" ) ? deployed : ""
+		gsub( /[ \t]+/, "_", reason )
+		held = base OFS label OFS description OFS ( ( belongs == "configuration" ) ? "no:" reason : "yes" ) OFS $9 OFS $10 OFS $7 OFS $8 OFS $11 OFS belongs
+	}
 	else {
 		reason = ( belongs == "configuration" ) ? deployed : ""
 		gsub( /[ \t]+/, "_", reason )

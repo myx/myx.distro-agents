@@ -122,7 +122,8 @@ printf 'id: retest-20261001T100000Z-cccc\nasked: 2026-10-01T10:00:00Z\n' > "$rig
 ## A SECRET of the workspace, which no row and no message may hold, by its value or by the path of its scope.
 rigSecret="xoxb-rig-SECRET-0123456789"
 printf 'SLACK_BOT_TOKEN=%s\n' "$rigSecret" > "$rigWs/.local/.agents/keeper-rig.agent.env"
-: > "$rigWs/.local/.agents/magic-team.agent.env"
+## a full team rig: the mode its installer sets, and a git remote for its team data
+printf 'MDAT_WORKSPACE_MODE=team-rig\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.env
 
 ## THE RIG'S OWN PATH: its bin, then the system's own folders. Nothing remote and no git: each would log a call.
@@ -232,6 +233,18 @@ rigAssert "disk: three volumes, the workspace's ok, its temp folder's above the 
 	"block disk Disk_Space 9/figure disk workspace-size Workspace_Volume_Size 1024000 bytes - -/figure disk workspace-used Workspace_Volume_Used 512000 bytes ok 50/figure disk workspace-free Workspace_Volume_Free 512000 bytes - -/figure disk temp-size Temp_Folder_Volume_Size 2048000 bytes - -/figure disk temp-used Temp_Folder_Volume_Used 1802240 bytes warn 88/figure disk temp-free Temp_Folder_Volume_Free 245760 bytes - -/figure disk team-data-size Team_Data_Volume_Size 4096000 bytes - -/figure disk team-data-used Team_Data_Volume_Used 3932160 bytes bad 96/figure disk team-data-free Team_Data_Volume_Free 163840 bytes - -/"
 rigAssert "testing: two retests wait, the one that is done not counted, and the oldest has waited an hour" "$( rigBlock testing )" \
 	"block testing Retest_Queue 2/figure testing waiting Retests_Waiting 2 count - -/figure testing oldest-age Oldest_Retest_Age 3600 seconds - -/"
+
+rigModeFile="$( cat "$rigWs/.local/.agents/magic-team.agent.env" )"
+printf 'MDAT_WORKSPACE_MODE=team-rig\n' > "$rigWs/.local/.agents/magic-team.agent.env"
+rigRun "$rigRead" loop
+rigAssert "a team rig whose team data has no git remote shows its loop plain: no figure of it is judged" "$( rigBlock loop )" \
+	"block loop Main_Loop_And_Heartbeat 6/figure loop main-loop-outcome Main_Loop_Last_Outcome ok - - -/figure loop main-loop-age Main_Loop_Last_Iteration 60 seconds - -/figure loop main-loop-failures Main_Loop_Consecutive_Failures 0 count - -/figure loop heartbeat-state Heartbeat_State heartbeat-running - - -/figure loop heartbeat-age Heartbeat_Last_Iteration 3600 seconds - -/figure loop heartbeat-running Heartbeat_Running yes - - -/"
+for rigOne in just-agents rig-client ; do
+	printf 'MDAT_WORKSPACE_MODE=%s\nTEAM_DATA_GIT_REMOTE=git@rig.invalid:team-data.git\n' "$rigOne" > "$rigWs/.local/.agents/magic-team.agent.env"
+	rigRun "$rigRead" loop team-data
+	rigAssert "a workspace in the mode $rigOne has no main loop: no loop block, though its team data is there" "$rigRc $( rigBlocks )" "0 team-data"
+done
+printf '%s\n' "$rigModeFile" > "$rigWs/.local/.agents/magic-team.agent.env"
 
 echo "-- 2. the names --"
 rigRun "$rigRead" disk sessions machine

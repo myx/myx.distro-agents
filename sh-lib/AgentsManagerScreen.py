@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import codecs
 import unicodedata
 
 try:
@@ -136,10 +137,57 @@ SECTIONS = (
     ("sessions", "Sessions (Activity)"),
     ("pending", "Pending Questions"),
     ("team", "Team Members"),
+    ("teamdata", "Team Data"),
     ("places", "Locations (Places)"),
     ("consoles", "Consoles (Tools)"),
     ("settings", "Settings"),
     ("configuration", "Configuration"),
+)
+## The roots that stand in the list only where what they show is there: by the id of the
+## root, the function that says so from what was read ("shown"), and why its item of the
+## `Go` menu does nothing where it is not ("says"). Where one is not there the roots after
+## it take its number (goKeys), and it has none.
+SECTIONS_WHEN = {
+    "teamdata": {"shown": "teamDataHere", "says": "no team data is configured for this workspace"},
+}
+## The roots that stand in the list now, in its order: those SECTIONS_WHEN does not name,
+## until a turn of the screen has said which of the others are there too (noteRoots).
+SECTIONS_NOW = [sectionId for sectionId, sectionLabel in SECTIONS if sectionId not in SECTIONS_WHEN]
+## What the root `Team Data` shows, from two reads that give it: the blocks of the
+## dashboard it holds as rows of its own, read with the dashboard ("blocks", in the level
+## "level"); the block and the figure that say that its team data is there ("present",
+## with that value), and the figure of its root; the prefix of the figures that count the
+## items of the board by state ("board"); and the lines of the digest of the settings it
+## shows, each by its subject, its group (None: any) and its key: the mode of the
+## workspace, whether it is a full team rig, the remote and the branch of the team data.
+## "teamRig": the mode in which the team data is maintained here, the one mode a cleanup
+## that needs a rig is offered in (CLEANUPS).
+TEAM_DATA = {
+    "level": "teamdata",
+    "blocks": ("team-data", "loop"),
+    "present": ("team-data", "present", "yes"),
+    "root": "root",
+    "board": "board-",
+    "mode": ("workspace", "mode", "MDAT_WORKSPACE_MODE"),
+    "full": ("workspace", "mode", "full-team-rig"),
+    "remote": ("scopes", None, "TEAM_DATA_GIT_REMOTE"),
+    "branch": ("scopes", None, "TEAM_DATA_BRANCH"),
+    "teamRig": "team-rig",
+}
+## The cleanup operations of the tooling that `Team Data` holds under `Cleanup`, in their
+## order, each by its id: "label", what it shows as; "operation", the operation exactly as
+## it is called, with its words, never another made for the screen; "does", what it does,
+## as its help says it; "needs": "rig" where it is offered only in the mode of TEAM_DATA
+## "teamRig", None where it runs anywhere. Each runs in the big output dialog (DIALOGS
+## "output"), which follows what it writes. The trash of the board and of an inbox name
+## an item, and the sweeps read and store a member's state: no such one is here.
+CLEANUPS = (
+    ("purge", {"label": "Purge The Cleanup Folder", "operation": ["--owner-cleanup-purge"],
+               "does": "Empties the cleanup folder of this workspace, .local/.cleanup, where the tooling puts what is to be removed; the folder itself stays. It takes no arguments.",
+               "needs": None}),
+    ("final-gc", {"label": "Delete Expired Team Data", "operation": ["--intern-team-data-final-gc-deletion", "magic-coordinator"],
+                  "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the heartbeat runs, as magic-coordinator.",
+                  "needs": "rig"}),
 )
 ROOT_TITLE = "/"
 ROW_UP = ".."
@@ -149,6 +197,8 @@ FIXED_ROWS = {
     "sessions": (("launch", "Launch / Spawn", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
     "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
+    "teamdata": (("cleanup", "Cleanup", "cleanup", True),),
+    "teamdata/cleanup": tuple((cleanupId, cleanup["label"], "cleanup", False) for cleanupId, cleanup in CLEANUPS),
 }
 ## What the left window shows of a folder, a row that opens a level of its own, while that
 ## row is selected, and while the row that goes up is selected inside it: the summary of
@@ -175,6 +225,8 @@ SUMMARIES = {
     "configuration/*": {"lines": "subjectSummary", "missingFirst": True},
     "configuration/checker": {"lines": "checksSummary"},
     "configuration/keys": {"lines": "serverKeysSummary"},
+    "teamdata": {"lines": "teamDataSummary"},
+    "teamdata/cleanup": {"lines": "cleanupsSummary"},
 }
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
@@ -195,6 +247,8 @@ SUMMARIES = {
 ## the period and when a read is asked for, only while it is the list shown (seldomNow). "peek": a list that
 ## is read also while its section is the row the root stands on, since the left window
 ## then shows that section from its rows (wantedReads).
+## "also": the reads made beside the list of a level, by their keys, while that level is
+## shown and while the folder that opens it has the focus, as a kind of their own.
 ## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
 ## because it was not read yet or its period has passed, and "said" is what the status
 ## line says of it then.
@@ -255,6 +309,12 @@ READS = {
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
+    ## The root `Team Data`: its blocks come with those of the dashboard (TEAM_DATA), and
+    ## the digest of the settings is read beside them ("also": read with the list of the
+    ## level, while it is shown and while its folder has the focus), for the mode of the
+    ## workspace and the remote of the team data. Its `Cleanup` reads the digest, for the mode.
+    "list:teamdata": {"from": "list:dashboard", "also": ("list:settings",)},
+    "list:teamdata/cleanup": {"from": "list:settings"},
     ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
     ## kind of its own, since a path inside one of them stands by its name in the other
     ## views (PLACED): once when the screen starts; again, on the period and when a read is
@@ -567,15 +627,19 @@ MENUS = (
 ## "enters": Enter on a row it acts on enters that row, so the row is drawn as a folder is,
 ## as a row that dives into a level of its own is (rowEnters).
 ## The number keys that take the list to a level: the roots have theirs by the order of
-## the root list (SECTIONS), the first root 1, and are so given again whenever a root is
-## added or moved; the levels GO_MORE names, under a root, have the numbers after the
+## the root list as it is shown (SECTIONS, SECTIONS_NOW), the first root 1, and are so
+## given again whenever a root is added, moved, or comes and goes, so a root that is not
+## there leaves no gap and has none (commandKeys asks at every lookup); the levels GO_MORE names, under a root, have the numbers after the
 ## last root, in its order. With each number, Alt with it. Nine numbers there are: what
 ## stands after the ninth has none, and is reached by its menu.
 GO_MORE = (("sessions", "launch"),)
 
 
 def goKeys(path):
-    number = ([(sectionId,) for sectionId, sectionLabel in SECTIONS] + list(GO_MORE)).index(tuple(path)) + 1
+    shown = [(sectionId,) for sectionId in SECTIONS_NOW] + list(GO_MORE)
+    if tuple(path) not in shown:
+        return ()
+    number = shown.index(tuple(path)) + 1
     return (str(number), "ALT-%d" % number) if number <= 9 else ()
 
 
@@ -607,6 +671,8 @@ COMMANDS = (
      "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
     {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
      "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
+    {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~c~leanup", "status": "Run",
+     "views": ("teamdata/cleanup",), "for": "a cleanup", "on": ("teamdata/cleanup:cleanup",), "only": True, "says": "run", "does": ("action", "cleanup")},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -657,6 +723,8 @@ COMMANDS = (
      "does": ("go", ("pending",))},
     {"name": "team", "keys": goKeys(("team",)), "menu": ("go", 1), "label": "~T~eam Members",
      "does": ("go", ("team",))},
+    {"name": "teamdata", "keys": goKeys(("teamdata",)), "menu": ("go", 1), "label": "Tea~m~ Data",
+     "does": ("go", ("teamdata",))},
     {"name": "places", "keys": goKeys(("places",)), "menu": ("go", 1), "label": "Loc~a~tions (Places)",
      "does": ("go", ("places",))},
     {"name": "consoles", "keys": goKeys(("consoles",)), "menu": ("go", 1), "label": "Co~n~soles (Tools)",
@@ -698,6 +766,7 @@ REFUSALS = {
     "mode": "%s: what is selected has no log",
     "up": "%s: this is the top level",
     "open": "%s: this row has nothing to open",
+    "absent": "%s: %s",
     "wrapped": "%s: the lines are wrapped, none is cut",
 }
 
@@ -817,6 +886,20 @@ DIALOGS = {
     "keyline": {"title": "Public key", "reads": ("full:{kind}",),
                 "controls": ({"name": "text", "kind": "text"},),
                 "buttons": (("ok", "OK"),)},
+    ## the confirmation of a cleanup of `Team Data`: what will run, and that it runs at once
+    "cleanup": {"title": "Run", "feeds": "cleanup",
+                "controls": ({"name": "about", "kind": "text"},),
+                "buttons": (("run", "Run"), ("cancel", "Cancel"))},
+    ## the big dialog that runs an operation and follows what it writes, both its streams
+    ## in the order they came, to the end unless it is scrolled up ("follow": its lines are
+    ## the end of the text while nothing scrolled them, "raw": each line as it was written);
+    ## then the result in a line of its own. "big": it takes most of the screen, and its
+    ## first text the room the rest leaves. The one way for any command whose output is to
+    ## be watched (runFollowed); its buttons are its handler's while it runs (OUTPUT_SAYS).
+    "output": {"title": "Output", "big": True,
+               "controls": ({"name": "output", "kind": "text", "raw": True, "follow": True},
+                            {"name": "result", "kind": "text"}),
+               "buttons": (("stop", "Stop"),)},
     ## a setting that offers choices: what it is now, and its choices, one of them chosen
     "setting": {"title": "Setting", "feeds": "setting", "first": "choice",
                 "controls": ({"name": "about", "kind": "text"},
@@ -844,6 +927,9 @@ DIALOG_HANDLERS = {}
 ## What fills a dialog from what was read, while it is open: fill(state, dialog), called at
 ## every turn of the screen. Set where each is defined.
 DIALOG_FILLS = {}
+## What Esc does in a dialog where it does more than close it: escape(state, dialog) gives
+## True where it did what Esc does there, and the dialog stays. Set where each is defined.
+DIALOG_ESCAPES = {}
 ## The width a dialog takes at most, and how many lines of a list of options and of a
 ## field of several lines it shows, where the terminal has them.
 DIALOG_COLUMNS = 78
@@ -885,6 +971,8 @@ ACTION_HANDLERS = {
     "run": None,
     ## the whole public line of the selected key of the server, in a box: askKeyLine, set where it is defined
     "line": None,
+    ## Enter on a cleanup of `Team Data`: asked first, then run in the big output dialog: askCleanup, set where it is defined
+    "cleanup": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
@@ -967,6 +1055,9 @@ class ManagerState:
         ## what was asked to be started with the whole terminal, and is at the end of the
         ## turn of its key: {"label", "said", "words", "directory"} (askRun, runChild)
         self.child = None
+        ## the operation the big output dialog runs and follows, from its start to its end:
+        ## {"key", "label", "words", "started", "stop", "rest"} (runFollowed, followResult)
+        self.follow = None
         ## the locations as the rule of the locations last took them from their rows: those
         ## rows, the key of each path, and the pattern that finds one in a text (placesKnown)
         self.placed = None
@@ -1257,7 +1348,7 @@ def rowKey(row):
 ## come the rows the level always holds, then the rows its operation gave.
 def levelRowsAt(state, path):
     if not path:
-        return [newRow(sectionId, sectionLabel, "section", True) for sectionId, sectionLabel in SECTIONS]
+        return [newRow(sectionId, sectionLabel, "section", True) for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
     rows = [newRow(ROW_UP, ROW_UP, "up")]
     for rowId, label, kind, dive in FIXED_ROWS.get(levelPattern(path), ()):
         rows.append(newRow(rowId, label, kind, dive))
@@ -1300,7 +1391,9 @@ def parseLevels(readKey, form, text):
     if form == "keys":
         return {level: parseKeyRows(text)}
     if form == "blocks":
-        return {level: parseBlockRows(text)}
+        ## the blocks the root `Team Data` holds come with the same read (TEAM_DATA)
+        rows = parseBlockRows(text)
+        return {level: rows, TEAM_DATA["level"]: [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]}
     if form == "places":
         return {level: parsePlaceRows(text)}
     return {level: parseRows(readKey, text)}
@@ -1574,8 +1667,10 @@ def localView(state, row):
         return keyGroupLines(state, state.path, [row["keyGroup"]], state.viewWidth)
     if level == "consoles" and row.get("start"):
         return startLines(row["start"], state.viewWidth)
-    if level == "dashboard" and row.get("block"):
+    if level in ("dashboard", TEAM_DATA["level"]) and row.get("block"):
         return blocksView(state, row["id"])
+    if level == TEAM_DATA["level"] + "/cleanup" and row["kind"] == "cleanup":
+        return cleanupLines(state, row)
     if level == "places" and row.get("place"):
         return placeLines(state, row["place"], state.viewWidth, state.view["info"])
     return None
@@ -2737,7 +2832,9 @@ def dialogKey(state, key):
     what, index, control = dialogFocus(dialog)
     stops = dialogStops(dialog)
     if key == "ESC":
-        closeDialog(state)
+        escape = DIALOG_ESCAPES.get(dialog["name"])
+        if escape is None or not escape(state, dialog):
+            closeDialog(state)
     elif key in ("TAB", "BACKTAB"):
         dialog["focus"] = (dialog["focus"] + (1 if key == "TAB" else -1)) % len(stops)
     elif key == "ENTER" and what == "area":
@@ -2774,6 +2871,7 @@ def dialogKey(state, key):
             if held["kind"] == "text":
                 ## its end is held where it is drawn, which knows how many lines it shows
                 held["top"] = max(0, held["top"] + step)
+                textFollows(held)
                 break
 
 
@@ -2794,7 +2892,7 @@ def dialogStatus(dialog):
         items.append(("Tab", "Next"))
     if (dialog["plan"] or {}).get("long"):
         items.append(("Up/Down" if what in ("input", "area", "button") else "PgUp/PgDn", "Scroll"))
-    items.append(("Esc", "Cancel" if "cancel" in [button[0] for button in dialog["buttons"]] else "Close"))
+    items.append(("Esc", dialog["about"].get("esc") or ("Cancel" if "cancel" in [button[0] for button in dialog["buttons"]] else "Close")))
     return items
 
 
@@ -2802,6 +2900,14 @@ def dialogStatus(dialog):
 ## words, one that begins with a space is set out already and is broken only where it is
 ## full, and pairs that follow one another are set out as facts, their names in a column.
 def dialogTextLines(control, width):
+    if control.get("raw"):
+        ## what an operation wrote: each line as it was, broken only where it is full; set
+        ## out again only when lines have come or the width has changed
+        kept = control.get("wrapped")
+        if kept is None or kept[0] != (len(control["lines"]), width):
+            kept = ((len(control["lines"]), width), [part for line in control["lines"] for part in areaLines(line, width)])
+            control["wrapped"] = kept
+        return kept[1]
     lines = []
     pairs = []
     for paragraph in list(control["lines"]) + [None]:
@@ -2855,6 +2961,9 @@ def dialogPlan(dialog, columns, lines):
         for optionId, label in control["options"]:
             wanted = max(wanted, textWidth(label) + 4)
     width = min(columns - 4, max(40, min(wanted + 4, DIALOG_COLUMNS)))
+    big = DIALOGS.get(dialog["name"], {}).get("big")
+    if big:
+        width = columns - 4
     inner = width - 4
     room = lines - 4
     parts = []
@@ -2864,6 +2973,9 @@ def dialogPlan(dialog, columns, lines):
         height = 1 if kind == "input" else DIALOG_AREA if kind == "area" else max(1, holds) if kind == "text" else max(1, min(holds, DIALOG_OPTIONS))
         parts.append({"index": index, "kind": kind, "label": 1 if control.get("label") else 0, "height": height, "holds": holds})
     says = wrapToCells(dialog["says"], inner)[:2] if dialog["says"] else []
+    if big:
+        ## the big dialog: its first text takes the room the rest of it leaves
+        parts[0]["height"] = max(1, room - sum(part["label"] + part["height"] for part in parts[1:]) - parts[0]["label"] - len(parts) - len(says) - 1)
     gap = 1
     over = sum(part["label"] + part["height"] for part in parts) + gap * len(parts) + len(says) + 1 - room
     for kinds in (("text",), ("checks", "radios", "list"), ("area",)):
@@ -2944,7 +3056,7 @@ def drawDialog(surface, state, columns, lines):
                 surface.cursor(part["line"] + len(held) - 1, column + textWidth(held[-1]))
             continue
         if kind == "text":
-            held = [(line, BOX) for line in dialogTextLines(control, inner)]
+            held = [(line, control.get("look", BOX)) for line in dialogTextLines(control, inner)]
         else:
             if control["at"] < control["top"]:
                 control["top"] = control["at"]
@@ -2961,7 +3073,10 @@ def drawDialog(surface, state, columns, lines):
                 held.append((mark + label, BOX_ON if on and position == control["at"] else BOX_FIELD if kind == "list" else BOX))
             if not held:
                 held.append((control.get("empty", ""), BOX))
+        if control.get("follow") and control.get("following", True):
+            control["top"] = len(held) - rows
         control["top"] = max(0, min(control["top"], len(held) - rows))
+        control["bottom"] = max(0, len(held) - rows)
         for offset in range(rows):
             if control["top"] + offset < len(held):
                 text, look = held[control["top"] + offset]
@@ -5228,6 +5343,295 @@ def dashboardSummary(state, path, row, form):
     return blocksView(state)
 
 
+## ---- the team data: `Team Data`, its cleanup, and the big output dialog ----
+
+## Whether a root stands in the list now (SECTIONS_WHEN).
+def sectionShown(state, sectionId):
+    when = SECTIONS_WHEN.get(sectionId)
+    return when is None or bool(globals()[when["shown"]](state))
+
+
+## Which roots stand in the list now, for the number keys (SECTIONS_NOW, goKeys): at every turn.
+def noteRoots(state):
+    SECTIONS_NOW[:] = [sectionId for sectionId, sectionLabel in SECTIONS if sectionShown(state, sectionId)]
+
+
+## The figures of a block of `Team Data` by their keys, as the dashboard last gave them.
+def teamDataFigures(state, blockId):
+    for row in state.rows.get(TEAM_DATA["level"], ()):
+        if row["id"] == blockId and row.get("block"):
+            return [(figure["key"], figure) for figure in row["block"]["figures"]]
+    return None
+
+
+## Team data is configured for this workspace: its root is set and is there, as the read
+## of the dashboard says.
+def teamDataHere(state):
+    blockId, figureKey, value = TEAM_DATA["present"]
+    return any(key == figureKey and figure["value"] == value for key, figure in teamDataFigures(state, blockId) or ())
+
+
+## A line of the digest of the settings, as it was last read: by its subject, its group
+## (None: any) and its key. None where it was not read, or holds no such line.
+def digestLineOf(state, subject, group, key):
+    for root in ("configuration", "settings"):
+        for row in state.rows.get(root + "/" + subject, ()):
+            line = row.get("line")
+            if line and line["key"] == key and group in (None, line["group"]):
+                return line
+    return None
+
+
+## The mode of the workspace, as what it shows as and where it comes from; None where the
+## digest was not read.
+def modeShown(state):
+    line = digestLineOf(state, *TEAM_DATA["mode"])
+    if line is None:
+        return None
+    label = dict(line["choices"]).get(line["value"]) or line["value"]
+    return label, SOURCE_WORDS.get(line["source"], line["source"])
+
+
+## A figure for the eye: its value short by its unit, and the level of a figure that has
+## one beyond the first, in words.
+def figureShown(figure):
+    order = [name for name, level in DASHBOARD["levels"]]
+    worse = figure["level"] in order and order.index(figure["level"]) > 0
+    return figureValue(figure) + ("  (%s)" % figure["level"] if worse else "")
+
+
+## The summary of `Team Data`: where its root is, whether it is there and its size; the
+## mode of the workspace and whether it is a full team rig; the remote of the team data
+## and its branch; its board, the items by state; and the main loop, where the workspace
+## has one, figure by figure. From the blocks the dashboard gave and the digest of the
+## settings, each where it was read. Whether the team data is a repository no read here
+## says, so it is not said.
+def teamDataSummary(state, path, row, form):
+    data = teamDataFigures(state, TEAM_DATA["blocks"][0])
+    if data is None:
+        return None
+    figures = dict(data)
+    root = figures.get(TEAM_DATA["root"])
+    lines = ["Team data, %s:" % ("there" if teamDataHere(state) else "not there"), "  " + (root["value"] if root else "no root is configured")]
+    lines.extend("  %s: %s" % (unspaced(figure["label"]), figureShown(figure)) for key, figure in data
+                 if key != TEAM_DATA["root"] and not key.startswith(TEAM_DATA["board"]))
+    mode = modeShown(state)
+    full = digestLineOf(state, *TEAM_DATA["full"])
+    remote = digestLineOf(state, *TEAM_DATA["remote"])
+    branch = digestLineOf(state, *TEAM_DATA["branch"])
+    lines.append("")
+    if mode is None:
+        lines.append("The mode of the workspace is being read.")
+    else:
+        full = full is not None and full["state"] == "set"
+        lines.extend(fieldLines([
+            ("mode", "%s, %s%s" % (mode[0], mode[1], "; a full team rig" if full else "")),
+            ("remote", remote["value"] if remote and remote["state"] == "set" else "none: no shared persistence is set"),
+            ("branch", branch["value"] if branch and branch["state"] == "set" else "not set: the tooling's own")], state.viewWidth))
+    board = [(key[len(TEAM_DATA["board"]):], figure) for key, figure in data if key.startswith(TEAM_DATA["board"])]
+    if board:
+        lines.append("")
+        lines.append("Its board, the items by state: %s." % ", ".join("%s %s" % (name, figureValue(figure)) for name, figure in board))
+    loop = teamDataFigures(state, TEAM_DATA["blocks"][1])
+    lines.append("")
+    if loop:
+        lines.append("The main loop and the heartbeat%s:" % ("" if full is True else ", plain: they are judged on a full team rig alone"))
+        lines.extend("  %s: %s" % (unspaced(figure["label"]), figureShown(figure)) for key, figure in loop)
+    else:
+        lines.append("No main loop here: a workspace has one in the mode %s alone." % TEAM_DATA["teamRig"])
+    lines.append("")
+    lines.append("Enter opens it: its blocks, and Cleanup.")
+    return lines
+
+
+## The cleanup a row of `Cleanup` is, or None.
+def cleanupOf(row):
+    return dict(CLEANUPS).get(row["id"]) if row is not None and row["kind"] == "cleanup" else None
+
+
+## Why a cleanup is not offered here, or nothing: one that needs a rig, in any mode of
+## the workspace but a team rig, by the label of that mode; and while the mode is read.
+def cleanupRefusal(state, row):
+    cleanup = cleanupOf(row)
+    if cleanup is None or cleanup["needs"] != "rig":
+        return ""
+    line = digestLineOf(state, *TEAM_DATA["mode"])
+    if line is None:
+        return "whether this workspace is a team rig is still being read"
+    if line["value"] != TEAM_DATA["teamRig"]:
+        return "for a team rig alone: this workspace is %s" % modeShown(state)[0]
+    return ""
+
+
+## What the left window shows of a cleanup: what it does, the operation it runs, and
+## whether it is offered here.
+def cleanupLines(state, row):
+    cleanup = cleanupOf(row)
+    refusal = cleanupRefusal(state, row)
+    lines = wrapToCells(cleanup["does"], max(10, state.viewWidth - 1)) + [""]
+    lines.extend(fieldLines([("runs", commandText(cleanup["operation"])),
+                             ("needs", "a team rig" if cleanup["needs"] == "rig" else "nothing more"),
+                             ("here", ("not offered: " + refusal) if refusal else "Enter asks, then runs it")], state.viewWidth))
+    return lines
+
+
+## The summary of `Cleanup`: how many there are and how many run here, then each.
+def cleanupsSummary(state, path, row, form):
+    rows = [newRow(cleanupId, cleanup["label"], "cleanup") for cleanupId, cleanup in CLEANUPS]
+    offered = [held for held in rows if not cleanupRefusal(state, held)]
+    lines = ["%d cleanups: %d run here." % (len(rows), len(offered))]
+    for held in rows:
+        refusal = cleanupRefusal(state, held)
+        lines.append("  %s: %s" % (held["label"], ("not here, " + refusal) if refusal else "runs here"))
+    lines.append("Each is asked first, then runs in a window that follows what it writes.")
+    return lines
+
+
+def askCleanup(state, row):
+    cleanup = cleanupOf(row)
+    if cleanup is None:
+        return ""
+    openDialog(state, "cleanup", {"about": {"lines": [
+        ("runs", row["label"]), ("operation", commandText(cleanup["operation"])), cleanup["does"],
+        "It runs at once and unattended, in a window that follows what it writes. Run starts it; Cancel and Esc do nothing."]}},
+        about={"id": row["id"], "label": row["label"]}, title="Run: %s" % row["label"])
+    return ""
+
+
+ACTION_HANDLERS["cleanup"] = askCleanup
+ACTION_FITS["cleanup"] = lambda state, row: cleanupOf(row) is not None and not cleanupRefusal(state, row)
+ACTION_REFUSALS["cleanup"] = cleanupRefusal
+
+
+def submitCleanup(state, dialog, button):
+    closeDialog(state)
+    runFollowed(state, dialog["about"]["label"], dict(CLEANUPS)[dialog["about"]["id"]]["operation"])
+    return None
+
+
+DIALOG_HANDLERS["cleanup"] = submitCleanup
+
+## What the big output dialog says in its line of what it refuses and in its line of the
+## result, and how many lines of what it followed it keeps, the last.
+OUTPUT_SAYS = {
+    "running": "It runs: Esc or Stop asks whether to stop it.",
+    "asking": "Stop it? Stop it sends it SIGTERM; Go on and Esc let it run.",
+    "stopping": "It was asked to stop: SIGTERM was sent to it.",
+    "goon": "It runs on.",
+    "status": "Ended with status %d, after %s.",
+    "signal": "Ended by signal %d%s, after %s.",
+    "unstarted": "It did not start: %s.",
+}
+OUTPUT_KEPT = 5000
+
+
+## The one way to run an operation in the big output dialog and follow it: its label, and
+## its words as the dispatcher takes them. The screen starts it at its next turn (startCalls).
+def runFollowed(state, label, words):
+    state.follow = {"key": "follow:" + label, "label": label, "words": list(words), "started": False, "stop": None, "rest": ""}
+    openDialog(state, "output", {"result": {"lines": [OUTPUT_SAYS["running"]]}}, about={"esc": "Stop"}, title=label)
+
+
+## The big output dialog, open or waiting to be.
+def outputDialog(state):
+    for dialog in [state.dialog] + state.waiting:
+        if dialog is not None and dialog["name"] == "output":
+            return dialog
+    return None
+
+
+## A line an operation wrote, for the eye: what a carriage return wrote over is gone, and so
+## are the sequences of a terminal and every other control character; a tab is spaces.
+def outputLine(text):
+    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", text.rpartition("\r")[2]).expandtabs(8)
+    return "".join(character for character in text if character >= " " or character == "\t")
+
+
+## A short span of seconds for the eye.
+def spanShown(seconds):
+    return "%.1fs" % seconds if seconds < 60 else shortSpan(str(int(seconds)))
+
+
+## What a followed operation wrote, taken into its dialog line by line, and at its end its
+## result, in the look of its level: 0 good, an end asked for by Stop a warning, any other
+## bad. Then the dialog has OK alone, and the status line says the same.
+def followResult(state, result):
+    follow = state.follow
+    dialog = outputDialog(state)
+    if follow is None or dialog is None or result["key"] != follow["key"]:
+        return
+    output = dialogControl(dialog, "output")
+    if "chunk" in result:
+        lines = (follow["rest"] + result["chunk"]).split("\n")
+        follow["rest"] = lines.pop()
+        output["lines"].extend(outputLine(line) for line in lines)
+        del output["lines"][:-OUTPUT_KEPT]
+        return
+    if follow["rest"]:
+        output["lines"].append(outputLine(follow["rest"]))
+    status = result["status"]
+    took = spanShown(result.get("seconds", 0.0))
+    if result["error"]:
+        said, look = OUTPUT_SAYS["unstarted"] % result["error"], LEVEL_BAD
+    elif status < 0:
+        try:
+            name = " (%s)" % signal.Signals(-status).name
+        except ValueError:
+            name = ""
+        said, look = OUTPUT_SAYS["signal"] % (-status, name, took), LEVEL_WARN if follow["stop"] else LEVEL_BAD
+    else:
+        said, look = OUTPUT_SAYS["status"] % (status, took), LEVEL_OK if status == 0 else LEVEL_BAD
+    shown = dialogControl(dialog, "result")
+    shown["lines"] = [said]
+    shown["look"] = look
+    dialog["buttons"] = [("ok", "OK")]
+    dialog["focus"] = 0
+    dialog["says"] = ""
+    dialog["about"].update(ended=True, asking=False, esc="Close")
+    state.follow = None
+    state.noticeOf = None
+    state.notice = "%s: %s" % (follow["label"], said)
+    readNow(state)
+
+
+## Stop is asked about first, in the dialog itself: its buttons are then Stop it and Go on.
+def askStop(dialog, asking):
+    dialog["about"].update(asking=asking, esc="Go on" if asking else "Stop")
+    dialog["buttons"] = [("stop", "Stop it"), ("goon", "Go on")] if asking else [("stop", "Stop")]
+    dialog["focus"] = 0
+    return OUTPUT_SAYS["asking"] if asking else OUTPUT_SAYS["goon"]
+
+
+def submitOutput(state, dialog, button):
+    if dialog["about"].get("ended") or state.follow is None:
+        return None
+    if button == "stop" and dialog["about"].get("asking"):
+        askStop(dialog, False)
+        state.follow["stop"] = "asked"
+        return OUTPUT_SAYS["stopping"]
+    return askStop(dialog, button == "stop")
+
+
+## Esc while it runs asks whether to stop it, and while that is asked lets it run on;
+## once it has ended Esc closes it.
+def escapeOutput(state, dialog):
+    if dialog["about"].get("ended") or state.follow is None:
+        return False
+    dialog["says"] = askStop(dialog, not dialog["about"].get("asking"))
+    return True
+
+
+DIALOG_HANDLERS["output"] = submitOutput
+DIALOG_ESCAPES["output"] = escapeOutput
+
+
+## A text that follows its end follows it again once it is scrolled down to the end, and
+## stops following where it is scrolled up (drawDialog holds where its end is).
+def textFollows(held):
+    if held.get("follow"):
+        held["following"] = held["top"] >= held.get("bottom", 0)
+
+
 ## ---- the locations: `Locations (Places)`, and a path by the name of its location ----
 
 ## The columns of the table of the locations after the mark of the one the console runs
@@ -5662,6 +6066,7 @@ def mouseEvent(state, what, column, line, layout):
             for held in dialog["controls"]:
                 if held["kind"] == "text":
                     held["top"] = max(0, held["top"] + step)
+                    textFollows(held)
                     break
             return
         hit = spotAt(state, column, line, ("button", "option", "field"))
@@ -5732,6 +6137,9 @@ def mouseEvent(state, what, column, line, layout):
 
 ## The keys of a command in the style of now: those its key map gives it, else its own.
 def commandKeys(command):
+    if command["does"][0] == "go" and command["name"] not in KEYMAPS.get(STYLE.get("keys"), {}):
+        ## a number follows the root list as it is shown now
+        return goKeys(command["does"][1])
     return KEYMAPS.get(STYLE.get("keys"), {}).get(command["name"], command["keys"])
 
 
@@ -5810,6 +6218,8 @@ def commandRefusal(state, command):
                 return ""
             words = ACTION_REFUSALS[does[1]](state, row) if does[1] in ACTION_REFUSALS else ""
             return "%s: %s" % (said, words) if words else REFUSALS["fits"] % said
+    if does[0] == "go" and not sectionShown(state, does[1][0]):
+        return REFUSALS["absent"] % (said, SECTIONS_WHEN[does[1][0]]["says"])
     if does[0] == "mode":
         ## a mode is of a thing that has a log: on any other the keys of the modes do nothing
         with shownLevel(state):
@@ -6075,6 +6485,8 @@ def wantedReads(state, focus=True):
     if shown:
         own = shown[0] == "list:" + levelKey(state.path)
         wanted.append((shown[1].get("kind", "list"), shown[0], readWords(shown[1], state, values, own)))
+        for also in (READS.get("list:" + pattern) or {}).get("also", ()):
+            wanted.append((READS[also].get("kind", "also"), also, readWords(READS[also], state, {})))
     elif not state.path:
         ## the list of the section the root stands on, where the left window shows that
         ## section from its rows ("peek"): read while it is selected, as while it is opened
@@ -6122,6 +6534,8 @@ def focusReads(state):
     wanted = [(opened[1].get("kind", "focus"), opened[0],
                readWords(opened[1], state, {"level": row["id"]}, opened[0] == "list:" + levelKey(path)))]
     pattern = levelPattern(path)
+    for also in (READS.get("list:" + pattern) or {}).get("also", ()):
+        wanted.append((READS[also].get("kind", "focus"), also, readWords(READS[also], state, {})))
     each = READS.get("each:" + pattern)
     for held in state.rows.get(levelKey(path), ()) if each else ():
         if held.get(each["needs"]):
@@ -6249,6 +6663,12 @@ def startCalls(state, reader):
     while state.calls and not reader.busy("action"):
         call = state.calls.pop(0)
         reader.start("action", call["key"], call["words"], call["input"])
+    ## the operation of the big output dialog: started once, and asked to stop where it was
+    follow = state.follow
+    if follow is not None and not follow["started"]:
+        follow["started"] = reader.follow("follow", follow["key"], follow["words"])
+    if follow is not None and follow["stop"] == "asked":
+        follow["stop"] = "sent" if reader.signal("follow", signal.SIGTERM) else None
 
 
 ## The line a failed call is shown by: its first line that says ERROR, else the first line
@@ -6281,6 +6701,9 @@ def applyResult(state, result):
     key = result["key"]
     if key.startswith("action:"):
         applyCall(state, result)
+        return
+    if key.startswith("follow:"):
+        followResult(state, result)
         return
     wantedNow = dict((wantedKey, words) for kind, wantedKey, words in wantedReads(state))
     if key.partition(":")[0] in VIEW_PARTS and key not in wantedNow:
@@ -6401,6 +6824,9 @@ class OperationReader:
         self.ended = []
         for kind in list(self.running):
             call = self.running[kind]
+            if "pipe" in call:
+                results.extend(self.followed(kind, call))
+                continue
             status = call["process"].poll()
             if status is None:
                 continue
@@ -6411,6 +6837,62 @@ class OperationReader:
                             "text": outputText, "said": errorText,
                             "error": firstErrorLine(errorText, outputText, status) if status != 0 else ""})
         return results
+
+    ## A call whose output is followed as it comes (the big output dialog): its standard
+    ## output and its standard error go into one pipe, so its lines keep the order they were
+    ## written in; at each turn what the pipe holds is taken, and the call is never waited
+    ## for. Cut off from the terminal's signals as every call is.
+    def follow(self, kind, key, words):
+        if kind in self.running:
+            return False
+        try:
+            process = subprocess.Popen(self.toolsCommand + list(words), stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+        except OSError as failure:
+            self.ended.append({"kind": kind, "key": key, "words": list(words), "status": 127, "text": "",
+                               "said": "", "error": "could not be started: %s" % failure, "seconds": 0.0})
+            return True
+        os.set_blocking(process.stdout.fileno(), False)
+        self.running[kind] = {"key": key, "words": list(words), "process": process, "pipe": process.stdout,
+                              "decoder": codecs.getincrementaldecoder("utf-8")("replace"), "since": time.time(),
+                              "output": process.stdout, "error": None}
+        return True
+
+    ## What a followed call wrote since the last turn, as a result with its "chunk"; and,
+    ## once it has ended, the rest it left in the pipe and a result with its status and how
+    ## long it ran. Its end is taken first, so what it wrote before it is all in the pipe.
+    def followed(self, kind, call):
+        status = call["process"].poll()
+        data = []
+        for turn in range(16):
+            try:
+                piece = os.read(call["pipe"].fileno(), 65536)
+            except BlockingIOError:
+                break
+            except OSError:
+                piece = b""
+            if not piece:
+                break
+            data.append(piece)
+        text = call["decoder"].decode(b"".join(data), final=status is not None)
+        results = [{"kind": kind, "key": call["key"], "words": call["words"], "chunk": text}] if text else []
+        if status is not None:
+            del self.running[kind]
+            call["pipe"].close()
+            results.append({"kind": kind, "key": call["key"], "words": call["words"], "status": status, "text": "",
+                            "said": "", "error": "", "seconds": time.time() - call["since"]})
+        return results
+
+    ## A signal to a followed call that runs, to its whole group: the stop of the big output dialog.
+    def signal(self, kind, number):
+        call = self.running.get(kind)
+        if call is None or "pipe" not in call:
+            return False
+        try:
+            os.killpg(call["process"].pid, number)
+        except OSError:
+            return False
+        return True
 
     def textOf(self, keptFile):
         keptFile.seek(0)
@@ -6430,8 +6912,9 @@ class OperationReader:
                     call["process"].kill()
                 except OSError:
                     pass
-            call["output"].close()
-            call["error"].close()
+            for kept in (call["output"], call["error"]):
+                if kept is not None:
+                    kept.close()
         self.running = {}
 
 
@@ -7040,7 +7523,7 @@ def drawMenu(surface, state, layout):
         state.menu = None
         return
     labelWidth = max(textWidth(hotText(command["label"])) for command in listed)
-    keyWidth = max(textWidth(keyShown(commandKeys(command)[0])) for command in listed)
+    keyWidth = max(textWidth(keyShown(commandKeys(command)[0])) if commandKeys(command) else 0 for command in listed)
     width = labelWidth + keyWidth + 6
     left = 3 + sum(textWidth(hotText(MENUS[index][1])) + 2 for index in menusShown(state) if index < menu["menu"])
     left = max(0, min(left, layout["columns"] - width - 2))
@@ -7063,7 +7546,7 @@ def drawMenu(surface, state, layout):
         ## the mode the left window is in is marked
         lead = MARKS["on"] if command["does"] == ("mode", state.viewMode) else " "
         column = putParts(surface, line, left + 1, hotParts(lead + command["label"], look, hotLook), width - 2)
-        keyText = keyShown(commandKeys(command)[0])
+        keyText = keyShown(commandKeys(command)[0]) if commandKeys(command) else ""
         surface.put(line, column, " " * (left + width - 2 - column - textWidth(keyText)) + keyText + " ", look)
         surface.put(line, left + width - 1, frame[3], BAR)
         surface.put(line, left + width, "  ", SHADOW)
@@ -7147,6 +7630,7 @@ def screenTurn(surface, state, reader, now, key):
     state.clock = time.strftime("%H:%M:%S", time.localtime(nowEpoch()))
     state.now = now
     state.reads = reader is not None
+    noteRoots(state)
     handleKey(state, key, layout)
     if key is not None:
         ## a key may have moved the split, or changed how the lines of the left window are set out

@@ -41,12 +41,26 @@ if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
 	exit 0
 fi
 
-## The Slack-backed twins reach a person only through the team bot. A workspace with
-## no team bot token configured has nowhere to send them, so the native tool is
-## allowed rather than refused toward a twin that cannot deliver.
+## The Slack-backed twins reach a person only over Slack, so they are pointed to only
+## where this workspace has Slack set up: the two settings the owner setup's `slack`
+## check requires (--owner-setup-slack: SLACK_CHANNEL_MAGIC_TEAM, SLACK_CHANNEL_HUMAN_OWNER)
+## and the team bot token the twins are sent through, each read as the settings reader
+## reads it, the last line of its key, by builtins alone. Anywhere else this hook makes
+## no decision on them: silence with a clean exit, and the client handles the call as it
+## would with no hook.
 case "$1" in
 AskUserQuestion|PushNotification)
-	grep -q '^SLACK_BOT_TOKEN=.' "${CLAUDE_PROJECT_DIR:-$PWD}/.local/.agents/magic-team.agent.env" 2>/dev/null || exit 0
+	hookSettings="${CLAUDE_PROJECT_DIR:-$PWD}/.local/.agents/magic-team.agent.env"
+	[ -f "$hookSettings" ] && [ -r "$hookSettings" ] || exit 0
+	hookTeam="" hookOwner="" hookBot=""
+	while IFS= read -r hookLine || [ -n "$hookLine" ] ; do
+		case "$hookLine" in
+			SLACK_CHANNEL_MAGIC_TEAM=*) hookTeam="${hookLine#*=}" ;;
+			SLACK_CHANNEL_HUMAN_OWNER=*) hookOwner="${hookLine#*=}" ;;
+			SLACK_BOT_TOKEN=*) hookBot="${hookLine#*=}" ;;
+		esac
+	done < "$hookSettings"
+	[ -n "$hookTeam" ] && [ -n "$hookOwner" ] && [ -n "$hookBot" ] || exit 0
 ;;
 esac
 

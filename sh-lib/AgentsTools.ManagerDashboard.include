@@ -481,16 +481,23 @@ AgentsToolsManagerDashboardTeamData(){
 ## of the main loop ended, how long ago, and after how many failures in a row; the state of
 ## the heartbeat, how long ago its last iteration was, and whether it runs, which it does
 ## while its lock is held. Nothing the tooling keeps says that a main loop runs now, so
-## that is no figure. Left out where no main loop left its state and no heartbeat its note.
+## that is no figure. Left out where no main loop left its state and no heartbeat its note,
+## and in every mode of the workspace but `team-rig`, where the digest says nothing of it.
+## Its figures are judged, `warn` and `bad`, only on a FULL TEAM RIG, whose team data has a git
+## remote, as the digest's reader of the mode says (AgentsToolsManagerConfigMode, which
+## asks whether one is set and keeps no text of it); elsewhere they are shown plain, `-`.
 AgentsToolsManagerDashboardLoop(){
-	local loopLines loopRow loopSubject loopGroup loopKey loopState loopValue loopRest loopLevel loopNote=""
+	local loopLines loopRow loopSubject loopGroup loopKey loopState loopValue loopRest loopLevel loopNote="" loopJudged=""
 	loopLines="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || :
+		printf 'mode\t%s\n' "$( AgentsToolsManagerConfigMode 2> /dev/null )"
 		AgentsToolsManagerConfigLoop 2> /dev/null )" || loopLines=""
 	while IFS=$'\t' read -r loopRow loopSubject loopGroup loopKey loopState loopValue loopRest ; do
+		[ "$loopRow" != "mode" ] || { [ "${loopSubject##* }" != "yes" ] || loopJudged="yes" ; continue ; }
 		[ "$loopRow" = "line" ] || continue
 		case "$loopGroup:$loopKey:$loopState" in
 			main-loop:MAIN_LOOP_LAST_OUTCOME:set)
 				case "$loopValue" in ok) loopLevel="ok" ;; failed|timed-out) loopLevel="bad" ;; *) loopLevel="-" ;; esac
+				[ -n "$loopJudged" ] || loopLevel="-"
 				AgentsToolsManagerDashboardFigure loop main-loop-outcome "Main Loop Last Outcome" "$loopValue" - "$loopLevel" ""
 			;;
 			main-loop:MAIN_LOOP_LAST_ITERATION_UTC:set)
@@ -500,6 +507,7 @@ AgentsToolsManagerDashboardLoop(){
 			main-loop:MAIN_LOOP_CONSECUTIVE_FAILURES:set)
 				case "$loopValue" in ''|*[!0123456789]*) continue ;; esac
 				loopLevel="ok" ; [ "$loopValue" = 0 ] || loopLevel="warn"
+				[ -n "$loopJudged" ] || loopLevel="-"
 				AgentsToolsManagerDashboardFigure loop main-loop-failures "Main Loop Consecutive Failures" "$loopValue" count "$loopLevel" ""
 			;;
 			heartbeat:state-note:set) loopNote="yes" ;;

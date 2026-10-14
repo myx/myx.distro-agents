@@ -2856,6 +2856,17 @@
 			place and a scope of an outside system by its name, after
 			`Registered Place` and `Scope`. A line that no row of the
 			declaration fits has the label `-`.
+			`Workspace Paths` holds the mode of the workspace too,
+			`MDAT_WORKSPACE_MODE`, a line of the configuration:
+			`just-agents` (inline work and native consoles of this
+			computer, no documents), `rig-client` (it will dispatch
+			to a remote rig; not built yet, it acts as `just-agents`) or
+			`team-rig` (a rig itself: the team data is used and maintained
+			here), as the installer of the workspace set it in the
+			settings of the team, and `just-agents` where nothing sets it;
+			and `full-team-rig`, `set yes` on a team rig whose team data
+			has a git remote. `Main Loop And Heartbeat` is printed in the
+			mode `team-rig` alone.
 			With `--full`, given ahead of every name, each `line` row has
 			eight more fields at its end, and ahead of the lines of each
 			group of a subject stands one row of the group, which counts
@@ -2892,7 +2903,7 @@
 			other key is a secret when its name holds the word TOKEN, KEY,
 			SECRET, PASSWORD or COOKIE, and is no secret only when the
 			last word of its name is a plain kind: ALIAS, CONVERSATIONS,
-			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, NAME, PORT, SECONDS,
+			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, MODE, NAME, PORT, SECONDS,
 			SECURITY, SITE, TIER, USER, USERNAME or WORKSPACE. A key of no
 			known kind is a secret. A value that carries a password inside
 			a URL is a secret whatever its key.
@@ -3144,7 +3155,10 @@
 			how long ago, and after how many failures in a row; the
 			state of the heartbeat, how long ago its last iteration was,
 			and whether it runs. Nothing the tooling keeps says that a
-			main loop runs now, so that is no figure.
+			main loop runs now, so that is no figure. Printed in the
+			mode `team-rig` of the workspace alone, and judged only on a
+			full team rig, whose team data has a git remote: elsewhere
+			every level of it is `-` (see `--manager-config-digest`).
 			`machine`, The Machine: the three load averages, each with a
 			level and a share by what it is of the processors, `warn`
 			from one runnable process a processor and `bad` from two;

@@ -14,6 +14,9 @@
 ##   sleep <n>     waits that many seconds first, then as rows
 ##   fail          writes a line that is no error and one error line to standard error, and ends with status 1
 ##   fail-rows     as rows, then one error line to standard error, and ends with status 1
+##   script <file> becomes the bash script $MANAGER_SCREEN_RIG/<file> (exec): what it writes, on either
+##                 stream and when, how it ends, by a status or by a signal, are the script's own; such a
+##                 start appends nothing to $MANAGER_SCREEN_RIG/ended
 ## Two operations the screen calls of its own accord, whatever a test is about, the list of the
 ## locations at every start (`--manager-place-list`) and the blocks of the dashboard while the root
 ## stands on its first row (`--manager-dashboard-read`): a start of either is noted like any other,
@@ -39,6 +42,9 @@ rigMode="$( cat "$MANAGER_SCREEN_RIG/mode.$rigStart" 2> /dev/null || cat "$MANAG
 case "$rigMode" in
 	sleep\ *)
 		sleep "${rigMode#sleep }"
+	;;
+	script\ *)
+		exec bash "$MANAGER_SCREEN_RIG/${rigMode#script }"
 	;;
 	fail)
 		echo "rig-tools: a line that is no error" >&2

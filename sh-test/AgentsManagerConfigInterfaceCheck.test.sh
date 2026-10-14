@@ -108,7 +108,7 @@ rigAssert "reading made nothing: the user has no settings file and no folder, an
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=mc" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
 rigRun "$rigRead"
-rigAssert "in the whole digest it stands after the scopes, with the same rows" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems loop scopes interface console control / $( cksum < "$rigTmp/alone" )"
+rigAssert "in the whole digest it stands after the scopes, with the same rows (the rig is no team rig: no main loop stands ahead of them)" "$rigRc $( LC_ALL=C awk -F'\t' '$1 == "subject" { printf "%s ", $2 }' "$rigTmp/out" )/ $( LC_ALL=C awk -F'\t' '$2 == "interface"' "$rigTmp/out" | cksum )" "0 workspace cli systems scopes interface console control / $( cksum < "$rigTmp/alone" )"
 rigAssert "every other line of the digest has the six fields it had, and its label" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 != "interface" { rows++ ; if ( NF != 7 ) bad++ ; } END { printf "%s:%s", ( rows > 0 ? "rows" : "none" ), bad + 0 }' "$rigTmp/out" )" "rows:0"
 
 echo "-- 2. the environment names a style --"
