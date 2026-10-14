@@ -144,11 +144,13 @@ case "$1" in
 			return 0
 		fi
 
-		## The push and its one network retry are AgentsToolsItemUpsert's.
+		## The push and its one network retry are AgentsToolsItemUpsert's; the way to the
+		## remote is the one every call takes, bounded (AgentsToolsTeamDataRemote).
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 		local pushAttempt=1 pushOut="" pushRc=0
 		while : ; do
 			set +e
-			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+			pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )"
 			pushRc=$?
 			set -e
 			[ "$pushRc" -eq 0 ] && break
@@ -173,7 +175,7 @@ case "$1" in
 		local headFull="" headBranch="" remoteHead=""
 		headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
 		headBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || headBranch=""
-		remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$headBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
+		remoteHead="$( AgentsToolsTeamDataRemote git -C "$repoRoot" ls-remote origin "refs/heads/$headBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
 		if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
 			echo "TEAM-DATA-NOT-PUSHED: the push reported success but origin's $headBranch reads back '${remoteHead:-<nothing>}', not $headFull"
 			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: committed $commitId, push not confirmed by read-back" >&2

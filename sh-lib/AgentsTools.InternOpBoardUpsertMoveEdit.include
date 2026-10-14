@@ -33,8 +33,10 @@ case "$1" in
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: syntax is <to-state> <item-filename> (--from-state:<state>|--create [--acting-member:<member>]) [--header:<upsert|append|remove>:name[:value]]... [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]" >&2
 			set +e ; return 1
 		fi
-		case "$toState" in
-			backlog|pending|running|review|blocked|parked|processed|archived|retained)
+		## A state is a word of the one list (AgentsTools.BoardStates.include), and nothing else.
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BoardStates.include"
+		case "${toState//[[:space:]]/?}: $agentsBoardStates " in
+			"$toState:"*" $toState "*)
 			;;
 			*)
 				echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: invalid to-state: $toState" >&2
@@ -60,8 +62,8 @@ case "$1" in
 			case "$1" in
 				--from-state:*)
 					fromState="${1#--from-state:}"
-					case "$fromState" in
-						backlog|pending|running|review|blocked|parked|processed|archived|retained)
+					case "${fromState//[[:space:]]/?}: $agentsBoardStates " in
+						"$fromState:"*" $fromState "*)
 						;;
 						*)
 							echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: --from-state: invalid state: $fromState" >&2
@@ -204,6 +206,9 @@ case "$1" in
 		esac
 
 		local targetDir="$boardRoot/$toState"
+		## Every write of the board goes through here, so this is where the board is made
+		## ready: a state folder that is not there yet is made, never a reason to refuse.
+		AgentsToolsBoardReady || { set +e ; return 1 ; }
 		if [ ! -d "$targetDir" ] ; then
 			echo "$MDSC_CMD: board-upsert-move-edit: ⛔ ERROR: no such board state directory: $targetDir" >&2
 			set +e ; return 1

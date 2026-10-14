@@ -366,12 +366,15 @@ rigGroupLine(){ ## subject, group, key, state, value, label -- a line of the con
 }
 {
 	rigRow subject cli 8 CLI_Services
+	rigRow group cli workspace 1 Workspace_Defaults
 	rigGroupLine cli workspace SPAWN_CLI_SERVICE set claude Spawn_CLI_Service
+	rigRow group cli claude 3 claude
 	rigGroupLine cli claude present set /rig/claude CLI_Present
 	rigGroupLine cli claude usable set yes CLI_Usable
 	rigGroupLine cli claude RIG_CLI_KEY secret-set sk-never-shown CLI_Key
 	rigGroupLine cli grok present set /rig/grok CLI_Present
 	rigGroupLine cli grok usable missing no CLI_Usable
+	rigRow group cli copilot 2 -
 	rigGroupLine cli copilot present set /rig/copilot CLI_Present
 	rigGroupLine cli copilot usable set yes CLI_Usable
 	rigRow subject loop 2 Loop_State
@@ -396,7 +399,10 @@ cells r7 9 85 119
 cells r8 10 85 119
 cells r9 11 85 119
 cells r10 12 85 119
-keys DOWN DOWN DOWN
+keys DOWN DOWN
+turn
+border wtitle 1 0 84
+keys DOWN
 turn
 get head
 show hc
@@ -417,7 +423,8 @@ RIGSCRIPT
 rigTrim(){ ## name -- the cells of that name without the spaces at their end
 	rigVal "$1" | LC_ALL=C sed -e 's/  *$//'
 }
-rigAssert "a subject with three groups of lines of one name: a heading for each group, by its word as it comes, and each line under its own, set in by two" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigTrim r1 )][$( rigTrim r2 )][$( rigTrim r3 )][$( rigTrim r4 )][$( rigTrim r5 )][$( rigTrim r6 )][$( rigTrim r7 )][$( rigTrim r8 )][$( rigTrim r9 )][$( rigTrim r10 )]" "configuration/cli 13 [ workspace][   Spawn CLI Service][ claude][   CLI Present][   CLI Usable][   CLI Key][ grok][   CLI Present][   CLI Usable][ copilot]"
+rigAssert "a subject with groups of lines of one name: a heading for each group, and each line under its own, set in by two" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigTrim r1 )][$( rigTrim r2 )][$( rigTrim r3 )][$( rigTrim r4 )][$( rigTrim r5 )][$( rigTrim r6 )][$( rigTrim r7 )][$( rigTrim r8 )][$( rigTrim r9 )][$( rigTrim r10 )]" "configuration/cli 13 [ Workspace Defaults][   Spawn CLI Service][ claude][   CLI Present][   CLI Usable][   CLI Key][ grok][   CLI Present][   CLI Usable][ copilot]"
+rigAssert "a heading is the label the row of its group gives, and a line under it is titled with that label; a group whose row gives none, and one that has no row, as a digest of before prints it, keep their own word" "[$( rigTrim r1 )] [$( rigVal wtitle )] [$( rigTrim r3 )] [$( rigTrim r7 )] [$( rigTrim r10 )]" "[ Workspace Defaults] [Workspace Defaults: Spawn CLI Service [wrap]] [ claude] [ grok] [ copilot]"
 rigAssert "a heading selected: the left window shows that group alone, its lines with what they read as, of a secret only its state" "[$( rigVal head.selected )] [$( rigPane hc 2 )][$( rigPane hc 3 )][$( rigPane hc 4 )][$( rigPane hc 6 )][$( rigPane hc 7 )][$( rigPane hc 8 )] $( rigScreenHolds hc sk-never-shown )" "[group claude] [ claude [wrap]][ claude][ 3 lines][     CLI Present  /rig/claude  (present)][     CLI Usable   yes  (usable)][     CLI Key      configured  (RIG_CLI_KEY)] 0"
 rigAssert "Enter on a heading does nothing: the status line says that the row has nothing to open" "[$( rigVal entered.path )] [$( rigVal entered.selected )] [$( rigVal entered.notice )] [$( rigVal entered.dialog )]" "[configuration/cli] [group claude] [Open: this row has nothing to open] []"
 rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u ' group     grok' ) $( rigPaneHolds u ' key       usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"

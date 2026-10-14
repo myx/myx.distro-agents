@@ -232,7 +232,8 @@ case "$1" in
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: the board already holds that name, refusing to overwrite it: $untrashTarget" >&2
 				set +e ; return 1
 			fi
-			mkdir -p "$MDAT_DATA_ROOT/board/$boardState" && mv "$untrashSource" "$untrashTarget" || {
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BoardStates.include"
+			AgentsToolsBoardReady && mkdir -p "$MDAT_DATA_ROOT/board/$boardState" && mv "$untrashSource" "$untrashTarget" || {
 				echo "$MDSC_CMD: board-trash: ⛔ ERROR: --untrash: could not move $untrashSource back to $untrashTarget" >&2
 				set +e ; return 1
 			}

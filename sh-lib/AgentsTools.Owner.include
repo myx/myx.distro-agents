@@ -872,6 +872,10 @@ case "$1" in
 				DistroAgentsTools --intern-op-check-configs magic-team \
 					--optional "TEAM_DATA_GIT_REMOTE:<git-remote-url>" \
 					--context "--owner-setup-storage:$setupCtxTag" || true
+				## With a remote set: whether the store is a clone of it and a push has reached it,
+				## from the store's own config and what the tooling keeps of the remote. Nothing
+				## reaches the remote here, and a warning never fails the check.
+				( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataSyncVerdict "$setupOperation" ) || true
 				## A repository store needs an author for the commits the tooling makes.
 				if [ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] ; then
 					if [ -z "$( git -C "$MDAT_DATA_ROOT" config user.name 2>/dev/null )" ] || [ -z "$( git -C "$MDAT_DATA_ROOT" config user.email 2>/dev/null )" ] ; then

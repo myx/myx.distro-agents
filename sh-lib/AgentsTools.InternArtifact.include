@@ -144,14 +144,14 @@ AgentsToolsArtifactClaim(){
 			return 0
 		fi
 		claimRc=0
-		claimOut="$( LC_ALL=C git -C "$artRepo" push origin HEAD 2>&1 )" || claimRc=$?
+		claimOut="$( AgentsToolsTeamDataRemote git -C "$artRepo" push origin HEAD 2>&1 )" || claimRc=$?
 		if [ "$claimRc" = 0 ] ; then
 			AgentsToolsLocalLockGive "$artLock" ; artLock=""
 			return 0
 		fi
 		## Lost or unreachable, this claim leaves the checkout: only a moved origin is retried.
 		AgentsToolsArtifactClaimDrop "$claimSubject"
-		if ! LC_ALL=C git -C "$artRepo" fetch -q origin "$artBranch" > /dev/null 2>&1 \
+		if ! AgentsToolsTeamDataRemote git -C "$artRepo" fetch -q origin "$artBranch" > /dev/null 2>&1 \
 			|| git -C "$artRepo" merge-base --is-ancestor "refs/remotes/origin/$artBranch" HEAD 2>/dev/null ; then
 			echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be pushed, and origin was not seen to move, so the number is not secured. Nothing was published: $claimOut" >&2
 			break
@@ -161,7 +161,7 @@ AgentsToolsArtifactClaim(){
 			break
 		fi
 		claimSync="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
-			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$artRepo" "$artOrigin" "$artBranch" 2>&1 )" || {
+			AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$artRepo" "$artOrigin" "$artBranch" 2>&1 )" || {
 			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and the team data could not be resynced, so no number is secured. Nothing was published: $claimSync" >&2
 			break
 		}

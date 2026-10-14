@@ -433,9 +433,12 @@ AgentsToolsManagerDashboardSize(){ ## folder
 ## size, kept; and the items of its board by state, a folder of the board a state and a
 ## `.md` file of it an item, counted by the shell's own listing. NO git command is run: what
 ## only git knows of the team data, what is not committed and what is not pushed, is no
-## figure here.
+## figure here. Of its remote there is what the tooling itself keeps of it, where it has
+## reached for one ($MMDAPP/.local/agents/team-data-remote.state, AgentsToolsTeamDataRemoteNote
+## of AgentsTools.TeamDataCommit.include): whether it answered the last call, and how long
+## ago a push last succeeded and it last answered.
 AgentsToolsManagerDashboardTeamData(){
-	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" "
+	local dataRoot="${MDAT_DATA_ROOT:-}" dataState dataDir dataCounts="" dataCount dataLabel dataSeen=" " dataNote dataKey dataValue dataFail="" dataOk="" dataPush="" dataAnswer=""
 	[ -n "$dataRoot" ] || return 0
 	dataRoot="${dataRoot%/}"
 	AgentsToolsManagerDashboardFigure team-data root "Team Data Root" "$dataRoot" - - ""
@@ -446,6 +449,32 @@ AgentsToolsManagerDashboardTeamData(){
 	AgentsToolsManagerDashboardFigure team-data present "Team Data Present" yes - ok ""
 	AgentsToolsManagerDashboardSize "$dataRoot"
 	[ -z "$dashboardSize" ] || AgentsToolsManagerDashboardFigure team-data size "Team Data Size" "$dashboardSize" bytes - ""
+	dataNote="${MMDAPP:-}/.local/agents/team-data-remote.state"
+	if [ -n "${MMDAPP:-}" ] && [ -f "$dataNote" ] && [ -r "$dataNote" ] ; then
+		while IFS='=' read -r dataKey dataValue ; do
+			case "$dataKey" in
+				TEAM_DATA_REMOTE_LAST_FAILURE_EPOCH) dataFail="$dataValue" ;;
+				TEAM_DATA_REMOTE_LAST_ANSWER_EPOCH) dataOk="$dataValue" ;;
+				TEAM_DATA_REMOTE_LAST_ANSWER_UTC) dataAnswer="$dataValue" ;;
+				TEAM_DATA_REMOTE_LAST_PUSH_UTC) dataPush="$dataValue" ;;
+			esac
+		done < "$dataNote"
+		case "$dataFail" in ''|*[!0123456789]*) dataFail=0 ;; esac
+		case "$dataOk" in ''|*[!0123456789]*) dataOk=0 ;; esac
+		if [ "$dataFail" -gt "$dataOk" ] ; then
+			AgentsToolsManagerDashboardFigure team-data remote "Team Data Remote" "last call failed" - bad ""
+		elif [ ! -e "$dataRoot/.git" ] ; then
+			AgentsToolsManagerDashboardFigure team-data remote "Team Data Remote" "answers, store is no clone" - warn ""
+		elif [ -z "$dataPush" ] ; then
+			AgentsToolsManagerDashboardFigure team-data remote "Team Data Remote" "answers, no push yet" - warn ""
+		else
+			AgentsToolsManagerDashboardFigure team-data remote "Team Data Remote" "answers" - ok ""
+		fi
+		AgentsToolsManagerDashboardAge "$dataPush"
+		[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure team-data remote-push-age "Team Data Last Push" "$dashboardAge" seconds - ""
+		AgentsToolsManagerDashboardAge "$dataAnswer"
+		[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure team-data remote-answer-age "Team Data Remote Last Answer" "$dashboardAge" seconds - ""
+	fi
 	[ -d "$dataRoot/board" ] || return 0
 	for dataState in $agentsManagerDashboardBoardStates ; do
 		dataSeen="$dataSeen$dataState "

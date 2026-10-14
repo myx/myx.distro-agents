@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.BoardStates.include -- the states of the board, and the one function that
+## makes the board ready to be written. Sourced, never run. Functions only.
+##
+## THE BOARD is $MDAT_DATA_ROOT/board: a folder a state, and an item a `.md` file that
+## moves between them. git keeps no empty folder, so a clone of the team data has only the
+## states that hold an item, and a new store has none: a state folder that is not there is
+## an EMPTY STATE, never a fault. Whoever only reads the board takes it so and makes
+## nothing. Whoever writes it calls AgentsToolsBoardReady first.
+##
+
+## THE ONE LIST of the states a board item can be in. A state added here has its folder
+## made by AgentsToolsBoardReady with no further code.
+agentsBoardStates="backlog pending running review blocked parked processed archived retained"
+
+## Makes the board ready to be written: its folder, and the folder of every state of the
+## one list. Called by the one operation every board write goes through
+## (--intern-op-board-upsert-move-edit), by the writers that put a file into the board
+## themselves, and by the step that sets a workspace up (--owner-setup-storage --apply).
+## Makes folders only, never a file, so it adds nothing a commit of the team data would
+## carry. rc 1, saying which, where a folder cannot be made.
+AgentsToolsBoardReady(){
+	local readyState
+	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
+	for readyState in $agentsBoardStates ; do
+		[ -d "$MDAT_DATA_ROOT/board/$readyState" ] || mkdir -p "$MDAT_DATA_ROOT/board/$readyState" 2> /dev/null || {
+			echo "⛔ ERROR: ${MDSC_CMD:-DistroAgentsTools}: can't create board state directory: $MDAT_DATA_ROOT/board/$readyState" >&2
+			return 1
+		}
+	done
+	return 0
+}

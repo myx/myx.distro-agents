@@ -22,9 +22,11 @@ AgentsToolsAdvanceCloneSync(){
 		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
 		return 1
 	fi
+	## The way to the remote is the one every call takes, bounded (AgentsToolsTeamDataRemote).
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 	local syncRc=0
 	set +e
-	advanceSyncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+	advanceSyncOut="$( AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
 	return "$syncRc"
@@ -78,7 +80,7 @@ AgentsToolsAdvanceLockHeadCheck(){
 	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
 	## the resync having updated the remote-tracking ref.
 	set +e
-	fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+	fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
 	fetchRc=$?
 	set -e
 	if [ "$fetchRc" -ne 0 ] ; then
@@ -620,7 +622,7 @@ case "$1" in
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
 			local fetchOut="" fetchRc=0
 			set +e
-			fetchOut="$( git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+			fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
 			fetchRc=$?
 			set -e
 			if [ "$fetchRc" -ne 0 ] ; then
@@ -722,7 +724,7 @@ case "$1" in
 			local pushAttempt=1 pushOut="" pushRc=0
 			while : ; do
 				set +e
-				pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+				pushOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )"
 				pushRc=$?
 				set -e
 				[ "$pushRc" -eq 0 ] && break

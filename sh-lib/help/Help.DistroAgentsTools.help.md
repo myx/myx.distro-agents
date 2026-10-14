@@ -2484,10 +2484,16 @@
 			  A missing/empty store is cloned from
 			  TEAM_DATA_GIT_REMOTE before the first write; a failed
 			  clone is retried by the main loop. --apply makes the
-			  store a repository, cloned or initialised; content
-			  that isn't a clone of a set remote is left alone,
-			  with a warning. A repository with no author identity
-			  fails its check, naming both keys.
+			  store a repository, cloned or initialised; a folder
+			  with content is made a clone in place, no file of
+			  it changed, its own paths left uncommitted; a
+			  repository with another origin, or none, gets the
+			  remote as origin. --apply then reaches the remote
+			  once. With a remote set the check has
+			  TEAM_DATA_GIT_SYNC: WARN, with the reason, where the
+			  store is no clone of it, no push has succeeded yet,
+			  or the last call to it failed. A repository with no
+			  author identity fails its check, naming both keys.
 
 			Exit status is non-zero on a failed check, usable as a
 			readiness gate. A setting is judged by its value where

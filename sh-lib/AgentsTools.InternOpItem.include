@@ -599,10 +599,12 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		return 0
 	fi
 
+	## The way to the remote is the one every call takes, bounded (AgentsToolsTeamDataRemote).
+	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 	local pushAttempt=1 pushOut="" pushRc=0
 	while : ; do
 		set +e
-		pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )"
 		pushRc=$?
 		set -e
 		[ "$pushRc" -eq 0 ] && break
@@ -639,7 +641,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	set -e
 	localSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" )"
 	set +e
-	syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+	syncOut="$( AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
 	if [ "$syncRc" -ne 0 ] ; then
@@ -652,7 +654,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		else
 			rm -f "$target"
 		fi
-		syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+		syncOut="$( AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 		syncRc=$?
 		set -e
 		if [ "$syncRc" -ne 0 ] ; then
@@ -673,7 +675,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	## more; still not pushed, the commit is dropped and the lock kept.
 	if [ "$unlockLock" = "true" ] && [ "$pushRc" -ne 0 ] ; then
 		set +e
-		pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
+		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )"
 		pushRc=$?
 		set -e
 		if [ "$pushRc" -ne 0 ] ; then

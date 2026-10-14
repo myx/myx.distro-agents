@@ -4324,9 +4324,14 @@ def parseDigestLevels(readKey, text):
     labels = {}
     subjectFields = {}
     held = {}
+    ## what each group of a subject shows as, from its `group` row, which stands ahead of
+    ## its lines: `group <subject> <group> <lines> <label>`. A digest of before prints none
+    groupLabels = {}
     for printed in text.splitlines():
         fields = printed.split("\t")
-        if fields[0] == "subject" and len(fields) >= 3:
+        if fields[0] == "group" and len(fields) >= 5:
+            groupLabels[(fields[1], fields[2])] = unspaced(absent(fields[4]))
+        elif fields[0] == "subject" and len(fields) >= 3:
             labels[fields[1]] = unspaced(fields[-1]) if len(fields) >= 4 else ""
             subjectFields[fields[1]] = fields
         elif fields[0] == "line" and len(fields) > len(DIGEST_FIELDS) and fields[1] in labels:
@@ -4360,9 +4365,10 @@ def parseDigestLevels(readKey, text):
             levels[root + "/" + name].append(lineRow)
             held[(root, name)]["subject"]["lines"].append(line)
     ## inside a subject that has more than one group its lines stand group by group, in the
-    ## order the groups first come: a heading for each, by the word of the group as it
-    ## comes, and its lines under it (groupedRows). The window of such a line is titled
-    ## with its group ahead of its label, since lines of several groups read alike. A
+    ## order the groups first come: a heading for each, by the label its `group` row
+    ## gives, or by the word of the group as it comes where no row gives one, and its
+    ## lines under it (groupedRows). The window of such a line is titled with that
+    ## heading ahead of its label, since lines of several groups read alike. A
     ## subject of one group shows its lines alone, as they come; and so does one whose
     ## groups hold one line each, no two of them of one label: a heading over every line
     ## would tell nothing apart there.
@@ -4377,10 +4383,11 @@ def parseDigestLevels(readKey, text):
         if len(groups) > 1 and (any(len(members) > 1 for group, members in groups) or len(set(labels)) < len(labels)):
             grouped = []
             for word, members in groups:
-                head = newRow("group " + word, word or "-", "group")
-                head["lineGroup"] = {"subject": name, "label": word or "-", "lines": [member["line"] for member in members]}
+                said = groupLabels.get((name, word)) or word or "-"
+                head = newRow("group " + word, said, "group")
+                head["lineGroup"] = {"subject": name, "label": said, "lines": [member["line"] for member in members]}
                 for member in members:
-                    member["title"] = "%s: %s" % (word or "-", member["label"])
+                    member["title"] = "%s: %s" % (said, member["label"])
                 grouped.append((head, members))
             levels[root + "/" + name] = groupedRows(grouped)
     for row in held.values():
