@@ -686,6 +686,9 @@ READS = {
     "list:places": {"operation": ["--manager-place-list"], "rows": "places", "kind": "places", "always": True, "seldom": True},
     ## One location, whole: its row, what declares it, and what stands in it.
     "view:places:record": {"operation": ["--manager-place-read", "{id}"], "rows": "place-read", "needs": "place"},
+    ## The commands of a workspace among them, those its editor's palette gets, as the declarations of this
+    ## console's packages give them. Read on entering it and when it is asked for, not on the period.
+    "list:places/*": {"operation": ["--manager-place-command-list", "{level}"], "rows": "place-commands", "once": True},
     "view::section": None,
     "view:sessions:launch": None,
     ## A session whole, and what its runs did: the lines its tracking thread shows.
@@ -1288,6 +1291,8 @@ COMMANDS = (
      "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
     {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~o~peration", "status": "Run",
      "views": ("teamdata/operations",), "for": "an operation of the team data", "on": ("teamdata/operations:operation",), "only": True, "says": "run", "does": ("action", "cleanup")},
+    {"name": "placecommand", "keys": ("ENTER",), "menu": ("view", 3), "label": "R~u~n the command", "status": "Run",
+     "views": ("places/*",), "for": "a command of a workspace", "on": ("places/*:place-command",), "only": True, "enters": True, "says": "run", "does": ("action", "placecommand")},
     {"name": "open", "keys": ("ENTER",), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("BACKSPACE",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -1524,6 +1529,10 @@ DIALOGS = {
     "cleanup": {"title": "Run", "feeds": "cleanup",
                 "controls": ({"name": "about", "kind": "text"},),
                 "buttons": (("run", "Run"), ("cancel", "Cancel"))},
+    ## the confirmation of a command of a workspace: what will run, where, and how
+    "placecommand": {"title": "Run", "feeds": "placecommand",
+                     "controls": ({"name": "about", "kind": "text"},),
+                     "buttons": (("run", "Run"), ("cancel", "Cancel"))},
     ## the big dialog that runs an operation and follows what it writes, both its streams
     ## in the order they came, to the end unless it is scrolled up ("follow": its lines are
     ## the end of the text while nothing scrolled them, "raw": each line as it was written);
@@ -1613,6 +1622,9 @@ ACTION_HANDLERS = {
     "line": None,
     ## Enter on a cleanup of `Team Data`: asked first, then run in the big output dialog: askCleanup, set where it is defined
     "cleanup": None,
+    ## Enter on a command of a workspace in `Locations (Places)`: asked first, then run in the big output dialog,
+    ## or with the whole terminal where it runs so: askPlaceCommand, set where it is defined
+    "placecommand": None,
 }
 ## Whether an action acts on a row as it is now: fits(state, row), set where it is defined.
 ## An action with no entry acts on every row COMMANDS gives it.
@@ -2097,6 +2109,8 @@ def parseLevels(readKey, form, text):
         return levels
     if form == "places":
         return {level: parsePlaceRows(text)}
+    if form == "place-commands":
+        return {level: parsePlaceCommandRows(text)}
     if form == "data-store":
         rows, store = parseStoreRows(text)
         return {level: rows, STORE_OF + level: store}
@@ -2419,6 +2433,8 @@ def localView(state, row):
         return cleanupLines(state, row)
     if level == "places" and row.get("place"):
         return placeLines(state, row["place"], state.viewWidth, state.view["info"])
+    if level == "places/*" and row.get("placeCommand"):
+        return placeCommandLines(row["placeCommand"], state.viewWidth)
     if row.get("grant"):
         return grantLines(row["grant"], state.viewWidth)
     if row.get("grantKind"):
@@ -7406,6 +7422,78 @@ def submitCleanup(state, dialog, button):
 
 DIALOG_HANDLERS["cleanup"] = submitCleanup
 
+
+## ---- the commands of a workspace in `Locations (Places)` ----
+
+## How a command of a workspace runs, as its declaration says, in words: in the facts of the
+## left pane, and in the dialog that asks first.
+PLACE_COMMAND_RUNS = {
+    "output": ("unattended, in a window that follows what it writes",
+               "It runs at once and unattended, in that workspace, in a window that follows what it writes. Run starts it; Cancel and Esc do nothing."),
+    "terminal": ("with the whole terminal, as a console",
+                 "It runs in that workspace with the whole terminal, as a console; the screen comes back when it ends. Run starts it; Cancel and Esc do nothing."),
+}
+
+
+## What `--manager-place-command-list` printed, as rows, in the order they come: `command`
+## rows of TAB-separated fields, the name, its whitespace `_`, the package that declares it
+## and how it runs. Each is an item that opens a dialog, by its name, its emoji part of it.
+def parsePlaceCommandRows(text):
+    rows = []
+    for line in text.split("\n"):
+        fields = line.split("\t")
+        if fields[0] != "command" or len(fields) < 4:
+            continue
+        command = {"name": fields[1], "label": unspaced(fields[1]), "package": fields[2], "runs": fields[3]}
+        row = newRow(fields[1], command["label"], "place-command", False, fields)
+        row["placeCommand"] = command
+        rows.append(row)
+    return rows
+
+
+## The selected command of a workspace, for the left pane: its name as its head, the package
+## that declares it, and how it runs.
+def placeCommandLines(command, width):
+    return [looked(command["label"], BOLD)] + factLines([
+        ("package", command["package"]),
+        ("runs", PLACE_COMMAND_RUNS.get(command["runs"], (command["runs"],))[0]),
+    ], width)
+
+
+## Enter on a command of a workspace: asked first, by what will run, in which workspace and
+## how; the screen writes no command of its own: the tooling runs the declared one.
+def askPlaceCommand(state, row):
+    command = row.get("placeCommand") if row else None
+    if command is None:
+        return ""
+    openDialog(state, "placecommand", {"about": {"lines": [
+        ("runs", command["label"]), ("workspace", state.path[-1]), ("package", command["package"]),
+        PLACE_COMMAND_RUNS.get(command["runs"], ("", ""))[1]]}},
+        about={"id": row["id"], "label": command["label"], "place": state.path[-1], "runs": command["runs"]},
+        title="Run: %s" % command["label"])
+    return ""
+
+
+ACTION_HANDLERS["placecommand"] = askPlaceCommand
+ACTION_FITS["placecommand"] = lambda state, row: bool(row and row.get("placeCommand"))
+
+
+## Run: one that runs with the whole terminal is started so at the end of this turn of the
+## screen (runChild), by the dispatcher, from this workspace; any other in the big output dialog.
+def submitPlaceCommand(state, dialog, button):
+    closeDialog(state)
+    about = dialog["about"]
+    words = ["--manager-place-command-run", about["place"], about["id"]]
+    if about["runs"] == "terminal":
+        state.answer = None
+        state.child = {"label": about["label"], "said": "command", "words": words, "directory": state.workspace or None, "tools": True}
+        return None
+    runFollowed(state, about["label"], words)
+    return None
+
+
+DIALOG_HANDLERS["placecommand"] = submitPlaceCommand
+
 ## What the big output dialog says in its line of what it refuses and in its line of the
 ## result, and how many lines of what it followed it keeps, the last.
 OUTPUT_SAYS = {
@@ -7560,7 +7648,8 @@ def placeTable(rows):
 ## What `--manager-place-list` printed, as rows: `place` rows of TAB-separated fields, in
 ## the order they come. They show as a table (placeTable), each by its key, which is what
 ## its read is asked by. The one the console runs in stands out; one that is not present
-## shows plainer. A line of another name, and one too short, is left out.
+## shows plainer. A workspace that is there is a folder: its commands (parsePlaceCommandRows).
+## A line of another name, and one too short, is left out.
 def parsePlaceRows(text):
     rows = []
     for line in text.split("\n"):
@@ -7568,7 +7657,7 @@ def parsePlaceRows(text):
         if fields[0] != "place" or len(fields) <= len(PLACES["fields"]):
             continue
         place = dict(zip(PLACES["fields"], fields[1:]))
-        row = newRow(place["key"], place["key"], "record", False, fields)
+        row = newRow(place["key"], place["key"], "record", place["kind"] == PLACES["workspace"] and place["state"] == PLACES["present"], fields)
         row["place"] = place
         if place["here"] == PLACES["here"]:
             row["look"] = BOLD
@@ -9093,14 +9182,20 @@ def folderEdge(width):
 ## of a table shows as its cells in the columns that fit. A row that Enter dives into, a
 ## folder, has the mark of a folder at the right edge of the row, after a blank, and the
 ## rest of the row the cells ahead of them, as every row of a table that holds a folder
-## has, so that its columns stand under its header. A row whose Enter opens a dialog has
+## has, so that its columns stand under its header; in a table that does not keep that room
+## in every row, a folder's mark takes the room its cells leave, and costs it a column only
+## where they leave none. A row whose Enter opens a dialog has
 ## the mark of that after its name: a name too long for its room is cut ahead of that mark,
 ## which is never cut itself. Gives the text, where in it a mark stands, or None, and the mark.
 def listRowParts(row, chosen, width, enters=False, dives=False):
     cells = row.get("cells")
-    edge = folderEdge(width) if dives or (row.get("table") or {}).get("marks") else 0
+    table = row.get("table")
+    edge = folderEdge(width) if dives or (table or {}).get("marks") else 0
+    columns = width - edge - 1
+    if table and dives and not table.get("marks") and textWidth(tableLineText(table, cells, width - 1)) + 1 + edge <= width:
+        columns = width - 1
     width -= edge
-    shown = tableLineText(row["table"], cells, width - 1) if row.get("table") else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
+    shown = tableLineText(table, cells, columns) if table else " " * row.get("indent", 0) + row.get("lead", "") + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width + edge >= LIST_WIDE["from"]:
@@ -9604,6 +9699,9 @@ def screenTurn(surface, state, reader, now, key):
         ## a key may have moved the split, or changed how the lines of the left window are set out
         sizeTaken(surface, state)
     if state.child is not None:
+        ## what an operation of the tooling runs is started by the dispatcher the reads are made by
+        if state.child.get("tools") and reader is not None:
+            state.child["words"] = list(reader.toolsCommand) + state.child["words"]
         ## the terminal is another's until that ends: its size is taken again after it
         runChild(surface, state)
         sizeTaken(surface, state)

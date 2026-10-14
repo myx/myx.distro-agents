@@ -234,6 +234,8 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <command>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]" >&2

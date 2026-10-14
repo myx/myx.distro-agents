@@ -88,6 +88,12 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow figure data home Some_Home /rig/Workspaces/ws-one - ok -
 } > "$rigF/rows.--manager-dashboard-read"
 rigRow counters 0 0 0 0 0 0.42 righost > "$rigF/rows"
+## The commands of the workspace, as the tooling lists those its palette gets: one that runs with the whole
+## terminal, and one that runs unattended.
+{
+	rigRow command 🖥️_Start_Source_Console myx.distro-source terminal
+	rigRow command ⬇️_Pull/Sync_All_Known_Sources myx.distro-source output
+} > "$rigF/rows.--manager-place-command-list ws-one"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
@@ -181,7 +187,7 @@ rigAssert "the list of the locations is read when the screen starts, with no arg
 rigAssert "the root list holds it after the team members, as a folder" "[$( rigListLine root 'Team Members' )] [$( rigListLine root 'Locations (Places)' )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^root|' | LC_ALL=C grep -A1 -F 'Team Members' | LC_ALL=C grep -F 'Locations (Places)' | LC_ALL=C grep -c -F '►' )" "[ Team Members ►] [ Locations (Places) ►] 1"
 rigAssert "9 goes there: the row that goes up and a row a location, in the order of the operation, and a line that is no row of one is left out" "[$( rigVal in.path )] $( rigVal in.rows ) $( rigHolds t 'another name' ) $( rigHolds t 'short' )" "[places] 6 0 0"
 rigAssert "the table has a header: the key, the kind, the ceiling, the state, the sessions, and no column of a host" "[$( rigListLine t 'PLACE' )] $( rigHolds t 'HOST' )" "[ PLACE KIND CEILING STATE SESSIONS] 0"
-rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196] [ gone-work workspace read-write absent 0]"
+rigAssert "a location is a row of it, by its key; the one the console runs in has the mark ahead of it" "[$( rigListLine t '.skillset-shared' )] [$( rigListLine t '• ws-one ' )] [$( rigListLine t 'gone-work' )]" "[ .skillset-shared directory read-write present -] [ • ws-one workspace read-write present 196 ►] [ gone-work workspace read-write absent 0]"
 rigAssert "what is not known of one is a dash, and its key stands as the operation gives it" "[$( rigListLine t 'nowhere@ws-two' )]" "[ nowhere@ws-two directory - unknown -]"
 rigAssert "the one the console runs in stands out, one that is not present shows plainer, another is plain" "$( rigLookAt t tr '• ws-one' 140 ) $( rigLookAt t tr 'gone-work' 140 ) $( rigLookAt t tr 'deep' 140 )" "BBBBBBBB DDDDDDDDD ...."
 rigAssert "on the row that goes up the left window shows every location as a table with its path, nothing above it, how many in the frame" "[$( rigVal inTitle )] $( rigHolds t ' 5 rows ' ) $( rigHolds t 'PLACE            KIND      STATE   PATH' ) $( rigHolds t 'gone-work        workspace absent  /rig/Volumes/gone-work' )" "[Locations (Places) [wrap]] 1 1 1"
@@ -210,7 +216,7 @@ turn
 show c
 get c
 EOF
-rigAssert "at 120 columns: the key and the kind, and the mark" "[$( rigListLine n 'PLACE' )] [$( rigListLine n '• ws-one ' )] $( rigVal n.spills )" "[ PLACE KIND] [ • ws-one workspace] 0"
+rigAssert "at 120 columns: the key and the kind, and the mark" "[$( rigListLine n 'PLACE' )] [$( rigListLine n '• ws-one ' )] $( rigVal n.spills )" "[ PLACE KIND] [ • ws-one workspace ►] 0"
 rigAssert "the other styles draw it, nothing past a line, the mark of the location the console runs in on one line of the list and of the table of the left pane" "$( rigVal b.spills ) $( rigVal c.spills ) $( rigHolds c ' • ws-one ' )" "0 0 2"
 
 echo "-- the rule: a path inside a location is drawn by the name of that location"
@@ -329,6 +335,74 @@ wait places 5
 get there
 EOF
 rigAssert "a read asked for while its list is shown reads it: once at that start, and once for the key" "[$( rigVal there.path )] $(( $( rigCalled --manager-place-list ) - rigAway )) $( rigPlaceCalls | LC_ALL=C cut -d' ' -f2 )" "[places] 2 0"
+
+echo "-- a workspace that is there opens into its commands (the owner: \"All same as added to palette\")"
+rigCase commands
+rigSize="200 40" rigScript <<'EOF'
+workspace /rig/Workspaces/ws-one
+turn
+wait places 5
+keys 5
+turn
+wait places 5
+keys DOWN DOWN
+turn
+wait view 5
+wait focus 5
+get folder
+show f
+keys ENTER
+turn
+wait list 5
+get inside
+show i
+keys DOWN
+turn
+get first
+show c1
+keys ENTER
+turn
+get ask
+show ask
+keys ESC
+turn
+get cancelled
+keys DOWN
+turn
+keys ENTER
+turn
+get ask2
+show ask2
+keys ENTER
+wait follow 5
+get ran
+keys ENTER
+turn
+get closed
+keys UP
+turn
+child 0
+keys ENTER
+turn
+keys ENTER
+turn
+turn
+get started
+EOF
+rigAssert "a workspace that is there is a folder, its mark at the edge, a directory is none; selected, the left window still shows the location itself" \
+	"[$( rigListLine f '• ws-one' | LC_ALL=C sed 's/.* //' )] [$( rigListLine f ' deep ' | LC_ALL=C sed 's/.* //' )] $( rigHolds f 'Ws One (ws-one)' ) $( rigHolds f 'What stands in it' )" "[►] [-] 1 0"
+rigAssert "Enter opens it: its commands, each by its name with its emoji, as an item that opens a dialog, read by the key of the workspace" \
+	"$( rigVal inside.path ) $( rigHolds i '🖥️ Start Source Console...' ) $( rigHolds i '⬇️ Pull/Sync All Known Sources...' ) $( rigCalled '--manager-place-command-list ws-one' | LC_ALL=C sed 's/^[1-9][0-9]*$/read/' )" "places/ws-one 1 1 read"
+rigAssert "a command selected: the left window says which package declares it and how it runs" \
+	"$( rigVal first.selectedLabel ) $( rigHolds c1 ' myx.distro-source' ) $( rigHolds c1 ' with the whole terminal, as a console' )" "🖥️ Start Source Console 1 1"
+rigAssert "Enter asks first: what runs, in which workspace, how, and Run or Cancel; Esc runs nothing" \
+	"$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'workspace ws-one' ) $( rigHolds ask 'It runs in that workspace with the whole terminal' ) [$( rigVal cancelled.dialog )]" "placecommand:run| [Run: 🖥️ Start Source Console] 1 1 []"
+rigAssert "one that runs unattended runs in the big output dialog, by the operation of the tooling, the workspace and its name as the list gives it" \
+	"[$( rigVal ask2.dialogTitle )] $( rigHolds ask2 'in a window that follows what it writes' ) $( rigVal ran.dialog | LC_ALL=C sed 's/:.*//' ) $( rigVal ran.dialogHolds | LC_ALL=C grep -c -F 'Ended with status 0' ) [$( rigVal closed.dialog )] $( LC_ALL=C grep -c -x -F -e '[--manager-place-command-run][ws-one][⬇️_Pull/Sync_All_Known_Sources]' "$MANAGER_SCREEN_RIG/words" || : )" \
+	"[Run: ⬇️ Pull/Sync All Known Sources] 1 output 1 [] 1"
+rigAssert "one that runs with the whole terminal is given the terminal, as a console is: the dispatcher of the reads, the same operation, from this workspace" \
+	"$( rigVal started.children ) $( rigVal started.childWords ) $( rigVal started.childDirectory ) $( LC_ALL=C grep -c -F -e '[--manager-place-command-run][ws-one][🖥️_Start_Source_Console]' "$MANAGER_SCREEN_RIG/words" || : )" \
+	"1 [bash][$rigTools][--manager-place-command-run][ws-one][🖥️_Start_Source_Console] /rig/Workspaces/ws-one 0"
 
 echo "-- no location known: every path stands as it is; and a list that fails"
 rigCase none

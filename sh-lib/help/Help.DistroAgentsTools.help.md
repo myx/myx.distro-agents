@@ -173,6 +173,8 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-read <place>
+📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-list <place>
+📘 syntax: DistroAgentsTools.fn.sh --manager-place-command-run <place> <command>
 📘 syntax: DistroAgentsTools.fn.sh --manager-routine-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-read --id <pending-id>
 📘 syntax: DistroAgentsTools.fn.sh --manager-pending-reply-answer --id <pending-id> (--answer <word|number|text>|--reject) [--text <words>]
@@ -3387,6 +3389,47 @@
 			its <setup> `not-in-registry` and its <home> `-`. Exit 1, nothing printed,
 			with one error line, for a name that is no place, and where
 			it is not given one name.
+
+		--manager-place-command-list <place>
+			One of the console's own operations (see Notes). Lists the
+			commands of one place that is a workspace: the same its
+			editor's palette gets. Each package of this console declares
+			its workspace commands once, in its
+			`sh-lib/workspace-commands.list`, a command a line: its name,
+			its emoji part of it, how it runs, and the command, a TAB
+			between them, `$MMDAPP` in it the root of the workspace. The
+			tasks of the palette are made of the same lines, by
+			`SourceTools.Make.VSCodeTasksFromWorkspaceCommands.include`.
+			A workspace has the commands of the packages it has, picked
+			as the tasks of its palette are: `myx.distro-source` always,
+			another where its console at the root of the workspace is
+			executable; in that order, each package's in its own order.
+			The declarations read are those of this console's packages.
+			It only reads, and starts nothing.
+			`command <name> <package> <runs>`
+			<name> is the command's name, whitespace in it `_`. <runs> is
+			`output` for one that runs unattended, whose output is
+			followed, and `terminal` for one that runs with the whole
+			terminal, a console. A directory, and a workspace that is not
+			there, has no command: nothing is printed, status 0. Exit 1,
+			nothing printed, with one error line, for a name that is no
+			place, and where it is not given one name.
+
+		--manager-place-command-run <place> <command>
+			One of the console's own operations (see Notes). Runs one
+			command of a workspace, one `--manager-place-command-list`
+			lists: <command> is its name as that list prints it, or with
+			its blanks. It runs the declared command, the root of the
+			workspace put for `$MMDAPP`, by `/bin/sh -c`, as the
+			editor's palette runs a task, in the root of that workspace,
+			on the input and the output of this call, with none of this
+			console's variables: only HOME, USER, LOGNAME, SHELL, PATH,
+			TERM and LANG are passed on. It writes nothing of its own;
+			what is printed is the command's own, and the status is the
+			command's. Exit 1, nothing run, with one error line, for a
+			name that is no place, for a place that is no workspace that
+			is there, for a command that is none of that workspace's, and
+			where it is not given two words.
 
 		--manager-routine-list
 			One of the console's own operations (see Notes). Lists the
