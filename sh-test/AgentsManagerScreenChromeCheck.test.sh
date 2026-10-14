@@ -18,7 +18,8 @@
 ## no style is refused, the retired compact one among them, and named in the environment it leaves the default. On a
 ## real terminal with colours the screen sets colours, on one with none it comes up all the same and sets none, a style
 ## without colours sets none on a terminal that has them, Magic sets the shades of a terminal of 256 colours, and Alt-X
-## ends it with status 0.
+## ends it with status 0. In Magic, in each of its colours, an empty line stands fixed under the top of each window and
+## its content under it, the list's first row beside the ↑ of its scroll bar; Turbo Vision and B/W have none.
 ## The menus follow the view, the level the list is at: a menu with no command of the view is not in the bar, the commands
 ## of a view all stand in its menus, and one that does not apply to the row selected is greyed and, tried, says why.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
@@ -256,6 +257,47 @@ rigAssert "Magic's scroll bar starts a line lower than Turbo Vision's: beside th
 rigAssert "in a window that is not active its arrows and its thumb, ▎, in the track's look" "[$( rigVal nbOffUp )][$( rigVal nbOffThumb )] $( rigRole nbo 4 120 120 )$( rigRole nbo 5 120 120 )" "[↑][▎] ||"
 rigAssert "a click on Magic's ↓, on the window's last line, pages down as the lower half of the bar does" "$( [ "$( rigVal nbPaged.index )" -gt 30 ] && echo down || rigVal nbPaged.index ) $( rigVal nbPaged.spills )" "down 0"
 rigAssert "in each of Magic's colours, on the black of the shadow: the arrows white and bold, the thumb white, and the track's look, which the arrows and the thumb of another window take, grey" "$( printf '%s\n' "$rigBarColours" | LC_ALL=C tr '\n' ' ' )" "nu-system white/blackb white/blackb white/black True nu-blue 231/16b 231/16 244/16 True nu-gray 231/16b 231/16 244/16 True "
+
+echo "-- Magic keeps an empty line fixed under the top of each window, its content under it; Turbo Vision and B/W do not --"
+rigRun <<'RIGSCRIPT'
+get t
+cells tFirstView 2 1 83
+RIGSCRIPT
+rigTvFirstView="$( rigVal tFirstView )" ; rigTvHeights="$( rigVal t.viewHeight ) $( rigVal t.listHeight )"
+for rigStyle in nu-system nu-blue nu-gray ; do
+	rigRun <<RIGSCRIPT
+style $rigStyle
+turn
+get m
+cells mGapView 2 1 83
+cells mGapList 2 85 119
+cells mFirstView 3 1 83
+cells mFirstRow 3 85 119
+cells mUp 3 119 120
+roles mr
+mouse click 100 4
+get mClick
+keys PGDN
+turn
+get mDown
+cells mGapDown 2 1 119
+RIGSCRIPT
+	rigAssert "in $rigStyle the line under each window's top is empty, also scrolled down; the pane's first line and the list's first row, in the bar's look, beside the ↑, stand under it" \
+		"$( rigVal style.refused )[$( rigVal mGapView | LC_ALL=C tr -d ' ' )][$( rigVal mGapList | LC_ALL=C tr -d ' ' )][$( rigVal mGapDown | LC_ALL=C tr -d ' ' )] $( [ "$( rigVal mFirstView )" = "$rigTvFirstView" ] && echo same || echo moved ) $( rigVal mFirstRow | LC_ALL=C grep -c -F '..' ) $( rigRole mr 4 87 90 ) [$( rigVal mUp )] $( [ "$( rigVal mDown.top )" -gt 0 ] && echo scrolled )" \
+		"[][][] same 1 RRRR [↑] scrolled"
+	rigAssert "in $rigStyle each window holds a line less than in Turbo Vision, and a click lands on the row drawn there" "$( rigVal m.viewHeight ) $( rigVal m.listHeight ) $( rigVal mClick.index )" "$(( ${rigTvHeights% *} - 1 )) $(( ${rigTvHeights#* } - 1 )) 1"
+done
+for rigStyle in tv bw ; do
+	rigRun <<RIGSCRIPT
+style $rigStyle
+turn
+get c
+cells cFirstRow 2 85 119
+mouse click 100 4
+get cClick
+RIGSCRIPT
+	rigAssert "in $rigStyle the first row stands right under the top, as before" "$( rigVal cFirstRow | LC_ALL=C grep -c -F '..' ) $( rigVal c.viewHeight ) $( rigVal c.listHeight ) $( rigVal cClick.index )" "1 $rigTvHeights 2"
+done
 
 echo "-- the menus follow the view --"
 rigRun <<'RIGSCRIPT'

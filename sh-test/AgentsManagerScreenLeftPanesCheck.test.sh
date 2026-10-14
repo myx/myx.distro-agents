@@ -139,10 +139,7 @@ keys 2
 wait list 10
 show sessions
 roles sessionsr
-keys e
-turn
-show sessionsAll
-keys e DOWN
+keys DOWN
 wait focus 10
 show launch
 roles launchr
@@ -199,6 +196,14 @@ show keys
 keys DOWN
 wait focus 10
 show commands
+style bw
+turn
+show commandsBw
+style magic
+turn
+show commandsMagic
+style tv
+turn
 keys DOWN
 wait focus 10
 show cli
@@ -234,18 +239,30 @@ rigRole(){ ## tag, text, role letter -- 1 where the line that holds the text has
 rigHeading(){ ## tag, text -- 1 where a line of the left pane is that text alone, else 0
 	rigPane "$1" | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
 }
+rigFirstHas(){ ## tag, pattern -- 1 where the first line of the left pane holds it (an extended expression), else 0
+	rigPane "$1" | head -1 | LC_ALL=C grep -c -E -- "$2" | LC_ALL=C awk '{ print ( $1 > 0 ) }'
+}
+rigStatus(){ ## tag -- the last line of that screen, the status line
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | tail -1
+}
+rigCountAt(){ ## tag, text -- where the text stands on that screen: bottom:<how many lines hold it> where every line that does is the bottom border of the left frame, a corner of it first, else the lines that hold it, or none
+	local countAll countBottom
+	countAll="$( printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" )"
+	countBottom="$( printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -E "^$1\|(╚|└|▁)" | LC_ALL=C grep -c -F -- "$2" )"
+	if [ "$countAll" = 0 ] ; then echo none ; elif [ "$countAll" = "$countBottom" ] ; then echo "bottom:$countAll" ; else echo "lines:$countAll" ; fi
+}
 rigLineOf(){ ## tag, text -- the number of the line of the left pane that holds the text, or 0
 	rigPane "$1" | LC_ALL=C grep -n -F -- "$2" | head -1 | LC_ALL=C sed 's/:.*//' | LC_ALL=C awk '{ print $1 + 0 } END { if ( NR == 0 ) print 0 }'
 }
 
 echo "-- Sessions, Launch / Spawn, a session --"
-rigAssert "Sessions: a bold caption, every state it holds; one table of every session, finished ones too, in the order of the list" \
-	"$( rigRole sessions '43 sessions' B ) $( rigHas sessions '1 running, 1 unclosed, 41 finished' ) $( rigHas sessions 'SESSION' ) $( rigHas sessions 'alpha work' ) $( rigHas sessions 'gamma work' ) $( [ "$( rigLineOf sessions 'alpha work' )" -lt "$( rigLineOf sessions 'gamma work' )" ] && echo ordered )" \
-	"1 1 1 1 1 ordered"
+rigAssert "Sessions: one table of every session, finished ones too, in the order of the list, and nothing above it" \
+	"$( rigHas sessions '43 sessions' ) $( rigHas sessions '1 running, 1 unclosed, 41 finished' ) $( rigFirstHas sessions 'SESSION' ) $( rigHas sessions 'alpha work' ) $( rigHas sessions 'gamma work' ) $( [ "$( rigLineOf sessions 'alpha work' )" -lt "$( rigLineOf sessions 'gamma work' )" ] && echo ordered )" \
+	"0 0 1 1 1 ordered"
 rigAssert "Sessions: a running state in the look of what is well, a gone control thread in that of what is bad, a finished one dim" \
 	"$( rigRole sessions 'alpha work' k ) $( rigRole sessions 'beta work' X ) $( rigRole sessions 'gamma work' D )" "1 1 1"
-rigAssert "Sessions: the pane holds fewer rows than the list, says how many more, its title says so, and e shows every row" \
-	"$( rigHas sessions 'more' ) $( rigTitle sessions | LC_ALL=C grep -c -E '\[[0-9]+ rows\]' ) $( rigTitle sessionsAll | LC_ALL=C grep -c -F '[all rows]' ) $( rigHas sessionsAll 'more' )" "1 1 1 0"
+rigAssert "Sessions: more rows than the pane holds: no 'and N more', the title no count of rows, the status line no e; the count of its rows once, at the bottom right of the frame" \
+	"$( rigHas sessions 'more' ) $( rigTitle sessions | LC_ALL=C grep -c -E 'rows\]' ) $( rigStatus sessions | LC_ALL=C grep -c -E ' e (All|First) rows' ) $( rigCountAt sessions '43 rows' )" "0 0 0 bottom:1"
 rigAssert "Launch / Spawn: every routine as a table, its start in its colour" \
 	"$( rigHas launch 'ROUTINE' ) $( rigHas launch 'alpha-gap' ) $( rigHas launch 'beta-gap' ) $( rigRole launch 'alpha-gap' k ) $( rigRole launch 'beta-gap' X )" "1 1 1 1 1"
 rigAssert "a session: its agents as a table under a heading, its state in its colour; no thread ids; its id last" \
@@ -253,9 +270,9 @@ rigAssert "a session: its agents as a table under a heading, its state in its co
 	"1 1 1 0 0 last"
 
 echo "-- Pending Questions and an ask --"
-rigAssert "Pending: a bold caption; every ask as a table with its question; a gone asker in the look of what is bad" \
-	"$( rigRole pending '2 asks wait' B ) $( rigHas pending 'QUESTION' ) $( rigHas pending 'first ask' ) $( rigHas pending 'second ask' ) $( rigRole pending 'keeper-gone' X ) $( rigRole pending 'keeper-live' X )" \
-	"1 1 1 1 1 0"
+rigAssert "Pending: every ask as a table with its question, nothing above it; a gone asker in the look of what is bad; its count in the frame" \
+	"$( rigHas pending '2 asks wait' ) $( rigFirstHas pending 'QUESTION' ) $( rigHas pending 'first ask' ) $( rigHas pending 'second ask' ) $( rigRole pending 'keeper-gone' X ) $( rigRole pending 'keeper-live' X ) $( rigCountAt pending '2 rows' )" \
+	"0 1 1 1 1 0 bottom:1"
 rigAssert "an ask: its question ahead of its facts; no channel, thread or session of Slack; no hint" \
 	"$( [ "$( rigLineOf ask 'second ask' )" -lt "$( rigLineOf ask 'asked by' )" ] && echo first ) $( rigHas ask 'C0RIGCHAN02' ) $( rigHas ask '59056eb9' ) $( rigHas ask 'answered where it was posted' )" \
 	"first 0 0 0"
@@ -282,8 +299,14 @@ rigAssert "a subject: its lines as a table, a missing value in its colour; no hi
 	"$( rigHas cli 'KEY' ) $( rigHas cli 'SETTING' ) $( rigRole cli 'RIG_CLI_A' W ) $( rigHas cli 'Enter opens it' ) $( rigHas subject 'Enter opens it' )" "1 0 1 0 0"
 rigAssert "Config Checker: every check as a table, the worst first, in its colour" \
 	"$( rigHas checker 'CHECK' ) $( [ "$( rigLineOf checker 'Git Remote' )" -lt "$( rigLineOf checker 'Bash Version' )" ] && echo worst ) $( rigRole checker 'Git Remote' X )" "1 worst 1"
-rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a caption and a table, a command a row with its path" \
-	"$( rigHas keys 'PUBLIC LINE' ) $( rigHas keys 'rig@host' ) $( rigPane keys | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' ) $( rigHas commands '5 commands.' ) $( rigPane commands | LC_ALL=C grep -c 'NAME  *PATH' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *Cmd' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *-' )" "1 1 0 1 1 0 1"
+rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a table alone, a command a row with its path" \
+	"$( rigHas keys 'PUBLIC LINE' ) $( rigHas keys 'rig@host' ) $( rigPane keys | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' ) $( rigHas commands '5 commands.' ) $( rigFirstHas commands 'NAME  *PATH' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *Cmd' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *-' )" "1 1 0 0 1 0 1"
+
+echo "-- the rule of every table of the left pane: all its rows, nothing above it, its count once, at the bottom right of the frame, in each style --"
+rigAssert "the count of rows stands once, in the bottom border of the left frame at its right, in tv, bw and Magic alike, and nowhere else" \
+	"$( rigCountAt commands '5 rows' ) $( rigCountAt commandsBw '5 rows' ) $( rigCountAt commandsMagic '5 rows' ) $( rigCountAt places '2 rows' ) $( rigCountAt subject ' row' )" "bottom:1 bottom:1 bottom:1 bottom:1 bottom:1"
+rigAssert "a view that is no table has no count: an ask, a session, a location" "$( rigCountAt ask ' rows ' ) $( rigCountAt session ' rows ' ) $( rigCountAt place ' rows ' )" "none none none"
+rigAssert "Locations and a subject: the header the first line, nothing above it" "$( rigFirstHas places 'PLACE' ) $( rigFirstHas subject 'SETTING' ) $( rigHas places 'locations:' )" "1 1 0"
 rigAssert "nothing was drawn past a pane" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'DRIVER-FAILED\|Traceback' || : )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then

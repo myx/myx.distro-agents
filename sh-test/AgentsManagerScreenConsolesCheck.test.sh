@@ -137,14 +137,14 @@ rigRootLine(){ ## text -- the number of the line of the screen, as first shown, 
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
 rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles (Tools)  ' )" ] && [ "$( rigRootLine ' Consoles (Tools)  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles (Tools)  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
-rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 10"
+rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 8"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"
 rigAssert "the rows stand in the order of the operation, each by its label with its group at the end" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" \
 	"[>..][ Bash Shell                  shell][ Claude Native Console      agents][ Source Console             distro][ Plain Tool                 distro]"
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
-rigAssert "on the row that goes up the left window shows the folder itself: how many, group by group, then every one as a table, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 | LC_ALL=C sed 's/  */ /g' )]" \
-	"[ Consoles (Tools) [wrap]][ 4 to start: 1 shell, 1 agents, 2 distro.][][ CONSOLE GROUP COMMAND]"
+rigAssert "on the row that goes up the left window shows the folder itself: every one as a table, nothing above it, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 | LC_ALL=C sed 's/  */ /g' )]" \
+	"[ Consoles (Tools) [wrap]][ CONSOLE GROUP COMMAND]"
 rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
 rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1

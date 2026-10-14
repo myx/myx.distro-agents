@@ -886,7 +886,9 @@ PLACED = {
 ## last line, with no mark at their sides, where the change of colour is the edge (MARKS
 ## "rim"); a window's right column is the shadow it casts, from its second line under its top
 ## (drawEdges), and its scroll bar is slim, in that column, and with "barLower" that many lines
-## lower than the frame's first, its ↓ then on the window's last line (barLower); "menus" "hung", a
+## lower than the frame's first, its ↓ then on the window's last line (barLower); with
+## "bodyLower" that many empty lines stand fixed under a window's top, its content under
+## them (bodyLower); "menus" "hung", a
 ## menu hangs from the menu bar with no top border, its first item on the line under the
 ## bar, its sides, its bottom and its shadow as in every style; "chips", a key of the
 ## status line a chip in a colour of its own (KEY_CHIP); "fields" "bracketed", a field to
@@ -907,7 +909,7 @@ PLACED = {
 STYLES = (
     ("nu", {"label": "Magic", "colours": True, "keys": "tv", "names": "symbols",
             "looks": "nu-gray", "marks": "magic", "titles": "left", "shadow": "slim", "buttons": "bars",
-            "edges": "blocks", "barLower": 1, "menus": "hung", "chips": True, "fields": "bracketed", "levels": True,
+            "edges": "blocks", "barLower": 1, "bodyLower": 1, "menus": "hung", "chips": True, "fields": "bracketed", "levels": True,
             "bare": "gray", "schemes": (("system", {"looks": "nu-system"}), ("blue", {"looks": "nu-blue"}), ("gray", {"looks": "nu-gray"}))}),
     ("tv", {"label": "Turbo Vision", "colours": True, "keys": "tv", "names": "classic",
             "marks": "tv", "shadow": "dim", "buttons": "raised", "icons": True,
@@ -1096,7 +1098,7 @@ def drawDimShadow(surface, box, last, columns, look):
 ## in every window.
 WINDOWS = (
     {"name": "view", "title": "viewTitle", "place": {"side": "left"},
-     "shows": {"body": "lines", "reads": VIEW_PARTS}, "bar": True,
+     "shows": {"body": "lines", "reads": VIEW_PARTS}, "bar": True, "count": "viewCount",
      "commands": ("wrap", "pan")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
@@ -1123,9 +1125,6 @@ SPLIT = {"step": 0.05, "least": 20, "most": 80}
 WRAP_FIRST = True
 WRAP_MARK = "[wrap]"
 CUT_MARK = "[cut]"
-## What the title of the left window says of a table of the items of a folder: every row, or its first.
-ROWS_MARK = "[all rows]"
-FEW_ROWS_MARK = "[%d rows]"
 UNWRAPPED_WIDTH = 1000
 PAN_STEP = 8
 ## The modes of the left window for a thing that has a log, a session or an agent: one at
@@ -1308,13 +1307,6 @@ COMMANDS = (
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
-    ## the left window's own where it shows the rows of a folder as a table: every row of
-    ## it, or as many as the pane shows again (tableRowsShown); in the levels whose folders
-    ## show so, the root among them
-    {"name": "rows", "keys": ("e",), "menu": ("view", 5), "label": "~E~very row or the first", "status": ("All rows", "First rows"), "toggle": "allRows",
-     "views": tuple("teamdata/%s" % storeId for storeId, storeLabel in TEAM_DATA_STORES) + tuple("teamdata/%s/*" % storeId for storeId, storeLabel in TEAM_DATA_STORES)
-     + ("team/*", "team/*/files", "team/*/sessions", "", "sessions", "sessions/launch", "pending", "places", "consoles", "settings", "configuration",
-        "configuration/checker", "configuration/commands"), "for": "a folder of more rows than the pane shows", "does": ("rows",)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "colours", "keys": ("i",), "menu": ("view", 3), "label": "~I~nterface colours: the next", "does": ("colours",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
@@ -1659,8 +1651,6 @@ class ManagerState:
         self.textMode = TEXT_MODE_FIRST
         ## whether the left window wraps its long lines, or cuts them and scrolls sideways
         self.wrap = WRAP_FIRST
-        ## whether a table under a summary shows every row, or as many as the pane shows (tableRowsShown)
-        self.allRows = False
         ## the split between the windows as the user moved it, the share of the width the
         ## right one takes, or None; and how the mouse holds its border: None, "pressed"
         ## by a button that is down, "held" by a click, until the next one
@@ -2000,9 +1990,9 @@ def layoutOf(columns, lines, split=None):
         "listWidth": listWidth,
         "topLine": 0,
         "titleLine": 1,
-        "bodyTop": 2,
-        "viewHeight": lines - 4,
-        "listHeight": lines - 4,
+        "bodyTop": 2 + bodyLower(),
+        "viewHeight": lines - 4 - bodyLower(),
+        "listHeight": lines - 4 - bodyLower(),
         "inputLine": lines - 2,
         "bottomLine": lines - 1,
     }
@@ -2318,7 +2308,12 @@ def followSelection(state):
     ## line carries (Looked); where no line is made new, those of the lines that stand
     kept = state.view["looks"]
     state.view["looks"] = {}
+    ## how many rows a table holds is said again by what makes it (tableCount); where nothing is
+    ## made new the pane keeps what it said
+    counted = state.view.pop("tableRows", None)
     local = localView(state, row)
+    if local is None and counted is not None:
+        state.view["tableRows"] = counted
     if local is not None:
         state.view["lines"] = local
         state.view["lineKeys"] = []
@@ -2408,6 +2403,7 @@ def localView(state, row):
     if row.get("line"):
         return settingLines(row["line"], state.viewWidth)
     if row.get("lineGroup"):
+        tableCount(state, row["lineGroup"]["lines"])
         return groupLines(row["lineGroup"], state.viewWidth, state.wrap)
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
@@ -2693,40 +2689,27 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     return head, blocks
 
 
-## The lines of a summary with a table under them: the table's header, and as many of its
-## rows as the pane has room for under the lines above it, then a line that says how many
-## more there are; every row while `e` shows them all. How many show where not all of
-## them do stands in the view, for the title and for `e` (tableRowsShown).
-def tableSummaryLines(state, lines, heads, rows, kinds=None, icons=None, looks=None, numbered=False):
-    room = max(10, state.viewWidth - 1)
-    above = sum(len(wrapToCells(line, room)) if textWidth(line) > room and not line.startswith(" ") else 1 for line in lines)
-    height = state.viewHeight - (1 if itemKeysText(state) else 0) - len(state.view["head"]) - above - 1
-    taken = len(rows) if state.allRows else max(1, height)
-    head, blocks = paneTable(heads, rows[:taken], state.viewWidth - 1, icons=icons[:taken] if icons else None, wrap=state.wrap, kinds=kinds,
-                             numbered=numbered, looks=looks[:taken] if looks else None)
-    used = shown = 0
-    for block in blocks:
-        if used + len(block) > height:
-            break
-        used += len(block)
-        shown += 1
-    state.view["rowsCap"] = None
-    if shown < len(rows):
-        while shown > 1 and used + 1 > height:
-            shown -= 1
-            used -= len(blocks[shown])
-        state.view["rowsCap"] = max(1, shown)
-    shown = len(blocks) if state.allRows else max(1, shown)
-    lines = lines + head + [line for block in blocks[:shown] for line in block]
-    if shown < len(rows):
-        lines.append(looked("  and %d more" % (len(rows) - shown), DIM))
-    return lines
+## A left pane that is a table (the owner: "show all items in table. Full table view - no
+## summary on top.", "IF YOU WANT SUMMARIES THAT MUCH - ADD THEM TO PANEL BOTTOM RIGHT
+## CORNER", "Do not double - one place"): its header and every row of it, nothing above it,
+## the pane scrolling; how many rows it holds stands in the frame alone (tableCount).
+def tableSummaryLines(state, heads, rows, kinds=None, icons=None, looks=None, numbered=False):
+    head, blocks = paneTable(heads, rows, state.viewWidth - 1, icons=icons, wrap=state.wrap, kinds=kinds, numbered=numbered, looks=looks)
+    tableCount(state, rows)
+    return head + [line for block in blocks for line in block]
 
 
-## How many rows of a table under a summary the left window shows, where it does not show
-## every row of it (tableSummaryLines): then `e` shows them all, or that many again.
-def tableRowsShown(state):
-    return state.view.get("rowsCap")
+## How many rows the table of the left pane holds, its headings of groups aside, for the
+## bottom border of its frame (viewCount).
+def tableCount(state, rows):
+    state.view["tableRows"] = len([row for row in rows if not isinstance(row, str)])
+
+
+## What the bottom border of the left window says at its right: how many rows its table holds,
+## where it shows one, and nothing where it does not.
+def viewCount(state):
+    count = state.view.get("tableRows")
+    return "" if count is None else "%d row%s" % (count, "" if count == 1 else "s")
 
 
 ## ---- the items of the team data: its board, its audit and its vault ----
@@ -2786,14 +2769,8 @@ def storeSummary(state, path, row, form):
     items = [held for held in rows if held["kind"] == "item"]
     if not folders and not items:
         return ["%s: empty. It holds no items." % row["label"]]
-    total = sum(int(held["folder"]["items"]) for held in folders if held["folder"]["items"].isdigit()) + len(items)
-    lines = ["%s: %d items%s." % (row["label"], total, (" in %d folders" % len(folders) + (" and itself" if items else "")) if folders else "")]
-    if folders:
-        lines.extend([""] + summaryTable(("FOLDER", "ITEMS"), [[held["label"], held["folder"]["items"]] for held in folders], state.viewWidth))
-    if items:
-        lines.extend(["", "%d item%s in the %s itself." % (len(items), "" if len(items) == 1 else "s", row["label"].lower())])
-    lines.extend(["", "Enter opens it: a selected item shows its text."])
-    return lines
+    return tableSummaryLines(state, ("FOLDER", "ITEMS"), [[held["label"], held["folder"]["items"]] for held in folders]
+                             + [[held["label"], "-"] for held in items], ("key", "text"))
 
 
 ## What the read of a folder gives of each item's front matter, in its order after the stamp.
@@ -2814,9 +2791,6 @@ ITEM_COLUMNS = (
 ## rows in the list show; its date is the front matter's alone, the stamp being its name's.
 STORE_ITEM_COLUMNS = {"board": tuple(("DATE", lambda item: item.get("date", "")[:16], "text") if column[0] == "DATE" else column
                                      for column in ITEM_COLUMNS if column[0] not in ("TYPE", "SIZE"))}
-## The stores whose folder shows its table alone, every item of it, nothing above it, so with
-## no `e` (the owner: "show all items in table. Full table view - no summary on top.").
-ITEMS_WHOLE = ("board",)
 
 
 ## The stamp of an item's name, `<YYYYMMDD>T<HHMM>`, as a date: `2026-10-01 09:00`.
@@ -2826,10 +2800,8 @@ def stampText(stamp):
     return "%s-%s-%s %s:%s" % (stamp[:4], stamp[4:6], stamp[6:8], stamp[9:11], stamp[11:])
 
 
-## The summary of a folder of a store: how many items it holds and how much, then its items
-## as a table (paneTable), the newest first where their names are dated: as many as the
-## pane shows, or every row while `e` shows them all, and how many more there are. A folder
-## of a store of ITEMS_WHOLE: the table alone, every row. The columns are the store's own
+## The summary of a folder of a store: its items as a table (tableSummaryLines), the newest
+## first where their names are dated, every one of them. The columns are the store's own
 ## where it has its own (STORE_ITEM_COLUMNS).
 def itemsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
@@ -2839,14 +2811,8 @@ def itemsSummary(state, path, row, form):
     if not items:
         return ["%s: empty. It holds no items." % row["label"]]
     columns = [column for column in STORE_ITEM_COLUMNS.get(form.get("store"), ITEM_COLUMNS) if any(column[1](held["item"]) for held in items)]
-    heads, cells, kinds = [column[0] for column in columns], [[column[1](held["item"]) or "-" for column in columns] for held in items], [column[2] for column in columns]
-    if form.get("store") in ITEMS_WHOLE:
-        state.view["rowsCap"] = None
-        head, blocks = paneTable(heads, cells, state.viewWidth - 1, wrap=state.wrap, kinds=kinds)
-        return head + [line for block in blocks for line in block]
-    size = sum(int(held["item"]["bytes"]) for held in items if held["item"]["bytes"].isdigit())
-    lines = [looked("%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), BOLD), ""]
-    return tableSummaryLines(state, lines, heads, cells, kinds)
+    return tableSummaryLines(state, [column[0] for column in columns], [[column[1](held["item"]) or "-" for column in columns] for held in items],
+                             [column[2] for column in columns])
 
 
 ## ---- a team member as a folder: its grants, its files, its sessions, its help ----
@@ -2862,14 +2828,6 @@ GRANT_COLUMNS = (
     ("ENDS", lambda grant: grant["ends"], "text"),
 )
 GRANT_COVERS_CELLS = 40
-
-
-## A member's grants by their kind, counted, in the order they come: `floor 12, standing 3`.
-def grantCounts(grants):
-    counts = {}
-    for grant in grants:
-        counts[grant["kind"]] = counts.get(grant["kind"], 0) + 1
-    return ", ".join("%s %d" % (kind, count) for kind, count in counts.items())
 
 
 ## What the read of a member printed of its grants, as rows (grantRows).
@@ -2940,7 +2898,8 @@ def grantsSummary(state, path, row, form):
     grants = [held["grant"] for held in rows if held.get("grant")]
     if not grants:
         return ["No grants."]
-    return [looked("%d grants: %s." % (len(grants), grantCounts(grants)), BOLD)] + grantTableLines(grants, state.viewWidth - 1, state.wrap)
+    tableCount(state, grants)
+    return grantTableLines(grants, state.viewWidth - 1, state.wrap)
 
 
 ## What `--manager-team-member-files` printed: a file a row, by its path in the member's
@@ -2968,11 +2927,9 @@ def filesSummary(state, path, row, form):
     if rows is None:
         return None
     files = [held for held in rows if held.get("file")]
-    size = sum(int(held["file"]["bytes"]) for held in files if held["file"]["bytes"].isdigit())
-    lines = [looked("%d file%s, %s; %d of them text." % (len(files), "" if len(files) == 1 else "s", shortBytes(str(size)), len([held for held in files if held["text"]])), BOLD)]
     if not files:
-        return lines
-    return tableSummaryLines(state, lines + [""], ("NAME", "SIZE", "CONTENT"),
+        return ["No files."]
+    return tableSummaryLines(state, ("NAME", "SIZE", "CONTENT"),
                              [[held["label"], shortBytes(held["file"]["bytes"]), "text" if held["text"] else "binary"] for held in files], ("key", "text", "enum"))
 
 
@@ -3305,19 +3262,10 @@ def pendingSummary(state, path, row, form):
     if rows is None:
         return None
     asks = [held["ask"]["values"] for held in rows if held.get("ask")]
-    count = len(asks)
-    if count == 0:
+    if not asks:
         return [looked("Nothing waits for an answer.", BOLD)]
-    gone = len([values for values in asks if values.get("asker-live") in ASKER_GONE])
-    whom = {}
-    for values in asks:
-        whom[values.get("address-to", "-")] = whom.get(values.get("address-to", "-"), 0) + 1
     now = nowEpoch()
-    oldest = min([askedEpoch(values) for values in asks if askedEpoch(values) is not None] or [None], key=lambda epoch: epoch or now)
-    lines = [looked("%d ask%s: for %s; the oldest %s%s." % (
-        count, " waits" if count == 1 else "s wait", ", ".join("%s %d" % pair for pair in sorted(whom.items(), key=lambda pair: (-pair[1], pair[0]))),
-        ageText(oldest, now) or "-", "; %d asker%s gone (%s)" % (gone, "" if gone == 1 else "s", MARK_GONE) if gone else ""), BOLD), ""]
-    return tableSummaryLines(state, lines, ("AGE", "KIND", "FROM", "TO", "QUESTION"), [
+    return tableSummaryLines(state, ("AGE", "KIND", "FROM", "TO", "QUESTION"), [
         [ageText(askedEpoch(values), now) or "-", values.get("kind", "-"), values.get("owner", "-"), values.get("address-to", "-"),
          values.get("question", "") or "-"] for values in asks], ("text", "enum", "text", "text", "key"),
         icons=[ASK_KIND_MARKS.get(values.get("kind"), "") for values in asks],
@@ -4364,19 +4312,10 @@ def sessionsSummary(state, path, row, form):
     if rows is None:
         return None
     held = [one for one in rows if one.get("session")]
-    counts = {}
-    for one in held:
-        counts[one["session"]["state"]] = counts.get(one["session"]["state"], 0) + 1
-    states = [name for name in form["counted"] if name in counts] + [name for name in counts if name not in form["counted"]]
-    caption = "%d %ssession%s%s" % (len(held), "active " if state.activeOnly else "", "" if len(held) == 1 else "s",
-                                    ": " + ", ".join("%d %s" % (counts[name], name) for name in states) if held else "")
-    if "running" in state.counters:
-        caption += "; agents %s working, %s waiting" % (state.counters.get("working", "-"), state.counters.get("waiting", "-"))
-    lines = [looked(caption + ".", BOLD)]
     if not held:
-        return lines
+        return ["No %ssessions." % ("active " if state.activeOnly else "")]
     now = nowEpoch()
-    return tableSummaryLines(state, lines + [""], ("SESSION", "STATE", "AGE", "AGENTS", "TOKENS", "MEMBERS"), [
+    return tableSummaryLines(state, ("SESSION", "STATE", "AGE", "AGENTS", "TOKENS", "MEMBERS"), [
         [one["label"], one["tail"], ageText(registryEpoch(one["session"]["started"]), now) or "-", one["session"]["count"],
          tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-", membersText(one["session"]) or "-"] for one in held],
         ("key", "enum", "text", "text", "text", "text"), looks=[[None, stateLook(one["tail"])] + [None] * 4 for one in held])
@@ -4475,14 +4414,10 @@ def routinesSummary(state, path, row, form):
     if rows is None:
         return None
     routines = [held["routine"] for held in rows if held.get("routine")]
-    startable = [routine for routine in routines if routine["start"] == "startable"]
-    asking = [routine for routine in routines if routineAsksMembers(routine)]
-    lines = [looked("%d routine%s: %d start here, %d with members named, %d cannot." % (
-        len(routines), "" if len(routines) == 1 else "s", len(startable), len(asking), len(routines) - len(startable) - len(asking)), BOLD)]
     if not routines:
-        return lines
+        return ["No routines."]
     sessions = any(routine["session"] for routine in routines)
-    return tableSummaryLines(state, lines + [""], ("ROUTINE", "START", "OWNER", "TITLE") + (("SESSION",) if sessions else ()), [
+    return tableSummaryLines(state, ("ROUTINE", "START", "OWNER", "TITLE") + (("SESSION",) if sessions else ()), [
         [routine["name"], routineStart(routine), routine["owner"] or "-", routine["title"] or "-"] + ([routine["session"] or "-"] if sessions else [])
         for routine in routines], ("key", "enum", "text", "text", "enum"),
         looks=[[None, stateLook(routineStart(routine)), None, None, None] for routine in routines])
@@ -5967,23 +5902,26 @@ def memberRefusal(member):
 ## The columns of the members' table after the icon, named in the installer's manner, and
 ## what of a member stands in each. The name always shows. Those after it show in this
 ## order while the pane has room, so whether a member runs is the last of them to be lost.
+## WHERE is the project its skillset lies in (projectPlace), from its own folder: the
+## folder above its `skillset/`, or the folder itself where it lies in none.
 MEMBER_COLUMNS = (
-    ("MEMBER", lambda member: member["name"], "key"),
-    ("RUN", lambda member: "running" if member["live"] == "running" else "", "enum"),
-    ("STATUS", lambda member: MEMBER_STATUS_SHORT.get(member["status"], member["status"]), "enum"),
-    ("KIND", lambda member: member["kind"], "enum"),
-    ("WHERE", lambda member: member["setUp"], "enum"),
+    ("MEMBER", lambda state, member: member["name"], "key"),
+    ("RUN", lambda state, member: "running" if member["live"] == "running" else "", "enum"),
+    ("STATUS", lambda state, member: MEMBER_STATUS_SHORT.get(member["status"], member["status"]), "enum"),
+    ("KIND", lambda state, member: member["kind"], "enum"),
+    ("WHERE", lambda state, member: projectPlace(state, member["folder"].rpartition("/skillset/")[0] or member["folder"] or "-",
+                                                 placedShown(state)), "text"),
 )
 
 
 ## The members as one table, like the member table of the installer, for the left pane, in
 ## lines of that many cells: under a header, each member's icon, its name, whether it runs
-## now, its status, its kind and where it is set up, in columns as wide as their widest
-## word, an absent one `-`. The icon is the one the operation gave, and no icon is named
+## now, its status, its kind and the project its skillset lies in, in columns as wide as
+## their widest word, an absent one `-`. The icon is the one the operation gave, and no icon is named
 ## here. It is measured in cells as every text of the screen is, so a wide one, and one an
 ## emoji selector makes wide, take two; a member with none keeps that place empty.
-def memberTableLines(members, width, wrap=True):
-    head, blocks = paneTable([column[0] for column in MEMBER_COLUMNS], [[column[1](member) or "-" for column in MEMBER_COLUMNS] for member in members],
+def memberTableLines(state, members, width, wrap=True):
+    head, blocks = paneTable([column[0] for column in MEMBER_COLUMNS], [[column[1](state, member) or "-" for column in MEMBER_COLUMNS] for member in members],
                              width, [member["icon"] for member in members], wrap, [column[2] for column in MEMBER_COLUMNS], numbered=True)
     return head + [line for block in blocks for line in block]
 
@@ -6019,8 +5957,9 @@ def tableLineText(table, cells, width):
 ## as a list, each by its icon and its name (memberLeads), and as a table in the left pane
 ## (memberTableLines). One with a live run stands out. One that is not started from
 ## here, whose status is `reference-only` or whose workspace is `not-present`, shows
-## plainer: dimmed. The last field is the member's icon: a row without it, as the
-## operation printed a row before it gave one, is a member with no icon.
+## plainer: dimmed. The last two fields are the member's icon and its own folder: a row
+## without them, as the operation printed a row before it gave them, is a member with no
+## icon and no folder.
 def parseMemberRows(text):
     rows = []
     for line in text.splitlines():
@@ -6030,7 +5969,7 @@ def parseMemberRows(text):
         member = {"name": fields[1], "mark": unspaced(fields[2]), "first": unspaced(fields[3]),
                   "family": unspaced(fields[4]), "alias": unspaced(fields[5]), "kind": absent(fields[6]),
                   "workspace": absent(fields[7]), "setUp": fields[8], "status": absent(fields[9]), "live": fields[10],
-                  "icon": absent(fields[11]) if len(fields) > 11 else ""}
+                  "icon": absent(fields[11]) if len(fields) > 11 else "", "folder": absent(fields[12]) if len(fields) > 12 else ""}
         ## a member is a folder of its own, but one whose workspace cannot be reached, whose
         ## nothing is read, and the row of the team itself, which is no member
         row = newRow(fields[1], fields[1], "record", member["setUp"] != "not-present" and member["kind"] != MEMBER_TEAM_KIND, fields)
@@ -6143,7 +6082,10 @@ def membersSummary(state, path, row, form):
     if rows is None:
         return None
     members = [held["member"] for held in rows if held.get("member")]
-    return memberTableLines(members, state.viewWidth - 1, state.wrap) if members else ["No members."]
+    if not members:
+        return ["No members."]
+    tableCount(state, members)
+    return memberTableLines(state, members, state.viewWidth - 1, state.wrap)
 
 
 ## Whether `n` starts the member of that row: one the operation would start.
@@ -6203,11 +6145,6 @@ SUBJECT_WORDS = {
     "interface": "how this console looks, saved for the user who runs it",
     "console": "how the consoles of this workspace behave",
     "control": "how long a console waits when it asks something of a session",
-}
-## What each root of the digest holds, in words, under the counts of its summary.
-ROOT_WORDS = {
-    "settings": "What a user sets for himself, and what is changed while the workspace runs.",
-    "configuration": "What was set when the workspace was deployed and configured. For viewing: nothing of it is changed from here, a wizard will change it later.",
 }
 ## What each <source> of a line shows as, after its value: where the value comes from.
 ## One that is not listed here shows as it is printed.
@@ -6379,12 +6316,6 @@ def digestWords(subjectName, line):
     return valueWords(subjectName, line) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
 
 
-## The caption of lines of the digest: what they are, how many, and how many of them missing.
-def digestCaption(label, lines):
-    missing = len([line for line in lines if line["state"] in STATES_MISSING])
-    return looked("%s: %d line%s%s." % (label, len(lines), "" if len(lines) == 1 else "s", ", %d missing" % missing if missing else ""), BOLD)
-
-
 ## The subjects of the digest whose lines a table sets out by their group, in a column of its
 ## own that these words head, then each line's key and what it reads as: a row a line, with no
 ## heading row and no column of labels (the owner: "Pointless: SETTING VALUE KEY.... Make
@@ -6439,10 +6370,8 @@ def digestTable(subjectName, lines, missingFirst=False):
 ## many of them missing as its caption, what it holds in words, dim, and its lines as a
 ## table (digestTable), as many as the pane shows, or every row while `e` shows them all.
 def subjectLines(state, subject, missingFirst=False):
-    words = SUBJECT_WORDS.get(subject["name"], "")
-    lines = [digestCaption(subject.get("label") or subject["name"], subject["lines"])] + ([looked(words, DIM)] if words else []) + [""]
     heads, rows, kinds, looks = digestTable(subject["name"], subject["lines"], missingFirst)
-    return tableSummaryLines(state, lines, heads, rows, kinds, looks=looks)
+    return tableSummaryLines(state, heads, rows, kinds, looks=looks)
 
 
 ## A subject of the digest as a folder: its lines, as its row shows them, in the form its
@@ -6461,7 +6390,7 @@ def groupLines(group, width, wrap=True):
         ## the title names the group: its column would say it again on every row
         heads, rows, kinds, looks = heads[1:], [row[1:] for row in rows], kinds[1:], [look[1:] for look in looks]
     head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks)
-    return [digestCaption(group["label"], group["lines"]), ""] + head + [line for block in blocks for line in block]
+    return head + [line for block in blocks for line in block]
 
 
 ## The selected line of a subject for the left pane, from its row: what it is now first,
@@ -6593,11 +6522,6 @@ def digestSummary(state, path, row, form):
         return None
     subjects = [held["subject"] for held in state.rows[root] if held.get("subject")]
     lacks = lambda subject: len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
-    total = sum(len(subject["lines"]) for subject in subjects)
-    missing = sum(lacks(subject) for subject in subjects)
-    lines = [looked("%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
-                                                              total, "" if total == 1 else "s", missing), BOLD)] + (
-        [looked(ROOT_WORDS[root], DIM)] if root in ROOT_WORDS else [])
     ordered = sorted(subjects, key=lambda subject: 0 if lacks(subject) else 1)
     rows = [[subject.get("label") or subject["name"], str(len(subject["lines"])), str(lacks(subject)) if lacks(subject) else "-",
              SUBJECT_WORDS.get(subject["name"], "-")] for subject in ordered]
@@ -6607,8 +6531,8 @@ def digestSummary(state, path, row, form):
         rows.append([label, str(len([one for one in held if one["kind"] != "group"])) if held is not None else "-", "-", FOLDER_WORDS.get(folderId, "-")])
         looks.append(None)
     if not rows:
-        return lines
-    return tableSummaryLines(state, lines + [""], ("SUBJECT", "LINES", "MISSING", "WHAT"), rows, ("key", "text", "text", "text"), looks=looks)
+        return ["No subjects."]
+    return tableSummaryLines(state, ("SUBJECT", "LINES", "MISSING", "WHAT"), rows, ("key", "text", "text", "text"), looks=looks)
 
 
 ## ---- the checks of the installation: `Config Checker` ----
@@ -6673,25 +6597,14 @@ def checkLines(check, width):
 def checksSummary(state, path, row, form):
     shown = listReadOf(path)
     rows = state.rows.get(levelKey(path))
-    ran = " at %s" % state.ran[shown[0]] if shown and state.ran.get(shown[0]) else ""
-    if rows is None:
-        caption = "The checks were not run yet in this run of the screen."
-    elif not rows:
-        caption = "The last run%s gave no check." % ran
-    else:
-        summary = rows[0]["checked"]
-        counts = ", ".join("%s %s" % (summary[name], name) for name in CHECK_SUMMARY[1:-1] if name in summary)
-        caption = "%d check%s%s%s%s." % (len(rows), "" if len(rows) == 1 else "s", ": " + counts if counts else "",
-                                          ", in %s seconds" % summary["seconds"] if summary.get("seconds") else "", ", run" + ran if ran else "")
-    lines = [looked(caption, BOLD)]
     if bool(shown) and shown[0] in state.reading.values():
-        lines.append(looked("They are running now.", LEVEL_WARN))
-    elif rows is None:
-        lines.append(looked("%s runs them. %s" % (commandKeys(commandNamed("check"))[0], CHECKS_SAY), DIM))
+        return [looked("They are running now.", LEVEL_WARN)]
+    if rows is None:
+        return [looked("The checks were not run yet in this run of the screen.", BOLD), looked("%s runs them. %s" % (commandKeys(commandNamed("check"))[0], CHECKS_SAY), DIM)]
     if not rows:
-        return lines
+        return [looked("The last run gave no check.", BOLD)]
     ordered = sorted(rows, key=lambda held: -STATE_RANKS.index(stateLook(held["check"]["state"])) if stateLook(held["check"]["state"]) in STATE_RANKS else 0)
-    return tableSummaryLines(state, lines + [""], ("CHECK", "STATE", "DOMAIN", "REASON"), [
+    return tableSummaryLines(state, ("CHECK", "STATE", "DOMAIN", "REASON"), [
         [held["label"], held["check"]["state"], held["check"]["domain"] or "-", unspaced(held["check"]["reason"]).strip() or "-"] for held in ordered],
         ("key", "enum", "enum", "text"), looks=[[None, stateLook(held["check"]["state"]), None, None] for held in ordered])
 
@@ -6833,6 +6746,7 @@ def keyGroupLines(state, path, groups, width):
             looks.append([None, None, look])
     ## the line of a key has its room first: the label gives way before it
     head, blocks = paneTable(("KEY", "TYPE", "PUBLIC LINE"), rows, max(10, width - 1), wrap=state.wrap, kinds=("text", "enum", "whole"), looks=looks)
+    tableCount(state, rows)
     return head + [line for block in blocks for line in block]
 
 
@@ -6939,17 +6853,13 @@ def parseCommandRows(text):
     return rows
 
 
-## Where a tooling command is located, from the file it resolves to: the project whose
-## COMMAND_FOLDER holds it, as `<workspace>:<project path>` where it lies in the folder of the
-## projects of a workspace the locations know, the longest winning (the owner: "Just a
-## workspace:project_path"); else that folder by the rule of the locations where the view takes
-## it, or as it is; `-` where it resolves to none.
-def commandPlace(state, file, placing):
-    if file == "-":
-        return file
-    folder = file.rpartition("/")[0]
-    if folder.endswith("/" + COMMAND_FOLDER):
-        folder = folder[:-len(COMMAND_FOLDER) - 1]
+## Where a project lies, from its folder: as `<workspace>:<project path>` where it lies in the
+## folder of the projects of a workspace the locations know, the longest winning (the owner:
+## "Just a workspace:project_path"); else that folder by the rule of the locations where the
+## view takes it, or as it is; `-` for none.
+def projectPlace(state, folder, placing):
+    if folder == "-":
+        return folder
     found = None
     for held in state.rows.get("places") or ():
         place = held.get("place")
@@ -6959,6 +6869,17 @@ def commandPlace(state, file, placing):
     if found:
         return "%s:%s" % (found[0]["key"], found[1])
     return placedLine(state, folder)[0] if placing else folder
+
+
+## Where a tooling command is located, from the file it resolves to: the project whose
+## COMMAND_FOLDER holds it (projectPlace); `-` where it resolves to none.
+def commandPlace(state, file, placing):
+    if file == "-":
+        return file
+    folder = file.rpartition("/")[0]
+    if folder.endswith("/" + COMMAND_FOLDER):
+        folder = folder[:-len(COMMAND_FOLDER) - 1]
+    return projectPlace(state, folder, placing)
 
 
 ## What `Tooling Commands` holds, for the left pane while its row or the row that goes up
@@ -6973,8 +6894,7 @@ def commandsSummary(state, path, row, form):
     if not rows:
         return [looked("The operation listed no command.", BOLD)]
     placing = placedShown(state)
-    return tableSummaryLines(state, [looked("%d command%s." % (len(rows), "" if len(rows) == 1 else "s"), BOLD), ""],
-                             ("NAME", "PATH"), [[held["label"], commandPlace(state, held["path"], placing)] for held in rows],
+    return tableSummaryLines(state, ("NAME", "PATH"), [[held["label"], commandPlace(state, held["path"], placing)] for held in rows],
                              ("key", "text"))
 
 
@@ -7031,15 +6951,9 @@ def startsSummary(state, path, row, form):
     if rows is None:
         return None
     starts = [held for held in rows if held.get("start")]
-    groups = []
-    for held in starts:
-        if not groups or groups[-1][0] != held["tail"]:
-            groups.append([held["tail"], 0])
-        groups[-1][1] += 1
     if not starts:
         return [looked("Nothing to start here: the operation listed none.", BOLD)]
-    lines = [looked("%d to start: %s." % (len(starts), ", ".join("%d %s" % (count, group or "-") for group, count in groups)), BOLD), ""]
-    return tableSummaryLines(state, lines, ("CONSOLE", "GROUP", "COMMAND"), [
+    return tableSummaryLines(state, ("CONSOLE", "GROUP", "COMMAND"), [
         [held["label"], held["tail"] or "-", commandText(held["start"]["words"])] for held in starts], ("key", "enum", "text"))
 
 
@@ -7460,12 +7374,12 @@ def cleanupLines(state, row):
 def cleanupsSummary(state, path, row, form):
     rows = [newRow(cleanupId, cleanup["label"], "operation") for cleanupId, cleanup in CLEANUPS]
     refusals = [cleanupRefusal(state, held) for held in rows]
-    lines = [looked("%d operations: %d run here." % (len(rows), len([refusal for refusal in refusals if not refusal])), BOLD), ""]
+    tableCount(state, rows)
     head, blocks = paneTable(("OPERATION", "HERE", "WHY NOT"), [
         [held["label"], "not here" if refusal else "runs here", refusal or "-"] for held, refusal in zip(rows, refusals)],
         max(10, state.viewWidth - 1), wrap=state.wrap, kinds=("key", "enum", "text"), indent="  ",
         looks=[[None, LEVEL_WARN if refusal else LEVEL_OK, None] for refusal in refusals])
-    return lines + head + [line for block in blocks for line in block]
+    return head + [line for block in blocks for line in block]
 
 
 def askCleanup(state, row):
@@ -7698,8 +7612,8 @@ def pathUnder(path, folder):
 ## is, its state in its colour, its ceiling, and how many sessions name it. Once the read
 ## of that one location has come (info): what declares it; what stands in it, as a table
 ## of what, its name and where, the path of each as it stands under the path of the
-## location, which is said once, at the top, and a thing that does not lie under it with
-## its whole path; and the members that belong to it, as one table, those whose folder
+## location, which is said once, at the top, and a thing that does not lie under it by the
+## rule of the locations where it lies in another one (placedLine), and else as it is; and the members that belong to it, as one table, those whose folder
 ## lies in the location first: the icon and the name of each, its kind, how it is set up,
 ## in the colour of what to look at for one that no registry names, and its folder, under
 ## the location's path where it lies there, by the rule of the locations where it lies in
@@ -7721,7 +7635,7 @@ def placeLines(state, place, width, info=None):
         return lines
     if info["stands"]:
         head, blocks = paneTable(("WHAT", "NAME", "WHERE"), [
-            [what, name or "-", pathUnder(path, place["path"]) or path] for what, name, path in sorted(
+            [what, name or "-", pathUnder(path, place["path"]) or placedLine(state, path)[0]] for what, name, path in sorted(
                 info["stands"], key=lambda stands: pathUnder(stands[2], place["path"]) is None)],
             max(10, width - 1), wrap=state.wrap, kinds=("enum", "text", "key"), indent="  ")
         lines.extend(headingLines("What stands in it") + head + [line for block in blocks for line in block])
@@ -7749,18 +7663,7 @@ def placesSummary(state, path, row, form):
     places = [held["place"] for held in rows if held.get("place")]
     if not places:
         return [looked("No location is known here: the operation listed none.", BOLD)]
-    kinds = []
-    for place in places:
-        if place["kind"] not in [kind for kind, count in kinds]:
-            kinds.append([place["kind"], 0])
-        [entry for entry in kinds if entry[0] == place["kind"]][0][1] += 1
-    here = [place["key"] for place in places if place["here"] == PLACES["here"]]
-    away = [place["key"] for place in places if place["state"] != PLACES["present"]]
-    lines = [looked("%d location%s: %s%s%s." % (len(places), "" if len(places) == 1 else "s",
-                                               ", ".join("%d %s" % (count, kind) for kind, count in kinds),
-                                               "; the console runs in " + here[0] if here else "",
-                                               "; %d not present" % len(away) if away else ""), BOLD), ""]
-    return tableSummaryLines(state, lines, ("PLACE", "KIND", "STATE", "PATH", "SESSIONS", "CEILING"),
+    return tableSummaryLines(state, ("PLACE", "KIND", "STATE", "PATH", "SESSIONS", "CEILING"),
                              [[place["key"], place["kind"] or "-", place["state"] or "-", absent(place["path"]) or "-",
                                absent(place["sessions"]) or "-", absent(place["ceiling"]) or "-"] for place in places],
                              ("key", "enum", "enum", "key", "text", "enum"),
@@ -8209,9 +8112,6 @@ def commandRefusal(state, command):
     if does[0] == "demand":
         ## it asks for a list that is read on demand alone: the one shown, or the one of the folder selected
         return "" if demandRead(state) else other
-    if does[0] == "rows":
-        ## a table of the items of a folder that holds more than it shows at first
-        return "" if tableRowsShown(state) else other
     if does[0] == "wrap":
         ## panels have no cut mode
         return other if panelsShown(state) else ""
@@ -8299,8 +8199,6 @@ def runCommand(state, command, layout, key=None):
     elif does[0] == "wrap":
         state.wrap = not state.wrap
         state.view["left"] = 0
-    elif does[0] == "rows":
-        state.allRows = not state.allRows
     elif does[0] == "pan":
         ## the pane is brought within what it holds when it is drawn (panOf)
         state.view["left"] = max(0, state.view.get("left", 0) + (1 if key == "RIGHT" else -1) * PAN_STEP)
@@ -9009,10 +8907,6 @@ def viewTitle(state):
     ## and a text that is Markdown, whether it is rendered or raw
     if markdownShown(state, row):
         form = " " + (dict(VIEW_MODES)["raw"]["mark"] if textRawShown(state) else MARKDOWN["mark"])
-    ## and a table of the items of a folder, whether every row of it shows or its first
-    few = tableRowsShown(state)
-    if few:
-        form += " " + (ROWS_MARK if state.allRows else FEW_ROWS_MARK % few)
     ## and whether its long lines are wrapped or cut: the title says it always
     return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap or panelsShown(state) else CUT_MARK)
 
@@ -9339,14 +9233,14 @@ TITLE_INSET = 3
 ## holds, the first one shown, how many it shows. In a style with "icons" the active one,
 ## while no dialog is over it, has them in its top border, the box that closes at its left and the one that zooms at
 ## its right, where its title fits whole between them (iconsFit).
-def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
+def drawFrame(surface, box, title, active, foot="", bar=None, lit=None, count=""):
     left, top, width, height = box
     marks = styleMark("frameOn" if active else "frame")
     ## `lit`: whether it is drawn in the look of the active one, where that is not what
     ## `active` says: behind a dialog no frame is, and the double line stays
     look = FRAME_ON if (active if lit is None else lit) else FRAME
     if styleDraws("edges", "blocks"):
-        return drawEdges(surface, box, title, look == FRAME_ON, bar)
+        return drawEdges(surface, box, title, look == FRAME_ON, bar, count)
     room = width - 2
     bottom = top + height - 1
     surface.put(top, left, marks[0] + marks[1] * room + marks[2], look)
@@ -9369,6 +9263,28 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
     surface.put(bottom, left, marks[4] + marks[1] * room + marks[5], look)
     if foot and room >= 6:
         surface.put(bottom, left + 2, " " + fitToCells(foot, room - 4) + " ", look)
+    if count:
+        putCount(surface, bottom, left, width, count, look, "titleOn" if active else "title", TITLE_ON if look == FRAME_ON else TITLE)
+
+
+## A count in the bottom border of a box at its right, what a window's "count" gives (WINDOWS),
+## as a title stands in its top border: between the same marks, in the same looks (putTitle),
+## two cells in from its corner; where the border has no room for it, none.
+def putCount(surface, line, left, width, count, look, ends, chip):
+    before, after = styleMark(ends)
+    if not STYLE.get("titles"):
+        text = before + count + after
+        if textWidth(text) + 6 <= width:
+            surface.put(line, left + width - 3 - textWidth(text), text, look)
+        return
+    before, after = before.strip(), after.strip()
+    cells = textWidth(before) + textWidth(count) + 2 + textWidth(after)
+    if cells + 6 > width:
+        return
+    column = left + width - 3 - cells
+    surface.put(line, column, before, look)
+    surface.put(line, column + textWidth(before), " " + count + " ", chip)
+    surface.put(line, column + textWidth(before) + textWidth(count) + 2, after, look)
 
 
 ## The edges of a window in a style that draws them of blocks (STYLES "edges"): its top line
@@ -9382,7 +9298,7 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
 ## share it shows, where that stands; as many lines lower than the window's first as the
 ## style says (barLower), as long, its ↓ then on the window's last line; its arrows and thumb
 ## in a look of their own where the window is active (SCROLL, THUMB), else in the track's.
-def drawEdges(surface, box, title, lit, bar):
+def drawEdges(surface, box, title, lit, bar, count=""):
     left, top, width, height = box
     rim = styleMark("rim")
     look, shade = (EDGE_ON, EDGE_ON_SHADE) if lit else (EDGE, EDGE_SHADE)
@@ -9398,6 +9314,8 @@ def drawEdges(surface, box, title, lit, bar):
     for offset in range(rows):
         surface.put(top + 1 + offset, left, rim[3], look)
     surface.put(top + height - 1, left, rim[5] + rim[6] * (width - 2), look)
+    if count:
+        putCount(surface, top + height - 1, left, width - 1, count, look, "titleOn" if lit else "title", TITLE_ON if lit else TITLE)
     ## the right column, from the window's first line to its last: the shadow, or the scroll bar
     for offset in range(rows + 1):
         place = offset - lower
@@ -9415,6 +9333,12 @@ def drawEdges(surface, box, title, lit, bar):
 ## where it draws the edges of its windows (drawEdges), else none, as a frame draws it.
 def barLower():
     return STYLE.get("barLower", 0) if styleDraws("edges", "blocks") else 0
+
+
+## How many empty lines stand fixed between a window's top and its first line of content:
+## the style's "bodyLower" where it draws the edges of its windows (drawEdges), else none.
+def bodyLower():
+    return STYLE.get("bodyLower", 0) if styleDraws("edges", "blocks") else 0
 
 
 ## One line of what the left window holds, by its number, in exactly that many cells, in
@@ -9522,10 +9446,15 @@ BODIES = {"lines": drawLinesBody, "rows": drawRowsBody}
 def drawWindow(surface, state, layout, window):
     box = layout["boxes"][window["name"]]
     spot(state, box[0], box[1], box[2], box[3], ("window", window["name"]))
-    held = BODIES[window["shows"]["body"]](surface, state, layout, box)
+    ## the empty lines under its top, where the style keeps them (bodyLower): its body stands under them
+    under = bodyLower()
+    for offset in range(under):
+        surface.put(box[1] + 1 + offset, box[0] + 1, " " * (box[2] - 2), PLAIN)
+    held = BODIES[window["shows"]["body"]](surface, state, layout, (box[0], box[1] + under, box[2], box[3] - under))
     foot = globals()[window["foot"]](state) if window.get("foot") else ""
     drawFrame(surface, box, globals()[window["title"]](state), state.focus == window["name"], foot,
-              held if window.get("bar") else None, state.focus == window["name"] and state.dialog is None)
+              held if window.get("bar") else None, state.focus == window["name"] and state.dialog is None,
+              globals()[window["count"]](state) if window.get("count") else "")
     rows = box[3] - 2
     if window.get("bar") and held is not None and held[0] > held[2] and rows >= 3:
         ## the scroll bar, where it stands (barLower): its upper half pages up, its lower half down

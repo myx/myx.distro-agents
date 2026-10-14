@@ -73,14 +73,19 @@ rigRow(){ ## the fields of one row, joined by TAB
 ## sessions as it reads once a start has made a new one.
 rigS1=11111111-0000-4000-8000-000000000001 ; rigS2=22222222-0000-4000-8000-000000000002 ; rigNew=99999999-0000-4000-8000-000000000009
 rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
-rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig here active running 🔏 ; }
+rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig here active running 🔏 /rig/ws-rig/source/myx/util.workspace-rig/skillset/keeper-myx ; }
 {
-	rigRow member human-owner :myx: - - - human ws-rig here reference-only no-process 👤
-	rigRow member magic-coordinator 🐭 Magic Vane dispatchr magic ws-rig here active no-process 🤖
+	rigRow member human-owner :myx: - - - human ws-rig here reference-only no-process 👤 /rig/ws-rig/source/myx/myx.distro-agents/skillset/magic-team/human-owner
+	rigRow member magic-coordinator 🐭 Magic Vane dispatchr magic ws-rig here active no-process 🤖 /rig/ws-rig/source/myx/myx.distro-agents/skillset/magic-team/magic-coordinator
 	rigKeeper
-	rigRow member keeper-far 🌾 Thea Vance farmhand keeper ws-far elsewhere active no-process ⚒️
-	rigRow member keeper-gone - - - - - - not-present - no-process
+	rigRow member keeper-far 🌾 Thea Vance farmhand keeper ws-far elsewhere active no-process ⚒️ /rig/ws-far/source/mel/util.repository-far/skillset/keeper-far
+	rigRow member keeper-gone - - - - - - not-present - no-process - -
 } > "$rigF/rows.--manager-team-member-list"
+## the two workspaces as the locations know them, for where a member's skillset lives
+{
+	rigRow place ws-rig Ws_Rig workspace read-write /rig/ws-rig present yes 1
+	rigRow place ws-far Ws_Far workspace read-write /rig/ws-far present no 0
+} > "$rigF/rows.--manager-place-list"
 {
 	rigKeeper
 	rigRow info description Source-content_steward_for_the_common_tools_and_the_distro_tools_of_the_rig,_their_scripts_and_their_help.
@@ -260,9 +265,9 @@ rigAssert "a list pane at its smallest, 18 cells inside its frame, shows the ico
 	"$(( $( rigVal tiny.listWidth ) - 2 )) [$( rigIconCells tinyRow3 | rigMarked )][$( rigIconCells tinyRow4 | rigMarked )] $( rigVal tiny.spills ) $( rigVal mid.spills ) $( rigVal narrow.spills )" \
 	"18 [ ## magic-coord…][ ## keeper-myx] 0 0 0"
 rigAssert "on the row that goes up the left pane is the table of the members alone, numbered: no line of a summary stands before it" "[$( rigPane u 3 )] $( rigScreenHolds u 'members,' ) $( rigScreenHolds u 'not started from here' )" "[ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' '#' '' MEMBER RUN STATUS KIND WHERE )] 0 0"
-rigAssert "the table: a header that names its columns, then every member in the order of the operation, numbered from 1, with its icon, its name, whether it runs now, its status, its kind and where it is set up, each column at the same cell in every row, under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon" \
+rigAssert "the table: a header that names its columns, then every member in the order of the operation, numbered from 1, with its icon, its name, whether it runs now, its status, its kind and where its skillset lives, as workspace:project, - where it resolves to none (the owner: \"In this particular view - WHERE - can show <workspace place name>:<project-path>\"), each column at the same cell in every row, under an icon of two cells, under one that a variation selector makes wide, and in a row with no icon" \
 	"$( rigPaneUnder u " $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' '#' '' MEMBER RUN STATUS KIND WHERE )" 6 )" \
-	"[ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' '#' '' MEMBER RUN STATUS KIND WHERE )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 1 '##' human-owner - ref-only human here )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 2 '##' magic-coordinator - active magic here )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 3 '##' keeper-myx running active keeper here )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 4 '##' keeper-far - active keeper elsewhere )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 5 '' keeper-gone - - - not-present )]"
+	"[ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' '#' '' MEMBER RUN STATUS KIND WHERE )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 1 '##' human-owner - ref-only human ws-rig:myx/myx.distro-agents )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 2 '##' magic-coordinator - active magic ws-rig:myx/myx.distro-agents )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 3 '##' keeper-myx running active keeper ws-rig:myx/util.workspace-rig )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 4 '##' keeper-far - active keeper ws-far:mel/util.repository-far )][ $( printf ' %s %-2s %-17s %-7s %-8s %-6s %s' 5 '' keeper-gone - - - - )]"
 rigAssert "a left pane too narrow for every column: the name gives way last; whether it runs and its status, each one of a few words, are cut to the start that tells them apart, never shorter; each column that still does not fit is left out whole, of the header too, the last first: where a member is set up, then its kind, then its status, then whether it runs; the number, the icon and the name always show" \
 	"$( rigVal mid.viewWidth ) $( rigPaneUnder mid " $( printf ' %s %-2s %-17s %-6s %-6s %s' '#' '' MEMBER RUN STATUS KIND )" 2 ) $( rigVal narrow.viewWidth ) $( rigPaneUnder narrow " $( printf ' %s %-2s %-17s %s' '#' '' MEMBER RUN )" 2 ) $( rigVal tiny.viewWidth ) $( rigPaneUnder tiny " $( printf ' %s %-2s %s' '#' '' MEMBER )" 4 )" \
 	"45 [ $( printf ' %s %-2s %-17s %-6s %-6s %s' '#' '' MEMBER RUN STATUS KIND )][ $( printf ' %s %-2s %-17s %-6s %-6s %s' 1 '##' human-owner - 'ref-o…' human )] 33 [ $( printf ' %s %-2s %-17s %s' '#' '' MEMBER RUN )][ $( printf ' %s %-2s %-17s %s' 1 '##' human-owner - )] 26 [ $( printf ' %s %-2s %s' '#' '' MEMBER )][ $( printf ' %s %-2s %s' 1 '##' human-owner )][ $( printf ' %s %-2s %s' 2 '##' magic-coordinator )][ $( printf ' %s %-2s %s' 3 '##' keeper-myx )]"

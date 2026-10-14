@@ -170,7 +170,7 @@ rigAssert "a running session whose thread is gone carries the mark ahead of its 
 rigAssert "one whose thread lives carries none"                      "[$( rigVal row4 )]" "[$( rigListRow "weekly review" "running" )]"
 rigAssert "nor does one that ended in order, nor one that never had a thread" "[$( rigVal row5 )][$( rigVal row6 )]" "[$( rigListRow "magic-devops 33333333" "finished" )][$( rigListRow "far work" "waiting" )]"
 rigAssert "a finished session whose thread died carries the mark too" "[$( rigVal row7 )]" "[$( rigListRow "broken one" "x finished" )]"
-rigAssert "on the row that goes up the pane says its sessions by their states, then every session as a table, the state of each whose thread is gone with its mark" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C sed 's/│║.*//' | LC_ALL=C grep -c -E ' x (running|waiting|finished|unclosed) ' )" "[ 5 sessions: 2 running, 1 waiting, 2 finished; agents 2 working, 1 waiting.] 2"
+rigAssert "on the row that goes up the pane is every session as a table, nothing above it, the state of each whose thread is gone with its mark" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C sed 's/│║.*//' | LC_ALL=C grep -c -E ' x (running|waiting|finished|unclosed) ' )" "[  SESSION               STATE      AGE AGENTS TOKENS MEMBERS] 2"
 
 echo "-- the left pane of a session says whether its control thread lives, and the state it stored --"
 rigCase pane

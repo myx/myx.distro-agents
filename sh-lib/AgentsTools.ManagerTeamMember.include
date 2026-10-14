@@ -144,7 +144,7 @@ AgentsToolsManagerTeamMemberStatus(){ ## member set root, member
 ## (AgentsToolsTeamMemberKindIcon), which that table reads through
 ## AgentsToolsInstallReportIcon and is given no mark for.
 AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace root, the members with a live run between newlines
-	local rowKind="${1%%-*}" rowWorkspace="-" rowLive="no-process" namesRow="" statusWord="-"
+	local rowKind="${1%%-*}" rowWorkspace="-" rowLive="no-process" namesRow="" statusWord="-" rowFolder="-"
 	[ "$rowKind" != "$1" ] || rowKind="-"
 	namesRow="-"$'\t'"-"$'\t'"-"$'\t'"-"
 	if [ "$2" != "not-present" ] ; then
@@ -153,9 +153,12 @@ AgentsToolsManagerTeamMemberRow(){ ## member, set-up, member set root, workspace
 		## Its names are those of the workspace it is set up in, as the author line of a message reads them.
 		AgentsToolsManagerTeamMemberNames "$1" "$( MMDAPP="${4%/}" ; AgentsToolsRegistryFile team-members-names )"
 		AgentsToolsManagerTeamMemberStatus "$3" "$1"
+		## Its own folder: its link in the member set followed, to where its skillset lies in a source.
+		rowFolder="$( cd -P -- "${3%/}/$1" 2>/dev/null && pwd -P )" || rowFolder="-"
+		rowFolder="${rowFolder//[[:space:]]/_}"
 	fi
 	case "$5" in *$'\n'"$1"$'\n'*) rowLive="running" ;; esac
-	printf 'member\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$namesRow" "$rowKind" "${rowWorkspace:--}" "$2" "$statusWord" "$rowLive" "$( AgentsToolsTeamMemberKindIcon "$1" )"
+	printf 'member\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$namesRow" "$rowKind" "${rowWorkspace:--}" "$2" "$statusWord" "$rowLive" "$( AgentsToolsTeamMemberKindIcon "$1" )" "${rowFolder:--}"
 	return 0
 }
 

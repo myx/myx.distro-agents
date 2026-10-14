@@ -102,7 +102,7 @@ looks k
 RIGSCRIPT
 rigAssert "before the first read no counter and no load average is shown" "[$( rigVal firstTop | rigSqueeze )] [$( rigVal firstFoot )] [$( rigVal firstLoad )] [$( rigVal firstBottom )]" "[$rigMenus ws-rig 02:30:00] [] [] [$rigHints]"
 rigAssert "the row of counters is read at the root, with nothing of the sessions shown" "[$( rigVal first.path )] $( rigVal first.reading | LC_ALL=C tr ',' '\n' | LC_ALL=C grep -x 'list:sessions' ) $( rigCalls ) [$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[] list:sessions 1 [--manager-session-list]"
-rigAssert "the bottom border of the left window is plain, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[] [$rigHints] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
+rigAssert "the bottom border of the left window holds how many rows its table holds and no counter, its five counters having left it for the dashboard: the screen holds them as the row gave them; and the status line names the general keys" "[$( rigVal foot )] [$( rigVal bottom )] $( rigVal a.counters )" "[1 row] [$rigHints] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "the counter of paused sessions shows 0"                   "$( rigVal a.counters | LC_ALL=C tr ',' '\n' | LC_ALL=C grep '^paused=' )" "paused=0"
 rigAssert "the menu bar shows the workspace and the clock, and the bottom border of the list is plain: the load average left it for the dashboard" "[$( rigVal top | rigSqueeze )] [$( rigVal load )]" "[$rigMenus ws-rig 02:30:00] []"
 rigAssert "both lines stand across the whole width"                  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^k|//p' | LC_ALL=C sed -n '1p;40p' | LC_ALL=C tr -d 'RH|\n' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" 0
@@ -135,7 +135,7 @@ border load 38 84 120
 border foot 38 0 84
 RIGSCRIPT
 rigAssert "not before the period has passed"                         "[$( rigVal early.reading )]" "[]"
-rigAssert "then by itself, and the screen holds what the new row holds; the borders stay plain" "$( rigCalls ) $( rigVal late.counters ) [$( rigVal load )] [$( rigVal foot )]" "2 load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] []"
+rigAssert "then by itself, and the screen holds what the new row holds; the borders hold no counter" "$( rigCalls ) $( rigVal late.counters ) [$( rigVal load )] [$( rigVal foot )]" "2 load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] [1 row]"
 
 echo "-- the clock goes on when the read fails --"
 rigCase fail rows rows fail fail rows
@@ -166,11 +166,11 @@ said mendedLine
 RIGSCRIPT
 rigAssert "the read failed"                                          "[$( rigVal bad.failed )]" "[list:sessions]"
 rigAssert "the clock still moves"                                    "[$( rigVal badTop | rigSqueeze | LC_ALL=C sed -e 's/^.* //' )]" "[02:31:00]"
-rigAssert "the counters stay as they were, marked as old, in the screen's state; the borders stay plain" "$( rigVal bad.counters ) [$( rigVal badFoot )] [$( rigVal badLoad )]" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [] []"
+rigAssert "the counters stay as they were, marked as old, in the screen's state; the borders hold no counter" "$( rigVal bad.counters ) [$( rigVal badFoot )] [$( rigVal badLoad )]" "load=0.42,paused=0,pending=3,running=2,waiting=2,working=1 [1 row] []"
 rigAssert "what the read wrote is shown in a box"                      "[$( rigVal bad.dialogTitle )] [$( rigVal bad.dialogHolds )]" "[A read failed] [operation: --manager-session-list / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 rigAssert "a second failure changes nothing"                         "[$( rigVal worse.failed )] $( rigVal worse.counters )" "[list:sessions] load=0.42,paused=0,pending=3,running=2,waiting=2,working=1"
 rigAssert "a good read takes the marks and the error line away, and brings the new counters" "[$( rigVal mended.failed )] $( rigVal mended.counters ) [$( rigVal mendedLoad )] [$( rigVal mendedFoot )] [$( rigVal mendedLine )]" \
-	"[] load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] [] []"
+	"[] load=1.25,paused=0,pending=4,running=3,waiting=2,working=2 [] [1 row] []"
 
 echo "-- the status line names the general keys, and after them the keys of what is selected --"
 rigCase keys rows

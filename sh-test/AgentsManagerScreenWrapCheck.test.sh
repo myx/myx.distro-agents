@@ -157,8 +157,8 @@ rigFirst(){ ## tag -- the first line of the body of the left pane, without the s
 rigAt(){ ## tag, line of the body counted from 1, text -- the cell the text starts at on that line, or none
 	rigPane "$1" | LC_ALL=C sed -n "${2}p" | "$rigPython" -I -B -c 'import sys; line = sys.stdin.read(); print(line.find(sys.argv[1]))' "$3"
 }
-rigAssert "at the top the header stands under the count, scrolled down it is the first line of the pane, over rows far from the first; cut and scrolled sideways it moves with its columns, SIZE over the sizes" \
-	"$( rigPane top | LC_ALL=C sed -n '3p' | LC_ALL=C awk '{ print $1 }' ) $( rigFirst down | LC_ALL=C awk '{ print $1, $2 }' ) $( rigPane down | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c 'item-01' ) $( rigVal side.viewTop | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigVal side.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( [ "$( rigAt side 1 SIZE )" = "$( rigAt side 2 100B )" ] && [ "$( rigAt side 1 SIZE )" -ge 0 ] && echo over || echo apart )" \
+rigAssert "at the top the header is the first line of the pane, scrolled down it still is, over rows far from the first; cut and scrolled sideways it moves with its columns, SIZE over the sizes" \
+	"$( rigPane top | LC_ALL=C sed -n '1p' | LC_ALL=C awk '{ print $1 }' ) $( rigFirst down | LC_ALL=C awk '{ print $1, $2 }' ) $( rigPane down | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c 'item-01' ) $( rigVal side.viewTop | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigVal side.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( [ "$( rigAt side 1 SIZE )" = "$( rigAt side 2 100B )" ] && [ "$( rigAt side 1 SIZE )" -ge 0 ] && echo over || echo apart )" \
 	"NAME NAME SIZE 0 1 1 over"
 rigAssert "nothing was drawn past a pane" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'DRIVER-FAILED\|Traceback' || : )" "0"
 

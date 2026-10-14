@@ -167,8 +167,8 @@ RIGSCRIPT
 rigAssert "at the root, before the selection has rested on the section, nothing of the asks is read, and the pane says that it waits for them" "$( rigVal first.selected ) [$( rigVal first.reading )] [$( rigVal firstLine )]" "pending [] [Populating Pending Questions...]"
 rigAssert "entering the section starts the read"                     "$( rigVal asked.path ) $( rigVal asked.reading )" "pending list:pending"
 rigAssert "it is the read of every owner's asks, named for magic-coordinator" "[$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C sed -n '1p' )]" "[$rigRead]"
-rigAssert "back on the section itself the left pane's caption says how many wait, for whom, how long the oldest, and how many have no asker" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 )] [$( rigVal line2 )]" \
-	"pending [Pending Questions [wrap]] [3 asks wait: for human-owner 2, magic-coordinator 1; the oldest 11d; 1 asker gone (x).] []"
+rigAssert "back on the section itself the left pane is the table of the asks, nothing above it" "$( rigVal on.selected ) [$( rigVal title )] [$( rigVal line1 | LC_ALL=C tr -s ' ' )]" \
+	"pending [Pending Questions [wrap]] [ AGE KIND FROM TO QUESTION]"
 rigAssert "it is read again on the period, and not before"           "[$( rigVal early.reading )] $( rigCalls ) $( rigOtherCalls )" "[] 2 0"
 
 echo "-- each open ask is one row --"
@@ -198,7 +198,7 @@ rigAssert "the newest first: how long ago, the mark of its kind, who asks, of wh
 rigAssert "then the one of three hours"                              "[$( rigVal row3 )]" "[    3h 🔐 magic-librarian > human-owner  May I read insid…]"
 rigAssert "last the one of eleven days, with the plain mark of an asker that is gone" \
 	"[$( rigVal row4 )]" "[ x 11d 🧭 keeper-myx > magic-coordinator  Fix B is approv…]"
-rigAssert "on the row that goes up the left pane says how many wait" "[$( rigVal up1 )]" "[3 asks wait: for human-owner 2, magic-coordinator 1; the oldest 11d; 1 asker gone (x).]"
+rigAssert "on the row that goes up the left pane is that table" "[$( rigVal up1 | LC_ALL=C tr -s ' ' )]" "[ AGE KIND FROM TO QUESTION]"
 rigAssert "at 120 columns a row is cut to the list, the age, the kind and who asks first" "[$( rigVal narrow2 )] [$( rigVal narrow4 )] $( rigVal n.spills )" "[   25m ❓ magic-tester > human-ow…] [ x 11d 🧭 keeper-myx > magic-coor…] 0"
 rigAssert "only the read of the asks was called"                     "$( rigOtherCalls )" 0
 

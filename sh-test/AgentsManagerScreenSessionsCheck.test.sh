@@ -153,7 +153,7 @@ cells row3 4 85 119
 cells line1 2 1 83
 RIGSCRIPT
 rigAssert "the level shows the row that goes up, then Launch / Spawn, and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch / Spawn                  ►][]"
-rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[0 sessions; agents 0 working, 0 waiting.]"
+rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[No sessions.]"
 
 echo "-- a: all or active --"
 rigCase active five.rows five.rows active.rows five.rows
@@ -241,7 +241,7 @@ rigAssert "each agent with its state, in a table under a heading, a column no ag
 	"[ Agents][  MEMBER            STATE           SINCE][  magic-coordinator running waiting 2026-10-12 16:57 +0300][  magic-tester      running working 2026-10-12 17:05 +0300][  keeper-myx        finished        until 2026-10-12 18:00 +0300]"
 rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 7 )]" \
 	"[ one lone run with no name][  state    finished][  ended    2026-10-11 14:51 +0300 (35h ago)]"
-rigAssert "on the row that goes up the pane says what the section holds: its sessions by their states and the agents of the workspace, then every session as a table" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 6 )]" "[ 5 sessions: 1 running, 1 waiting, 1 unclosed, 1 finished, 1 unknown-foreign;][ agents 1 working, 1 waiting.][  SESSION                              STATE     AGE AGENTS TOKENS MEMBERS]"
+rigAssert "on the row that goes up the pane is every session as a table, nothing above it, how many in the frame" "[$( rigPane u 3 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^u|' | LC_ALL=C grep -c -F ' 5 rows ' )" "[  SESSION                              STATE     AGE AGENTS TOKENS MEMBERS] 1"
 
 echo "-- the list read again --"
 rigCase again five.rows five.rows moved.rows
