@@ -3227,9 +3227,12 @@
 		--manager-help-read
 			One of the console's own operations (see Notes). Prints the
 			help of this tool as it is written, on stdout, and writes no
-			help of its own: first what the bare call of this tool
-			prints, the default syntax, as it prints it; then one empty
-			line; then every operation of the manual: the syntax lines
+			help of its own: first what a user calls, the syntax lines
+			of the help, each once in its order, but those of the
+			internal operations and of the families the agents call: a
+			member's, the librarian's, the coordinator's, a client's, a
+			routine's and a console channel's; then one empty line; then
+			every operation of the manual: the syntax lines
 			that `--help-syntax` prints, and the entry of each operation,
 			its syntax lines and its text, as `--member-help` prints those
 			of a member's operations. Takes no argument: one is refused

@@ -7,9 +7,10 @@
 ## AgentsTools.Manager.include; who may call was asked where the family is dispatched.
 ##
 ## IT WRITES NO HELP. It prints on stdout what the tool prints elsewhere on stderr, and only
-## that: what the bare call prints, by the dispatcher's own arm for it; then every operation of
-## the manual, by the two awk files --member-help prints a member's operations by
-## (AgentsTools.MemberHelp.include), with every operation on their list.
+## that: what a user calls, the syntax lines of the help but those of the families it leaves
+## out, named in one line below; then every operation of the manual, by the two awk files
+## --member-help prints a member's operations by (AgentsTools.MemberHelp.include), with every
+## operation on their list.
 ##
 
 case "$1" in
@@ -20,9 +21,19 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD --manager-help-read: takes no arguments" >&2
 			set +e ; return 1
 		fi
-		## What the bare call prints, as it prints it: the dispatcher's own arm for a call with
-		## no operation, its standard error read here.
-		( DistroAgentsTools '' ) 2>&1 || { set +e ; return 1 ; }
+		## What a user calls, which the root `Manuals (Help)` shows of itself: every syntax line of
+		## the help, each once in its order, but those of the families named here, the internal
+		## ones and those the agents call (a member's, the librarian's, the coordinator's, a
+		## client's, a routine's, a console channel's). The rule is this one line.
+		local helpReadOut='--intern- --member- --librarian- --magic- --client- --routine- --console-'
+		LC_ALL=C awk -v out="$helpReadOut" '
+			BEGIN { count = split(out, outs, " ") }
+			/^echo "📘 syntax: DistroAgentsTools\.fn\.sh \[?--/ {
+				msg = $0 ; sub(/^echo "/, "", msg) ; sub(/" >&2$/, "", msg)
+				name = msg ; sub(/^📘 syntax: DistroAgentsTools\.fn\.sh \[?/, "", name)
+				for (i = 1; i <= count; i++) { if (index(name, outs[i]) == 1) { next } }
+				if (!(msg in seen)) { seen[msg] = 1 ; print msg }
+			}' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.include" || { set +e ; return 1 ; }
 		echo
 		## Every operation, as --member-help prints those of a member: `--*` puts each on the list.
 		local -x MDAT_MEMBER_HELP_NAMES='--*'

@@ -113,20 +113,23 @@ LOOKS = (
     ("X", "RB", "white", "red", True),
     ## the title in the top border of the active window and of a dialog, and of another
     ## window, where a style sets it apart from its frame (STYLES "titles"); the slim shadow
-    ## of a menu or a dialog over a window, and of a raised button inside a dialog ("shadow")
+    ## of a menu or a dialog over a window, and of a raised button inside a dialog ("shadow"),
+    ## that under a button here the other way round, as Turbo Vision draws it (drawGroundShadow):
+    ## the colour of the dialog on the black of the shadow
     ("T", "R", "white", "blue", True),
     ("t", "", "cyan", "blue", False),
     ("z", "D", "black", "blue", False),
-    ("Z", "D", "black", "white", False),
-    ## where a style draws the edges of a window of blocks (STYLES "edges"): the edge of the
-    ## active window over the desktop and over its shadow, the same of another window; the
-    ## track of a slim scroll bar and its thumb; a key of the status line as a chip ("chips")
-    ("E", "", "white", "black", True),
+    ("Z", "D", "white", "black", False),
+    ## where a style draws the edges of a window of blocks (STYLES "edges"): the thin line of
+    ## the active window on its own colour, at its bottom, and on the desktop, over it; the
+    ## same of another window; the track of a slim scroll bar and its thumb, each the ground
+    ## of its cells; a key of the status line as a chip ("chips")
+    ("E", "", "white", "blue", True),
     ("V", "", "white", "black", True),
-    ("a", "D", "cyan", "black", False),
+    ("a", "D", "black", "blue", False),
     ("v", "D", "cyan", "black", False),
-    ("|", "D", "cyan", "black", False),
-    ("#", "B", "white", "black", True),
+    ("|", "D", "black", "cyan", False),
+    ("#", "R", "black", "white", False),
     ("K", "R", "black", "yellow", False),
     ## the default button where the keys are on another, where a style marks it by its look
     ## ("buttons" "bars"); a dialog of what was refused or failed, where a style draws it in
@@ -149,9 +152,9 @@ MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 STYLE_LOOKS = {
     ## Magic in its blue colours (nu-blue), those of the pictures of the Norton Utilities on blue
     ## (the About box of 7.0, the Disk Editor, Calibrate's window and alert): windows of periwinkle blue like the desktop, white
-    ## text and yellow for what stands out, the active one in a white edge and another in a
-    ## muted one, black shadows, a dark blue scroll bar; a white menu bar with red hot letters,
-    ## the open menu in reverse; cyan dialogs with black text, a white rim and title strip,
+    ## text and yellow for what stands out, the active one in a thin white line at its top and
+    ## bottom and another in a dark one, black shadows, a dark blue scroll bar; a white menu bar with red hot letters,
+    ## the open menu in reverse; cyan dialogs with black text, a thin dark outline, a white title strip,
     ## light grey buttons with the default's text in red, the one with the keys white; amber
     ## keys in the status line; dark red with a yellow title for what was refused or failed.
     "nu-blue": {
@@ -171,7 +174,7 @@ STYLE_LOOKS = {
         SCROLL: ("black", "white", False, 16, 252, False),
         SHADOW: ("black", "black", False, 16, 16, False),
         BOX: ("black", "cyan", False, 16, 87, False),
-        BOX_FRAME: ("white", "cyan", True, 231, 87, True),
+        BOX_FRAME: ("black", "cyan", False, 16, 87, False),
         BOX_FIELD: ("blue", "cyan", False, 18, 87, False),
         BOX_ON: ("white", "blue", True, 231, 18, True),
         BOX_BUTTON: ("black", "white", False, 16, 252, False),
@@ -183,24 +186,24 @@ STYLE_LOOKS = {
         LEVEL_BAD: ("white", "red", True, 231, 160, True),
         TITLE_ON: ("blue", "white", False, 18, 231, True),
         TITLE: ("black", "cyan", False, 17, 104, False),
-        SHADE: ("black", "blue", False, 16, 63, False),
-        BOX_SHADE: ("black", "cyan", False, 16, 87, False),
+        SHADE: ("blue", "black", False, 63, 16, False),
+        BOX_SHADE: ("cyan", "black", False, 87, 16, False),
         EDGE_ON: ("white", "blue", False, 231, 63, False),
-        EDGE_ON_SHADE: ("white", "black", False, 231, 16, False),
-        EDGE: ("cyan", "blue", False, 104, 63, False),
-        EDGE_SHADE: ("cyan", "black", False, 104, 16, False),
-        TRACK: ("cyan", "black", False, 19, 16, False),
-        THUMB: ("white", "black", True, 153, 16, False),
+        EDGE_ON_SHADE: ("white", "blue", False, 231, 63, False),
+        EDGE: ("black", "blue", False, 16, 63, False),
+        EDGE_SHADE: ("black", "blue", False, 16, 63, False),
+        TRACK: ("black", "cyan", False, 16, 19, False),
+        THUMB: ("black", "white", False, 16, 153, False),
         KEY_CHIP: ("black", "yellow", False, 16, 214, True),
         BOX_BUTTON_DEF: ("red", "white", False, 160, 252, True),
         ALERT: ("white", "red", True, 231, 124, False),
         ALERT_FRAME: ("white", "red", True, 231, 124, True),
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
-        ALERT_SHADE: ("black", "red", False, 16, 124, False),
+        ALERT_SHADE: ("red", "black", False, 124, 16, False),
     },
     ## Magic in its grey colours (nu-gray), those of the picture on grey (the Disk Doctor): the
     ## dark grey desktop, windows of the deep blue of the scroll bars with white text and yellow
-    ## for what stands out, periwinkle dialogs with a white rim and title strip, grey bars for
+    ## for what stands out, periwinkle dialogs with a thin dark outline and a white title strip, grey bars for
     ## buttons, the one with the keys white with blue text, the selection a white bar with blue
     ## text, a white menu bar, red keys in the status line, the dark red alert.
     "nu-gray": {
@@ -220,7 +223,7 @@ STYLE_LOOKS = {
         SCROLL: ("black", "white", False, 16, 250, False),
         SHADOW: ("black", "black", False, 16, 16, False),
         BOX: ("white", "blue", True, 231, 63, False),
-        BOX_FRAME: ("white", "blue", True, 231, 63, True),
+        BOX_FRAME: ("black", "blue", False, 16, 63, False),
         BOX_FIELD: ("cyan", "blue", False, 87, 63, False),
         BOX_ON: ("blue", "white", False, 19, 231, True),
         BOX_BUTTON: ("black", "white", False, 16, 250, False),
@@ -232,20 +235,20 @@ STYLE_LOOKS = {
         LEVEL_BAD: ("white", "red", True, 231, 160, True),
         TITLE_ON: ("blue", "white", False, 19, 231, True),
         TITLE: ("black", "cyan", False, 236, 244, False),
-        SHADE: ("black", "blue", False, 16, 19, False),
-        BOX_SHADE: ("black", "blue", False, 16, 63, False),
-        EDGE_ON: ("white", "black", False, 231, 238, False),
-        EDGE_ON_SHADE: ("white", "black", False, 231, 16, False),
-        EDGE: ("cyan", "black", False, 244, 238, False),
-        EDGE_SHADE: ("cyan", "black", False, 244, 16, False),
-        TRACK: ("cyan", "black", False, 63, 16, False),
-        THUMB: ("white", "black", True, 231, 16, False),
+        SHADE: ("blue", "black", False, 19, 16, False),
+        BOX_SHADE: ("blue", "black", False, 63, 16, False),
+        EDGE_ON: ("white", "blue", False, 231, 19, False),
+        EDGE_ON_SHADE: ("white", "black", False, 231, 238, False),
+        EDGE: ("black", "blue", False, 16, 19, False),
+        EDGE_SHADE: ("black", "black", True, 16, 238, False),
+        TRACK: ("black", "cyan", False, 16, 63, False),
+        THUMB: ("black", "white", False, 16, 231, False),
         KEY_CHIP: ("white", "red", True, 231, 124, True),
         BOX_BUTTON_DEF: ("blue", "white", False, 19, 250, True),
         ALERT: ("white", "red", True, 231, 124, False),
         ALERT_FRAME: ("white", "red", True, 231, 124, True),
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
-        ALERT_SHADE: ("black", "red", False, 16, 124, False),
+        ALERT_SHADE: ("red", "black", False, 124, 16, False),
     },
 }
 ## Magic in the terminal's own colours (nu-system): its own choice of the eight named ones, those
@@ -287,7 +290,7 @@ STYLE_LOOKS["tv-blue"] = {
     TITLE_ON: ("white", "blue", True, 231, 19, False),
     TITLE: ("white", "blue", False, 248, 19, False),
     SHADE: ("black", "blue", False, 16, 19, False),
-    BOX_SHADE: ("black", "white", False, 16, 248, False),
+    BOX_SHADE: ("white", "black", False, 248, 16, False),
 }
 ## "tv-gray", as its demo: grey windows with black text and a white frame on the dithered
 ## blue and grey desktop, the same grey bar, grey dialogs with green buttons, cyan bars.
@@ -321,7 +324,7 @@ STYLE_LOOKS["tv-gray"] = {
     TITLE_ON: ("white", "white", True, 231, 248, False),
     TITLE: ("black", "white", False, 16, 248, False),
     SHADE: ("black", "white", False, 16, 248, False),
-    BOX_SHADE: ("black", "white", False, 16, 248, False),
+    BOX_SHADE: ("white", "black", False, 248, 16, False),
 }
 ## Basic B/W in colours of its own, each look by how it is drawn with no colours (the second
 ## field of LOOKS): "bw-dark" white on black, "bw-light" black on white, in greys alone.
@@ -354,12 +357,14 @@ MARKS = {"separator": "│", "cut": "…", "plain": False,
          ## left, its line under, its corner at the bottom right
          "checks": ("[X] ", "[ ] "), "radios": ("(*) ", "( ) "), "title": (" ", " "), "titleOn": (" ", " "),
          "shadow": "▖▌▝▀▘",
-         ## where a style draws edges of blocks (STYLES "edges"): the edge of a window, its corner at
-         ## the top left, its top, its corner at the top right, its left, its right, its corners and
-         ## its line at the bottom, each with its half inside the window; the rim of a menu and of
-         ## a dialog in the same order, each with its half outside; the shoulders of the tab of a
-         ## title on the top edge
-         "edge": "▗▄▖▐▌▝▀▘", "rim": "▛▀▜▌▐▙▄▟", "tab": ("▟", "▙"),
+         ## where a style draws edges of blocks (STYLES "edges"): the outline of a window, a menu and
+         ## a dialog, its corner at the top left, its top, its corner at the top right, its left, its
+         ## right, its corners and its line at the bottom: a thin line on the bottom edge of its top
+         ## line, drawn on what lies outside it, and of its last line, on its own colour, and no mark
+         ## at its sides, where the change of colour is the edge. Only a block that stands on the
+         ## bottom edge of its cell meets the next one whole on some terminals, whose font draws a block
+         ## short of the cell: one that must reach the top or a side of its cell shows a gap there
+         "rim": "▁▁▁  ▁▁▁",
          ## inside the ends of the button that has the keys, where buttons are bars ("buttons");
          ## a field to type in, its brackets and what fills its room ("fields" "bracketed")
          "focus": ("►", "◄"), "field": "[.]",
@@ -369,15 +374,20 @@ MARKS = {"separator": "│", "cut": "…", "plain": False,
 ## The marks of a style that has its own (STYLES "marks"), where they are not those of MARKS:
 ## on a terminal that is not UTF-8 the marks of MARKS stand (plainMarks), in every style.
 STYLE_MARKS = {
-    ## Magic: edges and rims of half blocks (MARKS), a line between two groups of a menu from
-    ## rim to rim, a slim scroll bar of half blocks with an arrow in a box at each end, a tick
-    ## and a dot for what is chosen and a faint dot for what is not, and a shadow half a line
-    ## deep under a box and a cell wide at its right, from half a line under its top
-    "magic": {"rule": "▌─▐", "barUp": "↑", "barDown": "↓", "barTrack": "▌", "barThumb": "▌",
-              "checks": ("✓ ", "· "), "radios": ("• ", "· "), "shadow": "▄█ ▀▀"},
-    ## Turbo Vision: the shadow of a raised button, ▄ beside its face and ▀ under it from one
-    ## cell after its left, and a radio button chosen with its dot
-    "tv": {"shadow": "▄█ ▀▀", "radios": ("(•) ", "( ) ")},
+    ## Magic: outlines (MARKS "rim"), a line between two groups of a menu from side to side, a
+    ## slim scroll bar of whole cells with an arrow in a box at each end, a tick and a dot for
+    ## what is chosen and a faint dot for what is not, and a shadow a cell wide at the right of
+    ## a box and half a line deep under it: drawn in a look whose ground is the black of the
+    ## shadow and whose text is the colour under it, so the black of each cell is its ground,
+    ## which joins the next line's with no gap, and the lower half block on the bottom edge of
+    ## a cell under it draws what lies under; the corner under its left is left as it lies
+    "magic": {"rule": " ─ ", "barUp": "↑", "barDown": "↓", "barTrack": " ", "barThumb": " ",
+              "checks": ("✓ ", "· "), "radios": ("• ", "· "), "shadow": (" ", " ", "", "▄", "▄")},
+    ## Turbo Vision: the shadow of a raised button (drawGroundShadow): ▅ beside its face, the
+    ## shadow over the dialog, and ▅ under it from one cell after its left, the dialog over the
+    ## shadow, its side the shadow alone and its corner at the bottom left the dialog alone;
+    ## and a radio button chosen with its dot
+    "tv": {"shadow": "▅  ▅▅", "radios": ("(•) ", "( ) ")},
 }
 MARK_SELECTED = ">"
 MARK_READING = "~"
@@ -660,8 +670,8 @@ READS = {
     "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
                                     "log": ["--log"], "rows": "transcript", "needs": "session"},
     "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True},
-    ## The root `Manuals (Help)`: what the bare call of the tool prints, which it shows of
-    ## itself, and every operation of the help, each an item as in a member's `Member Help`.
+    ## The root `Manuals (Help)`: what a user calls, the syntax lines it shows of itself,
+    ## and every operation of the help, each an item as in a member's `Member Help`.
     "list:manuals": {"operation": ["--manager-help-read"], "rows": "manuals", "once": True},
 }
 ## The stores of the team data (TEAM_DATA_STORES): a store, its folders and the items in
@@ -799,7 +809,7 @@ PLACED = {
 ## the shadow of a menu and of a dialog half a cell wide and half a line deep, of quarter
 ## and half blocks, where without it the style with colours has two cells of shadow; and
 ## "buttons" "raised", a button in a dialog a face with a slim shadow beside and under it,
-## where without it a button stands between brackets; "shadow" "dim", the shadow of
+## under it the ground of its cells (drawGroundShadow), where without it a button stands between brackets; "shadow" "dim", the shadow of
 ## Turbo Vision, two cells wide and a line deep, over what lies under it, which keeps its
 ## characters and is drawn again in the look of a shadow (drawDimShadow); "icons", the
 ## icons of Turbo Vision in the top border of the active window and of a dialog, the box
@@ -807,10 +817,12 @@ PLACED = {
 ## dialog bars of one width with that shadow, the one with the keys in its look with the
 ## marks of the focus inside its ends, the default in a look of its own (BOX_BUTTON_DEF).
 ## Each of these that follow is drawn on a terminal that is UTF-8 alone (styleDraws), where
-## on another every style draws in the marks of one byte: "edges" "blocks", a window stands
-## in edges of half blocks, its half of each cell inside it and the other the desktop or
-## the shadow it casts (drawEdges), its title a tab on its top edge and its scroll bar slim
-## in its right edge, and a menu and a dialog in a rim of half blocks; "menus" "hung", a
+## on another every style draws in the marks of one byte: "edges" "blocks", a window, a menu
+## and a dialog stand in their own colour, a thin line on the bottom edge of the line over
+## them, drawn on what lies outside, their title a tab on it, and on the bottom edge of their
+## last line, with no mark at their sides, where the change of colour is the edge (MARKS
+## "rim"); a window's right column is the shadow it casts, from the line under its top
+## (drawEdges), and its scroll bar is slim, in that column; "menus" "hung", a
 ## menu hangs from the menu bar with no top border, its first item on the line under the
 ## bar, its sides, its bottom and its shadow as in every style; "chips", a key of the
 ## status line a chip in a colour of its own (KEY_CHIP); "fields" "bracketed", a field to
@@ -947,7 +959,8 @@ def boxMarks(name):
 
 ## A slim shadow of a box, of quarter and half blocks in that look: half a cell wide at its
 ## right, from half a line under its top, and half a line deep under it, from half a cell
-## after its left. Nothing of it below the line `last`, or past the column `columns`.
+## after its left. A mark that is empty is not drawn: what lies there stays. Nothing of it
+## below the line `last`, or past the column `columns`.
 def drawSlimShadow(surface, box, last, columns, look):
     left, top, width, height = box
     marks = styleMark("shadow")
@@ -956,7 +969,34 @@ def drawSlimShadow(surface, box, last, columns, look):
         for line in range(top + 1, min(top + height, last + 1)):
             surface.put(line, left + width, marks[1], look)
     if top + height <= last:
-        surface.put(top + height, left, marks[2] + marks[3] * (width - 1), look)
+        if marks[2]:
+            surface.put(top + height, left, marks[2], look)
+        surface.put(top + height, left + 1, marks[3] * (width - 1), look)
+        if left + width < columns:
+            surface.put(top + height, left + width, marks[4], look)
+
+
+## A slim shadow of a box as Turbo Vision draws that of a raised button, with the style's
+## marks of a shadow in the order of drawSlimShadow's, each a block on the cell's bottom edge:
+## its corner at the top right the shadow over what it falls on, in the look `side`, and the
+## rest the other way round, in that look: the shadow is the ground of those cells, and the
+## block of each what it falls on. A terminal may draw a block of its font short of the cell's
+## height, but one on the bottom edge reaches it, and a ground fills the whole cell: so the
+## part beside the box and the part under it meet across the line between them. Its corner
+## at the bottom left, what it falls on alone, is left as it is, and so is all of it on a
+## terminal that is not UTF-8, where there is no block. Nothing of it below the line `last`,
+## or past the column `columns`.
+def drawGroundShadow(surface, box, last, columns, look, side):
+    if MARKS["plain"]:
+        return
+    left, top, width, height = box
+    marks = styleMark("shadow")
+    if left + width < columns:
+        surface.put(top, left + width, marks[0], side)
+        for line in range(top + 1, min(top + height, last + 1)):
+            surface.put(line, left + width, marks[1], look)
+    if top + height <= last:
+        surface.put(top + height, left + 1, marks[3] * (width - 1), look)
         if left + width < columns:
             surface.put(top + height, left + width, marks[4], look)
 
@@ -1051,6 +1091,12 @@ MARKDOWN = {"suffixes": (".md", ".markdown"), "lines": 2000, "rule": 72, "mark":
 MARKDOWN_ON = ("team/*/files:file",) + tuple(place for storeId, storeLabel in TEAM_DATA_STORES
                                              for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId))
 MARKDOWN_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_ON)
+## The help of the tooling is Markdown too, in a layout of its own (helpMarkdownLines): the
+## places of its texts, an operation of `Manuals (Help)` and of `Member Help`, and the root and
+## the folder of a member whose summary is the help (helpSummary), each rendered, and raw in
+## the raw mode, as a Markdown text is.
+MARKDOWN_HELP = ("manuals:help-entry", "team/*/help:help-entry", ":section", "team/*:member-help")
+MARKDOWN_HELP_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_HELP)
 ## The look of each part of a rendered Markdown text: its headings by their level, from the
 ## third on as the third; its strong and its emphasized words; its code; a quote; a rule;
 ## its front matter; the mark of an item of a list; the head of a table.
@@ -1202,11 +1248,11 @@ COMMANDS = (
     {"name": "mode", "keys": ("v",), "menu": ("view", 4), "label": "Ne~x~t mode of the left window",
      "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "")},
     {"name": "mode-summary", "keys": ("b",), "menu": ("view", 4), "label": "Su~m~mary", "status": "Summary",
-     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON, "does": ("mode", "summary")},
+     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS + MARKDOWN_HELP_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON + MARKDOWN_HELP, "does": ("mode", "summary")},
     {"name": "mode-log", "keys": ("l",), "menu": ("view", 4), "label": "~L~og", "status": "Log",
      "views": ("sessions", "sessions/*"), "for": "a session or an agent", "on": ("sessions:record", "sessions/*:record"), "does": ("mode", "log")},
     {"name": "mode-raw", "keys": ("g",), "menu": ("view", 4), "label": "Ra~w~ log", "status": "Raw log",
-     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON, "does": ("mode", "raw")},
+     "views": ("sessions", "sessions/*") + MARKDOWN_VIEWS + MARKDOWN_HELP_VIEWS, "for": "a session, an agent or a Markdown text", "on": ("sessions:record", "sessions/*:record") + MARKDOWN_ON + MARKDOWN_HELP, "does": ("mode", "raw")},
     {"name": "start", "keys": ("n",), "menu": ("member", 1), "label": "~S~tart", "status": "Start",
      "views": ("team",), "for": "a team member", "on": ("team:record",), "does": ("action", "start"), "calls": ("start",)},
     {"name": "dashboard", "keys": goKeys(("dashboard",)), "menu": ("go", 1), "label": "~D~ashboard (Monitor)",
@@ -1990,7 +2036,7 @@ def parseLevels(readKey, form, text):
         rows, whole = parseHelpRows(text)
         return {level: rows, WHOLE_OF + level: whole}
     if form == "manuals":
-        ## what the bare call prints stands first, to the first empty line: that is what the
+        ## what a user calls stands first, to the first empty line: that is what the
         ## root shows of itself; every operation after it, as a member's help gives its own
         usage = text.partition("\n\n")
         rows, whole = parseHelpRows(usage[2])
@@ -2284,7 +2330,7 @@ def localView(state, row):
     if row.get("file") and not row["text"]:
         return ["%s: %s, no text: it is not shown." % (row["id"], shortBytes(row["file"]["bytes"]))]
     if row.get("help"):
-        return row["help"]
+        return helpLines(state, row, row["help"])
     return None
 
 
@@ -2636,12 +2682,12 @@ def parseHelpRows(text):
 
 
 ## The summary of `Member Help`: the member's help whole, as the tooling gives it. And of
-## `Manuals (Help)`: what the bare call of the tool prints.
+## `Manuals (Help)`: what a user calls, the first part of its read. Each rendered (helpLines).
 def helpSummary(state, path, row, form):
     whole = state.rows.get(WHOLE_OF + levelKey(path))
     if not whole:
         return None
-    return whole[0]["lines"]
+    return helpLines(state, row, whole[0]["lines"])
 
 
 ## ---- the asks that wait for an answer ----
@@ -3414,9 +3460,35 @@ def setViewMode(state, name):
 ## ---- a text of Markdown, rendered (MARKDOWN) ----
 
 ## Whether the left window shows the text of that row as Markdown: an item at one of the
-## places of MARKDOWN_ON whose name ends as MARKDOWN says.
+## places of MARKDOWN_ON whose name ends as MARKDOWN says, or a text of the help (helpShown).
 def markdownShown(state, row):
-    return row is not None and placeOf(state, row) in MARKDOWN_ON and row["id"].lower().endswith(MARKDOWN["suffixes"])
+    return row is not None and ((placeOf(state, row) in MARKDOWN_ON and row["id"].lower().endswith(MARKDOWN["suffixes"]))
+                                or helpShown(state, row))
+
+
+## Whether the text of that row is of the help, at one of the places of MARKDOWN_HELP: an
+## operation of it, or a folder whose summary the help is.
+def helpShown(state, row):
+    if placeOf(state, row) not in MARKDOWN_HELP:
+        return False
+    return row["kind"] == "help-entry" or (row["dive"] and SUMMARIES.get(levelPattern(state.path + [row["id"]]), {}).get("lines") == "helpSummary")
+
+
+## The lines of the left window for a text of the help, the block of an operation or a summary:
+## rendered (helpMarkdownLines), but in the raw mode, where they are as the help gives them; the
+## looks of the window go with them. Set out again only when the text, the width of the window
+## or the marks have changed, so never on a tick.
+def helpLines(state, row, lines):
+    view = state.view
+    if not markdownShown(state, row) or rawShown(state):
+        view["looks"] = {}
+        return lines
+    stamp = (lines, state.viewWidth, MARKS["plain"])
+    if view.get("helpFor") != stamp:
+        view["helpFor"] = stamp
+        view["helpText"] = helpMarkdownLines(lines, state.viewWidth)
+    view["looks"] = view["helpText"][1]
+    return view["helpText"][0]
 
 
 ## The lines of the left window from the text a read gave as it is (applyResult): a Markdown
@@ -3780,6 +3852,59 @@ def markdownLines(text, width):
         wrapped([(MARKDOWN["bound"] % (MARKDOWN["lines"], len(later)), looks["meta"])])
         lines.extend(later)
     return lines, spansOf
+
+
+## The help of the tooling rendered, as the lines of the left window and their looks, as
+## markdownLines gives them. Its layout is its own (Help.DistroAgentsTools.help.md), and it is
+## read by it: a syntax line, and the head of an entry, a line that names an operation or an
+## option of it with what is set in under it, or another such head, right after it, stands as
+## it is, a head in the look of a heading; the lines set in under a head are its text, Markdown,
+## set out by markdownLines to the width that is left and set in as far as they are. Every line
+## is broken to the window, so a summary (folderSummary) breaks none of them again.
+def helpMarkdownLines(lines, width):
+    room = max(10, width - 1)
+    heads = [False] * len(lines)
+    for number in range(len(lines) - 1, -1, -1):
+        word = lines[number].lstrip(" ")
+        after = lines[number + 1] if number + 1 < len(lines) else ""
+        indent = len(lines[number]) - len(word)
+        afterIndent = len(after) - len(after.lstrip(" "))
+        heads[number] = word.startswith("📘") or (word.startswith("--") and bool(after.strip()) and (
+            afterIndent > indent or (afterIndent == indent and heads[number + 1] and after.lstrip(" ").startswith("--"))))
+    out = []
+    spansOf = {}
+    number = 0
+    while number < len(lines):
+        line = lines[number]
+        indent = len(line) - len(line.lstrip(" "))
+        if not line.strip():
+            if out and out[-1]:
+                out.append("")
+            number += 1
+        elif heads[number]:
+            look = None if line.lstrip(" ").startswith("📘") else MARKDOWN_LOOKS["h3"]
+            words = line.strip()
+            for part in (wrapToCells(words, max(10, room - indent)) if textWidth(words) > room - indent else [words]):
+                if look is not None:
+                    spansOf[len(out)] = [(indent, textWidth(part), look)]
+                out.append(" " * indent + part)
+            number += 1
+        else:
+            ## a text, to the next head or to a line set in less than its first
+            end = number + 1
+            while end < len(lines) and not heads[end] and (not lines[end].strip() or len(lines[end]) - len(lines[end].lstrip(" ")) >= indent):
+                end += 1
+            while not lines[end - 1].strip():
+                end -= 1
+            text, spans = markdownLines("\n".join(part[indent:] for part in lines[number:end]), width - indent)
+            for at, part in enumerate(text):
+                if at in spans:
+                    spansOf[len(out)] = [(cell + indent, cells, look) for cell, cells, look in spans[at]]
+                out.append(" " * indent + part if part else part)
+            number = end
+    while out and not out[-1]:
+        out.pop()
+    return out, spansOf
 
 
 ## The agents of a session in a few words, from its row: how many, and how many of each
@@ -4266,8 +4391,12 @@ def drawDialog(surface, state, columns, lines):
     alert = STYLE.get("levels") and dialog.get("level") == "bad"
     body, rim, shade = (ALERT, ALERT_FRAME, ALERT_SHADE) if alert else (BOX, BOX_FRAME, BOX_SHADE)
     marks = boxMarks("frameOn")
-    surface.put(top, left, marks[0] + marks[1] * (width - 2) + marks[2], rim)
-    putTitle(surface, top, left, width, dialog["title"], rim, "titleOn", ALERT_HEAD if alert else TITLE_ON)
+    ## where a style draws edges of blocks, its top line is drawn on what lies under it, a window,
+    ## in the look of a line over a window's colour, and its shadow falls from the line under it
+    edged = styleDraws("edges", "blocks")
+    head = (EDGE_ON if alert else EDGE) if edged else rim
+    surface.put(top, left, marks[0] + marks[1] * (width - 2) + marks[2], head)
+    putTitle(surface, top, left, width, dialog["title"], head, "titleOn", ALERT_HEAD if alert else TITLE_ON)
     ## in a style with "icons" the box that closes it, at the left of its top border, does what Esc does
     if iconsFit(width, dialog["title"]):
         surface.put(top, left + 2, styleMark("icons")[0], rim)
@@ -4278,7 +4407,7 @@ def drawDialog(surface, state, columns, lines):
         surface.put(top + offset, left + width - 1, marks[4], rim)
     surface.put(top + height - 1, left, marks[5] + marks[6] * (width - 2) + marks[7], rim)
     if STYLE.get("shadow") == "slim":
-        drawSlimShadow(surface, plan["box"], lines - 2, columns, SHADE)
+        drawSlimShadow(surface, (left, top + 1, width, height - 1) if edged else plan["box"], lines - 2, columns, SHADE)
     elif STYLE.get("shadow") == "dim":
         drawDimShadow(surface, plan["box"], lines - 2, columns, SHADOW)
     elif STYLE["colours"]:
@@ -4363,7 +4492,8 @@ def drawDialog(surface, state, columns, lines):
     ## no button, with the marks of the default inside them, whichever has the keys. The button
     ## that has the keys, and no other, stands in the look of the keys: plain, greyed or that one,
     ## each in the same cells, so a move of the keys changes a look and no character. A raised
-    ## button is its face, blanks where the brackets were, with a slim shadow beside and under it.
+    ## button is its face, blanks where the brackets were, with a slim shadow beside and under it,
+    ## under it the ground of its cells (drawGroundShadow).
     ## Buttons that are bars are of one width, each with its shadow, the label in the middle: the
     ## one that has the keys with the marks of the focus inside its ends, the default in its own look.
     labels = [("[%s%s%s]" % (MARKS["default"][0], label, MARKS["default"][1]) if index == 0 else "[ %s ]" % label)
@@ -4387,8 +4517,10 @@ def drawDialog(surface, state, columns, lines):
         off = dialog["buttons"][index][0] != "cancel" and DIALOG_HANDLERS.get(dialog["name"]) is not None and dialogMissing(dialog) is not None
         surface.put(last, column, label, BOX_BUTTON_ON if what == "button" and focusIndex == index else BAR_OFF if off
                     else BOX_BUTTON_DEF if bars and index == 0 else BOX_BUTTON)
-        if raised:
+        if bars:
             drawSlimShadow(surface, (column, last, textWidth(label), 1), last + 1, left + width - 1, shade)
+        elif raised:
+            drawGroundShadow(surface, (column, last, textWidth(label), 1), last + 1, left + width - 1, shade, body)
         spot(state, column, last, textWidth(label), 1, ("button", index))
         column += textWidth(label) + 2
 
@@ -8736,38 +8868,38 @@ def drawFrame(surface, box, title, active, foot="", bar=None, lit=None):
         surface.put(bottom, left + 2, " " + fitToCells(foot, room - 4) + " ", look)
 
 
-## The edges of a window in a style that draws them of blocks (STYLES "edges"): a half block
-## in each cell of its border, the half inside the window in the look of its edge (EDGE_ON
-## where it is drawn as the active one, else EDGE), the half outside it the desktop at its
-## left and its top and the shadow it casts at its right and under it (EDGE_ON_SHADE,
-## EDGE_SHADE), from half a cell after its corners: the window stands half a cell inside its
-## cells and its shadow half a cell outside it, and neither takes a cell of the layout. Its
-## title is a tab on the top edge, between its shoulders. Where `bar` says that it holds more
-## than it shows, its right edge is a slim scroll bar: an arrow in a box at each end, and
-## between them the track with a thumb as long as the share it shows, where that stands.
+## The edges of a window in a style that draws them of blocks (STYLES "edges"): its top line
+## the desktop with a thin line on its bottom edge, over the window (EDGE_ON_SHADE where it is
+## drawn as the active one, else EDGE_SHADE), its title a tab on that line; the window in its
+## own colour, no mark at its left, where the change of colour is the edge, its last line
+## with a thin line on its bottom edge (EDGE_ON, EDGE), and its right column the shadow it
+## casts, whole black cells (SHADOW) from the line under its top: no cell of the layout is
+## spent. Where `bar` says that it holds more than it shows, that column is a slim scroll bar:
+## an arrow in a box at each end, and between them the track with a thumb as long as the
+## share it shows, where that stands.
 def drawEdges(surface, box, title, lit, bar):
     left, top, width, height = box
-    edge = styleMark("edge")
+    rim = styleMark("rim")
     look, shade = (EDGE_ON, EDGE_ON_SHADE) if lit else (EDGE, EDGE_SHADE)
     rows = height - 2
-    surface.put(top, left, edge[0] + edge[1] * (width - 2) + edge[2], look)
+    surface.put(top, left, rim[0] + rim[1] * (width - 2) + " ", shade)
     if title and width >= 8:
-        putTitle(surface, top, left, width, title, look, "tab", TITLE_ON if lit else TITLE)
+        putTitle(surface, top, left, width - 1, title, shade, "titleOn" if lit else "title", TITLE_ON if lit else TITLE)
     barred = bar is not None and bar[0] > bar[2] and rows >= 3
     if barred:
         size = max(1, (rows - 2) * bar[2] // bar[0])
         start = 1 + (rows - 2 - size) * bar[1] // max(1, bar[0] - bar[2])
     for offset in range(rows):
-        surface.put(top + 1 + offset, left, edge[3], look)
+        surface.put(top + 1 + offset, left, rim[3], look)
         if not barred:
-            surface.put(top + 1 + offset, left + width - 1, edge[4], shade)
+            surface.put(top + 1 + offset, left + width - 1, rim[4], SHADOW)
         elif offset in (0, rows - 1):
             surface.put(top + 1 + offset, left + width - 1, styleMark("barUp" if offset == 0 else "barDown"), SCROLL)
         else:
             thumb = start <= offset < start + size
             surface.put(top + 1 + offset, left + width - 1, styleMark("barThumb" if thumb else "barTrack"), THUMB if thumb else TRACK)
-    surface.put(top + height - 1, left, edge[5], look)
-    surface.put(top + height - 1, left + 1, edge[6] * (width - 2) + edge[7], shade)
+    surface.put(top + height - 1, left, rim[5] + rim[6] * (width - 2), look)
+    surface.put(top + height - 1, left + width - 1, rim[4], SHADOW)
 
 
 ## One line of what the left window holds, by its number, in exactly that many cells, in

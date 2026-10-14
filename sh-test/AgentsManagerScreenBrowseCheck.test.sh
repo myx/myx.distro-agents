@@ -269,6 +269,7 @@ rigAssert "Member Help selected shows the member's help whole, as the tooling gi
 rigAssert "inside, an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.rows ) $( rigHolds entry ' --member-help ' ) $( rigHolds entry ' --member-board-item-read ' ) $( rigHolds entry ' --console-list ' )" "4 1 1 1"
 rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--member-board-item-read <team-member> <item-name> --board-state <state>' ) $( rigHolds entry '│    Reads one item.' ) $( rigHolds entry 'Prints its help.' )" "1 1 0"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"
+rigAssert "the help is Markdown: an operation's block rendered, a paragraph's lines as one, and the titles say so" "$( rigHolds entry '│    Reads one item. Its second line.' ) $( rigHolds entry '--member-board-item-read [markdown]' ) $( rigHolds whole 'Member Help [markdown]' )" "1 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN BROWSE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

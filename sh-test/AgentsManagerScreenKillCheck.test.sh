@@ -179,7 +179,7 @@ said escLine
 cells escKeys 37 1 83
 RIGSCRIPT
 rigAssert "a running session is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS1 [keys: k kill]"
-rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to kill ' ) $( rigBoxHas b ' »Kill« ▄   Cancel  ▄' )" "[kill:word|] [Kill the session] 1 1"
+rigAssert "k opens the dialog of a kill, the keys on the field for the word" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to kill ' ) $( rigBoxHas b ' »Kill« ▅   Cancel  ▅' )" "[kill:word|] [Kill the session] 1 1"
 rigAssert "the dialog says what will be killed: the session by its name and its id" "$( rigBoxHas b '║ KILL the session daily of Monday ' ) $( rigBoxHas b "║ session $rigS1 " )" "1 1"
 rigAssert "each agent that is alive, with its state and its own id"  "$( rigBoxHas b '║ Its 2 live agents end the hard way: no closure runs, none is asked ' ) $( rigBoxHas b "║   magic-coordinator  running waiting  $rigS1 " ) $( rigBoxHas b "║   magic-tester       running working  $rigR2 " )" "1 1 1"
 
@@ -422,7 +422,7 @@ get after
 cells afterKeys 37 1 83
 RIGSCRIPT
 rigAssert "a session that waits with no agent alive is selected, and the left pane names the kill key for it" "$( rigVal on.selected ) [$( rigVal onKeys )]" "$rigS3 [keys: k kill]"
-rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to close ' ) $( rigBoxHas b ' »Close« ▄   Cancel  ▄' ) $( rigBoxHas b ' »Kill« ▄' )" "[close:word|] [Close the session] 1 1 0"
+rigAssert "k asks, and its title, its button and its word say Close: nothing of it lives" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas b '║ Type yes to close ' ) $( rigBoxHas b ' »Close« ▅   Cancel  ▅' ) $( rigBoxHas b ' »Kill« ▅' )" "[close:word|] [Close the session] 1 1 0"
 rigAssert "it names the session, says that nothing is ended, and that the rest is being read" "$( rigBoxHas b '║ CLOSE the session stale work ' ) $( rigBoxHas b "║ session $rigS3 " ) $( rigBoxHas b '║ No agent of it is alive: nothing is ended. ' ) $( rigBoxHas b '║ What it does besides, the questions it dismisses and the records it ' )" "1 1 1 1"
 rigAssert "its plan is read when the dialog opens and once more when it is confirmed, and ends nothing" "$( rigPlans ) $( rigCalled "--manager-session-kill --session-id $rigS3 --plan" ) $( rigVal planned.calls ) [$( rigVal planned.dialog )]" "2 2 0 [close:word|]"
 rigAssert "from the rows of the plan: the question that is dismissed, by who asked it" "$( rigBoxHas p '║ No agent of it is alive: nothing is ended. ' ) $( rigBoxHas p '║ It dismisses 1 question of it that waits: ' ) $( rigBoxHas p "║   $rigQ1  asked by magic-coordinator " )" "1 1 1"

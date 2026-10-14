@@ -112,7 +112,7 @@ print("cells=%s" % " ".join("%s:%s" % (name, ",".join(str(cells) for cluster, ce
 print("line=%d" % screen.textWidth("Favourites: \u2696\ufe0f\U0001f517 \u26a0\ufe0f\U0001f914"))
 ## every mark Magic draws and every name it gives a key: one cell each, as text and never as an emoji
 screen.setStyle("magic")
-marks = "".join("".join(screen.styleMark(name)) for name in ("edge", "rim", "tab", "focus", "field", "rule", "barUp", "barDown",
+marks = "".join("".join(screen.styleMark(name)) for name in ("rim", "focus", "field", "rule", "barUp", "barDown",
                                                              "barTrack", "barThumb", "checks", "radios", "shadow", "folder"))
 marks += "".join(screen.keyWords().values())
 print("magic=%s %s" % (sorted(set(cells for cluster, cells in screen.textCells(marks))), any(screen.isEmoji(character) for character in marks)))

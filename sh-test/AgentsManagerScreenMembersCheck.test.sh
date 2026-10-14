@@ -372,7 +372,7 @@ cells upRow3 4 85 119
 cells upRow4 5 85 119
 RIGSCRIPT
 rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ > keeper-myx ' ) $( rigBoxHas d '║   magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
-rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▄   Cancel  ▄' )" "1 1 1"
+rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▅   Cancel  ▅' )" "1 1 1"
 
 rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║ fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
 
