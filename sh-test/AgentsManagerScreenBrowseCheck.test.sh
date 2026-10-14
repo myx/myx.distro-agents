@@ -6,8 +6,10 @@
 ## start and prints the fixture.
 ## Held: `Team Data` holds Board, Audit and Vault as folders after Operations; a store selected says what it holds,
 ## folder by folder, and a store that is empty or not there says so plainly; a folder of it selected shows its items
-## as a table, from the front matter the read gives, a column no item has a word for left out, its first rows, and
-## `e`, named in the status line and in the title, every row; entered it lists its items, and a
+## as a table, from the front matter the read gives, a column no item has a word for left out: a folder of the Board
+## the table alone, nothing above it, every item, and no TYPE (the owner: "Remove TASK column and show all items in
+## table. Full table view - no summary on top."), so no `e` is named there; a folder of another store under its count,
+## its type too, its first rows, and `e`, named in the status line and in the title, every row; entered it lists its items, and a
 ## selected item shows its text, read by its store, its folder (`-` the store itself) and its name. A member of
 ## `Team Members` is a folder, with the mark of one after its name, but one whose workspace cannot be reached; its
 ## own summary shows its basic information alone, nothing of its settings or its grants; inside it, Permissions
@@ -98,6 +100,12 @@ rigUnder(){ ## tag, text, count -- that many lines of the left pane of that scre
 rigItemLine(){ ## the words of a row of the table of a folder's items, in the columns the fixture gives it -- that row as the table draws it
 	printf ' %-24s %-4s %-16s %-10s %-7s %s' "$@"
 }
+rigBoardLine(){ ## the same of a folder of the Board, which has no TYPE and no SIZE column
+	printf ' %-24s %-16s %-10s %s' "$@"
+}
+rigFirst(){ ## tag -- the first line of the left pane of that screen under its title, without the spaces at its end
+	printf '%s\n' "$rigOut" | LC_ALL=C grep -E "^$1\|(│|║)" | head -1 | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║|▲|▼|▒|■).*$//' -e 's/  *$//'
+}
 rigGrantLine(){ ## the cells of its first column, then the words of a row of the table of grants, all four or the first two -- that row as the table draws it
 	local coversCells="$1" ; shift
 	case $# in
@@ -144,9 +152,9 @@ show vault
 RIGSCRIPT
 rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, then its blocks" "$( rigVal in.rows ) $( rigFolderHolds in ' Operations ' ) $( rigFolderHolds in ' Board ' ) $( rigFolderHolds in ' Audit ' ) $( rigFolderHolds in ' Vault ' ) $( rigHolds in '║ Team Data ' )" "6 1 1 1 1 1"
 rigAssert "Board selected says what it holds, folder by folder, from its read" "$( rigVal board.selectedLabel ) $( rigHolds board '│Board: 3 items in 2 folders.' ) $( rigHolds board '│  running 2' ) $( rigHolds board '│  review  1' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 1 1 1 1"
-rigAssert "a folder of it selected says how many items and how much, then its items as a table, the newest first, from the one read of the folder: the name, then what the front matter gives, its type, its date, its owner and its status, and the size; one with no front matter and no stamp has none" \
-	"$( rigUnder running 'running: 2 items, 1.5K.' 5 ) $( rigWords '[--manager-team-data-read][board][running]' )" \
-	"[running: 2 items, 1.5K.][][$( rigItemLine NAME TYPE DATE OWNER STATUS SIZE )][$( rigItemLine task-20261001T0900Z-a.md task '2026-10-01 09:00' keeper-rig running 1.2K )][$( rigItemLine task-b.md - - - - 336B )] 1"
+rigAssert "a folder of the Board selected is its items as a table and nothing above it, from the one read of the folder: the name, then what the front matter gives but its type, its date, its owner and its status; no size, which the list shows; one with no front matter has none" \
+	"[$( rigFirst running )] $( rigUnder running "$( rigBoardLine NAME DATE OWNER STATUS )" 3 ) $( rigHolds running 'running: 2 items' ) $( rigHolds running ' TYPE ' ) $( rigHolds running ' SIZE' ) $( rigWords '[--manager-team-data-read][board][running]' )" \
+	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][$( rigBoardLine task-b.md - - - )] 0 0 0 1"
 rigAssert "a folder of no more items than it shows has no key for every row: e is named nowhere" "$( rigHolds running 'All rows' ) $( rigHolds running 'and 0 more' )" "0 0"
 rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
 rigAssert "an item in the store itself is read by - for its folder" "$( rigHolds audit '│A declaration.' ) $( rigWords '[--manager-team-data-read][audit][-][declaration-20260928T0000Z-x.md]' )" "1 1"
@@ -164,16 +172,26 @@ show vault
 RIGSCRIPT
 rigAssert "a vault that is not there says so plainly" "$( rigHolds vault '│Vault: there is none in this team data: it has no such folder.' )" "1"
 
-echo "-- 1b. a folder of more items than the pane shows: as many as it shows, and e every row --"
+echo "-- 1b. a folder of more items than the pane shows: of the Board every one, of another store as many as it shows, and e every row --"
 rigCase many
 printf 'store\tboard\tpresent\t1\t0\nfolder\tboard\tbacklog\t60\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board"
-for rigNo in $( seq -w 1 60 ) ; do printf 'item\tboard\tbacklog\titem-%s.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board backlog"
+for rigNo in $( seq -w 1 60 ) ; do printf 'item\tboard\tbacklog\titem-%s.md\t100\t-\ttask\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board backlog"
+printf 'store\taudit\tpresent\t1\t0\nfolder\taudit\t2026-10\t60\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read audit"
+for rigNo in $( seq -w 1 60 ) ; do printf 'item\taudit\t2026-10\titem-%s.md\t100\t-\tsnapshot\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read audit 2026-10"
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
 keys 5
 wait list 10
 keys DOWN DOWN
+wait focus 10
+keys ENTER
+wait list 10
+keys DOWN
+wait focus 10
+get board
+show board
+keys BACKSPACE DOWN
 wait focus 10
 keys ENTER
 wait list 10
@@ -194,13 +212,16 @@ keys DOWN
 turn
 show inside
 RIGSCRIPT
+rigAssert "a folder of the Board: every one of its 60 items, the header the first line, no count above it, no type, no last line for more, and so no e and no count of rows in the title" \
+	"$( rigVal board.selected ) [$( rigFirst board )] $( rigVal board.viewLines ) $( rigHolds board 'backlog: 60 items' ) $( rigHolds board 'task' ) $( rigHolds board 'more' ) $( rigHolds board ' e All rows ' ) $( rigHolds board 'rows]' )" \
+	"backlog [ NAME] 61 0 0 0 0 0"
 rigShown="$( rigHolds first '│ item-' )"
-rigAssert "as many of them as the pane has room for, under the count, a blank line and the header, and a last line for how many more: the pane is full; the columns no item has a word for left out" \
-	"$( rigUnder first 'backlog: 60 items, 5.9K.' 4 ) $(( rigShown + 4 )) $( rigUnder first "$( printf ' %-10s %s' "item-$( printf '%02d' "$rigShown" ).md" 100B )" 2 )" \
-	"[backlog: 60 items, 5.9K.][][$( printf ' %-10s %s' NAME SIZE )][$( printf ' %-10s %s' item-01.md 100B )] $( rigVal first.viewHeight ) [$( printf ' %-10s %s' "item-$( printf '%02d' "$rigShown" ).md" 100B )][  and $(( 60 - rigShown )) more]"
-rigAssert "the status line names e for every row, and the title says how many rows show" "$( rigHolds first ' e All rows ' ) $( rigHolds first "backlog [$rigShown rows]" )" "1 1"
+rigAssert "a folder of the Audit: as many of them as the pane has room for, under the count, a blank line and the header, its type kept, and a last line for how many more: the pane is full; the columns no item has a word for left out" \
+	"$( rigUnder first '2026-10: 60 items, 5.9K.' 4 ) $(( rigShown + 4 )) $( rigUnder first "$( printf ' %-10s %-8s %s' "item-$( printf '%02d' "$rigShown" ).md" snapshot 100B )" 2 )" \
+	"[2026-10: 60 items, 5.9K.][][$( printf ' %-10s %-8s %s' NAME TYPE SIZE )][$( printf ' %-10s %-8s %s' item-01.md snapshot 100B )] $( rigVal first.viewHeight ) [$( printf ' %-10s %-8s %s' "item-$( printf '%02d' "$rigShown" ).md" snapshot 100B )][  and $(( 60 - rigShown )) more]"
+rigAssert "the status line names e for every row, and the title says how many rows show" "$( rigHolds first ' e All rows ' ) $( rigHolds first "2026-10 [$rigShown rows]" )" "1 1"
 rigAssert "e: every row, all 60 under the 3 lines above them, the status line names it for as many rows again, the title says all rows, and nothing is read again" \
-	"$( rigVal all.selected ) $( rigVal all.viewLines ) $( rigHolds all 'more' ) $( rigHolds all ' e First rows ' ) $( rigHolds all 'backlog [all rows]' ) $( rigWords '[--manager-team-data-read][board][backlog]' )" "backlog 63 0 1 1 1"
+	"$( rigVal all.selected ) $( rigVal all.viewLines ) $( rigHolds all 'more' ) $( rigHolds all ' e First rows ' ) $( rigHolds all '2026-10 [all rows]' ) $( rigWords '[--manager-team-data-read][audit][2026-10]' )" "2026-10 63 0 1 1 1"
 rigAssert "e once more: as many as the pane shows again" "$( rigHolds again '│ item-' ) $( rigHolds again "│  and $(( 60 - rigShown )) more" )" "$rigShown 1"
 rigAssert "inside the folder, an item selected: e is named nowhere" "$( rigHolds inside 'All rows' ) $( rigHolds inside 'First rows' ) $( rigHolds inside 'rows]' )" "0 0 0"
 

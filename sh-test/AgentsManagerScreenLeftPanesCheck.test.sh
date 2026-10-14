@@ -279,7 +279,7 @@ rigAssert "Consoles: every console as a table with its command; no sentence" \
 rigAssert "Settings: its subjects as a table with what each holds; Configuration: its folders among them" \
 	"$( rigHas settings 'WHAT' ) $( rigHas settings 'how this console looks' ) $( rigHas configuration 'Config Checker' ) $( rigHas configuration 'Server Keys' )" "1 1 1 1"
 rigAssert "a subject: its lines as a table, a missing value in its colour; no hint" \
-	"$( rigHas cli 'SETTING' ) $( rigRole cli 'Cli A' W ) $( rigHas cli 'Enter opens it' ) $( rigHas subject 'Enter opens it' )" "1 1 0 0"
+	"$( rigHas cli 'KEY' ) $( rigHas cli 'SETTING' ) $( rigRole cli 'RIG_CLI_A' W ) $( rigHas cli 'Enter opens it' ) $( rigHas subject 'Enter opens it' )" "1 0 1 0 0"
 rigAssert "Config Checker: every check as a table, the worst first, in its colour" \
 	"$( rigHas checker 'CHECK' ) $( [ "$( rigLineOf checker 'Git Remote' )" -lt "$( rigLineOf checker 'Bash Version' )" ] && echo worst ) $( rigRole checker 'Git Remote' X )" "1 worst 1"
 rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a caption and a table, a command a row with its path" \

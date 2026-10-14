@@ -18,7 +18,9 @@
 ## the operation, each with the worst level of its figures at the end of its line, the row that goes up shows the
 ## whole dashboard and a block's row that block alone; `8` goes there from anywhere; the borders of the two
 ## windows are plain, with no counters and no load, in every view; an operation that gives no block says so, and
-## one that fails says so in a box.
+## one that fails says so in a box. Panels have no cut mode: with the lines cut, the dashboard, `..` and a block's
+## row in it, and a block's row of `Team Data` are drawn as wrapped, titled [wrap]; `w` is greyed and refused there,
+## and Left and Right too; the other views, `Team Data`'s own summary among them, stay cut.
 ## Offline: no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -266,6 +268,89 @@ border leftFootBw 38 0 84
 border listFootBw 38 84 120
 EOF
 rigAssert "in the list of the sessions too, with the counters read, in both styles that have frames" "[$( rigVal s.path )] $( rigVal s.counters | LC_ALL=C grep -c 'running=3' ) [$( rigVal leftFoot )] [$( rigVal listFoot )] [$( rigVal leftFootBw )] [$( rigVal listFootBw )]" "[sessions] 1 [] [] [] []"
+
+echo "-- panels have no cut mode: with the lines cut elsewhere, a view of panels is drawn as wrapped, and w is refused there"
+rigScreenOf(){ ## tag -- that whole screen as text
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p"
+}
+rigCase panels
+rigSize="176 49" rigScript <<'EOF'
+style tv-blue
+turn
+wait list 5
+show pw
+keys DOWN TAB w TAB UP
+wait list 5
+turn
+get pc
+show pc
+keys ENTER
+wait list 5
+keys DOWN
+turn
+get pa
+show pa
+keys DOWN DOWN
+turn
+show pg
+keys UP UP UP
+turn
+get pu
+show pu
+keys BACKSPACE TAB
+turn
+cells pvStatus 48 0 176
+keys RIGHT RIGHT
+turn
+get pr
+keys ALT-v
+turn
+show pm
+roles pmr
+keys ESC w
+turn
+get pw2
+keys TAB DOWN
+turn
+show ps
+keys TAB
+turn
+cells psStatus 48 0 176
+keys ALT-v
+turn
+show sm
+roles smr
+EOF
+rigAssert "cut set on another view, the dashboard is drawn exactly as wrapped, titled so, and the setting stays cut" "$( [ "$( rigScreenOf pw )" = "$( rigScreenOf pc )" ] && echo same || echo differs ) $( rigHolds pc 'Dashboard (Monitor) [wrap]' ) $( rigHolds pc '…' ) $( rigVal pc.wrap ) $( rigVal pc.spills )" "same 1 0 no 0"
+rigAssert "there w is not named in the status line, and does nothing but say why" "$( rigVal pvStatus | LC_ALL=C grep -c ' w ' ) $( rigVal pw2.wrap ) [$( rigVal pw2.notice )]" "0 no [Wrap or cut long lines: not for what is selected]"
+rigAssert "Left and Right are refused as where lines are wrapped" "$( rigVal pr.viewLeft ) [$( rigVal pr.notice )]" "0 [Scroll: the lines are wrapped, none is cut]"
+rigAssert "in View, w is greyed there, and not on another view" "$( rigLookAt pm pmr 'Wra' ) $( rigLookAt sm smr 'Wra' | LC_ALL=C grep -c x )" "xxx 0"
+rigAssert "a block's row: the block as wide as the window, its value at its right, nothing cut, titled [wrap]" "$( rigVal pa.selected ) $( rigHolds pa 'Alpha Block [wrap]' ) $( rigHolds pa '─┐ │║' ) $( rigBoth pa 'Plain Count' ' 1.2M │ │║' ) $( rigHolds pa '…' )" "alpha 1 1 1 0"
+rigAssert "a long value has the room to stand beside its label there" "$( rigBoth pg '│ Root Path ' '/box/END │ │║' )" "1"
+rigAssert "the row that goes up shows the dashboard whole, as wrapped" "$( rigVal pu.selected ) $( rigHolds pu 'Dashboard (Monitor) [wrap]' ) $( rigBoth pu '┌─ Alpha Block ─' '┌─ Beta Block ─' ) $( rigHolds pu '…' )" ".. 1 1 0"
+rigAssert "another view stays cut, and offers w" "$( rigHolds ps 'Sessions (Activity) [cut]' ) $( rigVal psStatus | LC_ALL=C grep -c ' w Wrap ' )" "1 1"
+rigCase teamdataPanels
+{
+	rigRow block team-data Store_Of_Data 2
+	rigRow figure team-data present Data_Present yes - ok -
+	rigRow figure team-data root Data_Root /rig/data - - -
+} > "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read"
+cp "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read" "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read team-data team-data-git loop"
+rigSize="176 49" rigScript <<'EOF'
+style tv-blue
+turn
+wait list 5
+keys DOWN TAB w TAB 5
+wait list 5
+turn
+get td
+show td
+keys DOWN DOWN DOWN DOWN DOWN
+turn
+get tb
+show tb
+EOF
+rigAssert "Team Data's own summary stays cut; its block's row is drawn as wrapped, as wide as the window" "$( rigVal td.path ) $( rigHolds td 'Team Data [cut]' ) $( rigVal tb.selected ) $( rigHolds tb 'Store Of Data [wrap]' ) $( rigHolds tb '─┐ │║' ) $( rigBoth tb 'Data Present' ' yes │ │║' ) $( rigHolds tb '…' )" "teamdata 1 team-data 1 1 1 0"
 
 echo "-- an operation that gives no block, and one that fails"
 rigCase none

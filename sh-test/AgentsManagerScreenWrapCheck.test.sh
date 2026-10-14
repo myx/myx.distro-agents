@@ -43,7 +43,10 @@ printf 'block\tteam-data\tTeam_Data\t2\nfigure\tteam-data\troot\tTeam_Data_Root\
 cp "rows.--manager-dashboard-read" "rows.--manager-dashboard-read team-data team-data-git loop"
 printf 'store\tboard\tpresent\t3\t0\nfolder\tboard\trunning\t1\nfolder\tboard\t%s\t1\nfolder\tboard\tmany\t40\n' "$rigLong" > "rows.--manager-team-data-read board"
 for rigNo in $( seq -w 1 40 ) ; do printf 'item\tboard\tmany\titem-%s-with-a-name-to-scroll-sideways.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "rows.--manager-team-data-read board many"
-printf 'item\tboard\trunning\tt-1.md\t1200\t20261001T0900\ttask\trunning\tkeeper-rig-with-a-long-owner-name-ENDOWNER\t2026-10-01_09:00_+0000\n' > "rows.--manager-team-data-read board running"
+printf 'item\tboard\trunning\tt-1.md\t1200\t20261001T0900\ttask\topen\tkeeper-rig-with-a-long-owner-name-ENDOWNER\t2026-10-01_09:00_+0000\n' > "rows.--manager-team-data-read board running"
+## an Audit folder of many items: its table keeps its count above it, its first rows and its size
+printf 'store\taudit\tpresent\t1\t0\nfolder\taudit\tmany\t40\n' > "rows.--manager-team-data-read audit"
+for rigNo in $( seq -w 1 40 ) ; do printf 'item\taudit\tmany\titem-%s-with-a-name-to-scroll-sideways.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "rows.--manager-team-data-read audit many"
 {
 	printf '# A heading\n\nA paragraph whose one line runs much longer than the pane is wide, so that it wraps at its words ENDPARA\n\n'
 	printf '```\na-code-line-that-is-very-long-and-has-no-blank-in-it-to-break-at-ENDCODE\n```\n\n'
@@ -129,11 +132,11 @@ turn
 wait list 10
 keys 5
 wait list 10
-keys DOWN DOWN
+keys DOWN DOWN DOWN
 wait focus 10
 keys ENTER
 wait list 10
-keys DOWN DOWN DOWN
+keys DOWN
 wait focus 10
 turn
 show top

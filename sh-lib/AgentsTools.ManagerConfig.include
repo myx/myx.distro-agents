@@ -85,7 +85,7 @@ cli|workspace|SPAWN_CLI_SERVICE|Spawn CLI Service|configuration|The agent CLI th
 cli|workspace|SPAWN_HARNESS_TIER|Spawn Harness Tier|configuration|The tier a harness leg is asked for at a start. What it may be is each leg's own, so it is set by the owner setup.
 cli|workspace|WAIT_ROUND_SECONDS|Wait Round Seconds|configuration|How long a wait that brings nothing runs before it comes back, for every CLI service. A round longer than a CLI allows ends the waits of running sessions, so it is set by the owner setup.
 cli|workspace|spawn-settings-workspace|Spawn Settings Workspace|configuration|The workspace the spawn settings are read from. It is found at the call, from the settings of the team.
-cli|*|present|CLI Present|configuration|Whether this CLI is on the machine, with the file of its harness leg or the path of its binary. It is measured at the call.
+cli|*|present|CLI Present|configuration|Whether this vendor CLI is on the machine, with the path of its binary. It is measured at the call.
 cli|*|usable|CLI Usable|configuration|Whether a start on this CLI can work: a harness leg with one of its credentials set, a vendor CLI where its binary is. It is measured at the call.
 cli|*|wait-round|CLI Wait Round|configuration|How long a wait runs on this CLI before it comes back, in seconds: the round of the workspace where one is set, else the CLI's own.
 cli|*|*|{words}|configuration|A credential the harness leg of this CLI reads. Only whether it is set is shown, and the owner setup saves it.
@@ -353,8 +353,9 @@ AgentsToolsManagerConfigMode(){
 ## THE CLI SERVICES. First what the workspace asks for: its service, its harness tier, its
 ## one wait round for every service, and the workspace its spawn settings are read from.
 ## Then each CLI the console knows, by the console's own declaration, and each harness leg
-## beside them: whether it is present, a leg by its file and a vendor CLI by its binary; the
-## credentials a leg declares for itself, each set or not, never shown; whether it is
+## beside them: of a vendor CLI whether it is present, by its binary, and of a leg nothing
+## such, since it lies in sh-lib beside the tooling (the owner: "it is always present it is in
+## sh-lib"); the credentials a leg declares for itself, each set or not, never shown; whether it is
 ## usable, which a leg is with one of its credentials set and a vendor CLI where its binary
 ## is, since it works off the sign-in of the machine; and its wait round.
 AgentsToolsManagerConfigCli(){
@@ -399,7 +400,6 @@ AgentsToolsManagerConfigCli(){
 			;;
 		esac
 		if [ -n "$cliFile" ] ; then
-			AgentsToolsManagerConfigLine cli "$cliName" present set "$cliFile"
 			cliKeys="$( LC_ALL=C sed -n 's/^HARNESS_CREDENTIAL_NAMES=//p' "$cliFile" 2> /dev/null | LC_ALL=C tr -c 'A-Z0-9_' ' ' )" || cliKeys=""
 			case "$cliKeys" in *[!\ ]*) ;; *) cliUsable="yes" ;; esac
 			for cliKey in $cliKeys ; do

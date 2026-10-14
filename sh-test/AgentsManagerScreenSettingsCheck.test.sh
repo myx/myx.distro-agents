@@ -73,10 +73,9 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigConf workspace paths workspace-root set /rig/ws_rig
 	rigConf workspace paths session-stores missing /rig/ws_rig/.local/agents/stores
 	rigConf workspace places ws-rig set /rig/ws_rig
-	rigRow subject cli 7
+	rigRow subject cli 6
 	rigConf cli workspace SPAWN_CLI_SERVICE set claude
 	rigConf cli workspace SPAWN_HARNESS_TIER missing -
-	rigConf cli claude present set /rig/harness/claude.sh
 	rigConf cli claude ANTHROPIC_API_KEY secret-set sk-must-never-show Anthropic_API_Key 'The_key_the_Claude_CLI_signs_in_with.'
 	rigConf cli claude CLAUDE_CODE_OAUTH_TOKEN secret-missing -
 	rigConf cli claude usable set yes
@@ -198,8 +197,8 @@ rigAssert "entering it afterwards asks for nothing more: the one read of the dig
 rigAssert "its three folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row8 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 )]" "[Configuration] 10 [>..][ Config Checker                  ►][ Server Keys                     ►][ Tooling Commands                ►][ loop                            ►][ Console Behaviour               ►][]"
 rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row9 )]" \
 	"[ workspace             1 missing ►][ cli                   3 missing ►][ systems               2 missing ►][ scopes                2 missing ►]"
-rigAssert "on the row that goes up the left pane says what the root holds, and that a wizard will change it" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )]" "[ 6 subjects, 62 lines, 8 missing.][ What was set when the workspace was deployed and configured. For viewing: nothing][ of it is changed from here, a wizard will change it later.]"
-rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [ 6 subjects, 62 lines, 8 missing.]"
+rigAssert "on the row that goes up the left pane says what the root holds, and that a wizard will change it" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 )]" "[ 6 subjects, 61 lines, 8 missing.][ What was set when the workspace was deployed and configured. For viewing: nothing][ of it is changed from here, a wizard will change it later.]"
+rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [ 6 subjects, 61 lines, 8 missing.]"
 rigAssert "Settings, not entered yet, says what it holds from that same read" "$( rigVal sroot.selected ) [$( rigPane sr 3 )]" "settings [ 3 subjects, 5 lines, 0 missing.]"
 rigAssert "it lists the subjects that have a line of the settings, a subject of both roots in each" "[$( rigVal stitle )] $( rigVal sin.rows ) [$( rigVal srow2 | sed 's/  *$//' )][$( rigVal srow3 | sed 's/  *$//' )][$( rigVal srow4 | sed 's/  *$//' )][$( rigVal srow5 )]" "[Settings] 4 [ Interface Settings              ►][ Console Behaviour               ►][ Session Control                 ►][]"
 rigAssert "and says what the root is for" "[$( rigPane su 3 )][$( rigPane su 4 )]" "[ 3 subjects, 5 lines, 0 missing.][ What a user sets for himself, and what is changed while the workspace runs.]"
@@ -232,12 +231,12 @@ rigAssert "its lines as a table: its missing line first, under a heading of its 
 	"[ missing, first][ session-stores /rig/ws_rig/.local/agents/stores (missing) in paths][ paths][ workspace-root /rig/ws_rig -]"
 rigAssert "then its places, under a heading of their own" "[$( rigPane w 11 | LC_ALL=C tr -s ' ' )][$( rigPane w 12 | LC_ALL=C tr -s ' ' )][$( rigPane w 13 )]" "[ places][ ws-rig /rig/ws_rig -][]"
 rigAssert "under its lines no sentence says what Enter does: the status line names it; it names no key of its own" "[$( rigPane w 13 )][$( rigPane w 14 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[][] [] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] 0"
-rigAssert "cli: a missing key first, with its group; then what the workspace asks for, a key as it is written" "[$( rigPane c 3 )][$( rigPane c 7 | LC_ALL=C tr -s ' ' )][$( rigPane c 8 | LC_ALL=C tr -s ' ' )][$( rigPane c 11 | LC_ALL=C tr -s ' ' )][$( rigPane c 12 | LC_ALL=C tr -s ' ' )]" \
-	"[ cli: 7 lines, 3 missing.][ missing, first][ SPAWN_HARNESS_TIER missing in workspace][ workspace][ SPAWN_CLI_SERVICE claude -]"
-rigAssert "a secret shows only as configured or not configured: the one that is not among the missing lines, the one that is in its group" "[$( rigPane c 9 | LC_ALL=C tr -s ' ' )][$( rigPane c 13 | LC_ALL=C tr -s ' ' )][$( rigPane c 14 | LC_ALL=C tr -s ' ' )][$( rigPane c 15 | LC_ALL=C tr -s ' ' )][$( rigPane c 16 | LC_ALL=C tr -s ' ' )]" \
-	"[ CLAUDE_CODE_OAUTH_TOKEN not configured in claude][ claude][ present /rig/harness/claude.sh -][ Anthropic API Key configured ANTHROPIC_API_KEY][ usable yes -]"
+rigAssert "cli: a table CLI KEY VALUE, a row a line with its CLI, a missing key first; then what the workspace asks for, a key as it is written" "[$( rigPane c 3 )][$( rigPane c 6 | LC_ALL=C tr -s ' ' )][$( rigPane c 7 | LC_ALL=C tr -s ' ' )][$( rigPane c 10 | LC_ALL=C tr -s ' ' )]" \
+	"[ cli: 6 lines, 3 missing.][ CLI KEY VALUE][ workspace SPAWN_HARNESS_TIER missing][ workspace SPAWN_CLI_SERVICE claude]"
+rigAssert "a secret shows only as configured or not configured: the one that is among the missing lines, the one that is not; then the leg's usable" "[$( rigPane c 8 | LC_ALL=C tr -s ' ' )][$( rigPane c 11 | LC_ALL=C tr -s ' ' )][$( rigPane c 12 | LC_ALL=C tr -s ' ' )]" \
+	"[ claude CLAUDE_CODE_OAUTH_TOKEN not configured][ claude ANTHROPIC_API_KEY configured][ claude usable yes]"
 rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds c 'sk-must' ) $( rigScreenHolds c 'never-show' ) $( LC_ALL=C grep -c -F 'sk-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-config-digest" )" "0 0 1"
-rigAssert "a CLI that is not usable stands among the missing lines, with its name" "[$( rigPane c 10 | LC_ALL=C tr -s ' ' )]" "[ usable no in grok]"
+rigAssert "a CLI that is not usable stands among the missing lines, with its name" "[$( rigPane c 9 | LC_ALL=C tr -s ' ' )]" "[ grok usable no]"
 rigAssert "systems: a scope that is set, and one that is set and lacks keys" "[$( rigPane s 3 )][$( rigPane s 10 | LC_ALL=C tr -s ' ' )][$( rigPane s 11 | LC_ALL=C tr -s ' ' )][$( rigPane s 12 | LC_ALL=C tr -s ' ' )]" \
 	"[ systems: 4 lines, 2 missing.][ slack][ magic-team set -][ magic-coordinator set, lacks SLACK_APP_TOKEN, SLACK_SIGNING_SECRET -]"
 rigAssert "a scope that misses a key, and a system no scope holds: the first lines, each with its system" "[$( rigPane s 7 | LC_ALL=C tr -s ' ' )][$( rigPane s 8 | LC_ALL=C tr -s ' ' )][$( rigPane s 9 | LC_ALL=C tr -s ' ' )]" "[ missing, first][ magic-team missing: CONFLUENCE_SPACE in confluence][ no scope missing in jira]"
@@ -262,9 +261,9 @@ get end
 show end
 RIGSCRIPT
 rigSize=""
-rigAssert "scopes is selected, longer than the pane: from its top as many of its rows as the pane holds, its missing lines first" "$( rigVal top.selected ) $( rigVal top.viewTop ) [$( rigPane top 3 )][$( rigPane top 7 | LC_ALL=C tr -s ' ' )]" "scopes 0 [ scopes: 44 lines, 2 missing.][ missing, first]"
+rigAssert "scopes is selected, longer than the pane: from its top as many of its rows as the pane holds, a table MEMBER KEY VALUE, its missing lines first" "$( rigVal top.selected ) $( rigVal top.viewTop ) [$( rigPane top 3 )][$( rigPane top 6 | LC_ALL=C tr -s ' ' )]" "scopes 0 [ scopes: 44 lines, 2 missing.][ MEMBER KEY VALUE]"
 rigAssert "it says how many more there are, and its title how many it shows: e shows them all" "$( rigScreenHolds top ' more' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^top|' | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c -E '\[[0-9]+ rows\]' )" "1 1"
-rigAssert "the key and the secret that are missing stand on its first page, each with its scope" "[$( rigPane top 8 | LC_ALL=C tr -s ' ' )][$( rigPane top 9 | LC_ALL=C tr -s ' ' )] $( rigVal end.spills )" "[ TRELLO_BOARD missing in magic-team][ TRELLO_TOKEN not configured in magic-team] 0"
+rigAssert "the key and the secret that are missing stand on its first page, each with its scope" "[$( rigPane top 7 | LC_ALL=C tr -s ' ' )][$( rigPane top 8 | LC_ALL=C tr -s ' ' )] $( rigVal end.spills )" "[ magic-team TRELLO_BOARD missing][ magic-team TRELLO_TOKEN not configured] 0"
 
 echo "-- a subject is entered: its lines by their labels alone, and the left window shows the one selected --"
 rigCase entered
@@ -296,12 +295,12 @@ turn
 keys DOWN DOWN DOWN DOWN DOWN ENTER
 turn
 # the lines of this subject stand group by group: two headings stand ahead of this line
-keys DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN
 turn
 get k
 show k
 cells kStatus 39 0 120
-cells kRow 8 85 119
+cells kRow 7 85 119
 RIGSCRIPT
 rigAssert "Enter on a subject opens it: its lines of this root under the row that goes up, by label, nothing at the end of a row" "$( rigVal in.path ) [$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 )]" "settings/console [Console Behaviour] 3 [>..][ Console History Type...][ Console Title...][]"
 rigAssert "on the row that goes up the left window shows the subject itself: its label and how many lines as its caption, then what it holds" "[$( rigPane f 2 )][$( rigPane f 3 )][$( rigPane f 4 )]" "[ Console Behaviour [wrap]][ Console Behaviour: 2 lines.][ how the consoles of this workspace behave]"
@@ -381,8 +380,8 @@ show i
 RIGSCRIPT
 rigAssert "the subjects are listed by their labels"                  "[$( rigVal w.selectedLabel )] [$( rigVal c.selectedLabel )] [$( rigVal i.selectedLabel )]" "[Workspace Paths] [CLI Services] [Interface Settings]"
 rigAssert "the left window is titled by the label, and its caption says how many lines and how many of them are missing" "[$( rigPane c 2 )] $( rigPaneHolds c ' CLI Services: 2 lines, 1 missing.' )" "[ CLI Services [wrap]] 1"
-rigAssert "a line shows by its label, with its key in a column of its own" "[$( rigPane c 8 | LC_ALL=C tr -s ' ' )]" "[ Spawn Harness Tier missing SPAWN_HARNESS_TIER in workspace]"
-rigAssert "a line with no label shows by its key" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ ODD_KEY odd -' )" "1"
+rigAssert "a line of the CLI view shows by its CLI and its key, its label left out (the owner: \"Make MEMBER KEY VALUE\", the CLI view the same)" "[$( rigPane c 7 | LC_ALL=C tr -s ' ' )] $( rigScreenHolds c 'Spawn Harness Tier' )" "[ workspace SPAWN_HARNESS_TIER missing] 0"
+rigAssert "a line with no label shows by its key there too" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^c|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ workspace ODD_KEY odd' )" "1"
 rigAssert "the subject of the interface shows its style as it is, by the label of the choice, where it comes from, and its key" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C tr -s ' ' | LC_ALL=C grep -c -F '│ Interface Style Turbo Vision - System default MDAT_MANAGER_STYLE' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
 
 echo "-- Enter on the style: a dialog of its own, the style and its colours; OK takes both at once and saves them as one value --"

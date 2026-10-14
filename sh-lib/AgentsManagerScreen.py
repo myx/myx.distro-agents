@@ -574,7 +574,7 @@ SUMMARIES = {
     "teamdata/board": {"lines": "storeSummary"},
     "teamdata/audit": {"lines": "storeSummary"},
     "teamdata/vault": {"lines": "storeSummary"},
-    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary"} for storeId, storeLabel in TEAM_DATA_STORES},
+    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "store": storeId} for storeId, storeLabel in TEAM_DATA_STORES},
     "team/*/permissions": {"lines": "grantsSummary"},
     "team/*/files": {"lines": "filesSummary"},
     "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
@@ -833,6 +833,8 @@ PLACES = {
     ## the fields of a `member` row of the read of one location, after the first; and what
     ## the row of a member says in <setup> where no registry names it: such a one shows plainer
     "member": ("name", "kind", "home", "setup", "folder"), "unlisted": "not-in-registry",
+    ## the kind of a location that is a workspace, and the folder of it that holds its projects
+    "workspace": "workspace", "projects": "source",
 }
 ## The rule of the locations: a path that lies in a registered location shows as the key
 ## of that location, a colon and what follows it there, `<place key>:rest`, the location
@@ -1114,7 +1116,8 @@ WINDOW_FIRST = "list"
 SPLIT = {"step": 0.05, "least": 20, "most": 80}
 ## How the left window shows a line longer than itself when the screen starts: wrapped at
 ## words (True), or cut with the cut mark and scrolled sideways. The choice is the user's
-## for the run of the screen, whatever is selected. What stands for each of the two in
+## for the run of the screen, whatever is selected; a view of panels (blocksView) is
+## always wrapped, and the choice is not offered there. What stands for each of the two in
 ## the title of the window, always, beside its mode; how wide a line is set out while
 ## lines are not wrapped; and how many cells one press scrolls sideways.
 WRAP_FIRST = True
@@ -1686,8 +1689,10 @@ class ManagerState:
         self.reads = False
         ## the counters of the status lines, by name, each from the read that counts it
         self.counters = {}
-        ## how wide the left pane is now: what its own lines are broken to
+        ## how wide the left pane is now: what its own lines are broken to; and how wide it
+        ## is on the terminal, whether its lines are wrapped or not (blocksView)
         self.viewWidth = 0
+        self.paneWidth = 0
         self.viewHeight = 0
         ## the levels the last good answer of each list read filled: read key -> level keys
         self.levelsOf = {}
@@ -2804,6 +2809,14 @@ ITEM_COLUMNS = (
     ("STATUS", lambda item: item.get("status", ""), "enum"),
     ("SIZE", lambda item: shortBytes(item["bytes"]), "text"),
 )
+## The columns of the folders of a store where they are not those: the Board's leave the
+## type out, which its names say (the owner: "Remove TASK column"), and the size, which its
+## rows in the list show; its date is the front matter's alone, the stamp being its name's.
+STORE_ITEM_COLUMNS = {"board": tuple(("DATE", lambda item: item.get("date", "")[:16], "text") if column[0] == "DATE" else column
+                                     for column in ITEM_COLUMNS if column[0] not in ("TYPE", "SIZE"))}
+## The stores whose folder shows its table alone, every item of it, nothing above it, so with
+## no `e` (the owner: "show all items in table. Full table view - no summary on top.").
+ITEMS_WHOLE = ("board",)
 
 
 ## The stamp of an item's name, `<YYYYMMDD>T<HHMM>`, as a date: `2026-10-01 09:00`.
@@ -2815,7 +2828,9 @@ def stampText(stamp):
 
 ## The summary of a folder of a store: how many items it holds and how much, then its items
 ## as a table (paneTable), the newest first where their names are dated: as many as the
-## pane shows, or every row while `e` shows them all, and how many more there are.
+## pane shows, or every row while `e` shows them all, and how many more there are. A folder
+## of a store of ITEMS_WHOLE: the table alone, every row. The columns are the store's own
+## where it has its own (STORE_ITEM_COLUMNS).
 def itemsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -2823,11 +2838,15 @@ def itemsSummary(state, path, row, form):
     items = [held for held in rows if held.get("item")]
     if not items:
         return ["%s: empty. It holds no items." % row["label"]]
+    columns = [column for column in STORE_ITEM_COLUMNS.get(form.get("store"), ITEM_COLUMNS) if any(column[1](held["item"]) for held in items)]
+    heads, cells, kinds = [column[0] for column in columns], [[column[1](held["item"]) or "-" for column in columns] for held in items], [column[2] for column in columns]
+    if form.get("store") in ITEMS_WHOLE:
+        state.view["rowsCap"] = None
+        head, blocks = paneTable(heads, cells, state.viewWidth - 1, wrap=state.wrap, kinds=kinds)
+        return head + [line for block in blocks for line in block]
     size = sum(int(held["item"]["bytes"]) for held in items if held["item"]["bytes"].isdigit())
     lines = [looked("%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), BOLD), ""]
-    columns = [column for column in ITEM_COLUMNS if any(column[1](held["item"]) for held in items)]
-    return tableSummaryLines(state, lines, [column[0] for column in columns],
-                             [[column[1](held["item"]) or "-" for column in columns] for held in items], [column[2] for column in columns])
+    return tableSummaryLines(state, lines, heads, cells, kinds)
 
 
 ## ---- a team member as a folder: its grants, its files, its sessions, its help ----
@@ -6366,12 +6385,21 @@ def digestCaption(label, lines):
     return looked("%s: %d line%s%s." % (label, len(lines), "" if len(lines) == 1 else "s", ", %d missing" % missing if missing else ""), BOLD)
 
 
+## The subjects of the digest whose lines a table sets out by their group, in a column of its
+## own that these words head, then each line's key and what it reads as: a row a line, with no
+## heading row and no column of labels (the owner: "Pointless: SETTING VALUE KEY.... Make
+## MEMBER KEY VALUE", and the CLI view the same). The group is the word the digest gives it.
+GROUP_COLUMNS = {"scopes": "MEMBER", "cli": "CLI"}
+
+
 ## Lines of the digest as the rows of a table of the left pane, group by group, each group
 ## under a heading of its own where there is more than one: each line by its label, what it
 ## reads as, a missing one in its colour, where its value comes from, and its key where its
 ## label is not the key. A line with no label shows by its key. Where the missing ones stand
-## first (SUMMARIES) they are the first group, each with its own group after its key. Gives
-## the heads, the rows, the kinds and the looks, a column no line has a word for left out.
+## first (SUMMARIES) they are the first group, each with its own group after its key. A
+## subject of GROUP_COLUMNS: each line by its group, its key and what it reads as, in the
+## same order. Gives the heads, the rows, the kinds and the looks, a column no line has a
+## word for left out.
 def digestTable(subjectName, lines, missingFirst=False):
     ahead = [line for line in lines if line["state"] in STATES_MISSING] if missingFirst else []
     groups = []
@@ -6383,6 +6411,11 @@ def digestTable(subjectName, lines, missingFirst=False):
         groups[-1][1].append(line)
     if ahead:
         groups.insert(0, (None, ahead))
+    if subjectName in GROUP_COLUMNS:
+        ordered = [line for group, members in groups for line in members]
+        return ([GROUP_COLUMNS[subjectName], "KEY", "VALUE"],
+                [[line["group"] or "-", line["key"] or "-", valueWords(subjectName, line) or "-"] for line in ordered], ["key", "key", "text"],
+                [[None, None, LEVEL_WARN if line["state"] in STATES_MISSING else None] for line in ordered])
     heads = ("SETTING", "VALUE", "SOURCE", "KEY")
     rows = []
     looks = []
@@ -6424,6 +6457,9 @@ def subjectSummary(state, path, row, form):
 def groupLines(group, width, wrap=True):
     heads, rows, kinds, looks = digestTable(group["subject"], [line for line in group["lines"] if line["state"] in STATES_MISSING]
                                             + [line for line in group["lines"] if line["state"] not in STATES_MISSING])
+    if group["subject"] in GROUP_COLUMNS:
+        ## the title names the group: its column would say it again on every row
+        heads, rows, kinds, looks = heads[1:], [row[1:] for row in rows], kinds[1:], [look[1:] for look in looks]
     head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks)
     return [digestCaption(group["label"], group["lines"]), ""] + head + [line for block in blocks for line in block]
 
@@ -6886,6 +6922,10 @@ DIALOG_FILLS["keyline"] = fillKeyLine
 
 ## ---- the commands a console user calls by name: `Tooling Commands` ----
 
+## The folder of a project that holds its tooling commands.
+COMMAND_FOLDER = "sh-scripts"
+
+
 ## What `--manager-command-list` printed, as rows, in the order they come: a command a
 ## line, by its name as it is typed, and after a TAB the file it resolves to, `-` for none.
 ## Each is an entry of the help: what the left pane shows of it is its help (MARKDOWN_HELP).
@@ -6899,11 +6939,33 @@ def parseCommandRows(text):
     return rows
 
 
+## Where a tooling command is located, from the file it resolves to: the project whose
+## COMMAND_FOLDER holds it, as `<workspace>:<project path>` where it lies in the folder of the
+## projects of a workspace the locations know, the longest winning (the owner: "Just a
+## workspace:project_path"); else that folder by the rule of the locations where the view takes
+## it, or as it is; `-` where it resolves to none.
+def commandPlace(state, file, placing):
+    if file == "-":
+        return file
+    folder = file.rpartition("/")[0]
+    if folder.endswith("/" + COMMAND_FOLDER):
+        folder = folder[:-len(COMMAND_FOLDER) - 1]
+    found = None
+    for held in state.rows.get("places") or ():
+        place = held.get("place")
+        under = pathUnder(folder, place["path"].rstrip("/") + "/" + PLACES["projects"]) if place and place["kind"] == PLACES["workspace"] else None
+        if under and under != "." and (found is None or len(place["path"]) > len(found[0]["path"])):
+            found = (place, under)
+    if found:
+        return "%s:%s" % (found[0]["key"], found[1])
+    return placedLine(state, folder)[0] if placing else folder
+
+
 ## What `Tooling Commands` holds, for the left pane while its row or the row that goes up
 ## inside it is selected: how many as its caption, then every command as the operation
-## names it, in its order, as a table (tableSummaryLines): its name and its file, the path
-## by the rule of the locations where the view takes it, so it is broken to the pane as it
-## shows. None until its read has answered.
+## names it, in its order, as a table (tableSummaryLines): its name and where it is located
+## (commandPlace), set out before the table so it is broken to the pane as it shows. None
+## until its read has answered.
 def commandsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -6912,7 +6974,7 @@ def commandsSummary(state, path, row, form):
         return [looked("The operation listed no command.", BOLD)]
     placing = placedShown(state)
     return tableSummaryLines(state, [looked("%d command%s." % (len(rows), "" if len(rows) == 1 else "s"), BOLD), ""],
-                             ("NAME", "PATH"), [[held["label"], placedLine(state, held["path"])[0] if placing else held["path"]] for held in rows],
+                             ("NAME", "PATH"), [[held["label"], commandPlace(state, held["path"], placing)] for held in rows],
                              ("key", "text"))
 
 
@@ -7189,24 +7251,32 @@ def blockGrid(blocks, width, place=None):
 ## The dashboard for the left pane: every block the operation gave, as a grid; or the one
 ## block of the selected row, as wide as the window. None until its read has answered,
 ## and while what it would set out is what stands there already: the same rows, at the
-## same width, in the same style, with the same locations known.
+## same width, in the same style, with the same locations known. Panels have no cut mode:
+## they are set out to the pane as it stands on the terminal, whatever `w` is, and the
+## view says it shows them (panelsShown).
 def blocksView(state, only=None, level="dashboard"):
     rows = state.rows.get(level)
     if rows is None:
         return None
     places = state.rows.get("places")
-    stamp = (only, state.viewWidth, STYLE["name"], MARKS["plain"])
+    stamp = (only, state.paneWidth, STYLE["name"], MARKS["plain"])
     kept = state.view.get("blocksFor")
     if kept is not None and kept[0] is rows and kept[1] is places and kept[2] == stamp:
         return None
     state.view["blocksFor"] = (rows, places, stamp)
     blocks = [row["block"] for row in rows if row.get("block") and only in (None, row["id"])]
+    state.view["panels"] = bool(blocks)
     if not blocks:
         state.view["looks"] = {}
         return ["Nothing to show here: the operation gave no block."]
     place = (lambda text: placedLine(state, text)) if placedShown(state) else None
-    lines, state.view["looks"] = blockGrid(blocks, max(20, state.viewWidth - 2), place)
+    lines, state.view["looks"] = blockGrid(blocks, max(20, state.paneWidth - 2), place)
     return lines
+
+
+## Whether the left pane shows panels (blocksView): its lines are then wrapped, whatever `w` is.
+def panelsShown(state):
+    return bool(state.view.get("panels"))
 
 
 ## The dashboard as a folder: all its blocks.
@@ -8142,9 +8212,12 @@ def commandRefusal(state, command):
     if does[0] == "rows":
         ## a table of the items of a folder that holds more than it shows at first
         return "" if tableRowsShown(state) else other
+    if does[0] == "wrap":
+        ## panels have no cut mode
+        return other if panelsShown(state) else ""
     if does[0] == "pan":
         ## wrapped lines hold nothing to the side
-        return REFUSALS["wrapped"] % said if state.wrap else ""
+        return REFUSALS["wrapped"] % said if state.wrap or panelsShown(state) else ""
     if does[0] == "up":
         return "" if state.path else REFUSALS["up"] % said
     if does[0] == "open":
@@ -8941,7 +9014,7 @@ def viewTitle(state):
     if few:
         form += " " + (ROWS_MARK if state.allRows else FEW_ROWS_MARK % few)
     ## and whether its long lines are wrapped or cut: the title says it always
-    return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap else CUT_MARK)
+    return (marks + " " if marks else "") + (row.get("title") or row["label"]) + form + " " + (WRAP_MARK if state.wrap or panelsShown(state) else CUT_MARK)
 
 
 ## A label with its hot letter between tildes, as parts to draw: the letter in the one
@@ -9582,6 +9655,7 @@ def sizeTaken(surface, state):
     layout = layoutOf(columns, lines, state.split)
     ## lines that are not wrapped are set out wide, and the window shows a part of them
     state.viewWidth = (layout["viewWidth"] if state.wrap else max(layout["viewWidth"], UNWRAPPED_WIDTH)) if layout else 0
+    state.paneWidth = layout["viewWidth"] if layout else 0
     state.viewHeight = layout["viewHeight"] if layout else 0
     return layout
 
