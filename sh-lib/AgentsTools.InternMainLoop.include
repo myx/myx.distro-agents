@@ -210,22 +210,25 @@ case "$1" in
 			## pushes it into an EMPTY remote; clonePull refuses a non-empty directory.
 			## The branch travels as init.defaultBranch so that first commit is on the
 			## branch clonePull later tracks: any other makes it delete the checkout.
-			## The store is made a clone where it is none, given the remote as its origin, and
-			## synced with the remote's branch TEAM_DATA_BRANCH names, every call to the remote
-			## the one way and bounded; a store on another branch keeps it and its checkout and
-			## is never handed to clonePull or cloneSync (AgentsToolsTeamDataSync).
+			local syncCommand="clonePull"
+			## A store that is a repository with no origin, or another one, is given the remote
+			## first: clonePull's own `remote set-url` fails on a repository with none, before it
+			## reaches the remote (AgentsToolsTeamDataRemoteAlign).
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
-			local syncCommand=""
-			if AgentsToolsTeamDataSync "main-loop iteration" "$mainLoopDataRemote" "$mainLoopDataBranch" ; then
-				syncCommand="$agentsTeamDataSyncCommand"
+			[ ! -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataRemoteAlign "main-loop iteration" "$mainLoopDataRemote" || :
+			if [ -d "$MDAT_DATA_ROOT" ] && [ ! -d "$MDAT_DATA_ROOT/.git" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+				syncCommand="cloneSync"
+			fi
+			if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$mainLoopDataBranch" \
+				"$MYXROOT/bin/git/$syncCommand.Common" "$MDAT_DATA_ROOT" "$mainLoopDataRemote" "$mainLoopDataBranch" >&2 ) ; then
 				mainLoopTeamData="ok" ; mainLoopTeamDataFailures=0
 			else
-				syncCommand="$agentsTeamDataSyncCommand"
 				mainLoopTeamData="stale" ; mainLoopTeamDataFailures=$(( mainLoopTeamDataFailures + 1 ))
 				echo "# $MDSC_CMD --intern-main-loop: team-data sync failed ($mainLoopTeamDataFailures in a row), continuing on the local copy" >&2
 				[ "$syncCommand" != "cloneSync" ] || echo "# $MDSC_CMD --intern-main-loop: $MDAT_DATA_ROOT holds local content and is not a clone: it is adopted only into an empty remote, so merge it with $mainLoopDataRemote by hand" >&2
 			fi
 			## After the pull: commits still local from earlier closes go out here.
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 			AgentsToolsTeamDataPushIfAhead "main-loop iteration"
 			return 0
 		}

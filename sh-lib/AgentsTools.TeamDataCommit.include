@@ -12,8 +12,9 @@
 ## stderr and never fails the write that came before it: the write has happened,
 ## and the dirty-store warning at heartbeat and spawn close names what is left.
 ##
-## And everything of the team data's remote: the one way to it, the clone of a store
-## that is none yet, the origin of one that is, and the push at a close.
+## With TEAM_DATA_GIT_REMOTE set, the store's step of the set-up and the close push call
+## myx.common's git/cloneSync for a store that has a remote, as the main loop's pass does,
+## and a store with no origin, or another one, is given the remote first.
 ##
 
 ## Commits exactly the given paths, which must lie under $MDAT_DATA_ROOT.
@@ -50,464 +51,15 @@ AgentsToolsTeamDataCommitPaths(){ ## context, path...
 	return 0
 }
 
-## THE REMOTE OF THE TEAM DATA. Whatever of the tooling reaches it -- a clone, a fetch, a
-## push, an ls-remote, and myx.common's git/clonePull and git/cloneSync on the store -- is
-## run through AgentsToolsTeamDataRemote, and nothing reaches it another way. A git call
-## that stays in the store (add, commit, rev-parse, config) needs none of this.
-
-## The address of a remote as it may be printed: what stands between `://` and `@` is never shown.
-AgentsToolsTeamDataRemoteName(){ ## address
-	case "$1" in
-		*://*@*) printf '%s://***@%s\n' "${1%%://*}" "${1#*@}" ;;
-		*) printf '%s\n' "$1" ;;
-	esac
-}
-
-## THE ONE WAY TO THE REMOTE. Runs the command given, which is git itself or myx.common's
-## git/clonePull or git/cloneSync, and prints what it printed, both streams; its status is
-## the command's. What it adds:
-##   A BOUND. MDAT_TEAM_DATA_REMOTE_BOUND seconds where that is set, else the --bound given
-##     (300 for a clone and for git/clonePull and git/cloneSync), else 120. A command that has not ended by then is stopped with all it started and the
-##     status is 124: a remote that never answers holds no close and no session. It is
-##     started as the leader of a process group of its own and kept by when it began, as
-##     every bounded process of the tooling is (AgentsToolsRegistryProcessesBegan): at the
-##     bound the whole group is ended, git and the ssh it started, and only while its
-##     leader is still the process that was started here.
-##   NO QUESTION IS EVER ASKED. stdin is /dev/null, git may not prompt, and ssh runs in batch
-##     mode. The ssh command is the one the account's git already has, GIT_SSH_COMMAND, else
-##     core.sshCommand, else GIT_SSH, else ssh, with batch mode and a connect timeout after
-##     it and NOTHING ELSE: the key is the one git and ssh pick for this account by
-##     themselves, and host key checking stays as the account has it, so a host that is not
-##     known is refused at once instead of being asked about. Handing it on here is what
-##     keeps it: myx.common's git/clonePull and git/cloneSync set GIT_SSH_COMMAND from
-##     GIT_SSH_COMMAND or plain `ssh`, which, left alone, puts a core.sshCommand out of
-##     force, and with it the identity and the known hosts file an account names there.
-##     No key is read, generated, stored or handed over by the tooling.
-##   A LAST LINE ON A FAILURE, `team-data remote: <why>`, after what the command printed:
-##     the reason as AgentsToolsTeamDataRemoteWhy reads it.
-##   A RECORD of whether the remote answered (AgentsToolsTeamDataRemoteNote), which the
-##     setup's check and the dashboard read with no git call.
-AgentsToolsTeamDataRemote(){ ## [--bound <seconds>] command...
-	local remoteBound=120 remoteFile="" remoteRc=0 remotePid="" remoteEnd=0 remoteBegan="" remoteMonitor="" remoteSsh="" remoteWhy="" remoteWhat="reach" remoteAt="/"
-	if [ "${1:-}" = "--bound" ] ; then remoteBound="$2" ; shift 2 ; fi
-	case "${MDAT_TEAM_DATA_REMOTE_BOUND:-}" in ''|*[!0123456789]*) ;; *) remoteBound="$MDAT_TEAM_DATA_REMOTE_BOUND" ;; esac
-	case " $* " in *" push "*) remoteWhat="push" ;; esac
-	[ ! -d "${MDAT_DATA_ROOT:-/nonexistent}" ] || remoteAt="$MDAT_DATA_ROOT"
-	remoteSsh="${GIT_SSH_COMMAND:-}"
-	[ -n "$remoteSsh" ] || remoteSsh="$( git -C "$remoteAt" config --get core.sshCommand 2> /dev/null )" || remoteSsh=""
-	[ -n "$remoteSsh" ] || remoteSsh="${GIT_SSH:-ssh}"
-	remoteSsh="$remoteSsh -o BatchMode=yes -o ConnectTimeout=${MYX_GIT_CONNECT_TIMEOUT:-15}"
-	remoteFile="$( mkdir -p "${MMDAPP:-/nonexistent}/.local/temp" 2> /dev/null && mktemp "$MMDAPP/.local/temp/mdat-team-data-remote.XXXXXX" 2> /dev/null )" || remoteFile=""
-	if [ -z "$remoteFile" ] ; then
-		## Nowhere to keep what it prints: it runs as it is, unable to ask, and unbounded.
-		GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$remoteSsh" LC_ALL=C "$@" < /dev/null 2>&1 || remoteRc=$?
-		return "$remoteRc"
-	fi
-	type AgentsToolsRegistryGroupBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
-	remoteMonitor="$BASH_SUBSHELL:$-"
-	set -m
-	( GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$remoteSsh" LC_ALL=C exec "$@" ) > "$remoteFile" 2>&1 < /dev/null &
-	remotePid=$!
-	case "$remoteMonitor" in 0:*m*) ;; *) set +m ;; esac
-	remoteBegan="$( printf '%s\n' "$remotePid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" || remoteBegan=""
-	remoteEnd=$(( SECONDS + remoteBound ))
-	while kill -0 "$remotePid" 2> /dev/null ; do
-		if [ "$SECONDS" -ge "$remoteEnd" ] ; then
-			remoteRc=124
-			AgentsToolsRegistryGroupBegan "$remoteBegan" > /dev/null 2>&1 && kill -TERM -- "-$remotePid" 2> /dev/null || :
-			sleep 2
-			[ "$( printf '%s\n' "$remotePid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$remoteBegan" ] && kill -KILL -- "-$remotePid" 2> /dev/null || :
-			break
-		fi
-		sleep 0.2
-	done
-	if [ "$remoteRc" = 124 ] ; then wait "$remotePid" 2> /dev/null || : ; else wait "$remotePid" 2> /dev/null || remoteRc=$? ; fi
-	cat "$remoteFile" 2> /dev/null || :
-	## `git ls-remote --exit-code` ends 2 where the remote answered and has no such ref:
-	## that is an answer, and no failure of the remote.
-	case "$remoteRc: $* " in
-		"2: "*" ls-remote "*" --exit-code "*) [ -s "$remoteFile" ] || { rm -f "$remoteFile" ; AgentsToolsTeamDataRemoteNote reach 0 "" ; return 2 ; } ;;
-	esac
-	if [ "$remoteRc" -ne 0 ] ; then
-		remoteWhy="$( AgentsToolsTeamDataRemoteWhy "$remoteRc" "$remoteBound" "$remoteFile" "$remoteSsh" )" || remoteWhy="the command ended with status $remoteRc"
-		printf 'team-data remote: %s\n' "$remoteWhy"
-	fi
-	rm -f "$remoteFile"
-	AgentsToolsTeamDataRemoteNote "$remoteWhat" "$remoteRc" "$remoteWhy"
-	return "$remoteRc"
-}
-
-## Why a call to the remote failed, in one line, read from its status and from what it
-## printed: no answer within the bound; a git host this account does not know, named, with
-## the known hosts file in force; a key the remote refused, or let in for reading only,
-## named by the fingerprint of its public file; a remote asked over https, where no key is
-## offered, and whether the account's git rewrote the address to that; a host that cannot
-## be reached; a remote that answered and has commits the store lacks; a repository the
-## remote does not have for this key. ONLY A PUBLIC FILE IS OPENED, one named `.pub`: of a
-## private key only its path is read, from the ssh command, and nothing of it is printed.
-AgentsToolsTeamDataRemoteWhy(){ ## status, bound, file of what the command printed, the ssh command
-	local whyRemote="" whyShown="" whyHost="" whyKnown="" whyKey="" whyPrint="" whyNamed="" whyTo=""
-	whyRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2> /dev/null )" || whyRemote=""
-	whyShown="$( AgentsToolsTeamDataRemoteName "$whyRemote" )"
-	case "$whyRemote" in
-		*://*) whyHost="${whyRemote#*://}" ; whyHost="${whyHost%%/*}" ; whyHost="${whyHost##*@}" ; whyHost="${whyHost%%:*}" ;;
-		/*|.*) ;;
-		*@*:*) whyHost="${whyRemote#*@}" ; whyHost="${whyHost%%:*}" ;;
-		*:*) whyHost="${whyRemote%%:*}" ;;
-	esac
-	## The key this account offers: the one its ssh command names with -i, else the first
-	## default identity that stands in its ssh home.
-	whyNamed="$( printf '%s\n' "$4" | LC_ALL=C sed -n 's/.* -i \([^ ]*\).*/\1/p' )"
-	if [ -z "$whyNamed" ] ; then
-		for whyKey in id_ed25519 id_ecdsa id_rsa ; do
-			[ ! -f "${HOME%/}/.ssh/$whyKey" ] || { whyNamed="${HOME%/}/.ssh/$whyKey" ; break ; }
-		done
-	fi
-	if [ -n "$whyNamed" ] && [ -f "$whyNamed.pub" ] ; then
-		whyPrint="$( ssh-keygen -l -f "$whyNamed.pub" 2> /dev/null | LC_ALL=C awk '{ print $2 ; exit }' )" || whyPrint=""
-	fi
-	if [ -n "$whyPrint" ] ; then whyKey="the key of this account, $whyPrint ($whyNamed.pub),"
-	elif [ -n "$whyNamed" ] ; then whyKey="the key of this account, $whyNamed, which has no public file beside it to take a fingerprint from,"
-	else whyKey="the key of this account, of which no identity file stands in ${HOME%/}/.ssh," ; fi
-	whyKnown="$( printf '%s\n' "$4" | LC_ALL=C sed -n 's/.*UserKnownHostsFile=\([^ ]*\).*/\1/p' )"
-	[ -n "$whyKnown" ] || whyKnown="${HOME%/}/.ssh/known_hosts"
-	if [ "$1" = 124 ] ; then
-		printf 'no answer within %ss, so it was stopped; what is committed stays committed here, and a later call carries it\n' "$2"
-	elif LC_ALL=C grep -q -e 'Host key verification failed' -e 'host key is known for' -e 'HOST IDENTIFICATION HAS CHANGED' "$3" 2> /dev/null ; then
-		printf 'the git host %s is not known to this account, so ssh stopped before any key was offered: its host key is not in %s, or is another one there. Host key checking stays on: put the line of its host key into that file, compared with the fingerprint the git host publishes, and the next call reaches it\n' "${whyHost:-of $whyShown}" "$whyKnown"
-	elif LC_ALL=C grep -q -i -e 'marked as read only' -e 'write access to repository not granted' -e 'deploy key.*read.only' "$3" 2> /dev/null ; then
-		printf 'the remote let the key in for reading only: %s must be let in at %s with write\n' "$whyKey" "$whyShown"
-	elif LC_ALL=C grep -q -e 'Permission denied (publickey' -e 'Permission denied, please try again' "$3" 2> /dev/null ; then
-		printf 'the remote refused the key: %s is the server'"'"'s own key and must be let in at %s with write (Server Keys of the console shows the line to add)\n' "$whyKey" "$whyShown"
-	elif LC_ALL=C grep -q -e 'could not read Username' -e 'terminal prompts disabled' -e 'Authentication failed for' "$3" 2> /dev/null ; then
-		whyTo="$( git ls-remote --get-url "$whyRemote" 2> /dev/null )" || whyTo=""
-		if [ -n "$whyTo" ] && [ "$whyTo" != "$whyRemote" ] ; then
-			printf 'the remote was asked over https, where no ssh key is offered and the tooling keeps no password: the git config of this account rewrites %s to %s (a url.<base>.insteadOf rule), so the key is never used for it\n' "$whyShown" "$( AgentsToolsTeamDataRemoteName "$whyTo" )"
-		else
-			printf 'the remote %s is asked over https, where no ssh key is offered and the tooling keeps no password: name it by its ssh address\n' "$whyShown"
-		fi
-	elif LC_ALL=C grep -q -i -e 'could not resolve host' -e 'connection timed out' -e 'connection refused' -e 'operation timed out' -e 'network is unreachable' -e 'no route to host' "$3" 2> /dev/null ; then
-		printf 'the git host %s cannot be reached from this machine\n' "${whyHost:-of $whyShown}"
-	elif LC_ALL=C grep -q -e '\[rejected\]' -e 'non-fast-forward' -e 'fetch first' "$3" 2> /dev/null ; then
-		printf 'the remote answered and has commits this store does not have\n'
-	elif LC_ALL=C grep -q -i -e 'repository not found' -e 'does not appear to be a git repository' "$3" 2> /dev/null ; then
-		printf 'there is no such repository for this account at %s: the address is wrong, or %s is not let in at it\n' "$whyShown" "${whyKey%,}"
-	else
-		printf 'the command ended with status %s\n' "$1"
-	fi
-	return 0
-}
-
-## What the tooling keeps of the remote, in $MMDAPP/.local/agents/team-data-remote.state,
-## `KEY=value` a line, put in place by one rename and readable by all, as main-loop.state
-## is: when the remote last answered, when a push last succeeded, and what failed last,
-## with its status and when. Nothing secret is ever written to it. Read by the setup's
-## check and by the dashboard, which run no git command for it, and by the two questions
-## below. Never fails.
-AgentsToolsTeamDataRemoteNote(){ ## push|reach, status, why (of a failure)
-	[ -n "${MMDAPP:-}" ] || return 0
-	local noteFile="$MMDAPP/.local/agents/team-data-remote.state" noteNow="" noteEpoch="" noteTemp="" noteDrop="" noteWhy="${3:-}"
-	(
-		noteNow="$( date -u +%Y-%m-%dT%H:%M:%SZ )" ; noteEpoch="$( date +%s )"
-		mkdir -p "$MMDAPP/.local/agents"
-		noteTemp="$( mktemp "$noteFile.XXXXXX" )"
-		## A remote that answered and refused the push for commits the store lacks did answer.
-		case "$2:$noteWhy" in [!0]*:"the remote answered"*) set -- reach 0 "" ;; esac
-		if [ "$2" != 0 ] ; then noteDrop='^TEAM_DATA_REMOTE_LAST_FAILURE'
-		elif [ "$1" = push ] ; then noteDrop='^TEAM_DATA_REMOTE_LAST_[AP][NU][S][WH]'
-		else noteDrop='^TEAM_DATA_REMOTE_LAST_ANSWER_' ; fi
-		{
-			[ ! -f "$noteFile" ] || LC_ALL=C grep -v -e "$noteDrop" "$noteFile" || :
-			if [ "$2" = 0 ] ; then
-				printf 'TEAM_DATA_REMOTE_LAST_ANSWER_UTC=%s\nTEAM_DATA_REMOTE_LAST_ANSWER_EPOCH=%s\n' "$noteNow" "$noteEpoch"
-				[ "$1" != push ] || printf 'TEAM_DATA_REMOTE_LAST_PUSH_UTC=%s\n' "$noteNow"
-			else
-				printf 'TEAM_DATA_REMOTE_LAST_FAILURE_UTC=%s\nTEAM_DATA_REMOTE_LAST_FAILURE_EPOCH=%s\nTEAM_DATA_REMOTE_LAST_FAILURE_STATUS=%s\nTEAM_DATA_REMOTE_LAST_FAILURE=%s\n' "$noteNow" "$noteEpoch" "$2" "$noteWhy"
-			fi
-		} > "$noteTemp"
-		chmod 644 "$noteTemp"
-		mv "$noteTemp" "$noteFile"
-	) 2> /dev/null || :
-	return 0
-}
-
-## One value of that record, empty where it is not there.
-AgentsToolsTeamDataRemoteNoted(){ ## key
-	LC_ALL=C sed -n "s/^$1=//p" "${MMDAPP:-/nonexistent}/.local/agents/team-data-remote.state" 2> /dev/null | head -n 1
-}
-
-## rc 0 where a call nobody asked for should leave the remote alone now. `failed`: a call
-## to it failed less than five minutes ago and it has not answered since. `hung`: that, and
-## the failure was no answer within the bound. `settled`: `failed`, or it answered less
-## than a minute ago. The step that sets a workspace up and the main loop's own sync never
-## ask this: they always reach for the remote.
-AgentsToolsTeamDataRemoteQuiet(){ ## failed|hung|settled
-	local quietNow quietFail quietOk quietStatus
-	quietFail="$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_FAILURE_EPOCH )"
-	quietOk="$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_ANSWER_EPOCH )"
-	case "$quietFail" in *[!0123456789]*) quietFail="" ;; esac
-	case "$quietOk" in *[!0123456789]*) quietOk="" ;; esac
-	[ -n "$quietFail$quietOk" ] || return 1
-	quietNow="$( date +%s )"
-	if [ -n "$quietFail" ] && [ "${quietOk:-0}" -lt "$quietFail" ] && [ $(( quietNow - quietFail )) -lt 300 ] ; then
-		[ "$1" != hung ] || [ "$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_FAILURE_STATUS )" = 124 ] || return 1
-		return 0
-	fi
-	[ "$1" = settled ] && [ -n "$quietOk" ] && [ $(( quietNow - quietOk )) -lt 60 ] || return 1
-	return 0
-}
-
-## The configured author identity, written into the store repository's own config: a
-## commit of the tooling needs an author, and a store made a repository at its first use
-## has none unless it is given here.
-AgentsToolsTeamDataIdentity(){ ## where
-	local identityName="" identityEmail=""
-	[ -e "$MDAT_DATA_ROOT/.git" ] || return 0
-	identityName="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || identityName=""
-	identityEmail="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || identityEmail=""
-	[ -z "$identityName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$identityName" || return 1
-	[ -z "$identityEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$identityEmail" || return 1
-	[ -z "$identityName$identityEmail" ] || echo "# $MDSC_CMD $1: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2
-	return 0
-}
-
-## The branch the setting names, `main` where it names none.
-AgentsToolsTeamDataBranch(){
-	local branchName=""
-	branchName="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || branchName=""
-	printf '%s\n' "${branchName:-main}"
-}
-
-## THE REMOTE OF A STORE THAT IS A REPOSITORY OF ITS OWN. Where the setting names a remote
-## the store does not have as its origin, none at all or another address, the origin is
-## set to what the setting says, and one line says so. THE STORE'S BRANCH IS NEVER CHANGED:
-## a store that never had an origin keeps whatever branch it is on, and that branch is told
-## to follow the remote's branch the setting names (AgentsToolsTeamDataBranch), which is the
-## one every sync fetches, merges from and pushes to by its full name, whatever the store's
-## own branch is called (AgentsToolsTeamDataSync). What such a store holds uncommitted is committed as it
-## stands (AgentsToolsTeamDataCommitHeld); the push is the caller's. Never a force, and a
-## store inside a larger repository is never touched. rc 0 where the origin is the remote,
-## now or already.
-AgentsToolsTeamDataRemoteAlign(){ ## where, remote
-	local alignWas="" alignHas="" alignBranch="" alignWant=""
-	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] && [ -n "${2:-}" ] || return 1
-	alignWas="$( git -C "$MDAT_DATA_ROOT" remote get-url origin 2> /dev/null )" || alignWas=""
-	[ "$alignWas" != "$2" ] || return 0
-	alignHas="$( git -C "$MDAT_DATA_ROOT" remote 2> /dev/null | LC_ALL=C grep -x origin )" || alignHas=""
-	if [ -n "$alignHas" ] ; then
-		git -C "$MDAT_DATA_ROOT" remote set-url origin "$2" > /dev/null 2>&1 || alignWant="failed"
-	else
-		git -C "$MDAT_DATA_ROOT" remote add origin "$2" > /dev/null 2>&1 || alignWant="failed"
-	fi
-	if [ -n "$alignWant" ] ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the origin of the team-data store $MDAT_DATA_ROOT could not be set to TEAM_DATA_GIT_REMOTE $( AgentsToolsTeamDataRemoteName "$2" ), so nothing is pushed from it" >&2
-		return 1
-	fi
-	echo "# $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT had ${alignWas:+the origin $( AgentsToolsTeamDataRemoteName "$alignWas" )}${alignWas:-no origin}: its origin is now TEAM_DATA_GIT_REMOTE $( AgentsToolsTeamDataRemoteName "$2" )" >&2
-	[ -z "$alignHas" ] || return 0
-	alignWant="$( AgentsToolsTeamDataBranch )"
-	alignBranch="$( git -C "$MDAT_DATA_ROOT" symbolic-ref --short -q HEAD 2> /dev/null )" || alignBranch=""
-	if [ -n "$alignBranch" ] && [ -z "$( git -C "$MDAT_DATA_ROOT" config --get "branch.$alignBranch.remote" 2> /dev/null )" ] ; then
-		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.remote" origin > /dev/null 2>&1 || :
-		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.merge" "refs/heads/$alignWant" > /dev/null 2>&1 || :
-	fi
-	AgentsToolsTeamDataCommitHeld "team data this machine held uncommitted when its store was given the origin $( AgentsToolsTeamDataRemoteName "$2" ), as it stood"
-	return 0
-}
-
-## THE STORE FOLLOWS THE REMOTE'S BRANCH THE SETTING NAMES, fetched by that name into
-## origin/<branch>, whatever the store's own branch is called: where the remote is ahead and
-## the store has nothing it lacks, the store's branch is moved up to it (a fast-forward,
-## which can lose nothing); where both moved, it is merged (AgentsToolsTeamDataMergeRemote);
-## where only the store moved, the push carries it. The store's branch keeps its name and
-## its checkout. Without --now the remote is asked at most once a minute, and not for five
-## minutes after it failed (AgentsToolsTeamDataRemoteQuiet): a close with nothing to push
-## must not wait on a remote that is not there. A store holding uncommitted paths is not
-## merged, unless --over-uncommitted: the lock and claim flows resync over them as
-## git/cloneSync did, and git keeps such paths through a merge, or refuses the merge. rc 1
-## where the remote did not answer or a merge could not be made, each said in one line.
-AgentsToolsTeamDataFollow(){ ## where, repository, the remote's branch [--now] [--over-uncommitted]
-	local followOut="" followTo="" followNow="" followOver="" followArg
-	for followArg in "${@:4}" ; do
-		case "$followArg" in --now) followNow=1 ;; --over-uncommitted) followOver=1 ;; esac
-	done
-	[ -n "$followNow" ] || ! AgentsToolsTeamDataRemoteQuiet settled || return 0
-	followOut="$( AgentsToolsTeamDataRemote git -C "$2" fetch -q origin "+refs/heads/$3:refs/remotes/origin/$3" 2>&1 )" || {
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote did not answer a fetch of $3, so the store may be behind it: ${followOut##*team-data remote: }" >&2
-		return 1
-	}
-	followTo="$( git -C "$2" rev-parse --verify --quiet "refs/remotes/origin/$3" 2> /dev/null )" || return 0
-	[ "$followTo" != "$( git -C "$2" rev-parse HEAD 2> /dev/null )" ] || return 0
-	! git -C "$2" merge-base --is-ancestor "refs/remotes/origin/$3" HEAD 2> /dev/null || return 0
-	if git -C "$2" merge-base --is-ancestor HEAD "refs/remotes/origin/$3" 2> /dev/null ; then
-		if followOut="$( LC_ALL=C git -C "$2" merge --ff-only -q "refs/remotes/origin/$3" 2>&1 )" ; then
-			echo "# $MDSC_CMD: $1: the team-data remote was ahead and the store had nothing it lacks: fast-forwarded to origin/$3 = $followTo" >&2
-			return 0
-		fi
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote is ahead at origin/$3 = ${followTo:0:7} and the store could not be moved up to it, so nothing was changed: $followOut" >&2
-		return 1
-	fi
-	if [ -z "$followOver" ] && [ -n "$( git -C "$2" status --porcelain --untracked-files=all 2>/dev/null )" ] ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store ($( git -C "$2" rev-parse --short=7 HEAD 2>/dev/null )) could not be merged with origin/$3 ($( git -C "$2" rev-parse --short=7 "refs/remotes/origin/$3" 2>/dev/null )): the store holds uncommitted paths, so nothing was merged; the next pass tries again" >&2
-		return 1
-	fi
-	AgentsToolsTeamDataMergeRemote "$1" "$2" "$3" "$( git -C "$2" remote get-url origin 2> /dev/null )"
-}
-
-## Says once for a store, kept in the record of the remote, that its branch is not the one
-## TEAM_DATA_BRANCH names, and that it keeps it. Says it again only for another pair.
-AgentsToolsTeamDataBranchSaid(){ ## where, the store's branch, the setting's
-	local saidKey="$MDAT_DATA_ROOT|$2|$3" saidFile="${MMDAPP:-/nonexistent}/.local/agents/team-data-remote.state" saidTemp=""
-	[ "$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_BRANCHES_SAID )" != "$saidKey" ] || return 0
-	echo "# $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT is on its branch $2, and TEAM_DATA_BRANCH names $3: the store keeps its branch and its checkout, and is synced with the remote's $3, fetched and merged from it and pushed to it by that name" >&2
-	[ -n "${MMDAPP:-}" ] || return 0
-	(
-		mkdir -p "$MMDAPP/.local/agents"
-		saidTemp="$( mktemp "$saidFile.XXXXXX" )"
-		{ [ ! -f "$saidFile" ] || LC_ALL=C grep -v -e '^TEAM_DATA_BRANCHES_SAID=' "$saidFile" || : ; printf 'TEAM_DATA_BRANCHES_SAID=%s\n' "$saidKey" ; } > "$saidTemp"
-		chmod 644 "$saidTemp"
-		mv "$saidTemp" "$saidFile"
-	) 2> /dev/null || :
-	return 0
-}
-
-## THE SYNC OF A PASS of the main loop: the store with the remote's branch the setting names.
-## A store that is no clone is made one first (AgentsToolsTeamDataEnsureClone --now
-## --leave-unborn), and one that is a repository is given the remote as its origin
-## (AgentsToolsTeamDataRemoteAlign). Then, through the one way to the remote: a plain folder
-## with content goes to myx.common git/cloneSync, which adopts it into a remote with no such
-## branch, as before; a store on the branch the setting names goes to git/clonePull, as
-## before; A STORE ON ANY OTHER BRANCH, OR ON NONE, IS NEVER HANDED TO EITHER: clonePull
-## removes a checkout that is on another branch than the one it is given, and cloneSync
-## removes it to switch branches. That store follows the remote's branch with the tooling's
-## own fetch and merge (AgentsToolsTeamDataFollow --now), keeps its branch and its checkout,
-## and the close push carries its commits to the remote's branch by its full name. The
-## command used is left in agentsTeamDataSyncCommand. rc 0 synced.
-agentsTeamDataSyncCommand=""
-AgentsToolsTeamDataSync(){ ## where, remote, the remote's branch
-	local syncCurrent=""
-	agentsTeamDataSyncCommand="clonePull"
-	[ -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataEnsureClone "$1" --now --leave-unborn
-	[ ! -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataRemoteAlign "$1" "$2" || :
-	if [ -d "$MDAT_DATA_ROOT" ] && [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
-		agentsTeamDataSyncCommand="cloneSync"
-	elif [ -e "$MDAT_DATA_ROOT/.git" ] ; then
-		syncCurrent="$( git -C "$MDAT_DATA_ROOT" symbolic-ref --short -q HEAD 2> /dev/null )" || syncCurrent=""
-		if [ "$syncCurrent" != "$3" ] ; then
-			agentsTeamDataSyncCommand="own"
-			AgentsToolsTeamDataBranchSaid "$1" "${syncCurrent:-no branch (a detached HEAD)}" "$3"
-			AgentsToolsTeamDataFollow "$1" "$MDAT_DATA_ROOT" "$3" --now
-			return $?
-		fi
-	fi
-	( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$3" \
-		AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/$agentsTeamDataSyncCommand.Common" "$MDAT_DATA_ROOT" "$2" "$3" >&2 )
-}
-
-## What the setup's check says of the sync, where a remote is set: one result line,
-## TEAM_DATA_GIT_SYNC, OK only on --check, WARN with its reason where the store is no clone
-## of the remote, where its origin is another address, or where the last call to the
-## remote failed and it has not answered since. Read from the store's own config and from
-## what the tooling keeps (AgentsToolsTeamDataRemoteNote): nothing reaches the remote here.
-AgentsToolsTeamDataSyncVerdict(){ ## the operation asked for (--check or empty)
-	local verdictRemote="" verdictShown="" verdictOrigin="" verdictFail="" verdictOk="" verdictPush=""
-	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
-	verdictRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || verdictRemote=""
-	[ -n "$verdictRemote" ] || return 0
-	verdictShown="$( AgentsToolsTeamDataRemoteName "$verdictRemote" )"
-	verdictFail="$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_FAILURE_EPOCH )" ; verdictOk="$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_ANSWER_EPOCH )"
-	verdictPush="$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_PUSH_UTC )"
-	case "$verdictFail" in ''|*[!0123456789]*) verdictFail=0 ;; esac
-	case "$verdictOk" in ''|*[!0123456789]*) verdictOk=0 ;; esac
-	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
-		echo "TEAM_DATA_GIT_SYNC: WARN"
-		echo "  warn: TEAM_DATA_GIT_REMOTE is set and $MDAT_DATA_ROOT is not a clone of it, so nothing of it is committed or pushed"
-	else
-		verdictOrigin="$( git -C "$MDAT_DATA_ROOT" remote get-url origin 2> /dev/null )" || verdictOrigin=""
-		if [ "$verdictOrigin" != "$verdictRemote" ] ; then
-			echo "TEAM_DATA_GIT_SYNC: WARN"
-			echo "  warn: the origin of $MDAT_DATA_ROOT is ${verdictOrigin:+$( AgentsToolsTeamDataRemoteName "$verdictOrigin" )}${verdictOrigin:-not set}, not TEAM_DATA_GIT_REMOTE $verdictShown, so nothing is pushed to it"
-		elif [ "$verdictFail" -gt "$verdictOk" ] ; then
-			echo "TEAM_DATA_GIT_SYNC: WARN"
-		elif [ -z "$verdictPush" ] ; then
-			echo "TEAM_DATA_GIT_SYNC: WARN"
-			echo "  warn: no push to $verdictShown has succeeded from this workspace yet"
-			[ "$verdictOk" = 0 ] || echo "  note: the remote last answered $( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_ANSWER_UTC )"
-			return 0
-		else
-			[ "$1" != "--check" ] || { echo "TEAM_DATA_GIT_SYNC: OK" ; echo "  note: a clone of $verdictShown; last push $verdictPush, the remote last answered $( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_ANSWER_UTC )" ; }
-			return 0
-		fi
-	fi
-	if [ "$verdictFail" -gt "$verdictOk" ] ; then
-		echo "  warn: the last call to the remote failed, $( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_FAILURE_UTC ): $( AgentsToolsTeamDataRemoteNoted TEAM_DATA_REMOTE_LAST_FAILURE )"
-	fi
-	echo "  fix: DistroAgentsTools.fn.sh --owner-setup-storage --apply"
-	return 0
-}
-
-## WHAT A STORE HOLDS WHEN IT IS MADE A CLONE IS COMMITTED, as it stands, by the one commit
-## step: what only it had, and what differs from the remote's and was kept. Its push is the
-## caller's. Says nothing where nothing is pending.
-AgentsToolsTeamDataCommitHeld(){ ## what it is said of
-	[ -n "$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all 2>/dev/null )" ] || return 0
-	AgentsToolsTeamDataCommitPaths "$1" "$MDAT_DATA_ROOT/."
-	return 0
-}
-
-## THE REMOTE WENT ITS OWN WAY: its branch, fetched, is merged into the store's, so that no
-## merge ever waits for a person. Two histories with no commit in common are joined into one
-## (--allow-unrelated-histories), never one of them thrown away. Where the same file was
-## changed on both sides THE REMOTE'S VERSION OF THAT FILE STANDS, as the owner ruled; the
-## store's version stays in its own commit, in the history the merge keeps. What git merges
-## without a conflict is kept from both. One line names both ends and the files the remote's
-## version stands in. A merge that cannot be made at all, for anything but a file both
-## changed, leaves the store as it was, its commits on its branch, and one warning names
-## both ends. rc 0 merged, the push is the caller's; rc 1 not merged.
-AgentsToolsTeamDataMergeRemote(){ ## where, repository, branch, remote
-	local mergeOut="" mergeRc=0 mergeHead="" mergeTo="" mergeUnrelated="" mergeFiles="" mergeFile="" mergeDone="" mergeNamed=""
-	mergeHead="$( git -C "$2" rev-parse --short=7 HEAD 2>/dev/null )" || mergeHead=""
-	mergeTo="$( git -C "$2" rev-parse --short=7 "refs/remotes/origin/$3" 2>/dev/null )" || mergeTo=""
-	[ -n "$( git -C "$2" merge-base HEAD "refs/remotes/origin/$3" 2>/dev/null )" ] || mergeUnrelated="--allow-unrelated-histories"
-	mergeOut="$( LC_ALL=C git -C "$2" merge --no-edit $mergeUnrelated -m "* team-data: merged origin/$3 ($mergeTo) into $3 ($mergeHead), the remote's version where a file was changed on both sides" "refs/remotes/origin/$3" 2>&1 )" || mergeRc=$?
-	if [ "$mergeRc" != 0 ] ; then
-		mergeFiles="$( git -C "$2" diff --name-only --diff-filter=U 2>/dev/null )" || mergeFiles=""
-		if [ -e "$( git -C "$2" rev-parse --absolute-git-dir 2>/dev/null )/MERGE_HEAD" ] && [ -n "$mergeFiles" ] ; then
-			mergeDone="yes"
-			while IFS= read -r mergeFile ; do
-				[ -n "$mergeFile" ] || continue
-				if git -C "$2" cat-file -e "refs/remotes/origin/$3:$mergeFile" 2>/dev/null ; then
-					git -C "$2" checkout "refs/remotes/origin/$3" -- "$mergeFile" > /dev/null 2>&1 || mergeDone=""
-				else
-					git -C "$2" rm -q -f -- "$mergeFile" > /dev/null 2>&1 || mergeDone=""
-				fi
-			done <<< "$mergeFiles"
-			[ -z "$mergeDone" ] || [ -z "$( git -C "$2" diff --name-only --diff-filter=U 2>/dev/null )" ] || mergeDone=""
-			[ -z "$mergeDone" ] || mergeOut="$( LC_ALL=C git -C "$2" commit --no-edit -q 2>&1 )" || mergeDone=""
-		fi
-		if [ -z "$mergeDone" ] ; then
-			[ ! -e "$( git -C "$2" rev-parse --absolute-git-dir 2>/dev/null )/MERGE_HEAD" ] || git -C "$2" merge --abort > /dev/null 2>&1 || :
-			echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store's $3 ($mergeHead, $2) could not be merged with the remote's $3 ($mergeTo, $( AgentsToolsTeamDataRemoteName "$4" )): nothing was merged or pushed, the store's commits stay on its $3 as they were, and the next close tries again: $( printf '%s\n' "$mergeOut" | LC_ALL=C grep -v '^[[:space:]]*$' | tail -n 1 )" >&2
-			return 1
-		fi
-	fi
-	[ -z "$mergeFiles" ] || mergeNamed="$( printf '%s\n' "$mergeFiles" | LC_ALL=C awk 'NF { n++ ; if ( n <= 5 ) s = s ( n > 1 ? ", " : "" ) $0 } END { print s ( n > 5 ? " and " n - 5 " more" : "" ) }' )"
-	echo "# $MDSC_CMD: $1: merged the remote's $3 ($mergeTo, $( AgentsToolsTeamDataRemoteName "$4" )) into the store's ($mergeHead)${mergeUnrelated:+, two histories with no commit in common joined}${mergeNamed:+; the version of the remote stands in $mergeNamed, changed on both sides}" >&2
-	return 0
-}
-
 ## Pushes the store's branch when it is ahead of origin, at a close point, never per
 ## write: one push carries everything committed since. The primitive is item-upsert's:
-## push origin HEAD; when the remote moved, merge it (AgentsToolsTeamDataMergeRemote) and
-## push once more; then read origin back and require it to equal HEAD.
+## push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
+## --no-push and push once more; then read origin back and require it to equal HEAD.
 ## Never a reset or a force, and local commits are never discarded: a failure is a
 ## stated warning naming the reason and the ahead count, and the next close retries.
 ## Pushes only when the store is its repository's own root; an origin that is not
-## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign). The store's
-## branch, whatever its name, goes to the remote's branch TEAM_DATA_BRANCH names. With
-## nothing to push, a remote that is ahead is followed (AgentsToolsTeamDataFollow). Every call
-## to the remote is bounded (AgentsToolsTeamDataRemote), and a remote that did not answer
-## within the bound is not asked again by a close for five minutes. Always returns 0.
+## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign), where before
+## it returned there and said nothing. Always returns 0.
 ## One pusher at a time on this host: every close can call this, async spawn closes
 ## concurrently, so the body runs under the package's local lock. A busy lock skips
 ## with a warning -- the holder is pushing the same branch, and the next close retries.
@@ -527,7 +79,7 @@ AgentsToolsTeamDataPushIfAhead(){ ## where
 
 AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	local pushWhere="$1"
-	local repoRoot="" gitDir="" originUrl="" repoOrigin="" storeRoot="" pushBranch="" pushCurrent="" aheadCount="" pushOut="" pushRc=0 headFull="" remoteHead=""
+	local repoRoot="" gitDir="" originUrl="" repoOrigin="" storeRoot="" pushBranch="" aheadCount="" pushOut="" pushRc=0 headFull="" remoteHead=""
 	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
 	[ -n "$repoRoot" ] || return 0
 	gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
@@ -537,32 +89,17 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	[ -n "$storeRoot" ] && [ "$storeRoot" = "$( cd "$repoRoot" && pwd -P )" ] || return 0
 	repoOrigin="$( git -C "$repoRoot" remote get-url origin 2>/dev/null )" || repoOrigin=""
 	[ "$repoOrigin" = "$originUrl" ] || AgentsToolsTeamDataRemoteAlign "$pushWhere" "$originUrl" || return 0
-	## The store's own branch is pushed, whatever it is called, to the remote's branch the
-	## setting names, by its full name: never by the store's branch name, and never renamed.
-	pushCurrent="$( git -C "$repoRoot" symbolic-ref --short -q HEAD 2>/dev/null )" || pushCurrent=""
-	[ -n "$pushCurrent" ] || return 0
-	pushBranch="$( AgentsToolsTeamDataBranch )"
-	[ "$pushCurrent" = "$pushBranch" ] || AgentsToolsTeamDataBranchSaid "$pushWhere" "$pushCurrent" "$pushBranch"
-	## Nothing ahead of the last fetch: no push is attempted, and a remote that is ahead is followed.
+	pushBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || pushBranch=""
+	[ -n "$pushBranch" ] && [ "$pushBranch" != "HEAD" ] || return 0
+	## Nothing ahead of the last fetch: no push is attempted.
 	if git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 ; then
 		aheadCount="$( git -C "$repoRoot" rev-list --count "refs/remotes/origin/$pushBranch..HEAD" 2>/dev/null )" || aheadCount=""
-		if [ "$aheadCount" = "0" ] ; then
-			AgentsToolsTeamDataFollow "$pushWhere" "$repoRoot" "$pushBranch" || :
-			return 0
-		fi
+		[ "$aheadCount" != "0" ] || return 0
 	fi
-	if AgentsToolsTeamDataRemoteQuiet hung ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: the team-data remote gave no answer within its bound less than five minutes ago, so it is not asked again by this close; ${aheadCount:-some} commit(s) stay local, kept, and a later close retries" >&2
-		return 0
-	fi
-	pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$pushBranch" 2>&1 )" || pushRc=$?
-	if [ "$pushRc" = 124 ] ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push stopped: ${pushOut##*team-data remote: } -- ${aheadCount:-some} commit(s) stay local, kept, and a later close retries" >&2
-		return 0
-	fi
+	pushOut="$( LC_ALL=C git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
 	## Whether origin moved is read from state, never from the message: fetch, then ask
 	## whether origin's branch is still an ancestor of HEAD.
-	if [ "$pushRc" -ne 0 ] && AgentsToolsTeamDataRemote git -C "$repoRoot" fetch -q origin "+refs/heads/$pushBranch:refs/remotes/origin/$pushBranch" > /dev/null 2>&1 \
+	if [ "$pushRc" -ne 0 ] && LC_ALL=C git -C "$repoRoot" fetch -q origin "$pushBranch" > /dev/null 2>&1 \
 		&& git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 \
 		&& ! git -C "$repoRoot" merge-base --is-ancestor "refs/remotes/origin/$pushBranch" HEAD 2>/dev/null ; then
 		## An operation already in progress is not ours to touch, and never integrated over.
@@ -576,22 +113,32 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store shows an operation in progress:$interrupted -- not integrated, not touched; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
-		## A merge over uncommitted paths could not be undone without them: such a store is
-		## not merged, and says both ends.
 		if [ -n "$( git -C "$repoRoot" status --porcelain --untracked-files=all 2>/dev/null )" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: the team-data store's $pushBranch ($( git -C "$repoRoot" rev-parse --short=7 HEAD 2>/dev/null )) could not be merged with origin/$pushBranch ($( git -C "$repoRoot" rev-parse --short=7 "refs/remotes/origin/$pushBranch" 2>/dev/null ), $( AgentsToolsTeamDataRemoteName "$originUrl" )): the store holds uncommitted paths, so nothing was merged or pushed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store holds uncommitted paths, so it was not integrated; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
-		AgentsToolsTeamDataMergeRemote "$pushWhere" "$repoRoot" "$pushBranch" "$originUrl" || return 0
+		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and myx.common git/cloneSync is unreachable to integrate; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			return 0
+		fi
+		## cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
+		## which keeps both sides' commits and rewrites none. No merge was in progress
+		## above, so one present after a failure is this call's own, and only that is aborted.
+		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
+			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
+			[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
+			return 0
+		}
 		pushRc=0
-		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$pushBranch" 2>&1 )" || pushRc=$?
+		pushOut="$( LC_ALL=C git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
 	fi
 	if [ "$pushRc" -ne 0 ] ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
 		return 0
 	fi
 	headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
-	remoteHead="$( AgentsToolsTeamDataRemote git -C "$repoRoot" ls-remote origin "refs/heads/$pushBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
+	remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$pushBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
 	if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push reported success but origin/$pushBranch reads back '${remoteHead:-<nothing>}', not ${headFull:-<unknown>}; the next close retries" >&2
 		return 0
@@ -600,150 +147,101 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	return 0
 }
 
-## WHEN TEAM_DATA_GIT_REMOTE IS SET, THE STORE BECOMES A CLONE OF IT, once, under a lock,
-## at the first use by any op (AgentsContext.UseAgentsTools.include), at the step that
-## sets a workspace up and at the main loop's sync. The remote is asked first whether it
-## has the branch TEAM_DATA_BRANCH names, and nothing is touched before it answers:
-##   a store that is absent or empty  is cloned with myx.common git/clonePull, the main
-##     loop's own primitive; where the remote has no such branch yet it is initialised as
-##     a repository on that branch with the remote as its origin, and its first push makes
-##     the branch;
-##   a store that is a plain folder holding content  is made a clone IN PLACE and no file
-##     of it is changed, moved or removed: the remote's history is fetched into a folder
-##     beside it and its `.git` alone is moved in; the index is then the remote's branch
-##     and the working tree is the folder as it stood. What the remote has and the folder
-##     lacks is written out, never over a file that stands. Then what only the folder has,
-##     and what differs from the remote's, is committed as it stands and pushed, as the
-##     owner ruled, counted in the one line that says it. Where the remote has no such
-##     branch yet the folder is initialised as a repository with it as origin, its files
-##     untouched, committed and pushed; from the main loop that one case is left to
-##     git/cloneSync, which commits such a folder and pushes it into an empty remote, as
-##     before;
-##   a store inside a larger repository  is never given a nested one;
-##   a remote that does not answer  changes nothing, and one warning says why. From the
-##     first use by an op it is then not asked again for five minutes; the set-up step and
-##     the main loop always ask (--now).
-## Returns 0.
-AgentsToolsTeamDataEnsureClone(){ ## where [--now] [--leave-unborn]
-	local cloneWhere="${1:-}" cloneNow="" cloneLeave="" cloneRemote="" cloneLock=""
-	[ $# -eq 0 ] || shift
-	while [ $# -gt 0 ] ; do
-		case "$1" in --now) cloneNow=1 ;; --leave-unborn) cloneLeave=1 ;; esac
-		shift
-	done
+## A store that is a repository of its own and has no origin, or another one than
+## TEAM_DATA_GIT_REMOTE, is given the remote as its origin, and one line says so. Such a
+## store was made before the remote was set: myx.common's git/clonePull and git/cloneSync
+## only `remote set-url origin`, which fails where there is none, and the close push skipped
+## a store whose origin was another. Its branch, never renamed, is told to follow its
+## namesake at the origin, which their `git pull` needs. Never a force; a store inside a
+## larger repository is never touched. rc 0 where the origin is the remote, now or already.
+AgentsToolsTeamDataRemoteAlign(){ ## where, remote
+	local alignWas="" alignBranch=""
+	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] && [ -n "${2:-}" ] || return 1
+	alignWas="$( git -C "$MDAT_DATA_ROOT" remote get-url origin 2> /dev/null )" || alignWas=""
+	[ "$alignWas" != "$2" ] || return 0
+	if [ -n "$alignWas" ] ; then
+		git -C "$MDAT_DATA_ROOT" remote set-url origin "$2" > /dev/null 2>&1
+	else
+		git -C "$MDAT_DATA_ROOT" remote add origin "$2" > /dev/null 2>&1
+	fi || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the origin of the team-data store $MDAT_DATA_ROOT could not be set to TEAM_DATA_GIT_REMOTE $2, so nothing is pushed from it" >&2
+		return 1
+	}
+	echo "# $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT had ${alignWas:+the origin $alignWas}${alignWas:-no origin}: its origin is now TEAM_DATA_GIT_REMOTE $2" >&2
+	alignBranch="$( git -C "$MDAT_DATA_ROOT" symbolic-ref --short -q HEAD 2> /dev/null )" || alignBranch=""
+	if [ -n "$alignBranch" ] && [ -z "$( git -C "$MDAT_DATA_ROOT" config --get "branch.$alignBranch.remote" 2> /dev/null )" ] ; then
+		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.remote" origin > /dev/null 2>&1 || :
+		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.merge" "refs/heads/$alignBranch" > /dev/null 2>&1 || :
+	fi
+	return 0
+}
+
+## When TEAM_DATA_GIT_REMOTE is set and no local board exists yet -- the store is
+## missing or empty -- clones it with myx.common git/clonePull, the main loop's own
+## primitive, on TEAM_DATA_BRANCH. A store holding content that is not a clone is left
+## alone and said: adopting it is the main loop's decision, never a writer's. Returns 0.
+AgentsToolsTeamDataEnsureClone(){ ## where
 	[ -n "${MDAT_DATA_ROOT:-}" ] || return 0
 	[ ! -e "$MDAT_DATA_ROOT/.git" ] || return 0
+	## Called for every op: a store holding content costs one test and no config read.
+	if [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+		return 0
+	fi
 	## Once per process tree: an op dispatching nested ops never tries, or warns, twice.
-	[ -n "$cloneNow" ] || [ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
+	[ -z "${MDAT_TEAM_DATA_CLONE_TRIED:-}" ] || return 0
+	local cloneRemote="" cloneLock=""
 	cloneRemote="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE 2>/dev/null )" || cloneRemote=""
 	[ -n "$cloneRemote" ] || return 0
 	export MDAT_TEAM_DATA_CLONE_TRIED=1
-	[ -n "$cloneNow" ] || ! AgentsToolsTeamDataRemoteQuiet failed || return 0
 	## Two first writers never both clone: the loser, once it holds the lock, finds the clone done.
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.LocalLock.include"
 	if ! AgentsToolsLocalLockTake "team-data-clone" 30 "the team-data clone" ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $cloneWhere: another writer holds the team-data clone lock, so this one did not clone" >&2
+		echo "⚠️ WARNING: $MDSC_CMD: $1: another writer holds the team-data clone lock, so this one did not clone" >&2
 		return 0
 	fi
 	cloneLock="$agentsLocalLockPath"
-	AgentsToolsTeamDataEnsureCloneLocked "$cloneWhere" "$cloneRemote" "$cloneLeave" || :
+	AgentsToolsTeamDataEnsureCloneLocked "$1" "$cloneRemote"
 	AgentsToolsLocalLockGive "$cloneLock"
 	return 0
 }
 
-AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote, leave a folder with content to the caller where the remote has no branch yet (may be empty)
-	local cloneRemote="$2" cloneShown="" cloneBranch="" cloneOut="" cloneRc=0 cloneHolds="" cloneTemp="" cloneOnly=0 cloneDiffer=0
+AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote
+	local cloneRemote="$2" cloneBranch=""
 	[ ! -e "$MDAT_DATA_ROOT/.git" ] || return 0
 	## A store inside a larger repository is already in one, and is never given a nested clone.
 	if [ -d "$MDAT_DATA_ROOT" ] && git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel > /dev/null 2>&1 ; then
 		return 0
 	fi
-	cloneShown="$( AgentsToolsTeamDataRemoteName "$cloneRemote" )"
-	[ ! -d "$MDAT_DATA_ROOT" ] || [ -z "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] || cloneHolds=1
-	cloneBranch="$( AgentsToolsTeamDataBranch )"
-	## Asked first, and nothing is touched before it answers: has the remote the branch.
-	cloneOut="$( AgentsToolsTeamDataRemote git ls-remote --exit-code --heads "$cloneRemote" "refs/heads/$cloneBranch" 2>&1 )" || cloneRc=$?
-	if [ "$cloneRc" != 0 ] && [ "$cloneRc" != 2 ] ; then
-		if [ -n "$cloneHolds" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown is set and $MDAT_DATA_ROOT is not a clone of it: it holds local content, and the remote did not answer, so nothing of it was changed and its writes stay local and uncommitted: ${cloneOut##*team-data remote: }" >&2
-		else
-			echo "⚠️ WARNING: $MDSC_CMD: $1: no local board existed and cloning $cloneShown failed, so this write stays local and uncommitted: ${cloneOut##*team-data remote: }" >&2
-		fi
+	if [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set but $MDAT_DATA_ROOT holds local content and is not a clone, so nothing is committed or pushed from it; the main loop adopts such a store, a writer never does" >&2
 		return 0
 	fi
-	if [ "$cloneRc" = 2 ] ; then
-		## The remote answered and has no such branch yet.
-		[ -z "$cloneHolds" ] || [ -z "${3:-}" ] || return 0
-		if mkdir -p "$MDAT_DATA_ROOT" && git -C "$MDAT_DATA_ROOT" init -q > /dev/null 2>&1 \
-			&& git -C "$MDAT_DATA_ROOT" symbolic-ref HEAD "refs/heads/$cloneBranch" && git -C "$MDAT_DATA_ROOT" remote add origin "$cloneRemote" \
-			&& git -C "$MDAT_DATA_ROOT" config "branch.$cloneBranch.remote" origin && git -C "$MDAT_DATA_ROOT" config "branch.$cloneBranch.merge" "refs/heads/$cloneBranch" ; then
-			echo "# $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown has no branch $cloneBranch yet: $MDAT_DATA_ROOT is initialised as a repository on it with that remote as its origin${cloneHolds:+, what it held committed as it stood and pushed}, and its first push makes the branch" >&2
-			AgentsToolsTeamDataIdentity "$1" || :
-			if [ -n "$cloneHolds" ] ; then
-				AgentsToolsTeamDataCommitHeld "team data this machine held when it was made a clone of $cloneShown, as it stood"
-				AgentsToolsTeamDataPushIfAhead "$1"
-			fi
-		else
-			echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown has no branch $cloneBranch yet and $MDAT_DATA_ROOT could not be initialised as a repository for it, so this write stays local and uncommitted" >&2
-		fi
+	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
 		return 0
 	fi
-	if [ -z "$cloneHolds" ] ; then
-		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/clonePull.Common" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE is set and no local board exists, but myx.common git/clonePull is unreachable, so it was not cloned" >&2
-			return 0
-		fi
-		if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$cloneBranch" \
-			AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$cloneRemote" "$cloneBranch" >&2 ) ; then
-			echo "# $MDSC_CMD: $1: no local board existed, cloned $cloneRemote ($cloneBranch) into $MDAT_DATA_ROOT" >&2
-			AgentsToolsTeamDataIdentity "$1" || :
-		else
-			echo "⚠️ WARNING: $MDSC_CMD: $1: no local board existed and cloning $cloneShown failed, so this write stays local and uncommitted" >&2
-		fi
-		return 0
+	cloneBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || cloneBranch=""
+	[ -n "$cloneBranch" ] || cloneBranch="main"
+	if ( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$cloneBranch" \
+		"$MYXROOT/bin/git/clonePull.Common" "$MDAT_DATA_ROOT" "$cloneRemote" "$cloneBranch" >&2 ) ; then
+		echo "# $MDSC_CMD: $1: no local board existed, cloned $cloneRemote ($cloneBranch) into $MDAT_DATA_ROOT" >&2
+	else
+		echo "⚠️ WARNING: $MDSC_CMD: $1: no local board existed and cloning $cloneRemote failed, so this write stays local and uncommitted" >&2
 	fi
-	## A plain folder holding content: made a clone in place.
-	cloneTemp="$( mktemp -d "${MDAT_DATA_ROOT%/}.attach.XXXXXX" 2> /dev/null )" || cloneTemp=""
-	if [ -z "$cloneTemp" ] ; then
-		echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown is set and $MDAT_DATA_ROOT is not a clone of it: no folder could be made beside it to fetch the remote into, so nothing of it was changed" >&2
-		return 0
-	fi
-	cloneOut="$( AgentsToolsTeamDataRemote --bound 300 git clone -q --no-checkout --single-branch --branch "$cloneBranch" "$cloneRemote" "$cloneTemp" 2>&1 )" || cloneRc=$?
-	if [ "$cloneRc" != 0 ] || [ ! -d "$cloneTemp/.git" ] || [ -e "$MDAT_DATA_ROOT/.git" ] || ! mv "$cloneTemp/.git" "${MDAT_DATA_ROOT%/}/.git" 2> /dev/null ; then
-		rm -rf "$cloneTemp"
-		[ -e "$MDAT_DATA_ROOT/.git" ] || echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown is set and $MDAT_DATA_ROOT is not a clone of it: the remote's history could not be fetched beside it, so nothing of it was changed and its writes stay local and uncommitted: ${cloneOut##*team-data remote: }" >&2
-		return 0
-	fi
-	rmdir "$cloneTemp" 2> /dev/null || rm -rf "$cloneTemp"
-	## The index becomes the remote's branch and no file of the folder is written. Then
-	## what the remote has and the folder lacks is written out: no -f, so a file that
-	## stands, one written this very moment too, is never written over.
-	git -C "$MDAT_DATA_ROOT" reset -q > /dev/null 2>&1 || :
-	( cd "$MDAT_DATA_ROOT" && git ls-files --deleted -z 2> /dev/null | git checkout-index -z --stdin > /dev/null 2>&1 ) || :
-	cloneOut="$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all 2> /dev/null )" || cloneOut=""
-	cloneOnly="$( printf '%s\n' "$cloneOut" | LC_ALL=C grep -c '^??' )" || cloneOnly=0
-	cloneDiffer="$( printf '%s\n' "$cloneOut" | LC_ALL=C grep -c -v -e '^??' -e '^$' )" || cloneDiffer=0
-	echo "# $MDSC_CMD: $1: $MDAT_DATA_ROOT held local content and was no clone: it is now a clone of $cloneShown ($cloneBranch), made in place. No file of it was changed or removed, and what the remote has and it lacked was added. $cloneOnly path(s) only this machine had and $cloneDiffer path(s) that differed from the remote are committed as they stood, and pushed" >&2
-	AgentsToolsTeamDataIdentity "$1" || :
-	AgentsToolsTeamDataCommitHeld "team data this machine held when it was made a clone of $cloneShown: $cloneOnly path(s) only it had, $cloneDiffer that differed from the remote, as they stood"
-	AgentsToolsTeamDataPushIfAhead "$1"
 	return 0
 }
 
 ## The store step of --owner-setup-storage --apply. MDAT_DATA_ROOT is resolved the
-## dispatcher's way, and with a remote set the store is made a clone of it here, always
-## asked (AgentsToolsTeamDataEnsureClone --now): cloned where it is absent or empty, made
-## one in place where it is a plain folder. A store that is a repository already is given
-## the remote as its origin where it has another or none (AgentsToolsTeamDataRemoteAlign).
-## With no remote the store is initialised, on the branch TEAM_DATA_BRANCH names. The
-## configured author identity is then written into the store repository's own config, the
-## board is made ready (AgentsToolsBoardReady), and with a remote the step reaches it once,
-## so that what stands in its way is said here and not at some later close. Non-zero only
-## on a failure.
+## dispatcher's way, which also clones a missing or empty store when a remote is set.
+## With no remote the store is initialised. With a remote set, a store holding content
+## that is not a clone is handed to myx.common git/cloneSync, as the main loop's pass hands
+## it; a store that is a repository is given the remote as its origin where it has none or
+## another (AgentsToolsTeamDataRemoteAlign) and pushed (AgentsToolsTeamDataPushIfAhead,
+## which integrates a remote that moved with git/cloneSync). The configured author identity
+## is written into the store repository's own config, and the board is made ready
+## (AgentsToolsBoardReady). Non-zero only on a failure.
 AgentsToolsTeamDataPrepareStore(){
-	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" prepareRemote=""
-	## The store is made a clone below, once and always asked, not by the resolver as well.
-	local MDAT_TEAM_DATA_CLONE_TRIED=1
+	local MDSC_CMD="${MDSC_CMD:-DistroAgentsTools}" prepareRemote="" prepareName="" prepareEmail=""
 	set -- --owner-setup-storage
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
 	[ -n "${MDAT_DATA_ROOT:-}" ] || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: the team-data store could not be resolved" >&2 ; return 1 ; }
@@ -760,18 +258,32 @@ AgentsToolsTeamDataPrepareStore(){
 		AgentsToolsBoardReady || return 1
 		return 0
 	fi
-	[ -e "$MDAT_DATA_ROOT/.git" ] || [ -z "$prepareRemote" ] || AgentsToolsTeamDataEnsureClone "--owner-setup-storage" --now
 	if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
 		if [ -n "$prepareRemote" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT is not a clone of TEAM_DATA_GIT_REMOTE yet, for the reason said above, and nothing of it was changed; once the remote answers, this step or the next use of the team data makes it one" >&2
-			AgentsToolsBoardReady || return 1
-			return 0
+			if [ -n "${MYXROOT:-}" ] && [ -f "$MYXROOT/bin/git/cloneSync.Common" ] && [ -d "$MDAT_DATA_ROOT" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+				local prepareBranch=""
+				prepareBranch="$( DistroAgentsTools --agents-config-option magic-team --select-default TEAM_DATA_BRANCH main 2>/dev/null )" || prepareBranch=""
+				[ -n "$prepareBranch" ] || prepareBranch="main"
+				( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$prepareBranch" \
+					"$MYXROOT/bin/git/cloneSync.Common" "$MDAT_DATA_ROOT" "$prepareRemote" "$prepareBranch" >&2 ) || :
+			fi
+			if [ ! -e "$MDAT_DATA_ROOT/.git" ] ; then
+				echo "⚠️ WARNING: $MDSC_CMD --owner-setup-storage: $MDAT_DATA_ROOT is not a clone of TEAM_DATA_GIT_REMOTE yet, for the reason above; the main loop's pass makes it one once the remote answers" >&2
+				AgentsToolsBoardReady || return 1
+				return 0
+			fi
+			echo "# $MDSC_CMD --owner-setup-storage: git/cloneSync made $MDAT_DATA_ROOT a clone of TEAM_DATA_GIT_REMOTE" >&2
+		else
+			mkdir -p "$MDAT_DATA_ROOT" && git -C "$MDAT_DATA_ROOT" init -q || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: could not initialise $MDAT_DATA_ROOT as a repository" >&2 ; return 1 ; }
+			echo "# $MDSC_CMD --owner-setup-storage: no remote is set, so $MDAT_DATA_ROOT was initialised as a repository" >&2
 		fi
-		mkdir -p "$MDAT_DATA_ROOT" && git -C "$MDAT_DATA_ROOT" init -q && git -C "$MDAT_DATA_ROOT" symbolic-ref HEAD "refs/heads/$( AgentsToolsTeamDataBranch )" || { echo "⛔ ERROR: $MDSC_CMD --owner-setup-storage: could not initialise $MDAT_DATA_ROOT as a repository" >&2 ; return 1 ; }
-		echo "# $MDSC_CMD --owner-setup-storage: no remote is set, so $MDAT_DATA_ROOT was initialised as a repository" >&2
 	fi
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataRemoteAlign "--owner-setup-storage" "$prepareRemote" || :
-	AgentsToolsTeamDataIdentity "--owner-setup-storage" || return 1
+	prepareName="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_NAME 2>/dev/null )" || prepareName=""
+	prepareEmail="$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_USER_EMAIL 2>/dev/null )" || prepareEmail=""
+	[ -z "$prepareName" ] || git -C "$MDAT_DATA_ROOT" config user.name "$prepareName" || return 1
+	[ -z "$prepareEmail" ] || git -C "$MDAT_DATA_ROOT" config user.email "$prepareEmail" || return 1
+	[ -z "$prepareName$prepareEmail" ] || echo "# $MDSC_CMD --owner-setup-storage: the configured author identity is written into $MDAT_DATA_ROOT's own config" >&2
 	AgentsToolsBoardReady || return 1
 	[ -z "$prepareRemote" ] || AgentsToolsTeamDataPushIfAhead "--owner-setup-storage"
 	return 0
@@ -790,9 +302,8 @@ AgentsToolsTeamDataDirtyWarning(){ ## where
 		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT holds $dirtyCount uncommitted path(s) after the team's own ops -- a tooling writer did not commit. First ones:" >&2
 		printf '%s\n' "$dirtyList" | head -10 >&2
 	fi
-	## Measured against the last fetched origin/<branch>, the remote's branch TEAM_DATA_BRANCH
-	## names, whatever the store's own is called: `git rev-list --count origin/<branch>..HEAD`.
-	dirtyBranch="$( AgentsToolsTeamDataBranch )" || dirtyBranch=""
+	## Measured against the last fetched origin/<branch>: `git rev-list --count origin/<branch>..HEAD`.
+	dirtyBranch="$( git -C "$MDAT_DATA_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null )" || dirtyBranch=""
 	if [ -n "$dirtyBranch" ] && [ "$dirtyBranch" != "HEAD" ] && git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet "refs/remotes/origin/$dirtyBranch" > /dev/null 2>&1 ; then
 		aheadCount="$( git -C "$MDAT_DATA_ROOT" rev-list --count "refs/remotes/origin/$dirtyBranch..HEAD" 2>/dev/null )" || aheadCount=""
 		if [ -n "$aheadCount" ] && [ "$aheadCount" != "0" ] ; then

@@ -599,12 +599,10 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		return 0
 	fi
 
-	## The way to the remote is the one every call takes, bounded (AgentsToolsTeamDataRemote).
-	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 	local pushAttempt=1 pushOut="" pushRc=0
 	while : ; do
 		set +e
-		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$( AgentsToolsTeamDataBranch )" 2>&1 )"
+		pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
 		pushRc=$?
 		set -e
 		[ "$pushRc" -eq 0 ] && break
@@ -635,18 +633,13 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		return 0
 	fi
 
-	## The board is resynced from the remote's branch TEAM_DATA_BRANCH names, the one every
-	## machine pushes its locks to, whatever this store's own branch is called: fetched and
-	## merged by the tooling itself (AgentsToolsTeamDataFollow), never git/cloneSync, which
-	## knows no remote branch but the local one's. Where the lock note changed on both sides
-	## the remote's note stands, and the read back below finds the lock lost.
 	local localSessionId="" remoteSessionId="" syncOut="" syncRc=0 lockBranch=""
 	set +e
-	lockBranch="$( AgentsToolsTeamDataBranch )"
+	lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
 	set -e
 	localSessionId="$( LC_ALL=C awk '/^session-id: /{ print substr($0, 13) ; exit ; }' "$target" )"
 	set +e
-	syncOut="$( AgentsToolsTeamDataFollow item-upsert "$repoRoot" "$lockBranch" --now --over-uncommitted 2>&1 )"
+	syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 	syncRc=$?
 	set -e
 	if [ "$syncRc" -ne 0 ] ; then
@@ -659,7 +652,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 		else
 			rm -f "$target"
 		fi
-		syncOut="$( AgentsToolsTeamDataFollow item-upsert "$repoRoot" "$lockBranch" --now --over-uncommitted 2>&1 )"
+		syncOut="$( "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
 		syncRc=$?
 		set -e
 		if [ "$syncRc" -ne 0 ] ; then
@@ -680,7 +673,7 @@ AgentsToolsItemUpsert(){ ## <team-member> [<selector>|<item-filename>] [--header
 	## more; still not pushed, the commit is dropped and the lock kept.
 	if [ "$unlockLock" = "true" ] && [ "$pushRc" -ne 0 ] ; then
 		set +e
-		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$( AgentsToolsTeamDataBranch )" 2>&1 )"
+		pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
 		pushRc=$?
 		set -e
 		if [ "$pushRc" -ne 0 ] ; then

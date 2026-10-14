@@ -99,9 +99,6 @@ AgentsToolsArtifactStore(){
 	[ "$( git -C "$artRepo" remote get-url origin 2>/dev/null )" = "$storeRemote" ] || return 0
 	artBranch="$( git -C "$artRepo" rev-parse --abbrev-ref HEAD 2>/dev/null )" || artBranch=""
 	case "$artBranch" in ''|HEAD) artBranch="" ; return 0 ;; esac
-	## The claim goes to the remote's branch TEAM_DATA_BRANCH names, where every machine's
-	## claims go, whatever this store's own branch is called.
-	artBranch="$( AgentsToolsTeamDataBranch )"
 	artOrigin="$storeRemote"
 }
 
@@ -147,21 +144,24 @@ AgentsToolsArtifactClaim(){
 			return 0
 		fi
 		claimRc=0
-		claimOut="$( AgentsToolsTeamDataRemote git -C "$artRepo" push origin "HEAD:refs/heads/$artBranch" 2>&1 )" || claimRc=$?
+		claimOut="$( LC_ALL=C git -C "$artRepo" push origin HEAD 2>&1 )" || claimRc=$?
 		if [ "$claimRc" = 0 ] ; then
 			AgentsToolsLocalLockGive "$artLock" ; artLock=""
 			return 0
 		fi
 		## Lost or unreachable, this claim leaves the checkout: only a moved origin is retried.
 		AgentsToolsArtifactClaimDrop "$claimSubject"
-		if ! AgentsToolsTeamDataRemote git -C "$artRepo" fetch -q origin "+refs/heads/$artBranch:refs/remotes/origin/$artBranch" > /dev/null 2>&1 \
+		if ! LC_ALL=C git -C "$artRepo" fetch -q origin "$artBranch" > /dev/null 2>&1 \
 			|| git -C "$artRepo" merge-base --is-ancestor "refs/remotes/origin/$artBranch" HEAD 2>/dev/null ; then
 			echo "⛔ ERROR: $artCmd: the claim of $artNumber could not be pushed, and origin was not seen to move, so the number is not secured. Nothing was published: $claimOut" >&2
 			break
 		fi
-		## Resynced from that branch by the tooling's own fetch and merge, never git/cloneSync,
-		## which knows no remote branch but the local one's (AgentsToolsTeamDataFollow).
-		claimSync="$( AgentsToolsTeamDataFollow "$artCmd" "$artRepo" "$artBranch" --now --over-uncommitted 2>&1 )" || {
+		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
+			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and myx.common git/cloneSync is unreachable to resync, so no number is secured. Nothing was published" >&2
+			break
+		fi
+		claimSync="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
+			"$MYXROOT/bin/git/cloneSync.Common" --no-push "$artRepo" "$artOrigin" "$artBranch" 2>&1 )" || {
 			echo "⛔ ERROR: $artCmd: another writer took $artNumber first, and the team data could not be resynced, so no number is secured. Nothing was published: $claimSync" >&2
 			break
 		}
