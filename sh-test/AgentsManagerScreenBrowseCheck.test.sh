@@ -164,10 +164,10 @@ show vault
 RIGSCRIPT
 rigAssert "a vault that is not there says so plainly" "$( rigHolds vault '│Vault: there is none in this team data: it has no such folder.' )" "1"
 
-echo "-- 1b. a folder of more items than the table shows: its first rows, and e every row --"
+echo "-- 1b. a folder of more items than the pane shows: as many as it shows, and e every row --"
 rigCase many
-printf 'store\tboard\tpresent\t1\t0\nfolder\tboard\tbacklog\t25\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board"
-for rigNo in $( seq -w 1 25 ) ; do printf 'item\tboard\tbacklog\titem-%s.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board backlog"
+printf 'store\tboard\tpresent\t1\t0\nfolder\tboard\tbacklog\t60\n' > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board"
+for rigNo in $( seq -w 1 60 ) ; do printf 'item\tboard\tbacklog\titem-%s.md\t100\t-\t-\t-\t-\t-\n' "$rigNo" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-data-read board backlog"
 rigScript <<'RIGSCRIPT'
 turn
 wait list 10
@@ -194,13 +194,14 @@ keys DOWN
 turn
 show inside
 RIGSCRIPT
-rigAssert "the first 20 of them, the columns no item has a word for left out, and how many more" \
-	"$( rigUnder first 'backlog: 25 items, 2.4K.' 4 ) $( rigHolds first '│ item-' ) $( rigUnder first "$( printf ' %-10s %s' item-20.md 100B )" 2 )" \
-	"[backlog: 25 items, 2.4K.][][$( printf ' %-10s %s' NAME SIZE )][$( printf ' %-10s %s' item-01.md 100B )] 20 [$( printf ' %-10s %s' item-20.md 100B )][  and 5 more]"
-rigAssert "the status line names e for every row, and the title says that the first 20 show" "$( rigHolds first ' e All rows ' ) $( rigHolds first 'backlog [20 rows]' )" "1 1"
-rigAssert "e: every row, the status line names it for the first rows again, the title says all rows, and nothing is read again" \
-	"$( rigVal all.selected ) $( rigHolds all '│ item-' ) $( rigHolds all '│  and 5 more' ) $( rigHolds all ' e First rows ' ) $( rigHolds all 'backlog [all rows]' ) $( rigWords '[--manager-team-data-read][board][backlog]' )" "backlog 25 0 1 1 1"
-rigAssert "e once more: the first 20 again" "$( rigHolds again '│ item-' ) $( rigHolds again '│  and 5 more' )" "20 1"
+rigShown="$( rigHolds first '│ item-' )"
+rigAssert "as many of them as the pane has room for, under the count, a blank line and the header, and a last line for how many more: the pane is full; the columns no item has a word for left out" \
+	"$( rigUnder first 'backlog: 60 items, 5.9K.' 4 ) $(( rigShown + 4 )) $( rigUnder first "$( printf ' %-10s %s' "item-$( printf '%02d' "$rigShown" ).md" 100B )" 2 )" \
+	"[backlog: 60 items, 5.9K.][][$( printf ' %-10s %s' NAME SIZE )][$( printf ' %-10s %s' item-01.md 100B )] $( rigVal first.viewHeight ) [$( printf ' %-10s %s' "item-$( printf '%02d' "$rigShown" ).md" 100B )][  and $(( 60 - rigShown )) more]"
+rigAssert "the status line names e for every row, and the title says how many rows show" "$( rigHolds first ' e All rows ' ) $( rigHolds first "backlog [$rigShown rows]" )" "1 1"
+rigAssert "e: every row, all 60 under the 3 lines above them, the status line names it for as many rows again, the title says all rows, and nothing is read again" \
+	"$( rigVal all.selected ) $( rigVal all.viewLines ) $( rigHolds all 'more' ) $( rigHolds all ' e First rows ' ) $( rigHolds all 'backlog [all rows]' ) $( rigWords '[--manager-team-data-read][board][backlog]' )" "backlog 63 0 1 1 1"
+rigAssert "e once more: as many as the pane shows again" "$( rigHolds again '│ item-' ) $( rigHolds again "│  and $(( 60 - rigShown )) more" )" "$rigShown 1"
 rigAssert "inside the folder, an item selected: e is named nowhere" "$( rigHolds inside 'All rows' ) $( rigHolds inside 'First rows' ) $( rigHolds inside 'rows]' )" "0 0 0"
 
 echo "-- 2. a team member is a folder --"
@@ -289,15 +290,67 @@ turn
 get panned
 show panned
 RIGSCRIPT
-rigAssert "a pane too narrow for every column shortens the first, the path it covers, so that the others fit" \
-	"$( rigVal fit.viewWidth ) $( rigUnder fit '3 grants: floor 2, standing 1.' 4 )" \
-	"43 [3 grants: floor 2, standing 1.][$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read floor none )]"
-rigAssert "a narrower one shortens it no further, and leaves out whole each column after it that still does not fit, of the header too" \
-	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantLine 16 COVERS ACCESS )" 3 ) $( rigVal narrow.spills )" \
-	"31 [$( rigGrantLine 16 COVERS ACCESS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read )] 0"
+rigAssert "a pane too narrow for every column: the columns after the first, no longer than their longest word, keep it, and the first, the path it covers, gives way, wrapped in its own column, nothing cut" \
+	"$( rigVal fit.viewWidth ) $( rigUnder fit '3 grants: floor 2, standing 1.' 5 ) $( rigHolds fit '…' )" \
+	"43 [3 grants: floor 2, standing 1.][$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/REA' read floor none )][ DME.md] 0"
+rigAssert "a narrower one leaves out whole each column after it that still does not fit, the last first, of the header too, and the room that frees goes back to the first" \
+	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantLine 22 COVERS ACCESS )" 3 ) $( rigVal narrow.spills ) $( rigHolds narrow '…' )" \
+	"31 [$( rigGrantLine 22 COVERS ACCESS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read )] 0 0"
 rigAssert "with the lines not wrapped the table is whole, its first column uncut, and the pane scrolls sideways to the columns after it" \
 	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md read' ) $( rigHolds cut "$( printf '%-12s %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigHolds panned "$( printf '%-12s %s' floor none )" ) $( rigHolds panned "$( printf '%-12s %s' ws:workspace none )" )" \
 	"no 1 0 1 2 1"
+
+echo "-- 2c. Skillset Files selected: every file as a table, its path, its size and whether it is text --"
+rigCase files
+for rigNo in $( seq -w 1 19 ) ; do printf 'file\tresources/file-%s.md\t%s\t%s\n' "$rigNo" "$(( 1000 + 10#$rigNo ))" "$( [ "$rigNo" = 07 ] && echo no || echo yes )" ; done > "$MANAGER_SCREEN_RIG/rows.--manager-team-member-files keeper-rig"
+rigScript <<'RIGSCRIPT'
+turn
+wait list 10
+keys 4
+wait list 10
+keys DOWN
+wait view 10
+keys ENTER
+wait list 10
+keys DOWN DOWN
+wait focus 10
+get files
+show files
+RIGSCRIPT
+rigAssert "the left pane shows no fewer files than the list: all 19 as a table under the count, a file a row with its size and whether it is text, nothing left out" \
+	"$( rigVal files.selectedLabel ) $( rigUnder files '19 files, 18.7K; 18 of them text.' 4 ) $( rigHolds files '│ resources/file-' ) $( rigHolds files 'more' ) $( rigHolds files 'rows]' ) $( rigHolds files "$( printf ' %-20s %-5s %s' resources/file-07.md 1007B binary )" )" \
+	"Skillset Files [19 files, 18.7K; 18 of them text.][][$( printf ' %-20s %-5s %s' NAME SIZE CONTENT )][$( printf ' %-20s %-5s %s' resources/file-01.md 1001B text )] 19 0 0 1"
+
+echo "-- 2d. at the width the owner's screen has: the key column has its room first, the long ones give way, wrapped, nothing cut --"
+rigCase owner
+{
+	printf '%s\n' "$rigMember"
+	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b-cd80-4db6-82cf-1779e5fb10db_ends\n'
+	printf 'grant\tfloor\twrite\t/rig/ws/.local/temp/**\tws:.local/temp/**\tfloor\tnone\n'
+} > "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-rig"
+rigScript <<'RIGSCRIPT'
+size 201 40
+turn
+wait list 10
+keys 4
+wait list 10
+keys DOWN
+wait view 10
+keys ENTER
+wait list 10
+keys DOWN
+wait focus 10
+get wide
+show wide
+roles lw
+RIGSCRIPT
+rigWideLine="$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^wide|' | LC_ALL=C grep -n -F ' ws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py ' | LC_ALL=C sed 's/:.*$//' | head -1 )"
+rigAssert "the path it covers stands whole on the first line of its row; where it comes from and when it ends wrap in their columns, every word of them there; nothing is cut" \
+	"$( rigVal wide.columns ) $( rigHolds wide ' ws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py read' ) $( rigHolds wide 'set-3ef0ea61-' ) $( rigHolds wide 'U75H0DK43' ) $( rigHolds wide '5680fa0b-' ) $( rigHolds wide '…' )" \
+	"201 1 1 1 1 0"
+rigAssert "the header stands out, and the rows take turns in two looks, every line of a row in its own" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C sed -n "$(( rigWideLine - 2 ))p;$(( rigWideLine ))p;$(( rigWideLine + 1 ))p" | LC_ALL=C cut -c3 | LC_ALL=C tr -d '\n' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.j' )" \
+	"ucc 1"
 
 echo "-- 3. Member Help --"
 rigCase help

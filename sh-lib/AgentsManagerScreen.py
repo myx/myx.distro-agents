@@ -33,6 +33,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import codecs
 import unicodedata
@@ -71,6 +72,7 @@ TITLE_ON, TITLE, SHADE, BOX_SHADE = 26, 27, 28, 29
 EDGE_ON, EDGE_ON_SHADE, EDGE, EDGE_SHADE, TRACK, THUMB, KEY_CHIP = 30, 31, 32, 33, 34, 35, 36
 BOX_BUTTON_DEF, ALERT, ALERT_FRAME, ALERT_HEAD, ALERT_SHADE = 37, 38, 39, 40, 41
 BOX_EDGE = 42
+ROW, ROW_ALT, ROW_HEAD = 43, 44, 45
 LOOKS = (
     ## the text of a window; what stands out in it; the row the selection is on; what is of less weight
     (".", "", "white", "blue", False),
@@ -144,6 +146,12 @@ LOOKS = (
     ## the thin line at the foot of a dialog, where a style draws edges of blocks: in the colour
     ## of the ground of its title tab, on the dialog's own
     ("L", "RB", "white", "white", True),
+    ## a row of a table of the left pane (paneTable), and every other row, which a style sets apart
+    ## by its ground where it has the shades for it, and by dimmer text where it has not
+    ("c", "", "white", "blue", False),
+    ("j", "D", "cyan", "blue", False),
+    ## the header of such a table, the names of its columns, a little apart from its rows
+    ("u", "B", "yellow", "blue", True),
 )
 ## The letter a look without colours reads back as.
 MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
@@ -207,6 +215,9 @@ STYLE_LOOKS = {
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
         BOX_EDGE: ("white", "cyan", False, 231, 87, False),
+        ROW: ("white", "blue", False, 231, 63, False),
+        ROW_ALT: ("cyan", "blue", False, 231, 62, False),
+        ROW_HEAD: ("yellow", "blue", True, 228, 61, True),
     },
     ## Magic in its grey colours (nu-gray), those of the picture on grey (the Disk Doctor): the
     ## dark grey desktop, windows of the deep blue of the scroll bars with white text and yellow
@@ -257,6 +268,9 @@ STYLE_LOOKS = {
         ALERT_HEAD: ("yellow", "red", True, 226, 124, True),
         ALERT_SHADE: ("red", "black", False, 124, 16, False),
         BOX_EDGE: ("white", "blue", False, 231, 63, False),
+        ROW: ("white", "blue", True, 231, 19, False),
+        ROW_ALT: ("cyan", "blue", False, 231, 18, False),
+        ROW_HEAD: ("yellow", "blue", True, 228, 17, True),
     },
 }
 ## Magic in the terminal's own colours (nu-system): its own choice of the eight named ones, those
@@ -299,6 +313,9 @@ STYLE_LOOKS["tv-blue"] = {
     TITLE: ("white", "blue", False, 248, 19, False),
     SHADE: ("black", "blue", False, 16, 19, False),
     BOX_SHADE: ("white", "black", False, 248, 16, False),
+    ROW: ("yellow", "blue", True, 227, 19, False),
+    ROW_ALT: ("white", "blue", False, 227, 18, False),
+    ROW_HEAD: ("white", "blue", True, 231, 17, False),
 }
 ## "tv-gray", as its demo: grey windows with black text and a white frame on the dithered
 ## blue and grey desktop, the same grey bar, grey dialogs with green buttons, cyan bars.
@@ -333,6 +350,9 @@ STYLE_LOOKS["tv-gray"] = {
     TITLE: ("black", "white", False, 16, 248, False),
     SHADE: ("black", "white", False, 16, 248, False),
     BOX_SHADE: ("white", "black", False, 248, 16, False),
+    ROW: ("black", "white", False, 16, 248, False),
+    ROW_ALT: ("black", "white", True, 16, 250, False),
+    ROW_HEAD: ("blue", "white", False, 19, 246, True),
 }
 ## Basic B/W in colours of its own, each look by how it is drawn with no colours (the second
 ## field of LOOKS): "bw-dark" white on black, "bw-light" black on white, in greys alone.
@@ -533,9 +553,9 @@ SUMMARIES = {
     "teamdata/board": {"lines": "storeSummary"},
     "teamdata/audit": {"lines": "storeSummary"},
     "teamdata/vault": {"lines": "storeSummary"},
-    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "few": 20} for storeId, storeLabel in TEAM_DATA_STORES},
+    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary"} for storeId, storeLabel in TEAM_DATA_STORES},
     "team/*/permissions": {"lines": "grantsSummary"},
-    "team/*/files": {"lines": "filesSummary", "few": 12},
+    "team/*/files": {"lines": "filesSummary"},
     "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
     "team/*/help": {"lines": "helpSummary", "chapters": "manuals"},
     "manuals": {"lines": "helpSummary"},
@@ -1257,10 +1277,10 @@ COMMANDS = (
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     ## the left window's own where it shows the items of a folder of the team data as a
-    ## table: every row of it, or its first rows again (itemRowsShown)
+    ## table: every row of it, or as many as the pane shows again (tableRowsShown)
     {"name": "rows", "keys": ("e",), "menu": ("view", 5), "label": "~E~very row or the first", "status": ("All rows", "First rows"), "toggle": "allRows",
-     "views": tuple("teamdata/%s" % storeId for storeId, storeLabel in TEAM_DATA_STORES) + tuple("teamdata/%s/*" % storeId for storeId, storeLabel in TEAM_DATA_STORES),
-     "for": "a folder of more items than its table shows", "does": ("rows",)},
+     "views": tuple("teamdata/%s" % storeId for storeId, storeLabel in TEAM_DATA_STORES) + tuple("teamdata/%s/*" % storeId for storeId, storeLabel in TEAM_DATA_STORES)
+     + ("team/*", "team/*/files"), "for": "a folder of more rows than the pane shows", "does": ("rows",)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "colours", "keys": ("i",), "menu": ("view", 3), "label": "~I~nterface colours: the next", "does": ("colours",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
@@ -1605,7 +1625,7 @@ class ManagerState:
         self.textMode = TEXT_MODE_FIRST
         ## whether the left window wraps its long lines, or cuts them and scrolls sideways
         self.wrap = WRAP_FIRST
-        ## whether a table of the items of a folder shows every row, or its first (itemRowsShown)
+        ## whether a table under a summary shows every row, or as many as the pane shows (tableRowsShown)
         self.allRows = False
         ## the split between the windows as the user moved it, the share of the width the
         ## right one takes, or None; and how the mouse holds its border: None, "pressed"
@@ -2258,10 +2278,17 @@ def followSelection(state):
         ## what an action answered stands on the item it was asked on, and goes with it
         if state.answer is not None and state.answer["key"] != viewKey:
             state.answer = None
+    ## the looks of the lines are made with them: those its maker set, and over them those a
+    ## line carries (Looked); where no line is made new, those of the lines that stand
+    kept = state.view["looks"]
+    state.view["looks"] = {}
     local = localView(state, row)
     if local is not None:
         state.view["lines"] = local
         state.view["lineKeys"] = []
+        state.view["looks"].update((number, line.looks) for number, line in enumerate(local) if getattr(line, "looks", ()))
+    else:
+        state.view["looks"] = kept
     state.view["head"] = viewHead(state, row)
     if state.view["feed"] is not None and state.view["built"] != (state.viewWidth, state.viewMode):
         buildFeed(state, row)
@@ -2393,14 +2420,11 @@ def folderSummary(state, row):
         wrapToCells(line, room) if textWidth(line) > room and not line.startswith(" ") else [line])]
 
 
-## A table of a summary, by the rule of the tables (tableLineText): under its heads a row
-## a line, set in by two, each column as wide as its widest word; a column that does not
-## fit is left out whole, and only the first is ever cut.
+## A table of a summary, set in by two, in lines of that many cells: the table of the left
+## pane (paneTable), wrapped while the lines of the pane are (a width short of UNWRAPPED_WIDTH).
 def summaryTable(heads, rows, width):
-    room = max(10, width - 3)
-    widths = [max([textWidth(head)] + [textWidth(line[index]) for line in rows]) for index, head in enumerate(heads)]
-    table = {"heads": list(heads), "iconWidth": 0, "widths": [min(widths[0], room)] + widths[1:]}
-    return ["  " + tableLineText(table, [""] + list(line), room) for line in [table["heads"]] + rows]
+    head, blocks = paneTable(heads, [list(line) for line in rows], max(10, width - 1), wrap=width < UNWRAPPED_WIDTH, indent="  ")
+    return head + [line for block in blocks for line in block]
 
 
 ## The level and the kind of a row, as COMMANDS names the rows a command acts on.
@@ -2463,6 +2487,152 @@ def viewHead(state, row):
     if logShown(state, row) and (row.get("session") or row.get("run")):
         lines.extend(fieldLines([("lines", sourceText(state, row))], state.viewWidth))
     return lines
+
+
+## ---- the one table of the left pane ----
+
+## A line of the left pane that carries what of it is drawn in a look of its own, as the
+## "looks" of the view hold them: the cell it starts at, how many cells, the look.
+class Looked(str):
+    looks = ()
+
+
+def looked(text, look):
+    line = Looked(text)
+    line.looks = [(0, textWidth(text), look)]
+    return line
+
+
+## The looks of a table of the left pane: its header, the heading of a group of its rows,
+## a row, and every other row.
+TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT}
+## The kinds of the columns of a table of the left pane: "key", the column a row is known by,
+## a path, a place, a name, which has its room first; "enum", one of a few known words, a
+## kind, a status, an access, cut to the start that tells its words apart where room is
+## short, never wrapped; "text", free words, which give way first, wrapped.
+## No key or text column is narrowed below its header, nor below TABLE_LEAST cells, nor below
+## its longest word, where that is no longer than TABLE_WORD_MOST cells; no enum column below
+## its header, nor below the start of ENUM_PREFIX_LEAST characters, or more, that tells its
+## words apart, and its mark of a cut. None is wider than TABLE_CAP cells, which only stops a
+## value that runs away, a very long path or text.
+TABLE_LEAST = 6
+TABLE_WORD_MOST = 16
+TABLE_CAP = 80
+ENUM_PREFIX_LEAST = 4
+
+
+## The least cells of an enum column: the start of its words that tells them apart, with
+## the mark of a cut.
+def enumLeast(values):
+    values = set(value for value in values if value != "-")
+    length = ENUM_PREFIX_LEAST
+    while len(set(value[:length] for value in values)) < len(values):
+        length += 1
+    return length + 1
+
+
+## A table for the left pane: its header, and its rows, each the lines of one row. With the
+## lines of the pane wrapped (`wrap`) it spans the pane, that many cells: a key or text cell
+## is wrapped in its own column at its words (textwrap), a row as tall as its tallest cell;
+## the widths are those of the words, and where the pane is too narrow for them all, the
+## text columns give way first, then the enum ones, then the key, the widest of a kind
+## first, each no further than its least; a column that still does not fit is left out
+## whole, the last first, and the others are fitted again; the room left over goes to the
+## last column, so that the table spans the pane; a table whose every column fits keeps its
+## own width. With them not wrapped every column is as wide as its words and the table as
+## wide as they, a row a line, and the pane scrolls sideways. No column is wider than
+## TABLE_CAP. `kinds`: the kind of each column (the first a key, the others text, where not
+## given). A row is a list of words, or a text alone for the heading of a group; `icons`, one
+## for each row, stand in a place of their own ahead of it, never wrapped; `numbered` puts
+## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS). Each line of a
+## row carries its header (`stick`), which stays over the rows when it has gone up out of
+## the pane (drawLinesBody).
+def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False):
+    kinds = list(kinds or ["key"] + ["text"] * (len(heads) - 1))
+    words = [row for row in rows if not isinstance(row, str)]
+    natural = [min(TABLE_CAP, max([textWidth(head)] + [textWidth(row[index]) for row in words])) for index, head in enumerate(heads)]
+    least = [min(natural[index], max(textWidth(head), enumLeast([row[index] for row in words]) if kinds[index] == "enum" else max(
+        TABLE_LEAST, min(TABLE_WORD_MOST, max([textWidth(word) for row in words for word in row[index].split()] + [0])))))
+        for index, head in enumerate(heads)]
+    iconWidth = max([textWidth(icon) for icon in icons or ()] + [0])
+    numberWidth = max(1, len(str(len(words)))) if numbered else 0
+
+    def fit(count):
+        widths = natural[:count]
+        over = (numberWidth + 1 if numbered else 0) + (iconWidth + 1 if iconWidth else 0) + sum(widths) + count - 1 - (width - len(indent))
+        for kind in ("text", "enum", "key"):
+            while over > 0:
+                giving = [index for index in range(count) if kinds[index] == kind and widths[index] > least[index]]
+                if not giving:
+                    break
+                widths[max(giving, key=lambda index: widths[index])] -= 1
+                over -= 1
+        return widths, over
+
+    shown = len(heads)
+    widths, over = fit(shown) if wrap else (natural[:], 0)
+    while wrap and over > 0 and shown > 1:
+        shown -= 1
+        widths, over = fit(shown)
+    if wrap and over < 0 and shown < len(heads):
+        widths[shown - 1] -= over
+
+    def rowLines(cells, icon, look, count=""):
+        parts = [(textwrap.wrap(cells[index], widths[index]) if wrap and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
+        return [looked(indent + ((count if not number else "").rjust(numberWidth) + " " if numbered else "")
+                       + (cutToCells(icon if not number else "", iconWidth) + " " if iconWidth else "") + " ".join(
+            cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look)
+            for number in range(max(len(part) for part in parts))]
+
+    head = rowLines(list(heads), "", TABLE_LOOKS["head"], "#")
+    blocks = []
+    alternate = False
+    counted = 0
+    for index, row in enumerate(rows):
+        if isinstance(row, str):
+            blocks.append([looked(indent + row, TABLE_LOOKS["heading"])])
+            alternate = False
+        else:
+            counted += 1
+            blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted)))
+            alternate = not alternate
+        for line in blocks[-1]:
+            line.stick = head[0]
+    return head, blocks
+
+
+## The lines of a summary with a table under them: the table's header, and as many of its
+## rows as the pane has room for under the lines above it, then a line that says how many
+## more there are; every row while `e` shows them all. How many show where not all of
+## them do stands in the view, for the title and for `e` (tableRowsShown).
+def tableSummaryLines(state, lines, heads, rows, kinds=None):
+    room = max(10, state.viewWidth - 1)
+    above = sum(len(wrapToCells(line, room)) if textWidth(line) > room and not line.startswith(" ") else 1 for line in lines)
+    height = state.viewHeight - (1 if itemKeysText(state) else 0) - len(state.view["head"]) - above - 1
+    head, blocks = paneTable(heads, rows if state.allRows else rows[:max(1, height)], state.viewWidth - 1, wrap=state.wrap, kinds=kinds)
+    used = shown = 0
+    for block in blocks:
+        if used + len(block) > height:
+            break
+        used += len(block)
+        shown += 1
+    state.view["rowsCap"] = None
+    if shown < len(rows):
+        while shown > 1 and used + 1 > height:
+            shown -= 1
+            used -= len(blocks[shown])
+        state.view["rowsCap"] = max(1, shown)
+    shown = len(blocks) if state.allRows else max(1, shown)
+    lines = lines + head + [line for block in blocks[:shown] for line in block]
+    if shown < len(rows):
+        lines.append(looked("  and %d more" % (len(rows) - shown), DIM))
+    return lines
+
+
+## How many rows of a table under a summary the left window shows, where it does not show
+## every row of it (tableSummaryLines): then `e` shows them all, or that many again.
+def tableRowsShown(state):
+    return state.view.get("rowsCap")
 
 
 ## ---- the items of the team data: its board, its audit and its vault ----
@@ -2538,15 +2708,13 @@ ITEM_FRONT = ("type", "status", "owner", "date")
 ## date, or the stamp of its name where it gives none, and its size. A column no item of the
 ## table has a word for is left out; the others show in this order while the pane has room.
 ITEM_COLUMNS = (
-    ("NAME", lambda item: item["name"]),
-    ("TYPE", lambda item: item.get("type", "")),
-    ("DATE", lambda item: item.get("date", "")[:16] or stampText(item["stamp"])),
-    ("OWNER", lambda item: item.get("owner", "")),
-    ("STATUS", lambda item: item.get("status", "")),
-    ("SIZE", lambda item: shortBytes(item["bytes"])),
+    ("NAME", lambda item: item["name"], "key"),
+    ("TYPE", lambda item: item.get("type", ""), "enum"),
+    ("DATE", lambda item: item.get("date", "")[:16] or stampText(item["stamp"]), "text"),
+    ("OWNER", lambda item: item.get("owner", ""), "text"),
+    ("STATUS", lambda item: item.get("status", ""), "enum"),
+    ("SIZE", lambda item: shortBytes(item["bytes"]), "text"),
 )
-## The first column, the name, is shortened so that the others fit, to no fewer cells than these.
-ITEM_NAME_LEAST = 24
 
 
 ## The stamp of an item's name, `<YYYYMMDD>T<HHMM>`, as a date: `2026-10-01 09:00`.
@@ -2556,22 +2724,9 @@ def stampText(stamp):
     return "%s-%s-%s %s:%s" % (stamp[:4], stamp[4:6], stamp[6:8], stamp[9:11], stamp[11:])
 
 
-## Items of a folder for the left pane, lines of that many cells: a table under its header
-## (ITEM_COLUMNS), by the rule of every table: a column that does not fit is left out whole,
-## and the first, the name, is shortened so that the others fit, to no fewer than
-## ITEM_NAME_LEAST cells. With the lines not wrapped the pane is wide enough for all of it.
-def itemTableLines(items, width):
-    columns = [column for column in ITEM_COLUMNS if any(column[1](item) for item in items)]
-    words = [[column[1](item) or "-" for column in columns] for item in items]
-    table = {"heads": [column[0] for column in columns], "iconWidth": 0,
-             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words]) for index, column in enumerate(columns)]}
-    table["widths"][0] = min(table["widths"][0], max(ITEM_NAME_LEAST, width - 1 - sum(1 + cells for cells in table["widths"][1:])))
-    return [(" " + tableLineText(table, [""] + line, width - 1)).rstrip() for line in [table["heads"]] + words]
-
-
 ## The summary of a folder of a store: how many items it holds and how much, then its items
-## as a table, the newest first where their names are dated: its first rows, or every row
-## while `e` shows them all, and how many more there are.
+## as a table (paneTable), the newest first where their names are dated: as many as the
+## pane shows, or every row while `e` shows them all, and how many more there are.
 def itemsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -2580,28 +2735,10 @@ def itemsSummary(state, path, row, form):
     if not items:
         return ["%s: empty. It holds no items." % row["label"]]
     size = sum(int(held["item"]["bytes"]) for held in items if held["item"]["bytes"].isdigit())
-    lines = ["%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), ""]
-    shown = items if state.allRows else items[:form["few"]]
-    lines.extend(itemTableLines([held["item"] for held in shown], state.viewWidth - 1))
-    if len(items) > len(shown):
-        lines.append("  and %d more" % (len(items) - len(shown)))
-    return lines
-
-
-## How many rows the table of a folder's items shows at first, where the left window shows
-## such a table of more items than that: then `e` shows every row of it, or the first again.
-## None where it does not.
-@onShownLevel
-def itemRowsShown(state):
-    row = selectedRow(state)
-    if row is None or not row["dive"] or row["kind"] == "up":
-        return None
-    path = state.path + [row["id"]]
-    form = SUMMARIES.get(levelPattern(path)) or {}
-    if form.get("lines") != "itemsSummary":
-        return None
-    items = [held for held in state.rows.get(levelKey(path), ()) if held.get("item")]
-    return form["few"] if len(items) > form["few"] else None
+    lines = [looked("%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), BOLD), ""]
+    columns = [column for column in ITEM_COLUMNS if any(column[1](held["item"]) for held in items)]
+    return tableSummaryLines(state, lines, [column[0] for column in columns],
+                             [[column[1](held["item"]) or "-" for column in columns] for held in items], [column[2] for column in columns])
 
 
 ## ---- a team member as a folder: its grants, its files, its sessions, its help ----
@@ -2611,15 +2748,12 @@ def itemRowsShown(state):
 ## comes from, when it ends. The first is cut at that many cells; the grant selected
 ## shows whole in the left window.
 GRANT_COLUMNS = (
-    ("COVERS", lambda grant: grant["place"] or grant["target"]),
-    ("ACCESS", lambda grant: grant["access"]),
-    ("FROM", lambda grant: grant["origin"]),
-    ("ENDS", lambda grant: grant["ends"]),
+    ("COVERS", lambda grant: grant["place"] or grant["target"], "key"),
+    ("ACCESS", lambda grant: grant["access"], "enum"),
+    ("FROM", lambda grant: grant["origin"], "text"),
+    ("ENDS", lambda grant: grant["ends"], "text"),
 )
 GRANT_COVERS_CELLS = 40
-## In the left pane the table follows the pane: where it is too narrow for every
-## column, the first is shortened, to no fewer cells than these, so that the others fit.
-GRANT_COVERS_LEAST = 16
 
 
 ## A member's grants by their kind, counted, in the order they come: `floor 12, standing 3`.
@@ -2664,16 +2798,13 @@ def grantRows(grants, coversCells=GRANT_COVERS_CELLS):
 
 
 ## A member's grants for the left pane, lines of that many cells: the table `Permissions`
-## holds, made and drawn as that list makes and draws it (grantRows, listHeadText,
-## listRowParts), its header first. Too narrow for every column, its first is shortened,
-## to no fewer than GRANT_COVERS_LEAST cells, so that the columns after it fit; one that
-## still does not is left out whole, as in every table. With the lines not wrapped the pane
-## is wide enough for all of it, and scrolls sideways.
-def grantTableLines(grants, width):
-    rows = grantRows(grants, None)
-    table = [row["table"] for row in rows if row.get("table")][0]
-    table["widths"][0] = min(table["widths"][0], max(GRANT_COVERS_LEAST, width - 1 - sum(1 + cells for cells in table["widths"][1:])))
-    return [line.rstrip() for line in [listHeadText(table, width)] + [listRowParts(row, False, width)[0] for row in rows]]
+## holds, in its order and under its headings (grantRows), drawn by the table of the left
+## pane (paneTable): what a grant covers, the key, has its room first.
+def grantTableLines(grants, width, wrap=True):
+    head, blocks = paneTable([column[0] for column in GRANT_COLUMNS], [
+        row["label"] if row["kind"] == "grant-kind" else [column[1](row["grant"]) or "-" for column in GRANT_COLUMNS]
+        for row in grantRows(grants, None)], width, wrap=wrap, kinds=[column[2] for column in GRANT_COLUMNS])
+    return head + [line for block in blocks for line in block]
 
 
 ## One grant, whole: its kind, its access, what it covers as a path and by the rule of its
@@ -2701,7 +2832,7 @@ def grantsSummary(state, path, row, form):
     grants = [held["grant"] for held in rows if held.get("grant")]
     if not grants:
         return ["No grants."]
-    return ["%d grants: %s." % (len(grants), grantCounts(grants))] + grantTableLines(grants, state.viewWidth - 1)
+    return [looked("%d grants: %s." % (len(grants), grantCounts(grants)), BOLD)] + grantTableLines(grants, state.viewWidth - 1, state.wrap)
 
 
 ## What `--manager-team-member-files` printed: a file a row, by its path in the member's
@@ -2721,18 +2852,20 @@ def parseFileRows(text):
     return rows
 
 
-## The summary of `Skillset Files`: how many files and how much, and the first of them.
+## The summary of `Skillset Files`: how many files and how much, then the files as a table
+## (paneTable): each by its path in the folder, its size and whether it is text, as many as
+## the pane shows, or every row while `e` shows them all.
 def filesSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
     files = [held for held in rows if held.get("file")]
     size = sum(int(held["file"]["bytes"]) for held in files if held["file"]["bytes"].isdigit())
-    lines = ["%d file%s, %s; %d of them text." % (len(files), "" if len(files) == 1 else "s", shortBytes(str(size)), len([held for held in files if held["text"]])), ""]
-    lines.extend("  " + held["label"] for held in files[:form["few"]])
-    if len(files) > form["few"]:
-        lines.append("  and %d more" % (len(files) - form["few"]))
-    return lines
+    lines = [looked("%d file%s, %s; %d of them text." % (len(files), "" if len(files) == 1 else "s", shortBytes(str(size)), len([held for held in files if held["text"]])), BOLD)]
+    if not files:
+        return lines
+    return tableSummaryLines(state, lines + [""], ("NAME", "SIZE", "CONTENT"),
+                             [[held["label"], shortBytes(held["file"]["bytes"]), "text" if held["text"] else "binary"] for held in files], ("key", "text", "enum"))
 
 
 ## What `--member-help <member>` printed, as rows: each operation of its help an item, by
@@ -3100,11 +3233,12 @@ def pendingSummary(state, path, row, form):
     lines.append("The oldest waits %s: %s asks %s." % (
         ageText(askedEpoch(aged[0]), now) or "-", aged[0].get("owner", "-"), aged[0].get("address-to", "-")))
     few = aged[:form["few"]]
-    table = summaryTable(("AGE", "WHO ASKS", "WHOM"), [
-        [ageText(askedEpoch(values), now) or "-", values.get("owner", "-"), values.get("address-to", "-")] for values in few], state.viewWidth)
-    lines.extend(["", "by age, the oldest first%s" % ("" if len(few) == count else ", %d of them" % len(few)), table[0]])
-    for values, line in zip(few, table[1:]):
-        lines.append(line)
+    head, blocks = paneTable(("AGE", "WHO ASKS", "WHOM"), [
+        [ageText(askedEpoch(values), now) or "-", values.get("owner", "-"), values.get("address-to", "-")] for values in few],
+        max(10, state.viewWidth - 1), wrap=state.wrap, indent="  ")
+    lines.extend(["", "by age, the oldest first%s" % ("" if len(few) == count else ", %d of them" % len(few))] + head)
+    for values, block in zip(few, blocks):
+        lines.extend(block)
         lines.extend("      " + part for part in wrapToCells(values.get("question", ""), max(10, width - 6)) if part)
     return lines
 
@@ -3948,6 +4082,13 @@ def markdownLines(text, width):
             count = len(rows[0])
             rows = [(row + [[] for missing in range(count)])[:count] for row in rows]
             widths = [max(markdownWidth(markdownCells(row[number])) for row in rows) for number in range(count)]
+            if width < UNWRAPPED_WIDTH and 2 + sum(widths) + 3 * (count - 1) > room:
+                ## too wide for the pane, its lines wrapped: the table of the left pane, each cell as its text
+                head, blocks = paneTable(["".join(cell[0] for cell in markdownCells(part)) for part in rows[0]],
+                                         [["".join(cell[0] for cell in markdownCells(part)) or "-" for part in row] for row in rows[1:]], room, indent="  ")
+                for line in head + [line for block in blocks for line in block]:
+                    emit(markdownCells([(str(line), line.looks[0][2])]))
+                continue
             for number, row in enumerate(rows):
                 parts = [("  ", None)]
                 for place, cell in enumerate(row):
@@ -5752,11 +5893,11 @@ def memberRefusal(member):
 ## what of a member stands in each. The name always shows. Those after it show in this
 ## order while the pane has room, so whether a member runs is the last of them to be lost.
 MEMBER_COLUMNS = (
-    ("MEMBER", lambda member: member["name"]),
-    ("RUN", lambda member: "running" if member["live"] == "running" else ""),
-    ("STATUS", lambda member: MEMBER_STATUS_SHORT.get(member["status"], member["status"])),
-    ("KIND", lambda member: member["kind"]),
-    ("WHERE", lambda member: member["setUp"]),
+    ("MEMBER", lambda member: member["name"], "key"),
+    ("RUN", lambda member: "running" if member["live"] == "running" else "", "enum"),
+    ("STATUS", lambda member: MEMBER_STATUS_SHORT.get(member["status"], member["status"]), "enum"),
+    ("KIND", lambda member: member["kind"], "enum"),
+    ("WHERE", lambda member: member["setUp"], "enum"),
 )
 
 
@@ -5766,14 +5907,10 @@ MEMBER_COLUMNS = (
 ## word, an absent one `-`. The icon is the one the operation gave, and no icon is named
 ## here. It is measured in cells as every text of the screen is, so a wide one, and one an
 ## emoji selector makes wide, take two; a member with none keeps that place empty.
-def memberTableLines(members, width):
-    words = [[column[1](member) or "-" for column in MEMBER_COLUMNS] for member in members]
-    table = {"heads": [column[0] for column in MEMBER_COLUMNS],
-             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
-                        for index, column in enumerate(MEMBER_COLUMNS)],
-             "iconWidth": max([textWidth(member["icon"]) for member in members] + [0])}
-    return [(" " + tableLineText(table, cells, width - 1)).rstrip()
-            for cells in [[""] + table["heads"]] + [[member["icon"]] + line for member, line in zip(members, words)]]
+def memberTableLines(members, width, wrap=True):
+    head, blocks = paneTable([column[0] for column in MEMBER_COLUMNS], [[column[1](member) or "-" for column in MEMBER_COLUMNS] for member in members],
+                             width, [member["icon"] for member in members], wrap, [column[2] for column in MEMBER_COLUMNS], numbered=True)
+    return head + [line for block in blocks for line in block]
 
 
 ## The rows of the members as a list, as every list is: each member's icon ahead of its
@@ -5924,30 +6061,14 @@ def memberLines(member, width, info=None):
 
 
 ## What `Team Members` holds, for the left pane while the section itself or the row that
-## goes up is selected: how many members, how many with a live run and which; how many
-## are not started from here, and which, under each cause; then the members as a table
-## (memberTableLines). None until its read has answered.
+## goes up is selected: the members as a table, numbered (memberTableLines), and nothing
+## else. None until its read has answered.
 def membersSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
     members = [held["member"] for held in rows if held.get("member")]
-    alive = [member["name"] for member in members if member["live"] == "running"]
-    refused = [(member["name"], memberRefusal(member)) for member in members if memberRefusal(member)]
-    lines = ["%d member%s, %d with a live run." % (len(members), "" if len(members) == 1 else "s", len(alive))]
-    if alive:
-        lines.append("Running now: %s." % ", ".join(alive))
-    if refused:
-        lines.append("%d of them %s not started from here." % (len(refused), "is" if len(refused) == 1 else "are"))
-        causes = []
-        for name, cause in refused:
-            if cause not in causes:
-                causes.append(cause)
-        for cause in causes:
-            lines.extend(hangLines("%s: %s" % (", ".join(name for name, other in refused if other == cause), cause), state.viewWidth))
-    if members:
-        lines.extend([""] + memberTableLines(members, state.viewWidth - 1))
-    return lines
+    return memberTableLines(members, state.viewWidth - 1, state.wrap) if members else ["No members."]
 
 
 ## Whether `n` starts the member of that row: one the operation would start.
@@ -7938,7 +8059,7 @@ def commandRefusal(state, command):
         return "" if demandRead(state) else other
     if does[0] == "rows":
         ## a table of the items of a folder that holds more than it shows at first
-        return "" if itemRowsShown(state) else other
+        return "" if tableRowsShown(state) else other
     if does[0] == "pan":
         ## wrapped lines hold nothing to the side
         return REFUSALS["wrapped"] % said if state.wrap else ""
@@ -8734,7 +8855,7 @@ def viewTitle(state):
     if markdownShown(state, row):
         form = " " + (dict(VIEW_MODES)["raw"]["mark"] if textRawShown(state) else MARKDOWN["mark"])
     ## and a table of the items of a folder, whether every row of it shows or its first
-    few = itemRowsShown(state)
+    few = tableRowsShown(state)
     if few:
         form += " " + (ROWS_MARK if state.allRows else FEW_ROWS_MARK % few)
     ## and whether its long lines are wrapped or cut: the title says it always
@@ -9198,7 +9319,13 @@ def drawLinesBody(surface, state, layout, box):
     for offset in range(headHeight):
         putLooked(surface, state, top + offset, column, state.view["head"][offset], room, PLAIN, (), placing)
     scrollView(state, contentHeight - headHeight, 0)
+    ## a table whose header has gone up out of the pane keeps it over its rows, sideways with them (paneTable)
+    lines = state.view["lines"]
+    stuck = getattr(lines[state.view["top"]], "stick", None) if 0 < state.view["top"] < len(lines) and contentHeight - headHeight > 1 else None
     for offset in range(contentHeight - headHeight):
+        if offset == 0 and stuck is not None:
+            putLooked(surface, state, top + headHeight, column, stuck, room, PLAIN, stuck.looks, placing)
+            continue
         putViewLine(surface, state, top + headHeight + offset, column, state.view["top"] + offset, room, placing)
     if contentHeight > headHeight and viewWaits(state):
         surface.put(top + headHeight, column, cutToCells(viewWaits(state), room), DIM)
