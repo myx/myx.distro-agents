@@ -3086,8 +3086,9 @@
 			the machine it runs on, grouped in blocks that a screen draws
 			as titled boxes, with no knowledge of what is in one. It only
 			reads, for viewing: no registry is rebuilt, no scope of
-			settings is opened, no git command is run, and nothing
-			reaches another host. With no name it prints every block, in
+			settings is opened, no git command is run but for the block
+			`team-data-git`, and nothing reaches another host. With no
+			name it prints every block but `team-data-git`, in
 			the order below; with names, only those, in that same order
 			whatever the order given. A word that is none of them
 			refuses the call before anything is printed, in one line
@@ -3148,8 +3149,18 @@
 			and `present`, `yes` or `no`; `size`, of all that lies under
 			it; and `board-<state>`, the items of the board in each
 			state, a folder of the board a state and a `.md` file of it
-			an item. What only git knows of the team data, what is not
-			committed and what is not pushed, is no figure here.
+			an item; `audit-items`, `audit-month` and `audit-newest`, the
+			items of its audit, a file of `audit/` or of a month folder
+			of it, how many came this month and the age of the
+			newest by the stamp of its name; `vault-items` and
+			`vault-newest`, the files of its vault and the age of the
+			newest by its file; nothing of an item is opened.
+			`team-data-git`, Team Data Git, printed only where it is
+			named, and the one block that runs git, locally, with no
+			fetch: `repository`, `yes` or `no`; `branch`, `upstream`,
+			`ahead` and `behind` as of its last fetch, `uncommitted`, the
+			paths under the store not committed, `last-commit`, its age,
+			and `last-subject`; judged only on a full team rig.
 			`loop`, Main Loop And Heartbeat: as `--manager-config-digest`
 			reads them, how the last iteration of the main loop ended,
 			how long ago, and after how many failures in a row; the

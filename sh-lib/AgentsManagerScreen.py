@@ -160,11 +160,14 @@ SECTIONS_NOW = [sectionId for sectionId, sectionLabel in SECTIONS if sectionId n
 ## items of the board by state ("board"); and the lines of the digest of the settings it
 ## shows, each by its subject, its group (None: any) and its key: the mode of the
 ## workspace, whether it is a full team rig, the remote and the branch of the team data.
-## "teamRig": the mode in which the team data is maintained here, the one mode a cleanup
-## that needs a rig is offered in (CLEANUPS).
+## "teamRig": the mode in which the team data is maintained here, the one mode an operation
+## that needs a rig is offered in (CLEANUPS). "data", "git", "loop": the blocks of the team
+## data, of its git state, and of the main loop; "blocks", those the dashboard's own read
+## gives the root too, so that it knows from the start whether the team data is there.
 TEAM_DATA = {
     "level": "teamdata",
     "blocks": ("team-data", "loop"),
+    "data": "team-data", "git": "team-data-git", "loop": "loop",
     "present": ("team-data", "present", "yes"),
     "root": "root",
     "board": "board-",
@@ -174,11 +177,12 @@ TEAM_DATA = {
     "branch": ("scopes", None, "TEAM_DATA_BRANCH"),
     "teamRig": "team-rig",
 }
-## The cleanup operations of the tooling that `Team Data` holds under `Cleanup`, in their
-## order, each by its id: "label", what it shows as; "operation", the operation exactly as
-## it is called, with its words, never another made for the screen; "does", what it does,
-## as its help says it; "needs": "rig" where it is offered only in the mode of TEAM_DATA
-## "teamRig", None where it runs anywhere. Each runs in the big output dialog (DIALOGS
+## The operations of the tooling that `Team Data` holds under `Operations`, its cleanups and
+## its sync, in their order, each by its id: "label", what it shows as; "operation", the
+## operation exactly as it is called, with its words, never another made for the screen;
+## "does", what it does, as its help says it; "needs": "rig" where it is offered only in the
+## mode of TEAM_DATA "teamRig", "remote" only where a git remote of the team data is set
+## (TEAM_DATA "remote"), None where it runs anywhere. Each runs in the big output dialog (DIALOGS
 ## "output"), which follows what it writes. The trash of the board and of an inbox name
 ## an item, and the sweeps read and store a member's state: no such one is here.
 CLEANUPS = (
@@ -188,6 +192,9 @@ CLEANUPS = (
     ("final-gc", {"label": "Delete Expired Team Data", "operation": ["--intern-team-data-final-gc-deletion", "magic-coordinator"],
                   "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the heartbeat runs, as magic-coordinator.",
                   "needs": "rig"}),
+    ("sync", {"label": "Sync The Team Data", "operation": ["--magic-team-data-commit-pending", "magic-coordinator"],
+              "does": "Commits everything pending under the team data in one commit and pushes it to its remote, with one retry on a network failure; it pulls nothing, which the main loop does. It takes no lock: run it only while no routine holds the advance or the heartbeat lock.",
+              "needs": "remote"}),
 )
 ROOT_TITLE = "/"
 ROW_UP = ".."
@@ -197,8 +204,8 @@ FIXED_ROWS = {
     "sessions": (("launch", "Launch / Spawn", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
     "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
-    "teamdata": (("cleanup", "Cleanup", "cleanup", True),),
-    "teamdata/cleanup": tuple((cleanupId, cleanup["label"], "cleanup", False) for cleanupId, cleanup in CLEANUPS),
+    "teamdata": (("operations", "Operations", "operations", True),),
+    "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
 }
 ## What the left window shows of a folder, a row that opens a level of its own, while that
 ## row is selected, and while the row that goes up is selected inside it: the summary of
@@ -226,7 +233,7 @@ SUMMARIES = {
     "configuration/checker": {"lines": "checksSummary"},
     "configuration/keys": {"lines": "serverKeysSummary"},
     "teamdata": {"lines": "teamDataSummary"},
-    "teamdata/cleanup": {"lines": "cleanupsSummary"},
+    "teamdata/operations": {"lines": "cleanupsSummary"},
 }
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
@@ -309,12 +316,13 @@ READS = {
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
-    ## The root `Team Data`: its blocks come with those of the dashboard (TEAM_DATA), and
-    ## the digest of the settings is read beside them ("also": read with the list of the
-    ## level, while it is shown and while its folder has the focus), for the mode of the
-    ## workspace and the remote of the team data. Its `Cleanup` reads the digest, for the mode.
-    "list:teamdata": {"from": "list:dashboard", "also": ("list:settings",)},
-    "list:teamdata/cleanup": {"from": "list:settings"},
+    ## The root `Team Data`: its own blocks of the dashboard, its git state among them, which
+    ## is read only while the root is selected or opened (TEAM_DATA); and the digest of the
+    ## settings read beside them ("also": read with the list of the level, while it is shown
+    ## and while its folder has the focus), for the mode of the workspace and the remote of
+    ## the team data. Its `Operations` reads the digest, for the mode and the remote.
+    "list:teamdata": {"operation": ["--manager-dashboard-read", "team-data", "team-data-git", "loop"], "rows": "blocks", "also": ("list:settings",)},
+    "list:teamdata/operations": {"from": "list:settings"},
     ## The locations the tooling knows by a name, one row each. Read whatever is shown, as a
     ## kind of its own, since a path inside one of them stands by its name in the other
     ## views (PLACED): once when the screen starts; again, on the period and when a read is
@@ -671,8 +679,8 @@ COMMANDS = (
      "views": ("configuration/keys",), "for": "a server key", "on": ("configuration/keys:record",), "does": ("action", "line")},
     {"name": "run", "keys": ("ENTER",), "menu": ("console", 1), "label": "~S~tart", "status": "Start",
      "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
-    {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~c~leanup", "status": "Run",
-     "views": ("teamdata/cleanup",), "for": "a cleanup", "on": ("teamdata/cleanup:cleanup",), "only": True, "says": "run", "does": ("action", "cleanup")},
+    {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~o~peration", "status": "Run",
+     "views": ("teamdata/operations",), "for": "an operation of the team data", "on": ("teamdata/operations:operation",), "only": True, "says": "run", "does": ("action", "cleanup")},
     {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
     {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
@@ -1393,7 +1401,10 @@ def parseLevels(readKey, form, text):
     if form == "blocks":
         ## the blocks the root `Team Data` holds come with the same read (TEAM_DATA)
         rows = parseBlockRows(text)
-        return {level: rows, TEAM_DATA["level"]: [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]}
+        levels = {level: rows}
+        if level != TEAM_DATA["level"]:
+            levels[TEAM_DATA["level"]] = [dict(row) for row in rows if row["id"] in TEAM_DATA["blocks"]]
+        return levels
     if form == "places":
         return {level: parsePlaceRows(text)}
     return {level: parseRows(readKey, text)}
@@ -1668,8 +1679,8 @@ def localView(state, row):
     if level == "consoles" and row.get("start"):
         return startLines(row["start"], state.viewWidth)
     if level in ("dashboard", TEAM_DATA["level"]) and row.get("block"):
-        return blocksView(state, row["id"])
-    if level == TEAM_DATA["level"] + "/cleanup" and row["kind"] == "cleanup":
+        return blocksView(state, row["id"], levelKey(state.path))
+    if level == TEAM_DATA["level"] + "/operations" and row["kind"] == "operation":
         return cleanupLines(state, row)
     if level == "places" and row.get("place"):
         return placeLines(state, row["place"], state.viewWidth, state.view["info"])
@@ -5319,8 +5330,8 @@ def blockGrid(blocks, width, place=None):
 ## block of the selected row, as wide as the window. None until its read has answered,
 ## and while what it would set out is what stands there already: the same rows, at the
 ## same width, in the same style, with the same locations known.
-def blocksView(state, only=None):
-    rows = state.rows.get("dashboard")
+def blocksView(state, only=None, level="dashboard"):
+    rows = state.rows.get(level)
     if rows is None:
         return None
     places = state.rows.get("places")
@@ -5407,7 +5418,7 @@ def figureShown(figure):
 ## settings, each where it was read. Whether the team data is a repository no read here
 ## says, so it is not said.
 def teamDataSummary(state, path, row, form):
-    data = teamDataFigures(state, TEAM_DATA["blocks"][0])
+    data = teamDataFigures(state, TEAM_DATA["data"])
     if data is None:
         return None
     figures = dict(data)
@@ -5428,11 +5439,15 @@ def teamDataSummary(state, path, row, form):
             ("mode", "%s, %s%s" % (mode[0], mode[1], "; a full team rig" if full else "")),
             ("remote", remote["value"] if remote and remote["state"] == "set" else "none: no shared persistence is set"),
             ("branch", branch["value"] if branch and branch["state"] == "set" else "not set: the tooling's own")], state.viewWidth))
+    git = teamDataFigures(state, TEAM_DATA["git"])
+    if git:
+        lines.append("")
+        lines.extend(gitLines(dict(git)))
     board = [(key[len(TEAM_DATA["board"]):], figure) for key, figure in data if key.startswith(TEAM_DATA["board"])]
     if board:
         lines.append("")
         lines.append("Its board, the items by state: %s." % ", ".join("%s %s" % (name, figureValue(figure)) for name, figure in board))
-    loop = teamDataFigures(state, TEAM_DATA["blocks"][1])
+    loop = teamDataFigures(state, TEAM_DATA["loop"])
     lines.append("")
     if loop:
         lines.append("The main loop and the heartbeat%s:" % ("" if full is True else ", plain: they are judged on a full team rig alone"))
@@ -5440,19 +5455,54 @@ def teamDataSummary(state, path, row, form):
     else:
         lines.append("No main loop here: a workspace has one in the mode %s alone." % TEAM_DATA["teamRig"])
     lines.append("")
-    lines.append("Enter opens it: its blocks, and Cleanup.")
+    lines.append("Enter opens it: its blocks, and Operations.")
     return lines
 
 
-## The cleanup a row of `Cleanup` is, or None.
+## The git state of the team data, as its block gives it (figures by their keys), for the
+## summary: where it stands, its upstream, ahead and behind, what is not committed, its last
+## commit; and, where it tracks a remote and is not level with it or holds what is not
+## committed, that in words of their own line, with the worst level the tooling gave.
+def gitLines(git):
+    def value(key):
+        return unspaced(git[key]["value"]) if key in git else ""
+    if value("repository") != "yes":
+        return ["Git: the team data is no repository."]
+    lines = ["Git: on %s, %s." % (value("branch") or "no branch", ("tracking " + value("upstream")) if value("upstream") else "tracking nothing")]
+    if "ahead" in git:
+        lines.append("  %s ahead and %s behind, as of its last fetch" % (value("ahead"), value("behind")))
+    if "uncommitted" in git:
+        lines.append("  %s paths not committed" % value("uncommitted"))
+    if "last-commit" in git:
+        lines.append("  last commit %s ago%s" % (figureValue(git["last-commit"]), (": " + value("last-subject")) if value("last-subject") else ""))
+    said = []
+    if value("upstream") and value("behind").isdigit() and int(value("behind")):
+        said.append("behind its remote by %s" % value("behind"))
+    if value("upstream") and value("ahead").isdigit() and int(value("ahead")):
+        said.append("ahead of its remote by %s" % value("ahead"))
+    if value("upstream") and value("uncommitted").isdigit() and int(value("uncommitted")):
+        said.append("%s paths are not committed" % value("uncommitted"))
+    if said:
+        order = [name for name, level in DASHBOARD["levels"]]
+        worst = max([order.index(git[key]["level"]) for key in ("ahead", "behind", "uncommitted") if key in git and git[key]["level"] in order] + [0])
+        lines.append("It is %s%s." % ("; ".join(said), "  (%s)" % order[worst] if worst else ""))
+    return lines
+
+
+## The operation a row of `Operations` is, or None.
 def cleanupOf(row):
-    return dict(CLEANUPS).get(row["id"]) if row is not None and row["kind"] == "cleanup" else None
+    return dict(CLEANUPS).get(row["id"]) if row is not None and row["kind"] == "operation" else None
 
 
 ## Why a cleanup is not offered here, or nothing: one that needs a rig, in any mode of
 ## the workspace but a team rig, by the label of that mode; and while the mode is read.
 def cleanupRefusal(state, row):
     cleanup = cleanupOf(row)
+    if cleanup is not None and cleanup["needs"] == "remote":
+        remote = digestLineOf(state, *TEAM_DATA["remote"])
+        if digestLineOf(state, *TEAM_DATA["mode"]) is None:
+            return "whether a git remote of the team data is set is still being read"
+        return "" if remote is not None and remote["state"] == "set" else "no git remote of the team data is set"
     if cleanup is None or cleanup["needs"] != "rig":
         return ""
     line = digestLineOf(state, *TEAM_DATA["mode"])
@@ -5470,16 +5520,16 @@ def cleanupLines(state, row):
     refusal = cleanupRefusal(state, row)
     lines = wrapToCells(cleanup["does"], max(10, state.viewWidth - 1)) + [""]
     lines.extend(fieldLines([("runs", commandText(cleanup["operation"])),
-                             ("needs", "a team rig" if cleanup["needs"] == "rig" else "nothing more"),
+                             ("needs", {"rig": "a team rig", "remote": "a git remote of the team data"}.get(cleanup["needs"], "nothing more")),
                              ("here", ("not offered: " + refusal) if refusal else "Enter asks, then runs it")], state.viewWidth))
     return lines
 
 
 ## The summary of `Cleanup`: how many there are and how many run here, then each.
 def cleanupsSummary(state, path, row, form):
-    rows = [newRow(cleanupId, cleanup["label"], "cleanup") for cleanupId, cleanup in CLEANUPS]
+    rows = [newRow(cleanupId, cleanup["label"], "operation") for cleanupId, cleanup in CLEANUPS]
     offered = [held for held in rows if not cleanupRefusal(state, held)]
-    lines = ["%d cleanups: %d run here." % (len(rows), len(offered))]
+    lines = ["%d operations: %d run here." % (len(rows), len(offered))]
     for held in rows:
         refusal = cleanupRefusal(state, held)
         lines.append("  %s: %s" % (held["label"], ("not here, " + refusal) if refusal else "runs here"))

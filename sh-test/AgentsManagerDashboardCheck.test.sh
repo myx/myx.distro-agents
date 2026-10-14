@@ -250,7 +250,7 @@ echo "-- 2. the names --"
 rigRun "$rigRead" disk sessions machine
 rigAssert "named blocks alone are printed, in the declared order whatever the order given, each as the whole read has it" "$rigRc $( rigBlocks ) $( [ "$( rigBlock sessions )$( rigBlock machine )$( rigBlock disk )" = "$( rigBlock sessions "$rigTmp/whole" )$( rigBlock machine "$rigTmp/whole" )$( rigBlock disk "$rigTmp/whole" )" ] && echo same )" "0 sessions machine disk same"
 rigRun "$rigRead" disk no-such-block
-rigAssert "a word that is no block refuses the call, rc 1, nothing on stdout, in one line that lists the blocks and does not repeat the word" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: a word given is none of its blocks -- nothing was printed. Its blocks: sessions, pending, tokens, team, team-data, loop, machine, disk, testing" ) $( rigTroubles ) $( LC_ALL=C grep -c -F -e 'no-such-block' "$rigTmp/err" || : )" "1 0 1 1 0"
+rigAssert "a word that is no block refuses the call, rc 1, nothing on stdout, in one line that lists the blocks and does not repeat the word" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigWhole "$rigTmp/err" "⛔ ERROR: DistroAgentsTools $rigRead: a word given is none of its blocks -- nothing was printed. Its blocks: sessions, pending, tokens, team, team-data, team-data-git, loop, machine, disk, testing" ) $( rigTroubles ) $( LC_ALL=C grep -c -F -e 'no-such-block' "$rigTmp/err" || : )" "1 0 1 1 0"
 
 echo "-- 3. the machine by the stand-ins of FreeBSD, and the volumes on one --"
 rigSystem freebsd ; printf 'one\n' > "$rigTmp/df.mode"
@@ -301,6 +301,16 @@ rm -rf "$rigBare/.local/temp"
 rigAssert "every file of the rig but the two kept ones is as it was: no registry rebuilt, no record and no store touched" "$( rigTree )" "$rigTreeBefore"
 rigAssert "no git command and nothing remote was run" "$( [ -f "$rigTmp/forbidden.calls" ] && cat "$rigTmp/forbidden.calls" || echo none )" "none"
 
+echo "-- 6b. the audit and the vault of the team data, and its git state, named alone --"
+mkdir -p "$rigData/audit/2026-10" "$rigData/audit/2026-09" "$rigData/vault/notes"
+: > "$rigData/audit/artifact-20261013T1100Z-one.md" ; : > "$rigData/audit/2026-10/transcript-20261012T0900Z-two.md" ; : > "$rigData/audit/2026-09/transcript-20260930T0900Z-three.md"
+: > "$rigData/vault/fact-one.md" ; : > "$rigData/vault/notes/fact-two" ; : > "$rigData/audit/2026-10/session-20261013T0800Z-four.log"
+touch -t 202610010000 "$rigData/vault/fact-one.md" "$rigData/vault/notes/fact-two"
+rigRun "$rigRead" team-data
+rigAssert "the audit by its items, those of this month, and the age of its newest by the stamp of its name; the vault by its files" "$( rigBlock team-data | LC_ALL=C tr '/' '\n' | LC_ALL=C grep -e audit -e vault | LC_ALL=C sed 's/vault-newest Vault_Newest_Item [0-9]* /vault-newest Vault_Newest_Item N /' | LC_ALL=C tr '\n' '/' )" "figure team-data audit-items Audit_Items 4 count - -/figure team-data audit-month Audit_Items_This_Month 3 count - -/figure team-data audit-newest Audit_Newest_Item 3600 seconds - -/figure team-data vault-items Vault_Items 2 count - -/figure team-data vault-newest Vault_Newest_Item N seconds - -/"
+rigRun "$rigRead" team-data-git
+rigAssert "the git state is a block of its own, printed only where it is named: where git says the store is no repository, that alone" "$rigRc $( rigBlock team-data-git )" "0 block team-data-git Team_Data_Git 1/figure team-data-git repository Team_Data_Repository no - - -/"
+
 echo "-- 7. the caller rule of the family, and its place in it --"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigRead"
@@ -309,7 +319,7 @@ rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout
 rigAssert "the family's include has one arm for the dashboard, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-dashboard-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerDashboard.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
 rigRun --manager-dashboard-no-such
 rigAssert "an operation its subject does not have is refused by name, rc 1" "$rigRc $( rigWhole "$rigTmp/err" "DistroAgentsTools: ⛔ ERROR: invalid option: --manager-dashboard-no-such" )" "1 1"
-rigAssert "the blocks have one declaration, and each names a reader the include has" "$( LC_ALL=C grep -c -e '^agentsManagerDashboardBlocks=' "$rigHere/AgentsTools.ManagerDashboard.include" || : ) $( LC_ALL=C sed -n -e '/^agentsManagerDashboardBlocks=/,/"$/p' "$rigHere/AgentsTools.ManagerDashboard.include" | LC_ALL=C tr -d '"\t' | LC_ALL=C sed -e 's/^agentsManagerDashboardBlocks=//' | while IFS=: read -r rigOne rigLabel rigReader ; do [ -z "$rigOne" ] || LC_ALL=C grep -c -e "^$rigReader(){" "$rigHere/AgentsTools.ManagerDashboard.include" || : ; done | LC_ALL=C tr -d '\n' )" "1 111111111"
+rigAssert "the blocks have one declaration, and each names a reader the include has" "$( LC_ALL=C grep -c -e '^agentsManagerDashboardBlocks=' "$rigHere/AgentsTools.ManagerDashboard.include" || : ) $( LC_ALL=C sed -n -e '/^agentsManagerDashboardBlocks=/,/"$/p' "$rigHere/AgentsTools.ManagerDashboard.include" | LC_ALL=C tr -d '"\t' | LC_ALL=C sed -e 's/^agentsManagerDashboardBlocks=//' | while IFS=: read -r rigOne rigLabel rigReader ; do [ -z "$rigOne" ] || LC_ALL=C grep -c -e "^$rigReader(){" "$rigHere/AgentsTools.ManagerDashboard.include" || : ; done | LC_ALL=C tr -d '\n' )" "1 1111111111"
 
 echo "-- 8. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

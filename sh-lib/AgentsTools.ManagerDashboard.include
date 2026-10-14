@@ -22,6 +22,8 @@
 ## the system, by the command each of macOS, Linux and FreeBSD has for it, and a figure the
 ## host has no command for is left out.
 ##
+## ONE BLOCK RUNS GIT, the git state of the team data, local calls alone and only where it is
+## asked for by its name (agentsManagerDashboardNamedOnly): every other block runs none.
 ## FOR VIEWING, AND CHEAP: a screen reads it every ten seconds. NO REGISTRY IS REBUILT: the
 ## two registries of the sessions are read as they lie, as the list of sessions left them,
 ## and only what no file holds is measured at the call, which runs are alive. No transcript
@@ -42,6 +44,7 @@ agentsManagerDashboardBlocks="sessions:Sessions_And_Agents:AgentsToolsManagerDas
 	tokens:Session_Tokens:AgentsToolsManagerDashboardTokens
 	team:Team_Members:AgentsToolsManagerDashboardTeam
 	team-data:Team_Data:AgentsToolsManagerDashboardTeamData
+	team-data-git:Team_Data_Git:AgentsToolsManagerDashboardTeamDataGit
 	loop:Main_Loop_And_Heartbeat:AgentsToolsManagerDashboardLoop
 	machine:The_Machine:AgentsToolsManagerDashboardMachine
 	disk:Disk_Space:AgentsToolsManagerDashboardDisk
@@ -59,6 +62,12 @@ agentsManagerDashboardLoadBad=200
 
 ## For how long the size of the team data is kept once it was measured, in seconds.
 agentsManagerDashboardSizeSeconds=600
+
+## The blocks printed only where they are asked for by name, never in the read of every
+## block: the git state of the team data, which runs git (local calls alone, no fetch), and
+## is read by a screen only while it shows the team data. For how long it is kept, in seconds.
+agentsManagerDashboardNamedOnly="team-data-git"
+agentsManagerDashboardGitSeconds=30
 
 ## The states of the board in the order their counts are printed; a folder of the board
 ## that is none of them follows, in the order of its name.
@@ -446,6 +455,7 @@ AgentsToolsManagerDashboardTeamData(){
 	AgentsToolsManagerDashboardFigure team-data present "Team Data Present" yes - ok ""
 	AgentsToolsManagerDashboardSize "$dataRoot"
 	[ -z "$dashboardSize" ] || AgentsToolsManagerDashboardFigure team-data size "Team Data Size" "$dashboardSize" bytes - ""
+	AgentsToolsManagerDashboardStores "$dataRoot"
 	[ -d "$dataRoot/board" ] || return 0
 	for dataState in $agentsManagerDashboardBoardStates ; do
 		dataSeen="$dataSeen$dataState "
@@ -473,6 +483,112 @@ AgentsToolsManagerDashboardTeamData(){
 		for (stateAt = 1 ; stateAt <= stateWords ; stateAt++) stateLabel = stateLabel ( stateAt > 1 ? "_" : "" ) toupper(substr(stateWord[stateAt], 1, 1)) substr(stateWord[stateAt], 2) ;
 		print $1, $2, stateLabel ;
 	}' )"
+	return 0
+}
+
+## THE AUDIT AND THE VAULT OF THE TEAM DATA, beside its board: of each of the two that is
+## there, how many items it holds and how long ago its newest came; of the audit, which
+## files its items by month, also how many came this month. An audit item is a file of
+## `audit/` or of a month folder of it, a record or a session's log, dated by the stamp of its
+## name, `<YYYYMMDD>T<HHMM>`,
+## which a checkout keeps; a vault item is any file of `vault/` or of a folder of it, whose
+## names are open, dated by the file. No item is opened. Kept as the size is.
+AgentsToolsManagerDashboardStores(){ ## team data root
+	local storesRoot="$1" storesWords="" storesMonth storesStat="" storesAudit="- - -" storesVault="- -"
+	local storesItems storesThisMonth storesStamp storesCount storesNewest
+	storesMonth="$( date -u '+%Y-%m' 2> /dev/null )" || storesMonth=""
+	if AgentsToolsManagerDashboardKept team-data-stores "$agentsManagerDashboardSizeSeconds" "$storesRoot" ; then
+		storesWords="$dashboardKept"
+	else
+		if [ -d "$storesRoot/audit" ] ; then
+			storesAudit="$( cd "$storesRoot/audit" 2> /dev/null && for storesItems in * */* ; do [ -f "$storesItems" ] && printf '%s\n' "$storesItems" ; done | LC_ALL=C awk -v month="$storesMonth" '
+				{ items++ ; name = $0 ; folder = "" ; if ( index( name, "/" ) ) { folder = substr( name, 1, index( name, "/" ) - 1 ) ; sub( /^[^\/]*\//, "", name ) }
+				  stamp = "" ; if ( match( name, /[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9]/ ) ) stamp = substr( name, RSTART, RLENGTH )
+				  if ( stamp > newest ) newest = stamp
+				  if ( folder == month || ( folder == "" && stamp != "" && substr( stamp, 1, 4 ) "-" substr( stamp, 5, 2 ) == month ) ) inMonth++ }
+				END { printf "%d %d %s\n", items, inMonth, ( newest == "" ? "-" : newest ) }' )" || storesAudit="- - -"
+		fi
+		if [ -d "$storesRoot/vault" ] ; then
+			if stat -f '%m' / > /dev/null 2>&1 ; then storesStat="-f %m" ; elif stat -c '%Y' / > /dev/null 2>&1 ; then storesStat="-c %Y" ; fi
+			storesCount=0 ; storesNewest="-"
+			for storesItems in "$storesRoot/vault"/* "$storesRoot/vault"/*/* ; do
+				[ -f "$storesItems" ] || continue
+				storesCount=$(( storesCount + 1 ))
+				[ -n "$storesStat" ] || continue
+				storesStamp="$( stat $storesStat "$storesItems" 2> /dev/null )" || continue
+				case "$storesStamp" in ''|*[!0123456789]*) continue ;; esac
+				[ "$storesNewest" != "-" ] && [ "$storesNewest" -ge "$storesStamp" ] || storesNewest="$storesStamp"
+			done
+			storesVault="$storesCount $storesNewest"
+		fi
+		storesWords="$storesAudit $storesVault"
+		[ "$storesWords" = "- - - - -" ] || AgentsToolsManagerDashboardKeep team-data-stores "$storesRoot" "$storesWords" || :
+	fi
+	read -r storesItems storesThisMonth storesStamp storesCount storesNewest <<< "$storesWords"
+	case "$storesItems" in ''|*[!0123456789]*) ;; *)
+		AgentsToolsManagerDashboardFigure team-data audit-items "Audit Items" "$storesItems" count - ""
+		AgentsToolsManagerDashboardFigure team-data audit-month "Audit Items This Month" "${storesThisMonth:-0}" count - ""
+		case "$storesStamp" in ????????T????)
+			AgentsToolsManagerDashboardAge "${storesStamp:0:4}-${storesStamp:4:2}-${storesStamp:6:2}T${storesStamp:9:2}:${storesStamp:11:2}:00Z"
+			[ -z "$dashboardAge" ] || AgentsToolsManagerDashboardFigure team-data audit-newest "Audit Newest Item" "$dashboardAge" seconds - ""
+		;; esac
+	;; esac
+	case "$storesCount" in ''|*[!0123456789]*) ;; *)
+		AgentsToolsManagerDashboardFigure team-data vault-items "Vault Items" "$storesCount" count - ""
+		case "$storesNewest" in ''|*[!0123456789]*) ;; *)
+			[ "$dashboardNow" -lt "$storesNewest" ] || AgentsToolsManagerDashboardFigure team-data vault-newest "Vault Newest Item" "$(( dashboardNow - storesNewest ))" seconds - ""
+		;; esac
+	;; esac
+	return 0
+}
+
+## THE GIT STATE OF THE TEAM DATA, printed only where it is asked for by name (its one reader
+## that runs git): local calls alone, no fetch, nothing reaches another host; kept for
+## agentsManagerDashboardGitSeconds. Whether the store is a repository; where it is, its
+## branch, the upstream it tracks, how many commits it is ahead and behind that as of its
+## last fetch, how many paths under the store are not committed, and its last commit, how
+## long ago and its subject. Judged only on a full team rig (AgentsToolsManagerConfigMode):
+## ahead or behind or paths not committed `warn`, ahead and behind at once `bad`, else `ok`.
+AgentsToolsManagerDashboardTeamDataGit(){
+	local gitRoot="${MDAT_DATA_ROOT:-}" gitWords="" gitRepo gitBranch gitUpstream gitAhead gitBehind gitDirty gitEpoch gitSubject gitJudged="" gitLevel
+	[ -n "$gitRoot" ] && [ -d "$gitRoot" ] || return 0
+	gitRoot="${gitRoot%/}"
+	if AgentsToolsManagerDashboardKept team-data-git "$agentsManagerDashboardGitSeconds" "$gitRoot" ; then
+		gitWords="$dashboardKept"
+	else
+		if [ "$( git -C "$gitRoot" rev-parse --is-inside-work-tree 2> /dev/null )" != "true" ] ; then
+			gitWords="no"
+		else
+			gitBranch="$( git -C "$gitRoot" symbolic-ref --quiet --short HEAD 2> /dev/null )" || gitBranch="-"
+			gitUpstream="$( git -C "$gitRoot" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2> /dev/null )" || gitUpstream="-"
+			gitAhead="-" ; gitBehind="-"
+			[ "${gitUpstream:--}" = "-" ] || read -r gitAhead gitBehind <<< "$( git -C "$gitRoot" rev-list --left-right --count 'HEAD...@{u}' 2> /dev/null )" || :
+			gitDirty="$( git -C "$gitRoot" status --porcelain -- . 2> /dev/null | LC_ALL=C awk 'END { print NR }' )" || gitDirty="-"
+			read -r gitEpoch gitSubject <<< "$( git -C "$gitRoot" log -1 --format='%ct %s' 2> /dev/null )" || :
+			gitWords="yes ${gitBranch:--} ${gitUpstream:--} ${gitAhead:--} ${gitBehind:--} ${gitDirty:--} ${gitEpoch:--} ${gitSubject:-}"
+		fi
+		AgentsToolsManagerDashboardKeep team-data-git "$gitRoot" "$gitWords" || :
+	fi
+	read -r gitRepo gitBranch gitUpstream gitAhead gitBehind gitDirty gitEpoch gitSubject <<< "$gitWords"
+	AgentsToolsManagerDashboardFigure team-data-git repository "Team Data Repository" "${gitRepo:-no}" - - ""
+	[ "$gitRepo" = "yes" ] || return 0
+	case "$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerConfig.include" --definitions-only > /dev/null 2>&1 || : ; AgentsToolsManagerConfigMode 2> /dev/null )" in *" yes") gitJudged="yes" ;; esac
+	AgentsToolsManagerDashboardFigure team-data-git branch "Team Data Branch" "$gitBranch" - - ""
+	[ "$gitUpstream" = "-" ] || AgentsToolsManagerDashboardFigure team-data-git upstream "Team Data Upstream" "$gitUpstream" - - ""
+	case "$gitAhead:$gitBehind" in *[!0123456789:]*|:*|*:) ;; *)
+		gitLevel="ok" ; [ "$gitAhead" = 0 ] && [ "$gitBehind" = 0 ] || gitLevel="warn" ; [ "$gitAhead" = 0 ] || [ "$gitBehind" = 0 ] || gitLevel="bad"
+		[ -n "$gitJudged" ] || gitLevel="-"
+		AgentsToolsManagerDashboardFigure team-data-git ahead "Commits Ahead" "$gitAhead" count "$gitLevel" ""
+		AgentsToolsManagerDashboardFigure team-data-git behind "Commits Behind" "$gitBehind" count "$gitLevel" ""
+	;; esac
+	case "$gitDirty" in ''|*[!0123456789]*) ;; *)
+		gitLevel="ok" ; [ "$gitDirty" = 0 ] || gitLevel="warn" ; [ -n "$gitJudged" ] || gitLevel="-"
+		AgentsToolsManagerDashboardFigure team-data-git uncommitted "Paths Not Committed" "$gitDirty" count "$gitLevel" ""
+	;; esac
+	case "$gitEpoch" in ''|*[!0123456789]*) ;; *)
+		[ "$dashboardNow" -lt "$gitEpoch" ] || AgentsToolsManagerDashboardFigure team-data-git last-commit "Last Commit" "$(( dashboardNow - gitEpoch ))" seconds - ""
+		[ -z "$gitSubject" ] || AgentsToolsManagerDashboardFigure team-data-git last-subject "Last Commit Subject" "$gitSubject" - - ""
+	;; esac
 	return 0
 }
 
@@ -735,7 +851,12 @@ case "$1" in
 			fi
 			readWanted="$readWanted$readName "
 		done
-		[ $# -gt 0 ] || readWanted=" $readKnown "
+		## with no name, every block but those printed only where they are named
+		if [ $# -eq 0 ] ; then
+			for readOne in $readKnown ; do
+				case " $agentsManagerDashboardNamedOnly " in *" $readOne "*) ;; *) readWanted="$readWanted$readOne " ;; esac
+			done
+		fi
 		## Now, once for every figure of the call: seconds since 1970, and this host's date of today.
 		read -r dashboardNow dashboardToday <<< "$( date '+%s %Y-%m-%d' 2> /dev/null )" || :
 		case "$dashboardNow" in ''|*[!0123456789]*) dashboardNow=0 ;; esac

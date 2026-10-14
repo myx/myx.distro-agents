@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the root `Team Data` of the manager screen (sh-lib/AgentsManagerScreen.py) and on its
-## `Cleanup`, run in the big output dialog, run rather than read. The screen's own code runs through the stand-in
+## `Operations`, its cleanups and its sync, run in the big output dialog, run rather than read. The screen's own code runs through the stand-in
 ## terminal of the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it
 ## calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the
 ## fixture, or becomes a script of the rig that writes on both streams over time and ends as it is told.
@@ -58,6 +58,15 @@ rigDeployed="no:set_at_deployment:_a_wizard_will_change_it"
 	rigRow figure team-data size Team_Data_Size 81309696 bytes - -
 	rigRow figure team-data board-running Board_Items_Running 43 count - -
 	rigRow figure team-data board-review Board_Items_Review 142 count - -
+	rigRow block team-data-git Team_Data_Git 8
+	rigRow figure team-data-git repository Team_Data_Repository yes - - -
+	rigRow figure team-data-git branch Team_Data_Branch main - - -
+	rigRow figure team-data-git upstream Team_Data_Upstream origin/main - - -
+	rigRow figure team-data-git ahead Commits_Ahead 2 count bad -
+	rigRow figure team-data-git behind Commits_Behind 1 count bad -
+	rigRow figure team-data-git uncommitted Paths_Not_Committed 3 count warn -
+	rigRow figure team-data-git last-commit Last_Commit 7500 seconds - -
+	rigRow figure team-data-git last-subject Last_Commit_Subject the_last_change - - -
 	rigRow block loop Main_Loop_And_Heartbeat 2
 	rigRow figure loop main-loop-outcome Main_Loop_Last_Outcome failed - bad -
 	rigRow figure loop main-loop-failures Main_Loop_Consecutive_Failures 1 count warn -
@@ -82,7 +91,8 @@ rigDigest just-agents missing no missing - > "$rigF/digest.agents"
 rigCase(){ ## name, dashboard (rig, agents or none), digest (full, plain or agents)
 	export MANAGER_SCREEN_RIG="$rigTmp/$1"
 	mkdir -p "$MANAGER_SCREEN_RIG"
-	cp "$rigF/dashboard.$2" "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read"
+	LC_ALL=C grep -v -e 'team-data-git' "$rigF/dashboard.$2" > "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read"
+	LC_ALL=C grep -v -e 'machine' "$rigF/dashboard.$2" > "$MANAGER_SCREEN_RIG/rows.--manager-dashboard-read team-data team-data-git loop"
 	cp "$rigF/digest.$3" "$MANAGER_SCREEN_RIG/rows.--manager-config-digest --full"
 	: > "$MANAGER_SCREEN_RIG/calls"
 	: > "$MANAGER_SCREEN_RIG/words"
@@ -111,8 +121,8 @@ print(" / ".join(held))
 rigWords(){ ## text -- how many starts of the stand-in had exactly these words, each between brackets
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/words" || :
 }
-## The way to the cleanups: the root by its number, with the digest read beside its list, then into `Cleanup`, its
-## first row selected.
+## The way to the operations: the root by its number, with the digest read beside its list, then into `Operations`,
+## its first row selected.
 rigToCleanup='turn
 wait list 10
 keys 5
@@ -167,9 +177,10 @@ RIGSCRIPT
 rigAssert "where the dashboard says the team data is there, Team Data is the fifth of nine roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "9 4 Team Data"
 rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch / Spawn has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *[0-9]* ' -e 'Configuration  *[0-9]* ' -e 'Launch / Spawn  *[0-9]* ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch / Spawn|"
 rigAssert "selected, its summary says where the team data is, that it is there and its size, and the mode of the workspace" "$( rigHolds on '│Team data, there:' ) $( rigHolds on '│  /rig/ws/team-data ' ) $( rigHolds on '│  Team Data Present: yes' ) $( rigHolds on '│  Team Data Size: 77.5M' ) $( rigHolds on '│mode      Team Rig, saved for the workspace; a full team rig' )" "1 1 1 1 1"
+rigAssert "its git state, nicely: where it stands and what it tracks, ahead and behind, what is not committed, its last commit, and in words of their own what is not level, with the worst level" "$( rigHolds on '│Git: on main, tracking origin/main.' ) $( rigHolds on '│  2 ahead and 1 behind, as of its last fetch' ) $( rigHolds on '│  3 paths not committed' ) $( rigHolds on '│  last commit 2h 5m ago: the last change' ) $( rigHolds on '│It is behind its remote by 1; ahead of its remote by 2; 3 paths' )" "1 1 1 1 1"
 rigAssert "then the remote and the branch of the team data, its board by state, and the main loop, judged on a full team rig" "$( rigHolds on 'remote    git@rig.invalid:team-data.git' ) $( rigHolds on "branch    not set: the tooling's own" ) $( rigHolds on 'Its board, the items by state: running 43, review 142.' ) $( rigHolds on 'The main loop and the heartbeat:' ) $( rigHolds on 'Main Loop Last Outcome: failed  (bad)' )" "1 1 1 1 1"
-rigAssert "focused, it read the dashboard and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
-rigAssert "entered, it holds Cleanup and its blocks of the dashboard: the team data and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds in ' Cleanup...' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "teamdata 4 1 1 0"
+rigAssert "focused, it read its blocks of the dashboard, its git state among them, and the digest of the settings, as they are called" "$( rigWords '[--manager-dashboard-read][team-data][team-data-git][loop]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-config-digest][--full]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
+rigAssert "entered, it holds Operations and its blocks: the team data, its git state and the main loop" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds in ' Operations...' ) $( rigHolds in ' Team Data Git' ) $( rigHolds in ' Main Loop And Heartbeat' ) $( rigHolds in ' The Machine' )" "teamdata 5 1 1 1 0"
 
 echo "-- 2. the main loop by the mode of the workspace --"
 rigCase plain rig plain
@@ -199,11 +210,15 @@ show gc
 keys ENTER
 get gc
 cells st 35 0 120
+keys DOWN
+turn
+show sync
 RIGSCRIPT
 rigAssert "a workspace that is just agents has no main loop, and its summary says so" "$( rigHolds on 'mode      Just Agents, saved for the workspace' ) $( rigHolds on 'No main loop here: a workspace has one in the mode team-rig alone.' ) $( rigHolds on 'Main Loop' )" "1 1 0"
-rigAssert "there Cleanup shows each cleanup, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs      --owner-cleanup-purge' ) $( rigHolds purge 'here      Enter asks, then runs it' )" "teamdata/cleanup Purge The Cleanup Folder 1 1 1"
+rigAssert "there Operations shows each operation, what it does, what it runs, and that it is offered" "$( rigVal purge.path ) $( rigVal purge.selectedLabel ) $( rigHolds purge 'Empties the cleanup folder of this workspace' ) $( rigHolds purge 'runs      --owner-cleanup-purge' ) $( rigHolds purge 'here      Enter asks, then runs it' )" "teamdata/operations Purge The Cleanup Folder 1 1 1"
+rigAssert "the sync of the team data is not offered where no git remote of it is set" "$( rigHolds sync 'runs      --magic-team-data-commit-pending magic-coordinator' ) $( rigHolds sync 'here      not offered: no git remote of the team data is set' )" "1 1"
 rigAssert "the one that needs a team rig is not offered, with the label of the mode" "$( rigHolds gc 'runs      --intern-team-data-final-gc-deletion magic-coordinator' ) $( rigHolds gc 'here      not offered: for a team rig alone: this workspace is Just' )" "1 1"
-rigAssert "Enter on it opens nothing and says why in the status line, and nothing is called" "[$( rigVal gc.dialog )] $( rigVal gc.notice ) / $( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "[] Run the cleanup: for a team rig alone: this workspace is Just Agents / 0"
+rigAssert "Enter on it opens nothing and says why in the status line, and nothing is called" "[$( rigVal gc.dialog )] $( rigVal gc.notice ) / $( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "[] Run the operation: for a team rig alone: this workspace is Just Agents / 0"
 
 echo "-- 3. a cleanup runs in the big output dialog, followed while it writes --"
 rigCase run rig agents
@@ -251,6 +266,16 @@ get ended
 RIGSCRIPT
 rigAssert "a team rig offers the cleanup that needs one, and calls it as the tooling has it, with its member" "$( rigWords '[--intern-team-data-final-gc-deletion][magic-coordinator]' )" "1"
 rigAssert "one that ends by a signal says the signal by its number and its name" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "gc: about to be ended / Ended by signal 9 (SIGKILL), after Ns."
+rigCase sync rig full
+printf 'script synced.sh\n' > "$MANAGER_SCREEN_RIG/mode.--magic-team-data-commit-pending"
+printf 'echo "TEAM-DATA-NOTHING-PENDING: /rig/ws/team-data"\n' > "$MANAGER_SCREEN_RIG/synced.sh"
+rigScript <<RIGSCRIPT
+$rigToCleanup
+keys DOWN DOWN ENTER ENTER
+wait follow 10
+get ended
+RIGSCRIPT
+rigAssert "where a git remote is set the sync is offered, runs the tooling's own commit and push as it is, and ends with status 0" "$( rigWords '[--magic-team-data-commit-pending][magic-coordinator]' ) $( rigVal ended.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "1 TEAM-DATA-NOTHING-PENDING: /rig/ws/team-data / Ended with status 0, after Ns."
 rigCase stop rig agents
 printf 'script slow.sh\n' > "$MANAGER_SCREEN_RIG/mode.--owner-cleanup-purge"
 printf 'echo "slow: up"\nsleep 20\necho "slow: never"\n' > "$MANAGER_SCREEN_RIG/slow.sh"
