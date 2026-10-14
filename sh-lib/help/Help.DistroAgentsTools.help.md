@@ -2486,10 +2486,13 @@
 			  clone is retried by the main loop. --apply makes the
 			  store a repository, cloned or initialised; a folder
 			  with content is made a clone in place, no file of
-			  it changed, its own paths left uncommitted; a
-			  repository with another origin, or none, gets the
-			  remote as origin. --apply then reaches the remote
-			  once. With a remote set the check has
+			  it changed, and what it held is committed as it
+			  stands and pushed; a repository with another
+			  origin, or none, gets the remote as origin, its
+			  uncommitted paths committed. --apply then reaches
+			  the remote once; a remote that went its own way is
+			  merged, the remote's version of a file changed on
+			  both sides standing. With a remote set the check has
 			  TEAM_DATA_GIT_SYNC: WARN, with the reason, where the
 			  store is no clone of it, no push has succeeded yet,
 			  or the last call to it failed. A repository with no

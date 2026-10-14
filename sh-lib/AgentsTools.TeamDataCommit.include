@@ -280,13 +280,14 @@ AgentsToolsTeamDataBranch(){
 
 ## THE REMOTE OF A STORE THAT IS A REPOSITORY OF ITS OWN. Where the setting names a remote
 ## the store does not have as its origin, none at all or another address, the origin is
-## set to what the setting says, and one line says so. A store that never had an origin
-## was made before any remote was set, on whatever branch git gave it: it is put on the
-## branch the setting names, by renaming its own, which is a change of a name and loses
-## nothing, and that branch is told to follow the origin's. Without that the main loop's
-## pull has nothing to follow, and git/clonePull removes a checkout that is on another
-## branch than the one it is given. Never a force, and a store inside a larger repository
-## is never touched. rc 0 where the origin is the remote, now or already.
+## set to what the setting says, and one line says so. THE STORE'S BRANCH IS NEVER CHANGED:
+## a store that never had an origin keeps whatever branch it is on, and that branch is told
+## to follow the remote's branch the setting names (AgentsToolsTeamDataBranch), which is the
+## one every sync fetches, merges from and pushes to by its full name, whatever the store's
+## own branch is called (AgentsToolsTeamDataSync). What such a store holds uncommitted is committed as it
+## stands (AgentsToolsTeamDataCommitHeld); the push is the caller's. Never a force, and a
+## store inside a larger repository is never touched. rc 0 where the origin is the remote,
+## now or already.
 AgentsToolsTeamDataRemoteAlign(){ ## where, remote
 	local alignWas="" alignHas="" alignBranch="" alignWant=""
 	[ -n "${MDAT_DATA_ROOT:-}" ] && [ -e "$MDAT_DATA_ROOT/.git" ] && [ -n "${2:-}" ] || return 1
@@ -306,43 +307,101 @@ AgentsToolsTeamDataRemoteAlign(){ ## where, remote
 	[ -z "$alignHas" ] || return 0
 	alignWant="$( AgentsToolsTeamDataBranch )"
 	alignBranch="$( git -C "$MDAT_DATA_ROOT" symbolic-ref --short -q HEAD 2> /dev/null )" || alignBranch=""
-	if [ -n "$alignBranch" ] && [ "$alignBranch" != "$alignWant" ] && ! git -C "$MDAT_DATA_ROOT" show-ref --verify --quiet "refs/heads/$alignWant" 2> /dev/null ; then
-		if git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet HEAD > /dev/null 2>&1 ; then
-			git -C "$MDAT_DATA_ROOT" branch -m "$alignBranch" "$alignWant" > /dev/null 2>&1 || alignWant="$alignBranch"
-		else
-			git -C "$MDAT_DATA_ROOT" symbolic-ref HEAD "refs/heads/$alignWant" > /dev/null 2>&1 || alignWant="$alignBranch"
-		fi
-		[ "$alignWant" = "$alignBranch" ] || echo "# $MDSC_CMD: $1: the store never had a remote and was on the branch $alignBranch: the branch is renamed $alignWant, the one TEAM_DATA_BRANCH names, with every commit of it" >&2
-		alignBranch="$alignWant"
-	fi
 	if [ -n "$alignBranch" ] && [ -z "$( git -C "$MDAT_DATA_ROOT" config --get "branch.$alignBranch.remote" 2> /dev/null )" ] ; then
 		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.remote" origin > /dev/null 2>&1 || :
-		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.merge" "refs/heads/$alignBranch" > /dev/null 2>&1 || :
+		git -C "$MDAT_DATA_ROOT" config "branch.$alignBranch.merge" "refs/heads/$alignWant" > /dev/null 2>&1 || :
 	fi
+	AgentsToolsTeamDataCommitHeld "team data this machine held uncommitted when its store was given the origin $( AgentsToolsTeamDataRemoteName "$2" ), as it stood"
 	return 0
 }
 
-## THE REMOTE IS AHEAD AND THE STORE HAS NOTHING IT LACKS: the store's branch is moved up
-## to the remote's, which can lose nothing, and one line says so. Where the two have gone
-## apart nothing is done here. Asked of the remote at most once a minute, and not for five
+## THE STORE FOLLOWS THE REMOTE'S BRANCH THE SETTING NAMES, fetched by that name into
+## origin/<branch>, whatever the store's own branch is called: where the remote is ahead and
+## the store has nothing it lacks, the store's branch is moved up to it (a fast-forward,
+## which can lose nothing); where both moved, it is merged (AgentsToolsTeamDataMergeRemote);
+## where only the store moved, the push carries it. The store's branch keeps its name and
+## its checkout. Without --now the remote is asked at most once a minute, and not for five
 ## minutes after it failed (AgentsToolsTeamDataRemoteQuiet): a close with nothing to push
-## must not wait on a remote that is not there.
-AgentsToolsTeamDataFastForward(){ ## where, repository, branch
-	local forwardOut="" forwardTo=""
-	! AgentsToolsTeamDataRemoteQuiet settled || return 0
-	forwardOut="$( AgentsToolsTeamDataRemote git -C "$2" fetch -q origin "$3" 2>&1 )" || {
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote did not answer a fetch, so the store may be behind it: ${forwardOut##*team-data remote: }" >&2
-		return 0
+## must not wait on a remote that is not there. A store holding uncommitted paths is not
+## merged, unless --over-uncommitted: the lock and claim flows resync over them as
+## git/cloneSync did, and git keeps such paths through a merge, or refuses the merge. rc 1
+## where the remote did not answer or a merge could not be made, each said in one line.
+AgentsToolsTeamDataFollow(){ ## where, repository, the remote's branch [--now] [--over-uncommitted]
+	local followOut="" followTo="" followNow="" followOver="" followArg
+	for followArg in "${@:4}" ; do
+		case "$followArg" in --now) followNow=1 ;; --over-uncommitted) followOver=1 ;; esac
+	done
+	[ -n "$followNow" ] || ! AgentsToolsTeamDataRemoteQuiet settled || return 0
+	followOut="$( AgentsToolsTeamDataRemote git -C "$2" fetch -q origin "+refs/heads/$3:refs/remotes/origin/$3" 2>&1 )" || {
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote did not answer a fetch of $3, so the store may be behind it: ${followOut##*team-data remote: }" >&2
+		return 1
 	}
-	forwardTo="$( git -C "$2" rev-parse --verify --quiet "refs/remotes/origin/$3" 2> /dev/null )" || return 0
-	[ "$forwardTo" != "$( git -C "$2" rev-parse HEAD 2> /dev/null )" ] || return 0
-	git -C "$2" merge-base --is-ancestor HEAD "refs/remotes/origin/$3" 2> /dev/null || return 0
-	if forwardOut="$( LC_ALL=C git -C "$2" merge --ff-only -q "refs/remotes/origin/$3" 2>&1 )" ; then
-		echo "# $MDSC_CMD: $1: the team-data remote was ahead and the store had nothing it lacks: fast-forwarded to origin/$3 = $forwardTo" >&2
-	else
-		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote is ahead at origin/$3 = ${forwardTo:0:7} and the store could not be moved up to it, so nothing was changed: $forwardOut" >&2
+	followTo="$( git -C "$2" rev-parse --verify --quiet "refs/remotes/origin/$3" 2> /dev/null )" || return 0
+	[ "$followTo" != "$( git -C "$2" rev-parse HEAD 2> /dev/null )" ] || return 0
+	! git -C "$2" merge-base --is-ancestor "refs/remotes/origin/$3" HEAD 2> /dev/null || return 0
+	if git -C "$2" merge-base --is-ancestor HEAD "refs/remotes/origin/$3" 2> /dev/null ; then
+		if followOut="$( LC_ALL=C git -C "$2" merge --ff-only -q "refs/remotes/origin/$3" 2>&1 )" ; then
+			echo "# $MDSC_CMD: $1: the team-data remote was ahead and the store had nothing it lacks: fast-forwarded to origin/$3 = $followTo" >&2
+			return 0
+		fi
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data remote is ahead at origin/$3 = ${followTo:0:7} and the store could not be moved up to it, so nothing was changed: $followOut" >&2
+		return 1
 	fi
+	if [ -z "$followOver" ] && [ -n "$( git -C "$2" status --porcelain --untracked-files=all 2>/dev/null )" ] ; then
+		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store ($( git -C "$2" rev-parse --short=7 HEAD 2>/dev/null )) could not be merged with origin/$3 ($( git -C "$2" rev-parse --short=7 "refs/remotes/origin/$3" 2>/dev/null )): the store holds uncommitted paths, so nothing was merged; the next pass tries again" >&2
+		return 1
+	fi
+	AgentsToolsTeamDataMergeRemote "$1" "$2" "$3" "$( git -C "$2" remote get-url origin 2> /dev/null )"
+}
+
+## Says once for a store, kept in the record of the remote, that its branch is not the one
+## TEAM_DATA_BRANCH names, and that it keeps it. Says it again only for another pair.
+AgentsToolsTeamDataBranchSaid(){ ## where, the store's branch, the setting's
+	local saidKey="$MDAT_DATA_ROOT|$2|$3" saidFile="${MMDAPP:-/nonexistent}/.local/agents/team-data-remote.state" saidTemp=""
+	[ "$( AgentsToolsTeamDataRemoteNoted TEAM_DATA_BRANCHES_SAID )" != "$saidKey" ] || return 0
+	echo "# $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT is on its branch $2, and TEAM_DATA_BRANCH names $3: the store keeps its branch and its checkout, and is synced with the remote's $3, fetched and merged from it and pushed to it by that name" >&2
+	[ -n "${MMDAPP:-}" ] || return 0
+	(
+		mkdir -p "$MMDAPP/.local/agents"
+		saidTemp="$( mktemp "$saidFile.XXXXXX" )"
+		{ [ ! -f "$saidFile" ] || LC_ALL=C grep -v -e '^TEAM_DATA_BRANCHES_SAID=' "$saidFile" || : ; printf 'TEAM_DATA_BRANCHES_SAID=%s\n' "$saidKey" ; } > "$saidTemp"
+		chmod 644 "$saidTemp"
+		mv "$saidTemp" "$saidFile"
+	) 2> /dev/null || :
 	return 0
+}
+
+## THE SYNC OF A PASS of the main loop: the store with the remote's branch the setting names.
+## A store that is no clone is made one first (AgentsToolsTeamDataEnsureClone --now
+## --leave-unborn), and one that is a repository is given the remote as its origin
+## (AgentsToolsTeamDataRemoteAlign). Then, through the one way to the remote: a plain folder
+## with content goes to myx.common git/cloneSync, which adopts it into a remote with no such
+## branch, as before; a store on the branch the setting names goes to git/clonePull, as
+## before; A STORE ON ANY OTHER BRANCH, OR ON NONE, IS NEVER HANDED TO EITHER: clonePull
+## removes a checkout that is on another branch than the one it is given, and cloneSync
+## removes it to switch branches. That store follows the remote's branch with the tooling's
+## own fetch and merge (AgentsToolsTeamDataFollow --now), keeps its branch and its checkout,
+## and the close push carries its commits to the remote's branch by its full name. The
+## command used is left in agentsTeamDataSyncCommand. rc 0 synced.
+agentsTeamDataSyncCommand=""
+AgentsToolsTeamDataSync(){ ## where, remote, the remote's branch
+	local syncCurrent=""
+	agentsTeamDataSyncCommand="clonePull"
+	[ -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataEnsureClone "$1" --now --leave-unborn
+	[ ! -e "$MDAT_DATA_ROOT/.git" ] || AgentsToolsTeamDataRemoteAlign "$1" "$2" || :
+	if [ -d "$MDAT_DATA_ROOT" ] && [ ! -e "$MDAT_DATA_ROOT/.git" ] && [ -n "$( ls -A "$MDAT_DATA_ROOT" 2>/dev/null )" ] ; then
+		agentsTeamDataSyncCommand="cloneSync"
+	elif [ -e "$MDAT_DATA_ROOT/.git" ] ; then
+		syncCurrent="$( git -C "$MDAT_DATA_ROOT" symbolic-ref --short -q HEAD 2> /dev/null )" || syncCurrent=""
+		if [ "$syncCurrent" != "$3" ] ; then
+			agentsTeamDataSyncCommand="own"
+			AgentsToolsTeamDataBranchSaid "$1" "${syncCurrent:-no branch (a detached HEAD)}" "$3"
+			AgentsToolsTeamDataFollow "$1" "$MDAT_DATA_ROOT" "$3" --now
+			return $?
+		fi
+	fi
+	( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=init.defaultBranch GIT_CONFIG_VALUE_0="$3" \
+		AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/$agentsTeamDataSyncCommand.Common" "$MDAT_DATA_ROOT" "$2" "$3" >&2 )
 }
 
 ## What the setup's check says of the sync, where a remote is set: one result line,
@@ -387,15 +446,66 @@ AgentsToolsTeamDataSyncVerdict(){ ## the operation asked for (--check or empty)
 	return 0
 }
 
+## WHAT A STORE HOLDS WHEN IT IS MADE A CLONE IS COMMITTED, as it stands, by the one commit
+## step: what only it had, and what differs from the remote's and was kept. Its push is the
+## caller's. Says nothing where nothing is pending.
+AgentsToolsTeamDataCommitHeld(){ ## what it is said of
+	[ -n "$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all 2>/dev/null )" ] || return 0
+	AgentsToolsTeamDataCommitPaths "$1" "$MDAT_DATA_ROOT/."
+	return 0
+}
+
+## THE REMOTE WENT ITS OWN WAY: its branch, fetched, is merged into the store's, so that no
+## merge ever waits for a person. Two histories with no commit in common are joined into one
+## (--allow-unrelated-histories), never one of them thrown away. Where the same file was
+## changed on both sides THE REMOTE'S VERSION OF THAT FILE STANDS, as the owner ruled; the
+## store's version stays in its own commit, in the history the merge keeps. What git merges
+## without a conflict is kept from both. One line names both ends and the files the remote's
+## version stands in. A merge that cannot be made at all, for anything but a file both
+## changed, leaves the store as it was, its commits on its branch, and one warning names
+## both ends. rc 0 merged, the push is the caller's; rc 1 not merged.
+AgentsToolsTeamDataMergeRemote(){ ## where, repository, branch, remote
+	local mergeOut="" mergeRc=0 mergeHead="" mergeTo="" mergeUnrelated="" mergeFiles="" mergeFile="" mergeDone="" mergeNamed=""
+	mergeHead="$( git -C "$2" rev-parse --short=7 HEAD 2>/dev/null )" || mergeHead=""
+	mergeTo="$( git -C "$2" rev-parse --short=7 "refs/remotes/origin/$3" 2>/dev/null )" || mergeTo=""
+	[ -n "$( git -C "$2" merge-base HEAD "refs/remotes/origin/$3" 2>/dev/null )" ] || mergeUnrelated="--allow-unrelated-histories"
+	mergeOut="$( LC_ALL=C git -C "$2" merge --no-edit $mergeUnrelated -m "* team-data: merged origin/$3 ($mergeTo) into $3 ($mergeHead), the remote's version where a file was changed on both sides" "refs/remotes/origin/$3" 2>&1 )" || mergeRc=$?
+	if [ "$mergeRc" != 0 ] ; then
+		mergeFiles="$( git -C "$2" diff --name-only --diff-filter=U 2>/dev/null )" || mergeFiles=""
+		if [ -e "$( git -C "$2" rev-parse --absolute-git-dir 2>/dev/null )/MERGE_HEAD" ] && [ -n "$mergeFiles" ] ; then
+			mergeDone="yes"
+			while IFS= read -r mergeFile ; do
+				[ -n "$mergeFile" ] || continue
+				if git -C "$2" cat-file -e "refs/remotes/origin/$3:$mergeFile" 2>/dev/null ; then
+					git -C "$2" checkout "refs/remotes/origin/$3" -- "$mergeFile" > /dev/null 2>&1 || mergeDone=""
+				else
+					git -C "$2" rm -q -f -- "$mergeFile" > /dev/null 2>&1 || mergeDone=""
+				fi
+			done <<< "$mergeFiles"
+			[ -z "$mergeDone" ] || [ -z "$( git -C "$2" diff --name-only --diff-filter=U 2>/dev/null )" ] || mergeDone=""
+			[ -z "$mergeDone" ] || mergeOut="$( LC_ALL=C git -C "$2" commit --no-edit -q 2>&1 )" || mergeDone=""
+		fi
+		if [ -z "$mergeDone" ] ; then
+			[ ! -e "$( git -C "$2" rev-parse --absolute-git-dir 2>/dev/null )/MERGE_HEAD" ] || git -C "$2" merge --abort > /dev/null 2>&1 || :
+			echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store's $3 ($mergeHead, $2) could not be merged with the remote's $3 ($mergeTo, $( AgentsToolsTeamDataRemoteName "$4" )): nothing was merged or pushed, the store's commits stay on its $3 as they were, and the next close tries again: $( printf '%s\n' "$mergeOut" | LC_ALL=C grep -v '^[[:space:]]*$' | tail -n 1 )" >&2
+			return 1
+		fi
+	fi
+	[ -z "$mergeFiles" ] || mergeNamed="$( printf '%s\n' "$mergeFiles" | LC_ALL=C awk 'NF { n++ ; if ( n <= 5 ) s = s ( n > 1 ? ", " : "" ) $0 } END { print s ( n > 5 ? " and " n - 5 " more" : "" ) }' )"
+	echo "# $MDSC_CMD: $1: merged the remote's $3 ($mergeTo, $( AgentsToolsTeamDataRemoteName "$4" )) into the store's ($mergeHead)${mergeUnrelated:+, two histories with no commit in common joined}${mergeNamed:+; the version of the remote stands in $mergeNamed, changed on both sides}" >&2
+	return 0
+}
+
 ## Pushes the store's branch when it is ahead of origin, at a close point, never per
 ## write: one push carries everything committed since. The primitive is item-upsert's:
-## push origin HEAD; when the remote moved, integrate with myx.common git/cloneSync
-## --no-push and push once more; then read origin back and require it to equal HEAD.
+## push origin HEAD; when the remote moved, merge it (AgentsToolsTeamDataMergeRemote) and
+## push once more; then read origin back and require it to equal HEAD.
 ## Never a reset or a force, and local commits are never discarded: a failure is a
 ## stated warning naming the reason and the ahead count, and the next close retries.
 ## Pushes only when the store is its repository's own root; an origin that is not
-## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign). With nothing
-## to push, a remote that is ahead is followed (AgentsToolsTeamDataFastForward). Every call
+## TEAM_DATA_GIT_REMOTE is set to it first (AgentsToolsTeamDataRemoteAlign). The store's
+## branch, whatever its name, goes to the remote's branch TEAM_DATA_BRANCH names. With
+## nothing to push, a remote that is ahead is followed (AgentsToolsTeamDataFollow). Every call
 ## to the remote is bounded (AgentsToolsTeamDataRemote), and a remote that did not answer
 ## within the bound is not asked again by a close for five minutes. Always returns 0.
 ## One pusher at a time on this host: every close can call this, async spawn closes
@@ -417,7 +527,7 @@ AgentsToolsTeamDataPushIfAhead(){ ## where
 
 AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	local pushWhere="$1"
-	local repoRoot="" gitDir="" originUrl="" repoOrigin="" storeRoot="" pushBranch="" aheadCount="" pushOut="" pushRc=0 headFull="" remoteHead=""
+	local repoRoot="" gitDir="" originUrl="" repoOrigin="" storeRoot="" pushBranch="" pushCurrent="" aheadCount="" pushOut="" pushRc=0 headFull="" remoteHead=""
 	repoRoot="$( git -C "$MDAT_DATA_ROOT" rev-parse --show-toplevel 2>/dev/null )" || return 0
 	[ -n "$repoRoot" ] || return 0
 	gitDir="$( git -C "$repoRoot" rev-parse --absolute-git-dir 2>/dev/null )" || return 0
@@ -427,13 +537,17 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 	[ -n "$storeRoot" ] && [ "$storeRoot" = "$( cd "$repoRoot" && pwd -P )" ] || return 0
 	repoOrigin="$( git -C "$repoRoot" remote get-url origin 2>/dev/null )" || repoOrigin=""
 	[ "$repoOrigin" = "$originUrl" ] || AgentsToolsTeamDataRemoteAlign "$pushWhere" "$originUrl" || return 0
-	pushBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || pushBranch=""
-	[ -n "$pushBranch" ] && [ "$pushBranch" != "HEAD" ] || return 0
+	## The store's own branch is pushed, whatever it is called, to the remote's branch the
+	## setting names, by its full name: never by the store's branch name, and never renamed.
+	pushCurrent="$( git -C "$repoRoot" symbolic-ref --short -q HEAD 2>/dev/null )" || pushCurrent=""
+	[ -n "$pushCurrent" ] || return 0
+	pushBranch="$( AgentsToolsTeamDataBranch )"
+	[ "$pushCurrent" = "$pushBranch" ] || AgentsToolsTeamDataBranchSaid "$pushWhere" "$pushCurrent" "$pushBranch"
 	## Nothing ahead of the last fetch: no push is attempted, and a remote that is ahead is followed.
 	if git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 ; then
 		aheadCount="$( git -C "$repoRoot" rev-list --count "refs/remotes/origin/$pushBranch..HEAD" 2>/dev/null )" || aheadCount=""
 		if [ "$aheadCount" = "0" ] ; then
-			AgentsToolsTeamDataFastForward "$pushWhere" "$repoRoot" "$pushBranch"
+			AgentsToolsTeamDataFollow "$pushWhere" "$repoRoot" "$pushBranch" || :
 			return 0
 		fi
 	fi
@@ -441,22 +555,16 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: the team-data remote gave no answer within its bound less than five minutes ago, so it is not asked again by this close; ${aheadCount:-some} commit(s) stay local, kept, and a later close retries" >&2
 		return 0
 	fi
-	pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
+	pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$pushBranch" 2>&1 )" || pushRc=$?
 	if [ "$pushRc" = 124 ] ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push stopped: ${pushOut##*team-data remote: } -- ${aheadCount:-some} commit(s) stay local, kept, and a later close retries" >&2
 		return 0
 	fi
 	## Whether origin moved is read from state, never from the message: fetch, then ask
 	## whether origin's branch is still an ancestor of HEAD.
-	if [ "$pushRc" -ne 0 ] && AgentsToolsTeamDataRemote git -C "$repoRoot" fetch -q origin "$pushBranch" > /dev/null 2>&1 \
+	if [ "$pushRc" -ne 0 ] && AgentsToolsTeamDataRemote git -C "$repoRoot" fetch -q origin "+refs/heads/$pushBranch:refs/remotes/origin/$pushBranch" > /dev/null 2>&1 \
 		&& git -C "$repoRoot" rev-parse --verify --quiet "refs/remotes/origin/$pushBranch" > /dev/null 2>&1 \
 		&& ! git -C "$repoRoot" merge-base --is-ancestor "refs/remotes/origin/$pushBranch" HEAD 2>/dev/null ; then
-		## Two histories with no commit in common are never put together here: nothing is
-		## merged, nothing pushed and nothing lost, and both ends are named.
-		if [ -z "$( git -C "$repoRoot" merge-base HEAD "refs/remotes/origin/$pushBranch" 2>/dev/null )" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: the team-data store's $pushBranch ($( git -C "$repoRoot" rev-parse --short=7 HEAD 2>/dev/null ), $( git -C "$repoRoot" rev-list --count HEAD 2>/dev/null ) commit(s), $repoRoot) and the remote's $pushBranch ($( git -C "$repoRoot" rev-parse --short=7 "refs/remotes/origin/$pushBranch" 2>/dev/null ), $( AgentsToolsTeamDataRemoteName "$originUrl" )) have no commit in common: nothing was merged and nothing pushed, both stay as they are, and which of them the team data is to be is the owner's to say" >&2
-			return 0
-		fi
 		## An operation already in progress is not ours to touch, and never integrated over.
 		local interrupted=""
 		[ ! -e "$gitDir/index.lock" ] || interrupted="$interrupted index.lock"
@@ -468,25 +576,15 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store shows an operation in progress:$interrupted -- not integrated, not touched; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
+		## A merge over uncommitted paths could not be undone without them: such a store is
+		## not merged, and says both ends.
 		if [ -n "$( git -C "$repoRoot" status --porcelain --untracked-files=all 2>/dev/null )" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and the store holds uncommitted paths, so it was not integrated; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
+			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: the team-data store's $pushBranch ($( git -C "$repoRoot" rev-parse --short=7 HEAD 2>/dev/null )) could not be merged with origin/$pushBranch ($( git -C "$repoRoot" rev-parse --short=7 "refs/remotes/origin/$pushBranch" 2>/dev/null ), $( AgentsToolsTeamDataRemoteName "$originUrl" )): the store holds uncommitted paths, so nothing was merged or pushed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
 			return 0
 		fi
-		if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected (origin moved) and myx.common git/cloneSync is unreachable to integrate; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries" >&2
-			return 0
-		fi
-		## cloneSync's pull needs a reconcile mode when the two sides diverged: a merge,
-		## which keeps both sides' commits and rewrites none. No merge was in progress
-		## above, so one present after a failure is this call's own, and only that is aborted.
-		pushOut="$( GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false LC_ALL=C \
-			AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$pushBranch" 2>&1 )" || {
-			[ ! -e "$gitDir/MERGE_HEAD" ] || git -C "$repoRoot" merge --abort > /dev/null 2>&1
-			echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push rejected and integrating origin failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
-			return 0
-		}
+		AgentsToolsTeamDataMergeRemote "$pushWhere" "$repoRoot" "$pushBranch" "$originUrl" || return 0
 		pushRc=0
-		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )" || pushRc=$?
+		pushOut="$( AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$pushBranch" 2>&1 )" || pushRc=$?
 	fi
 	if [ "$pushRc" -ne 0 ] ; then
 		echo "⚠️ WARNING: $MDSC_CMD: $pushWhere: team-data push failed; ${aheadCount:-some} commit(s) stay local, kept, and the next close retries: $pushOut" >&2
@@ -514,13 +612,13 @@ AgentsToolsTeamDataPushIfAheadLocked(){ ## where
 ##     of it is changed, moved or removed: the remote's history is fetched into a folder
 ##     beside it and its `.git` alone is moved in; the index is then the remote's branch
 ##     and the working tree is the folder as it stood. What the remote has and the folder
-##     lacks is written out, never over a file that stands. What only the folder has stays
-##     there, untracked, and what differs from the remote stays as a local change: both
-##     uncommitted, counted in the one line that says it, for --magic-team-data-commit-pending
-##     or the owner to decide. Where the remote has no such branch yet the folder is
-##     initialised as a repository with it as origin, its files untouched; from the main
-##     loop that one case is left to git/cloneSync, which commits such a folder and pushes
-##     it into an empty remote, as before;
+##     lacks is written out, never over a file that stands. Then what only the folder has,
+##     and what differs from the remote's, is committed as it stands and pushed, as the
+##     owner ruled, counted in the one line that says it. Where the remote has no such
+##     branch yet the folder is initialised as a repository with it as origin, its files
+##     untouched, committed and pushed; from the main loop that one case is left to
+##     git/cloneSync, which commits such a folder and pushes it into an empty remote, as
+##     before;
 ##   a store inside a larger repository  is never given a nested one;
 ##   a remote that does not answer  changes nothing, and one warning says why. From the
 ##     first use by an op it is then not asked again for five minutes; the set-up step and
@@ -579,8 +677,12 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote, leave a folder with co
 		if mkdir -p "$MDAT_DATA_ROOT" && git -C "$MDAT_DATA_ROOT" init -q > /dev/null 2>&1 \
 			&& git -C "$MDAT_DATA_ROOT" symbolic-ref HEAD "refs/heads/$cloneBranch" && git -C "$MDAT_DATA_ROOT" remote add origin "$cloneRemote" \
 			&& git -C "$MDAT_DATA_ROOT" config "branch.$cloneBranch.remote" origin && git -C "$MDAT_DATA_ROOT" config "branch.$cloneBranch.merge" "refs/heads/$cloneBranch" ; then
-			echo "# $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown has no branch $cloneBranch yet: $MDAT_DATA_ROOT is initialised as a repository on it with that remote as its origin${cloneHolds:+, no file of it changed}, and its first push makes the branch" >&2
+			echo "# $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown has no branch $cloneBranch yet: $MDAT_DATA_ROOT is initialised as a repository on it with that remote as its origin${cloneHolds:+, what it held committed as it stood and pushed}, and its first push makes the branch" >&2
 			AgentsToolsTeamDataIdentity "$1" || :
+			if [ -n "$cloneHolds" ] ; then
+				AgentsToolsTeamDataCommitHeld "team data this machine held when it was made a clone of $cloneShown, as it stood"
+				AgentsToolsTeamDataPushIfAhead "$1"
+			fi
 		else
 			echo "⚠️ WARNING: $MDSC_CMD: $1: TEAM_DATA_GIT_REMOTE $cloneShown has no branch $cloneBranch yet and $MDAT_DATA_ROOT could not be initialised as a repository for it, so this write stays local and uncommitted" >&2
 		fi
@@ -621,8 +723,10 @@ AgentsToolsTeamDataEnsureCloneLocked(){ ## where, remote, leave a folder with co
 	cloneOut="$( git -C "$MDAT_DATA_ROOT" status --porcelain --untracked-files=all 2> /dev/null )" || cloneOut=""
 	cloneOnly="$( printf '%s\n' "$cloneOut" | LC_ALL=C grep -c '^??' )" || cloneOnly=0
 	cloneDiffer="$( printf '%s\n' "$cloneOut" | LC_ALL=C grep -c -v -e '^??' -e '^$' )" || cloneDiffer=0
-	echo "# $MDSC_CMD: $1: $MDAT_DATA_ROOT held local content and was no clone: it is now a clone of $cloneShown ($cloneBranch), made in place. No file of it was changed or removed, and what the remote has and it lacked was added. $cloneOnly path(s) only this machine has and $cloneDiffer path(s) that differ from the remote stay as they are, uncommitted: --magic-team-data-commit-pending commits them" >&2
+	echo "# $MDSC_CMD: $1: $MDAT_DATA_ROOT held local content and was no clone: it is now a clone of $cloneShown ($cloneBranch), made in place. No file of it was changed or removed, and what the remote has and it lacked was added. $cloneOnly path(s) only this machine had and $cloneDiffer path(s) that differed from the remote are committed as they stood, and pushed" >&2
 	AgentsToolsTeamDataIdentity "$1" || :
+	AgentsToolsTeamDataCommitHeld "team data this machine held when it was made a clone of $cloneShown: $cloneOnly path(s) only it had, $cloneDiffer that differed from the remote, as they stood"
+	AgentsToolsTeamDataPushIfAhead "$1"
 	return 0
 }
 
@@ -686,8 +790,9 @@ AgentsToolsTeamDataDirtyWarning(){ ## where
 		echo "⚠️ WARNING: $MDSC_CMD: $1: the team-data store $MDAT_DATA_ROOT holds $dirtyCount uncommitted path(s) after the team's own ops -- a tooling writer did not commit. First ones:" >&2
 		printf '%s\n' "$dirtyList" | head -10 >&2
 	fi
-	## Measured against the last fetched origin/<branch>: `git rev-list --count origin/<branch>..HEAD`.
-	dirtyBranch="$( git -C "$MDAT_DATA_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null )" || dirtyBranch=""
+	## Measured against the last fetched origin/<branch>, the remote's branch TEAM_DATA_BRANCH
+	## names, whatever the store's own is called: `git rev-list --count origin/<branch>..HEAD`.
+	dirtyBranch="$( AgentsToolsTeamDataBranch )" || dirtyBranch=""
 	if [ -n "$dirtyBranch" ] && [ "$dirtyBranch" != "HEAD" ] && git -C "$MDAT_DATA_ROOT" rev-parse --verify --quiet "refs/remotes/origin/$dirtyBranch" > /dev/null 2>&1 ; then
 		aheadCount="$( git -C "$MDAT_DATA_ROOT" rev-list --count "refs/remotes/origin/$dirtyBranch..HEAD" 2>/dev/null )" || aheadCount=""
 		if [ -n "$aheadCount" ] && [ "$aheadCount" != "0" ] ; then

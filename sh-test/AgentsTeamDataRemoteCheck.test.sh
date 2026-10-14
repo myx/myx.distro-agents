@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 ## Behavioural check on the team data's remote: with TEAM_DATA_GIT_REMOTE set the store
 ## becomes a clone of it and stays one. A store made a repository before the remote was set
-## is given it as origin, on the branch the setting names, and pushed; an absent or empty
+## is given it as origin and pushed, its own branch kept; a store on another branch than the
+## one TEAM_DATA_BRANCH names is synced with the remote's branch of that name both ways, its
+## branch and its checkout kept; an absent or empty
 ## store is cloned; a plain folder with content is made a clone in place and no file of it
-## is changed or lost; an origin other than the setting is set to it; a remote that is ahead
-## is followed, one gone apart is left alone and said; a push is bounded and a remote that
+## is lost, and what it held is committed and pushed; an origin other than the setting is set
+## to it; a remote that is ahead is followed; histories gone apart, with a commit in common or
+## none, are merged, the remote's version of a file standing where both changed it, and a
+## merge that cannot be made changes nothing and is said; a push is bounded and a remote that
 ## never answers holds no close; a refused key is named by its fingerprint, a host that is
 ## not known is refused at once and named; what happened is kept for the setup's check.
 ## With no remote set nothing of it happens.
@@ -153,15 +157,53 @@ echo "-- the rig that never reached its remote: a store made a repository before
 git init -q --bare "$rigTmp/fresh.git" || rigRefuse "could not init the empty remote"
 rigScenario later "$rigTmp/fresh.git"
 rigInitStore master
+printf 'not committed yet\n' > "$rigStore/board/running/note-20261014T0102Z-pending.md"
 rigRun "$rigDir/p" 'AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "the store's origin is the remote the setting names"   "$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$rigTmp/fresh.git"
-rigAssert "its branch is the one the setting names, by a rename" "$( git -C "$rigStore" symbolic-ref --short HEAD 2> /dev/null )" main
-rigAssert "nothing of its history was lost by it"                "$( git -C "$rigStore" log -1 --format=%s 2> /dev/null )" "local work"
-rigAssert "the commit reached the remote"                        "$( git -C "$rigTmp/fresh.git" rev-parse -q --verify refs/heads/main 2> /dev/null )" "$( git -C "$rigStore" rev-parse HEAD )"
+rigAssert "its own branch is kept, never renamed"                "$( git -C "$rigStore" symbolic-ref --short HEAD 2> /dev/null ):$( git -C "$rigStore" branch --format='%(refname:short)' | LC_ALL=C tr '\n' ' ' )" "master:master "
+rigAssert "nothing of its history was lost by it"                "$( git -C "$rigStore" log --format=%s 2> /dev/null | LC_ALL=C grep -c -x 'local work' )" 1
+rigAssert "what it held uncommitted is committed with it"        "$( git -C "$rigStore" status --porcelain --untracked-files=all | wc -l | LC_ALL=C tr -d ' ' ):$( git -C "$rigTmp/fresh.git" show main:board/running/note-20261014T0102Z-pending.md 2> /dev/null )" "0:not committed yet"
+rigAssert "the commit reached the remote's branch the setting names" "$( git -C "$rigTmp/fresh.git" rev-parse -q --verify refs/heads/main 2> /dev/null ):$( git -C "$rigTmp/fresh.git" rev-parse -q --verify refs/heads/master 2> /dev/null || printf none )" "$( git -C "$rigStore" rev-parse HEAD ):none"
 rigAssert "one line says the origin was set"                     "$( rigCount "$rigDir/p.err" "its origin is now TEAM_DATA_GIT_REMOTE $rigTmp/fresh.git" )" 1
 rigAssert "and the push that succeeded is kept"                  "$( [ -n "$( rigState TEAM_DATA_REMOTE_LAST_PUSH_UTC )" ] && printf kept || printf none )" kept
 rigRun "$rigDir/p2" 'AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "a second close says nothing: the store is in step"    "$( LC_ALL=C grep -c -e WARNING -e 'origin is now' "$rigDir/p2.err" || : )" 0
+
+echo "-- a store on another branch than the setting's: synced both ways, its branch and its checkout kept --"
+rigRemote branchy
+rigScenario branchy "$rigTmp/branchy.git"
+git clone -q "$rigTmp/branchy.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
+git -C "$rigStore" branch -q -m main work || rigRefuse "could not put the store on its own branch"
+printf 'rig marker\n' > "$rigStore/.rig-marker" && printf '.rig-marker\n' >> "$rigStore/.git/info/exclude"
+mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-branchy.md"
+git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local work on its own branch" || rigRefuse "could not commit into the store"
+rigBranchyLocal="$( git -C "$rigStore" rev-parse HEAD )"
+rigRemoteAdvance branchy elsewhere-b.md
+rigRun "$rigDir/s1" 'AgentsToolsTeamDataSync "rig pass" "$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE )" main ; printf "sync-rc=%s\n" "$?" ; AgentsToolsTeamDataPushIfAhead "rig pass"'
+rigAssert "the pass syncs it"                                     "$( LC_ALL=C grep -c '^sync-rc=0$' "$rigDir/s1" || : )" 1
+rigAssert "it keeps its branch and its checkout"                  "$( git -C "$rigStore" symbolic-ref --short HEAD 2> /dev/null ):$( cat "$rigStore/.rig-marker" 2> /dev/null )" "work:rig marker"
+rigAssert "the remote's commit came in"                           "$( cat "$rigStore/elsewhere-b.md" 2> /dev/null )" "from elsewhere"
+rigAssert "the remote's main has the store's commit, and no branch of the store's name" "$( git -C "$rigTmp/branchy.git" merge-base --is-ancestor "$rigBranchyLocal" refs/heads/main 2> /dev/null && printf kept || printf missing ):$( [ "$( rigRemoteHead branchy )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf even || printf apart ):$( git -C "$rigTmp/branchy.git" rev-parse -q --verify refs/heads/work 2> /dev/null || printf none )" "kept:even:none"
+rigAssert "one line says the branches differ"                    "$( LC_ALL=C grep -c 'is on its branch work, and TEAM_DATA_BRANCH names main' "$rigDir/s1.err" || : )" 1
+rigRemoteAdvance branchy elsewhere-c.md
+rigRun "$rigDir/s2" 'AgentsToolsTeamDataSync "rig pass" "$( DistroAgentsTools --agents-config-option magic-team --select TEAM_DATA_GIT_REMOTE )" main ; AgentsToolsTeamDataPushIfAhead "rig pass"'
+rigAssert "a second pass follows again, and says it no more"     "$( cat "$rigStore/elsewhere-c.md" 2> /dev/null ):$( LC_ALL=C grep -c 'TEAM_DATA_BRANCH names' "$rigDir/s2.err" || : ):$( git -C "$rigStore" symbolic-ref --short HEAD )" "from elsewhere:0:work"
+
+echo "-- two clones on their own branch claim one lock: the second sees the first's claim on the remote's main and loses --"
+rigRemote claims
+rigScenario claimb "$rigTmp/claims.git"
+git clone -q "$rigTmp/claims.git" "$rigStore" 2> /dev/null && git -C "$rigStore" branch -q -m main work || rigRefuse "could not make the second clone"
+rigClaimDirB="$rigDir" ; rigClaimStoreB="$rigStore"
+rigScenario claima "$rigTmp/claims.git"
+git clone -q "$rigTmp/claims.git" "$rigStore" 2> /dev/null && git -C "$rigStore" branch -q -m main work || rigRefuse "could not make the first clone"
+rigClaimNote="inboxes/magic-coordinator/note-20260809T154332Z-grooming-state-and-lock.md"
+rigOp "$rigDir/a" --magic-grooming-lock-acquire magic-coordinator rig-a
+rigAssert "the first takes it, and its claim is on the remote's main, by no other branch" "$( cat "$rigDir/a.rc" ):$( LC_ALL=C grep -c -x ACQUIRED "$rigDir/a" ):$( git -C "$rigTmp/claims.git" show "main:$rigClaimNote" 2> /dev/null | LC_ALL=C grep -c -x 'session-id: rig-a' ):$( git -C "$rigTmp/claims.git" rev-parse -q --verify refs/heads/work 2> /dev/null || printf none )" "0:1:1:none"
+rigDir="$rigClaimDirB" ; rigStore="$rigClaimStoreB"
+rigOp "$rigDir/b" --magic-grooming-lock-acquire magic-coordinator rig-b
+rigAssert "the second sees the first's claim and loses, said by its holder" "$( [ "$( cat "$rigDir/b.rc" )" != 0 ] && printf lost || printf took ):$( LC_ALL=C grep -c -x ACQUIRED "$rigDir/b" ):$( cat "$rigDir/b" "$rigDir/b.err" | LC_ALL=C grep -c "rig-a" | LC_ALL=C sed 's/[1-9][0-9]*/named/' )" "lost:0:named"
+rigAssert "the remote's main still holds the first's claim"      "$( git -C "$rigTmp/claims.git" show "main:$rigClaimNote" 2> /dev/null | LC_ALL=C grep -c -x 'session-id: rig-a' )" 1
+rigAssert "both stores keep their branch, nothing half done"     "$( git -C "$rigClaimStoreB" symbolic-ref --short HEAD ):$( git -C "$rigTmp/claima/store" symbolic-ref --short HEAD ):$( [ -e "$rigClaimStoreB/.git/MERGE_HEAD" ] && printf merging || printf none )" "work:work:none"
 
 echo "-- the same through the step that sets a workspace up --"
 git init -q --bare "$rigTmp/setup.git" || rigRefuse "could not init the empty remote"
@@ -194,7 +236,7 @@ mkdir -p "$rigStore/board/running" && printf 'first\n' > "$rigStore/board/runnin
 rigRun "$rigDir/c2" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0101Z-first.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "and its first commit makes the branch at the remote"  "$( git -C "$rigTmp/unborn.git" rev-parse -q --verify refs/heads/main 2> /dev/null )" "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null )"
 
-echo "-- a plain folder with content is made a clone in place, and loses nothing --"
+echo "-- a plain folder with content is made a clone in place, loses nothing, and what it held is committed and pushed --"
 rigScenario plain "$rigTmp/base.git"
 mkdir -p "$rigStore/board/running" "$rigStore/inboxes/magic-tester"
 printf 'local readme\n' > "$rigStore/README.md"
@@ -204,9 +246,17 @@ rigRun "$rigDir/c" 'AgentsToolsTeamDataEnsureClone rig'
 rigAssert "the folder is a clone of the remote now"              "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null )" "$( rigRemoteHead base ):$rigTmp/base.git"
 rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
 rigAssert "what the remote has and it lacked is there"           "$( cat "$rigStore/board/processed/note-20260101T0000Z-remote.md" 2> /dev/null )" "remote item"
-rigAssert "its own paths stay uncommitted, the differing one too" "$( git -C "$rigStore" status --porcelain --untracked-files=all 2> /dev/null | LC_ALL=C sort | LC_ALL=C tr '\n' '/' )" " M README.md/?? board/running/note-20261014T0101Z-local.md/?? inboxes/magic-tester/note-rig.md/"
-rigAssert "one line says it, with what stays as it is"           "$( LC_ALL=C grep -c 'is now a clone of .*made in place.* 2 path(s) only this machine has and 1 path(s) that differ' "$rigDir/c.err" || : )" 1
+rigAssert "everything it held is committed, the differing one as it stood" "$( git -C "$rigStore" status --porcelain --untracked-files=all 2> /dev/null | wc -l | LC_ALL=C tr -d ' ' ):$( git -C "$rigStore" show HEAD:README.md 2> /dev/null ):$( git -C "$rigStore" show HEAD:inboxes/magic-tester/note-rig.md 2> /dev/null )" "0:local readme:local note"
+rigAssert "and pushed: the remote is at the store's commit"      "$( rigRemoteHead base )" "$( git -C "$rigStore" rev-parse HEAD )"
+rigAssert "one line says what was committed"                     "$( LC_ALL=C grep -c 'is now a clone of .*made in place.* 2 path(s) only this machine had and 1 path(s) that differed from the remote are committed as they stood' "$rigDir/c.err" || : )" 1
 rigAssert "nothing is left beside the store"                     "$( ls -A "$rigDir" | LC_ALL=C grep -c 'store\.' || : )" 0
+
+echo "-- a plain folder whose remote has no branch yet: a repository, its content committed and pushed --"
+git init -q --bare "$rigTmp/unborn2.git" || rigRefuse "could not init the empty remote"
+rigScenario unborn2 "$rigTmp/unborn2.git"
+mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
+rigRun "$rigDir/c" 'AgentsToolsTeamDataEnsureClone rig'
+rigAssert "the remote has the branch, at the store's commit, with the file" "$( git -C "$rigTmp/unborn2.git" rev-parse -q --verify refs/heads/main 2> /dev/null ):$( git -C "$rigTmp/unborn2.git" show main:board/running/note-20261014T0101Z-local.md 2> /dev/null )" "$( git -C "$rigStore" rev-parse HEAD 2> /dev/null ):local item"
 
 echo "-- two starters at once make one clone of a plain folder --"
 rigScenario twice "$rigTmp/base.git"
@@ -228,13 +278,14 @@ RIG_NO_ROOT= rigOp "$rigDir/k" --owner-setup-storage --check
 rigAssert "the check warns that the store is no clone of it"     "$( LC_ALL=C grep -c '^TEAM_DATA_GIT_SYNC: WARN' "$rigDir/k" || : )" 1
 
 echo "-- a clone whose origin is another address than the setting --"
-git clone -q --bare "$rigTmp/base.git" "$rigTmp/moved.git" || rigRefuse "could not copy the remote"
+rigRemote movedfrom
+git clone -q --bare "$rigTmp/movedfrom.git" "$rigTmp/moved.git" || rigRefuse "could not copy the remote"
 rigScenario moved "$rigTmp/moved.git"
-git clone -q "$rigTmp/base.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
+git clone -q "$rigTmp/movedfrom.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
 mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
 rigRun "$rigDir/p" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0101Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "the origin is the setting's, said in one line"        "$( git -C "$rigStore" remote get-url origin ):$( rigCount "$rigDir/p.err" "its origin is now TEAM_DATA_GIT_REMOTE $rigTmp/moved.git" )" "$rigTmp/moved.git:1"
-rigAssert "the commit went to it, and not to the old address"    "$( [ "$( git -C "$rigTmp/moved.git" rev-parse refs/heads/main )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf new || printf not ):$( [ "$( rigRemoteHead base )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf old || printf untouched )" "new:untouched"
+rigAssert "the commit went to it, and not to the old address"    "$( [ "$( git -C "$rigTmp/moved.git" rev-parse refs/heads/main )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf new || printf not ):$( [ "$( rigRemoteHead movedfrom )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf old || printf untouched )" "new:untouched"
 
 echo "-- a commit is followed by a push --"
 rigRemote pushed
@@ -261,15 +312,44 @@ printf 'local two\n' > "$rigStore/board/running/note-20261014T0102Z-local.md"
 rigRun "$rigDir/m" 'AgentsToolsTeamDataCommitPaths "rig write" "$MDAT_DATA_ROOT/board/running/note-20261014T0102Z-local.md" ; AgentsToolsTeamDataPushIfAhead "rig close"'
 rigAssert "both sides' files are in the store and on the remote" "$( cat "$rigStore/elsewhere-2.md" "$rigStore/board/running/note-20261014T0102Z-local.md" 2> /dev/null | LC_ALL=C tr '\n' '/' ):$( [ "$( rigRemoteHead pushed )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not )" "from elsewhere/local two/:pushed"
 
-echo "-- histories with no commit in common: nothing is done, one warning names both ends --"
-rigScenario apart "$rigTmp/base.git"
+echo "-- histories with no commit in common: merged, the remote's version of a file both have --"
+rigRemote apart
+rigScenario apart "$rigTmp/apart.git"
 rigInitStore main
-git -C "$rigStore" remote add origin "$rigTmp/base.git"
+printf 'local readme\n' > "$rigStore/README.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local readme"
+git -C "$rigStore" remote add origin "$rigTmp/apart.git"
 rigApartHead="$( git -C "$rigStore" rev-parse HEAD )"
-rigBaseHead="$( rigRemoteHead base )"
+rigBaseHead="$( rigRemoteHead apart )"
 rigRun "$rigDir/p" 'AgentsToolsTeamDataPushIfAhead "rig close"'
-rigAssert "the store's commit stands and the remote is as it was" "$( git -C "$rigStore" rev-parse HEAD ):$( git -C "$rigStore" status --porcelain | wc -l | LC_ALL=C tr -d ' ' ):$( rigRemoteHead base )" "$rigApartHead:0:$rigBaseHead"
-rigAssert "one warning names both ends, and no other"            "$( LC_ALL=C grep -c "have no commit in common" "$rigDir/p.err" || : ):$( LC_ALL=C grep -c WARNING "$rigDir/p.err" || : ):$( rigHolds "$rigDir/p.err" "${rigApartHead:0:7}" )" "1:1:yes"
+rigAssert "one history now, of both: the store's commit and the remote's" "$( git -C "$rigStore" merge-base --is-ancestor "$rigApartHead" HEAD && git -C "$rigStore" merge-base --is-ancestor "$rigBaseHead" HEAD && printf both || printf not )" both
+rigAssert "the file both have is the remote's, each one's own files stand" "$( cat "$rigStore/README.md" ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" ):$( cat "$rigStore/board/processed/note-20260101T0000Z-remote.md" )" "seed:local item:remote item"
+rigAssert "the merge is pushed, and the store is clean"          "$( [ "$( rigRemoteHead apart )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not ):$( git -C "$rigStore" status --porcelain | wc -l | LC_ALL=C tr -d ' ' )" "pushed:0"
+rigAssert "one line names both ends and the file the remote's version stands in" "$( LC_ALL=C grep -c "merged .*${rigBaseHead:0:7}.*${rigApartHead:0:7}.*README.md" "$rigDir/p.err" || : ):$( LC_ALL=C grep -c WARNING "$rigDir/p.err" || : )" "1:0"
+
+echo "-- a rejected push with a commit in common and a file both changed: the remote's version stands --"
+rigRemote conflict
+rigScenario conflict "$rigTmp/conflict.git"
+git clone -q "$rigTmp/conflict.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
+rigRemoteAdvance conflict shared.md
+printf 'this machine\n' > "$rigStore/shared.md" && printf 'local two\n' > "$rigStore/local-two.md"
+git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local: shared.md and local-two.md"
+rigConflictHead="$( git -C "$rigStore" rev-parse HEAD )"
+rigRun "$rigDir/p" 'AgentsToolsTeamDataPushIfAhead "rig close"'
+rigAssert "the remote's version of the file stands, the store's other file too" "$( cat "$rigStore/shared.md" ):$( cat "$rigStore/local-two.md" 2> /dev/null )" "from elsewhere:local two"
+rigAssert "the merge is pushed, the store's commit is in it, clean" "$( [ "$( rigRemoteHead conflict )" = "$( git -C "$rigStore" rev-parse HEAD )" ] && printf pushed || printf not ):$( git -C "$rigStore" merge-base --is-ancestor "$rigConflictHead" HEAD && printf kept || printf lost ):$( git -C "$rigStore" status --porcelain | wc -l | LC_ALL=C tr -d ' ' )" "pushed:kept:0"
+
+echo "-- a merge that cannot be made: nothing changes, one warning names both ends --"
+rigRemote nomerge
+rigScenario nomerge "$rigTmp/nomerge.git"
+git clone -q "$rigTmp/nomerge.git" "$rigStore" 2> /dev/null || rigRefuse "could not make the clone"
+rigRemoteAdvance nomerge elsewhere-3.md
+printf 'local three\n' > "$rigStore/local-three.md" && git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "local three"
+rigNoHead="$( git -C "$rigStore" rev-parse HEAD )" ; rigNoRemote="$( rigRemoteHead nomerge )"
+## No one to sign a merge as: git cannot make the merge commit at all.
+rigEnv=( GIT_COMMITTER_NAME= GIT_AUTHOR_NAME= )
+rigRun "$rigDir/p" 'AgentsToolsTeamDataPushIfAhead "rig close"'
+rigAssert "the store's commit stands, nothing half done, the remote as it was" "$( git -C "$rigStore" rev-parse HEAD ):$( [ -e "$rigStore/.git/MERGE_HEAD" ] && printf merging || printf none ):$( git -C "$rigStore" status --porcelain | wc -l | LC_ALL=C tr -d ' ' ):$( rigRemoteHead nomerge )" "$rigNoHead:none:0:$rigNoRemote"
+rigAssert "one warning names both ends"                          "$( LC_ALL=C grep 'could not be merged' "$rigDir/p.err" | LC_ALL=C grep -F -- "${rigNoHead:0:7}" | LC_ALL=C grep -c -F -- "${rigNoRemote:0:7}" ):$( LC_ALL=C grep -c WARNING "$rigDir/p.err" || : )" "1:1"
 
 echo "-- a remote that never answers holds no close --"
 rigRemote slow

@@ -14,19 +14,17 @@
 ## paths: resync, conflict check, and the unlock order".
 ##
 
-## Runs the board's own resync primitive. Caller declares advanceSyncOut.
+## Runs the board's own resync: the remote's branch TEAM_DATA_BRANCH names, which the caller
+## gives as <branch>, fetched and merged by the tooling itself (AgentsToolsTeamDataFollow),
+## whatever the store's own branch is called. Caller declares advanceSyncOut.
 AgentsToolsAdvanceCloneSync(){
 	local repoRoot="$1" originUrl="$2" lockBranch="$3"
 	advanceSyncOut=""
-	if [ -z "${MYXROOT:-}" ] || [ ! -f "$MYXROOT/bin/git/cloneSync.Common" ] ; then
-		advanceSyncOut="myx.common git/cloneSync is not reachable (MYXROOT=${MYXROOT:-<unset>})"
-		return 1
-	fi
 	## The way to the remote is the one every call takes, bounded (AgentsToolsTeamDataRemote).
 	. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include"
 	local syncRc=0
 	set +e
-	advanceSyncOut="$( AgentsToolsTeamDataRemote --bound 300 "$MYXROOT/bin/git/cloneSync.Common" --no-push "$repoRoot" "$originUrl" "$lockBranch" 2>&1 )"
+	advanceSyncOut="$( AgentsToolsTeamDataFollow --magic-advance "$repoRoot" "$lockBranch" --now --over-uncommitted 2>&1 )"
 	syncRc=$?
 	set -e
 	return "$syncRc"
@@ -80,7 +78,7 @@ AgentsToolsAdvanceLockHeadCheck(){
 	## FETCH_HEAD, not origin/<branch>: an instrument that does not depend on
 	## the resync having updated the remote-tracking ref.
 	set +e
-	fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+	fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "+refs/heads/$lockBranch:refs/remotes/origin/$lockBranch" 2>&1 )"
 	fetchRc=$?
 	set -e
 	if [ "$fetchRc" -ne 0 ] ; then
@@ -596,6 +594,9 @@ case "$1" in
 				echo "⛔ ERROR: $MDSC_CMD --magic-advance-lock-acquire: LOCK_UNCHECKABLE -- the board checkout $repoRoot is not on a named branch" >&2
 				set +e ; return 1
 			fi
+			## From here the branch is the remote's that TEAM_DATA_BRANCH names, where every
+			## machine's lock goes, whatever this store's own branch is called.
+			lockBranch="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataBranch )"
 			AgentsToolsAdvanceLockStateCheck "$repoRoot" "$lockRelPath" --magic-advance-lock-acquire "before the board resync" || { set +e ; return 1 ; }
 			local advanceSyncOut
 			if ! AgentsToolsAdvanceCloneSync "$repoRoot" "$originUrl" "$lockBranch" ; then
@@ -622,7 +623,7 @@ case "$1" in
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
 			local fetchOut="" fetchRc=0
 			set +e
-			fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "$lockBranch" 2>&1 )"
+			fetchOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" fetch origin "+refs/heads/$lockBranch:refs/remotes/origin/$lockBranch" 2>&1 )"
 			fetchRc=$?
 			set -e
 			if [ "$fetchRc" -ne 0 ] ; then
@@ -717,14 +718,15 @@ case "$1" in
 		fi
 		set -e
 		if [ -n "$originUrl" ] && [ -n "$repoRoot" ] ; then
+			## The remote's branch TEAM_DATA_BRANCH names, whatever this store's own is called.
 			local lockBranch=""
 			set +e
-			lockBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )"
+			lockBranch="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataBranch )"
 			set -e
 			local pushAttempt=1 pushOut="" pushRc=0
 			while : ; do
 				set +e
-				pushOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" push origin HEAD 2>&1 )"
+				pushOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamDataCommit.include" ; AgentsToolsTeamDataRemote git -C "$repoRoot" push origin "HEAD:refs/heads/$lockBranch" 2>&1 )"
 				pushRc=$?
 				set -e
 				[ "$pushRc" -eq 0 ] && break
