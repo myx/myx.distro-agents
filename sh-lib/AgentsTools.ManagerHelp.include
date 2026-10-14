@@ -11,15 +11,46 @@
 ## out, named in one line below; then every operation of the manual, by the two awk files
 ## --member-help prints a member's operations by (AgentsTools.MemberHelp.include), with every
 ## operation on their list; then the chapters of the help file but its options, a row a line.
+## With a tooling command, as --manager-command-list lists it, it prints that command's help
+## from where the command's own `--help` prints it, and RUNS NOTHING: the syntax lines of its
+## help include, then its help file, both beside it (described at the arm).
 ##
 
 case "$1" in
 
 	--manager-help-read)
 		shift
-		if [ $# -gt 0 ] ; then
-			echo "⛔ ERROR: $MDSC_CMD --manager-help-read: takes no arguments" >&2
+		if [ $# -gt 1 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD --manager-help-read: syntax is [<Name>.fn.sh], got: $*" >&2
 			set +e ; return 1
+		fi
+		## One tooling command's help, as its own `--help` prints it, read and never run. A command
+		## of the family writes its help in the help folder of its package, beside its sh-scripts:
+		## Help.<Name>.include, which `--help` sources, echoes its syntax lines and prints
+		## Help.<Name>.help.md. Printed here: those syntax lines the help file does not hold, each
+		## once in their order, then the help file as it is written; nothing for a file that is not
+		## there. The command is one --manager-command-list lists, its folder that of the file it
+		## resolves to there; a name it does not list is refused.
+		if [ $# -eq 1 ] ; then
+			local helpName="$1" helpFile helpFolder
+			helpFile="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerCommand.include" --manager-command-list | LC_ALL=C awk -F'\t' -v name="$helpName" '$1 == name { print $2 ; exit }' )"
+			if [ -z "$helpFile" ] ; then
+				echo "⛔ ERROR: $MDSC_CMD --manager-help-read: no tooling command of that name: $helpName" >&2
+				set +e ; return 1
+			fi
+			[ "$helpFile" != "-" ] || return 0
+			helpFolder="${helpFile%/*}"
+			helpFolder="${helpFolder%/*}/sh-lib/help/Help.${helpName%.fn.sh}"
+			if [ -f "$helpFolder.include" ] ; then
+				LC_ALL=C awk -v help="$helpFolder.help.md" '
+					BEGIN { while ((getline line < help) > 0) held[line] = 1 }
+					/^[ \t]*echo "📘 syntax: / {
+						msg = $0 ; sub(/^[ \t]*echo "/, "", msg) ; sub(/"[^"]*$/, "", msg)
+						if (!(msg in held) && !(msg in seen)) { seen[msg] = 1 ; print msg }
+					}' "$helpFolder.include" || { set +e ; return 1 ; }
+			fi
+			[ ! -f "$helpFolder.help.md" ] || cat "$helpFolder.help.md" || { set +e ; return 1 ; }
+			return 0
 		fi
 		## What a user calls, which the root `Manuals (Help)` shows of itself: every syntax line of
 		## the help, each once in its order, but those of the families named here, the internal

@@ -662,8 +662,13 @@ READS = {
     ## where the key is to be registered.
     "each:configuration/keys": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True, "needs": "readable"},
     ## The tooling commands a console user calls by name, as the console's completion gathers
-    ## them. Read on entering and when it is asked for, not on the period.
+    ## them, each with the file it resolves to. Read on entering and when it is asked for, not
+    ## on the period.
     "list:configuration/commands": {"operation": ["--manager-command-list"], "rows": "commands", "once": True},
+    ## The help of one of them, as its own `--help` prints it, read from its help files and
+    ## never by running it: of the command selected alone, once the selection rests on it, and
+    ## not on the period.
+    "view:configuration/commands:help-entry": {"operation": ["--manager-help-read", "{id}"], "once": True},
     ## What is started from here with the whole terminal, in the order of a menu: the consoles
     ## of the workspace, each with the folder it starts in and its command, a field a word (STARTS).
     "list:consoles": {"operation": ["--manager-console-list"], "rows": "starts"},
@@ -830,16 +835,18 @@ PLACES = {
     "member": ("name", "kind", "home", "setup", "folder"), "unlisted": "not-in-registry",
 }
 ## The rule of the locations: a path that lies in a registered location shows as the key
-## of that location and what follows it there, `<place key>/rest`, the longest location
-## winning, the key in the look of a folder. It is a rule of the drawing alone: what the
+## of that location, a colon and what follows it there, `<place key>:rest`, the location
+## itself as its key alone, the longest location winning, the key in the look of a folder. It is a rule of the drawing alone: what the
 ## screen holds, what it sends to an operation, a link and a command are never changed by
 ## it. "real": the views where a path stands as it is, each by the root it is under and,
 ## where that is not the whole root, by the ids of the rows and levels under it: the table
 ## of the locations and the summary of one; the subject of the workspace's paths, in the
 ## settings and in the configuration; and what is started with the whole terminal, whose
 ## folder and command are exact. The raw mode of a log is such a view too, wherever it
-## is. "dialogs": the dialogs whose text takes the rule, the path as it is standing under
-## its paragraph as a line of its own: the answers to a pending question.
+## is. In the summary of a location, the folder of a member that lies in another location
+## takes the rule all the same (placeLines). "dialogs": the dialogs whose text takes the rule,
+## the path as it is standing under its paragraph as a line of its own: the answers to a
+## pending question.
 PLACED = {
     "real": {"places": None, "consoles": None, "settings": ("workspace",), "configuration": ("workspace",)},
     "dialogs": ("answer", "reply", "reject", "dismiss"),
@@ -1158,10 +1165,11 @@ MARKDOWN_ON = ("team/*/files:file",) + tuple(place for storeId, storeLabel in TE
                                              for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId))
 MARKDOWN_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_ON)
 ## The help of the tooling is Markdown too, in a layout of its own (helpMarkdownLines): the
-## places of its texts, an operation of `Manuals (Help)` and of `Member Help`, and the root and
-## the folder of a member whose summary is the help (helpSummary), each rendered, and raw in
-## the raw mode, as a Markdown text is.
-MARKDOWN_HELP = ("manuals:help-entry", "team/*/help:help-entry", ":section", "team/*:member-help")
+## places of its texts, an operation of `Manuals (Help)` and of `Member Help`, the root and
+## the folder of a member whose summary is the help (helpSummary), and a command of `Tooling
+## Commands`, whose help the family writes in the same layout, each rendered, and raw in the
+## raw mode, as a Markdown text is.
+MARKDOWN_HELP = ("manuals:help-entry", "team/*/help:help-entry", ":section", "team/*:member-help", "configuration/commands:help-entry")
 MARKDOWN_HELP_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_HELP)
 ## The look of each part of a rendered Markdown text: its headings by their level, from the
 ## third on as the third; its strong and its emphasized words; its code; a quote; a rule;
@@ -2418,6 +2426,10 @@ def localView(state, row):
         return ["%s: %s, no text: it is not shown." % (row["id"], shortBytes(row["file"]["bytes"]))]
     if row.get("help"):
         return helpLines(state, row, row["help"])
+    if helpShown(state, row) and state.view.get("text") is not None:
+        ## the help a read gave of the row, as it is written (a tooling command's), set out as the
+        ## help is; a read that gave none says so
+        return helpLines(state, row, state.view["text"].expandtabs(4).splitlines()) or ["%s has no help file beside it." % row["label"]]
     return None
 
 
@@ -6875,27 +6887,33 @@ DIALOG_FILLS["keyline"] = fillKeyLine
 ## ---- the commands a console user calls by name: `Tooling Commands` ----
 
 ## What `--manager-command-list` printed, as rows, in the order they come: a command a
-## line, by its name as it is typed.
+## line, by its name as it is typed, and after a TAB the file it resolves to, `-` for none.
+## Each is an entry of the help: what the left pane shows of it is its help (MARKDOWN_HELP).
 def parseCommandRows(text):
-    return [newRow(name, name, "record") for name in text.split("\n") if name.strip()]
+    rows = []
+    for line in text.split("\n"):
+        name, tab, path = line.partition("\t")
+        if name.strip():
+            rows.append(newRow(name, name, "help-entry"))
+            rows[-1]["path"] = path.strip() or "-"
+    return rows
 
 
 ## What `Tooling Commands` holds, for the left pane while its row or the row that goes up
 ## inside it is selected: how many as its caption, then every command as the operation
-## names it, in its order, in columns across the pane, each as wide as the longest name,
-## one under another (as `ls` sets out names). None until its read has answered.
+## names it, in its order, as a table (tableSummaryLines): its name and its file, the path
+## by the rule of the locations where the view takes it, so it is broken to the pane as it
+## shows. None until its read has answered.
 def commandsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
     if not rows:
         return [looked("The operation listed no command.", BOLD)]
-    names = [held["label"] for held in rows]
-    cell = max(textWidth(name) for name in names) + 2
-    columns = max(1, (max(10, state.viewWidth - 2) + 2) // cell) if state.wrap else 1
-    down = (len(names) + columns - 1) // columns
-    return [looked("%d command%s." % (len(names), "" if len(names) == 1 else "s"), BOLD), ""] + [
-        (" " + "".join(name + " " * (cell - textWidth(name)) for name in names[number::down])).rstrip() for number in range(down)]
+    placing = placedShown(state)
+    return tableSummaryLines(state, [looked("%d command%s." % (len(rows), "" if len(rows) == 1 else "s"), BOLD), ""],
+                             ("NAME", "PATH"), [[held["label"], placedLine(state, held["path"])[0] if placing else held["path"]] for held in rows],
+                             ("key", "text"))
 
 
 ## ---- what is started with the whole terminal: `Consoles (Tools)` ----
@@ -7614,8 +7632,10 @@ def pathUnder(path, folder):
 ## its whole path; and the members that belong to it, as one table, those whose folder
 ## lies in the location first: the icon and the name of each, its kind, how it is set up,
 ## in the colour of what to look at for one that no registry names, and its folder, under
-## the location's path where it lies there. Each table is one of the left pane (paneTable).
-## This is the summary of a location: no path in it is shown by a location's name.
+## the location's path where it lies there, by the rule of the locations where it lies in
+## another one (placedLine), and else as it is. Each table is one of the left pane
+## (paneTable). This is the summary of a location: no other path in it is shown by a
+## location's name.
 def placeLines(state, place, width, info=None):
     label = unspaced(place["label"]) or place["key"]
     lines = [looked(" ".join(word for word in (MARKS["on"] if place["here"] == PLACES["here"] else "", label,
@@ -7639,7 +7659,7 @@ def placeLines(state, place, width, info=None):
     if members:
         icons = dict((row["member"]["name"], row["member"]["icon"]) for row in state.rows.get("team", ()) if row.get("member"))
         head, blocks = paneTable(("MEMBER", "KIND", "SETUP", "FOLDER"), [
-            [member["name"], member["kind"] or "-", member["setup"] or "-", pathUnder(member["folder"], place["path"]) or member["folder"]]
+            [member["name"], member["kind"] or "-", member["setup"] or "-", pathUnder(member["folder"], place["path"]) or placedLine(state, member["folder"])[0]]
             for member in members], max(10, width - 1), [icons.get(member["name"], "") for member in members], state.wrap,
             ("key", "enum", "enum", "text"), "  ", looks=[[None, None, stateLook(member["setup"]), None] for member in members])
         lines.extend(headingLines("Its members") + head + [line for block in blocks for line in block])
@@ -7700,8 +7720,9 @@ def placesKnown(state):
 
 
 ## A text by the rule of the locations: each path in it that lies in a location stands as
-## the key of that location and what follows it there. Gives the text, and where each key
-## stands in it: the cell it starts at, how many cells it takes, and the look of a folder.
+## the key of that location, a colon and what follows it there, and the location itself as
+## its key alone. Gives the text, and where each key stands in it: the cell it starts at,
+## how many cells it takes, and the look of a folder.
 def placedLine(state, text):
     paths, pattern = placesKnown(state)
     if pattern is None or "/" not in text:
@@ -7717,6 +7738,11 @@ def placedLine(state, text):
         width += textWidth(key)
         parts.append(text[at:match.start()] + key)
         at = match.end()
+        if text[at:at + 1] == "/":
+            ## what follows the location's path in it stands after a colon, in the place of its slash
+            parts.append(":")
+            width += 1
+            at += 1
     return ("".join(parts) + text[at:], spans) if spans else (text, [])
 
 

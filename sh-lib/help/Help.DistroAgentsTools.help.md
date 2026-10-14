@@ -168,6 +168,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-console-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]
 📘 syntax: DistroAgentsTools.fn.sh --manager-help-read
+📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
@@ -2833,18 +2834,27 @@
 		--manager-command-list
 			One of the console's own operations (see Notes). Lists the
 			tooling commands a console user calls by name, one a line
-			on stdout, each its base name with its extension, as it is
-			typed: `<Name>.fn.sh`, as `DistroAgentsTools.fn.sh`. No path
-			and no other field. They are what the console's completion
-			gathers, by its own two readers: the `*.fn.sh` of the
-			sh-scripts folder of each installed package of the family,
-			as `Agents --completion-all` lists them, and the commands
-			the projects declare, from the index the workspace holds in
-			.local, as `Distro --shell-path-append --completion` reads
-			it. A name is listed once, in the order of `sort -u`. It
-			only reads: no path is resolved and no file is opened, so
-			whether a file has its executable bit, and which of two of
-			one name the PATH takes, are not said. Takes no argument.
+			on stdout, TAB-separated: `<Name>.fn.sh <file>`, the base
+			name with its extension, as it is typed, as
+			`DistroAgentsTools.fn.sh`, then the file that name resolves
+			to, its whole path, `-` where none does. The names are what
+			the console's completion gathers, by its own two readers:
+			the `*.fn.sh` of the sh-scripts folder of each installed
+			package of the family, as `Agents --completion-all` lists
+			them, and the commands the projects declare, from the index
+			the workspace holds in .local, as
+			`Distro --shell-path-append --completion` reads it. A name
+			is listed once, in the order of `sort -u`. Its file is the
+			one the shell finds for it (`command -v`) on the console's
+			folders alone, in the order of a console's PATH: the
+			family's sh-scripts folders as the agents console puts them
+			there (agents, .local, system, deploy, source, remote), then
+			the folders of the projects' commands as
+			`Distro --shell-path-append` gives them; so of two of one
+			name the first one wins, a file whose executable bit is gone
+			is found as the shell finds it, and a name no folder holds
+			has none. It only reads: no file is opened.
+			Takes no argument.
 
 		--manager-config-digest [--full] [<subject>...]
 			One of the console's own operations (see Notes). Prints the
@@ -3225,6 +3235,7 @@
 			cannot be written the size is not measured at all.
 
 		--manager-help-read
+		--manager-help-read <Name>.fn.sh
 			One of the console's own operations (see Notes). Prints the
 			help of this tool as it is written, on stdout, and writes no
 			help of its own: first what a user calls, the syntax lines
@@ -3240,8 +3251,18 @@
 			`chapter <head|foot> <line>`, `head` for a line before the
 			first option, the heading of the options the last of them,
 			`foot` for one after the options, the line as it is written.
-			Takes no argument: one is refused in one line, rc 1, nothing
-			on stdout.
+			With `<Name>.fn.sh`, one of the tooling commands
+			`--manager-command-list` lists, it prints instead the help
+			that command's own `--help` prints, from where it prints it,
+			and runs nothing: the syntax lines its help include,
+			`Help.<Name>.include`, echoes that its help file does not
+			hold, each once in their order, then its help file,
+			`Help.<Name>.help.md`, as it is written, both from the help
+			folder `sh-lib/help` of the package whose sh-scripts folder
+			holds the file the name resolves to. A command with no such
+			file, or that resolves to none, prints nothing. A name the
+			list does not hold, and a second argument, are refused in
+			one line, rc 1, nothing on stdout.
 
 		--manager-keys-list
 			One of the console's own operations (see Notes). Lists the

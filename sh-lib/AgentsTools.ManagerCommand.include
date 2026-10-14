@@ -3,9 +3,10 @@
 
 ##
 ## AgentsTools.ManagerCommand.include -- the --manager-command-* operations: the tooling
-## commands a console user calls by name, `<Name>.fn.sh`. Sourced from the
-## `--manager-command-*)` arm of AgentsTools.Manager.include; who may call was asked where
-## the family is dispatched.
+## commands a console user calls by name, `<Name>.fn.sh`, each with the file it resolves to.
+## Sourced from the `--manager-command-*)` arm of AgentsTools.Manager.include, and by
+## --manager-help-read, which finds a command's file by this list (AgentsTools.ManagerHelp.include);
+## who may call was asked where the family is dispatched.
 ##
 ## WHICH COMMANDS THEY ARE IS NOT DECIDED HERE. They are what the console's own completion
 ## gathers, by its own two readers, and nothing is found here a second way:
@@ -16,14 +17,20 @@
 ##   Distro --shell-path-append --completion   the commands the projects declare, from the
 ##       index the source-prepare stage builds and holds in .local, which the Source and
 ##       Deploy consoles put on their PATH (SystemConsole.include, its one reader).
-## A name is listed once, as the completion sorts them. No path is resolved and no file is
-## opened, so whether a file has its executable bit, and which of two of one name the PATH
-## takes, are not known here.
+## A name is listed once, as the completion sorts them.
+##
+## WHERE EACH IS, the file a console runs for that name: the name looked up by the shell
+## itself (`command -v`) on the console's folders alone, in the order of a console's PATH:
+## the family's sh-scripts folders as the agents console puts them there
+## (console-agents-bashrc.rc), then the folders of the projects' commands as the one reader
+## of the index gives them (`Distro --shell-path-append`). No file is opened: a file whose
+## executable bit is gone is found as the shell finds it, and a name no folder holds has none, `-`.
 ##
 
 case "$1" in
 
-	## Every tooling command of this workspace, one base name a line. Its form is the help entry's.
+	## Every tooling command of this workspace, one a line: its base name, a TAB, its file.
+	## Its form is the help entry's.
 	--manager-command-list)
 		local listOp="$1"
 		shift
@@ -31,10 +38,23 @@ case "$1" in
 			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
 			set +e ; return 1
 		fi
+		local listPath="" listItem listName
+		for listItem in agents .local system deploy source remote ; do
+			listPath="$listPath:$MDLT_ORIGIN/myx/myx.distro-$listItem/sh-scripts"
+		done
+		listPath="${listPath#:}"
+		## the index's folders, as its reader appends them to a PATH that holds the family's
+		listPath="$listPath$( PATH="$listPath:/usr/bin:/bin" Distro --shell-path-append )"
 		{
 			Agents --completion-all | grep -e '\.fn\.sh$'
 			Distro --shell-path-append --completion
-		} | sort -u
+		} | sort -u | (
+			PATH="$listPath"
+			hash -r
+			while IFS= read -r listName ; do
+				printf '%s\t%s\n' "$listName" "$( command -v -- "$listName" || echo - )"
+			done
+		)
 		return 0
 	;;
 

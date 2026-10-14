@@ -9,8 +9,13 @@
 ## files, every operation on their list): no help of its own. Last the chapters of the help file but its options, a
 ## row a line, `chapter`, `head` or `foot`, the line as it is written: the lines after its syntax lines to the heading
 ## of its options, and the lines after its options, which a member's `Member Help` shows around its syntax lines.
-## Refused in one line, rc 1, nothing on stdout: any argument. THE CALLER RULE of the family holds. And its help
-## pair. Offline; only the help files of the origin are read.
+## With one argument, a tooling command as --manager-command-list lists it (the owner: "Tooling Commands can show
+## their `--help`"), it prints the help that command's own `--help` prints, from where it prints it, and runs
+## nothing: the syntax lines its help include echoes that its help file does not hold, then that help file as it is
+## written, both from the help folder of the package its file lies in; a command with no help file beside it prints
+## nothing; a command of the family has its own. Refused in one line, rc 1, nothing on stdout: an argument that
+## names no tooling command, and a second argument. THE CALLER RULE of the family holds. And its help pair.
+## Offline; only the help files of the origin and of the rig are read.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
@@ -127,14 +132,41 @@ rigAssert "no syntax line and no option of the manual among the chapters" "$( ca
 
 echo "-- 4. what it refuses, the caller rule of the family, and its help pair --"
 rigRun "$rigRead" extra
-rigAssert "any argument: rc 1, nothing on stdout, one error line" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErrors )" "1 0 1"
+rigAssert "an argument that names no tooling command: rc 1, nothing on stdout, one error line" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErrors )" "1 0 1"
 rigPre=( "MDAT_SPAWN_AGENT=keeper-rig" )
 rigRun "$rigRead"
 rigPre=()
 rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout, in the one line of the family" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( LC_ALL=C grep -c -F -- "a --manager-* operation is the console's own, never run from inside a member's session" "$rigTmp/err" )" "1 0 1"
 rigLine="📘 syntax: DistroAgentsTools.fn.sh $rigRead"
 rigAssert "it has its syntax echo, its syntax line and its entry, once each" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine" "$rigHelpMd" || : ) $( LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s' "$rigRead" )" "$rigHelpMd" || : )" "1 1 1"
+rigAssert "and so has its form with a command: its syntax echo, its syntax line, and the line that heads the same entry" "$( LC_ALL=C grep -c -x -F -- "echo \"$rigLine <Name>.fn.sh\" >&2" "$rigHelpInclude" || : ) $( LC_ALL=C grep -c -x -F -- "$rigLine <Name>.fn.sh" "$rigHelpMd" || : ) $( LC_ALL=C grep -A1 -x -F -- "$( printf '\t\t%s' "$rigRead" )" "$rigHelpMd" | LC_ALL=C grep -c -x -F -- "$( printf '\t\t%s <Name>.fn.sh' "$rigRead" )" || : )" "1 1 1"
 rigAssert "the family's include has one arm for the help, which sources its include" "$( LC_ALL=C grep -c -x -e '	--manager-help-\*)' "$rigHere/AgentsTools.Manager.include" || : ) $( LC_ALL=C grep -c -F -e '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerHelp.include"' "$rigHere/AgentsTools.Manager.include" || : )" "1 1"
+
+echo "-- 5. one tooling command's help: what its own --help prints it from, read, and the command never run --"
+## A rig project with a command whose help stands beside it, as the family's commands have theirs: its help include
+## echoes three syntax lines, one of them its help file does not hold; the command itself, were it run, would leave a
+## marker. A second command with no help file. Both declared in the index of the rig workspace.
+rigProject="$rigWs/source/rig/farm-a"
+mkdir -p "$rigProject/sh-scripts" "$rigProject/sh-lib/help"
+for rigName in RigHelp RigBare ; do
+	printf '#!/bin/sh\ntouch "%s/ran.%s"\n' "$rigTmp" "$rigName" > "$rigProject/sh-scripts/$rigName.fn.sh"
+	chmod +x "$rigProject/sh-scripts/$rigName.fn.sh"
+	printf '%s %s %s\n' rig/farm-a "$rigName" "$rigProject/sh-scripts" >> "$rigWs/.local/distro-commands.txt"
+done
+printf 'echo "📘 syntax: RigHelp.fn.sh --only-in-the-include" >&2\necho "📘 syntax: RigHelp.fn.sh <arg>" >&2\nif [ "$1" = "--help" ] ; then\n\techo "📘 syntax: RigHelp.fn.sh [--help]" >&2\n\tmyx.common lib/catMarkdown "$MDLT_ORIGIN/rig/Help.RigHelp.help.md" >&2\nfi\n' > "$rigProject/sh-lib/help/Help.RigHelp.include"
+printf '📘 syntax: RigHelp.fn.sh <arg>\n📘 syntax: RigHelp.fn.sh [--help]\n\n##  Summary:\n\n\t\tDoes the rig thing, `with_code`.\n\n##  Options:\n\n\t\t--rig-option <value>\n\t\t\tWhat it does.\n' > "$rigProject/sh-lib/help/Help.RigHelp.help.md"
+{ printf '📘 syntax: RigHelp.fn.sh --only-in-the-include\n' ; cat "$rigProject/sh-lib/help/Help.RigHelp.help.md" ; } > "$rigTmp/want.help"
+rigRun "$rigRead" RigHelp.fn.sh
+rigAssert "rc 0, no error: first the syntax lines its help include echoes that its help file does not hold, once each, then its help file as it is written" "$rigRc $( rigErrors ) $( cmp -s "$rigTmp/want.help" "$rigTmp/out" && echo same || echo differs )" "0 0 same"
+rigAssert "the command itself is not run" "$( ls "$rigTmp" | LC_ALL=C grep -c '^ran\.' || : )" "0"
+rigRun "$rigRead" RigBare.fn.sh
+rigAssert "a command with no help file beside it: rc 0, nothing printed, and it is not run either" "$rigRc $( rigErrors ) $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( ls "$rigTmp" | LC_ALL=C grep -c '^ran\.' || : )" "0 0 0 0"
+rigRun "$rigRead" DistroAgentsTools.fn.sh
+rigAssert "a command of the family: its own help file, from the package its file lies in, as it is written, last" "$rigRc $( rigErrors ) $( tail -n "$( LC_ALL=C grep -c '' "$rigHelpMd" )" "$rigTmp/out" | cmp -s - "$rigHelpMd" && echo same || echo differs )" "0 0 same"
+rigRun "$rigRead" NoSuchRig.fn.sh
+rigAssert "a name the list of the tooling commands does not hold: rc 1, nothing on stdout, one error line" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErrors )" "1 0 1"
+rigRun "$rigRead" RigHelp.fn.sh extra
+rigAssert "a second argument: rc 1, nothing on stdout, one error line, and nothing run" "$rigRc $( wc -c < "$rigTmp/out" | LC_ALL=C tr -d ' ' ) $( rigErrors ) $( ls "$rigTmp" | LC_ALL=C grep -c '^ran\.' || : )" "1 0 1 0"
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ MANAGER HELP READ CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

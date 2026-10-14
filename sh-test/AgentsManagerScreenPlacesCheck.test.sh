@@ -13,11 +13,13 @@
 ## out, one that is not present shows plainer; a line that is no row of a location is left out; the left window
 ## shows what the folder holds, and of the selected location its facts, and, once `--manager-place-read` was
 ## called with its key exactly as it is, what declares it, what stands in it, each path as it stands under the path
-## of the location, and the members that belong to it, by the way they are set up; in the table, in the summary of a
-## location, in the subject of the workspace's paths and in what is started with the whole terminal a path stands
-## as it is; in every other view a path inside a location is drawn as the key of that location and what follows,
-## the longest location winning, the key in the palette entry of a folder, and a path that only begins as one
-## does is left alone; a value of the dashboard takes the rule where it is set out; the answer dialog of a
+## of the location, and the members that belong to it, by the way they are set up, a folder under the path of the
+## location as it stands there, one in another location by the rule below (the owner: "paths ... in Locations/Places
+## `Its members` may start with place:preffix instead of absolute"), one in none as it is; in the table, in the
+## summary of a location but its members' folders, in the subject of the workspace's paths and in what is started
+## with the whole terminal a path stands as it is; in every other view a path inside a location is drawn as the key
+## of that location, a colon and what follows, the longest location winning, the key in the palette entry of a
+## folder, and a path that only begins as one does is left alone; a value of the dashboard takes the rule where it is set out; the answer dialog of a
 ## question takes it, with the path as it is under its paragraph, and a message box does not; with no location
 ## known every path stands as it is.
 ## Offline: no operation of the real tooling is called.
@@ -77,6 +79,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow member magic-linked magic elsewhere origin-symlink /rig/origin/skillset/magic-linked
 	rigRow member keeper-own keeper none source-symlink /rig/Workspaces/ws-one/source/deep/skillset/keeper-own
 	rigRow member stray-one keeper none not-in-registry /rig/Workspaces/ws-one/source/deep/.local/agents/members/stray-one
+	rigRow member far-one keeper elsewhere origin-symlink /rig/Workspaces/ws-one/skillset/far-one
 } > "$rigF/rows.--manager-place-read deep"
 {
 	rigRow block data Team_Data 2
@@ -138,7 +141,7 @@ rigPlaceCalls(){ ## how many starts were of an operation of the locations, and h
 ## The line every case of the rule puts into the left window: a path in the longer location, a path that only
 ## begins as the workspace's does, the workspace's own path between brackets, and a path in the workspace alone.
 rigSaid='it reads /rig/Workspaces/ws-one/source/deep/a.txt and /rig/Workspaces/ws-one-other/b and (/rig/Workspaces/ws-one) and /rig/Workspaces/ws-one/x.sh too'
-rigPlaced='it reads deep/a.txt and /rig/Workspaces/ws-one-other/b and (ws-one) and ws-one/x.sh too'
+rigPlaced='it reads deep:a.txt and /rig/Workspaces/ws-one-other/b and (ws-one) and ws-one:x.sh too'
 
 echo "-- the root, its table, and what the left window shows of it"
 rigCase table
@@ -184,7 +187,7 @@ rigAssert "on the row that goes up the left window shows what the folder holds: 
 rigAssert "a location selected: its read is called with its key, once, and the left window shows its facts" "$( rigVal deep.selected ) [$( rigVal deepTitle )] $( rigCalled '--manager-place-read deep' ) $( rigHolds d '│Deep (deep) ' ) $( rigHolds d '│ kind         directory ' ) $( rigHolds d '│ ceiling      read-only ' ) $( rigHolds d '│ state        present ' )" "deep [deep [wrap]] 1 1 1 1 1"
 rigAssert "in the summary of a location its own path and what declares it stand as they are" "$( rigHolds d '│ path         /rig/Workspaces/ws-one/source/deep ' ) $( rigHolds d '│ registry     /rig/Workspaces/ws-one/.local/agents/directories.registry ' ) $( rigHolds d 'declared-by  a-project' ) $( rigVal deep.spills )" "1 1 1 0"
 rigAssert "what stands in it is a table of what, its name and where, each path as it stands under the path of the location, which is said once, at the top; a thing that lies elsewhere keeps its whole path, a row of the same table" "$( rigHolds d '│  WHAT           NAME                   WHERE ' ) $( rigHolds d '│  console        DistroAgentsConsole.sh DistroAgentsConsole.sh ' ) $( rigHolds d '│  team-data-root -                      team-data ' ) $( rigHolds d '│  home           keeper-far             /rig/elsewhere/homes/keeper-far ' ) $( rigHolds d '/rig/Workspaces/ws-one/source/deep' )" "1 1 1 1 1"
-rigAssert "its members stand under that as one table, how each is set up in a column of its own as their rows say it, those whose folder lies in the location first, a folder under its path where it lies there; one that no registry names has that word in the colour of what to look at" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^d|' | LC_ALL=C grep -o -e '│Its members ' -e '│  MEMBER       KIND   SETUP           FOLDER ' -e '│  keeper-own   keeper source-symlink  skillset/keeper-own ' -e '│  stray-one    keeper not-in-registry .local/agents/members/stray-one ' -e '│  magic-linked magic  origin-symlink  /rig/origin/skillset/magic-linked ' | LC_ALL=C tr -d '│' | LC_ALL=C sed 's/^ *//;s/ *$//' | LC_ALL=C tr -s ' ' | LC_ALL=C tr '\n' '|' ) $( rigLookAt d dl 'not-in-registry' ) $( rigLookAt d dl 'source-symlink' )" "Its members|MEMBER KIND SETUP FOLDER|keeper-own keeper source-symlink skillset/keeper-own|stray-one keeper not-in-registry .local/agents/members/stray-one|magic-linked magic origin-symlink /rig/origin/skillset/magic-linked| BBBBBBBBBBBBBBB .............."
+rigAssert "its members stand under that as one table, how each is set up in a column of its own as their rows say it, those whose folder lies in the location first, a folder under its path where it lies there, one in another location by its key and a colon, one in none as it is; one that no registry names has that word in the colour of what to look at" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^d|' | LC_ALL=C grep -o -e '│Its members ' -e '│  MEMBER       KIND   SETUP           FOLDER ' -e '│  keeper-own   keeper source-symlink  skillset/keeper-own ' -e '│  stray-one    keeper not-in-registry .local/agents/members/stray-one ' -e '│  magic-linked magic  origin-symlink  /rig/origin/skillset/magic-linked ' -e '│  far-one      keeper origin-symlink  ws-one:skillset/far-one ' | LC_ALL=C tr -d '│' | LC_ALL=C sed 's/^ *//;s/ *$//' | LC_ALL=C tr -s ' ' | LC_ALL=C tr '\n' '|' ) $( rigLookAt d dl 'not-in-registry' ) $( rigLookAt d dl 'source-symlink' ) $( rigHolds d '/rig/Workspaces/ws-one/skillset/far-one' )" "Its members|MEMBER KIND SETUP FOLDER|keeper-own keeper source-symlink skillset/keeper-own|stray-one keeper not-in-registry .local/agents/members/stray-one|magic-linked magic origin-symlink /rig/origin/skillset/magic-linked|far-one keeper origin-symlink ws-one:skillset/far-one| BBBBBBBBBBBBBBB .............. 0"
 rigAssert "a key with a mark in it is given to the read as it is" "$( rigVal odd.selected ) $( rigCalled '--manager-place-read nowhere@ws-two' ) $( rigHolds o '│Nowhere (nowhere@ws-two) ' ) $( rigHolds o '│ path ' )" "nowhere@ws-two 1 1 0"
 rigAssert "Backspace goes back to the root, onto its row, where the left window says the same of the folder" "[$( rigVal out.path )] $( rigVal out.selected ) $( rigHolds s '5 locations: 3 directory, 2 workspace; the console runs in ws-one; 2 not present.' )" "[] places 1"
 rigAssert "no operation of the locations was called but the list with no argument and the read of one key" "$( rigPlaceCalls )" "3 0"
@@ -251,8 +254,8 @@ get console
 show k
 EOF
 rigAssert "in a view of the sessions: the longest location wins, the workspace's own path is its key, a path that only begins as one does is left alone" "$( rigVal v.selected ) $( rigHolds v "│$rigPlaced " ) $( rigHolds v '/rig/Workspaces/ws-one/' ) $( rigVal v.spills )" "s1 1 0 0"
-rigAssert "the key of a location stands in the palette entry of a folder, and nothing else of the line does" "$( rigLookAt v vr 'it reads deep/a.txt and' ) $( rigLookAt v vr '(ws-one) and ws-one/x.sh too' )" ".........eeee.......... .eeeeee......eeeeee........."
-rigAssert "a value of the dashboard takes the rule where it is set out: the box keeps its width, the key its look" "$( rigHolds dash ' deep/team-data │' ) $( rigHolds dash ' ws-one │' ) $( rigLookAt dash dashr 'deep/team-data' ) $( rigLookAt dash dashr ' ws-one │' )" "1 1 eeeeBBBBBBBBBB .eeeeee.."
+rigAssert "the key of a location stands in the palette entry of a folder, and nothing else of the line does" "$( rigLookAt v vr 'it reads deep:a.txt and' ) $( rigLookAt v vr '(ws-one) and ws-one:x.sh too' )" ".........eeee.......... .eeeeee......eeeeee........."
+rigAssert "a value of the dashboard takes the rule where it is set out: the box keeps its width, the key its look" "$( rigHolds dash ' deep:team-data │' ) $( rigHolds dash ' ws-one │' ) $( rigLookAt dash dashr 'deep:team-data' ) $( rigLookAt dash dashr ' ws-one │' )" "1 1 eeeeBBBBBBBBBB .eeeeee.."
 rigAssert "in the subject of the workspace's paths a path stands as it is" "$( rigVal paths.selected ) $( rigHolds p "│$rigSaid " ) $( rigHolds p 'deep/a.txt' | LC_ALL=C sed 's/^1$/as it is/' )" "workspace 1 as it is"
 rigAssert "in another subject it takes the rule" "$( rigVal other.selected ) $( rigHolds q "│$rigPlaced " )" "other 1"
 rigAssert "in what is started with the whole terminal a path stands as it is" "$( rigVal console.selected ) $( rigHolds k "│$rigSaid " )" "c1 1"
@@ -275,8 +278,8 @@ EOF
 rigBox(){ ## tag, text -- how many lines of that box hold the text
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
 }
-rigAssert "a fact of the dialog shows by the name of the location, and the path as it is stands under it" "$( rigVal a.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigBox a '║ file      deep/a.txt ' ) $( rigBox a '║           /rig/Workspaces/ws-one/source/deep/a.txt ' )" "answer:answers 1 1"
-rigAssert "so does a paragraph: the path as it is under it, without what ends the sentence, and a path of no location is left alone" "$( rigBox a '║ may it write ws-one/x.sh, and (/rig/Workspaces/ws-one-other/b)? ' ) $( rigBox a '║   /rig/Workspaces/ws-one/x.sh  ' ) $( rigBox a '║ asked by  someone ' )" "1 1 1"
+rigAssert "a fact of the dialog shows by the name of the location, and the path as it is stands under it" "$( rigVal a.dialog | LC_ALL=C cut -d'|' -f1 ) $( rigBox a '║ file      deep:a.txt ' ) $( rigBox a '║           /rig/Workspaces/ws-one/source/deep/a.txt ' )" "answer:answers 1 1"
+rigAssert "so does a paragraph: the path as it is under it, without what ends the sentence, and a path of no location is left alone" "$( rigBox a '║ may it write ws-one:x.sh, and (/rig/Workspaces/ws-one-other/b)? ' ) $( rigBox a '║   /rig/Workspaces/ws-one/x.sh  ' ) $( rigBox a '║ asked by  someone ' )" "1 1 1"
 rigAssert "a message box shows what it was given, as it is" "$( rigBox m 'it failed at /rig/Workspaces/ws-one/x.sh' ) $( rigBox m 'ws-one/x.sh' )" "1 1"
 
 echo "-- when it is read: once at the start; again, on the period and when a read is asked for, only while it is the list shown"

@@ -11,7 +11,8 @@
 ## location (what stands in it under its path, what lies outside whole; its members as one table, an unregistered one in
 ## the colour of what to look at); Consoles (a table); Settings and Configuration (a table with what each subject is, the
 ## folders of Configuration among its rows); a subject (a table, a missing value in its colour, no hint); Config Checker
-## (every check, the worst first, in its colour); Server Keys (a public line whole); Tooling Commands (columns). Offline:
+## (every check, the worst first, in its colour); Server Keys (a public line whole); Tooling Commands (a table, a command
+## a row, its name and its path). Offline:
 ## no operation of the real tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -281,8 +282,8 @@ rigAssert "a subject: its lines as a table, a missing value in its colour; no hi
 	"$( rigHas cli 'SETTING' ) $( rigRole cli 'Cli A' W ) $( rigHas cli 'Enter opens it' ) $( rigHas subject 'Enter opens it' )" "1 1 0 0"
 rigAssert "Config Checker: every check as a table, the worst first, in its colour" \
 	"$( rigHas checker 'CHECK' ) $( [ "$( rigLineOf checker 'Git Remote' )" -lt "$( rigLineOf checker 'Bash Version' )" ] && echo worst ) $( rigRole checker 'Git Remote' X )" "1 worst 1"
-rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a caption and its names in columns" \
-	"$( rigHas keys 'PUBLIC LINE' ) $( rigHas keys 'rig@host' ) $( rigPane keys | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' ) $( rigHas commands '5 commands.' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *Cmd' )" "1 1 0 1 1"
+rigAssert "Server Keys: a table, a public line whole; Tooling Commands: a caption and a table, a command a row with its path" \
+	"$( rigHas keys 'PUBLIC LINE' ) $( rigHas keys 'rig@host' ) $( rigPane keys | LC_ALL=C sed 's/  *$//' | LC_ALL=C grep -c '…$' ) $( rigHas commands '5 commands.' ) $( rigPane commands | LC_ALL=C grep -c 'NAME  *PATH' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *Cmd' ) $( rigPane commands | LC_ALL=C grep -c 'CmdOne.fn.sh  *-' )" "1 1 0 1 1 0 1"
 rigAssert "nothing was drawn past a pane" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep -c 'DRIVER-FAILED\|Traceback' || : )" "0"
 
 if [ "$rigFailCount" -ne 0 ] ; then

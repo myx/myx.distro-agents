@@ -16,9 +16,12 @@
 ## list where that carries it and else from the read of that key, and the shortened key of a row is never on the
 ## screen; a key selected shows what it is for, its type, fingerprint, file, its whole line and where it is to be
 ## registered; its key shows it alone in a box, read anew, broken only where the box is full; a key that cannot
-## be read says so and opens no box; `Tooling Commands` stands after them, its left window lists the commands as
-## `--manager-command-list` prints them, by the names a user types, read once the selection rests on it, and inside
-## each is a row; and the real screen, on a pseudo-terminal, starts,
+## be read says so and opens no box; `Tooling Commands` stands after them, its left window a table of the commands as
+## `--manager-command-list` prints them, by the names a user types, each with the file it resolves to, a path in a
+## location by its key and a colon, read once the selection rests on it, and inside each is a row; a command
+## selected shows its help as `--manager-help-read <name>` gives it, read for it alone, rendered as the help is, raw
+## by `g` and cut by `w`, and one whose read gives nothing says it has no help file; and the real screen, on a
+## pseudo-terminal, starts,
 ## shows the folders and ends on Ctrl-X with the terminal given back.
 ## Offline: no operation of the real tooling is called, no check is run and no key of this machine is read.
 set -u
@@ -100,8 +103,10 @@ rigKeyRow(){ ## key, label, group, purpose, type, fingerprint, file, state, the 
 } > "$rigF/rows.--manager-keys-read deploy"
 rigRow paste "$rigHostFull" > "$rigF/rows.--manager-keys-read host-ed25519"
 rigRow paste "$rigOursFull" > "$rigF/rows.--manager-keys-read ours"
-## The tooling commands as `--manager-command-list` prints them: one base name a line, as a user types it.
-printf '%s\n' DistroAgentsTools.fn.sh JumpRig.fn.sh ScreenTo.fn.sh > "$rigF/rows.--manager-command-list"
+## The tooling commands as `--manager-command-list` prints them: one base name a line, as a user types it, a TAB,
+## and the file it resolves to: one in a location, one in none, one that resolves to no file.
+printf '%s\t%s\n' DistroAgentsTools.fn.sh /rig/Workspaces/ws-one/source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh \
+	JumpRig.fn.sh /rig/elsewhere/sh-scripts/JumpRig.fn.sh ScreenTo.fn.sh - > "$rigF/rows.--manager-command-list"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
@@ -152,6 +157,22 @@ rigSqHolds(){ ## tag, text -- how many lines of that screen hold the text, every
 }
 rigCell(){ ## name -- the cells of that name, without the spaces at their end and with every run of spaces as one
 	rigVal "$1" | LC_ALL=C sed -e 's/  *$//' -e 's/   */ ~ /g'
+}
+rigLookOf(){ ## show tag, roles tag, text -- the letters of the looks (roles) of the cells under the text, on the first line that holds it
+	printf '%s\n' "$rigOut" | "$rigPython" -I -c '
+import sys
+shown, roles, text = sys.argv[1:4]
+lines = sys.stdin.read().split("\n")
+texts = [line[len(shown) + 1:] for line in lines if line.startswith(shown + "|")]
+letters = [line[len(roles) + 1:] for line in lines if line.startswith(roles + "|")]
+for number, line in enumerate(texts):
+    if text in line and number < len(letters):
+        at = line.index(text)
+        print(letters[number][at:at + len(text)])
+        break
+else:
+    print("none")
+' "$1" "$2" "$3"
 }
 
 echo "-- Configuration holds its two folders ahead of its subjects --"
@@ -449,8 +470,13 @@ rigAssert "Enter on a heading does nothing: the status line says that the row ha
 rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u '  group   grok' ) $( rigPaneHolds u '  key     usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"
 rigAssert "a subject with one group shows no heading: its lines alone, as they come" "$( rigVal one.path ) $( rigVal one.rows ) [$( rigTrim o1 )][$( rigTrim o2 )][$( rigTrim o3 )]" "configuration/loop 3 [ Running][ Recheck][]"
 
-echo "-- Tooling Commands: the commands the completion gathers, by the names a user types --"
+echo "-- Tooling Commands: the commands the completion gathers, by the names a user types, each with its file, and the help of each --"
 rigCase commands
+## a location, so that a path inside it shows by its key; the help of one command as --manager-help-read gives it,
+## the help of another empty: no help file stands beside it
+printf 'place\tws-one\tWs_One\tworkspace\tread-write\t/rig/Workspaces/ws-one\tpresent\tyes\t2\n' > "$MANAGER_SCREEN_RIG/rows.--manager-place-list"
+printf '📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include\n📘 syntax: DistroAgentsTools.fn.sh <rig-arg>\n\n##  Summary:\n\n\t\tDoes the rig thing, `with_code` and **strong**.\n\n##  Options:\n\n\t\t--rig-option <value>\n\t\t\tWhat the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.\n' > "$MANAGER_SCREEN_RIG/rows.--manager-help-read DistroAgentsTools.fn.sh"
+: > "$MANAGER_SCREEN_RIG/rows.--manager-help-read JumpRig.fn.sh"
 rigScript <<'RIGSCRIPT'
 turn
 keys 8
@@ -467,10 +493,34 @@ get in
 cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
+keys DOWN
+wait view 30
+turn
+get help
+show h
+roles hr
+keys g
+turn
+get raw
+show r
+keys b TAB w
+turn
+get cut
+show c
+keys w TAB DOWN
+wait view 30
+turn
+get none
+show n
 RIGSCRIPT
-rigAssert "on its row the left window lists the commands, how many as its caption, then in columns across the pane, by the names the operation prints, once the selection has rested there" "$( rigVal on.selectedLabel ) [$( rigPane t 2 )][$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 5 | LC_ALL=C tr -s ' ' )][$( rigPane t 6 )]" "Tooling Commands [ Tooling Commands [wrap]][ 3 commands.][][ DistroAgentsTools.fn.sh JumpRig.fn.sh ScreenTo.fn.sh][]"
+rigAssert "on its row the left window shows the commands, how many as its caption, then a table of each name and the file it resolves to, once the selection has rested there" "$( rigVal on.selectedLabel ) [$( rigPane t 2 )][$( rigPane t 3 )][$( rigPane t 4 )] $( rigPaneHolds t '  NAME                    PATH' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "Tooling Commands [ Tooling Commands [wrap]][ 3 commands.][] 1"
+rigAssert "a path in a location shows by its key and a colon, one in none as it is, and one that resolves to no file as a dash, in the order the operation gives" "$( rigColumnJoined t PATH | head -c 110 )" "ws-one:source/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh/rig/elsewhere/sh-scripts/JumpRig.fn.sh-"
 rigAssert "it is read by the one operation, with no argument, once" "$( rigCalled --manager-command-list ) $( LC_ALL=C grep -c -e '--manager-command-list' "$MANAGER_SCREEN_RIG/calls" )" "1 1"
 rigAssert "inside, each command is a row of its own, by its name" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "configuration/commands 4 [ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh]"
+rigAssert "a command selected: its help is read by the help read with its name, once, and the left window shows it rendered, its title says so" "$( rigVal help.selected ) $( rigCalled '--manager-help-read DistroAgentsTools.fn.sh' ) [$( rigPane h 2 )] $( rigPaneHolds h ' 📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include' ) $( rigPaneHolds h ' Summary:' ) $( rigScreenHolds h '##' ) $( rigScreenHolds h '**' ) $( rigScreenHolds h '`' )" "DistroAgentsTools.fn.sh 1 [ DistroAgentsTools.fn.sh [markdown] [wrap]] 1 1 0 0 0"
+rigAssert "its option heads its text, set in as the help sets it, in the look of a heading, and a long sentence is broken to the window" "$( rigPaneHolds h '         --rig-option <value>' ) $( rigLookOf h hr '--rig-option <value>' ) $( rigScreenHolds h 'ENDWORD' ) $( rigScreenHolds h 'What the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.' )" "1 BBBBBBBBBBBBBBBBBBBB 1 0"
+rigAssert "g shows it as it is, b renders it again, and w cuts each line instead of breaking it" "$( rigVal raw.textMode ) $( rigPaneHolds r ' ##  Summary:' ) $( rigVal cut.textMode ) $( rigScreenHolds c 'What the option does, a long sentence that goes on and on, so that' ) $( rigScreenHolds c 'ENDWORD' ) $( rigScreenHolds c '[cut]' )" "raw 1 summary 1 0 1"
+rigAssert "a command whose help read gives nothing says plainly that it has no help file, and only the selected commands were read" "$( rigVal none.selected ) $( rigPaneHolds n ' JumpRig.fn.sh has no help file beside it.' ) $( LC_ALL=C grep -c -e '^--manager-help-read' "$MANAGER_SCREEN_RIG/calls" ) $( rigCalled '--manager-help-read ScreenTo.fn.sh' )" "JumpRig.fn.sh 1 2 0"
 
 echo "-- the real screen on a pseudo-terminal: it starts, shows Configuration with its folders, and Ctrl-X ends it --"
 rigCase pty

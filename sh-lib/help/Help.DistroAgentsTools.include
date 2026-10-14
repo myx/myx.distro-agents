@@ -229,6 +229,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>" >
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read <Name>.fn.sh" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2
