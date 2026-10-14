@@ -56,6 +56,8 @@ rigConf(){ ## subject, group, key, state, value, label, description -- a line of
 	rigRow line "$1" "$2" "$3" "$4" "$5" "${6:--}" "${7:--}" 'no:set_at_deployment:_a_wizard_will_change_it' - - - - - configuration
 }
 rigEnv=/rig/ws_rig/.local/home/rig/MDLT.settings.env
+## The choices of the style, as the digest gives them: each style in each of its colours, Magic first.
+rigStyles='nu-system=Magic_-_System,nu-blue=Magic_-_Dark/Blue,nu-gray=Magic_-_Light/Gray,tv-system=Turbo_Vision_-_System,tv-blue=Turbo_Vision_-_Dark/Blue,tv-gray=Turbo_Vision_-_Light/Gray,bw-system=Basic_B/W_-_System,bw-dark=Basic_B/W_-_Dark/Blue,bw-light=Basic_B/W_-_Light/Gray'
 rigTeamEnv=/rig/ws_rig/.local/.agents/magic-team.agent.env
 ## A digest of eight subjects, every line of fifteen fields. Of the configuration: workspace, two paths, one of
 ## them missing, and a place; cli, what the workspace asks for, a leg with a secret that is set, whose row carries
@@ -95,7 +97,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigConf scopes magic-team TRELLO_BOARD missing -
 	rigConf scopes magic-team TRELLO_TOKEN secret-missing -
 	rigRow subject interface 1 Interface_Settings
-	rigRow line interface style MDAT_MANAGER_STYLE set tv Interface_Style 'How_the_manager_screen_is_drawn:_its_frames,_its_colours_and_its_keys.' yes choice user default 'tv=Turbo_Vision,bw=Basic_B/W,magic=Magic' "$rigEnv" settings
+	rigRow line interface style MDAT_MANAGER_STYLE set tv-system Interface_Style 'How_the_manager_screen_is_drawn:_its_frames,_its_colours_and_its_keys.' yes choice user default "$rigStyles" "$rigEnv" settings
 	rigRow subject console 3 Console_Behaviour
 	rigRow line console history MDLT_CONSOLE_HISTORY set workspace-personal Console_History_Type 'Where_a_console_keeps_the_shell_history_of_this_user.' yes choice user user 'workspace-personal=Per_User_In_This_Workspace,bash-default=The_File_Bash_Uses' "$rigEnv" settings
 	rigConf console origin MDLT_CONSOLE_ORIGIN set source Console_Tooling_Origin 'Where_the_consoles_of_this_workspace_load_their_tools_from.'
@@ -105,7 +107,7 @@ rigF="$rigTmp/fixture" ; mkdir -p "$rigF"
 	rigRow line control kill SESSION_CONTROL_KILL_SECONDS set 30 Control_Kill_Seconds 'How_many_seconds_the_carrying_out_of_a_kill_may_take.' yes number workspace workspace 5..600 "$rigTeamEnv" settings
 } > "$rigF/rows.--manager-config-digest"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
-rigRow saved MDAT_MANAGER_STYLE magic user "$rigEnv" > "$rigF/rows.--manager-config-set"
+rigRow saved MDAT_MANAGER_STYLE nu-blue user "$rigEnv" > "$rigF/rows.--manager-config-set"
 rigRow saved SESSION_CONTROL_REQUEST_SECONDS 12 workspace "$rigTeamEnv" > "$rigF/rows.--manager-config-set SESSION_CONTROL_REQUEST_SECONDS 12"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
@@ -126,7 +128,7 @@ rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of t
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -n "${2}p" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//'
 }
 rigPaneHolds(){ ## tag, text -- how many lines of the left pane of that screen are exactly the text, the spaces at their ends aside
-	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -e "s/^$1|//" -e 's/^┌\(─\)* \(.*\) \(─\)*┐.*$/ \2/' -e 's/^╔\(═\)* \(.*\) \(═\)*╗.*$/ \2/' -e 's/^│/ /' -e 's/^║/ /' -e 's/│.*$//' -e 's/║.*$//' -e 's/▲.*$//' -e 's/▼.*$//' -e 's/▒.*$//' -e 's/■.*$//' -e 's/^▐/ /' -e 's/▌.*$//' -e 's/↑.*$//' -e 's/↓.*$//' -e 's/  *$//' | LC_ALL=C grep -c -x -F -- "$2" || :
 }
 rigScreenHolds(){ ## tag, text -- how many lines of that whole screen hold the text anywhere
 	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C grep -c -F -- "$2" || :
@@ -168,6 +170,7 @@ cells row7 8 85 119
 cells row8 9 85 119
 cells row9 10 85 119
 cells row10 11 85 119
+cells row11 12 85 119
 keys LEFT
 turn 3
 get root
@@ -192,8 +195,8 @@ get twice
 RIGSCRIPT
 rigAssert "a root not entered: the digest is read once the selection has rested on its row, and the left window then holds what the root holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "configuration [] 12"
 rigAssert "entering it afterwards asks for nothing more: the one read of the digest was made for the row" "$( rigVal asked.path ) [$( rigVal asked.reading )]" "configuration []"
-rigAssert "its two folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row7 | sed 's/  *$//' )][$( rigVal row9 | sed 's/  *$//' )][$( rigVal row10 )]" "[Configuration] 9 [>..][ Config Checker                  ►][ Server Keys                     ►][ loop                            ►][ Console Behaviour               ►][]"
-rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row8 )]" \
+rigAssert "its three folders and then its subjects are listed under the row that goes up, the subjects in the order of the operation, each a row that is entered" "[$( rigVal title )] $( rigVal in.rows ) [$( rigVal row1 )][$( rigVal row2 | sed 's/  *$//' )][$( rigVal row3 | sed 's/  *$//' )][$( rigVal row4 | sed 's/  *$//' )][$( rigVal row8 | sed 's/  *$//' )][$( rigVal row10 | sed 's/  *$//' )][$( rigVal row11 )]" "[Configuration] 10 [>..][ Config Checker                  ►][ Server Keys                     ►][ Tooling Commands                ►][ loop                            ►][ Console Behaviour               ►][]"
+rigAssert "a subject with missing lines carries their count at the end of its row" "[$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row9 )]" \
 	"[ workspace             1 missing ►][ cli                   3 missing ►][ systems               2 missing ►][ scopes                2 missing ►]"
 rigAssert "on the row that goes up the left pane says what the root holds, and that a wizard will change it" "[$( rigPane u 3 )][$( rigPane u 5 )][$( rigPane u 6 )]" "[ 6 subjects, 62 lines, 8 missing.][ What was set when the workspace was deployed and configured. For viewing: nothing][ of it is changed from here, a wizard will change it later.]"
 rigAssert "back at the root it says what it held"                   "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigPane r 3 )]" "[] configuration [ 6 subjects, 62 lines, 8 missing.]"
@@ -207,7 +210,7 @@ rigCase subjects
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 get w
 show w
@@ -247,7 +250,7 @@ rigSize="120 20"
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN DOWN DOWN DOWN DOWN
 turn
 get top
 show top
@@ -290,7 +293,7 @@ turn
 get back
 keys 8
 turn
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN DOWN ENTER
 turn
 # the lines of this subject stand group by group: two headings stand ahead of this line
 keys DOWN DOWN DOWN DOWN DOWN DOWN
@@ -317,7 +320,7 @@ rigCase viewing
 rigScript <<'RIGSCRIPT'
 keys 8
 wait list 30
-keys DOWN DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN DOWN ENTER
 turn
 # the first row under the row that goes up is the heading of a group: the line is the one after it
 keys DOWN DOWN
@@ -349,7 +352,7 @@ rigAssert "no operation was called but the reads, and nothing was saved" "$( rig
 	rigConf cli workspace SPAWN_HARNESS_TIER missing - Spawn_Harness_Tier
 	rigConf cli workspace ODD_KEY set odd -
 	rigRow subject interface 1 Interface_Settings
-	rigRow line interface style MDAT_MANAGER_STYLE set tv Interface_Style 'How_the_manager_screen_is_drawn.' yes choice user default 'tv=Turbo_Vision,bw=Basic_B/W,magic=Magic' "$rigEnv" settings
+	rigRow line interface style MDAT_MANAGER_STYLE set tv-system Interface_Style 'How_the_manager_screen_is_drawn.' yes choice user default "$rigStyles" "$rigEnv" settings
 } > "$rigTmp/labelled.digest"
 rigCaseLabelled(){ ## name -- a fresh rig whose digest is the labelled one
 	rigCase "$1"
@@ -362,7 +365,7 @@ rigScript <<'RIGSCRIPT'
 turn
 keys 8
 wait list 30
-keys DOWN DOWN DOWN
+keys DOWN DOWN DOWN DOWN
 turn
 get w
 keys DOWN
@@ -380,9 +383,9 @@ rigAssert "the subjects are listed by their labels"                  "[$( rigVal
 rigAssert "the left window is titled by the label, and names the subject as the operation takes it beside its count" "[$( rigPane c 2 )] $( rigPaneHolds c ' subject cli, 2 lines, 1 missing, each marked !' )" "[ CLI Services [wrap]] 1"
 rigAssert "a line shows by its label, with its key as the detail after it" "$( rigPaneHolds c '   ! Spawn Harness Tier  missing  (SPAWN_HARNESS_TIER)  in workspace' )" "1"
 rigAssert "a line with no label shows by its key"                     "$( rigPaneHolds c '     ODD_KEY  odd' )" "1"
-rigAssert "the subject of the interface shows its style as it is, by the label of the choice, and where it comes from" "$( rigPaneHolds i '     Interface Style  Turbo Vision, the default  (MDAT_MANAGER_STYLE)' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
+rigAssert "the subject of the interface shows its style as it is, by the label of the choice, and where it comes from" "$( rigPaneHolds i '     Interface Style  Turbo Vision - System, the default  (MDAT_MANAGER_STYLE)' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^i|' | LC_ALL=C grep -F 'Interface Settings ' | LC_ALL=C grep -c -F '►' )" "1 1"
 
-echo "-- Enter on a setting that offers choices: radio buttons; OK takes the style at once and saves it --"
+echo "-- Enter on the style: a dialog of its own, the style and its colours; OK takes both at once and saves them as one value --"
 rigCaseLabelled style
 rigScript <<'RIGSCRIPT'
 turn
@@ -398,22 +401,24 @@ keys ENTER
 turn
 get dlg
 box sbox
-keys DOWN DOWN SPACE
+keys UP SPACE
 get magic
+keys TAB DOWN SPACE
+get dark
 keys ESC
 get esc
-keys ENTER DOWN DOWN SPACE ENTER
+keys ENTER UP SPACE TAB DOWN SPACE ENTER
 get ok
 show after
 wait action 30
 get done
 RIGSCRIPT
 rigAssert "Enter on the row that goes up inside a subject goes up, and opens no dialog" "$( rigVal up.path ) [$( rigVal up.dialog )]" "settings []"
-rigAssert "on the setting it opens the dialog of its kind, on the style this screen is drawn in, the keys on its choices" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[setting:choice|tv] [Interface Style]"
-rigAssert "the choices of the row stand as radio buttons, with OK and Cancel, and it says whom it is saved for" "$( rigBoxHolds sbox '║ (*) Turbo Vision' ) $( rigBoxHolds sbox '║ ( ) Basic B/W' ) $( rigBoxHolds sbox '║ ( ) Magic' ) $( rigBoxHolds sbox '[»OK«]  [ Cancel ]' ) $( rigBoxHolds sbox 'OK saves it for the user who runs this console, and this screen takes it' )" "1 1 1 1 1"
-rigAssert "Space chooses the one the bar is on; Esc closes, saves nothing and leaves the style" "[$( rigVal magic.dialog )] [$( rigVal esc.dialog )] $( rigVal esc.style ) $( rigCalled '--manager-config-set MDAT_MANAGER_STYLE magic' )" "[setting:choice|magic] [] tv 1"
-rigAssert "OK: this screen takes the style at once, before the operation has answered" "[$( rigVal ok.dialog )] $( rigVal ok.style ) [$( rigVal ok.notice )] $( rigPaneHolds after ' This screen is drawn in Magic now.' )" "[] magic [save asked of the tooling: Interface Style: Magic] 1"
-rigAssert "and it is saved by the write operation, once, by the key and the value of the row" "$( rigCalled '--manager-config-set MDAT_MANAGER_STYLE magic' ) [$( rigVal done.notice )] $( rigVal done.style )" "1 [saved: Interface Style: Magic] magic"
+rigAssert "on the style it opens the dialog of the style, on the style this screen is drawn in, the keys on the styles" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )]" "[setting-style:style|tv] [Interface Style]"
+rigAssert "two groups of radio buttons, the styles Magic first and the colours, each on what this screen is drawn in, with OK and Cancel, and it says whom it is saved for" "$( rigBoxHolds sbox '║ Style ' ) $( rigBoxHolds sbox '║ ( ) Magic ' ) $( rigBoxHolds sbox '║ (•) Turbo Vision ' ) $( rigBoxHolds sbox '║ ( ) Basic B/W ' ) $( rigBoxHolds sbox '║ Colours ' ) $( rigBoxHolds sbox '║ (•) System ' ) $( rigBoxHolds sbox '║ ( ) Dark/Blue ' ) $( rigBoxHolds sbox '║ ( ) Light/Gray ' ) $( rigBoxHolds sbox ' »OK« ▄   Cancel  ▄' ) $( rigBoxHolds sbox 'OK saves it for the user who runs this console, and this screen takes it' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^sbox|║ ([^)]*) \([A-Za-z/ ]*[A-Za-z]\) .*$/\1/p' | LC_ALL=C tr '\n' ',' )" "1 1 1 1 1 1 1 1 1 1 Magic,Turbo Vision,Basic B/W,System,Dark/Blue,Light/Gray,"
+rigAssert "Space chooses the style the bar is on, Tab goes to the colours and Space chooses there; Esc closes, saves nothing and leaves the style" "[$( rigVal magic.dialog )] [$( rigVal dark.dialog )] [$( rigVal esc.dialog )] $( rigVal esc.style )-$( rigVal esc.colours ) $( rigCalled '--manager-config-set MDAT_MANAGER_STYLE nu-blue' )" "[setting-style:style|nu] [setting-style:colours|dark] [] tv-system 1"
+rigAssert "OK: this screen takes the style and its colours at once, before the operation has answered" "[$( rigVal ok.dialog )] $( rigVal ok.style )-$( rigVal ok.colours ) [$( rigVal ok.notice )] $( rigPaneHolds after ' This screen is drawn in Magic - Dark/Blue now.' )" "[] nu-blue [save asked of the tooling: Interface Style: Magic - Dark/Blue] 1"
+rigAssert "and they are saved by the write operation, once, as one value, by the key of the row" "$( rigCalled '--manager-config-set MDAT_MANAGER_STYLE nu-blue' ) $( LC_ALL=C grep -c -e '--manager-config-set' "$MANAGER_SCREEN_RIG/calls" ) [$( rigVal done.notice )] $( rigVal done.style )-$( rigVal done.colours )" "1 1 [saved: Interface Style: Magic - Dark/Blue] nu-blue"
 
 echo "-- Enter on a number: its range in the dialog, saved for the workspace; one out of its range is not sent --"
 rigCase number
@@ -444,7 +449,7 @@ get done
 show d
 RIGSCRIPT
 rigAssert "a number: what it is now and where from, what it takes, and that a change is for everybody" "$( rigPaneHolds n ' value     5' ) $( rigPaneHolds n ' source    the default' ) $( rigPaneHolds n ' scope     everybody who works in this workspace' ) $( rigPaneHolds n ' takes     a whole number from 1 to 60' )" "1 1 1 1"
-rigAssert "Enter opens the dialog of a number, on what it is now, with its range over the field" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )] $( rigBoxHolds nbox 'A whole number from 1 to 60' ) $( rigBoxHolds nbox '[»OK«]  [ Cancel ]' )" "[setting-number:number|5] [Control Request Seconds] 1 1"
+rigAssert "Enter opens the dialog of a number, on what it is now, with its range over the field" "[$( rigVal dlg.dialog )] [$( rigVal dlg.dialogTitle )] $( rigBoxHolds nbox 'A whole number from 1 to 60' ) $( rigBoxHolds nbox ' »OK« ▄   Cancel  ▄' )" "[setting-number:number|5] [Control Request Seconds] 1 1"
 rigAssert "the dialog says that it is saved for the workspace, for everybody" "$( rigBoxHolds nbox 'OK saves it for the WORKSPACE: it changes for everybody who works in it.' ) $( rigBoxHolds nbox 'now       5, the default' )" "1 1"
 rigAssert "an empty field presses nothing"                           "[$( rigVal empty.dialog )] [$( rigVal empty.dialogSays )]" "[setting-number:number|] [nothing is saved: no number is typed]"
 rigAssert "a number out of its range, and one written with a nought ahead, are not sent: the dialog says what it takes" "[$( rigVal high.dialog )] [$( rigVal high.dialogSays )] [$( rigVal nought.dialog )] [$( rigVal nought.dialogSays )] $( LC_ALL=C grep -c -e '--manager-config-set' "$MANAGER_SCREEN_RIG/calls" )" \
@@ -489,7 +494,7 @@ wait action 30
 turn
 get failed
 RIGSCRIPT
-rigAssert "the refusal is shown whole, under its own title"          "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The save failed] [operation: --manager-config-set MDAT_MANAGER_STYLE bw / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
+rigAssert "the refusal is shown whole, under its own title"          "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The save failed] [operation: --manager-config-set MDAT_MANAGER_STYLE bw-system / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
 
 echo "-- a subject with settings of two scopes that share a label: each stands under the heading of its scope --"
 rigCase scoped
@@ -517,16 +522,16 @@ border title 1 0 84
 RIGSCRIPT
 rigAssert "two settings of one label in two groups: a heading for each, the setting under its own, and its window titled with its group" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigVal g1 | LC_ALL=C sed 's/  *$//' )][$( rigVal g2 | LC_ALL=C sed 's/  *$//' )][$( rigVal g3 | LC_ALL=C sed 's/  *$//' )][$( rigVal g4 | LC_ALL=C sed 's/  *$//' )] [$( rigVal second.selected )] [$( rigVal title )]" "settings/style 5 [ user][   Interface Style...][ workspace][   Interface Style...] [workspace RIG_STYLE_WORKSPACE] [workspace: Interface Style [wrap]]"
 
-echo "-- the styles: Turbo Vision, Basic B/W and Magic, in that order; the compact one is retired --"
+echo "-- the styles: Magic, Turbo Vision and Basic B/W, in that order, Turbo Vision the default; the compact one is retired --"
 rigCase magic
 rigScript <<'RIGSCRIPT'
 turn
 keys 7
 wait list 30
 turn
-keys i
+keys I
 get s1
-keys i
+keys I
 get s2
 turn
 show m
@@ -544,12 +549,22 @@ turn
 get mdlg
 box mbox
 box mboxr roles
+keys BACKTAB
+turn
+box mboxf
+box mboxfr roles
 keys ESC
 turn
 show mclosed
 fresh mclosedfresh
 get mend
-keys i
+tell Refused | the rig refuses it
+turn
+box abox
+box aboxr roles
+keys ESC
+turn
+keys I
 get s3
 style mc
 get retired
@@ -557,25 +572,32 @@ style magic
 plain
 turn
 show mp
-style tv
+style bw
 turn
-show tp
+show bp
 RIGSCRIPT
 rigSome(){ ## count -- `some` where it is one or more, else `none`
 	if [ "$1" -ge 1 ] 2> /dev/null ; then echo some ; else echo none ; fi
 }
-rigAssert "i takes the next style: Basic B/W, then Magic, then Turbo Vision again, and the status line names each" "$( rigVal s1.style ) [$( rigVal s1.notice )] $( rigVal s2.style ) [$( rigVal s2.notice )] $( rigVal s3.style )" "bw [interface style: Basic B/W] magic [interface style: Magic] tv"
+rigAssert "I takes the next style: Basic B/W, then Magic, then Turbo Vision again, each in the colours of now, and the status line names each" "$( rigVal s1.style ) [$( rigVal s1.notice )] $( rigVal s2.style ) [$( rigVal s2.notice )] $( rigVal s3.style )" "bw [interface style: Basic B/W - System] nu [interface style: Magic - System] tv"
 rigAssert "the compact style is no style any more: its name is refused and the style stays" "$( rigVal style.refused ) $( rigVal retired.style )" "mc tv"
-rigAssert "Magic: the active window in a heavy frame, the other in a light one, no double line anywhere" "$( rigScreenHolds m '┏' ) $( rigScreenHolds m '┗' ) $( rigScreenHolds m '┌' ) $( rigScreenHolds m '└' ) $( rigScreenHolds m '║' ) $( rigScreenHolds m '╔' )" "1 1 1 1 0 0"
-rigAssert "each title stands between the marks of its frame, the active one in a look of its own" "$( rigScreenHolds m '┫ Settings ┣' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | LC_ALL=C sed -n '2p' | LC_ALL=C grep -c -F '┤ ' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | LC_ALL=C sed -n '2p' | LC_ALL=C tr -d -c 'T' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" "1 1 10"
-rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '►┃' ) $( rigScreenHolds m 'Interface Settings...' )" "3 0"
-rigAssert "a menu: in a light frame, with a slim shadow of quarter and half blocks at its right and under it" "$( rigScreenHolds mm '┐▖' ) $( rigSome "$( rigScreenHolds mm '│▌' )" ) $( rigScreenHolds mm '▝▀▀' ) $( rigScreenHolds mm '▀▘' ) $( rigSome "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mmr|' | LC_ALL=C grep -c z )" )" "1 some 1 1 some"
-rigAssert "closed, it leaves nothing: what is drawn is what a new terminal shows of the same state" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mafter|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mafter '▖' )" "same 0"
-rigAssert "a dialog: a heavy frame, its title between the marks, its shadow slim at its right and under it" "$( rigBoxHolds mbox '┏━' ) $( rigBoxHolds mbox '┫ A dialog of the rig ┣' ) $( rigBoxHolds mbox '┓▖' ) $( rigSome "$( rigBoxHolds mbox '┃▌' )" ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mbox|' | tail -1 | LC_ALL=C grep -c -F '|▝▀▀▀' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mbox|' | tail -1 | LC_ALL=C grep -c -F '▀▘' )" "1 1 1 some 1 1"
-rigAssert "its boxes and its radio buttons are marks that look as controls" "$( rigBoxHolds mbox '┃ □ alpha' ) $( rigBoxHolds mbox '┃ ▣ beta' ) $( rigBoxHolds mbox '┃ ○ one way' ) $( rigBoxHolds mbox '┃ ◉ another' ) $( rigBoxHolds mbox '[X]' ) $( rigBoxHolds mbox '(*)' )" "1 1 1 1 0 0"
-rigAssert "its buttons are raised: a face with no brackets, the default's marks inside it, a slim shadow beside and under each" "$( rigBoxHolds mbox ' »OK« ▖   Cancel  ▖' ) $( rigBoxHolds mbox '▝▀▀▀▀▀▘ ▝▀▀▀▀▀▀▀▀▀▘' ) $( rigBoxHolds mbox '[ Cancel ]' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mboxr|' | LC_ALL=C grep -c Z )" "1 1 0 2"
-rigAssert "closed, the dialog leaves nothing either, and nothing was drawn past a line or the screen" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mclosed|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mclosedfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mclosed '▘' ) $( rigVal mend.spills )" "same 0 0"
-rigAssert "on a terminal that is not UTF-8 Magic draws in the marks of one byte, with no mark it cannot show" "$( rigScreenHolds mp '#=' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mp|' | LC_ALL=C sed -n '1,39p' | LC_ALL=C grep -c '[^ -~]' ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mp|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^tp|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo as-turbo-vision || echo differs )" "2 0 as-turbo-vision"
+rigCount(){ ## tag letters -- how many cells of the roles of that tag are drawn in those looks
+	printf '%s\n' "$rigOut" | LC_ALL=C sed -n "s/^$1|//p" | LC_ALL=C tr -d -c "$2" | LC_ALL=C wc -c | LC_ALL=C tr -d ' '
+}
+rigAssert "Magic: the windows stand in edges of half blocks, the desktop at their left and top, their shadow at their right and under them; no line frame" "$( rigScreenHolds m '▗▄▄' ) $( rigSome "$( rigScreenHolds m '▌▐' )" ) $( rigScreenHolds m '▝▀▀' ) $( rigScreenHolds m '▀▘▝▀' ) $( rigScreenHolds m '┌' ) $( rigScreenHolds m '┏' ) $( rigScreenHolds m '┃' ) $( rigScreenHolds m '║' ) $( rigSome "$( rigCount mr V )" ) $( rigSome "$( rigCount mr v )" ) $( rigSome "$( rigCount mr E )" ) $( rigSome "$( rigCount mr a )" )" "1 some 1 1 0 0 0 0 some some some some"
+rigAssert "each title stands in a tab on the top edge, between its shoulders, the active one in a look of its own" "$( rigScreenHolds m '▟ Settings ▙' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | LC_ALL=C sed -n '2p' | LC_ALL=C grep -o '▟' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | LC_ALL=C sed -n '2p' | LC_ALL=C tr -d -c 'T' | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' )" "1 2 10"
+rigAssert "a row that is entered has its mark at the right edge of the row, in every subject of the root" "$( rigScreenHolds m '►▌' ) $( rigScreenHolds m 'Interface Settings...' )" "3 0"
+rigAssert "the status line: each key a chip of its own colour, the text as it was" "$( rigSome "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mr|' | tail -1 | LC_ALL=C tr -d -c 'K' | LC_ALL=C wc -c )" ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^m|' | tail -1 | LC_ALL=C grep -c -F ' ⏎ Open  ' )" "some 1"
+rigAssert "a menu: in a rim of half blocks with no top, hung from the bar, its shadow of half and whole blocks at its right and under it" "$( rigScreenHolds mm '▐▄' ) $( rigSome "$( rigScreenHolds mm '▐█' )" ) $( rigScreenHolds mm '▄▟█' ) $( rigScreenHolds mm '▟█' ) $( rigSome "$( rigCount mmr z )" )" "1 some 1 1 some"
+rigAssert "closed, it leaves nothing: what is drawn is what a new terminal shows of the same state" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mafter|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mafter '▐▄' )" "same 0"
+rigAssert "a dialog: a rim of half blocks, its title set into the top of it, its shadow at its right and under it" "$( rigBoxHolds mbox '▛▀' ) $( rigBoxHolds mbox '▀ A dialog of the rig ▀' ) $( rigBoxHolds mbox '▜▄' ) $( rigSome "$( rigBoxHolds mbox '▐█' )" ) $( rigBoxHolds mbox '▟█' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mbox|' | tail -1 | LC_ALL=C grep -c -F '| ▀▀▀' )" "1 1 1 some 1 1"
+rigAssert "its boxes and its radio buttons: a tick and a dot where chosen, a faint dot where not" "$( rigBoxHolds mbox '▌ · alpha' ) $( rigBoxHolds mbox '▌ ✓ beta' ) $( rigBoxHolds mbox '▌ · one way' ) $( rigBoxHolds mbox '▌ • another' ) $( rigBoxHolds mbox '[X]' ) $( rigBoxHolds mbox '(*)' )" "1 1 1 1 0 0"
+rigAssert "a field to type in stands between brackets, its room filled with dots" "$( rigBoxHolds mbox '▌ [typed.....' ) $( rigBoxHolds mbox '..] ▐' )" "1 1"
+rigAssert "its buttons are bars of one width, each with a shadow of half blocks beside and under it, the default in a look of its own" "$( rigBoxHolds mbox '    OK    ▄   Cancel  ▄' ) $( rigBoxHolds mbox ' ▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀' ) $( rigBoxHolds mbox '[ Cancel ]' ) $( rigBoxHolds mbox '»' ) $( rigCount mboxr N ) $( rigSome "$( rigCount mboxr Z )" )" "1 1 0 0 10 some"
+rigAssert "the button with the keys changes its colour and has ► ◄ inside its ends; the default keeps its own look" "$( rigBoxHolds mboxf '► Cancel ◄' ) $( rigBoxHolds mboxf '    OK    ' ) $( rigCount mboxfr n ) $( rigCount mboxfr N )" "1 1 10 10"
+rigAssert "closed, the dialog leaves nothing either, and nothing was drawn past a line or the screen" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mclosed|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mclosedfresh|//p' )" ] && echo same || echo differs ) $( rigScreenHolds mclosed '█' ) $( rigVal mend.spills )" "same 0 0"
+rigAssert "what the screen refuses or what failed stands in the looks of its level: its body, its rim and its title in yellow set into the rim; the rig's dialog, of no level, in none of them" "$( rigBoxHolds abox '▀ Refused ▀' ) $( rigSome "$( rigCount aboxr r )" ) $( rigSome "$( rigCount aboxr q )" ) $( rigCount aboxr Y ) $( rigCount mboxr rqY )" "1 some some 9 0"
+rigAssert "on a terminal that is not UTF-8 Magic draws in the marks of one byte, with no mark it cannot show, as Basic B/W draws there" "$( rigScreenHolds mp '#=' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^mp|' | LC_ALL=C sed -n '1,39p' | LC_ALL=C grep -c '[^ -~]' ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mp|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^bp|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo as-basic-bw || echo differs )" "2 0 as-basic-bw"
 rigColours="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY' 2>&1
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
@@ -597,7 +619,7 @@ class Curses:
         self.changed += 1
     def color_pair(self, number):
         return number << 8
-def shades(colours, style):
+def shades(colours, style, shown=("PLAIN", "REVERSE", "FRAME_ON", "BOX_BUTTON")):
     module.curses = Curses(colours)
     surface = module.CursesSurface.__new__(module.CursesSurface)
     plain, coloured = surface.looksOf()
@@ -605,26 +627,211 @@ def shades(colours, style):
     surface.plain, surface.coloured = plain, coloured
     looks = surface.looks()
     said = []
-    for look in (module.PLAIN, module.REVERSE, module.FRAME_ON, module.BOX_BUTTON):
+    for look in [getattr(module, name) for name in shown]:
         pair = module.curses.pairs.get((looks[look] >> 8) & 0xff)
         said.append("%s/%s%s" % (pair[0], pair[1], "b" if looks[look] & Curses.A_BOLD else "") if pair else "none")
     return "%s:%s:%s" % (style, " ".join(said), module.curses.changed)
-print("256 " + shades(256, "magic"))
+magic = ("PLAIN", "REVERSE", "FRAME_ON", "BOX_BUTTON", "EDGE_ON", "EDGE_ON_SHADE", "TITLE_ON", "KEY_CHIP", "ALERT_HEAD")
+print("256 " + shades(256, "magic", magic))
 print("256 " + shades(256, "tv"))
-print("8 " + shades(8, "magic"))
+print("8 " + shades(8, "magic", magic))
+## a terminal of eight colours may have no more than 64 pairs (TERM=screen): every style keeps its colours there
+print("pairs 8 %s" % (len(module.curses.pairs) <= 63))
 print("8 " + shades(8, "tv"))
-print("0 " + shades(0, "magic"))
-fine = [entry for entry in module.STYLE_LOOKS["magic"].values()]
-print("declared %d of %d %s" % (len(module.STYLE_LOOKS["magic"]), len(module.LOOKS), all(
-    text in names and ground in names and 16 <= fineText <= 255 and 16 <= fineGround <= 255
-    for names in [("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")]
-    for text, ground, bright, fineText, fineGround, bold in fine)))
+print("0 " + shades(0, "magic", magic))
+print("order %s first %s" % (" ".join(name for name, entry in module.STYLES), module.STYLE_FIRST))
+for colours in (256, 8):
+    for style in ("tv-system", "tv-blue", "tv-gray", "bw-system", "bw-dark", "bw-light"):
+        print("%d %s" % (colours, shades(colours, style)))
+for name in ("tv-blue", "tv-gray", "bw-dark", "bw-light"):
+    fine = [entry for entry in module.STYLE_LOOKS[name].values()]
+    print("exact %s %d of %d %s" % (name, len(module.STYLE_LOOKS[name]), len(module.LOOKS), all(
+        text in names and ground in names and 16 <= fineText <= 255 and 16 <= fineGround <= 255
+        for names in [("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")]
+        for text, ground, bright, fineText, fineGround, bold in fine)))
+names = ("black", "red", "green", "yellow", "blue", "magenta", "cyan", "white")
+for sets in ("nu-blue", "nu-gray"):
+    fine = [entry for entry in module.STYLE_LOOKS[sets].values()]
+    print("declared %s %d of %d %s" % (sets, len(module.STYLE_LOOKS[sets]), len(module.LOOKS), all(
+        text in names and ground in names and 16 <= fineText <= 255 and 16 <= fineGround <= 255
+        for text, ground, bright, fineText, fineGround, bold in fine)))
+## the own colours of the terminal: the eight of the light set, and no shade of the palette
+print("declared nu-system %d of %d %s" % (len(module.STYLE_LOOKS["nu-system"]), len(module.LOOKS), all(
+    own[:3] == module.STYLE_LOOKS["nu-blue"][look][:3] and own[3:] == (None, None, False)
+    for look, own in module.STYLE_LOOKS["nu-system"].items())))
+print("256 system " + shades(256, "nu-system", magic))
 RIGPY
 )"
-rigAssert "Magic on a terminal of 256 colours: its own shades of the palette, the panel near-black on light grey, the bar white on blue, the frame blue, the button on pale cyan; the palette itself is never changed" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 magic://p' )" "235/254 231/25b 25/254b 235/152:0"
-rigAssert "Turbo Vision keeps its eight colours there" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 tv://p' )" "7/4 0/6 7/4b 0/7:0"
-rigAssert "Magic on a terminal of eight colours: the basic colours of the same plan" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 magic://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 tv://p' )" "0/7 7/4b 4/7b 0/6:0 7/4 0/6 7/4b 0/7:0"
-rigAssert "with no colours no pair is made, and every look of LOOKS has its colours in Magic, each of the eight and of the palette" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^0 magic://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^declared //p' )" "none none none none:0 30 of 30 True"
+rigAssert "Magic on a terminal of 256 colours, in its grey colours unless told another: its own shades of the palette, white on deep blue windows, a white bar with blue text for the selection, white edges on the dark grey desktop and on the black shadow, the title strip white, red chips, a yellow title for what failed; the palette itself is never changed" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 magic://p' )" "231/19 19/231b 231/19b 16/250 231/238 231/16 19/231b 231/124b 226/124b:0"
+rigAssert "Turbo Vision keeps its eight colours there, its buttons a green bar" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 tv://p' )" "7/4 0/6 7/4b 0/2:0"
+rigAssert "Magic on a terminal of eight colours: the basic colours of the same plan" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 magic://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 tv://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^pairs 8 //p' )" "7/4b 4/7 7/4b 0/7 7/0 7/0 4/7 7/1b 3/1b:0 7/4 0/6 7/4b 0/2:0 True"
+rigAssert "with no colours no pair is made, and every look of LOOKS has its colours in Magic, each of the eight and of the palette" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^0 magic://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^declared //p' | LC_ALL=C tr '\n' ' ' )" "none none none none none none none none none:0 nu-blue 42 of 42 True nu-gray 42 of 42 True nu-system 42 of 42 True "
+rigAssert "Magic in the terminal's own colours (nu-system) takes its own choice of the eight named ones, on a terminal of 256 colours too" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 system nu-system://p' )" "7/4 0/6 7/4b 0/7 7/4 7/0 4/7 0/3 3/1b:0"
+rigAssert "Magic is the first of the styles wherever they are offered, and Turbo Vision stays the one the screen starts in" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^order //p' )" "nu tv bw first tv-system"
+
+echo "-- the colours of a style: its value is <style>-<colours>; a style alone is the value it was before; each scheme draws and leaves nothing --"
+rigNames="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print("first %s %s" % (module.STYLE_FIRST, module.STYLE["value"]))
+print("styles %s" % ",".join("%s=%s" % (name, style["label"]) for name, style in module.STYLES))
+print("colours %s" % ",".join("%s=%s" % pair for pair in module.COLOURS))
+taken = []
+for name in ("tv-system", "tv-blue", "tv-gray", "tv-dark", "tv-light", "bw-system", "bw-dark", "bw-light", "bw-blue",
+             "nu-system", "nu-blue", "nu-gray", "nu-dark", "nu-light", "tv", "bw", "magic", "nu", "magic-light", "magic-dark",
+             "magic-system", "mc", "zz", "tv-", "tv-green", "-dark", "tv-dark-x", "TV-blue", ""):
+    module.setStyle("tv-gray")
+    taken.append(module.STYLE["value"] if module.setStyle(name) else "refused:" + module.STYLE["value"])
+print("taken %s" % " ".join(taken))
+RIGPY
+)"
+rigAssert "the styles in their order, Magic first, and the colours each is drawn in" "$( printf '%s\n' "$rigNames" | LC_ALL=C sed -n 's/^styles //p' ) $( printf '%s\n' "$rigNames" | LC_ALL=C sed -n 's/^colours //p' )" "nu=Magic,tv=Turbo Vision,bw=Basic B/W system=System,dark=Dark/Blue,light=Light/Gray"
+rigAssert "the screen starts in Turbo Vision in the terminal's own colours, as it did" "$( printf '%s\n' "$rigNames" | LC_ALL=C sed -n 's/^first //p' )" "tv-system tv-system"
+rigAssert "a style with its colours is taken by its own names of them, dark for blue and light for gray where it has those; a style alone, as one was saved before, in the colours it was drawn in then, Magic also by its name of then; anything else is refused and leaves the style" "$( printf '%s\n' "$rigNames" | LC_ALL=C sed -n 's/^taken //p' )" "tv-system tv-blue tv-gray tv-blue tv-gray bw-system bw-dark bw-light refused:tv-gray nu-system nu-blue nu-gray nu-blue nu-gray tv-system bw-system nu-gray nu-gray nu-gray nu-blue nu-system refused:tv-gray refused:tv-gray refused:tv-gray refused:tv-gray refused:tv-gray refused:tv-gray refused:tv-gray refused:tv-gray"
+rigAssert "Turbo Vision blue, as its editor: yellow on blue, a white frame, a cyan bar, green buttons; on eight colours the same plan" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 tv-blue://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 tv-blue://p' )" "227/19 16/37 231/19 16/34:0 3/4b 0/6 7/4b 0/2:0"
+rigAssert "Turbo Vision gray, as its demo: black on grey, a white frame, a cyan bar, green buttons; on eight colours the same plan" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 tv-gray://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 tv-gray://p' )" "16/248 16/37 231/248 16/34:0 0/7 0/6 7/7b 0/2:0"
+rigAssert "Turbo Vision in the system's colours: the terminal's own eight on any terminal" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 tv-system://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 tv-system://p' )" "7/4 0/6 7/4b 0/2:0 7/4 0/6 7/4b 0/2:0"
+rigAssert "Basic B/W: in the system's colours none, dark white on black, light black on white, in greys and on eight colours" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 bw-system://p' ) | $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 bw-dark://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 bw-dark://p' ) | $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^256 bw-light://p' ) $( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^8 bw-light://p' )" "none none none none:0 | 252/16 16/252 231/16b 16/252:0 7/0 0/7 7/0b 0/7:0 | 16/231 231/16 16/231b 231/16:0 0/7 7/0b 0/7b 7/0b:0"
+rigAssert "each scheme of exact shades has its colours, of the eight and of the palette, for every look Turbo Vision and Basic B/W draw, and Basic B/W for every look" "$( printf '%s\n' "$rigColours" | LC_ALL=C sed -n 's/^exact \([a-z-]*\) /\1:/p' | LC_ALL=C tr '\n' ' ' )" "tv-blue:30 of 42 True tv-gray:30 of 42 True bw-dark:42 of 42 True bw-light:42 of 42 True "
+rigKept(){ ## tag of the screen before, tag of it with the dialog, tag of the roles of that, the box of the dialog -- the cells its shadow falls on: how many keep what stood there before, of how many, whether any of them holds a character, and whether each is in the look of a shadow
+	printf '%s\n' "$rigOut" | "$rigPython" -I -B -c '
+import sys
+before, during, roles, box = sys.argv[1:5]
+left, top, width, height = (int(word) for word in box.split(","))
+held = {}
+for line in sys.stdin.read().splitlines():
+    tag, bar, rest = line.partition("|")
+    if bar:
+        held.setdefault(tag, []).append(rest[:-1])
+cells = [(line, column) for line in range(top + 1, top + height) for column in (left + width, left + width + 1)]
+cells += [(top + height, column) for column in range(left + 2, left + width + 2)]
+kept = [held[during][line][column] for line, column in cells if held[during][line][column] == held[before][line][column]]
+print("kept %d of %d %s %s" % (len(kept), len(cells), "drawn" if "".join(kept).strip() else "blank",
+                               "shadow" if all(held[roles][line][column] == "w" for line, column in cells) else "not-shadow"))
+' "$1" "$2" "$3" "$4"
+}
+rigCase schemes
+rigScript <<'RIGSCRIPT'
+turn
+keys 7
+wait list 30
+turn
+style tv-blue
+keys I
+get c1
+keys I
+get c2
+keys I
+get c3
+style tv-system
+keys i
+get k1
+keys i
+get k2
+keys i
+get k3
+style bw-system
+keys i
+get k4
+keys I
+get k5
+keys F9
+get k6
+style tv-system
+turn
+show wts
+rigdialog
+turn
+get dts
+show dts
+roles dtsr
+keys ESC
+turn
+style tv-blue
+turn
+show wtd
+rigdialog
+turn
+get dtd
+show dtd
+roles dtdr
+keys ESC
+turn
+style tv-gray
+turn
+show wtl
+rigdialog
+turn
+get dtl
+show dtl
+roles dtlr
+keys ESC
+turn
+style bw-system
+turn
+show wbs
+rigdialog
+turn
+show dbs
+keys ESC
+turn
+style bw-dark
+turn
+show wbd
+rigdialog
+turn
+show dbd
+keys ESC
+turn
+style bw-light
+turn
+show wbl
+rigdialog
+turn
+show dbl
+keys ESC
+turn
+RIGSCRIPT
+rigAssert "I takes the next style in the colours of now: Basic B/W, Magic, Turbo Vision, each dark" "$( rigVal c1.style )-$( rigVal c1.colours ) [$( rigVal c1.notice )] $( rigVal c2.style )-$( rigVal c2.colours ) $( rigVal c3.style )-$( rigVal c3.colours )" "bw-dark [interface style: Basic B/W - Dark/Blue] nu-blue tv-blue"
+rigAssert "i takes the next colours in the style of now: System, Dark/Blue, Light/Gray, System again, each by the style's own name; F9 takes the next style as I does" "$( rigVal k1.style )-$( rigVal k1.colours ) [$( rigVal k1.notice )] $( rigVal k2.style )-$( rigVal k2.colours ) $( rigVal k3.style )-$( rigVal k3.colours ) $( rigVal k4.style )-$( rigVal k4.colours ) $( rigVal k5.style )-$( rigVal k5.colours ) $( rigVal k6.style )-$( rigVal k6.colours )" "tv-blue [interface style: Turbo Vision - Dark/Blue] tv-gray tv-system bw-dark nu-blue tv-blue"
+rigAssert "Turbo Vision draws the same characters in each of its colours, with or without a dialog" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wts|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wtd|//p' )" ] && [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wts|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wtl|//p' )" ] && echo same || echo differs ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dts|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dtd|//p' )" ] && [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dts|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dtl|//p' )" ] && echo same || echo differs )" "same same"
+rigAssert "Basic B/W draws the same characters in each of its colours too" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wbs|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wbd|//p' )" ] && [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wbs|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^wbl|//p' )" ] && echo same || echo differs ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dbs|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dbd|//p' )" ] && [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dbs|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dbl|//p' )" ] && echo same || echo differs )" "same same"
+rigAssert "Turbo Vision: the active window has the box that closes at the left of its top border and the one that zooms at its right; the other window has neither" "$( rigScreenHolds wts '╔═[■]═' ) $( rigScreenHolds wts '═[↕]═╗' ) $( rigScreenHolds wts '┌─[■]' ) $( rigScreenHolds wts '[↕]─┐' )" "1 1 0 0"
+rigAssert "Turbo Vision: a dialog has the box that closes at the left of its top border, its buttons are bars with a shadow of ▄ beside and ▀ under, its radio buttons have a dot" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^dts|' | LC_ALL=C grep -o -F '╔═[■]═' | LC_ALL=C wc -l | LC_ALL=C tr -d ' ' ) $( rigScreenHolds dts ' »OK« ▄   Cancel  ▄' ) $( rigScreenHolds dts ' ▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀' ) $( rigScreenHolds dts '[ Cancel ]' ) $( rigScreenHolds dts '(•) another' ) $( rigScreenHolds dts '(*)' )" "1 1 1 0 1 0"
+rigAssert "Turbo Vision: the shadow of a dialog keeps what lies under it, two cells at its right and a line under it, drawn again in the look of a shadow, in each of its colours" "$( for rigOne in ts td tl ; do rigKept "w$rigOne" "d$rigOne" "d${rigOne}r" "$( rigVal "d$rigOne.dialogBox" )" | LC_ALL=C awk '{ printf "[%s %s]", ( $2 == $4 && $4 > 0 ? "all" : $2 "/" $4 ), $5 " " $6 }' ; done )" "[all drawn shadow][all drawn shadow][all drawn shadow]"
+rigAssert "Basic B/W keeps its frames, its buttons between brackets and its radio buttons, and no icon" "$( rigScreenHolds dbs '[»OK«]  [ Cancel ]' ) $( rigScreenHolds dbs '(*) another' ) $( rigScreenHolds wbs '[■]' ) $( rigScreenHolds dbs '[■]' )" "1 1 0 0"
+rigLeaves(){ ## style -- one scheme drawn with a menu and with a dialog, each closed again: whether what is drawn then is what a new terminal shows of the same state, each time, and how many texts were put past a line or the screen
+	rigCase "leaves-$1"
+	rigScript <<RIGSCRIPT
+turn
+keys 7
+wait list 30
+turn
+style $1
+turn
+keys F10
+turn
+keys ESC
+turn
+show m
+fresh mfresh
+rigdialog
+turn
+keys ESC
+turn
+show d
+fresh dfresh
+get end
+RIGSCRIPT
+	printf '%s:%s,%s,%s' "$1" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^m|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^mfresh|//p' )" ] && echo same || echo differs )" "$( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^d|//p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^dfresh|//p' )" ] && echo same || echo differs )" "$( rigVal end.spills )"
+}
+rigLeft=""
+for rigOne in nu-system nu-blue nu-gray tv-system tv-blue tv-gray bw-system bw-dark bw-light ; do
+	rigLeft="$rigLeft $( rigLeaves "$rigOne" )"
+done
+rigAssert "each style in each of its colours: a menu and a dialog closed leave nothing, and nothing is drawn past a line or the screen" "$rigLeft" " nu-system:same,same,0 nu-blue:same,same,0 nu-gray:same,same,0 tv-system:same,same,0 tv-blue:same,same,0 tv-gray:same,same,0 bw-system:same,same,0 bw-dark:same,same,0 bw-light:same,same,0"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN SETTINGS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

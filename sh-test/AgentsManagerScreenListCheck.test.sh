@@ -56,9 +56,10 @@ cells row5 6 85 119
 cells row6 7 85 119
 cells row7 8 85 119
 cells row8 9 85 119
+cells row9 10 85 119
 RIGSCRIPT
-rigAssert "the root holds the eight sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[>Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][ Locations (Places)              ►][ Consoles (Tools)                ►][ Settings                        ►][ Configuration                   ►]"
-rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 8"
+rigAssert "the root holds the nine sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )][$( rigVal row9 )]" "[>Dashboard (Monitor)             ►][ Sessions (Activity)             ►][ Pending Questions               ►][ Team Members                    ►][ Locations (Places)              ►][ Consoles (Tools)                ►][ Settings                        ►][ Configuration                   ►][ Manuals (Help)                  ►]"
+rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 9"
 
 echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
@@ -116,8 +117,8 @@ keys DOWN DOWN
 get still
 RIGSCRIPT
 rigAssert "Up on the first row stays there"                          "$( rigVal top.index )" 0
-rigAssert "Down, pressed more times than the root has rows, reaches the last row" "$( [ "$( rigVal last.index )" = "$(( $( rigVal last.rows ) - 1 ))" ] && echo last ) $( rigVal last.selected )" "last configuration"
-rigAssert "Down on the last row stays there, and does not wrap"      "$( [ "$( rigVal still.index )" = "$( rigVal last.index )" ] && echo there ) $( rigVal still.selected )" "there configuration"
+rigAssert "Down, pressed more times than the root has rows, reaches the last row" "$( [ "$( rigVal last.index )" = "$(( $( rigVal last.rows ) - 1 ))" ] && echo last ) $( rigVal last.selected )" "last manuals"
+rigAssert "Down on the last row stays there, and does not wrap"      "$( [ "$( rigVal still.index )" = "$( rigVal last.index )" ] && echo there ) $( rigVal still.selected )" "there manuals"
 
 echo "-- PageDown and PageUp, a hundred rows in a pane of twenty lines --"
 rigScript <<'RIGSCRIPT'
@@ -211,7 +212,7 @@ get up
 keys ENTER
 get again
 RIGSCRIPT
-rigAssert "Right on a row that dives pages down and does not dive"   "[$( rigVal root.path )] $( rigVal root.selected )" "[] configuration"
+rigAssert "Right on a row that dives pages down and does not dive"   "[$( rigVal root.path )] $( rigVal root.selected )" "[] manuals"
 rigAssert "Enter dives"                                               "$( rigVal in.path ) $( rigVal in.selected )" "pending .."
 rigAssert "Right on the last page stays on the last row, as PageDown does, and opens nothing" "$( rigVal bottom.path ) $( rigVal bottom.index ) $( rigVal bottom.top )" "pending 100 82"
 rigAssert "Backspace on a row in the middle goes up a level, onto the row dived into" "[$( rigVal up.path )] $( rigVal up.selected )" "[] pending"

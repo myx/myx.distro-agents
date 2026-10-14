@@ -109,6 +109,13 @@ class TextSurface:
                 self.looks[line][column + 1] = look
             column += width
 
+    ## The cells of a line from that column, that many, in that look, each keeping what it holds:
+    ## where a shadow of Turbo Vision falls.
+    def shade(self, line, column, count, look):
+        if 0 <= line < self.lines:
+            for cell in range(max(0, column), min(self.columns, column + count)):
+                self.looks[line][cell] = look
+
     def cursor(self, line, column):
         self.cursorAt = None if line is None else (line, column)
 
@@ -184,7 +191,7 @@ class TextSurface:
 ##   said <tag>                    what the status line says after its keys, as it is drawn, as `<tag>=<text>`
 ##   get <tag>                     the state, one `<tag>.<name>=<value>` a line
 ##   plain                         from here on the screen draws as for a terminal that is not UTF-8
-##   style <name>                  from here on the screen draws in that style of its STYLES
+##   style <name>                  from here on the screen draws in that style of its STYLES, `<style>-<colours>`
 ##   mode <name>                   the left window is in that mode of its VIEW_MODES, as if its key had been pressed
 ##                                 earlier in the run of the screen
 ##   plaintext <tag> <text>        that text as such a terminal is given it, as `<tag>=<text>`
@@ -287,6 +294,7 @@ def scriptRun(module):
                 module.MENUS[state.menu["menu"]][0], module.menuItems(state, module.MENUS[state.menu["menu"]][0])[state.menu["item"]]["name"])),
             ("quit", "yes" if state.quit else "no"),
             ("style", module.STYLE["name"] if hasattr(module, "STYLE") else ""),
+            ("colours", module.STYLE.get("scheme", "") if hasattr(module, "STYLE") else ""),
             ("reading", ",".join(sorted(state.reading.values()))),
             ("calls", len(getattr(state, "calls", ()))),
             ("answer", len(state.answer["lines"]) if getattr(state, "answer", None) else 0),
@@ -416,7 +424,12 @@ def scriptRun(module):
                 print("%s|%s|" % (rest, lookLine))
         elif command == "border":
             frameMarks = module.MARKS["frame"] + module.MARKS["frameOn"] + " "
-            print("%s=%s" % (words[0], "".join(surface.cells[int(words[1])][int(words[2]):int(words[3])]).strip(frameMarks)))
+            border = "".join(surface.cells[int(words[1])][int(words[2]):int(words[3])]).strip(frameMarks)
+            ## the icons of a frame that has them stand beside what is in it, and are no part of it
+            for icon in (module.styleMark("icons") if module.STYLE.get("icons") else ()):
+                border = border[len(icon):] if border.startswith(icon) else border[:-len(icon)] if border.endswith(icon) else border
+                border = border.strip(frameMarks)
+            print("%s=%s" % (words[0], border))
         elif command == "said":
             statusLine = "".join(surface.cells[surface.lines - 1])
             print("%s=%s" % (words[0], statusLine.partition(module.MARKS["separator"])[2].strip(" ")))

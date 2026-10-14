@@ -13,7 +13,8 @@
 ## hot letter any menu: a pull-down in a frame with its items, their hot letters, their keys at the right, a line
 ## between two groups, its shadow, and an item that does not apply greyed; the arrows move, Enter and the hot letter of
 ## an item choose it, which does what the key of that command does, an item that does not apply is not chosen, and Esc
-## closes. The styles of STYLES: F9 takes the next one at once; Basic B/W draws what Turbo Vision draws; a name that is
+## closes. The styles of STYLES: F9 takes the next one at once; Basic B/W draws what Turbo Vision draws but for the icons
+## of Turbo Vision in the frame of the active window; a name that is
 ## no style is refused, the retired compact one among them, and named in the environment it leaves the default. On a
 ## real terminal with colours the screen sets colours, on one with none it comes up all the same and sets none, a style
 ## without colours sets none on a terminal that has them, Magic sets the shades of a terminal of 256 colours, and Alt-X
@@ -124,11 +125,11 @@ rigAssert "the first line is the menu bar: the system mark, the menus, and at it
 rigAssert "each menu has its hot letter in a look of its own"        "$( rigRole r 1 1 36 )" "mmmmhmmmhmmmmmmmmhmmmmmhmmmmmmmmmmmm"
 rigAssert "the @ between the workspace and the machine has a look of its own, apart from the two names, also with no colour" "[$( rigVal where )] $( rigRole r 1 95 110 ) $( rigRole k 1 95 110 )" "[ws-rig@rig-host  12:34:56] mmmmmm@mmmmmmmmm RRRRRRHRRRRRRRRR"
 rigAssert "each window carries its title in the middle of its top border" "[$( rigVal viewTitle )] [$( rigVal listTitle )]" "[Sessions (Activity) [wrap]] [Sessions (Activity)]"
-rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────── Sessions (Activity) [wrap] ───────────────────────────┐╔══════ Sessions (Activity) ═══════╗]"
+rigAssert "the active window, the list, has a double frame with the icons of Turbo Vision, the box that closes and the one that zooms, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────── Sessions (Activity) [wrap] ───────────────────────────┐╔═[■]══ Sessions (Activity) ═══[↕]═╗]"
 rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
 rigAssert "the bottom borders of the two windows are plain: the counters and the load are the dashboard's" "[$( rigVal foot )] [$( rigVal load )] $( rigVal a.counters | LC_ALL=C grep -c 'load=0.42' )" "[] [] 1"
 rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] mhhhhhmmmmmmmhhh"
-rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═══════════════════════════ Sessions (Activity) [wrap] ═══════════════════════════╗┌────── Sessions (Activity) ───────┐]"
+rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═[■]═══════════════════════ Sessions (Activity) [wrap] ═══════════════════════[↕]═╗┌────── Sessions (Activity) ───────┐]"
 rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ w Cut  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
@@ -182,16 +183,33 @@ show sh
 roles shr
 RIGSCRIPT
 	## Turbo Vision's shadow is two cells wide, Magic's slim one a single cell; the right edge of the pull-down is read off
-	## its first item, and the line between two groups is a row of it whose text holds the left junction of the rule
+	## its first item, and the line between two groups is a row of it whose text holds the left junction of the rule, in
+	## Magic its rim with the line after it
 	rigWide=2 ; [ "$rigStyle" = tv ] || rigWide=1
 	rigEdge="$( rigLine shr 3 | LC_ALL=C sed -e 's/^\(...[mhoOx]*\).*/\1/' )" ; rigEdge="${#rigEdge}"
 	rigBeside="" ; rigRow=3
 	while [ "$( rigRole shr "$rigRow" 4 4 )" = m ] ; do
-		case "$( rigLine sh "$rigRow" )" in *├*) rigBeside="$rigBeside $( rigRole shr "$rigRow" $(( rigEdge + 1 )) $(( rigEdge + rigWide )) )" ;; esac
+		case "$( rigLine sh "$rigRow" )" in *├*|*▌─*) rigBeside="$rigBeside $( rigRole shr "$rigRow" $(( rigEdge + 1 )) $(( rigEdge + rigWide )) )" ;; esac
 		rigRow=$(( rigRow + 1 ))
 	done
 	rigAssert "in the style $rigStyle the cells beside each line between two groups of a menu are its shadow, as beside an item" "$( rigVal style.refused )[$( rigRole shr 3 $(( rigEdge + 1 )) $(( rigEdge + rigWide )) )] [${rigBeside# }]" "$( [ "$rigStyle" = tv ] && echo '[ww] [ww ww ww]' || echo '[z] [z z z]' )"
 done
+
+echo "-- in Magic a pull-down hangs from the menu bar: no edge row between the bar and its first item; its sides, its bottom and its shadow stand as before --"
+rigRun <<'RIGSCRIPT'
+style nu
+keys F10
+show hang
+roles hangr
+cells hangTop 1 3 31
+RIGSCRIPT
+rigAssert "Magic menu: no edge row between the bar and the first item, which stands on the line under the bar between the sides of its rim, its shadow beside it" "$( rigVal style.refused )[$( rigVal hangTop )] $( rigRole hangr 2 4 6 ) $( rigHas hang '▛' )" "[▌ Dashboard (Monitor)   1 ▐▄] moO 0"
+rigAssert "and its bottom is the rim's, the shadow under it" "$( rigHas hang "▙$( rigRepeat ▄ 25 )▟" ) $( rigHas hang " $( rigRepeat ▀ 27 )" )" "1 1"
+rigRun <<'RIGSCRIPT'
+keys F10
+cells tvTop 1 3 7
+RIGSCRIPT
+rigAssert "Turbo Vision keeps the top border of its pull-down" "[$( rigVal tvTop )]" "[┌───]"
 
 echo "-- the menus follow the view --"
 rigRun <<'RIGSCRIPT'
@@ -207,7 +225,7 @@ keys ESC k
 get byKey
 keys n
 get otherView
-keys 9
+keys 2 PGUP DOWN ENTER
 turn
 cells barLaunch 0 0 40
 keys ALT-s
@@ -254,8 +272,8 @@ get still
 style mc
 get retired
 RIGSCRIPT
-rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal bw.style ) [$( rigVal bw.notice )] $( rigVal magic.style ) [$( rigVal magic.notice )]" "tv bw [interface style: Basic B/W] magic [interface style: Magic]"
-rigAssert "Basic B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
+rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal bw.style ) [$( rigVal bw.notice )] $( rigVal magic.style ) [$( rigVal magic.notice )]" "tv bw [interface style: Basic B/W - System] nu [interface style: Magic - System]"
+rigAssert "Basic B/W is the next: it draws what Turbo Vision draws, cell for cell, but for the icons of Turbo Vision in the frame of the active window" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' | LC_ALL=C sed -e 's/═\[■\]═/═════/' -e 's/═\[↕\]═/═════/' )" ] && echo same || echo differs ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^t|' | LC_ALL=C grep -c -F -e '═[■]═' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^t|' | LC_ALL=C grep -c -F -e '═[↕]═' )" "bw same 1 1"
 rigAssert "and after the last style comes the first again"          "$( rigVal back.style )" "tv"
 rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal style.refused ) $( rigVal still.style )" "nonsense tv"
 rigAssert "the compact style is retired: its name is no style any more" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^style.refused=//p' | LC_ALL=C tr '\n' ' ' )$( rigVal retired.style )" "nonsense mc tv"

@@ -581,9 +581,10 @@ AgentsToolsManagerConfigScopes(){
 ## writer saves nothing but a value that a row takes, so no text of a caller's reaches a file.
 ## EACH IS HERE BECAUSE the tooling reads it at its next use, a wrong value cannot be saved,
 ## and no running session is broken by a change:
-##   MDAT_MANAGER_STYLE   the user's own: the look of the manager screen at its next start
-##       (the styles the screen declares, STYLES in AgentsManagerScreen.py, which
-##       AgentsManagerConfigInterfaceCheck holds against this row).
+##   MDAT_MANAGER_STYLE   the user's own: the look of the manager screen at its next start,
+##       `<style>-<colours>` (the styles and the colours the screen declares, STYLES and
+##       COLOURS in AgentsManagerScreen.py, which AgentsManagerConfigInterfaceCheck holds
+##       against this row).
 ##   MDLT_CONSOLE_HISTORY   the user's own: which history file a console takes at its next
 ##       start. Every console's rc reads it, the user's own first. An unknown value stops a
 ##       console, so only its six are taken.
@@ -606,12 +607,21 @@ AgentsToolsManagerConfigScopes(){
 ## round of the workspace (deployed; a round longer than a CLI allows ends the waits of
 ## running sessions). The tick and the other seconds of a control thread are no line at all:
 ## a running thread reads them.
-agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv|tv=Turbo Vision,bw=Basic B/W,magic=Magic
+agentsManagerConfigSettings="interface|style|MDAT_MANAGER_STYLE|choice|environment user|tv-system|nu-system=Magic - System,nu-blue=Magic - Dark/Blue,nu-gray=Magic - Light/Gray,tv-system=Turbo Vision - System,tv-blue=Turbo Vision - Dark/Blue,tv-gray=Turbo Vision - Light/Gray,bw-system=Basic B/W - System,bw-dark=Basic B/W - Dark/Blue,bw-light=Basic B/W - Light/Gray
 console|history|MDLT_CONSOLE_HISTORY|choice|user system|workspace-personal|workspace-personal=Per User In This Workspace,workspace-separate=Per User And Per Console,workspace-shared=Shared By All Users,local-machine-home=In The Home Of The User,bash-default=The File Bash Uses,user-default=As The User Has It
 console|origin|MDLT_CONSOLE_ORIGIN|choice|user system||@origins|system
 console|detail|MDLT_CONSOLE_DETAIL|choice|user||=<default> (none),true=true (track),full=full (debug)
 control|request|SESSION_CONTROL_REQUEST_SECONDS|number|team|5|1..60
 control|kill|SESSION_CONTROL_KILL_SECONDS|number|team|30|5..600"
+
+## THE OTHER NAMES of a value of a changeable setting: a name it had before, or a second name
+## of it, each with the value it means, which it is read as and saved as. One row a setting,
+## `<key>|<name>=<value>,...`.
+##   MDAT_MANAGER_STYLE   a style alone, from before a style had its colours: each the one it
+##       was drawn in then (the screen's STYLES "bare"), Magic by its name of then; and the
+##       colours of Turbo Vision and of Magic by the names of every style, dark for blue and
+##       light for gray (the screen's COLOURS).
+agentsManagerConfigFormer="MDAT_MANAGER_STYLE|tv=tv-system,bw=bw-system,magic=nu-gray,tv-dark=tv-blue,tv-light=tv-gray,nu-dark=nu-blue,nu-light=nu-gray,magic-system=nu-system,magic-blue=nu-blue,magic-dark=nu-blue,magic-gray=nu-gray,magic-light=nu-gray"
 
 ## The subjects whose changeable lines keep, where the digest is not asked in full, the form
 ## they had first: where the value comes from and what it takes ahead of the label.
@@ -798,10 +808,29 @@ AgentsToolsManagerConfigSettingTakes(){ ## kind, what it takes, value, `read` (m
 	return 1
 }
 
+## The value a value of a setting means: another name of one of its key (THE OTHER NAMES) the
+## value it stands for, any other itself.
+AgentsToolsManagerConfigSettingFormer(){ ## key, value
+	local formerKey formerPairs
+	while IFS='|' read -r formerKey formerPairs ; do
+		[ "$formerKey" = "$1" ] && [ -n "$2" ] || continue
+		case ",$formerPairs," in
+			*",$2="*)
+				formerPairs=",$formerPairs,"
+				formerPairs="${formerPairs#*,"$2"=}"
+				printf '%s\n' "${formerPairs%%,*}"
+				return 0
+			;;
+		esac
+	done <<< "$agentsManagerConfigFormer"
+	printf '%s\n' "$2"
+}
+
 ## What a changeable setting is now and where that comes from, `<value> <source>`: the first
 ## place of its row that holds a value it takes. `environment`, `user`, or `workspace` for
 ## the workspace's own file and for the settings of the team alike; else its default,
-## `default`. A value that is none it takes counts as not given, wherever it stands.
+## `default`. Another name of a value is the value it means. A value that is none it takes
+## counts as not given, wherever it stands.
 AgentsToolsManagerConfigSettingNow(){ ## key, kind, places, default, what it takes
 	local nowKey="$1" nowPlace nowValue nowSource
 	for nowPlace in $3 ; do
@@ -812,6 +841,7 @@ AgentsToolsManagerConfigSettingNow(){ ## key, kind, places, default, what it tak
 			team) nowValue="$( AgentsToolsManagerConfigTeamValue "$nowKey" )" || nowValue="" ; nowSource=workspace ;;
 			*) continue ;;
 		esac
+		nowValue="$( AgentsToolsManagerConfigSettingFormer "$nowKey" "$nowValue" )" || nowValue=""
 		if AgentsToolsManagerConfigSettingTakes "$2" "$5" "$nowValue" read ; then
 			printf '%s %s\n' "$nowValue" "$nowSource"
 			return 0
@@ -932,6 +962,8 @@ case "$1" in
 			set +e ; return 1
 		fi
 		[ -z "$setFound" ] || setValues="$( AgentsToolsManagerConfigSettingOffers "$setValues" )" || setValues=""
+		## another name of a value is saved as the value it means
+		set -- "$1" "$( AgentsToolsManagerConfigSettingFormer "$1" "$2" )"
 		if [ -n "$2" ] && ! AgentsToolsManagerConfigSettingTakes "$setFound" "$setValues" "$2" "" ; then
 			if [ "$setFound" = "number" ] ; then
 				echo "⛔ ERROR: $MDSC_CMD $setOp: the value given is no whole number from ${setValues%%..*} to ${setValues##*..}, which $1 takes -- nothing was saved" >&2

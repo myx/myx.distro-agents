@@ -124,25 +124,30 @@ echo "-- a dialog: buttons, boxes, radio buttons, a list, a field; and nothing o
 rigRun <<'RIGSCRIPT'
 rigdialog What the rig asks.
 turn
-mouse click 40 19
+mouse click 40 18
 get who
-mouse click 40 24
+mouse click 40 23
 get how
-mouse click 40 30
+mouse click 40 29
 get pick
-mouse click 40 10
+mouse click 40 9
 get name
 mouse click 5 5
 mouse click 100 3
 mouse click 25 0
 get outside
-mouse click 60 32
+mouse click 60 31
 get cancel
 rigdialog What the rig asks.
 turn
-mouse click 40 20
-mouse click 52 32
+mouse click 40 19
+mouse click 52 31
 get ok
+rigdialog What the rig asks.
+turn
+get before
+mouse click 35 5
+get closed
 RIGSCRIPT
 rigAssert "a click on a box toggles it, and the keys are on the boxes" "$( rigVal who.dialog )" "rig:who|b,a"
 rigAssert "a click on a radio button chooses it, and on a row of a list picks it" "$( rigVal how.dialog ) $( rigVal pick.dialog )" "rig:how|x rig:pick|p3"
@@ -150,6 +155,7 @@ rigAssert "a click on a field gives it the keys"                      "$( rigVal
 rigAssert "a click outside the dialog does nothing: no window, no row, no menu" "$( rigVal outside.dialog ) $( rigVal outside.focus ) $( rigVal outside.selected ) [$( rigVal outside.menu )]" "rig:name|typed list .. []"
 rigAssert "a click on Cancel closes the dialog and calls nothing"     "[$( rigVal cancel.dialog )] [$( rigVal cancel.notice )]" "[] []"
 rigAssert "a click on OK presses it: its handler has what was clicked" "[$( rigVal ok.dialog )] [$( rigVal ok.notice )]" "[] [pressed ok: name=typed notes= who= how=y pick=p1]"
+rigAssert "in Turbo Vision a click on the box that closes it, at the left of its top border, does what Esc does" "$( rigVal before.dialogBox ) [$( rigVal closed.dialog )] $( [ "$( rigVal before.notice )" = "$( rigVal closed.notice )" ] && echo nothing-more-said || echo said )" "32,5,56,29 [] nothing-more-said"
 
 echo "-- the status line: a click on a key does what the key does --"
 rigRun <<'RIGSCRIPT'

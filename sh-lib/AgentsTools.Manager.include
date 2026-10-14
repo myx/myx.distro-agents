@@ -27,6 +27,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The tooling commands a console user calls by name, as the console's completion gathers them.
+	--manager-command-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerCommand.include"
+		return $?
+	;;
+
 	## The settings of this workspace, as they are, and the interface settings of the user
 	## who runs the console, which one operation saves.
 	--manager-config-*)
@@ -44,6 +50,12 @@ case "$1" in
 	## The most vital figures of this workspace and of its machine, in blocks a screen draws.
 	--manager-dashboard-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerDashboard.include"
+		return $?
+	;;
+
+	## The help of this tool as it is written: what the bare call prints, and every operation's.
+	--manager-help-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerHelp.include"
 		return $?
 	;;
 

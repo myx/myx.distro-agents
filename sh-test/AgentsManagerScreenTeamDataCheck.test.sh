@@ -154,10 +154,10 @@ keys ESC
 keys ALT-g m
 get chosen
 RIGSCRIPT
-rigAssert "with no team data the root list holds the eight roots and no Team Data" "$( rigVal root.rows ) $( rigHolds root 'Team Data' )" "8 0"
-rigAssert "the numbers follow the list as it is shown: 5 is Locations (Places) and 9 Launch / Spawn, as with no such root" "$( rigVal five.path ) $( rigVal nine.path )" "places sessions/launch"
-rigAssert "the menu Go names Team Data with no number, after Team Members, and the roots after it with theirs" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Members  *4 ' -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *5 ' -e 'Launch / Spawn  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Members 4|Team Data|Locations (Places) 5|Launch / Spawn 9|"
-rigAssert "chosen there it does nothing and says why in the status line" "$( rigVal chosen.path ) $( rigVal chosen.notice )" "sessions/launch Team Data: no team data is configured for this workspace"
+rigAssert "with no team data the root list holds the nine roots and no Team Data" "$( rigVal root.rows ) $( rigHolds root 'Team Data' )" "9 0"
+rigAssert "the numbers follow the list as it is shown: 5 is Locations (Places) and 9 Manuals (Help), as with no such root" "$( rigVal five.path ) $( rigVal nine.path )" "places manuals"
+rigAssert "the menu Go names Team Data with no number, after Team Members, and the roots after it with theirs" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Members  *4 ' -e 'Team Data  *[0-9]* ' -e 'Locations (Places)  *5 ' -e 'Manuals (Help)  *9 ' | LC_ALL=C sed 's/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Members 4|Team Data|Locations (Places) 5|Manuals (Help) 9|"
+rigAssert "chosen there it does nothing and says why in the status line" "$( rigVal chosen.path ) $( rigVal chosen.notice )" "manuals Team Data: no team data is configured for this workspace"
 rigCase full rig full
 rigScript <<'RIGSCRIPT'
 turn
@@ -177,7 +177,7 @@ wait list 10
 get in
 show in
 RIGSCRIPT
-rigAssert "where the dashboard says the team data is there, Team Data is the fifth of nine roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "9 4 Team Data"
+rigAssert "where the dashboard says the team data is there, Team Data is the fifth of ten roots, after Team Members" "$( rigVal root.rows ) $( rigVal on.index ) $( rigVal on.selectedLabel )" "10 4 Team Data"
 rigAssert "and the numbers follow: 5 is Team Data, the roots after it one more, and Launch / Spawn has none past nine" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^go|' | LC_ALL=C grep -o -e 'Team Data  *[0-9]* │' -e 'Locations (Places)  *[0-9]* │' -e 'Configuration  *[0-9]* │' -e 'Launch / Spawn  *[0-9]* │' | LC_ALL=C sed 's/ *│$//;s/   */ /g;s/ $//' | LC_ALL=C tr '\n' '|' )" "Team Data 5|Locations (Places) 6|Configuration 9|Launch / Spawn|"
 rigAssert "selected, its summary says where the team data is, that it is there and its size, and the mode of the workspace" "$( rigHolds on '│Team data, there:' ) $( rigHolds on '│  /rig/ws/team-data ' ) $( rigHolds on '│  Team Data Present: yes' ) $( rigHolds on '│  Team Data Size: 77.5M' ) $( rigHolds on '│mode      Team Rig, saved for the workspace; a full team rig' )" "1 1 1 1 1"
 rigAssert "its git state, nicely: where it stands and what it tracks, ahead and behind, what is not committed, its last commit, and in words of their own what is not level, with the worst level" "$( rigHolds on '│Git: on main, tracking origin/main.' ) $( rigHolds on '│  2 ahead and 1 behind, as of its last fetch' ) $( rigHolds on '│  3 paths not committed' ) $( rigHolds on '│  last commit 2h 5m ago: the last change' ) $( rigHolds on '│It is behind its remote by 1; ahead of its remote by 2; 3 paths' )" "1 1 1 1 1"
@@ -250,7 +250,7 @@ cells end 35 0 120
 keys ENTER
 get closed
 RIGSCRIPT
-rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask '[»Run«]  [ Cancel ]' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
+rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask ' »Run« ▄   Cancel  ▄' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
 rigAssert "Run opens the big dialog, most of the screen, that runs it: its first line is there while it still runs" "$( rigVal running.dialog ) $( rigVal running.dialogBox ) [$( rigVal running.dialogHolds )] $( rigVal running.reading | LC_ALL=C grep -c -F 'follow:' )" "output:stop| 2,1,116,34 [purge: the first line, on standard output / It runs: Esc or Stop asks whether to stop it.] 1"
 rigAssert "the status line names only its keys while it runs: Enter and Esc ask whether to stop it" "$( rigVal st | LC_ALL=C sed 's/  */ /g' )" " ENTER Stop ESC Stop"
 rigAssert "at its end it holds both streams in the order they were written, a tab as spaces and no sequence of a terminal" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/ \/ Ended with.*//' )" "purge: the first line, on standard output / purge: the second line, on standard error / purge:  a tab, a sequence and a mark ⛔"

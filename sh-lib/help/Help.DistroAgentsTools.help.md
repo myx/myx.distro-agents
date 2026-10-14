@@ -162,10 +162,12 @@
 📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]
 📘 syntax: DistroAgentsTools.fn.sh --make-console-script
 📘 syntax: DistroAgentsTools.fn.sh --manager-check-run [--local] [--seconds <n>] [<domain>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-command-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [--full] [<subject>...]
 📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>
 📘 syntax: DistroAgentsTools.fn.sh --manager-console-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]
+📘 syntax: DistroAgentsTools.fn.sh --manager-help-read
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>
 📘 syntax: DistroAgentsTools.fn.sh --manager-place-list
@@ -2828,6 +2830,22 @@
 			checks say. Exit 1, nothing run, for a word that is no
 			domain.
 
+		--manager-command-list
+			One of the console's own operations (see Notes). Lists the
+			tooling commands a console user calls by name, one a line
+			on stdout, each its base name with its extension, as it is
+			typed: `<Name>.fn.sh`, as `DistroAgentsTools.fn.sh`. No path
+			and no other field. They are what the console's completion
+			gathers, by its own two readers: the `*.fn.sh` of the
+			sh-scripts folder of each installed package of the family,
+			as `Agents --completion-all` lists them, and the commands
+			the projects declare, from the index the workspace holds in
+			.local, as `Distro --shell-path-append --completion` reads
+			it. A name is listed once, in the order of `sort -u`. It
+			only reads: no path is resolved and no file is opened, so
+			whether a file has its executable bit, and which of two of
+			one name the PATH takes, are not said. Takes no argument.
+
 		--manager-config-digest [--full] [<subject>...]
 			One of the console's own operations (see Notes). Prints the
 			settings of this workspace as they are, for viewing. It only
@@ -2956,8 +2974,15 @@
 			are the values that may be chosen, in the order they are
 			offered, joined by commas, each `<value>=<label>`. One
 			setting now, the interface style of the manager screen:
-			group `style`, key `MDAT_MANAGER_STYLE`, value `tv`, `bw` or
-			`magic`.
+			group `style`, key `MDAT_MANAGER_STYLE`, value
+			`<style>-<colours>`: `nu-system`, `nu-blue`, `nu-gray`
+			(Magic), `tv-system`, `tv-blue`, `tv-gray` (Turbo Vision),
+			`bw-system`, `bw-dark`, `bw-light` (Basic B/W); `tv-system`
+			where nothing names one. Another name of one is read as it:
+			`dark` for `blue` and `light` for `gray`, and a style alone,
+			saved before styles had colours, as the one it was drawn in
+			then: `tv` as `tv-system`, `bw` as `bw-system`, `magic` (and
+			`magic-<colours>`) as `nu-gray` (and `nu-<colours>`).
 			`console`: what a console of this workspace does. Group
 			`history`, key `MDLT_CONSOLE_HISTORY`, where a console keeps
 			the shell history of the user, which every console reads at
@@ -2986,7 +3011,9 @@
 			`--manager-config-digest --full` says can be changed, a line
 			of the `settings`, and <value> one that line takes. Six are
 			declared. `MDAT_MANAGER_STYLE`, a `choice`, the user's own:
-			the interface style of the manager screen at its next start.
+			the interface style of the manager screen at its next start,
+			`<style>-<colours>`; another name of one is saved as the one
+			it means, `tv-dark` as `tv-blue`, `magic` as `nu-gray`.
 			`MDLT_CONSOLE_HISTORY`, a `choice`, the user's own: where a
 			console keeps the shell history of the user, read at its next
 			start. `MDLT_CONSOLE_ORIGIN`, a `choice`, the workspace's:
@@ -3196,6 +3223,17 @@
 			every file under it, and the two counts of the members.
 			Everything else is read at the call. Where that folder
 			cannot be written the size is not measured at all.
+
+		--manager-help-read
+			One of the console's own operations (see Notes). Prints the
+			help of this tool as it is written, on stdout, and writes no
+			help of its own: first what the bare call of this tool
+			prints, the default syntax, as it prints it; then one empty
+			line; then every operation of the manual: the syntax lines
+			that `--help-syntax` prints, and the entry of each operation,
+			its syntax lines and its text, as `--member-help` prints those
+			of a member's operations. Takes no argument: one is refused
+			in one line, rc 1, nothing on stdout.
 
 		--manager-keys-list
 			One of the console's own operations (see Notes). Lists the

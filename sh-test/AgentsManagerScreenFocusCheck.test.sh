@@ -369,7 +369,7 @@ wait focus 5
 turn 2
 wait plan 5
 show Y
-keys DOWN
+keys DOWN DOWN
 wait focus 5
 show U
 keys r

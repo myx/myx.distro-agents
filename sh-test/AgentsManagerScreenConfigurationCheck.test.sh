@@ -16,7 +16,9 @@
 ## list where that carries it and else from the read of that key, and the shortened key of a row is never on the
 ## screen; a key selected shows what it is for, its type, fingerprint, file, its whole line and where it is to be
 ## registered; its key shows it alone in a box, read anew, broken only where the box is full; a key that cannot
-## be read says so and opens no box; and the real screen, on a pseudo-terminal, starts,
+## be read says so and opens no box; `Tooling Commands` stands after them, its left window lists the commands as
+## `--manager-command-list` prints them, by the names a user types, read once the selection rests on it, and inside
+## each is a row; and the real screen, on a pseudo-terminal, starts,
 ## shows the folders and ends on Ctrl-X with the terminal given back.
 ## Offline: no operation of the real tooling is called, no check is run and no key of this machine is read.
 set -u
@@ -98,6 +100,8 @@ rigKeyRow(){ ## key, label, group, purpose, type, fingerprint, file, state, the 
 } > "$rigF/rows.--manager-keys-read deploy"
 rigRow paste "$rigHostFull" > "$rigF/rows.--manager-keys-read host-ed25519"
 rigRow paste "$rigOursFull" > "$rigF/rows.--manager-keys-read ours"
+## The tooling commands as `--manager-command-list` prints them: one base name a line, as a user types it.
+printf '%s\n' DistroAgentsTools.fn.sh JumpRig.fn.sh ScreenTo.fn.sh > "$rigF/rows.--manager-command-list"
 rigRow counters 0 0 0 0 0 0.42 > "$rigF/rows"
 ## A fresh rig for one case: a copy of the fixtures, no call noted yet.
 rigCase(){ ## name
@@ -147,6 +151,7 @@ get in
 cells row2 3 85 119
 cells row3 4 85 119
 cells row4 5 85 119
+cells row5 6 85 119
 keys DOWN
 turn
 show c
@@ -156,7 +161,7 @@ show k
 advance 11
 turn 3
 RIGSCRIPT
-rigAssert "Config Checker and Server Keys stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "4 [ Config Checker ~ ►][ Server Keys ~ ►][ Workspace Paths ~ ►]"
+rigAssert "Config Checker, Server Keys and Tooling Commands stand under the row that goes up, each a row that is entered, then the subjects" "$( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )][$( rigCell row5 )]" "5 [ Config Checker ~ ►][ Server Keys ~ ►][ Tooling Commands ~ ►][ Workspace Paths ~ ►]"
 rigAssert "on Config Checker the left window says that the checks were not run, and which key runs them" "[$( rigPane c 2 )][$( rigPane c 3 )][$( rigPane c 5 )]" "[ Config Checker [wrap]][ The checks were not run yet in this run of the screen.][ r runs them. It is the read-only diagnosis of each part of the installation: it]"
 rigAssert "the checks are not run before their folder is entered, whatever time passes; the keys are listed once the selection has rested on their folder" "$( rigCalled --manager-check-run ) $( rigCalled --manager-keys-list ) [$( rigPane k 2 )]" "0 1 [ Server Keys [wrap]]"
 
@@ -303,7 +308,7 @@ rigAssert "where it is to be registered, and the key that shows it alone, which 
 rigAssert "it is whole in Basic B/W and in Magic too"                "$( rigJoined dbw | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' ) $( rigJoined dmagic | LC_ALL=C grep -c -F 'ssh-ed25519AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123mdci@rig-host' )" "1 1"
 rigAssert "the shortened key of a row is nowhere on the screen, and no line of the left window is cut" "$( rigScreenHolds u 'SHORT-never' ) $( rigScreenHolds g 'SHORT-never' ) $( rigScreenHolds d 'SHORT-never' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep -e '^u|' -e '^d|' | LC_ALL=C sed -e 's/│║.*$//' | LC_ALL=C grep -c -F '…' )" "0 0 0 0"
 rigAssert "f opens the box of that key alone, which says that its line is being read" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] [$( rigVal asked.dialogHolds )]" "[keyline:ok|] [Deploy Key] [Its public line is being read.]"
-rigAssert "it is read anew for the box, by the name of the key, and stands whole there, broken only where the box is full" "$( rigCalled '--manager-keys-read deploy' ) $( rigBoxHolds b '║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJ ║' ) $( rigBoxHolds b '║ KLMNOPQRSTUVWXYZ0123 mdci@rig-host' ) $( rigBoxHolds b '[»OK«]' )" "2 1 1 1"
+rigAssert "it is read anew for the box, by the name of the key, and stands whole there, broken only where the box is full" "$( rigCalled '--manager-keys-read deploy' ) $( rigBoxHolds b '║  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabcdefghijklmnopqrstuvwxyzABCDEFGHIJ ║' ) $( rigBoxHolds b '║ KLMNOPQRSTUVWXYZ0123 mdci@rig-host' ) $( rigBoxHolds b ' »OK« ▄' )" "2 1 1 1"
 rigAssert "with its group, its type and its fingerprint, and where it is to be registered" "$( rigBoxHolds b 'group     Keys To Add To Git' ) $( rigBoxHolds b 'type      ssh-ed25519' ) $( rigBoxHolds b 'fingerprint SHA256:abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ' ) $( rigBoxHolds b '  myx/myx.common  git@github.com:myx/myx.common.git' ) $( rigBoxHolds b '  myx/myx.distro-agents  git@github.com:myx/myx.distro-agents.git' )" "1 1 1 1 1"
 rigAssert "Enter closes the box"                                     "[$( rigVal closed.dialog )]" "[]"
 rigAssert "a key that cannot be read says so, and f opens no box and reads nothing" "$( rigPaneHolds a ' No public key can be read at its file.' ) $( rigPaneHolds a ' state       absent' ) [$( rigVal absent.dialog )] [$( rigVal absent.notice )] $( LC_ALL=C grep -c -e '--manager-keys-read' "$MANAGER_SCREEN_RIG/calls" )" "1 1 [] [Full public line: no public key can be read there] 4"
@@ -386,7 +391,7 @@ turn
 root configuration
 keys ENTER
 wait list 30
-keys DOWN DOWN DOWN ENTER
+keys DOWN DOWN DOWN DOWN ENTER
 turn
 get in
 cells r1 3 85 119
@@ -429,6 +434,29 @@ rigAssert "a heading selected: the left window shows that group alone, its lines
 rigAssert "Enter on a heading does nothing: the status line says that the row has nothing to open" "[$( rigVal entered.path )] [$( rigVal entered.selected )] [$( rigVal entered.notice )] [$( rigVal entered.dialog )]" "[configuration/cli] [group claude] [Open: this row has nothing to open] []"
 rigAssert "a line selected: its window is titled with its group ahead of its label, a missing one is read as it is, and its facts name the group" "[$( rigVal line.selected )] [$( rigVal title )] $( rigPaneHolds u ' group     grok' ) $( rigPaneHolds u ' key       usable' )" "[grok usable] [grok: CLI Usable [wrap]] 1 1"
 rigAssert "a subject with one group shows no heading: its lines alone, as they come" "$( rigVal one.path ) $( rigVal one.rows ) [$( rigTrim o1 )][$( rigTrim o2 )][$( rigTrim o3 )]" "configuration/loop 3 [ Running][ Recheck][]"
+
+echo "-- Tooling Commands: the commands the completion gathers, by the names a user types --"
+rigCase commands
+rigScript <<'RIGSCRIPT'
+turn
+keys 8
+wait list 30
+keys DOWN DOWN DOWN
+wait focus 30
+turn
+get on
+show t
+keys ENTER
+wait list 30
+turn
+get in
+cells row2 3 85 119
+cells row3 4 85 119
+cells row4 5 85 119
+RIGSCRIPT
+rigAssert "on its row the left window lists the commands, one a line, by the names the operation prints, once the selection has rested there" "$( rigVal on.selectedLabel ) [$( rigPane t 2 )][$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 5 )][$( rigPane t 6 )]" "Tooling Commands [ Tooling Commands [wrap]][ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh][]"
+rigAssert "it is read by the one operation, with no argument, once" "$( rigCalled --manager-command-list ) $( LC_ALL=C grep -c -e '--manager-command-list' "$MANAGER_SCREEN_RIG/calls" )" "1 1"
+rigAssert "inside, each command is a row of its own, by its name" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "configuration/commands 4 [ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh]"
 
 echo "-- the real screen on a pseudo-terminal: it starts, shows Configuration with its folders, and Ctrl-X ends it --"
 rigCase pty

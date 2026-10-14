@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ^^^ for syntax checking in the editor only
+
+##
+## AgentsTools.ManagerCommand.include -- the --manager-command-* operations: the tooling
+## commands a console user calls by name, `<Name>.fn.sh`. Sourced from the
+## `--manager-command-*)` arm of AgentsTools.Manager.include; who may call was asked where
+## the family is dispatched.
+##
+## WHICH COMMANDS THEY ARE IS NOT DECIDED HERE. They are what the console's own completion
+## gathers, by its own two readers, and nothing is found here a second way:
+##   Agents --completion-all   the files of the sh-scripts folder of each installed package
+##       of the family, the folders the agents console puts on its PATH
+##       (AgentsConsole.Completion.include): of them the `*.fn.sh`, as the completion keeps
+##       them (SystemConsole.CompletionCommands.include, --completion-require);
+##   Distro --shell-path-append --completion   the commands the projects declare, from the
+##       index the source-prepare stage builds and holds in .local, which the Source and
+##       Deploy consoles put on their PATH (SystemConsole.include, its one reader).
+## A name is listed once, as the completion sorts them. No path is resolved and no file is
+## opened, so whether a file has its executable bit, and which of two of one name the PATH
+## takes, are not known here.
+##
+
+case "$1" in
+
+	## Every tooling command of this workspace, one base name a line. Its form is the help entry's.
+	--manager-command-list)
+		local listOp="$1"
+		shift
+		if [ $# -gt 0 ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $listOp: syntax is no argument, got: $1" >&2
+			set +e ; return 1
+		fi
+		{
+			Agents --completion-all | grep -e '\.fn\.sh$'
+			Distro --shell-path-append --completion
+		} | sort -u
+		return 0
+	;;
+
+	*)
+		echo "$MDSC_CMD: ⛔ ERROR: invalid option: $1" >&2
+		set +e ; return 1
+	;;
+esac

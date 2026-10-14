@@ -223,10 +223,12 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-command [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-console-script" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --make-workspace-integrations [--quiet]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-check-run [--local] [--seconds <n>] [<domain>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-command-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-digest [--full] [<subject>...]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-config-set <key> <value>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-console-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-dashboard-read [<block>...]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh --manager-help-read" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-list" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-keys-read <key>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --manager-place-list" >&2

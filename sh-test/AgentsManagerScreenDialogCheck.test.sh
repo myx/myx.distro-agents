@@ -106,22 +106,22 @@ keys ENTER
 get done
 said doneLine
 RIGSCRIPT
-rigAssert "the dialog opens over the screen, the keys on its first control" "$( rigVal o.dialog ) [$( rigVal o.dialogTitle )] $( rigVal o.dialogBox ) $( rigVal o.spills )" "rig:name|typed [A dialog of the rig] 32,6,56,28 0"
-rigAssert "it is framed, with its title in its top border, and holds its text" "$( rigHas d '╔════════════════ A dialog of the rig ═════════════════╗' ) $( rigHas d '║ What the rig asks. ' ) $( rigHas d '╚══════════════════════════════════════════════════════╝' )" "1 1 1"
-rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (*) another ' ) $( rigHas d '║ > first ' ) $( rigHas d '[»OK«]  [ Cancel ]' )" "1 1 1 1 1 1 1 1"
-rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 29 3 58 )" "gGww none $( rigRepeat w 56 )"
-rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 5 1 4 ) $( rigRole r 8 1 4 ) $( rigRole r 27 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbggbbbbbbbbbbg 10,39"
+rigAssert "the dialog opens over the screen, the keys on its first control" "$( rigVal o.dialog ) [$( rigVal o.dialogTitle )] $( rigVal o.dialogBox ) $( rigVal o.spills )" "rig:name|typed [A dialog of the rig] 32,5,56,29 0"
+rigAssert "it is framed, with its title in its top border, and holds its text" "$( rigHas d '╔═[■]════════════ A dialog of the rig ═════════════════╗' ) $( rigHas d '║ What the rig asks. ' ) $( rigHas d '╚══════════════════════════════════════════════════════╝' )" "1 1 1"
+rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (•) another ' ) $( rigHas d '║ > first ' ) $( rigHas d ' »OK« ▄   Cancel  ▄' )" "1 1 1 1 1 1 1 1"
+rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 30 3 58 )" "gGww none $( rigRepeat w 56 )"
+rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 5 1 4 ) $( rigRole r 8 1 4 ) $( rigRole r 27 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbZgbbbbbbbbbbZ 9,39"
 rigAssert "the status line names the keys of the dialog alone: in a field, Enter, Tab and Esc" "[$( rigVal st1 )]" "[ ENTER OK  TAB Next  ESC Cancel]"
 rigAssert "what is typed goes into the field, a space too"            "$( rigVal typed.dialog )" "rig:name|typedx y"
 rigAssert "Tab goes to the next control; in a field of several lines Enter is a new line" "[$( rigVal st2 )] $( rigVal area.dialog )" "[ ENTER New line  TAB Next  ESC Cancel] rig:notes|a\\nb"
 rigAssert "Space toggles the box the keys are on, and Up and Down move among the boxes" "[$( rigVal st3 )] $( rigVal who.dialog )" "[ Space Toggle  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:who|b,a,c"
 rigAssert "Space chooses the radio button the keys are on"            "[$( rigVal st4 )] $( rigVal how.dialog )" "[ Space Choose  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:how|x"
 rigAssert "Up and Down pick in a list, and stop at its end"           "[$( rigVal st5 )] $( rigVal pick.dialog )" "[ UP/DN Pick  ENTER OK  TAB Next  ESC Cancel] rig:pick|p3"
-rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 27 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnggbbbbbbbbbbg [ ←/→ Buttons  ENTER OK  TAB Next  ESC Cancel]"
+rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 27 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnZgbbbbbbbbbbZ [ ←/→ Buttons  ENTER OK  TAB Next  ESC Cancel]"
 rigAssert "Right goes to the next button, which Enter would then press" "$( rigVal onCancel.dialog ) [$( rigVal st7 )]" "rig:cancel| [ ←/→ Buttons  ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "Right goes around to the first button, and Shift-Tab back to the control before it" "$( rigVal back.dialog )" "rig:pick|p3"
 rigAssert "no key of a window, of a menu or of the screen works while the dialog is open" "$( rigVal held.dialog ) $( rigVal held.quit ) [$( rigVal held.menu )] $( rigVal held.filter ) $( rigVal held.focus ) [$( rigVal held.notice )]" "rig:pick|p3 no [] all list []"
-rigAssert "the dialog shows what was chosen"                         "$( rigHas d2 '║ [X] alpha ' ) $( rigHas d2 '║ (*) one way ' ) $( rigHas d2 '║ > third ' ) $( rigHas d2 '║ b ' )" "1 1 1 1"
+rigAssert "the dialog shows what was chosen"                         "$( rigHas d2 '║ [X] alpha ' ) $( rigHas d2 '║ (•) one way ' ) $( rigHas d2 '║ > third ' ) $( rigHas d2 '║ b ' )" "1 1 1 1"
 rigAssert "Enter presses the first button: the dialog closes, and its handler has what every control holds" "[$( rigVal done.dialog )] [$( rigVal done.notice )]" "[] [pressed ok: name=typed notes=a\\nb who=b,a,c how=x pick=p3]"
 rigAssert "and the status line says it, as a short confirmation does" "[$( rigVal doneLine )]" "[pressed ok: name=typed notes=a\\nb who=b,a,c how=x pick=p3]"
 
@@ -145,7 +145,7 @@ keys TAB TAB TAB TAB TAB SPACE
 get spaced
 RIGSCRIPT
 rigAssert "what the handler refuses stands in the dialog, which stays open" "$( rigVal refused.dialog ) [$( rigVal refused.dialogSays )] $( rigHas d '║ the rig refuses the name no ' ) [$( rigVal refused.notice )]" "rig:name|no [the rig refuses the name no] 1 []"
-rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 27 1 6 ) $( rigHas d '[»OK«]  [ Cancel ]' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,5,56,29"
+rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 27 1 6 ) $( rigHas d ' »OK« ▄   Cancel  ▄' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,5,56,30"
 rigAssert "Esc closes the dialog and calls nothing"                  "[$( rigVal esc.dialog )] [$( rigVal esc.notice )]" "[] []"
 rigAssert "Shift-Tab from the first control goes around to the last button, and Space presses it: Cancel calls nothing" "$( rigVal last.dialog ) [$( rigVal cancelled.dialog )] [$( rigVal cancelled.notice )]" "rig:cancel| [] []"
 rigAssert "Space on OK presses it"                                   "[$( rigVal spaced.dialog )] [$( rigVal spaced.notice )]" "[] [pressed ok: name=typed notes= who=b how=y pick=p1]"
@@ -176,10 +176,10 @@ cells st4 11 0 60
 keys ESC
 get none
 RIGSCRIPT
-rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 '[»OK«]' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 06' ) $( rigHas b1 'line 07' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
+rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 ' »OK« ▄' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 05' ) $( rigHas b1 'line 06' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
 rigAssert "a mark says that it goes on below, and the status line names what scrolls it" "$( rigHas b1 '▼' ) $( rigHas b1 '▲' ) [$( rigVal st1 )]" "1 0 [ ENTER OK  UP/DN Scroll  ESC Close]"
-rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 07' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
-rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 04' ) $( rigHas b3 'line 05' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
+rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 06' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
+rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 05' ) $( rigHas b3 'line 06' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
 rigAssert "the box has the keys: q does not end the screen"          "$( rigVal still.dialog ) $( rigVal still.quit )" "message:ok| no"
 rigAssert "a box that comes while one is open waits for it"          "[$( rigVal queued.dialogTitle )] $( rigVal queued.waiting )" "[The start failed] 1"
 rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║ a text that is broken to the box it stands in, ' ) $( rigHas b4 '║ all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ ENTER OK  ESC Close]"
@@ -252,7 +252,7 @@ keys ESC
 keys m RIGHT RIGHT
 turn
 show v
-keys ESC i
+keys ESC I
 get styled
 keys q
 get bwQ
@@ -265,8 +265,8 @@ rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal 
 rigAssert "the help names the keys as the style does" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'TAB, F6: Next window' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'BSP: Up one level' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'UP, DN, PgUp and PgDn move' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'ESC and then its letter' )" "1 1 1 1"
 rigAssert "u reads now, and ? opens the help: the keys from the declaration, those that act now first" "$( rigVal read.forced ) [$( rigVal help.dialogTitle )] $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'The keys that act now, on what is selected in the active window: / u, F5: Read now / m, F10: Menu / ^X, Alt-X: Exit' )" "list:sessions [Keys] 1"
 rigAssert "then the other keys, one whose action is not built saying so, and the menus by their letters" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'p: Pause (not built)' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F '/ g: Go / s: Session / m: Member / c: Console / v: View / q: Question / h: Help /' )" "1 1"
-rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       i │' ) $( rigHas v '│ Next window                   TAB │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 1 0 0"
-rigAssert "i takes the next style, Basic B/W, and a bare q ends nothing there either" "$( rigVal styled.style ) $( rigVal bwQ.quit )" "bw no"
+rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       I │' ) $( rigHas v '│ Interface colours: the next     i │' ) $( rigHas v '│ Next window                   TAB │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 1 1 0 0"
+rigAssert "I takes the next style, Basic B/W, and a bare q ends nothing there either" "$( rigVal styled.style ) $( rigVal bwQ.quit )" "bw no"
 
 echo "-- inside a container, on the row that goes up, the left window shows the container, and its keys act on it --"
 rigRun <<'RIGSCRIPT'
@@ -289,7 +289,7 @@ turn
 border child 1 0 84
 keys k
 get onChild
-keys ALT-9
+keys ALT-2 PGUP DOWN ENTER
 turn
 get launch
 border launchTitle 1 0 84
@@ -364,7 +364,7 @@ box mgd
 box mgr roles
 RIGSCRIPT
 rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 5 1 4 ) $( rigRole bwk 8 1 4 )" "gG 57 HRBB HR.."
-rigAssert "Magic: the same dialog in a heavy frame, its title between the junctions, a slim shadow, raised buttons, one line more for their shadow" "$( rigHas mgd '┏━' ) $( rigHas mgd '┫ A dialog of the rig ┣' ) $( rigHas mgd '┓▖' ) $( rigHas mgd ' »OK« ▖' ) $( rigVal mg.dialogBox )" "1 1 1 1 32,5,56,29"
+rigAssert "Magic: the same dialog in a rim of half blocks, its title set into the rim, its shadow, its buttons bars, one line more for their shadow" "$( rigHas mgd '▛▀' ) $( rigHas mgd '▀ A dialog of the rig ▀' ) $( rigHas mgd '▜▄' ) $( rigHas mgd '    OK    ▄' ) $( rigVal mg.dialogBox )" "1 1 1 1 32,5,56,29"
 rigAssert "its status line names the keys of the dialog, in its own names"  "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^md|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " ⏎ OK  ⇥ Next  ⎋ Cancel"
 
 if [ "$rigFailCount" -ne 0 ] ; then

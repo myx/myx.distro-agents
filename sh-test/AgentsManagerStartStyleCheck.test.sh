@@ -7,7 +7,8 @@
 ## Held, step by step, the order a start takes its style in: an explicit --style on the command is handed on as it
 ## was given, whatever the environment and the saved setting say; with none, the style the environment names is
 ## left to the screen, which reads it itself, and no option is handed on; with neither, the style the user saved
-## is handed on as --style; with nothing at all no option is handed on, and the screen takes its default. A name
+## is handed on as --style, a style saved before styles had colours, or by another name, as the value it means;
+## with nothing at all no option is handed on, and the screen takes its default. A name
 ## that is no style counts as not given, in the environment and in the saved setting. Another user's saved style
 ## and one in the workspace's own settings file are not taken. The start only reads: no file of the rig is
 ## written. What the screen ends with is what the start ends with. A word the start does not take, and --style
@@ -98,10 +99,10 @@ rigAssert "the screen is started once, for the rig workspace, with the tool as i
 rigAssert "another user's saved style and the one in the workspace's own settings file are not taken, and the start wrote nothing" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigWs/.local/home/rig-other-user/MDLT.settings.env" "$rigWs/.local/MDLT.settings.env" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' ) $( rigTree )" "2 $rigTreeBefore"
 
 echo "-- 2. the user's saved style is the look of the next start --"
-for rigOne in magic bw tv ; do
-	rigSave "$rigOne"
+for rigOne in tv-blue:tv-blue nu-system:nu-system bw-light:bw-light magic:nu-gray bw:bw-system tv:tv-system tv-light:tv-gray ; do
+	rigSave "${rigOne%%:*}"
 	rigStart
-	rigAssert "$rigOne is saved: it is handed on as --style" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style $rigOne none"
+	rigAssert "${rigOne%%:*} is saved: it is handed on as --style ${rigOne#*:}" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style ${rigOne#*:} none"
 done
 rigSave zz
 rigStart
@@ -116,7 +117,7 @@ rigTreeBefore="$( rigTree )"
 rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigAssert "with a style in the environment no option is handed on: the screen reads the environment itself, and sees it" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing bw"
 rigPre=( "$rigKey=zz" ) ; rigStart ; rigPre=()
-rigAssert "a name in the environment that is no style counts as not given: the saved style is handed on, ahead of it" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style magic zz"
+rigAssert "a name in the environment that is no style counts as not given: the saved style is handed on, ahead of it" "$rigRc $( rigHanded ) $( rigSeen )" "0 --style nu-gray zz"
 rigSave
 rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigAssert "with nothing saved the environment's style is left to the screen as before" "$rigRc $( rigHanded ) $( rigSeen )" "0 nothing bw"
@@ -142,7 +143,7 @@ rigPre=( "$rigKey=bw" ) ; rigStart ; rigPre=()
 rigStart --style tv
 rigAssert "three starts, by the saved style, by the environment and by the command, wrote no file of the rig" "$( rigTree )" "$rigTreeBefore"
 rigPre=( "RIG_SCREEN_RC=7" ) ; rigStart ; rigPre=()
-rigAssert "the status the screen ends with is the status of the start" "$rigRc $( rigHanded )" "7 --style magic"
+rigAssert "the status the screen ends with is the status of the start" "$rigRc $( rigHanded )" "7 --style nu-gray"
 
 echo "-- 6. what the start does not take --"
 rigRefusedStart(){ ## -- the last start: its rc, how often the screen was started, whether the syntax of the start was said

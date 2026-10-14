@@ -9,7 +9,7 @@
 ## `default` as where it comes from and the values to choose from with their labels, its two own fields after the
 ## six of the digest's row, and then the label every row ends with; the environment names a style ahead of a saved one, and a name that is no style counts
 ## as not given wherever it stands; a setting of the same key in the workspace's own file is not read. The writer
-## saves each of the three styles, prints one row with the key, the value now saved and the file, keeps every other
+## saves a style in its colours, and another name of one as the value it means, prints one row with the key, the value now saved and the file, keeps every other
 ## line of the user's file and leaves no temp file; a value that is no style, a key that is no interface setting
 ## and a wrong count of arguments are each refused in one line with nothing changed, and nothing that was given is
 ## repeated in a refusal, a pasted secret among it. The settings of another user of the workspace are never touched,
@@ -25,7 +25,7 @@ rigScreen="$rigHere/AgentsManagerScreen.py"
 rigRead="--manager-config-digest"
 rigWrite="--manager-config-set"
 rigKey="MDAT_MANAGER_STYLE"
-rigChoices="tv=Turbo_Vision,bw=Basic_B/W,magic=Magic"
+rigChoices="nu-system=Magic_-_System,nu-blue=Magic_-_Dark/Blue,nu-gray=Magic_-_Light/Gray,tv-system=Turbo_Vision_-_System,tv-blue=Turbo_Vision_-_Dark/Blue,tv-gray=Turbo_Vision_-_Light/Gray,bw-system=Basic_B/W_-_System,bw-dark=Basic_B/W_-_Dark/Blue,bw-light=Basic_B/W_-_Light/Gray"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -103,7 +103,7 @@ rigOtherBefore="$( rigSum "$rigOther" )"
 echo "-- 1. the subject of the interface, with nothing saved --"
 rigRun "$rigRead" interface
 rigAssert "the call ends 0, with no error and no warning" "$rigRc $( rigTroubles )" "0 0"
-rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv\tdefault\t%s\tInterface_Style' "$rigKey" "$rigChoices" )"
+rigAssert "the subject has one line, the interface style: its key, the default as its value, where the value comes from, and the values to choose from with their labels, its two own fields after the value; and each row ends with its label" "$( cat "$rigTmp/out" )" "$( printf 'subject\tinterface\t1\tInterface_Settings\nline\tinterface\tstyle\t%s\tset\ttv-system\tdefault\t%s\tInterface_Style' "$rigKey" "$rigChoices" )"
 rigAssert "reading made nothing: the user has no settings file and no folder, and the rig is as it was" "$( rigSum "$rigOwn" ) $( [ -e "${rigOwn%/*}" ] && echo folder || echo no-folder ) $( rigTree )" "absent no-folder $rigTreeBefore"
 rigAssert "control: the workspace's own settings file holds the key, and another user has saved one: neither is the user's own" "$( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigShared" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "1 1"
 cp "$rigTmp/out" "$rigTmp/alone"
@@ -113,16 +113,18 @@ rigAssert "every other line of the digest has the six fields it had, and its lab
 
 echo "-- 2. the environment names a style --"
 rigPre=( "$rigKey=magic" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "the style the environment names is the value, and the line says that it comes from there" "$rigRc [$( rigStyle )]" "0 [magic environment $rigChoices]"
+rigAssert "the style the environment names is the value, and the line says that it comes from there" "$rigRc [$( rigStyle )]" "0 [nu-gray environment $rigChoices]"
 rigPre=( "$rigKey=mc" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "the retired compact style, named in the environment, counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
+rigAssert "the retired compact style, named in the environment, counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv-system default $rigChoices]"
 rigPre=( "$rigKey=zz" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "a name in the environment that is no style counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
+rigAssert "a name in the environment that is no style counts as not given: the default" "$rigRc [$( rigStyle )]" "0 [tv-system default $rigChoices]"
 rigPre=( "$rigKey=" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "and so does an empty one" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
+rigAssert "and so does an empty one" "$rigRc [$( rigStyle )]" "0 [tv-system default $rigChoices]"
+rigPre=( "$rigKey=tv-dark" ) ; rigRun "$rigRead" interface ; rigPre=()
+rigAssert "a second name of a value, named in the environment, is the value it means" "$rigRc [$( rigStyle )]" "0 [tv-blue environment $rigChoices]"
 
-echo "-- 3. the writer saves each of the three styles --"
-for rigOne in magic bw tv ; do
+echo "-- 3. the writer saves a style in its colours --"
+for rigOne in nu-blue bw-dark tv-gray tv-system ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	rigSaved="$rigRc $( rigTroubles ) [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] [$( cat "$rigOwn" 2> /dev/null )]"
 	rigRun "$rigRead" interface
@@ -131,34 +133,41 @@ done
 rigAssert "the row of the writer has exactly the fields of its form, TAB between them" "$( rigRun "$rigWrite" "$rigKey" tv ; LC_ALL=C awk -F'\t' '{ print NR, NF, $1 }' "$rigTmp/out" )" "1 5 saved"
 printf '# a note of the user\nMDLT_CONSOLE_HISTORY=workspace-shared\n' >> "$rigOwn"
 rigRun "$rigWrite" "$rigKey" magic
-rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=magic|MDLT_CONSOLE_HISTORY=workspace-shared|"
-rigRun "$rigWrite" "$rigKey" magic
-rigAssert "saving the value that is saved already is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey magic user $rigOwn] 1"
+rigAssert "another setting of the user and a comment stay as they were, and the key stands once, with the new value: a style named as it was before saved as the value it means" "$rigRc $( LC_ALL=C sort "$rigOwn" | LC_ALL=C tr '\n' '|' )" "0 # a note of the user|$rigKey=nu-gray|MDLT_CONSOLE_HISTORY=workspace-shared|"
+rigRun "$rigWrite" "$rigKey" nu-light
+rigAssert "saving the value that is saved already, by another name of it, is no error and leaves one line" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -e "^$rigKey=" "$rigOwn" )" "0 [saved $rigKey nu-gray user $rigOwn] 1"
 rigAssert "no temp file is left beside the user's file" "$( ls -A "${rigOwn%/*}" | LC_ALL=C tr '\n' ' ' )" "MDLT.settings.env "
 
 echo "-- 4. the environment ahead of the saved style --"
 rigPre=( "$rigKey=bw" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "with a style saved and another in the environment, the environment's is the value" "$rigRc [$( rigStyle )]" "0 [bw environment $rigChoices]"
+rigAssert "with a style saved and another in the environment, the environment's is the value" "$rigRc [$( rigStyle )]" "0 [bw-system environment $rigChoices]"
 rigPre=( "$rigKey=zz" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "a name in the environment that is no style leaves the saved one" "$rigRc [$( rigStyle )]" "0 [magic user $rigChoices]"
+rigAssert "a name in the environment that is no style leaves the saved one" "$rigRc [$( rigStyle )]" "0 [nu-gray user $rigChoices]"
 cp "$rigOwn" "$rigTmp/own.kept"
 printf '%s=zz\n' "$rigKey" > "$rigOwn"
 rigRun "$rigRead" interface
-rigAssert "a saved name that is no style, written by hand, counts as not saved: the default, and the name is not printed" "$rigRc [$( rigStyle )] $( LC_ALL=C grep -c -e 'zz' "$rigTmp/out" "$rigTmp/err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "0 [tv default $rigChoices] 0"
+rigAssert "a saved name that is no style, written by hand, counts as not saved: the default, and the name is not printed" "$rigRc [$( rigStyle )] $( LC_ALL=C grep -c -e 'zz' "$rigTmp/out" "$rigTmp/err" | LC_ALL=C awk -F: '{ n += $2 } END { print n + 0 }' )" "0 [tv-system default $rigChoices] 0"
 printf '%s=mc\n' "$rigKey" > "$rigOwn"
 rigRun "$rigRead" interface
-rigAssert "so does a saved compact style, which is retired: the default" "$rigRc [$( rigStyle )]" "0 [tv default $rigChoices]"
+rigAssert "so does a saved compact style, which is retired: the default" "$rigRc [$( rigStyle )]" "0 [tv-system default $rigChoices]"
+rigFormer=""
+for rigOne in tv:tv-system bw:bw-system magic:nu-gray magic-light:nu-gray magic-dark:nu-blue magic-system:nu-system tv-light:tv-gray ; do
+	printf '%s=%s\n' "$rigKey" "${rigOne%%:*}" > "$rigOwn"
+	rigRun "$rigRead" interface
+	rigFormer="$rigFormer [${rigOne%%:*}: $( rigStyle | LC_ALL=C cut -d' ' -f1,2 )]"
+done
+rigAssert "a style saved before styles had colours, or by another name, is read as the value it means" "$rigFormer" " [tv: tv-system user] [bw: bw-system user] [magic: nu-gray user] [magic-light: nu-gray user] [magic-dark: nu-blue user] [magic-system: nu-system user] [tv-light: tv-gray user]"
 cp "$rigTmp/own.kept" "$rigOwn"
 
 echo "-- 5. a value that is no style is refused --"
 rigOwnBefore="$( rigSum "$rigOwn" )"
-rigNoValue="⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of $rigKey -- nothing was saved. Its values: tv, bw, magic"
+rigNoValue="⛔ ERROR: DistroAgentsTools $rigWrite: the value given is none of the values of $rigKey -- nothing was saved. Its values: nu-system, nu-blue, nu-gray, tv-system, tv-blue, tv-gray, bw-system, bw-dark, bw-light"
 rigBad=""
-for rigOne in zz mc TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "$rigSecret" ; do
+for rigOne in zz mc TV "tv " " tv" "tv=Turbo Vision" "Turbo Vision,mc" "Turbo_Vision" "*" "$rigSecret" bw-blue tv- nu magic-green ; do
 	rigRun "$rigWrite" "$rigKey" "$rigOne"
 	[ "$( rigRefused "$rigNoValue" )" = "1 0 1 1" ] && [ "$( rigSum "$rigOwn" )" = "$rigOwnBefore" ] || rigBad="$rigBad [$rigOne: $( rigRefused "$rigNoValue" )]"
 done
-rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, the retired compact style, one in capitals, one with a space, a label, a pair, a pattern, a pasted secret" "${rigBad:- each refused}" " each refused"
+rigAssert "each is refused, rc 1, nothing on stdout, in one line that lists the values, and the user's file is as it was: a name that is none, the retired compact style, one in capitals, one with a space, a label, a pair, a pattern, a pasted secret, colours a style has not, a style with no colours after its dash, one by a name it has only now" "${rigBad:- each refused}" " each refused"
 rigAssert "nothing that was given is repeated in a refusal: the pasted secret stands nowhere in what any call printed" "$( LC_ALL=C grep -c -F -e 'RIGSECRET' "$rigTmp/all" || : )" "0"
 
 echo "-- 6. a key that is no interface setting is refused, and so is a wrong count of arguments --"
@@ -182,11 +191,11 @@ rigAssert "no argument, a key alone and a third word are refused with the syntax
 
 echo "-- 7. the settings of another user are never touched --"
 rigAssert "after every call so far the other user's file is as it was, byte for byte, and so is every other file of the rig: the workspace's own settings, the scopes" "$( rigSum "$rigOther" ) $( rigTree )" "$rigOtherBefore $rigTreeBefore"
-rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigWrite" "$rigKey" bw ; rigPre=()
-rigAssert "with the environment naming the other user, the style is still saved for the user who runs the call, and the row names that user's file" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -x -e "$rigKey=bw" "$rigOwn" )" "0 [saved $rigKey bw user $rigOwn] 1"
+rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigWrite" "$rigKey" bw-light ; rigPre=()
+rigAssert "with the environment naming the other user, the style is still saved for the user who runs the call, and the row names that user's file" "$rigRc [$( LC_ALL=C tr '\t' ' ' < "$rigTmp/out" )] $( LC_ALL=C grep -c -x -e "$rigKey=bw-light" "$rigOwn" )" "0 [saved $rigKey bw-light user $rigOwn] 1"
 rigAssert "and the other user's file is as it was" "$( rigSum "$rigOther" ) $( LC_ALL=C grep -c -x -e "$rigKey=magic" "$rigOther" )" "$rigOtherBefore 1"
 rigPre=( "USER=rig-other-user" "LOGNAME=rig-other-user" ) ; rigRun "$rigRead" interface ; rigPre=()
-rigAssert "it is read from the same user's file too: the other user's style is not shown" "$rigRc [$( rigStyle )]" "0 [bw user $rigChoices]"
+rigAssert "it is read from the same user's file too: the other user's style is not shown" "$rigRc [$( rigStyle )]" "0 [bw-light user $rigChoices]"
 rigAssert "nothing but the one file of the user who runs the calls was written in the rig, and no folder was made beside the two users'" "$( rigTree ) $( ls -A "$rigWs/.local/home" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )" "$rigTreeBefore $( printf '%s\n' rig-other-user "$rigUser" | LC_ALL=C sort | LC_ALL=C tr '\n' ' ' )"
 
 echo "-- 8. the place of the writer in its family --"
@@ -198,10 +207,17 @@ rigAssert "from inside a member's session it is refused, rc 1, nothing on stdout
 rigAssert "the include of the settings names the writer of the scope of the current user once, among the six forms of the reader that save or remove a declared setting" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '--upsert' -e '--delete' || : ) $( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -F -e '--custom-config-option --upsert "$1" "$2"' || : )" "6 1"
 rigAssert "and the writer makes no temp file of its own: the include names no \$\$ and no mktemp" "$( LC_ALL=C grep -v '^[[:space:]]*#' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -c -e '\$\$' -e 'mktemp' || : )" "0"
 
-echo "-- 9. the values offered are the styles of the screen --"
-rigAssert "each value and its label is a style the screen declares, in the screen's order, and there is no other" "$( LC_ALL=C awk '/^STYLES = \($/ { on = 1 ; next } on && /^\)$/ { exit } on' "$rigScreen" | LC_ALL=C sed -n 's/^    ("\([^"]*\)", {"label": "\([^"]*\)".*$/\1=\2/p' | LC_ALL=C tr ' ' '_' | LC_ALL=C tr '\n' ',' )" "$rigChoices,"
+echo "-- 9. the values offered are the styles of the screen, each in its colours --"
+rigAssert "each value and its label is a style the screen declares in its colours, by their own names, in the screen's order, and there is no other" "$( python3 -I -B -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(",".join("%s-%s=%s - %s" % (name, scheme, style["label"], module.COLOURS[place][1])
+               for name, style in module.STYLES for place, (scheme, changes) in enumerate(style["schemes"])).replace(" ", "_"))
+' "$rigScreen" )" "$rigChoices"
 rigAssert "a changeable setting cannot come without its label and its description: each row of the declaration of the settings has a row of its own in the one declaration of the labels" "$( rigLacking="" ; rigCount=0 ; while IFS='|' read -r rigOwner rigGroup rigOne rigRest ; do [ -n "$rigOne" ] || continue ; rigCount=$(( rigCount + 1 )) ; LC_ALL=C sed -n '/^agentsManagerConfigLabels="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C grep -q -e "^$rigOwner|$rigGroup|$rigOne|[A-Z][^|]*|[^|]*|[A-Z]" || rigLacking="$rigLacking $rigOne" ; done <<< "$( LC_ALL=C sed -n '/^agentsManagerConfigSettings="/,/"$/p' "$rigHere/AgentsTools.ManagerConfig.include" | LC_ALL=C sed -e 's/^agentsManagerConfigSettings="//' -e 's/"$//' )" ; printf '%s%s' "$rigCount" "${rigLacking:- none-lacking}" )" "6 none-lacking"
-rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigScreen" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigScreen" )" "tv $rigKey"
+rigAssert "the default is the style the screen starts in, and the key is the variable of the environment the screen reads" "$( LC_ALL=C sed -n 's/^STYLE_FIRST = "\(.*\)"$/\1/p' "$rigScreen" ) $( LC_ALL=C sed -n 's/^STYLE_VARIABLE = "\(.*\)"$/\1/p' "$rigScreen" )" "tv-system $rigKey"
 
 echo "-- 10. the help pair --"
 rigHelpInclude="$rigHere/help/Help.DistroAgentsTools.include"

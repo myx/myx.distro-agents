@@ -16,8 +16,9 @@
 ## member is read by its name, `--manager-team-member-read <member>`, only
 ## once the selection has rested on it, and until then the pane shows what the list holds of it; then the left pane
 ## shows its mark and names, its kind, its status, whether a run of it is alive, its workspace and what it is for,
-## its information, the sessions it is in with the member's own runs, its workspace by its paths, its grants and
-## its settings, a secret setting only as configured or not and never anything of its value, a missing one marked;
+## its information, the sessions it is in with the member's own runs, its workspace by its paths, its settings, a
+## secret setting only as configured or not and never anything of its value, a missing one marked, and last its
+## grants under their counts, as the table Permissions holds them;
 ## the pane scrolls with the focus on it; the left pane names `n start` on a member that can be started and on no
 ## other; `n` opens the line for one line of prompt, then for a name that may be left empty, and calls
 ## `--manager-spawn-member <member> [--session-name-or-comment <name>]` once, with the line on its standard input
@@ -299,10 +300,10 @@ rigAssert "the sessions it is in, the one with its live run first, each with its
 	"[ the sessions it is in: 2, 1 with a live run of it][   daily of Monday          running   running working since 2026-10-12 16:57 +0000][   22222222-0000-4000-8000… finished  finished until 2026-10-11 14:51 +0000]"
 rigAssert "its workspace, by its paths, a path with an underscore as it is written" "[$( rigPane m 21 )][$( rigPane m 22 )][$( rigPane m 23 )][$( rigPane m 24 )][$( rigPane m 25 )]" \
 	"[ its workspace:][   path      /rig/ws-rig][   home      /rig/home_of/ws-rig][   link      source-symlink][   skillset  myx/util.workspace-rig/skillset/keeper-myx]"
-rigAssert "its grants, counted by kind, with the hint that Permissions holds them as a table" "[$( rigPane m 27 )][$( rigPane m 28 )]" \
-	"[ its grants: 2, standing 1, session 1][   Permissions holds them as a table.]"
-rigAssert "its settings: a secret only as configured or not, a plain one by its value, a missing one marked" "[$( rigPane m 30 )][$( rigPane m 31 )][$( rigPane m 32 )][$( rigPane m 33 )][$( rigPane m 34 )]" \
+rigAssert "its settings: a secret only as configured or not, a plain one by its value, a missing one marked" "[$( rigPane m 27 )][$( rigPane m 28 )][$( rigPane m 29 )][$( rigPane m 30 )][$( rigPane m 31 )]" \
 	"[ its settings: 5][     SLACK_BOT_TOKEN   configured][   ! SLACK_USER_TOKEN  not configured][     EMAIL_USER        keeper_myx@rig.example][   ! TRELLO_BOARD      missing]"
+rigAssert "last its grants, counted by kind, over the table Permissions holds: its header, then a heading for each kind" "[$( rigPane m 34 )][$( rigPane m 35 )][$( rigPane m 36 )]" \
+	"[ its grants: 2, standing 1, session 1][$( printf '  %-20s %-6s %-30s %s' COVERS ACCESS FROM ENDS )][  standing (1)]"
 rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-myx" )" "0 0 1"
 rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigVal keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
 
@@ -329,9 +330,10 @@ show far
 cells farKeys 17 1 83
 RIGSCRIPT
 rigSize=""
-rigAssert "the pane starts at the top of the member"                 "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 33 no"
+rigAssert "the pane starts at the top of the member"                 "$( rigVal top.viewTop ) $( rigVal top.viewLines ) $( rigVal top.follow )" "0 37 no"
 rigAssert "with the focus on it, PageDown shows its next page"       "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' its workspace:' )" "view 15 1"
-rigAssert "and reaches its last line, a setting read in another workspace" "$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigVal end.spills )" "1 0"
+rigAssert "and reaches its last lines, a setting read in another workspace and a row of the table for each grant, each column whole where the pane has room for all of them" \
+	"$( rigPaneHolds end '     JIRA_HOST         read in the workspace it is set up in' ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' 'ws-rig:source/myx/**' write ws-rig:namespace none )" ) $( rigPaneHolds end "$( printf '  %-20s %-6s %-30s %s' '/rig/other/**' read 'pass-0007 by magic-coordinator' '2026-10-14 10:00 +0000' )" ) $( rigVal end.spills )" "1 1 1 0"
 rigAssert "a member set up in another workspace says so, and can be started" "$( rigPaneHolds far ' workspace ws-far, set up in another workspace of this machine' ) $( rigPaneHolds far ' for       The keeper of the far workspace.' ) [$( rigVal farKeys )]" "1 1 [keys: n start]"
 
 echo "-- n, a prompt and a name start that member --"
@@ -370,7 +372,7 @@ cells upRow3 4 85 119
 cells upRow4 5 85 119
 RIGSCRIPT
 rigAssert "n opens the dialog of a prompt, its list on that member, the keys on the prompt" "[$( rigVal asked.dialog )] [$( rigVal asked.dialogTitle )] $( rigBoxHas d '║ > keeper-myx ' ) $( rigBoxHas d '║   magic-coordinator: a new coworking session, by the default routine ' )" "[prompt:prompt|] [Start the member keeper-myx] 1 1"
-rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d '[»Start«]  [ Cancel ]' )" "1 1 1"
+rigAssert "and says where the prompt goes, and that no secret belongs in it" "$( rigBoxHas d '║ The prompt is the brief of a new session. It goes to the operation ' ) $( rigBoxHas d '║ No secret belongs in it: a brief shows on the command line of the ' ) $( rigBoxHas d ' »Start« ▄   Cancel  ▄' )" "1 1 1"
 
 rigAssert "the prompt is typed, and Tab goes on to the name of the session" "[$( rigVal typed.dialog )] [$( rigVal name.dialog )] $( rigBoxHas n '║ fix the index, please ' )" "[prompt:prompt|fix the index, please] [prompt:name|] 1"
 

@@ -110,11 +110,18 @@ texts = (("selected", "\u2696\ufe0f"), ("keycap", "1\ufe0f\u20e3"), ("wide", "\U
          ("frame", "\u2550"), ("bar", "\u2592"))
 print("cells=%s" % " ".join("%s:%s" % (name, ",".join(str(cells) for cluster, cells in screen.textCells(text))) for name, text in texts))
 print("line=%d" % screen.textWidth("Favourites: \u2696\ufe0f\U0001f517 \u26a0\ufe0f\U0001f914"))
+## every mark Magic draws and every name it gives a key: one cell each, as text and never as an emoji
+screen.setStyle("magic")
+marks = "".join("".join(screen.styleMark(name)) for name in ("edge", "rim", "tab", "focus", "field", "rule", "barUp", "barDown",
+                                                             "barTrack", "barThumb", "checks", "radios", "shadow", "folder"))
+marks += "".join(screen.keyWords().values())
+print("magic=%s %s" % (sorted(set(cells for cluster, cells in screen.textCells(marks))), any(screen.isEmoji(character) for character in marks)))
 RIGCOUNT
 )"
 rigAssert "each emoji is one character of two cells, a joined one and one with a skin in the cells of their parts; a mark joins its letter; a frame and a scroll bar one cell" \
 	"$( rigVal cells )" "selected:2 keycap:2 wide:2 joined:4 skin:4 flag:2 symbol:2 mark:1 cjk:2 frame:1 bar:1"
 rigAssert "the owner's line of favourites takes the cells of its words and two for each emoji" "$( rigVal line )" "21"
+rigAssert "every mark of Magic and every name it gives a key is one cell, as text, none an emoji" "$( rigVal magic )" "[1] False"
 
 echo "-- a frame is sent whole only where its layout changed or what lay over it closed --"
 rigOut="$( printf '%s\n' 'size 120 40' 'root sessions' 'turn' 'get a' 'keys DOWN' 'get b' 'turn 3' 'get c' 'keys [' 'get d' 'keys ]' 'get e' 'keys m' 'get f' \
@@ -210,6 +217,43 @@ for rigEmulation in narrow wide ; do
 done
 
 echo "-- the end: nothing of the screen stays, the cursor at the start of an empty line, a failure said after it --"
+echo "-- Magic on both terminals: its edges, rims, shadows, tabs, slim scroll bar, chips and the marks of its buttons --"
+rigMagicSteps='await Sessions (Activity)
+check magicStart
+keys \eOB
+keys \eOB
+check magicMoved
+keys 4
+await magic-devops
+check magicTeam
+keys \t
+keys \e[6~
+check magicScrolled
+keys \e[5~
+keys \t
+keys [
+check magicWider
+keys m
+items mm0
+keys \eOB
+items mm1
+keys \e
+check magicMenuClosed
+keys ?
+check magicHelp
+keys \e
+check magicHelpClosed
+size 100 30
+check magicSmaller
+keys \x18
+end end'
+for rigEmulation in narrow wide ; do
+	rigVt "$rigEmulation" "$rigMagicSteps" MDAT_MANAGER_STYLE=magic
+	rigAssert "$rigEmulation, Magic: the screen comes up in Magic, the team comes up, and it ends by its key" \
+		"$( rigVal 'await.Sessions_(Activity)' ) $( rigVal await.magic-devops ) $( rigVal end.rc )" "yes yes 0"
+	rigAssert "$rigEmulation, Magic: after every step every cell of the terminal is what the screen drew last" "$( rigClean )" "none"
+done
+
 for rigOther in with without ; do
 	rigNoAlt="$( [ "$rigOther" = without ] && echo 1 || echo 0 )"
 	rigVt narrow "$( printf '%s\n' 'await Sessions (Activity)' 'keys \x18' 'end end' 'left key' )" MANAGER_SCREEN_VT_NOALT="$rigNoAlt"
@@ -247,7 +291,7 @@ rigButtons="$( printf '%s\n' "$rigOut" | LC_ALL=C awk '
 	/^d[0-9]+\.[0-9]+\.button\./ { split($0, kv, "=") ; split(kv[1], key, ".") ; tag = key[1] "." key[2] ; text = kv[2] ; sub(/@[0-9,]*$/, "", text) ; looks = kv[2] ; sub(/^.*@/, "", looks)
 		button[tag, key[4]] = looks ; buttons[tag] = buttons[tag] " " key[4] ; dialogs[key[1]] = 1
 		if ( ( key[1], key[4] ) in texts && texts[key[1], key[4]] != text ) { moved++ } ; texts[key[1], key[4]] = text
-		if ( key[4] == 0 && text !~ /^\[».*«\]$/ ) { unmarked++ } ; if ( key[4] != 0 && text !~ /^\[ .* \]$/ ) { marked++ } }
+		if ( key[4] == 0 && text !~ /»/ ) { unmarked++ } ; if ( key[4] != 0 && text ~ /»/ ) { marked++ } }
 	/^d[0-9]+\.[0-9]+\.focus=/ { split($0, kv, "=") ; split(kv[1], key, ".") ; focus[key[1] "." key[2]] = kv[2] }
 	END {
 		for ( tag in buttons ) { if ( focus[tag] != "None" ) { focused[button[tag, focus[tag]]] = 1 ; split(tag, part, ".") ; reached[part[1]] = 1 } }

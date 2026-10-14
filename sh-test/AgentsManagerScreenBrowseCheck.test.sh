@@ -8,7 +8,9 @@
 ## folder by folder, and a store that is empty or not there says so plainly; a folder of it lists its items, and a
 ## selected item shows its text, read by its store, its folder (`-` the store itself) and its name. A member of
 ## `Team Members` is a folder, with the mark of one after its name, but one whose workspace cannot be reached; its
-## own summary counts its grants by kind and says that Permissions holds them; inside it, Permissions is its grants
+## own summary shows its grants last, under their counts, as the table Permissions holds, fitted to the pane: the
+## first column shortened so that the others fit, one that still does not left out whole, and with the lines not
+## wrapped the whole table, scrolled sideways; inside it, Permissions is its grants
 ## as a table under a heading for each kind, a selected grant whole; Skillset Files its files, a selected one shown
 ## whole where it is text and never read where it is not; Sessions the sessions it is in, each opening where a
 ## session does, in Sessions (Activity); Member Help its help as the tooling gives a member its help, whole on the
@@ -84,6 +86,17 @@ rigHolds(){ ## tag, text -- how many lines of that whole screen hold the text an
 }
 rigWords(){ ## text -- how many starts of the stand-in had exactly these words, each between brackets
 	LC_ALL=C grep -c -x -F -- "$1" "$MANAGER_SCREEN_RIG/words" || :
+}
+rigUnder(){ ## tag, text, count -- that many lines of the left pane of that screen from the one that is exactly the text, each between brackets, without the spaces at their ends
+	printf '%s\n' "$rigOut" | LC_ALL=C grep "^$1|" | LC_ALL=C sed -E -e "s/^$1\|(│|║)//" -e 's/(│|║).*$//' -e 's/  *$//' \
+		| LC_ALL=C awk -v text="$2" -v count="$3" '$0 == text && !n { n = count } n > 0 { printf "[%s]", $0 ; n-- }'
+}
+rigGrantLine(){ ## the cells of its first column, then the words of a row of the table of grants, all four or the first two -- that row as the table draws it
+	local coversCells="$1" ; shift
+	case $# in
+		4) printf ' %-*s %-6s %-12s %s' "$coversCells" "$1" "$2" "$3" "$4" ;;
+		2) printf ' %-*s %s' "$coversCells" "$1" "$2" ;;
+	esac
 }
 
 echo "-- 1. Team Data: its board, its audit and its vault, browsed --"
@@ -182,14 +195,54 @@ keys ENTER
 get jumped
 RIGSCRIPT
 rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
-rigAssert "its own summary counts its grants by kind and says that Permissions holds them" "$( rigHolds on '│its grants: 3, floor 2, standing 1' ) $( rigHolds on '│  Permissions holds them as a table.' ) $( rigHolds on 'ws:source/x/**' )" "1 1 0"
+rigAssert "its own summary shows its grants last, after its settings, under their counts: the table Permissions holds, its header, a heading for each kind and a row for each grant" \
+	"$( rigUnder on 'its settings: 0' 9 )" \
+	"[its settings: 0][][its grants: 3, floor 2, standing 1][$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )]"
 rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
 rigAssert "Permissions selected counts its grants by kind, from the read of the member" "$( rigHolds perms '│3 grants: floor 2, standing 1.' ) $( rigWords '[--manager-team-member-read][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
 rigAssert "inside, its grants are a table under a heading for each kind" "$( rigHolds grant ' COVERS ' ) $( rigHolds grant ' ACCESS ' ) $( rigHolds grant ' floor (2)' ) $( rigHolds grant ' standing (1)' ) $( rigVal grant.selectedLabel )" "1 1 1 1 ws:source/**/README.md"
 rigAssert "a selected grant shows whole: the path it covers and the rule of its location" "$( rigHolds grant '│covers    /rig/ws/source/**/README.md' ) $( rigHolds grant '│rule      ws:source/**/README.md' ) $( rigHolds grant '│from      floor' )" "1 1 1"
-rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│# The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
+rigAssert "a skillset file selected shows whole, read by the member and its path" "$( rigHolds file '│The rig keeper' ) $( rigWords '[--manager-team-member-files][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-team-member-files][keeper-rig][SKILL.md]' )" "1 1 1"
 rigAssert "one that is no text says so and is never read" "$( rigHolds icon '│resources/icon.png: 1.4K, no text: it is not shown.' ) $( rigWords '[--manager-team-member-files][keeper-rig][resources/icon.png]' )" "1 0"
 rigAssert "Sessions selected counts the sessions it is in; Enter on one opens it where a session does" "$( rigHolds sessions '│1 session: 1 running' ) $( rigVal jumped.path )" "1 sessions/sess-1"
+
+echo "-- 2b. the grants in a member's own summary follow the width of the pane --"
+rigCase widths
+rigScript <<'RIGSCRIPT'
+turn
+wait list 10
+keys 4
+wait list 10
+keys DOWN
+wait view 10
+size 64 36
+turn
+get fit
+show fit
+size 52 36
+turn
+get narrow
+show narrow
+size 64 36
+turn
+keys TAB w
+turn
+get cut
+show cut
+keys RIGHT RIGHT
+turn
+get panned
+show panned
+RIGSCRIPT
+rigAssert "a pane too narrow for every column shortens the first, the path it covers, so that the others fit" \
+	"$( rigVal fit.viewWidth ) $( rigUnder fit 'its grants: 3, floor 2, standing 1' 4 )" \
+	"43 [its grants: 3, floor 2, standing 1][$( rigGrantLine 16 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read floor none )]"
+rigAssert "a narrower one shortens it no further, and leaves out whole each column after it that still does not fit, of the header too" \
+	"$( rigVal narrow.viewWidth ) $( rigUnder narrow "$( rigGrantLine 16 COVERS ACCESS )" 3 ) $( rigVal narrow.spills )" \
+	"31 [$( rigGrantLine 16 COVERS ACCESS )][ floor (2)][$( rigGrantLine 16 'ws:source/**/RE…' read )] 0"
+rigAssert "with the lines not wrapped the table is whole, its first column uncut, and the pane scrolls sideways to the columns after it" \
+	"$( rigVal cut.wrap ) $( rigHolds cut ' ws:source/**/README.md read' ) $( rigHolds cut "$( printf '%-12s %s' ws:workspace none )" ) $( rigVal panned.viewLeft | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigHolds panned "$( printf '%-12s %s' floor none )" ) $( rigHolds panned "$( printf '%-12s %s' ws:workspace none )" )" \
+	"no 1 0 1 2 1"
 
 echo "-- 3. Member Help --"
 rigCase help
