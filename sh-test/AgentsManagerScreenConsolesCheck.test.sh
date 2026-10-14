@@ -137,14 +137,14 @@ rigRootLine(){ ## text -- the number of the line of the screen, as first shown, 
 	printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -n -F -- "$1" | head -1 | LC_ALL=C cut -d: -f1
 }
 rigAssert "the root list holds it after the team members and ahead of the settings, as a folder, whatever other roots stand between" "$( [ "$( rigRootLine ' Team Members  ' )" -lt "$( rigRootLine ' Consoles (Tools)  ' )" ] && [ "$( rigRootLine ' Consoles (Tools)  ' )" -lt "$( rigRootLine ' Settings  ' )" ] && echo in-that-order ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^rootShown|' | LC_ALL=C grep -F ' Consoles (Tools)  ' | LC_ALL=C grep -c -F '►' )" "in-that-order 1"
-rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 12"
+rigAssert "not entered: its list is read once the selection has rested on its row, and the left window then holds what the folder holds" "$( rigVal on.selected ) [$( rigVal on.reading )] $( rigVal on.viewLines )" "consoles [] 10"
 rigAssert "Enter enters it, and its list is read by the operation with no argument" "$( rigVal in.path ) $( rigCalled --manager-console-list ) $( rigOthers )" "consoles 1 0"
 rigAssert "its window is titled by its name, without the dots"       "[$( rigVal title )]" "[Consoles (Tools)]"
 rigAssert "the rows stand in the order of the operation, each by its label with its group at the end" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" \
 	"[>..][ Bash Shell                  shell][ Claude Native Console      agents][ Source Console             distro][ Plain Tool                 distro]"
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
-rigAssert "on the row that goes up the left window shows the folder itself: how many, group by group" "[$( rigPane u 2 )][$( rigPane u 3 )][$( rigPane u 4 )]" \
-	"[ Consoles (Tools) [wrap]][ 4 to start: 1 shell, 1 agents, 2 distro.][ Enter starts one with the whole terminal; the screen is back when it ends.]"
+rigAssert "on the row that goes up the left window shows the folder itself: how many, group by group, then every one as a table, and no sentence of what Enter does" "[$( rigPane u 2 )][$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 5 | LC_ALL=C sed 's/  */ /g' )]" \
+	"[ Consoles (Tools) [wrap]][ 4 to start: 1 shell, 1 agents, 2 distro.][][ CONSOLE GROUP COMMAND]"
 rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
 rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1
@@ -169,15 +169,15 @@ keys ESC DOWN DOWN DOWN
 turn
 show p
 RIGSCRIPT
-rigAssert "its title is its label, and under it its label, its key and its group" "[$( rigVal cTitle )][$( rigPane c 3 )][$( rigPane c 4 )][$( rigPane c 5 )]" "[Bash Shell [wrap]][ console   Bash Shell][ key       bash][ group     shell]"
-rigAssert "the folder it is started in, as it is written"            "[$( rigPane c 6 )]" "[ directory /rig/ws rig]"
+rigAssert "its title is its label, and under it its label as its head, its key and its group" "[$( rigVal cTitle )][$( rigPane c 3 )][$( rigPane c 4 )][$( rigPane c 5 )]" "[Bash Shell [wrap]][ Bash Shell][  key        bash][  group      shell]"
+rigAssert "the folder it is started in, as it is written"            "[$( rigPane c 6 )]" "[  directory  /rig/ws rig]"
 rigAssert "its command as it will be run, word by word: a word with a blank stands between quotes" "[$( rigPane c 7 )][$( rigPane c 8 )][$( rigPane c 9 )]" \
-	"[ command   /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace, by][           its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][ terminal  it needs a terminal, on its input and on its output]"
-rigAssert "what Enter does, and its key under the item and in the status line" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
-	"[ start     Enter gives it the whole terminal. The screen is back when it ends, and][           says how it ended.] [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+	"[  command    /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace,][             by its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][  terminal   yes, on its input and its output]"
+rigAssert "no sentence of what Enter does: its key stands under the item and in the status line" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
+	"[][] [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "nothing was read for it but the list, and nothing spills" "$( rigCalled --manager-console-list ) $( rigOthers ) $( rigVal c.spills )" "1 0 0"
 rigAssert "the menu Console holds the start, with its key"           "$( rigScreenHolds m '│ Start  ENTER │' )" 1
-rigAssert "one that needs no terminal says so, and its words stand as they are" "[$( rigPane p 7 )][$( rigPane p 8 )]" "[ command   /rig/tool_x - _][ terminal  it needs none]"
+rigAssert "one that needs no terminal says so, and its words stand as they are" "[$( rigPane p 7 )][$( rigPane p 8 )]" "[  command    /rig/tool_x - _][  terminal   no]"
 
 echo "-- Enter gives the terminal to a child, started from the words of the row as they are --"
 rigCase enter
@@ -264,7 +264,7 @@ child 5
 keys ENTER
 get a
 RIGSCRIPT
-	rigAssert "$rigStyle: the list, the left window, and Enter starts the child" "$( rigScreenHolds c ' Claude Native Console ' ) $( rigScreenHolds c 'directory /rig/ws rig' ) $( rigVal a.children ) [$( rigVal a.notice )] $( rigVal a.spills )" \
+	rigAssert "$rigStyle: the list, the left window, and Enter starts the child" "$( rigScreenHolds c ' Claude Native Console ' ) $( rigScreenHolds c 'directory  /rig/ws rig' ) $( rigVal a.children ) [$( rigVal a.notice )] $( rigVal a.spills )" \
 		"1 1 1 [Bash Shell: ended with status 5] 0"
 done
 
@@ -299,7 +299,7 @@ mkdir -p "$rigTmp/ws rig"
 printf '#!/usr/bin/env bash\nexec bash %q "$@"\n' "$rigTools" > "$rigTmp/tools" ; chmod +x "$rigTmp/tools"
 rigPtyCase(){ ## name, how the stand-in ends
 	rigCase "$1"
-	rigRow console standin shell Rig_Standin terminal "$rigTmp/ws rig" "$rigPython" -I -B "$rigTmp/standin.py" "$2" "$MANAGER_SCREEN_RIG/facts" "a word" _ - > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
+	rigRow console standin alpha_bravo_charlie_delta_echo_foxtrot_golf_hotel_india_juliet_kilo_lima_mike_november_oscar_papa_quebec_romeo Rig_Standin terminal "$rigTmp/ws rig" "$rigPython" -I -B "$rigTmp/standin.py" "$2" "$MANAGER_SCREEN_RIG/facts" "a word" _ - > "$MANAGER_SCREEN_RIG/rows.--manager-console-list"
 }
 rigPty(){ ## the keys -- what the driver says of the run is kept in rigOut
 	rigOut="$( MANAGER_SCREEN_PTY_TRACE="$rigTrace" "$rigPython" -I -B "$rigDriver" "$rigScreen" pty 100 30 "Consoles (Tools)" "$1" 60 -- "$rigPython" -I -B "$rigScreen" --workspace "$rigTmp/ws rig" --tools "$rigTmp/tools" 2>&1 )"
@@ -323,7 +323,7 @@ rigTraced(){
 		print "up at " before ", " during + 0 " while it ran, then" ( afterIn ? " in" : "" ) ( afterOn ? " on" : "" ) after ", at the end " mouse "/" other ;
 	}'
 }
-rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 7|wide=terminal. The screen|narrow=back when it ends'
+rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 7|wide=echo foxtrot golf|narrow=hotel india juliet'
 rigPtyCase pty-exit exit
 rigPty '6\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\ago\r\p\aended with status 7\a\x18'
 rigAssert "a normal end: the screen came up, ended by its own key with status 0, and gave the terminal back as it was" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack ) $( rigVal pty.errorAfterLeft )" "yes 0 yes yes none"
@@ -336,7 +336,7 @@ rigPtyCase pty-signal signal
 rigPty '6\p\aStandin\a\eOB\p\r\p\aended by signal 15\a\x18'
 rigAssert "an end by a signal: the screen does not end with its child, and gives the terminal back at its own end" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack ) $( rigVal pty.errorAfterLeft )" "yes 0 yes yes none"
 rigAssert "it is back after the child, and says which signal ended it" "$( rigTraced )" "up at off/out, 0 while it ran, then in on said, at the end off/out"
-rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 0|wide=terminal. The screen|narrow=back when it ends'
+rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended with status 0|wide=echo foxtrot golf|narrow=hotel india juliet'
 rigPtyCase pty-resize resize
 rigPty '6\p\aStandin\a\eOB\p\r\p\aSTANDIN-UP\a\z70x24\pgo\r\p\aended with status 0\a\x18'
 rigAssert "a terminal resized while the child ran: the child saw both sizes, and the screen ended as ever" "$( rigFact size ) $( rigFact sizeAtEnd ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack )" "100x30 70x24 0 yes yes"

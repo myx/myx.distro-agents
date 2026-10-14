@@ -24,6 +24,9 @@
 ##         buttons <tag>          the same of the buttons of the dialog that is open, and which of them has the keys
 ##         cost <tag> <keys>      writes the keys and says how many bytes the screen wrote in answer
 ##         advance <tag>          how far the screen counts the terminal moves for each kind of emoji
+##         cursor <tag>           where the cursor stands and whether it shows; the field of the dialog it stands in, by
+##                                its number, and what that field's line holds from its left up to the cursor; and which
+##                                button of the dialog has the keys
 ##         show <tag>             the screen as it stands
 ##         drawn <tag>            what the screen drew last, as it means it to stand
 ##         signal <name>          sends the command that signal, SIGTERM or another, by its name
@@ -89,6 +92,8 @@ class Terminal:
         self.inserting = False
         self.autoWrap = True
         self.saved = (0, 0, self.look, False)
+        ## whether the cursor shows
+        self.shown = True
         self.graphics = False
         self.last = None
         self.joinNext = False
@@ -287,6 +292,8 @@ class Terminal:
                         self.y, self.x = self.saved[:2]
                 elif mode == 7:
                     self.autoWrap = on
+                elif mode == 25:
+                    self.shown = on
             return
         if private or between:
             return
@@ -564,6 +571,18 @@ def runSteps(arguments):
         elif command == "advance":
             drawn = dump() or {}
             print("%s.advance=%s" % (words[0], " ".join("%s=%s" % pair for pair in sorted(drawn.get("advance", {}).items()))))
+        elif command == "cursor":
+            ## where the cursor stands and whether it shows; the field it stands in, as the screen last placed the fields,
+            ## and that field's line from its left up to the cursor; the button that has the keys
+            pump(2, 0.4)
+            drawn = dump() or {"spots": [], "focus": None}
+            field = next(((left, what[1]) for left, top, width, height, what in drawn["spots"] if what[0] == "field"
+                          and left <= terminal.x < left + width and top <= terminal.y < top + height), None)
+            print("%s.cursor=%d,%d" % (words[0], terminal.y, terminal.x))
+            print("%s.shown=%s" % (words[0], "yes" if terminal.shown else "no"))
+            print("%s.field=%s" % (words[0], "none" if field is None else field[1]))
+            print("%s.before=%s" % (words[0], "" if field is None else "".join(cell[0] for cell in terminal.cells[terminal.y][field[0]:terminal.x])))
+            print("%s.focus=%s" % (words[0], drawn.get("focus")))
         elif command == "show":
             for line in terminal.textLines():
                 print("%s|%s|" % (words[0], line))

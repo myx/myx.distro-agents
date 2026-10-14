@@ -153,7 +153,7 @@ cells row3 4 85 119
 cells line1 2 1 83
 RIGSCRIPT
 rigAssert "the level shows the row that goes up, then Launch / Spawn, and nothing more" "$( rigVal a.rows ) [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "2 [>..][ Launch / Spawn                  ►][]"
-rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[0 sessions.]"
+rigAssert "and the left pane says that there is none"                "[$( rigVal line1 )]" "[0 sessions; agents 0 working, 0 waiting.]"
 
 echo "-- a: all or active --"
 rigCase active five.rows five.rows active.rows five.rows
@@ -211,9 +211,9 @@ rigAssert "one that has ended with its state alone"                  "[$( rigVal
 rigAssert "the live ones stand out"                                  "$( rigLooks k 4 86 86 )$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )" "BB."
 rigAssert "the level has no read of its own: the list of the sessions fills it" "$( rigCalls ) $( rigVal in.reading )" "1 "
 rigAssert "the left pane shows the selected agent: state, status, process, dates" "$( rigVal agent.selected ) [$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" \
-	"a2a2a2a2-0000-4000-8000-0000000000a2 [ state     running working][ status    spawn-started][ process   running][ started   2026-10-12 17:05 +0300 (9h ago)]"
-rigAssert "its host, its workspace, its own id and its session"      "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
-	"[ host      rig-host][ workspace ws-rig][ run       a2a2a2a2-0000-4000-8000-0000000000a2][ session   $rigS1]"
+	"a2a2a2a2-0000-4000-8000-0000000000a2 [  state      running working][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0300 (9h ago)]"
+rigAssert "its host, its workspace and its own id; its session is the folder it stands in, and not said again" "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
+	"[  host       rig-host][  workspace  ws-rig][  run        a2a2a2a2-0000-4000-8000-0000000000a2][]"
 rigAssert "Backspace returns onto the session it came from"               "$( rigVal back.path ) $( rigVal back.selected )" "sessions $rigS1"
 rigAssert "Right dives nowhere: it pages down in the list"          "$( rigVal again.path )" "sessions"
 
@@ -235,13 +235,13 @@ turn
 show u
 RIGSCRIPT
 rigAssert "one read gave all of it"                                  "$( rigCalls ) $( rigVal a.selected )" "1 $rigS1"
-rigAssert "its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )]" "[ daily of Monday [wrap]][ state     running][ control   -][ started   2026-10-12 16:57 +0300 (9h ago)]"
-rigAssert "how many agents it has, and in which states"              "[$( rigPane s 6 )][$( rigPane s 7 )]" "[ agents    3: 2 running, 1 finished][ session   $rigS1]"
-rigAssert "each agent with its state, in a table under its header"   "[$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
-	"[ MEMBER            STATE           SINCE                        TOKENS CLI MODEL][ magic-coordinator running waiting 2026-10-12 16:57 +0300       -      -   -][ magic-tester      running working 2026-10-12 17:05 +0300       -      -   -][ keeper-myx        finished        until 2026-10-12 18:00 +0300 -      -   -]"
-rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 5 )][$( rigPane t 8 )][$( rigPane t 9 )]" \
-	"[ one lone run with no name][ state     finished][ ended     2026-10-11 14:51 +0300 (35h ago)][ agents    1: 1 finished]"
-rigAssert "on the row that goes up the pane says what the section holds: its sessions by their states, then the counters of the workspace" "[$( rigPane u 3 )][$( rigPane u 4 )]" "[ 5 sessions: 1 running, 1 waiting, 1 unclosed, 1 finished, 1 unknown-foreign.][ In the workspace: sessions 1 running, 0 paused; agents 1 working, 1 waiting.]"
+rigAssert "its name, its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 2 )][$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ daily of Monday [wrap]][ daily of Monday][  state    running][  control  -][  started  2026-10-12 16:57 +0300 (9h ago)]"
+rigAssert "its id last, under its agents"                            "[$( rigPane s 13 )][$( rigPane s 14 )]" "[][  session  $rigS1]"
+rigAssert "each agent with its state, in a table under a heading, a column no agent has a word for left out" "[$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )][$( rigPane s 11 )][$( rigPane s 12 )]" \
+	"[ Agents][  MEMBER            STATE           SINCE][  magic-coordinator running waiting 2026-10-12 16:57 +0300][  magic-tester      running working 2026-10-12 17:05 +0300][  keeper-myx        finished        until 2026-10-12 18:00 +0300]"
+rigAssert "a lone run says that it is one, and when it ended"        "[$( rigPane t 3 )][$( rigPane t 4 )][$( rigPane t 7 )]" \
+	"[ one lone run with no name][  state    finished][  ended    2026-10-11 14:51 +0300 (35h ago)]"
+rigAssert "on the row that goes up the pane says what the section holds: its sessions by their states and the agents of the workspace, then every session as a table" "[$( rigPane u 3 )][$( rigPane u 4 )][$( rigPane u 6 )]" "[ 5 sessions: 1 running, 1 waiting, 1 unclosed, 1 finished, 1 unknown-foreign;][ agents 1 working, 1 waiting.][  SESSION                              STATE     AGE AGENTS TOKENS MEMBERS]"
 
 echo "-- the list read again --"
 rigCase again five.rows five.rows moved.rows
@@ -353,7 +353,7 @@ rigAssert "four hundred times Down moves the selection four hundred rows, with i
 rigAssert "PageDown reaches the last one"                            "$( rigVal last.index ) $( rigVal last.top ) [$( rigVal lastRow )]" "501 473 [>session 001            finished ►]"
 rigAssert "it can be dived into like the first"                      "$( rigVal in.path ) $( rigVal in.rows )" "sessions/00000001-0000-4000-8000-000000000000 3"
 rigAssert "PageUp returns to the first row"                          "$( rigVal first.index ) $( rigVal first.top )" "0 0"
-rigAssert "a drawing writes no more than with five sessions, but for the mark of a folder on each row in view beyond the seven of that small list: only the rows in view" "$( rigVal first.puts ) $( rigVal last.spills )" "$(( rigPutsFew + $( rigVal first.listHeight ) - 7 )) 0"
+rigAssert "a drawing writes no more than with five sessions, but for the mark of a folder on each row in view beyond the seven of that small list, and three writes at most for each line of the left pane, whose table of the sessions fills it: only the rows in view" "$( [ "$( rigVal first.puts )" -le "$(( rigPutsFew + $( rigVal first.listHeight ) - 7 + 3 * $( rigVal first.viewLines ) ))" ] && echo within || echo "over: $( rigVal first.puts )" ) $( rigVal last.spills )" "within 0"
 rigAssert "all those keys were taken in a few seconds"               "$( [ "$rigSecondsTaken" -lt 15 ] && printf yes || printf 'no (%s seconds)' "$rigSecondsTaken" )" yes
 
 echo "-- a session row of eight fields still draws, and the three more fields change nothing else that is drawn --"
@@ -394,15 +394,15 @@ RIGSCRIPT
 rigDrawnEight="$( rigWideDrawn five.rows )"
 rigDrawnEleven="$( rigWideDrawn wide.rows )"
 rigAssert "control: the screen was driven through the list, a session, its level and an agent, and drew each" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^l|' -e '^s|' -e '^i|' -e '^t|' -e '^u|' | LC_ALL=C awk '{ print ( $1 >= 200 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^a\.rows=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C sed -n 's/^in\.path=//p' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn 7 sessions/$rigS1 0"
-rigLeftOf(){ ## a drawing -- its lines as they are, but of each line of a screen the left pane alone, without the spaces at its end, and of that nothing where it speaks of a control thread; how many lines the pane holds is left out, and how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
-	printf '%s\n' "$1" | LC_ALL=C grep -v -e '\.viewLines=' -e '\.frames=' | LC_ALL=C awk '{ rest = substr( $0, 6 ) ; cutAt = index( rest, "│" ) ; if ( substr( $0, 2, 1 ) != "|" || substr( $0, 3, 3 ) != "│" || ! cutAt ) { print ; next } leftText = substr( $0, 1, 5 ) substr( rest, 1, cutAt - 1 ) ; sub( / +$/, "", leftText ) ; if ( leftText ~ /control/ ) leftText = substr( $0, 1, 5 ) ; print leftText }'
+rigLeftOf(){ ## a drawing -- its lines as they are, but of each line of a screen the left pane alone, without the spaces at its end, and of that nothing where it speaks of a control thread, nor anything of the left pane of the list (l), whose table of the sessions marks a thread that is gone; how many lines the pane holds is left out, and how many writes a drawing took, since the line of a control thread is drawn in the colour of its state, and how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
+	printf '%s\n' "$1" | LC_ALL=C grep -v -e '\.viewLines=' -e '\.frames=' -e '\.puts=' | LC_ALL=C awk '{ rest = substr( $0, 6 ) ; cutAt = index( rest, "│" ) ; if ( substr( $0, 2, 1 ) != "|" || substr( $0, 3, 3 ) != "│" || ! cutAt ) { print ; next } leftText = substr( $0, 1, 5 ) substr( rest, 1, cutAt - 1 ) ; sub( / +$/, "", leftText ) ; if ( leftText ~ /control/ || substr( $0, 1, 1 ) == "l" ) leftText = substr( $0, 1, 5 ) ; print leftText }'
 }
 rigListOf(){ ## a drawing -- of each line of a screen the list alone, after the tag of its screen, without the spaces at its end
 	printf '%s\n' "$1" | LC_ALL=C grep '^[a-z]|.*│║' | LC_ALL=C sed -e 's/^\(..\).*│║/\1/' -e 's/ *║|$//'
 }
-rigAssert "from the eight fields the pane of a session says - of its control thread, and no row of the list carries a mark" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│control   -  ' -e '^u|│control   -  ' ) $( rigListOf "$rigDrawnEight" | LC_ALL=C grep -c -e ' x [a-z-]*$' )" "2 0"
-rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│control   alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u|│control   none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
-rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l|│1 session has a control thread that is gone (x in the list).' )" "3 0 1"
+rigAssert "from the eight fields the pane of a session says - of its control thread, and no row of the list carries a mark" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│ control  -  ' -e '^u|│ control  -  ' ) $( rigListOf "$rigDrawnEight" | LC_ALL=C grep -c -e ' x [a-z-]*$' )" "2 0"
+rigAssert "with the three more fields it says what they tell: a thread that lives, one that ended in order, and what each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│ control  alive; stored running, set 2026-10-12 16:58 +0300 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'u|│ control  none; stored finished, set 2026-10-11 14:51 +0300 (35h ago)  ' )" "1 1"
+rigAssert "the list marks the one session whose thread is gone, on each of the three screens that show the sessions, and no other row differs; the table of the sessions in the left pane marks it too" "$( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c '^> ' ) $( diff <( rigListOf "$rigDrawnEight" ) <( rigListOf "$rigDrawnEleven" ) | LC_ALL=C grep -c -F -e '| 22222222-0000-4000-…... x waiting' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'l|│ 22222222-0000-4000-8000-000000000002 x waiting ' )" "3 0 1"
 rigAssert "everything else is read by position as before: but for what it says of the control thread, the screen draws and reports cell for cell what it draws from the eight" "$( [ "$( rigLeftOf "$rigDrawnEleven" )" = "$( rigLeftOf "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigLeftOf "$rigDrawnEight" ) <( rigLeftOf "$rigDrawnEleven" ) | head -6 ; } )" "same"
 
 if [ "$rigFailCount" -ne 0 ] ; then

@@ -187,7 +187,7 @@ rigAssert "that what it does besides is being read, and how to back out" "$( rig
 rigAssert "the plan of the kill is read while the dialog is open, once, by the id of the session, and what was typed stays" "$( rigPlans ) $( rigCalled "$rigKillSession --plan" ) [$( rigVal planned.dialog )] [$( rigVal planned.dialogTitle )]" "1 1 [kill:word|ye] [Kill the session]"
 rigAssert "then the dialog says from its rows what is ended, each with its processes and its own id" "$( rigBoxHas p '║ It ends 2 agents the hard way: no closure runs, none is asked anything. ' ) $( rigBoxHas p "║   magic-coordinator  pid 4101  $rigS1 " ) $( rigBoxHas p "║   magic-tester       pid 4102,4103  $rigR2 " )" "1 1 1"
 rigAssert "what is dismissed and closed, here nothing, and the state the session reads" "$( rigBoxHas p '║ No question of it waits: nothing is dismissed. ' ) $( rigBoxHas p '║ No record of it is left open: nothing is closed. ' ) $( rigBoxHas p '║ The session reads running now. ' ) $( rigBoxHas p 'is being read' )" "1 1 1 0"
-rigAssert "the pane of the session stays above it, and nothing spills" "[$( rigPane d 3 )] $( rigVal asked.spills )" "[ state     running] 0"
+rigAssert "the pane of the session stays above it, and nothing spills" "[$( rigPane d 4 )] $( rigVal asked.spills )" "[  state    running] 0"
 rigAssert "what is typed shows in the field"                       "[$( rigVal typing.dialog )] $( rigBoxHas t '║ ye ' )" "[kill:word|ye] 1"
 rigAssert "Esc closes the line: the bottom line is empty again, and the keys of the item are back" "[$( rigVal esc.dialog )] [$( rigVal esc.notice )] [$( rigVal escLine )] [$( rigVal escKeys )]" "[] [] [] [keys: k kill]"
 rigAssert "and no operation was called but the list"                 "$( rigKills ) $( rigOthers ) $( rigVal esc.calls ) [$( rigVal esc.reading )]" "0 0 0 []"
@@ -229,8 +229,8 @@ rigAssert "the left pane shows the answer for each run: ended, killed, was not r
 	"[ the kill, answered 02:30:00:][   magic-coordinator  ended][   magic-tester       killed: it took KILL][   keeper-myx         was not running]"
 rigAssert "and one that was not signalled, with why"                 "[$( rigPane a 7 )][$( rigPane a 8 )] $( rigVal answered.answer )" "[   magic-developer    not signalled: it has no id of its own][] 5"
 rigAssert "then the list is read again"                              "$( rigCalled --manager-session-list )" 2
-rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 9 )]" \
-	"$rigS1 [>daily of Monday        finished ►] [ the kill, answered 02:30:00:][ state     finished]"
+rigAssert "and shows the session as it is now, still selected, under the answer" "$( rigVal after.selected ) [$( rigVal afterRow )] [$( rigPane z 3 )][$( rigPane z 10 )]" \
+	"$rigS1 [>daily of Monday        finished ►] [ the kill, answered 02:30:00:][  state    finished]"
 rigAssert "it has nothing to kill any more: the pane names no kill key" "[$( rigVal afterKeys )]" "[]"
 
 echo "-- on an agent the kill takes the agent's own id, with --run --"

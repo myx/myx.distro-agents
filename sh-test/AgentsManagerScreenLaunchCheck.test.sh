@@ -168,7 +168,7 @@ rigAssert "the first row under the row that goes up is the free prompt" "[$( rig
 rigAssert "then every routine, in the order of the operation, by its selector without .routine.md" "[$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )]" "[ keeper-myx.spec-conformance][ magic-coordinator.daily][ magic-coordinator.retro]"
 rigAssert "one that cannot be started carries what the operation says of it" "[$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[ magic-team.discuss  not-startable][ odd                        broken][]"
 rigAssert "and shows plainer than the ones that can"                 "$( rigLooks k 5 86 86 )$( rigLooks k 6 86 86 )$( rigLooks k 7 86 86 )$( rigLooks k 8 86 86 )$( rigLooks k 9 86 86 )" "...DD"
-rigAssert "on the row that goes up the left pane says what the level holds: how many are started here, how many with members named, how many are not" "[$( rigPane u 3 )]" "[ 5 routines: 3 can be started here, 0 with members named, 2 cannot.]"
+rigAssert "on the row that goes up the left pane says what the level holds: how many are started here, how many with members named, how many are not" "[$( rigPane u 3 )]" "[ 5 routines: 3 start here, 0 with members named, 2 cannot.]"
 
 echo "-- the left pane shows the selected routine, and the keys that act on it --"
 rigCase pane
@@ -204,16 +204,16 @@ RIGSCRIPT
 rigAssert "the free prompt says what a prompt typed there starts"      "$( rigVal free.selected ) [$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" \
 	"free [ A prompt typed here starts a new coworking session, opened by the coordinator,][ with that prompt as its brief.][ Enter opens its dialog: who runs it, the prompt, the name of the session. An empty]"
 rigAssert "and the left pane names Enter as its key"                 "[$( rigVal freeKeys )]" "[keys: ENTER start]"
-rigAssert "a routine: its file, its owner, its title, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
-	"magic-coordinator/$rigDaily [ routine   $rigDaily][ owner     magic-coordinator][ title     magic-coordinator.daily.routine — the daily meeting][ executors magic-coordinator]"
-rigAssert "the kind of its session, that Enter starts it, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigVal dailyKeys )]" \
-	"[ session   coworking: the spawner adds magic-coordinator to it][ start     Enter starts it, as its executors, whoever is at the console][ name      daily, the name its session takes unless another is typed][] [keys: ENTER start]"
-rigAssert "several executors read with their spaces"                 "[$( rigPane r 6 )]" "[ executors magic-coordinator, magic-librarian]"
-rigAssert "one that cannot be started says so, and why"              "$( rigVal discuss.selected ) [$( rigPane n 8 )][$( rigPane n 9 )][$( rigPane n 10 )]" \
-	"magic-team/magic-team.discuss.routine.md [ start     not-startable: Enter does not start it][ why       its executors, magic-team, is any member: the session spawner starts it][           only with members named]"
+rigAssert "a routine: its title as its head, then its file, its owner, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
+	"magic-coordinator/$rigDaily [ magic-coordinator.daily.routine — the daily meeting][  routine    $rigDaily][  owner      magic-coordinator][  executors  magic-coordinator]"
+rigAssert "the kind of its session, that it starts here, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigVal dailyKeys )]" \
+	"[  session    coworking: the spawner adds magic-coordinator to it][  start      startable][  name       daily, unless another is typed][] [keys: ENTER start]"
+rigAssert "several executors read with their spaces" "[$( rigPane r 6 )]" "[  executors  magic-coordinator, magic-librarian]"
+rigAssert "one that cannot be started says so, and why" "$( rigVal discuss.selected ) [$( rigPane n 8 )][$( rigPane n 9 )][$( rigPane n 10 )]" \
+	"magic-team/magic-team.discuss.routine.md [  start      not-startable][  why        its executors, magic-team, is any member: the session spawner starts][             it only with members named]"
 rigAssert "and the left pane names no key for it"                    "[$( rigVal discussKeys )]" "[]"
 rigAssert "a broken file: what the operation says of it, and no key" "$( rigVal odd.selected ) [$( rigPane o 3 )][$( rigPane o 4 )][$( rigPane o 5 )][$( rigPane o 6 )] [$( rigVal oddKeys )]" \
-	"rig-member/odd.routine.md [ routine   odd.routine.md][ owner     rig-member][ start     broken: Enter does not start it][ why       the file does not open with a frontmatter block] []"
+	"rig-member/odd.routine.md [  routine  odd.routine.md][  owner    rig-member][  start    broken][  why      the file does not open with a frontmatter block] []"
 
 echo "-- Enter twice starts a routine under its own name --"
 rigCase start
@@ -255,7 +255,7 @@ rigAssert "nothing goes to its standard input, and nothing else is called" "$( r
 rigAssert "the bottom line shows the id of the new session, and of its members what fits" "[$( rigVal answeredLine )] [$( rigVal answered.notice )]" "[started: session $rigNew, members magic-coordina…] [started: session $rigNew, members magic-coordinator, magic-librarian]"
 rigAssert "the left pane shows what the operation printed: the session, its name, the routine, the members" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )]" \
 	"[ the start, answered 02:30:00:][ session   $rigNew][ name      daily][ routine   $rigDaily][ members   magic-coordinator, magic-librarian]"
-rigAssert "and what it noted, then the routine as before"            "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      magic-spawn-session: added magic-librarian: the rig says so][][ routine   $rigDaily]"
+rigAssert "and what it noted, then the routine as before" "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      magic-spawn-session: added magic-librarian: the rig says so][][ magic-coordinator.daily.routine — the daily meeting]"
 rigAssert "the list is read again, and the new session is among its rows" "$( rigCalled --manager-session-list ) $( rigVal up.path ) [$( rigVal upRow3 )][$( rigVal upRow4 )]" "2 sessions [ daily                   running ►][ keeper-myx 11111111     running ►]"
 
 echo "-- a name typed over the default is the one passed --"
@@ -549,7 +549,7 @@ wait action 30
 get answered
 RIGSCRIPT
 rigAssert "a routine that is started only with members named says so at the end of its row" "$( rigVal on.selected ) [$( rigVal onRow )]" "magic-team/$rigDiscuss [>magic-team.discuss        members]"
-rigAssert "the left pane says that Enter asks for its members, and it and the status line name the key" "$( rigPaneHolds o ' start     Enter asks for the members to start it with, in one session' ) [$( rigVal onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the left pane says that its members are asked for, and it and the status line name the key" "$( rigPaneHolds o '  start      members: its members are asked for' ) [$( rigVal onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
 rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║ routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║ [ ] magic-coordinator ' ) $( rigBoxHas m '║ [ ] keeper-myx ' ) $( rigBoxHas m '║ [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"

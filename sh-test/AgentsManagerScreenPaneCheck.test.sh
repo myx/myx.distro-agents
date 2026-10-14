@@ -178,15 +178,15 @@ RIGSCRIPT
 rigAssert "nothing of one session is read until one is selected"     "[$( rigVal before.reading )]" "[]"
 rigAssert "selecting it reads its facts, and l, the key of the log, its lines, each as a call of its own" "$( rigVal asked.reading ) $( rigVal askedLog.reading ) $( rigVal s.viewMode ) $( rigVal sl.viewMode )" "view:sessions|record:$rigS1 feed:sessions|record:$rigS1 summary log"
 rigAssert "by its id, once each"                                     "$( rigCalled "--manager-session-read --session-id $rigS1" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1" ) $( rigCalls )" "1 1 3"
-rigAssert "the summary shows its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ state     running][ control   -][ started   2026-10-12 16:57 +0000 (9h ago)][ agents    4: 2 running, 2 finished]"
+rigAssert "the summary shows its name, its state, the line of its control thread, of which these rows say nothing, and when it started" "[$( rigPane s 3 )][$( rigPane s 4 )][$( rigPane s 5 )][$( rigPane s 6 )]" "[ daily of Monday][  state    running][  control  -][  started  2026-10-12 16:57 +0000 (9h ago)]"
 rigAssert "the tokens the session has eaten so far, summed by its read, and how many runs are not counted in them" "[$( rigPane s 7 )][$( rigPane s 8 )]" \
-	"[ tokens    in 2K, cache read 56.2M, cache write 853K, out 127K, so far, 1 run not][           counted]"
-rigAssert "its dispatch: by whom, the routine and the item"          "[$( rigPane s 9 )][$( rigPane s 10 )]" \
-	"[ founded   by magic-coordinator, routine magic-coordinator.daily.routine.md, item][           dispatch-20261012T165700Z-daily-1]"
-rigAssert "its id and its two threads"                               "[$( rigPane s 11 )][$( rigPane s 12 )]" "[ session   $rigS1][ threads   session C0RIG:1791000000.000100, tracking C0TRK:1791000000.000200]"
-rigAssert "its agents as a table under a header: one line for each participant, with its state, since when or until when, the tokens of its store and its CLI" "[$( rigPane s 14 )][$( rigPane s 15 )][$( rigPane s 16 )][$( rigPane s 17 )][$( rigPane s 18 )]" \
-	"[ MEMBER            STATE           SINCE                        TOKENS CLI][ magic-coordinator running waiting 2026-10-12 16:57 +0000       4.6M   claude][ magic-tester      running working 2026-10-12 17:05 +0000       43.1M  claude][ keeper-myx        finished        until 2026-10-12 18:00 +0000 9.5M   copilot][ magic-developer   finished        until 2026-10-12 17:11 +0000 -      -]"
-rigAssert "under them what it was started for, its dispatch, whole"   "[$( rigPane s 20 )][$( rigPane s 21 )][$( rigPane s 22 )]" "[ dispatch][ The daily of Monday:][ what moved, what is stuck.]"
+	"[  tokens   in 2K, cache read 56.2M, cache write 853K, out 127K, so far, 1 run not][           counted]"
+rigAssert "its dispatch: by whom, the routine and the item" "[$( rigPane s 9 )][$( rigPane s 10 )]" \
+	"[  founded  by magic-coordinator, routine magic-coordinator.daily.routine.md, item][           dispatch-20261012T165700Z-daily-1]"
+rigAssert "its id last, and no thread of Slack: they tell nobody anything here" "[$( rigPane s 27 )] $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^s|' | LC_ALL=C grep -c -e 'C0TRK' -e 'C0RIG:1791000000.000100,' )" "[  session  $rigS1] 0"
+rigAssert "its agents as a table under a heading: one row for each participant, with its state, since when or until when, the tokens of its store, its CLI and its model" "[$( rigPane s 12 )][$( rigPane s 13 | LC_ALL=C tr -s ' ' )][$( rigPane s 14 | LC_ALL=C tr -s ' ' )][$( rigPane s 16 | LC_ALL=C tr -s ' ' )][$( rigPane s 18 | LC_ALL=C tr -s ' ' )][$( rigPane s 20 | LC_ALL=C tr -s ' ' )]" \
+	"[ Agents][ MEMBER STATE SINCE TOKENS CLI MODEL][ magic-coordinator running waiting 2026-10-12 16:57 4.6M claude claude-opus-5][ magic-tester running working 2026-10-12 17:05 43.1M claude claude-sonnet-5][ keeper-myx finished until 2026-10-12 9.5M copilot gpt-rig][ magic-developer finished until 2026-10-12 - - -]"
+rigAssert "under them what it was started for, its dispatch, whole, under a heading" "[$( rigPane s 23 )][$( rigPane s 24 )][$( rigPane s 25 )]" "[ Dispatch][ The daily of Monday:][ what moved, what is stuck.]"
 rigAssert "the summary holds no line of the log, and the log no fact of the summary: the two are never mixed" "$( rigPaneHolds s 'wait going idle' ) $( rigPaneHolds s 'lines     ' ) $( rigPaneHolds sl 'state     running' ) $( rigPaneHolds sl 'MEMBER' ) [$( rigPane s 2 )] [$( rigPane sl 2 )]" "0 0 0 0 [ daily of Monday [summary] [wrap]] [ daily of Monday [log] [wrap]]"
 rigAssert "the head line of the log says where the lines come from, and which run has no transcript" "[$( rigPane sl 3 )][$( rigPane sl 4 )]" \
 	"[ lines     the feed of 3 runs: 2 from a transcript, 1 from a session log, having no][           transcript (keeper-myx)]"
@@ -222,11 +222,11 @@ get al
 show al
 RIGSCRIPT
 rigAssert "the founder's own run is read with --run, since its id is its session's" "$( rigVal f.selected ) $( rigCalled "--manager-session-read --session-id $rigS1 --run" ) $( rigCalled "--manager-session-transcript-read --session-id $rigS1 --run" )" "$rigS1 1 1"
-rigAssert "the founder: what it waits on, and its open asks"         "[$( rigPane f 7 )][$( rigPane f 8 )]" "[ waits on  slack:C0RIG:1791000000.000100:conversation][ asks      2 open: q1, q2]"
-rigAssert "its model, its token counts and its last milestone"       "[$( rigPane f 9 )][$( rigPane f 10 )][$( rigPane f 11 )]" "[ model     claude-opus-5, cli claude][ tokens    in 1K, cache read 4.2M, cache write 310K, out 52K][ last      wait going idle, 20m ago]"
+rigAssert "the founder: what it waits on, and its open asks" "[$( rigPane f 7 )][$( rigPane f 8 )]" "[  waits on   slack:C0RIG:1791000000.000100:conversation][  asks       2 open: q1, q2]"
+rigAssert "its model, its token counts and its last milestone" "[$( rigPane f 9 )][$( rigPane f 10 )][$( rigPane f 11 )]" "[  model      claude-opus-5, cli claude][  tokens     in 1K, cache read 4.2M, cache write 310K, out 52K][  last       wait going idle, 20m ago]"
 rigAssert "the tester is read by its own id, with --run"             "$( rigVal a.selected ) $( rigCalled "--manager-session-read --session-id $rigR2 --run" ) $( rigCalled "--manager-session-transcript-read --session-id $rigR2 --run" )" "$rigR2 1 1"
-rigAssert "its status"                                               "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )]" "[ state     running working][ status    spawn-started][ process   running][ started   2026-10-12 17:05 +0000 (9h ago)]"
-rigAssert "its model and token counts, shortened for the eye"        "[$( rigPane a 7 )][$( rigPane a 8 )][$( rigPane a 9 )]" "[ model     claude-sonnet-5, cli claude][ tokens    in 414, cache read 42.8M, cache write 308K, out 0][ last      tool call, 1m ago]"
+rigAssert "its status" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )]" "[  state      running working][  status     spawn-started][  process    running][  started    2026-10-12 17:05 +0000 (9h ago)]"
+rigAssert "its model and token counts, shortened for the eye" "[$( rigPane a 7 )][$( rigPane a 8 )][$( rigPane a 9 )]" "[  model      claude-sonnet-5, cli claude][  tokens     in 414, cache read 42.8M, cache write 308K, out 0][  last       tool call, 1m ago]"
 rigAssert "l shows its log, whose head line says where its lines come from" "$( rigVal al.viewMode ) [$( rigPane al 2 )] [$( rigPane al 3 )]" "log [ magic-tester [log] [wrap]] [ lines     the feed, from its transcript]"
 rigAssert "its own entries only, each under its head, the newest in view at the end" "[$( rigPane al 4 )][$( rigPane al 36 )][$( rigPane al 37 )] $( rigVal al.viewLines ) $( rigVal al.viewTop ) $( rigVal al.follow )" \
 	"[ 02:00:24 magic-tester:][ 02:00:40 magic-tester:][          💻 step 40 of the tester — execute job 40 · 1 s] 81 47 yes"
@@ -261,11 +261,11 @@ get d
 show d
 RIGSCRIPT
 rigAssert "the selection moves on: at once nothing of the item before is left" "$( rigVal asked.selected ) $( rigVal asked.viewLines ) $( rigPaneHolds early 'step' ) $( rigPaneHolds early 'claude-sonnet-5' )" "$rigR3 0 0 0"
-rigAssert "the next agent is shown: its marks, and who dismissed it" "[$( rigPane ks 2 )][$( rigPane ks 7 )][$( rigPane ks 8 )][$( rigPane ks 11 )]" "[ keeper-myx [summary] [wrap]][ ended     2026-10-12 18:00 +0000 (8h ago)][ model     gpt-rig, cli copilot][ marks     dismissed, ended (dismissed by magic-coordinator)]"
+rigAssert "the next agent is shown: its marks, and who dismissed it" "[$( rigPane ks 2 )][$( rigPane ks 7 )][$( rigPane ks 8 )][$( rigPane ks 11 )]" "[ keeper-myx [summary] [wrap]][  ended      2026-10-12 18:00 +0000 (8h ago)][  model      gpt-rig, cli copilot][  marks      dismissed, ended (dismissed by magic-coordinator)]"
 rigAssert "it has no transcript: its session log is shown, and the pane says so" "[$( rigPane k 3 )][$( rigPane k 4 )][$( rigPane k 5 )][$( rigPane k 6 )]" \
 	"[ lines     its session log: this run has no transcript][ starting keeper-myx][   -> tool: read the index — Read][   answering: done.]"
 rigAssert "a run with no id of its own is read by nothing"           "$( rigVal d.selected ) [$( rigVal d.reading )] $( LC_ALL=C grep -c -- '--session-id -' "$MANAGER_SCREEN_RIG/calls" || : )" "-3 [] 0"
-rigAssert "it has no log, so it shows its summary alone, whatever the mode: what the list holds of it, no line about lines, and no mode in its title" "$( rigVal d.viewMode ) [$( rigPane d 2 )] [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )] $( rigPaneHolds d 'lines  ' )" "log [ magic-developer [wrap]] [ state     finished][ status    spawn-failed][ process   no-spawn-id] 0"
+rigAssert "it has no log, so it shows its summary alone, whatever the mode: what the list holds of it, no line about lines, and no mode in its title" "$( rigVal d.viewMode ) [$( rigPane d 2 )] [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )] $( rigPaneHolds d 'lines  ' )" "log [ magic-developer [wrap]] [  state      finished][  status     spawn-failed][  process    no-spawn-id] 0"
 
 echo "-- a late answer for another item is dropped --"
 rigCase late
@@ -414,8 +414,8 @@ RIGSCRIPT
 rigAssert "a running session is selected: the pane names the key that acts on it, kill; the keys of the modes stand in the status line alone" "$( rigVal session.selected ) [$( rigVal sessionKeys )]" "$rigS1 [keys: k kill]"
 rigAssert "and the same with another handler in the place of the kill" "[$( rigVal builtKeys )]" "[keys: k kill]"
 rigAssert "Launch / Spawn has neither"                               "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch []"
-rigAssert "a session a client founded says that its founder left no record, and its log that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded   by a client, whose founder left no record' ) $( rigPaneHolds loneLog 'lines     the feed of 1 run: 1 with neither (magic-devops)' )" "$rigS2 1 1"
-rigAssert "a finished session shows the total of the tokens it has eaten" "$( rigPaneHolds lone 'tokens    in 90, cache read 0, cache write 0, out 10, total' )" "1"
+rigAssert "a session a client founded says that its founder left no record, and its log that it has no lines" "$( rigVal lone.selected ) $( rigPaneHolds lone 'founded  by a client, whose founder left no record' ) $( rigPaneHolds loneLog 'lines     the feed of 1 run: 1 with neither (magic-devops)' )" "$rigS2 1 1"
+rigAssert "a finished session shows the total of the tokens it has eaten" "$( rigPaneHolds lone 'tokens   in 90, cache read 0, cache write 0, out 10, total' )" "1"
 
 echo "-- a small pane: the head of a log is the line about its lines, and the summary scrolls --"
 rigCase small
@@ -441,7 +441,7 @@ show e
 RIGSCRIPT
 rigSize=""
 rigAssert "the pane has twelve lines, and the head of the log is the line about the lines alone, no more than half of it" "$( rigVal s.viewHeight ) $( rigVal s.viewHead )" "12 2"
-rigAssert "the summary starts with the state and the line of its control thread, has no head, and scrolls down to what the session was started for" "[$( rigPane f 3 )][$( rigPane f 4 )] $( rigVal f.viewHead ) $( rigPaneHolds f 'what moved, what is stuck.' ) $( rigPaneHolds e 'what moved, what is stuck.' )" "[ state     running][ control   -] 0 0 1"
+rigAssert "the summary starts with its name, its state and the line of its control thread, has no head, and scrolls down to what the session was started for" "[$( rigPane f 3 )][$( rigPane f 4 )] $( rigVal f.viewHead ) $( rigPaneHolds f 'what moved, what is stuck.' ) $( rigPaneHolds e 'what moved, what is stuck.' )" "[ daily of Monday][  state    running] 0 0 1"
 rigAssert "and the newest line of the feed is in view under it"      "[$( rigPane s 12 )][$( rigPane s 13 )] $( rigVal s.follow ) $( rigVal s.spills )" "[ 02:10:00 magic-coordinator:][          ⏳ wait going idle] yes 0"
 
 echo "-- the reads of one item wait until the selection has rested on it --"
@@ -579,11 +579,11 @@ rigDrawnEleven="$( rigWideDrawn eleven wide )"
 rigAssert "control: the fixtures of the second case hold the wider session rows and a control row in each read of a session, and the first holds none" \
 	"$( cat "$rigTmp/eleven/rows" "$rigTmp/eleven"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" { rows++ ; if ( NF == 11 ) wide++ } $1 == "control" && NF == 6 { control++ } END { print rows + 0 ":" wide + 0 ":" control + 0 }' ) $( cat "$rigTmp/eight/rows" "$rigTmp/eight"/rows.--manager-session-read* | LC_ALL=C awk -F'\t' '$1 == "session" && NF != 8 { wide++ } $1 == "control" { control++ } END { print wide + 0 ":" control + 0 }' )" "7:7:5 0:0"
 rigAssert "control: the screen was driven through a session, an agent of it and a second session, read each, and drew each pane" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|' -e '^r|' -e '^n|' | LC_ALL=C awk '{ print ( $1 >= 120 ) ? "drawn" : "not drawn: " $1 }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -F -- 'The daily of Monday:' | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "read" : "not read" }' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c 'DRIVER-FAILED' )" "drawn read 0"
-rigDrawnBut(){ ## a drawing -- its lines but for the line control of the pane of a session, and but for how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
-	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]|│control   ' -e '^[srn]\.frames='
+rigDrawnBut(){ ## a drawing -- its lines but for the line control of the pane of a session, but for how many writes a drawing took, since that line is drawn in the colour of its state, and but for how many times the screen was drawn, which is as many as the turns it waited for a call, by the clock of the host
+	printf '%s\n' "$1" | LC_ALL=C grep -v -e '^[sn]|│ control  ' -e '^[srn]\.frames=' -e '^[srn]\.puts='
 }
-rigAssert "without them the line control of a session says - of what no row tells, and an agent has no such line" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│control   -  ' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^n|│control   -  ' ) $( printf '%s\n' "$rigDrawnEight" "$rigDrawnEleven" | LC_ALL=C grep -c -e '^r| control ' )" "1 1 0"
-rigAssert "with them it says what the read of the session gave: a thread that lives with its pid, one that ended in order, and the state each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│control   alive, pid 4242; stored running, set 2026-10-12 16:58 +0000 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'n|│control   none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)  ' )" "1 1"
+rigAssert "without them the line control of a session says - of what no row tells, and an agent has no such line" "$( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^s|│ control  -  ' ) $( printf '%s\n' "$rigDrawnEight" | LC_ALL=C grep -c -e '^n|│ control  -  ' ) $( printf '%s\n' "$rigDrawnEight" "$rigDrawnEleven" | LC_ALL=C grep -c -e '^r|│ control ' )" "1 1 0"
+rigAssert "with them it says what the read of the session gave: a thread that lives with its pid, one that ended in order, and the state each stored" "$( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 's|│ control  alive, pid 4242; stored running, set 2026-10-12 16:58 +0000 (9h ago)  ' ) $( printf '%s\n' "$rigDrawnEleven" | LC_ALL=C grep -c -F -e 'n|│ control  none; stored finished, set 2026-10-11 14:51 +0000 (35h ago)  ' )" "1 1"
 rigAssert "nothing else changes: but for that one line of the pane of a session, the screen asks the same reads and draws and reports cell for cell what it did without them" "$( [ "$( rigDrawnBut "$rigDrawnEleven" )" = "$( rigDrawnBut "$rigDrawnEight" )" ] && echo same || { echo differs ; diff <( rigDrawnBut "$rigDrawnEight" ) <( rigDrawnBut "$rigDrawnEleven" ) | head -6 ; } ) $( cmp -s "$rigTmp/eight/calls" "$rigTmp/eleven/calls" && echo same-calls ) $( LC_ALL=C grep -c -e '--manager-session-read' "$rigTmp/eleven/calls" | LC_ALL=C awk '{ print ( $1 >= 3 ) ? "reads" : "no reads: " $1 }' )" "same same-calls reads"
 
 if [ "$rigFailCount" -ne 0 ] ; then

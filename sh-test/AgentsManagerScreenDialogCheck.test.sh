@@ -21,6 +21,10 @@
 ## up, the left window shows the container itself and its keys act on it. A toggle of a view, the raw log in place
 ## of the feed, all or active, is kept for the run of the screen whatever is selected. The help lists the keys
 ## from the declaration.
+## And, with the real screen on a pseudo-terminal in front of a terminal that keeps its cells
+## (check-fixtures/manager-screen.vt.test.py), in every style: while a field of a dialog, of one line or of several, has
+## the keys, the cursor shows, where what is typed goes, an emoji typed too, and stays there as the screen draws
+## again; while a button has them it shows nowhere; at the end it shows again.
 ## Offline: nothing but the screen's own code runs, and no operation of the tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -483,7 +487,64 @@ rigAssert "Magic: the line over a dialog and the line at its foot in the colour 
 rigAssert "Magic: the title tab of a dialog at its left, three cells in; a long one cut to leave three cells of the line at its right" "[$( rigVal nbTop )] [$( rigVal longTop )]" "[$( rigRepeat ▁ 3 ) A dialog of the rig $( rigRepeat ▁ 32 )] [$( rigRepeat ▁ 3 ) A title far longer than the box that holds it c… $( rigRepeat ▁ 3 )]"
 rigAssert "Magic: the shadow at the right of a dialog starts beside its second line; beside its first stays what lies there" "$( [ "$( rigRole nbr 2 57 57 )" = z ] && echo shadow || echo under ) $( rigRole nbr 3 57 57 )" "under z"
 
+echo "-- on a real terminal, in every style: the cursor shows where what is typed goes while a field has the keys, and nowhere while a button has them --"
+"$rigPython" -I -c 'import curses' 2> /dev/null || rigRefuse "the python3 on PATH has no curses module, so the real screen cannot be started here: $rigPython"
+rigVt="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.vt.test.py"
+rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.test.sh"
+[ -f "$rigVt" ] || rigRefuse "the terminal of the screen tests is missing: $rigVt"
+[ -f "$rigTools" ] || rigRefuse "the stand-in for the dispatcher is missing: $rigTools"
+rigTmp="$( mktemp -d -t AgentsManagerScreenDialogCheck )" || exit 1
+rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
+trap 'rm -rf -- "$rigTmp"' EXIT
+mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigTools" > "$rigTmp/tools"
+chmod +x "$rigTmp/tools"
+## every dialog the screen declares is open at its start, each after the one before it closes: Esc up to the Free prompt,
+## whose prompt, of several lines, has the keys first; Tab to its name, of one line; Tab to OK; Shift-Tab back to the name
+rigPrompt="$( "$rigPython" -I -B - "$rigScreen" <<'RIGPY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+screen = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(screen)
+print(list(screen.DIALOGS).index("prompt"))
+RIGPY
+)"
+rigSteps="await Dialog message
+cursor message"
+for rigOne in $( seq 1 "$rigPrompt" ) ; do rigSteps="$rigSteps
+keys \\e" ; done
+rigSteps="$rigSteps
+await Dialog prompt
+keys ab
+cursor area
+keys \\t
+keys cd😀
+cursor input
+keys \\t
+cursor button
+keys \\e[Z
+idle 2.5
+cursor again
+signal SIGTERM
+end end
+cursor gone"
+rigCursor(){ ## tag -- whether the cursor shows, the field it stands in, what stands before it there, the button that has the keys
+	printf '%s %s %s %s' "$( rigVal "$1.shown" )" "$( rigVal "$1.field" )" "$( rigVal "$1.before" | LC_ALL=C sed -e 's/^\[//' )" "$( rigVal "$1.focus" )"
+}
+for rigOne in nu-blue tv-system bw-system ; do
+	printf '%s\n' "$rigSteps" > "$rigTmp/steps"
+	rigOut="$( env MANAGER_SCREEN_RIG="$rigTmp/rig" MANAGER_SCREEN_VT_DIALOGS=all MDAT_MANAGER_STYLE="$rigOne" "$rigPython" -I -B "$rigVt" "$rigScreen" run 120 40 "$rigTmp/dump.json" -- \
+		"$rigPython" -I -B "$rigVt" "$rigScreen" inner "$rigTmp/dump.json" -- --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" < "$rigTmp/steps" 2>&1 )"
+	rigAssert "$rigOne: no cursor on the message box's button; in the Free prompt's prompt, of several lines, it shows after what was typed" \
+		"$( rigVal await.Dialog_prompt ) [$( rigCursor message )] [$( rigCursor area )]" "yes [no none  0] [yes 2 ab None]"
+	rigAssert "$rigOne: Tab to its name, of one line: the cursor there, after an emoji typed too, as the emoji is written apart" "[$( rigCursor input )]" "[yes 3 cd😀 None]"
+	rigAssert "$rigOne: Tab to OK: no cursor; Shift-Tab back to the name: there again, and it stays there as the screen draws again" \
+		"[$( rigCursor button )] [$( rigCursor again )] $( rigVal idle.frames | LC_ALL=C sed -e 's/^[1-9][0-9]*$/drawn/' )" "[no none  0] [yes 3 cd😀 None] drawn"
+	rigAssert "$rigOne: at the end, by a signal, the cursor shows again" "$( rigVal end.rc ) $( rigVal gone.shown )" "143 yes"
+	rm -f "$rigTmp/dump.json"
+done
+
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN DIALOG CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
 fi
-printf 'MANAGER_SCREEN_DIALOG: OK (%d assertions, offline, stand-in terminal)\n' "$rigPassCount"
+printf 'MANAGER_SCREEN_DIALOG: OK (%d assertions, offline, stand-in terminal and a pseudo-terminal in each style)\n' "$rigPassCount"

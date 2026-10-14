@@ -430,6 +430,21 @@ POPULATING = "Populating %s..."
 ## carries under "wide", a session the total of its tokens. Shown where a row has that
 ## many cells, and that many cells wide, its figures one under another.
 LIST_WIDE = {"from": 34, "cells": 6}
+## How a state shows where the left pane sets one out, in a cell of a table or as the value
+## of a fact (stateLook): by the words the operations print, the look of what is well, of
+## what to look at, of what is bad, and dim for what is over. A word not named here is
+## drawn as the text around it. STATE_RANKS: the order of those looks, the worst last,
+## which the worst word of a text gives it.
+STATE_LOOKS = {
+    "running": LEVEL_OK, "working": LEVEL_OK, "alive": LEVEL_OK, "present": LEVEL_OK, "ok": LEVEL_OK, "startable": LEVEL_OK,
+    "set": LEVEL_OK, "secret-set": LEVEL_OK,
+    "waiting": LEVEL_WARN, "unclosed": LEVEL_WARN, "paused": LEVEL_WARN, "warn": LEVEL_WARN, "missing": LEVEL_WARN,
+    "secret-missing": LEVEL_WARN, "members": LEVEL_WARN, "not-in-registry": LEVEL_WARN,
+    "fail": LEVEL_BAD, "failed": LEVEL_BAD, "gone": LEVEL_BAD, "broken": LEVEL_BAD, "not-startable": LEVEL_BAD,
+    "no-process": LEVEL_BAD, "session-ended": LEVEL_BAD, "not-present": LEVEL_BAD, "x": LEVEL_BAD,
+    "finished": DIM, "skipped": DIM,
+}
+STATE_RANKS = (DIM, LEVEL_OK, LEVEL_WARN, LEVEL_BAD)
 
 ## The root of the list, in its order: the id of each section and what it shows as.
 SECTIONS = (
@@ -522,6 +537,13 @@ FIXED_ROWS = {
     "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
     "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
 }
+## What each folder of those rows holds, in words, where the left pane sets the folder out
+## among the subjects of its root (digestSummary).
+FOLDER_WORDS = {
+    "checker": "the read-only checks of the installation, run on demand",
+    "keys": "the public keys of this server",
+    "commands": "the commands a console user calls by name",
+}
 ## What the left window shows of a folder, a row that opens a level of its own, while that
 ## row is selected, and while the row that goes up is selected inside it: the summary of
 ## what the folder holds, made from its rows in a form of its kind, by the function
@@ -529,15 +551,14 @@ FIXED_ROWS = {
 ## when the selection comes to stand on it, and not only when it is entered (focusReads),
 ## so its summary is of its real rows; until they have come the window says that it waits
 ## (POPULATING). The other words are that function's own. "counted": the states that are
-## counted first, in this order, whatever the rows hold, and "named" those whose rows are
-## then set out one by one; "few": how many rows are set out at most; "missingFirst": the
+## counted first, in this order, where the rows hold them; "missingFirst": the
 ## lines that are missing stand ahead of the others. A folder that is not listed here
 ## shows what its own row shows: a session its summary, as its mode says.
 SUMMARIES = {
     "dashboard": {"lines": "dashboardSummary"},
-    "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
+    "sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
     "sessions/launch": {"lines": "routinesSummary"},
-    "pending": {"lines": "pendingSummary", "few": 5},
+    "pending": {"lines": "pendingSummary"},
     "team": {"lines": "membersSummary"},
     "places": {"lines": "placesSummary"},
     "consoles": {"lines": "startsSummary"},
@@ -556,7 +577,7 @@ SUMMARIES = {
     **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary"} for storeId, storeLabel in TEAM_DATA_STORES},
     "team/*/permissions": {"lines": "grantsSummary"},
     "team/*/files": {"lines": "filesSummary"},
-    "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
+    "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed")},
     "team/*/help": {"lines": "helpSummary", "chapters": "manuals"},
     "manuals": {"lines": "helpSummary"},
 }
@@ -1276,11 +1297,13 @@ COMMANDS = (
     {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
-    ## the left window's own where it shows the items of a folder of the team data as a
-    ## table: every row of it, or as many as the pane shows again (tableRowsShown)
+    ## the left window's own where it shows the rows of a folder as a table: every row of
+    ## it, or as many as the pane shows again (tableRowsShown); in the levels whose folders
+    ## show so, the root among them
     {"name": "rows", "keys": ("e",), "menu": ("view", 5), "label": "~E~very row or the first", "status": ("All rows", "First rows"), "toggle": "allRows",
      "views": tuple("teamdata/%s" % storeId for storeId, storeLabel in TEAM_DATA_STORES) + tuple("teamdata/%s/*" % storeId for storeId, storeLabel in TEAM_DATA_STORES)
-     + ("team/*", "team/*/files"), "for": "a folder of more rows than the pane shows", "does": ("rows",)},
+     + ("team/*", "team/*/files", "team/*/sessions", "", "sessions", "sessions/launch", "pending", "places", "consoles", "settings", "configuration",
+        "configuration/checker", "configuration/commands"), "for": "a folder of more rows than the pane shows", "does": ("rows",)},
     {"name": "style", "keys": ("I", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
     {"name": "colours", "keys": ("i",), "menu": ("view", 3), "label": "~I~nterface colours: the next", "does": ("colours",)},
     {"name": "kill", "keys": ("k",), "menu": ("session", 1), "label": "~K~ill", "status": "Kill",
@@ -2345,7 +2368,7 @@ def localView(state, row):
         ## the summary of a session and of an agent: its facts, and nothing of its log;
         ## one that has no log has its summary alone, whatever the mode
         if level in ("sessions", "team/*/sessions") and row.get("session"):
-            return sessionLines(row["session"], state.viewWidth, state.view["info"])
+            return sessionLines(row["session"], state.viewWidth, state.view["info"], wrap=state.wrap)
         if level == "sessions/*" and row.get("run"):
             return runLines(row["run"], state.viewWidth, state.view["info"])
     summary = folderSummary(state, row)
@@ -2372,7 +2395,7 @@ def localView(state, row):
     if row.get("line"):
         return settingLines(row["line"], state.viewWidth)
     if row.get("lineGroup"):
-        return groupLines(row["lineGroup"], state.viewWidth)
+        return groupLines(row["lineGroup"], state.viewWidth, state.wrap)
     if row.get("check"):
         return checkLines(row["check"], state.viewWidth)
     if row.get("serverKey"):
@@ -2417,7 +2440,8 @@ def folderSummary(state, row):
     ## a table or one that hangs, was set out to the window by whoever made it
     room = max(10, state.viewWidth - 1)
     return lines and [part for line in lines for part in (
-        wrapToCells(line, room) if textWidth(line) > room and not line.startswith(" ") else [line])]
+        [looked(piece, line.looks[0][2]) if getattr(line, "looks", None) else piece for piece in wrapToCells(line, room)]
+        if textWidth(line) > room and not line.startswith(" ") else [line])]
 
 
 ## A table of a summary, set in by two, in lines of that many cells: the table of the left
@@ -2509,7 +2533,8 @@ TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT}
 ## The kinds of the columns of a table of the left pane: "key", the column a row is known by,
 ## a path, a place, a name, which has its room first; "enum", one of a few known words, a
 ## kind, a status, an access, cut to the start that tells its words apart where room is
-## short, never wrapped; "text", free words, which give way first, wrapped.
+## short, never wrapped; "text", free words, which give way first, wrapped; "whole", a text
+## that is never cut, a public key: as "text", and with the lines not wrapped as wide as it is.
 ## No key or text column is narrowed below its header, nor below TABLE_LEAST cells, nor below
 ## its longest word, where that is no longer than TABLE_WORD_MOST cells; no enum column below
 ## its header, nor below the start of ENUM_PREFIX_LEAST characters, or more, that tells its
@@ -2519,6 +2544,41 @@ TABLE_LEAST = 6
 TABLE_WORD_MOST = 16
 TABLE_CAP = 80
 ENUM_PREFIX_LEAST = 4
+
+
+## The look of a text that is a state, where the left pane shows one: the worst look of its
+## words that STATE_LOOKS names, or None, the look around it.
+def stateLook(text):
+    found = [STATE_LOOKS[word] for word in text.replace(",", " ").replace(";", " ").replace(":", " ").split() if word in STATE_LOOKS]
+    return max(found, key=STATE_RANKS.index) if found else None
+
+
+## Lines `<name>  <value>` of the left pane, a block of facts: set in by a cell, the names
+## padded to the longest of them (FACT_NAME_MOST at most) and dim, each value in the look
+## its pair gives as a third word, where it does, and broken to the pane, going on under
+## itself. An empty value is left out.
+FACT_NAME_MOST = 22
+
+
+def factLines(pairs, width):
+    pairs = [pair for pair in pairs if pair[1]]
+    pad = min(FACT_NAME_MOST, max([textWidth(pair[0]) for pair in pairs] + [0]))
+    lines = []
+    for pair in pairs:
+        name = pair[0]
+        parts = wrapToCells(pair[1], max(10, width - max(pad, textWidth(name)) - 4))
+        at = 1 + max(pad, textWidth(name)) + 2
+        for number, part in enumerate(parts):
+            line = Looked(" " + (name + " " * (pad - textWidth(name)) if not number else " " * max(pad, textWidth(name))) + "  " + part)
+            line.looks = ([(1, textWidth(name), DIM)] if not number else []) + (
+                [(at, textWidth(part), pair[2])] if len(pair) > 2 and pair[2] is not None else [])
+            lines.append(line)
+    return lines
+
+
+## A heading of a part of a summary of the left pane, under a blank line.
+def headingLines(text):
+    return ["", looked(text, TABLE_LOOKS["heading"])]
 
 
 ## The least cells of an enum column: the start of its words that tells them apart, with
@@ -2544,13 +2604,15 @@ def enumLeast(values):
 ## TABLE_CAP. `kinds`: the kind of each column (the first a key, the others text, where not
 ## given). A row is a list of words, or a text alone for the heading of a group; `icons`, one
 ## for each row, stand in a place of their own ahead of it, never wrapped; `numbered` puts
-## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS). Each line of a
+## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS);
+## `looks`, one for each row, gives a look of its own to each cell that has one (None: the
+## row's), a state in its colour (stateLook). Each line of a
 ## row carries its header (`stick`), which stays over the rows when it has gone up out of
 ## the pane (drawLinesBody).
-def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False):
+def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ", numbered=False, looks=None):
     kinds = list(kinds or ["key"] + ["text"] * (len(heads) - 1))
     words = [row for row in rows if not isinstance(row, str)]
-    natural = [min(TABLE_CAP, max([textWidth(head)] + [textWidth(row[index]) for row in words])) for index, head in enumerate(heads)]
+    natural = [(lambda most: most if kinds[index] == "whole" else min(TABLE_CAP, most))(max([textWidth(head)] + [textWidth(row[index]) for row in words])) for index, head in enumerate(heads)]
     least = [min(natural[index], max(textWidth(head), enumLeast([row[index] for row in words]) if kinds[index] == "enum" else max(
         TABLE_LEAST, min(TABLE_WORD_MOST, max([textWidth(word) for row in words for word in row[index].split()] + [0])))))
         for index, head in enumerate(heads)]
@@ -2560,7 +2622,7 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     def fit(count):
         widths = natural[:count]
         over = (numberWidth + 1 if numbered else 0) + (iconWidth + 1 if iconWidth else 0) + sum(widths) + count - 1 - (width - len(indent))
-        for kind in ("text", "enum", "key"):
+        for kind in ("text", "whole", "enum", "key"):
             while over > 0:
                 giving = [index for index in range(count) if kinds[index] == kind and widths[index] > least[index]]
                 if not giving:
@@ -2577,12 +2639,24 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     if wrap and over < 0 and shown < len(heads):
         widths[shown - 1] -= over
 
-    def rowLines(cells, icon, look, count=""):
+    lead = textWidth(indent) + (numberWidth + 1 if numbered else 0) + (iconWidth + 1 if iconWidth else 0)
+
+    def rowLines(cells, icon, look, count="", colours=None):
         parts = [(textwrap.wrap(cells[index], widths[index]) if wrap and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
-        return [looked(indent + ((count if not number else "").rjust(numberWidth) + " " if numbered else "")
-                       + (cutToCells(icon if not number else "", iconWidth) + " " if iconWidth else "") + " ".join(
+        lines = [looked(indent + ((count if not number else "").rjust(numberWidth) + " " if numbered else "")
+                        + (cutToCells(icon if not number else "", iconWidth) + " " if iconWidth else "") + " ".join(
             cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look)
             for number in range(max(len(part) for part in parts))]
+        ## a cell of its own look over the look of its row, as far as its words go
+        for index in range(shown if colours else 0):
+            if colours[index] is None:
+                continue
+            start = lead + sum(widths[:index]) + index
+            for number, line in enumerate(lines):
+                cells = textWidth(cutToCells(parts[index][number], widths[index]).rstrip()) if number < len(parts[index]) else 0
+                if cells:
+                    line.looks.append((start, cells, colours[index]))
+        return lines
 
     head = rowLines(list(heads), "", TABLE_LOOKS["head"], "#")
     blocks = []
@@ -2594,7 +2668,8 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
             alternate = False
         else:
             counted += 1
-            blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted)))
+            blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted),
+                                   looks[index] if looks else None))
             alternate = not alternate
         for line in blocks[-1]:
             line.stick = head[0]
@@ -2605,11 +2680,13 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
 ## rows as the pane has room for under the lines above it, then a line that says how many
 ## more there are; every row while `e` shows them all. How many show where not all of
 ## them do stands in the view, for the title and for `e` (tableRowsShown).
-def tableSummaryLines(state, lines, heads, rows, kinds=None):
+def tableSummaryLines(state, lines, heads, rows, kinds=None, icons=None, looks=None, numbered=False):
     room = max(10, state.viewWidth - 1)
     above = sum(len(wrapToCells(line, room)) if textWidth(line) > room and not line.startswith(" ") else 1 for line in lines)
     height = state.viewHeight - (1 if itemKeysText(state) else 0) - len(state.view["head"]) - above - 1
-    head, blocks = paneTable(heads, rows if state.allRows else rows[:max(1, height)], state.viewWidth - 1, wrap=state.wrap, kinds=kinds)
+    taken = len(rows) if state.allRows else max(1, height)
+    head, blocks = paneTable(heads, rows[:taken], state.viewWidth - 1, icons=icons[:taken] if icons else None, wrap=state.wrap, kinds=kinds,
+                             numbered=numbered, looks=looks[:taken] if looks else None)
     used = shown = 0
     for block in blocks:
         if used + len(block) > height:
@@ -3059,47 +3136,37 @@ def readCounters(form, text):
     return {}
 
 
-## The selected ask, whole, for the left pane: its kind, who asks and of whom, since when,
-## whether its asker is alive, its asking session and item, where it was posted, and its
-## question as far as the read prints it, which is its first line, each broken to the
-## width of the pane. The read prints no
-## option of a decision and no entry of a permission set: once an operation prints them
-## they show here, under their own names. Its keys answer it from here (askAnswer).
+## The selected ask, whole, for the left pane: its kind and how long it waits as its head;
+## its question first, as far as the read of the list prints it, which is its first line;
+## then as facts who asks and of whom, since when, whether its asker is alive, in its
+## colour, its status and its item, the other fields of its row, and its id last. Where it
+## was posted and the asking session are left out: they tell nobody anything here. The
+## read prints no option of a decision and no entry of a permission set: once an operation
+## prints them they show here, under their own names. Its keys answer it from here (askAnswer).
 ## The read of that one ask by its id gives what the stores hold of it: once it has come,
 ## the whole question, its options, its entries, its fields and its diff stand in the
 ## place of the first line (storedLines).
 def askLines(ask, width, stored=None):
     values = ask["values"]
     kind = values.get("kind", "")
-    lines = [" ".join(word for word in (ASK_KIND_MARKS.get(kind, ""), kind or "ask", values.get("question-tag", "")) if word), ""]
     age = ageText(askedEpoch(values), nowEpoch())
-    live = values.get("asker-live", "")
-    setOut = [
-        ("asked by", values.get("owner", "")),
-        ("asked of", values.get("address-to", "")),
-        ("asked at", values.get("asked-at", "") + (" (%s ago)" % age if age else "")),
-        ("asker", live + (": " + ASKER_WORDS[live] if live in ASKER_WORDS else "")),
-        ("session", values.get("session-id", "")),
-        ("item", values.get("item", "")),
-        ("posted", "channel %s, thread %s, message %s" % (
-            values.get("channel", "-"), values.get("thread-ts", "-"), values.get("question-ts", "-"))),
-        ("status", values.get("status", "")),
-        ("ask", ask["id"]),
-    ]
-    setOut.extend((name, value) for name, value in ask["fields"] if name not in ASK_FIELDS_SET_OUT)
-    for name, value in setOut:
-        if value:
-            parts = wrapToCells(value, max(10, width - 11))
-            lines.append("%-9s %s" % (name, parts[0]))
-            lines.extend(" " * 10 + part for part in parts[1:])
-    lines.append("")
+    lines = [looked(" ".join(word for word in (ASK_KIND_MARKS.get(kind, ""), kind or "ask", values.get("question-tag", ""),
+                                               "waits " + age if age else "") if word), BOLD), ""]
     if stored and stored["id"] == ask["id"] and stored["stored"]:
         lines.extend(storedLines(stored["stored"], width))
     else:
-        lines.append("question, its first line:")
+        lines.append(looked("question, its first line:", TABLE_LOOKS["heading"]))
         lines.extend(wrapToCells(values.get("question", ""), max(10, width - 1)))
+    live = values.get("asker-live", "")
     lines.append("")
-    lines.append("an ask is answered where it was posted, or from here by its keys")
+    lines.extend(factLines([
+        ("asked by", values.get("owner", "")),
+        ("asked of", values.get("address-to", "")),
+        ("asked at", values.get("asked-at", "") + (" (%s ago)" % age if age else "")),
+        ("asker", live + (": " + ASKER_WORDS[live] if live in ASKER_WORDS else ""), stateLook(live)),
+        ("status", values.get("status", "")),
+        ("item", values.get("item", "")),
+    ] + [(name, value) for name, value in ask["fields"] if name not in ASK_FIELDS_SET_OUT] + [("ask", ask["id"])], width))
     return lines
 
 
@@ -3133,8 +3200,8 @@ def parseAskStored(text):
 ## what else the post was filled with, each under the name of its slot; the entries of a
 ## permission set, numbered, and its own fields; the refused call of a permission; a held
 ## change, its diff last and as it is; what its thread added; how it was first asked; a
-## verdict noted; the post itself where it was not the question above; and last the other
-## fields of its record.
+## verdict noted; and the post itself where it was not the question above. The other
+## fields of its record are left out: the facts under it say what of them matters.
 def storedLines(stored, width):
     room = max(10, width - 1)
     lines = []
@@ -3145,7 +3212,7 @@ def storedLines(stored, width):
     def block(title, texts, numbered=False, exact=False):
         if lines and lines[-1] != "":
             lines.append("")
-        lines.append(title + ":")
+        lines.append(looked(title + ":", TABLE_LOOKS["heading"]))
         for number, text in enumerate(texts, 1):
             if exact:
                 lines.append(text.expandtabs(4))
@@ -3193,22 +3260,15 @@ def storedLines(stored, width):
     parts("answer-noted-", "answer noted ")
     if "field-question" in held and "posted" in held:
         block("as posted", held["posted"])
-    record = [(name, texts) for name, texts in stored if name != "posted" and name != "option" and name != "clarification"
-              and not name.startswith(("field-", "set-", "refused-", "change-", "first-", "answer-noted-"))]
-    if record:
-        if lines and lines[-1] != "":
-            lines.append("")
-        lines.append("its record:")
-        for name, texts in record:
-            part(name, texts)
     return lines
 
 
 ## What `Pending Questions` holds, for the left pane while the section itself or the row
-## that goes up is selected: how many wait, how many of those have no asker any more, for
-## whom they are, the most first, and which is the oldest; then the oldest few, each with
-## how long it waits, who asks whom, and under that its question. None until its read has
-## answered.
+## that goes up is selected: as its caption how many wait, for whom, the most first, how
+## long the oldest waits, and how many have no asker any more; then every ask of the list,
+## in its order, as a table (tableSummaryLines): how long it waits, the mark and the word
+## of its kind, who asks, in the colour of a gone asker where it is gone, of whom, and its
+## question. None until its read has answered.
 def pendingSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -3216,31 +3276,21 @@ def pendingSummary(state, path, row, form):
     asks = [held["ask"]["values"] for held in rows if held.get("ask")]
     count = len(asks)
     if count == 0:
-        return ["Nothing waits for an answer."]
-    width = max(10, state.viewWidth - 1)
+        return [looked("Nothing waits for an answer.", BOLD)]
     gone = len([values for values in asks if values.get("asker-live") in ASKER_GONE])
-    lines = ["%d ask%s for an answer." % (count, " waits" if count == 1 else "s wait")]
-    if gone:
-        lines.append("%d of them %s asked by a run that is gone (%s in the list): nobody is there to take the answer." % (
-            gone, "was" if gone == 1 else "were", MARK_GONE))
     whom = {}
     for values in asks:
         whom[values.get("address-to", "-")] = whom.get(values.get("address-to", "-"), 0) + 1
-    lines.append("They are for: %s." % ", ".join(
-        "%s %d" % pair for pair in sorted(whom.items(), key=lambda pair: (-pair[1], pair[0]))))
     now = nowEpoch()
-    aged = sorted(asks, key=lambda values: askedEpoch(values) if askedEpoch(values) is not None else now)
-    lines.append("The oldest waits %s: %s asks %s." % (
-        ageText(askedEpoch(aged[0]), now) or "-", aged[0].get("owner", "-"), aged[0].get("address-to", "-")))
-    few = aged[:form["few"]]
-    head, blocks = paneTable(("AGE", "WHO ASKS", "WHOM"), [
-        [ageText(askedEpoch(values), now) or "-", values.get("owner", "-"), values.get("address-to", "-")] for values in few],
-        max(10, state.viewWidth - 1), wrap=state.wrap, indent="  ")
-    lines.extend(["", "by age, the oldest first%s" % ("" if len(few) == count else ", %d of them" % len(few))] + head)
-    for values, block in zip(few, blocks):
-        lines.extend(block)
-        lines.extend("      " + part for part in wrapToCells(values.get("question", ""), max(10, width - 6)) if part)
-    return lines
+    oldest = min([askedEpoch(values) for values in asks if askedEpoch(values) is not None] or [None], key=lambda epoch: epoch or now)
+    lines = [looked("%d ask%s: for %s; the oldest %s%s." % (
+        count, " waits" if count == 1 else "s wait", ", ".join("%s %d" % pair for pair in sorted(whom.items(), key=lambda pair: (-pair[1], pair[0]))),
+        ageText(oldest, now) or "-", "; %d asker%s gone (%s)" % (gone, "" if gone == 1 else "s", MARK_GONE) if gone else ""), BOLD), ""]
+    return tableSummaryLines(state, lines, ("AGE", "KIND", "FROM", "TO", "QUESTION"), [
+        [ageText(askedEpoch(values), now) or "-", values.get("kind", "-"), values.get("owner", "-"), values.get("address-to", "-"),
+         values.get("question", "") or "-"] for values in asks], ("text", "enum", "text", "text", "key"),
+        icons=[ASK_KIND_MARKS.get(values.get("kind"), "") for values in asks],
+        looks=[[None, None, stateLook(MARK_GONE) if values.get("asker-live") in ASKER_GONE else None, None, None] for values in asks])
 
 
 ## ---- the sessions and their agents ----
@@ -3368,26 +3418,22 @@ def controlText(session, info=None):
     return thread + "; " + stored
 
 
-## The selected session for the left pane, from its row and the rows of its runs:
-## its state, when it started and ended, how many agents it has and in which states, and
-## each agent with its state and since when it runs, or until when it ran. Once the read
-## of that one session has come (info), also its dispatch: what it was started for, by
-## whom, the routine and the item, and its two threads; and its agents as that read has
-## them. Within a limit of lines its id and its threads go first; then, of its agents,
-## those that are alive stay, then the latest, above one line that counts the rest.
-def sessionLines(session, width, info=None, limit=0):
-    tally = ", ".join("%s %s" % (part.partition("=")[2], part.partition("=")[0])
-                      for part in session["tally"].split(",") if "=" in part)
-    lines = ["one lone run with no name", ""] if session["lone"] else []
+## The selected session for the left pane, from its row and the rows of its runs: its
+## name, or that it is one lone run with no name, then its facts, its state and that of its
+## control thread in their colours, when it started and ended; its agents as a table, each
+## with its state and since when it runs, or until when it ran. Once the read of that one
+## session has come (info), also its tokens, by whom and for what it was founded, and the
+## text of its dispatch, and its agents as that read has them. Its id stands last.
+def sessionLines(session, width, info=None, limit=0, wrap=True):
+    control = controlText(session, info)
+    lines = [looked(session["name"] or ("one lone run with no name" if session["lone"] else session["id"]), BOLD)]
     pairs = [
-        ("state", session["state"]),
-        ("control", controlText(session, info)),
+        ("state", session["state"], stateLook(session["state"])),
+        ("control", control, stateLook(control.partition(";")[0])),
         ("started", registryDate(session["started"])),
         ("ended", registryDate(session["stateAt"])),
-        ("agents", "%s: %s" % (session["count"], tally) if tally else session["count"]),
         ("tokens", tokensText(info["tokens"]) if info and info.get("tokens") else ""),
     ]
-    more = [("session", session["id"])]
     dispatch = info["dispatch"] if info else None
     if dispatch:
         if dispatch["founder"] == "no-record":
@@ -3397,14 +3443,12 @@ def sessionLines(session, width, info=None, limit=0):
                 "by " + dispatch["member"] if dispatch["member"] else "",
                 "routine " + dispatch["routine"] if dispatch["routine"] else "",
                 "item " + dispatch["item"] if dispatch["item"] else "") if word)))
-        more.append(("threads", ", ".join(word for word in (
-            "session " + dispatch["sessionThread"] if dispatch["sessionThread"] else "",
-            "tracking " + dispatch["trackingThread"] if dispatch["trackingThread"] else "") if word)))
     runs = info["runs"] if info and info["runs"] else session["runs"]
-    lines.extend(fieldLines(pairs, width) + fieldLines(more, width))
-    lines.append("")
-    lines.extend(agentsTable(runs, width))
+    lines.extend(factLines(pairs, width))
+    if runs:
+        lines.extend(headingLines("Agents") + agentsTable(runs, width, wrap))
     lines.extend(dispatchLines(dispatch, width))
+    lines.extend([""] + factLines([("session", session["id"])], width))
     return lines
 
 
@@ -3423,44 +3467,45 @@ def tokensText(tokens):
         TOKEN_TOTALS.get(tokens["total"], tokens["total"]), left)
 
 
-## The columns of the table of the agents of a session, and what of a run stands in each:
-## the member always shows, and those after it in this order while the window has room.
+## The columns of the table of the agents of a session, what of a run stands in each, and
+## the kind of each (paneTable). A column no agent has a word for is left out.
 AGENT_COLUMNS = (
-    ("MEMBER", lambda run, store: run["member"]),
-    ("STATE", lambda run, store: runStateText(run)),
-    ("SINCE", lambda run, store: unspaced(run["started"]) if run["resolved"] == "-" else "until " + unspaced(run["resolved"])),
+    ("MEMBER", lambda run, store: run["member"], "key"),
+    ("STATE", lambda run, store: runStateText(run), "enum"),
+    ("SINCE", lambda run, store: unspaced(run["started"]) if run["resolved"] == "-" else "until " + unspaced(run["resolved"]), "text"),
     ("TOKENS", lambda run, store: shortCount(str(sum(int(store[name]) for name in ("in", "cacheRead", "cacheWrite", "out"))))
-     if all(store.get(name, "").isdigit() for name in ("in", "cacheRead", "cacheWrite", "out")) else ""),
-    ("CLI", lambda run, store: (run.get("headers") or {}).get("cli", "")),
-    ("MODEL", lambda run, store: unspaced(store.get("model", "-"))),
+     if all(store.get(name, "").isdigit() for name in ("in", "cacheRead", "cacheWrite", "out")) else "", "text"),
+    ("CLI", lambda run, store: (run.get("headers") or {}).get("cli", ""), "enum"),
+    ("MODEL", lambda run, store: unspaced(store.get("model", "-")), "text"),
 )
 
 
-## The agents of a session as a table under a header, in the manner of the members' table
-## and by its rule: a column that does not fit is left out whole, never cut.
-def agentsTable(runs, width):
-    words = [[column[1](run, run.get("store") or {}) or "-" for column in AGENT_COLUMNS] for run in runs]
-    table = {"heads": [column[0] for column in AGENT_COLUMNS], "iconWidth": 0,
-             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
-                        for index, column in enumerate(AGENT_COLUMNS)]}
-    return [tableLineText(table, [""] + line, max(10, width - 1)) for line in [table["heads"]] + words]
+## The agents of a session as a table of the left pane (paneTable), each state in its colour.
+def agentsTable(runs, width, wrap=True):
+    words = [[column[1](run, run.get("store") or {}) for column in AGENT_COLUMNS] for run in runs]
+    shown = [index for index, column in enumerate(AGENT_COLUMNS) if any(line[index] for line in words)]
+    head, blocks = paneTable([AGENT_COLUMNS[index][0] for index in shown], [[line[index] or "-" for index in shown] for line in words],
+                             max(10, width - 1), wrap=wrap, kinds=[AGENT_COLUMNS[index][2] for index in shown],
+                             looks=[[stateLook(line[index]) if AGENT_COLUMNS[index][0] == "STATE" else None for index in shown] for line in words])
+    return head + [line for block in blocks for line in block]
 
 
-## What a session was started with, as far as its read gives it, under a line of its
+## What a session was started with, as far as its read gives it, under a heading of its
 ## own: the text of its dispatch, whole, broken to the window.
 def dispatchLines(dispatch, width):
     if not dispatch or dispatch["founder"] == "no-record" or not dispatch["description"].strip():
         return []
-    lines = ["", "dispatch"]
+    lines = headingLines("Dispatch")
     for paragraph in dispatch["description"].split("\n"):
         lines.extend(wrapToCells(paragraph, max(10, width - 1)) if paragraph.strip() else [""])
     return lines
 
 
-## The selected agent of a session for the left pane, from its row; once the read of that
-## one run has come (info), also what it waits on while it is alive, its open asks, its
-## model and its token counts, its last milestone and its marks. Within a limit of lines
-## the last ones go.
+## The selected agent of a session for the left pane, from its row, as facts, its state
+## and its process in their colours; once the read of that one run has come (info), also
+## what it waits on while it is alive, its open asks, its model and its token counts, its
+## last milestone and its marks. Its session is the folder it stands in, and not said again.
+## Within a limit of lines the last ones go.
 def runLines(run, width, info=None, limit=0):
     told = info["bySpawn"].get(run["spawn"]) if info else None
     store = told["store"] if told and told["store"] else {}
@@ -3468,8 +3513,8 @@ def runLines(run, width, info=None, limit=0):
     run = told or run
     asks = [one for one in store.get("asks", "-").split(",") if one and one != "-"]
     milestoneAge = ageText(isoEpoch(store.get("milestoneAt", "")), nowEpoch())
-    lines = fieldLines([
-        ("state", runStateText(run)),
+    lines = factLines([
+        ("state", runStateText(run), stateLook(runStateText(run))),
         ("status", unspaced(run["status"])),
         ("process", unspaced(run["live"])),
         ("started", registryDate(run["started"])),
@@ -3485,7 +3530,6 @@ def runLines(run, width, info=None, limit=0):
         ("host", unspaced(run["host"])),
         ("workspace", unspaced(run["workspace"])),
         ("run", unspaced(run["spawn"])),
-        ("session", run["session"]),
     ], width)
     lines.extend(dispatchLines(info.get("dispatch") if info else None, width))
     return lines[:limit] if limit else lines
@@ -3670,11 +3714,14 @@ def feedLines(feed, width):
 
 ## The lines of the pane are set out from its feed, at the width the pane has now. A pane
 ## that was scrolled up stays on the entry that stood at its top, wherever that now is.
+## Its lines are drawn in the looks of what they are (lineLook): none that the summary of
+## the item carried stays on them.
 @onShownLevel
 def buildFeed(state, row):
     view = state.view
     held = view["lineKeys"][view["top"]] if not view["follow"] and view["top"] < len(view["lineKeys"]) else None
     view["lines"], view["lineKeys"] = feedLines(view["feed"], state.viewWidth)
+    view["looks"] = {}
     view["built"] = (state.viewWidth, state.viewMode)
     if held is not None:
         places = [position for position, key in enumerate(view["lineKeys"]) if key == held]
@@ -4275,11 +4322,12 @@ def membersText(session):
 
 
 ## What `Sessions (Activity)` holds, for the left pane while the section itself or the row
-## that goes up is selected: how many sessions, by their states, those its declaration
-## counts first (SUMMARIES) and then every other state the rows hold; the counters of the
-## workspace; then, state by state as it names them, the sessions one by one, each with
-## its agents, its tokens and the members that run in it; and last how many have a
-## control thread that is gone. None until its read has answered.
+## that goes up is selected: as its caption how many sessions, by the states the rows hold,
+## those its declaration counts first (SUMMARIES) ahead of the others, and the agents of the
+## workspace working and waiting; then every session of the list, in its order, as a table
+## (tableSummaryLines): its state in its colour, with the mark of a control thread that is
+## gone, how long ago it started, how many agents, its tokens and the members that run in
+## it. None until its read has answered.
 def sessionsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -4288,24 +4336,19 @@ def sessionsSummary(state, path, row, form):
     counts = {}
     for one in held:
         counts[one["session"]["state"]] = counts.get(one["session"]["state"], 0) + 1
-    states = list(form["counted"]) + [name for name in counts if name not in form["counted"]]
-    lines = ["%d %ssession%s%s." % (len(held), "active " if state.activeOnly else "", "" if len(held) == 1 else "s",
-                                    ": " + ", ".join("%d %s" % (counts.get(name, 0), name) for name in states) if held else "")]
+    states = [name for name in form["counted"] if name in counts] + [name for name in counts if name not in form["counted"]]
+    caption = "%d %ssession%s%s" % (len(held), "active " if state.activeOnly else "", "" if len(held) == 1 else "s",
+                                    ": " + ", ".join("%d %s" % (counts[name], name) for name in states) if held else "")
     if "running" in state.counters:
-        lines.append("In the workspace: sessions %s running, %s paused; agents %s working, %s waiting." % tuple(
-            state.counters.get(name, "-") for name in COUNTER_NAMES[:4]))
-    for name in form["named"]:
-        named = [one for one in held if one["session"]["state"] == name]
-        if not named:
-            continue
-        lines.extend(["", name] + summaryTable(("SESSION", "AGENTS", "TOKENS", "MEMBERS"), [
-            [one["label"], agentsText(one["session"]), tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-",
-             membersText(one["session"]) or "-"] for one in named], state.viewWidth))
-    gone = len([one for one in held if one["session"].get("control") == "gone"])
-    if gone:
-        lines.extend(([""] if len(lines) > 2 else []) + ["%s a control thread that is gone (%s in the list)." % (
-            "1 session has" if gone == 1 else "%d sessions have" % gone, MARK_GONE)])
-    return lines
+        caption += "; agents %s working, %s waiting" % (state.counters.get("working", "-"), state.counters.get("waiting", "-"))
+    lines = [looked(caption + ".", BOLD)]
+    if not held:
+        return lines
+    now = nowEpoch()
+    return tableSummaryLines(state, lines + [""], ("SESSION", "STATE", "AGE", "AGENTS", "TOKENS", "MEMBERS"), [
+        [one["label"], one["tail"], ageText(registryEpoch(one["session"]["started"]), now) or "-", one["session"]["count"],
+         tokensShort(one["session"]["tokens"]) if one["session"].get("tokens") else "-", membersText(one["session"]) or "-"] for one in held],
+        ("key", "enum", "text", "text", "text", "text"), looks=[[None, stateLook(one["tail"])] + [None] * 4 for one in held])
 
 
 ## ---- the routines to start by hand: `Launch / Spawn` ----
@@ -4359,21 +4402,24 @@ def parseRoutineRows(text):
     return rows
 
 
-## The selected routine for the left pane, from its row: its file, the member that owns
-## it, its title, who runs it, the kind of its session, and whether Enter starts it:
-## under which name, or why not.
+## The word of a routine's start: the one the list prints of it, or `members` for one that
+## is started with members named.
+def routineStart(routine):
+    return "members" if routineAsksMembers(routine) else routine["start"]
+
+
+## The selected routine for the left pane, from its row: its title, then as facts its file,
+## the member that owns it, who runs it, the kind of its session, and whether it is started
+## here, in its colour: under which name, or why not.
 def routineLines(routine, width):
     startable = routine["start"] == "startable"
-    return fieldLines([
+    return ([looked(routine["title"], BOLD)] if routine["title"] else []) + factLines([
         ("routine", routine["selector"]),
         ("owner", routine["owner"]),
-        ("title", routine["title"]),
         ("executors", routine["executors"]),
         ("session", "coworking: the spawner adds magic-coordinator to it" if routine["session"] == "coworking" else routine["session"]),
-        ("start", "Enter starts it, as its executors, whoever is at the console" if startable
-         else "Enter asks for the members to start it with, in one session" if routineAsksMembers(routine)
-         else "%s: Enter does not start it" % routine["start"]),
-        ("name", "%s, the name its session takes unless another is typed" % routine["name"] if startable else ""),
+        ("start", routineStart(routine) + (": its members are asked for" if routineAsksMembers(routine) else ""), stateLook(routineStart(routine))),
+        ("name", "%s, unless another is typed" % routine["name"] if startable else ""),
         ("why", "" if startable else routine["reason"]),
     ], width)
 
@@ -4388,10 +4434,11 @@ def freePromptLines(width):
 
 
 ## What `Launch / Spawn` holds, for the left pane while the row that goes up is selected
-## there, or its own row in the list of the sessions: how many routines, how many of them
-## Enter starts here, how many it starts once members are named, and how many it does not
-## start; then those, under the one word the operation says of each, by their names. None
-## until its read has answered.
+## there, or its own row in the list of the sessions: as its caption how many routines, how
+## many of them are started here, how many once members are named, and how many are not;
+## then every routine of the list, in its order, as a table (tableSummaryLines): its name,
+## the name its session takes, its start in its colour, its owner, its title, and the kind of
+## its session where any routine names one. None until its read has answered.
 def routinesSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
@@ -4399,18 +4446,15 @@ def routinesSummary(state, path, row, form):
     routines = [held["routine"] for held in rows if held.get("routine")]
     startable = [routine for routine in routines if routine["start"] == "startable"]
     asking = [routine for routine in routines if routineAsksMembers(routine)]
-    others = [routine for routine in routines if routine not in startable and routine not in asking]
-    lines = ["%d routine%s: %d can be started here, %d with members named, %d cannot." % (
-        len(routines), "" if len(routines) == 1 else "s", len(startable), len(asking), len(others))]
-    words = []
-    for routine in others:
-        if routine["start"] not in words:
-            words.append(routine["start"])
-    for word in words:
-        lines.extend(hangLines("%s: %s" % (word, ", ".join(routine["label"] for routine in others if routine["start"] == word)), state.viewWidth))
-    if asking:
-        lines.extend(hangLines("members: %s" % ", ".join(routine["label"] for routine in asking), state.viewWidth))
-    return lines
+    lines = [looked("%d routine%s: %d start here, %d with members named, %d cannot." % (
+        len(routines), "" if len(routines) == 1 else "s", len(startable), len(asking), len(routines) - len(startable) - len(asking)), BOLD)]
+    if not routines:
+        return lines
+    sessions = any(routine["session"] for routine in routines)
+    return tableSummaryLines(state, lines + [""], ("ROUTINE", "START", "OWNER", "TITLE") + (("SESSION",) if sessions else ()), [
+        [routine["name"], routineStart(routine), routine["owner"] or "-", routine["title"] or "-"] + ([routine["session"] or "-"] if sessions else [])
+        for routine in routines], ("key", "enum", "text", "text", "enum"),
+        looks=[[None, stateLook(routineStart(routine)), None, None, None] for routine in routines])
 
 
 ## ---- the dialogs ----
@@ -6131,7 +6175,7 @@ SUBJECT_WORDS = {
 }
 ## What each root of the digest holds, in words, under the counts of its summary.
 ROOT_WORDS = {
-    "settings": "What a user sets for himself, and what is changed while the workspace runs. Enter opens a subject, and Enter on a setting inside it changes that setting.",
+    "settings": "What a user sets for himself, and what is changed while the workspace runs.",
     "configuration": "What was set when the workspace was deployed and configured. For viewing: nothing of it is changed from here, a wizard will change it later.",
 }
 ## What each <source> of a line shows as, after its value: where the value comes from.
@@ -6304,68 +6348,72 @@ def digestWords(subjectName, line):
     return valueWords(subjectName, line) + (", " + SOURCE_WORDS.get(line["source"], line["source"]) if line.get("source") else "")
 
 
-## The selected subject of the digest for the left pane: what it holds, how many lines
-## and how many of them missing, then its lines group by group, each group under a line of
-## its own: the mark of a missing one, its label, what it reads as, and after that its
-## key, the detail, where its label is not the key. A subject and a line with no label
-## show by the name and the key. Where the missing ones stand first (SUMMARIES), they are
-## the first group, under a line that says so, each with its own group in its detail, and
-## the groups after it hold the others. Under the lines, what Enter does: it opens the subject.
-def subjectLines(subject, width, missingFirst=False):
-    words = SUBJECT_WORDS.get(subject["name"], "")
-    ahead = [line for line in subject["lines"] if line["state"] in STATES_MISSING]
-    missing = len(ahead)
-    lines = wrapToCells((subject.get("label") or subject["name"]) + (": " + words if words else ""), max(10, width - 1))
-    lines.append("%s%d line%s%s" % ("subject %s, " % subject["name"] if subject.get("label") else "",
-                                   len(subject["lines"]), "" if len(subject["lines"]) == 1 else "s",
-                                   ", %d missing, each marked %s" % (missing, MARK_MISSING) if missing else ""))
+## The caption of lines of the digest: what they are, how many, and how many of them missing.
+def digestCaption(label, lines):
+    missing = len([line for line in lines if line["state"] in STATES_MISSING])
+    return looked("%s: %d line%s%s." % (label, len(lines), "" if len(lines) == 1 else "s", ", %d missing" % missing if missing else ""), BOLD)
+
+
+## Lines of the digest as the rows of a table of the left pane, group by group, each group
+## under a heading of its own where there is more than one: each line by its label, what it
+## reads as, a missing one in its colour, where its value comes from, and its key where its
+## label is not the key. A line with no label shows by its key. Where the missing ones stand
+## first (SUMMARIES) they are the first group, each with its own group after its key. Gives
+## the heads, the rows, the kinds and the looks, a column no line has a word for left out.
+def digestTable(subjectName, lines, missingFirst=False):
+    ahead = [line for line in lines if line["state"] in STATES_MISSING] if missingFirst else []
     groups = []
-    for line in subject["lines"]:
-        if missingFirst and line["state"] in STATES_MISSING:
+    for line in lines:
+        if line in ahead:
             continue
         if not groups or groups[-1][0] != line["group"]:
             groups.append((line["group"], []))
         groups[-1][1].append(line)
-    if missingFirst and ahead:
+    if ahead:
         groups.insert(0, (None, ahead))
-    for group, groupLines in groups:
-        lines.extend(["", "missing, first" if group is None else group or "-"])
-        keyWidth = min(34, max(textWidth(line.get("label") or line["key"] or "-") for line in groupLines))
-        for line in groupLines:
-            key = line.get("label") or line["key"] or ("no scope" if subject["name"] == "systems" else "-")
-            detail = "  (%s)" % line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
-            if group is None and line["group"]:
-                detail += "  in %s" % line["group"]
-            lines.extend(hangLines("%s %s  %s%s" % (
-                MARK_MISSING if line["state"] in STATES_MISSING else " ",
-                key + " " * max(0, keyWidth - textWidth(key)), digestWords(subject["name"], line), detail), width))
-    lines.extend(["", "Enter opens it: its lines one by one, each with what it is and whether it is changed from here."])
-    return lines
+    heads = ("SETTING", "VALUE", "SOURCE", "KEY")
+    rows = []
+    looks = []
+    for group, members in groups:
+        if len(groups) > 1:
+            rows.append("missing, first" if group is None else group or "-")
+            looks.append(None)
+        for line in members:
+            key = line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
+            rows.append([line.get("label") or line["key"] or ("no scope" if subjectName == "systems" else "-"),
+                         valueWords(subjectName, line), line.get("source") or "",
+                         (key + (" in %s" % line["group"] if group is None and line["group"] else "")).strip()])
+            looks.append([None, LEVEL_WARN if line["state"] in STATES_MISSING else None, None, None])
+    shown = [index for index in range(len(heads)) if index < 2 or any(row[index] for row in rows if not isinstance(row, str))]
+    rows = [row if isinstance(row, str) else [row[index] or "-" for index in shown] for row in rows]
+    looks = [look if look is None else [look[index] for index in shown] for look in looks]
+    return [heads[index] for index in shown], rows, [("key", "text", "enum", "text")[index] for index in shown], looks
+
+
+## The selected subject of the digest for the left pane: its label, how many lines and how
+## many of them missing as its caption, what it holds in words, dim, and its lines as a
+## table (digestTable), as many as the pane shows, or every row while `e` shows them all.
+def subjectLines(state, subject, missingFirst=False):
+    words = SUBJECT_WORDS.get(subject["name"], "")
+    lines = [digestCaption(subject.get("label") or subject["name"], subject["lines"])] + ([looked(words, DIM)] if words else []) + [""]
+    heads, rows, kinds, looks = digestTable(subject["name"], subject["lines"], missingFirst)
+    return tableSummaryLines(state, lines, heads, rows, kinds, looks=looks)
 
 
 ## A subject of the digest as a folder: its lines, as its row shows them, in the form its
 ## root declares.
 def subjectSummary(state, path, row, form):
-    return subjectLines(row["subject"], state.viewWidth, form.get("missingFirst", False)) if row.get("subject") else None
+    return subjectLines(state, row["subject"], form.get("missingFirst", False)) if row.get("subject") else None
 
 
 ## A group of the lines of a subject for the left pane, while its heading is selected in
-## the list: its word, how many lines it holds and how many of them are missing, then its
-## lines, the missing ones first, each by its label with what it reads as, of a secret
-## only its state, and its key as the detail where its label is not the key.
-def groupLines(group, width):
-    missing = [line for line in group["lines"] if line["state"] in STATES_MISSING]
-    lines = [group["label"], "%d line%s%s" % (len(group["lines"]), "" if len(group["lines"]) == 1 else "s",
-                                             ", %d missing, each marked %s" % (len(missing), MARK_MISSING) if missing else ""), ""]
-    ordered = missing + [line for line in group["lines"] if line["state"] not in STATES_MISSING]
-    keyWidth = min(34, max(textWidth(line.get("label") or line["key"] or "-") for line in ordered))
-    for line in ordered:
-        key = line.get("label") or line["key"] or "-"
-        detail = "  (%s)" % line["key"] if line.get("label") and line["key"] and line["label"] != line["key"] else ""
-        lines.extend(hangLines("%s %s  %s%s" % (
-            MARK_MISSING if line["state"] in STATES_MISSING else " ",
-            key + " " * max(0, keyWidth - textWidth(key)), digestWords(group["subject"], line), detail), width))
-    return lines
+## the list: its label, how many lines it holds and how many of them are missing, then its
+## lines as a table (digestTable), the missing ones first.
+def groupLines(group, width, wrap=True):
+    heads, rows, kinds, looks = digestTable(group["subject"], [line for line in group["lines"] if line["state"] in STATES_MISSING]
+                                            + [line for line in group["lines"] if line["state"] not in STATES_MISSING])
+    head, blocks = paneTable(heads, rows, max(10, width - 1), wrap=wrap, kinds=kinds, looks=looks)
+    return [digestCaption(group["label"], group["lines"]), ""] + head + [line for block in blocks for line in block]
 
 
 ## The selected line of a subject for the left pane, from its row: what it is now first,
@@ -6375,7 +6423,11 @@ def groupLines(group, width):
 ## Enter changes it, or why not, in the words of its row.
 def settingLines(line, width):
     value = valueWords(line["subject"], line)
-    lines = fieldLines([("value", value + (" (%s)" % line["value"] if line["choices"] and value != line["value"] else ""))], width)
+    value += " (%s)" % line["value"] if line["choices"] and value != line["value"] else ""
+    head = Looked("%s = %s" % (line.get("label") or line["key"] or "-", value))
+    head.looks = [(0, textWidth(head), BOLD)] + ([(textWidth(head) - textWidth(value), textWidth(value), stateLook(line["state"]))]
+                                                 if line["state"] in STATES_MISSING else [])
+    lines = [head]
     if line["key"] == STYLE_VARIABLE and STYLE["value"] != line["value"]:
         lines.append("This screen is drawn in %s now." % styleLabel())
     if line["description"]:
@@ -6383,7 +6435,7 @@ def settingLines(line, width):
         lines.extend(wrapToCells(line["description"], max(10, width - 1)))
     lines.append("")
     refusal = changeRefusal(line)
-    lines.extend(fieldLines([
+    lines.extend(factLines([
         ("key", line["key"]),
         ("group", line["group"]),
         ("state", line["state"]),
@@ -6391,7 +6443,7 @@ def settingLines(line, width):
         ("scope", SCOPE_WORDS.get(line["scope"], line["scope"])),
         ("takes", ", ".join(label for value, label in line["choices"]) or ("a whole number from %s to %s" % line["range"] if line["range"] else "")),
         ("saved in", line["where"]),
-        ("change", "no: " + refusal if refusal else "Enter changes it"),
+        ("change", "no: " + refusal if refusal else "yes"),
     ], width))
     return lines
 
@@ -6481,10 +6533,12 @@ for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + 
 
 
 ## What a root of the digest holds, for the left pane while its section or the row that
-## goes up inside it is selected: how many subjects, lines and missing ones, and what the
-## root is; then its subjects as a table, those with a missing line first, each with how
-## many lines it holds and how many of them are missing. None until the read of the
-## digest has answered.
+## goes up inside it is selected: how many subjects, lines and missing ones as its caption,
+## and what the root is, dim; then its subjects as a table, those with a missing line first,
+## each with how many lines it holds, how many of them are missing, in their colour, and
+## what it holds in words; and the folders the root holds beside them (FIXED_ROWS), each
+## with how many rows it holds where they were read already, and what it holds (FOLDER_WORDS).
+## None until the read of the digest has answered.
 def digestSummary(state, path, row, form):
     root = levelKey(path)
     if root not in state.rows:
@@ -6493,14 +6547,20 @@ def digestSummary(state, path, row, form):
     lacks = lambda subject: len([line for line in subject["lines"] if line["state"] in STATES_MISSING])
     total = sum(len(subject["lines"]) for subject in subjects)
     missing = sum(lacks(subject) for subject in subjects)
-    lines = ["%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
-                                                       total, "" if total == 1 else "s", missing)] + (
-        [""] + wrapToCells(ROOT_WORDS[root], max(10, state.viewWidth - 1)) if root in ROOT_WORDS else [])
-    if subjects:
-        lines.extend([""] + summaryTable(("SUBJECT", "LINES", "MISSING"), [
-            [subject.get("label") or subject["name"], str(len(subject["lines"])), str(lacks(subject)) if lacks(subject) else "-"]
-            for subject in sorted(subjects, key=lambda subject: 0 if lacks(subject) else 1)], state.viewWidth))
-    return lines
+    lines = [looked("%d subject%s, %d line%s, %d missing." % (len(subjects), "" if len(subjects) == 1 else "s",
+                                                              total, "" if total == 1 else "s", missing), BOLD)] + (
+        [looked(ROOT_WORDS[root], DIM)] if root in ROOT_WORDS else [])
+    ordered = sorted(subjects, key=lambda subject: 0 if lacks(subject) else 1)
+    rows = [[subject.get("label") or subject["name"], str(len(subject["lines"])), str(lacks(subject)) if lacks(subject) else "-",
+             SUBJECT_WORDS.get(subject["name"], "-")] for subject in ordered]
+    looks = [[None, None, LEVEL_WARN if lacks(subject) else None, None] for subject in ordered]
+    for folderId, label, kind, dive in FIXED_ROWS.get(root, ()):
+        held = state.rows.get(levelKey(path + [folderId]))
+        rows.append([label, str(len([one for one in held if one["kind"] != "group"])) if held is not None else "-", "-", FOLDER_WORDS.get(folderId, "-")])
+        looks.append(None)
+    if not rows:
+        return lines
+    return tableSummaryLines(state, lines + [""], ("SUBJECT", "LINES", "MISSING", "WHAT"), rows, ("key", "text", "text", "text"), looks=looks)
 
 
 ## ---- the checks of the installation: `Config Checker` ----
@@ -6543,13 +6603,13 @@ def parseCheckRows(text):
 ## check, then the command that mends it, as it is printed, and where the check is from.
 ## The screen runs no remedy.
 def checkLines(check, width):
-    lines = fieldLines([("state", check["state"])], width)
+    lines = factLines([("state", check["state"], stateLook(check["state"]))], width)
     reason = unspaced(check["reason"]).strip()
     if reason:
         lines.append("")
         lines.extend(wrapToCells(reason, max(10, width - 1)))
     lines.append("")
-    lines.extend(fieldLines([("remedy", absent(check["remedy"])), ("domain", check["domain"]),
+    lines.extend(factLines([("remedy", absent(check["remedy"])), ("domain", check["domain"]),
                              ("section", absent(check["section"])), ("key", absent(check["key"]))], width))
     if absent(check["remedy"]):
         lines.extend(["", "The remedy is a command for a console: the screen runs none."])
@@ -6557,26 +6617,35 @@ def checkLines(check, width):
 
 
 ## What `Config Checker` holds, for the left pane while its row or the row that goes up
-## inside it is selected: that the checks were not run yet, or how many there are by
-## their states, how long the run took and when it answered; and the key that runs them,
-## on its row too, or that they run. The focus alone never runs them (READS, "demand").
+## inside it is selected: as its caption that the checks were not run yet, or how many
+## there are by their states, how long the run took and when it answered; while they run,
+## that they do, and before a first run the key that runs them, dim. Then every check of the
+## last run as a table (tableSummaryLines), the worst first: its label, its state in its
+## colour, its domain and why. The focus alone never runs them (READS, "demand").
 def checksSummary(state, path, row, form):
     shown = listReadOf(path)
     rows = state.rows.get(levelKey(path))
+    ran = " at %s" % state.ran[shown[0]] if shown and state.ran.get(shown[0]) else ""
     if rows is None:
-        lines = ["The checks were not run yet in this run of the screen."]
+        caption = "The checks were not run yet in this run of the screen."
     elif not rows:
-        lines = ["The last run gave no check."]
+        caption = "The last run%s gave no check." % ran
     else:
         summary = rows[0]["checked"]
         counts = ", ".join("%s %s" % (summary[name], name) for name in CHECK_SUMMARY[1:-1] if name in summary)
-        lines = ["%d check%s%s%s." % (len(rows), "" if len(rows) == 1 else "s", ": " + counts if counts else "",
-                                       ", in %s seconds" % summary["seconds"] if summary.get("seconds") else "")]
-    if shown and state.ran.get(shown[0]):
-        lines.append("They last ran at %s." % state.ran[shown[0]])
-    running = bool(shown) and shown[0] in state.reading.values()
-    says = "They are running now." if running else "%s runs them%s." % (commandKeys(commandNamed("check"))[0], "" if rows is None else " again")
-    return lines + [""] + wrapToCells(says + " " + CHECKS_SAY, max(10, state.viewWidth - 1))
+        caption = "%d check%s%s%s%s." % (len(rows), "" if len(rows) == 1 else "s", ": " + counts if counts else "",
+                                          ", in %s seconds" % summary["seconds"] if summary.get("seconds") else "", ", run" + ran if ran else "")
+    lines = [looked(caption, BOLD)]
+    if bool(shown) and shown[0] in state.reading.values():
+        lines.append(looked("They are running now.", LEVEL_WARN))
+    elif rows is None:
+        lines.append(looked("%s runs them. %s" % (commandKeys(commandNamed("check"))[0], CHECKS_SAY), DIM))
+    if not rows:
+        return lines
+    ordered = sorted(rows, key=lambda held: -STATE_RANKS.index(stateLook(held["check"]["state"])) if stateLook(held["check"]["state"]) in STATE_RANKS else 0)
+    return tableSummaryLines(state, lines + [""], ("CHECK", "STATE", "DOMAIN", "REASON"), [
+        [held["label"], held["check"]["state"], held["check"]["domain"] or "-", unspaced(held["check"]["reason"]).strip() or "-"] for held in ordered],
+        ("key", "enum", "enum", "text"), looks=[[None, stateLook(held["check"]["state"]), None, None] for held in ordered])
 
 
 ## ---- the public keys of this server: `Server Keys` ----
@@ -6694,25 +6763,29 @@ def wholeLines(text, width, indent):
     return [indent + parts[0]] + [indent + "    " + part for part in parts[1:]]
 
 
-## Groups of keys for the left pane, each under its label: every key by its label, and
-## under that its fingerprint and its whole public line, or that none can be read.
+## Groups of keys for the left pane as one table (paneTable), each group under its label,
+## its note first, dim, where its row gives one: every key by its label, its type, and its
+## whole public line, never cut, or why none can be read, its state in its colour.
 def keyGroupLines(state, path, groups, width):
-    lines = []
+    rows = []
+    looks = []
     for group in groups:
-        lines.extend(([""] if lines else []) + [group["label"]])
-        if group["note"]:
-            lines.extend(wholeLines(group["note"], width, "  "))
-        if not group["keys"]:
-            lines.append("  no key")
+        rows.append(group["label"])
+        looks.append(None)
+        if group["note"] or not group["keys"]:
+            rows.append(["-", "-", group["note"] or "no key"])
+            looks.append([None, None, DIM])
         for held in group["keys"]:
-            lines.append("  " + (unspaced(held["label"]) or held["key"]))
             if held["state"] != KEY_PRESENT:
-                lines.extend(wholeLines("%s: %s" % (held["state"], absent(held["file"])), width, "      "))
-                continue
-            lines.extend(wholeLines(held["fingerprint"], width, "      "))
-            line, registers, note = keyWholeOf(state, path, held)
-            lines.extend(wholeLines(line or note, width, "      "))
-    return lines
+                line, look = "%s: %s" % (held["state"], absent(held["file"])), stateLook(held["state"]) or LEVEL_WARN
+            else:
+                line, registers, note = keyWholeOf(state, path, held)
+                line, look = line or note, None
+            rows.append([unspaced(held["label"]) or held["key"], absent(held["type"]) or "-", line])
+            looks.append([None, None, look])
+    ## the line of a key has its room first: the label gives way before it
+    head, blocks = paneTable(("KEY", "TYPE", "PUBLIC LINE"), rows, max(10, width - 1), wrap=state.wrap, kinds=("text", "enum", "whole"), looks=looks)
+    return head + [line for block in blocks for line in block]
 
 
 ## The selected key for the left pane: what it is for; its type, its fingerprint, its
@@ -6724,22 +6797,18 @@ def serverKeyLines(state, path, held, width):
     purpose = unspaced(held["purpose"]).strip()
     if purpose:
         lines.extend(wrapToCells(purpose, max(10, width - 1)) + [""])
-    for name, value in (("type", absent(held["type"])), ("fingerprint", absent(held["fingerprint"])),
-                        ("file", absent(held["file"])), ("group", held["groupLabel"]),
-                        ("key", held["key"]), ("state", held["state"])):
-        if value:
-            parts = wrapToCells(value, max(10, width - 13))
-            lines.append("%-11s %s" % (name, parts[0]))
-            lines.extend(" " * 12 + part for part in parts[1:])
+    lines.extend(factLines([("type", absent(held["type"])), ("fingerprint", absent(held["fingerprint"])),
+                            ("file", absent(held["file"])), ("group", held["groupLabel"]),
+                            ("key", held["key"]), ("state", held["state"], stateLook(held["state"]) or LEVEL_WARN)], width))
     if held["state"] != KEY_PRESENT:
         return lines + ["", "No public key can be read at its file."]
     line, registers, note = keyWholeOf(state, path, held)
-    lines.extend(["", KEY_SAYS["line"]] + wholeLines(line or note, width, "  "))
+    lines.extend(headingLines(KEY_SAYS["line"]) + wholeLines(line or note, width, "  "))
     if registers:
-        lines.extend(["", KEY_SAYS["register"]])
+        lines.extend(headingLines(KEY_SAYS["register"]))
         for register in registers:
             lines.extend(wholeLines("%s  %s" % register, width, "  "))
-    return lines + ["", "%s shows it alone, in a box to copy." % commandKeys(commandNamed("keyline"))[0]]
+    return lines
 
 
 ## What `Server Keys` holds, for the left pane while its row or the row that goes up
@@ -6812,13 +6881,21 @@ def parseCommandRows(text):
 
 
 ## What `Tooling Commands` holds, for the left pane while its row or the row that goes up
-## inside it is selected: the commands, one a line, as the operation names them. None
-## until its read has answered.
+## inside it is selected: how many as its caption, then every command as the operation
+## names it, in its order, in columns across the pane, each as wide as the longest name,
+## one under another (as `ls` sets out names). None until its read has answered.
 def commandsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
-    return [held["label"] for held in rows] or ["The operation listed no command."]
+    if not rows:
+        return [looked("The operation listed no command.", BOLD)]
+    names = [held["label"] for held in rows]
+    cell = max(textWidth(name) for name in names) + 2
+    columns = max(1, (max(10, state.viewWidth - 2) + 2) // cell) if state.wrap else 1
+    down = (len(names) + columns - 1) // columns
+    return [looked("%d command%s." % (len(names), "" if len(names) == 1 else "s"), BOLD), ""] + [
+        (" " + "".join(name + " " * (cell - textWidth(name)) for name in names[number::down])).rstrip() for number in range(down)]
 
 
 ## ---- what is started with the whole terminal: `Consoles (Tools)` ----
@@ -6851,45 +6928,39 @@ def commandText(words):
     return " ".join(shlex.quote(word) for word in words)
 
 
-## The selected thing to start for the left pane, from its row: its label, its key and its
-## group, the folder it is started in, its command as it will be run, whether it needs a
-## terminal, and what Enter does.
+## The selected thing to start for the left pane, from its row: its label as its head, then
+## as facts its key and its group, the folder it is started in, its command as it will be
+## run, and whether it needs a terminal.
 def startLines(start, width):
     form = STARTS[start["sort"]]
-    return fieldLines([
-        (form["said"], unspaced(start["label"])),
+    return [looked(unspaced(start["label"]) or start["key"], BOLD)] + factLines([
         ("key", start["key"]),
         ("group", unspaced(start["group"])),
         ("directory", start["directory"]),
         ("command", commandText(start["words"])),
-        ("terminal", "it needs a terminal, on its input and on its output" if start["terminal"] == form["terminal"] else "it needs none"),
-        ("start", "Enter gives it the whole terminal. The screen is back when it ends, and says how it ended."),
+        ("terminal", "yes, on its input and its output" if start["terminal"] == form["terminal"] else "no"),
     ], width)
 
 
 ## What `Consoles (Tools)` holds, for the left pane while the section itself or the row
 ## that goes up is selected: how many there are to start, group by group in the order of
-## the operation, and under that each group with what it holds, by its label. None until
-## its read has answered.
+## the operation, as its caption; then every one of them, in that order, as a table
+## (tableSummaryLines): its label, its group and its command. None until its read has answered.
 def startsSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
+    starts = [held for held in rows if held.get("start")]
     groups = []
-    for held in rows:
-        if not held.get("start"):
-            continue
+    for held in starts:
         if not groups or groups[-1][0] != held["tail"]:
-            groups.append([held["tail"], []])
-        groups[-1][1].append(held["label"])
-    total = sum(len(labels) for group, labels in groups)
-    if not total:
-        return ["Nothing to start here: the operation listed none."]
-    lines = ["%d to start: %s." % (total, ", ".join("%d %s" % (len(labels), group or "-") for group, labels in groups)),
-             "Enter starts one with the whole terminal; the screen is back when it ends."]
-    for group, labels in groups:
-        lines.extend(["", group or "-"] + ["  " + label for label in labels])
-    return lines
+            groups.append([held["tail"], 0])
+        groups[-1][1] += 1
+    if not starts:
+        return [looked("Nothing to start here: the operation listed none.", BOLD)]
+    lines = [looked("%d to start: %s." % (len(starts), ", ".join("%d %s" % (count, group or "-") for group, count in groups)), BOLD), ""]
+    return tableSummaryLines(state, lines, ("CONSOLE", "GROUP", "COMMAND"), [
+        [held["label"], held["tail"] or "-", commandText(held["start"]["words"])] for held in starts], ("key", "enum", "text"))
 
 
 ## Enter on a row of `Consoles (Tools)`: what the row names is started with the whole
@@ -7182,82 +7253,82 @@ def figureShown(figure):
     return figureValue(figure) + ("  (%s)" % figure["level"] if worse else "")
 
 
-## The summary of `Team Data`: where its root is, whether it is there and its size; the
-## mode of the workspace and whether it is a full team rig; the remote of the team data
-## and its branch; its board, the items by state; and the main loop, where the workspace
-## has one, figure by figure. From the blocks the dashboard gave and the digest of the
-## settings, each where it was read. Whether the team data is a repository no read here
-## says, so it is not said.
+## The look of a figure by its level, as the dashboard draws it, or None where it has none.
+def figureLook(figure):
+    return dict(DASHBOARD["levels"]).get(figure["level"], {}).get("look")
+
+
+## The summary of `Team Data`: as its caption whether it is there and its size; as facts
+## where its root is, the mode of the workspace and whether it is a full team rig, the
+## remote of the team data and its branch; its other figures, the items of its stores, as
+## a table, each in the look of its level; its git state (gitLines); its board, the items
+## by state, as a table; and the main
+## loop, where the workspace has one, figure by figure as a table, in the looks of their
+## levels on a full team rig, plain elsewhere, where they are not judged. From the blocks
+## the dashboard gave and the digest of the settings, each where it was read.
 def teamDataSummary(state, path, row, form):
     data = teamDataFigures(state, TEAM_DATA["data"])
     if data is None:
         return None
     figures = dict(data)
     root = figures.get(TEAM_DATA["root"])
-    lines = ["Team data, %s:" % ("there" if teamDataHere(state) else "not there"), "  " + (root["value"] if root else "no root is configured")]
-    lines.extend("  %s: %s" % (unspaced(figure["label"]), figureShown(figure)) for key, figure in data
-                 if key != TEAM_DATA["root"] and not key.startswith(TEAM_DATA["board"]))
+    size = [figureValue(figure) for key, figure in data if figure["unit"] == "bytes"]
+    lines = [looked("Team data: %s%s." % ("there" if teamDataHere(state) else "not there", ", " + size[0] if size else ""), BOLD)]
     mode = modeShown(state)
     full = digestLineOf(state, *TEAM_DATA["full"])
+    full = full is not None and full["state"] == "set"
     remote = digestLineOf(state, *TEAM_DATA["remote"])
     branch = digestLineOf(state, *TEAM_DATA["branch"])
-    lines.append("")
+    ## the root by the rule of the locations where the view takes it, so it is broken to the pane as it shows
+    pairs = [("root", (placedLine(state, root["value"])[0] if placedShown(state) else root["value"]) if root else "none is configured",
+              None if root else LEVEL_WARN)]
     if mode is None:
-        lines.append("The mode of the workspace is being read.")
+        pairs.append(("mode", "being read", DIM))
     else:
-        full = full is not None and full["state"] == "set"
-        lines.extend(fieldLines([
+        pairs.extend([
             ("mode", "%s, %s%s" % (mode[0], mode[1], "; a full team rig" if full else "")),
             ("remote", remote["value"] if remote and remote["state"] == "set" else "none: no shared persistence is set"),
-            ("branch", branch["value"] if branch and branch["state"] == "set" else "not set: the tooling's own")], state.viewWidth))
+            ("branch", branch["value"] if branch and branch["state"] == "set" else "not set: the tooling's own")])
+    lines.extend(factLines(pairs, state.viewWidth))
+    other = [figure for key, figure in data if key not in (TEAM_DATA["root"], TEAM_DATA["present"][1])
+             and figure["unit"] != "bytes" and not key.startswith(TEAM_DATA["board"])]
+    if other:
+        head, blocks = paneTable(("FIGURE", "VALUE"), [[unspaced(figure["label"]), figureShown(figure)] for figure in other],
+                                 max(10, state.viewWidth - 1), wrap=state.wrap, indent="  ", looks=[[None, figureLook(figure)] for figure in other])
+        lines.extend(headingLines("Items") + head + [line for block in blocks for line in block])
     git = teamDataFigures(state, TEAM_DATA["git"])
     if git:
-        lines.append("")
-        lines.extend(gitLines(dict(git)))
+        lines.extend(headingLines("Git") + gitLines(dict(git), state.viewWidth))
     board = [(key[len(TEAM_DATA["board"]):], figure) for key, figure in data if key.startswith(TEAM_DATA["board"])]
     if board:
-        lines.append("")
-        lines.append("Its board, the items by state: %s." % ", ".join("%s %s" % (name, figureValue(figure)) for name, figure in board))
+        lines.extend(headingLines("Board") + summaryTable(("STATE", "ITEMS"), [[name, figureValue(figure)] for name, figure in board], state.viewWidth))
     loop = teamDataFigures(state, TEAM_DATA["loop"])
-    lines.append("")
     if loop:
-        lines.append("The main loop and the heartbeat%s:" % ("" if full is True else ", plain: they are judged on a full team rig alone"))
-        lines.extend("  %s: %s" % (unspaced(figure["label"]), figureShown(figure)) for key, figure in loop)
+        lines.extend(headingLines("Main loop and heartbeat" + ("" if full else " (not judged here: a full team rig alone is)")))
+        head, blocks = paneTable(("FIGURE", "VALUE"), [[unspaced(figure["label"]), figureShown(figure)] for key, figure in loop],
+                                 max(10, state.viewWidth - 1), wrap=state.wrap, indent="  ",
+                                 looks=[[None, figureLook(figure) if full else None] for key, figure in loop])
+        lines.extend(head + [line for block in blocks for line in block])
     else:
-        lines.append("No main loop here: a workspace has one in the mode %s alone." % TEAM_DATA["teamRig"])
-    lines.append("")
-    lines.append("Enter opens it: its blocks, and Operations.")
+        lines.extend(["", looked("No main loop here: a workspace has one in the mode %s alone." % TEAM_DATA["teamRig"], DIM)])
     return lines
 
 
-## The git state of the team data, as its block gives it (figures by their keys), for the
-## summary: where it stands, its upstream, ahead and behind, what is not committed, its last
-## commit; and, where it tracks a remote and is not level with it or holds what is not
-## committed, that in words of their own line, with the worst level the tooling gave.
-def gitLines(git):
+## The git state of the team data, as its block gives it (figures by their keys), as facts
+## for the summary: its branch and what it tracks, ahead and behind as of its last fetch,
+## what is not committed, each in the look of its level, and its last commit.
+def gitLines(git, width):
     def value(key):
         return unspaced(git[key]["value"]) if key in git else ""
     if value("repository") != "yes":
-        return ["Git: the team data is no repository."]
-    lines = ["Git: on %s, %s." % (value("branch") or "no branch", ("tracking " + value("upstream")) if value("upstream") else "tracking nothing")]
-    if "ahead" in git:
-        lines.append("  %s ahead and %s behind, as of its last fetch" % (value("ahead"), value("behind")))
-    if "uncommitted" in git:
-        lines.append("  %s paths not committed" % value("uncommitted"))
-    if "last-commit" in git:
-        lines.append("  last commit %s ago%s" % (figureValue(git["last-commit"]), (": " + value("last-subject")) if value("last-subject") else ""))
-    said = []
-    if value("upstream") and value("behind").isdigit() and int(value("behind")):
-        said.append("behind its remote by %s" % value("behind"))
-    if value("upstream") and value("ahead").isdigit() and int(value("ahead")):
-        said.append("ahead of its remote by %s" % value("ahead"))
-    if value("upstream") and value("uncommitted").isdigit() and int(value("uncommitted")):
-        said.append("%s paths are not committed" % value("uncommitted"))
-    if said:
-        order = [name for name, level in DASHBOARD["levels"]]
-        worst = max([order.index(git[key]["level"]) for key in ("ahead", "behind", "uncommitted") if key in git and git[key]["level"] in order] + [0])
-        lines.append("It is %s%s." % ("; ".join(said), "  (%s)" % order[worst] if worst else ""))
-    return lines
+        return factLines([("repository", "none: the team data is no repository")], width)
+    return factLines([
+        ("branch", "%s, %s" % (value("branch") or "no branch", ("tracking " + value("upstream")) if value("upstream") else "tracking nothing")),
+        ("ahead", value("ahead"), figureLook(git["ahead"]) if "ahead" in git else None),
+        ("behind", value("behind"), figureLook(git["behind"]) if "behind" in git else None),
+        ("uncommitted", value("uncommitted"), figureLook(git["uncommitted"]) if "uncommitted" in git else None),
+        ("last commit", "%s ago%s" % (figureValue(git["last-commit"]), (": " + value("last-subject")) if value("last-subject") else "") if "last-commit" in git else ""),
+    ], width)
 
 
 ## The operation a row of `Operations` is, or None.
@@ -7284,28 +7355,29 @@ def cleanupRefusal(state, row):
     return ""
 
 
-## What the left window shows of a cleanup: what it does, the operation it runs, and
-## whether it is offered here.
+## What the left window shows of a cleanup: what it does, the operation it runs, what it
+## needs, and whether it is offered here, in the look of what is well or what to look at.
 def cleanupLines(state, row):
     cleanup = cleanupOf(row)
     refusal = cleanupRefusal(state, row)
     lines = wrapToCells(cleanup["does"], max(10, state.viewWidth - 1)) + [""]
-    lines.extend(fieldLines([("runs", commandText(cleanup["operation"])),
-                             ("needs", {"rig": "a team rig", "remote": "a git remote of the team data"}.get(cleanup["needs"], "nothing more")),
-                             ("here", ("not offered: " + refusal) if refusal else "Enter asks, then runs it")], state.viewWidth))
+    lines.extend(factLines([("runs", commandText(cleanup["operation"])),
+                            ("needs", {"rig": "a team rig", "remote": "a git remote of the team data"}.get(cleanup["needs"], "nothing more")),
+                            ("here", ("not offered: " + refusal) if refusal else "offered", LEVEL_WARN if refusal else LEVEL_OK)], state.viewWidth))
     return lines
 
 
-## The summary of `Cleanup`: how many there are and how many run here, then each.
+## The summary of `Operations`: how many there are and how many run here as its caption,
+## then each as a row of a table: whether it runs here, in its look, and why not.
 def cleanupsSummary(state, path, row, form):
     rows = [newRow(cleanupId, cleanup["label"], "operation") for cleanupId, cleanup in CLEANUPS]
-    offered = [held for held in rows if not cleanupRefusal(state, held)]
-    lines = ["%d operations: %d run here." % (len(rows), len(offered))]
-    for held in rows:
-        refusal = cleanupRefusal(state, held)
-        lines.append("  %s: %s" % (held["label"], ("not here, " + refusal) if refusal else "runs here"))
-    lines.append("Each is asked first, then runs in a window that follows what it writes.")
-    return lines
+    refusals = [cleanupRefusal(state, held) for held in rows]
+    lines = [looked("%d operations: %d run here." % (len(rows), len([refusal for refusal in refusals if not refusal])), BOLD), ""]
+    head, blocks = paneTable(("OPERATION", "HERE", "WHY NOT"), [
+        [held["label"], "not here" if refusal else "runs here", refusal or "-"] for held, refusal in zip(rows, refusals)],
+        max(10, state.viewWidth - 1), wrap=state.wrap, kinds=("key", "enum", "text"), indent="  ",
+        looks=[[None, LEVEL_WARN if refusal else LEVEL_OK, None] for refusal in refusals])
+    return lines + head + [line for block in blocks for line in block]
 
 
 def askCleanup(state, row):
@@ -7533,93 +7605,77 @@ def pathUnder(path, folder):
     return path[len(folder) + 1:] if path.startswith(folder + "/") else None
 
 
-## The selected location for the left pane, from its row: its label, its key, its kind,
-## its ceiling, its path as it is, its state, whether the console runs in it, and how many
-## sessions name it. Once the read of that one location has come (info): what declares
-## it; what stands in it, as a table of what, its name and where, the path of each as it
-## stands under the path of the location, which is said once, at the top, and a thing
-## that does not lie under it after the table with its whole path; and the members that
-## belong to it, a table for each way they are set up, as the rows say it, those whose
-## folder lies in the location first: the icon and the name of each as the table of the
-## members draws them (tableLineText), its kind, and its folder, under the location's
-## path where it lies there. One that no registry names shows plainer, with that word.
+## The selected location for the left pane, from its row: its label and its key as its
+## head, with the mark of the one the console runs in; as facts its kind, its path as it
+## is, its state in its colour, its ceiling, and how many sessions name it. Once the read
+## of that one location has come (info): what declares it; what stands in it, as a table
+## of what, its name and where, the path of each as it stands under the path of the
+## location, which is said once, at the top, and a thing that does not lie under it with
+## its whole path; and the members that belong to it, as one table, those whose folder
+## lies in the location first: the icon and the name of each, its kind, how it is set up,
+## in the colour of what to look at for one that no registry names, and its folder, under
+## the location's path where it lies there. Each table is one of the left pane (paneTable).
 ## This is the summary of a location: no path in it is shown by a location's name.
 def placeLines(state, place, width, info=None):
-    lines = fieldLines([
-        ("place", unspaced(place["label"]) or place["key"]),
-        ("key", place["key"]),
+    label = unspaced(place["label"]) or place["key"]
+    lines = [looked(" ".join(word for word in (MARKS["on"] if place["here"] == PLACES["here"] else "", label,
+                                                "(%s)" % place["key"] if label != place["key"] else "") if word), BOLD)]
+    lines.extend(factLines([
         ("kind", place["kind"]),
-        ("ceiling", absent(place["ceiling"])),
         ("path", absent(place["path"])),
-        ("state", place["state"]),
-        ("here", "the console runs in this one" if place["here"] == PLACES["here"] else ""),
-        ("sessions", "%s with a run that names it, of the sessions this workspace keeps" % place["sessions"]
-         if absent(place["sessions"]) else ""),
-    ], width)
-    state.view["looks"] = {}
+        ("state", place["state"], stateLook(place["state"]) or LEVEL_WARN),
+        ("ceiling", absent(place["ceiling"])),
+        ("sessions", "%s name it" % place["sessions"] if absent(place["sessions"]) else ""),
+    ] + (list(info["info"]) if isinstance(info, dict) and "info" in info else []), width))
     if not isinstance(info, dict) or "stands" not in info:
         return lines
-    lines.extend(fieldLines(info["info"], width))
     if info["stands"]:
-        lines.extend(["", "What stands in it:"])
-        inside = [[what, name or "-", pathUnder(path, place["path"])] for what, name, path in info["stands"]
-                  if pathUnder(path, place["path"]) is not None]
-        if inside:
-            lines.extend(summaryTable(("WHAT", "NAME", "WHERE"), inside, width))
-        for what, name, path in info["stands"]:
-            if pathUnder(path, place["path"]) is None:
-                lines.extend(hangLines("%s  %s" % (what + " " + name if name else what, path), width))
-    members = info.get("members") or []
+        head, blocks = paneTable(("WHAT", "NAME", "WHERE"), [
+            [what, name or "-", pathUnder(path, place["path"]) or path] for what, name, path in sorted(
+                info["stands"], key=lambda stands: pathUnder(stands[2], place["path"]) is None)],
+            max(10, width - 1), wrap=state.wrap, kinds=("enum", "text", "key"), indent="  ")
+        lines.extend(headingLines("What stands in it") + head + [line for block in blocks for line in block])
+    members = sorted(info.get("members") or [], key=lambda member: pathUnder(member["folder"], place["path"]) is None)
     if members:
         icons = dict((row["member"]["name"], row["member"]["icon"]) for row in state.rows.get("team", ()) if row.get("member"))
-        setups = []
-        for member in sorted(members, key=lambda member: pathUnder(member["folder"], place["path"]) is None):
-            if member["setup"] not in setups:
-                setups.append(member["setup"])
-        lines.extend(["", "Its members:"])
-        room = max(10, width - 3)
-        for setup in setups:
-            words = [[icons.get(member["name"], ""), member["name"], member["kind"],
-                      pathUnder(member["folder"], place["path"]) or member["folder"]] for member in members if member["setup"] == setup]
-            table = {"heads": ["MEMBER", "KIND", "FOLDER"], "iconWidth": max([textWidth(line[0]) for line in words] + [0]),
-                     "widths": [max([textWidth(head)] + [textWidth(line[index + 1]) for line in words])
-                                for index, head in enumerate(("MEMBER", "KIND", "FOLDER"))]}
-            first = len(lines)
-            lines.append("  " + setup)
-            lines.extend("    " + tableLineText(table, line, room - 2) for line in [[""] + table["heads"]] + words)
-            if setup == PLACES["unlisted"]:
-                for number in range(first, len(lines)):
-                    state.view["looks"][number] = [(0, textWidth(lines[number]), DIM)]
+        head, blocks = paneTable(("MEMBER", "KIND", "SETUP", "FOLDER"), [
+            [member["name"], member["kind"] or "-", member["setup"] or "-", pathUnder(member["folder"], place["path"]) or member["folder"]]
+            for member in members], max(10, width - 1), [icons.get(member["name"], "") for member in members], state.wrap,
+            ("key", "enum", "enum", "text"), "  ", looks=[[None, None, stateLook(member["setup"]), None] for member in members])
+        lines.extend(headingLines("Its members") + head + [line for block in blocks for line in block])
     return lines
 
 
 ## What `Locations (Places)` holds, for the left pane while the section itself or the row
-## that goes up is selected: how many there are, kind by kind as the operation names the
-## kinds, which one the console runs in, and how many are not present, with which. None
-## until its read has answered.
+## that goes up is selected: as its caption how many there are, kind by kind as the
+## operation names the kinds, which one the console runs in, and how many are not present;
+## then every location of the list, in its order, as a table (tableSummaryLines): the mark
+## of the one the console runs in, its key, kind, its state in its colour, its path, how
+## many sessions name it, and its ceiling. None until its read has answered.
 def placesSummary(state, path, row, form):
     rows = state.rows.get(levelKey(path))
     if rows is None:
         return None
     places = [held["place"] for held in rows if held.get("place")]
     if not places:
-        return ["No location is known here: the operation listed none."]
+        return [looked("No location is known here: the operation listed none.", BOLD)]
     kinds = []
     for place in places:
         if place["kind"] not in [kind for kind, count in kinds]:
             kinds.append([place["kind"], 0])
         [entry for entry in kinds if entry[0] == place["kind"]][0][1] += 1
-    lines = ["%d location%s: %s." % (len(places), "" if len(places) == 1 else "s",
-                                     ", ".join("%d %s" % (count, kind) for kind, count in kinds))]
     here = [place["key"] for place in places if place["here"] == PLACES["here"]]
-    if here:
-        lines.append("The console runs in %s." % here[0])
     away = [place["key"] for place in places if place["state"] != PLACES["present"]]
-    if away:
-        lines.append("%d of them %s not present on this machine." % (len(away), "is" if len(away) == 1 else "are"))
-        lines.extend(hangLines(", ".join(away), state.viewWidth))
-    lines.append("In the other views a path inside one of them stands by its name.")
-    return lines
+    lines = [looked("%d location%s: %s%s%s." % (len(places), "" if len(places) == 1 else "s",
+                                               ", ".join("%d %s" % (count, kind) for kind, count in kinds),
+                                               "; the console runs in " + here[0] if here else "",
+                                               "; %d not present" % len(away) if away else ""), BOLD), ""]
+    return tableSummaryLines(state, lines, ("PLACE", "KIND", "STATE", "PATH", "SESSIONS", "CEILING"),
+                             [[place["key"], place["kind"] or "-", place["state"] or "-", absent(place["path"]) or "-",
+                               absent(place["sessions"]) or "-", absent(place["ceiling"]) or "-"] for place in places],
+                             ("key", "enum", "enum", "key", "text", "enum"),
+                             icons=[MARKS["on"] if place["here"] == PLACES["here"] else "" for place in places],
+                             looks=[[None, None, stateLook(place["state"]) or LEVEL_WARN, None, None, None] for place in places])
 
 
 ## The locations that have a path, for the rule of the locations: the key of each by its
@@ -9571,6 +9627,8 @@ class CursesSurface:
         self.puts, self.putsDrawn = {}, {}
         ## whether the next frame is sent to the terminal whole
         self.whole = True
+        ## where the cursor stands once the frame is sent, or None where it is hidden (cursor)
+        self.at = None
         self.keyNames = {
             curses.KEY_UP: "UP", curses.KEY_DOWN: "DOWN", curses.KEY_LEFT: "LEFT", curses.KEY_RIGHT: "RIGHT",
             curses.KEY_PPAGE: "PGUP", curses.KEY_NPAGE: "PGDN", curses.KEY_ENTER: "ENTER",
@@ -9933,15 +9991,11 @@ class CursesSurface:
                 except OSError:
                     break
 
+    ## The cursor of the frame being drawn: shown at that cell, where a field that has the keys takes
+    ## what is typed, or hidden. It is placed when the frame is sent (show), since curses moves its
+    ## own cursor with every text put after it.
     def cursor(self, line, column):
-        try:
-            if line is None:
-                curses.curs_set(0)
-            else:
-                curses.curs_set(1)
-                self.window.move(line, column)
-        except curses.error:
-            pass
+        self.at = None if line is None else (line, column)
 
     ## The screen leaves nothing of itself: every cell blank in the terminal's own colours, sent
     ## whole, the cursor shown at the start of the first line, before curses gives the terminal
@@ -9960,7 +10014,9 @@ class CursesSurface:
     ## longer stands as it stood is sent whole, every cell of it, once: curses holds blanks there
     ## and would send nothing, and whatever the terminal made of that character, nothing of it
     ## outlives the change. Every other line curses sends as the cells that changed, so a quiet
-    ## tick sends what changed alone.
+    ## tick sends what changed alone. The cursor is hidden before the frame is sent, or placed
+    ## where it stands, so that curses leaves it there, and the characters written apart give it
+    ## back there; it shows only then.
     def show(self):
         renewed = []
         for line, held in self.apartDrawn.items():
@@ -9970,9 +10026,21 @@ class CursesSurface:
                     self.window.redrawln(line, 1)
                 except curses.error:
                     pass
+        try:
+            if self.at is None:
+                curses.curs_set(0)
+            else:
+                self.window.move(*self.at)
+        except curses.error:
+            pass
         self.window.refresh()
         if self.apart:
             self.apartWritten(renewed)
+        if self.at is not None:
+            try:
+                curses.curs_set(1)
+            except curses.error:
+                pass
         self.apartDrawn, self.putsDrawn = self.apart, self.puts
         self.whole = False
 
