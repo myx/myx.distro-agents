@@ -10,8 +10,9 @@
 ##
 ## Every other team-data op commits only the paths it writes itself. This one
 ## commits whatever is pending under $MDAT_DATA_ROOT -- additions, edits and
-## deletions -- in one commit, then pushes it the way AgentsToolsItemUpsert
-## does. It exists for work left uncommitted, and it is magic-coordinator's only.
+## deletions -- in one commit, then syncs the store with its remote by myx.common's
+## git/cloneSync, which pulls and pushes. It exists for work left uncommitted, and it
+## is magic-coordinator's only.
 ##
 
 case "$1" in
@@ -144,35 +145,23 @@ case "$1" in
 			return 0
 		fi
 
-		## The push and its one network retry are AgentsToolsItemUpsert's.
-		local pushAttempt=1 pushOut="" pushRc=0
-		while : ; do
-			set +e
-			pushOut="$( git -C "$repoRoot" push origin HEAD 2>&1 )"
-			pushRc=$?
-			set -e
-			[ "$pushRc" -eq 0 ] && break
-			case "$pushOut" in
-				*"Could not resolve host"*|*"could not resolve host"*|*"unable to access"*|*"Could not read from remote repository"*|*"Connection timed out"*|*"Connection refused"*|*"Operation timed out"*|*"Network is unreachable"*|*"connection reset"*)
-					if [ "$pushAttempt" -eq 1 ] ; then
-						echo "# $MDSC_CMD --magic-team-data-commit-pending: push network failure, retrying once in 15s" >&2
-						sleep 15
-						pushAttempt=2
-						continue
-					fi
-				;;
-			esac
-			break
-		done
-		if [ "$pushRc" -ne 0 ] ; then
+		## The sync is myx.common's git/cloneSync on the store, with TEAM_DATA_GIT_REMOTE and the
+		## branch the store is on, which it keeps: it pulls, origin's commits merged in and never
+		## rebased, and pushes what is ahead. Its own output is shown.
+		local headFull="" headBranch="" remoteHead="" syncRc=0
+		headBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || headBranch=""
+		set +e
+		GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=pull.rebase GIT_CONFIG_VALUE_0=false \
+			"${MYXROOT:-}/bin/git/cloneSync.Common" "$repoRoot" "$originUrl" "$headBranch" >&2
+		syncRc=$?
+		set -e
+		if [ "$syncRc" -ne 0 ] ; then
 			echo "TEAM-DATA-NOT-PUSHED: the push failed; commit $commitId is local only"
-			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: committed $commitId but the push failed: $pushOut" >&2
+			echo "⛔ ERROR: $MDSC_CMD --magic-team-data-commit-pending: committed $commitId but git/cloneSync failed (rc $syncRc), its output is above" >&2
 			set +e ; return 1
 		fi
 		## Read back: the remote branch must now name this very commit.
-		local headFull="" headBranch="" remoteHead=""
 		headFull="$( git -C "$repoRoot" rev-parse HEAD 2>/dev/null )" || headFull=""
-		headBranch="$( git -C "$repoRoot" rev-parse --abbrev-ref HEAD 2>/dev/null )" || headBranch=""
 		remoteHead="$( git -C "$repoRoot" ls-remote origin "refs/heads/$headBranch" 2>/dev/null | LC_ALL=C awk 'NR == 1 { print $1 ; }' )" || remoteHead=""
 		if [ -z "$headFull" ] || [ "$remoteHead" != "$headFull" ] ; then
 			echo "TEAM-DATA-NOT-PUSHED: the push reported success but origin's $headBranch reads back '${remoteHead:-<nothing>}', not $headFull"

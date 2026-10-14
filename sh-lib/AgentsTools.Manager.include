@@ -83,6 +83,12 @@ case "$1" in
 		return $?
 	;;
 
+	## The items of the team data, its board, its audit and its vault, to browse them.
+	--manager-team-data-*)
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerTeamData.include"
+		return $?
+	;;
+
 	## The members of the team, as this workspace knows them.
 	--manager-team-member-*)
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ManagerTeamMember.include"

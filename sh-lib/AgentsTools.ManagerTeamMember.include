@@ -366,7 +366,73 @@ AgentsToolsManagerTeamMemberReadRows(){ ## the operation as it was called, membe
 	return 0
 }
 
+## The files of one member's skillset folder, where it is set up, here or in another
+## workspace: with no file named, a `file` row each, by its path inside that folder, with its
+## size and whether it is text; with one named, that file's text, where the list gives it
+## and it is text. Nothing outside the folder is listed or read: a dot file or a dot folder,
+## and a link inside it, are none of its files. rc 1, with one line and nothing on stdout,
+## for a member that is not set up where it can be reached and for a file the list does not give.
+AgentsToolsManagerTeamMemberFiles(){ ## the operation as it was called, member -- its name already known to be a bare one, the file ("": the list)
+	local filesOp="$1" filesMember="$2" filesWant="$3" filesOwn=$'\n' filesName filesRest filesText filesDir filesList filesPath filesBytes filesPlain
+	local ownRows="" placedSetUp placedRoot placedWorkspace placedFolder
+	AgentsToolsManagerTeamMemberOwn "$filesOp" || return 1
+	while read -r filesName filesRest ; do
+		[ -z "$filesName" ] || filesOwn="$filesOwn$filesName"$'\n'
+	done <<< "$ownRows"
+	filesText="$( AgentsToolsTeamMemberDirectoryText )" || filesText=""
+	AgentsToolsManagerTeamMemberPlace "$filesMember" "$filesOwn" "$filesText"
+	case "$placedSetUp" in
+		here|elsewhere) ;;
+		*)
+			echo "⛔ ERROR: $MDSC_CMD $filesOp: member '$filesMember' is set up in no workspace that can be reached from ${MMDAPP%/} -- nothing is shown" >&2
+			return 1
+		;;
+	esac
+	filesDir="${placedRoot%/}/$filesMember"
+	filesList="$( cd -P "$filesDir" 2> /dev/null && find . -mindepth 1 -name '.*' -prune -o -type f -print | LC_ALL=C sed 's|^\./||' | LC_ALL=C sort )" || {
+		echo "⛔ ERROR: $MDSC_CMD $filesOp: the skillset folder of $filesMember cannot be read: $filesDir -- nothing is shown" >&2
+		return 1
+	}
+	if [ -n "$filesWant" ] ; then
+		case $'\n'"$filesList"$'\n' in
+			*$'\n'"$filesWant"$'\n'*) ;;
+			*)
+				echo "⛔ ERROR: $MDSC_CMD $filesOp: '$filesWant' is no file of the skillset folder of $filesMember, as the list of its files gives them -- nothing is shown" >&2
+				return 1
+			;;
+		esac
+		filesBytes="$( wc -c < "$filesDir/$filesWant" | tr -d '[:space:]' )"
+		filesPlain="$( LC_ALL=C tr -d '\000' < "$filesDir/$filesWant" | wc -c | tr -d '[:space:]' )"
+		if [ "$filesBytes" != "$filesPlain" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $filesOp: '$filesWant' of $filesMember is no text: it is not shown" >&2
+			return 1
+		fi
+		cat "$filesDir/$filesWant"
+		return 0
+	fi
+	while IFS= read -r filesPath ; do
+		[ -n "$filesPath" ] || continue
+		filesBytes="$( wc -c < "$filesDir/$filesPath" | tr -d '[:space:]' )"
+		filesPlain="$( LC_ALL=C tr -d '\000' < "$filesDir/$filesPath" | wc -c | tr -d '[:space:]' )"
+		printf 'file\t%s\t%s\t%s\n' "${filesPath//[[:space:]]/_}" "${filesBytes:--}" "$( [ "$filesBytes" = "$filesPlain" ] && echo yes || echo no )"
+	done <<< "$filesList"
+	return 0
+}
+
 case "$1" in
+
+	## The files of one member's skillset folder, or one of them whole. Its form is the help entry's.
+	--manager-team-member-files)
+		local filesOp="$1"
+		shift
+		if [ $# -lt 1 ] || [ $# -gt 2 ] || [ -z "$1" ] ; then
+			echo "⛔ ERROR: $MDSC_CMD $filesOp: syntax is <team-member> [<file>], got $# argument(s) -- nothing is shown" >&2
+			set +e ; return 1
+		fi
+		AgentsToolsAssertBareName "$1" "<team-member>" "${filesOp#--}" || { set +e ; return 1 ; }
+		AgentsToolsManagerTeamMemberFiles "$filesOp" "$1" "${2:-}" || { set +e ; return 1 ; }
+		return 0
+	;;
 
 	## The members of the team as this workspace knows them: TAB-separated rows a screen
 	## reads. Their form is the help entry's.

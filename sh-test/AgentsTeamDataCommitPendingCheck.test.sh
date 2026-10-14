@@ -3,7 +3,9 @@
 ## temp bare remotes only -- never the real team data. The gating case is shaped like
 ## the real store: its own repository root, nested in plain folders, origin equal to
 ## TEAM_DATA_GIT_REMOTE, with added, changed and deleted paths pending and two commits
-## already ahead of origin. Setup uses git on this rig's own mktemp trees only.
+## already ahead of origin. The sync case is two clones of one bare remote, as two
+## workspaces: the other one pushes, this one runs the op. Setup uses git on this rig's
+## own mktemp trees only.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
 rigFn="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
@@ -30,17 +32,20 @@ rigAssert(){ ## what is asserted, got, want
 }
 
 ## A store with one seed commit; with a remote named, a bare origin holding that seed.
+## Shaped like a store myx.common git/cloneSync keeps: it holds a README.md, and its
+## branch follows its namesake at origin.
 rigStore(){ ## store path, bare remote path or empty
 	mkdir -p "$1"
 	git -C "$1" init -q || rigRefuse "could not init $1"
 	printf 'keep\n' > "$1/keep.md"
 	printf 'old\n' > "$1/change.md"
 	printf 'bye\n' > "$1/gone.md"
+	: > "$1/README.md"
 	git -C "$1" add -A && git -C "$1" commit -q -m seed || rigRefuse "could not seed $1"
 	[ -n "$2" ] || return 0
 	git init -q --bare "$2" || rigRefuse "could not init the bare remote $2"
 	git -C "$1" remote add origin "$2"
-	git -C "$1" push -q origin HEAD 2>/dev/null || rigRefuse "could not seed the bare remote $2"
+	git -C "$1" push -q -u origin HEAD 2>/dev/null || rigRefuse "could not seed the bare remote $2"
 }
 rigRemote(){ ## TEAM_DATA_GIT_REMOTE value, empty for none
 	if [ -n "$1" ] ; then
@@ -168,6 +173,36 @@ rigPending "$rigR"
 rigOp "$rigR" "$rigTmp/rb" magic-coordinator
 rigAssert "a push not confirmed by read-back exits 1"  "$( cat "$rigTmp/rb.rc" )" 1
 rigAssert "and says the read-back did not match"       "$( rigHolds "$rigTmp/rb" "TEAM-DATA-NOT-PUSHED: the push reported success but origin's $rigRBranch reads back" )" yes
+
+echo "-- the sync: origin moved from another clone, no conflict --"
+rigS="$rigTmp/sync.git"
+rigStore "$rigTmp/sync-seed" "$rigS"
+rigSBranch="$( git -C "$rigTmp/sync-seed" rev-parse --abbrev-ref HEAD )"
+rigRemote "$rigS"
+git clone -q -b "$rigSBranch" "$rigS" "$rigTmp/sync-other" 2>/dev/null || rigRefuse "could not make the other clone"
+git clone -q -b "$rigSBranch" "$rigS" "$rigTmp/sync-here" 2>/dev/null || rigRefuse "could not make this clone"
+rigOtherCommit(){ ## file name: one commit in the other clone, pushed
+	git -C "$rigTmp/sync-other" pull -q --ff-only 2>/dev/null \
+		&& printf '%s\n' "$1" > "$rigTmp/sync-other/$1" && git -C "$rigTmp/sync-other" add -A && git -C "$rigTmp/sync-other" commit -q -m "$1" \
+		&& git -C "$rigTmp/sync-other" push -q 2>/dev/null || rigRefuse "the other clone could not push $1"
+	git -C "$rigTmp/sync-other" rev-parse HEAD
+}
+rigOther1="$( rigOtherCommit other1.md )"
+rigPending "$rigTmp/sync-here"
+rigOp "$rigTmp/sync-here" "$rigTmp/s1" magic-coordinator
+rigSLocal="$( LC_ALL=C sed -n 's/^TEAM-DATA-COMMITTED: \([0-9a-f]*\) .*/\1/p' "$rigTmp/s1" )"
+rigSHead="$( git -C "$rigTmp/sync-here" rev-parse HEAD )"
+rigAssert "a local commit while origin moved: it exits 0"  "$( cat "$rigTmp/s1.rc" )" 0
+rigAssert "it committed the pending paths"              "$( LC_ALL=C grep -c "^TEAM-DATA-COMMITTED: [0-9a-f]* 3 path(s) under $rigTmp/sync-here$" "$rigTmp/s1" )" 1
+rigAssert "origin's commit and the local one are merged, neither rewritten" "$( git -C "$rigTmp/sync-here" merge-base --is-ancestor "$rigOther1" HEAD && printf yes || printf no ):$( [ -n "$rigSLocal" ] && git -C "$rigTmp/sync-here" merge-base --is-ancestor "$rigSLocal" HEAD && printf yes || printf no ):$( git -C "$rigTmp/sync-here" rev-list --parents -n 1 HEAD | wc -w | tr -d '[:space:]' )" "yes:yes:3"
+rigAssert "pushed, read back as the merged head"        "$( rigHolds "$rigTmp/s1" "TEAM-DATA-PUSHED: $rigSLocal to origin, read back as origin/$rigSBranch = $rigSHead" )" yes
+rigAssert "the bare remote's branch is that head"      "$( git --git-dir="$rigS" rev-parse "refs/heads/$rigSBranch" )" "$rigSHead"
+rigAssert "the store is clean afterwards"              "$( [ -z "$( git -C "$rigTmp/sync-here" status --porcelain --untracked-files=all )" ] && printf clean || printf dirty )" clean
+rigOther2="$( rigOtherCommit other2.md )"
+rigOp "$rigTmp/sync-here" "$rigTmp/s2" magic-coordinator
+rigAssert "nothing pending, nothing ahead, origin moved: it exits 0" "$( cat "$rigTmp/s2.rc" ):$( LC_ALL=C grep -c "^TEAM-DATA-NOTHING-PENDING: $rigTmp/sync-here$" "$rigTmp/s2" )" "0:1"
+rigAssert "origin's commit is brought in"               "$( git -C "$rigTmp/sync-here" rev-parse HEAD )" "$rigOther2"
+rigAssert "and read back as origin's head"              "$( LC_ALL=C grep -c "^TEAM-DATA-PUSHED: [0-9a-f]* to origin, read back as origin/$rigSBranch = $rigOther2$" "$rigTmp/s2" )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ TEAM DATA COMMIT PENDING CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

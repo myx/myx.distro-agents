@@ -180,7 +180,9 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-kill --session-id <id> [--run] [--plan]
 📘 syntax: DistroAgentsTools.fn.sh --manager-session-control-start (--session-id <id>|--all)
 📘 syntax: DistroAgentsTools.fn.sh --manager-spawn-member <team-member> [--from-stdin|--from-file <path>] [--session-name-or-comment <text>] [--description <text>]
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -3785,6 +3787,34 @@
 			<dispatch-item> is the item the start made. Exit 1 with one
 			error line, and nothing on stdout, where nothing was started.
 
+		--manager-team-data-read <store> [<folder> [<item>]]
+			One of the console's own operations (see Notes). Lists the
+			items of one store of the team data, to browse them, or prints
+			one item. It only reads: no git command is run, no registry is
+			touched, and nothing outside the store is read. <store> is
+			`board`, `audit` or `vault`, a folder of the team data root; a
+			<folder> is one folder of it, `-` the store itself; an <item>
+			is a file of that folder, by its name; every name is a bare
+			one. With <store> alone it prints the store's row, then a row
+			for each of its folders, the board's in the order of its
+			states and the others after them, the audit's newest month
+			first, then the items that lie in the store itself; with a
+			<folder>, the items of that folder; with an <item>, its text as
+			it lies, by the reader every read of an item uses. Rows of
+			TAB-separated fields on stdout, the first naming the row; a
+			value's own whitespace reads `_`, an absent one `-`.
+			`store <store> <state> <folders> <items>`
+			`folder <store> <folder> <items>`
+			`item <store> <folder> <name> <bytes> <stamp>`
+			<state> is `present` or `absent`, and an absent store has no
+			other row. <stamp> is the `<YYYYMMDD>T<HHMM>` of the item's
+			name where it has one: those items come first, the newest
+			first, then the others by their names. Nothing deeper than a
+			folder is listed. Exit 1 with one error line, and nothing on
+			stdout, for a word that is no store, a name that is not bare,
+			a folder or an item that is not there, and where no team data
+			root is configured.
+
 		--manager-team-member-list
 			One of the console's own operations (see Notes). Lists the
 			members of the team as this workspace knows them, one row a
@@ -3821,6 +3851,22 @@
 			of this workspace's members read `-`, and one note on stderr
 			says so. Exit 1, nothing printed, where a registry cannot be
 			rebuilt.
+
+		--manager-team-member-files <team-member> [<file>]
+			One of the console's own operations (see Notes). Lists the
+			files of one member's skillset folder, where the member is set
+			up, here or in another workspace of this machine, or prints one
+			of them. It only reads. With no <file>, a row a file, by its
+			path inside the folder, sorted:
+			`file <path> <bytes> <text>`
+			<text> is `yes` for a file that holds no NUL byte, else `no`.
+			A dot file or a dot folder, and a link inside the folder, are
+			none of its files. With a <file>, one path as the list gives
+			it, that file's text as it lies, where it is text. Nothing
+			outside the member's skillset folder is ever read. Exit 1 with
+			one error line, and nothing on stdout, for a member that is not
+			set up where it can be reached, a path the list does not give,
+			and a file that is no text.
 
 		--manager-team-member-read <team-member>
 			One of the console's own operations (see Notes). Prints one
@@ -4096,10 +4142,12 @@
 
 		--magic-team-data-commit-pending <team-member> [--commit-message <message>] [--no-push]
 			Commits everything pending under the team-data store in one
-			commit (new/changed/deleted paths) and pushes it the way
-			the team-data item write does, with one retry on a network
-			failure; every other team-data op commits only what it
-			writes, this one catches the rest. <team-member> must be
+			commit (new/changed/deleted paths), then syncs the store
+			with its remote by myx.common git/cloneSync on the branch
+			it is on: origin's commits are pulled and merged in, never
+			rebased, and what is ahead is pushed; cloneSync's own
+			output goes to stderr. Every other team-data op commits
+			only what it writes, this one catches the rest. <team-member> must be
 			magic-coordinator. Nothing outside $MDAT_DATA_ROOT is
 			staged or committed.
 
@@ -4115,8 +4163,8 @@
 			and says why, when the store sits inside a larger
 			repository or that repo's origin isn't
 			TEAM_DATA_GIT_REMOTE -- a push would send the whole
-			branch. A failed push prints `TEAM-DATA-NOT-PUSHED: the
-			push failed; ...` and exits 1 with the commit kept
+			branch. A failed git/cloneSync prints `TEAM-DATA-NOT-PUSHED:
+			the push failed; ...` and exits 1 with the commit kept
 			locally. Refused: a store not in a git repository, or one
 			showing an interrupted operation (index.lock,
 			merge/cherry-pick/revert/rebase in progress) --

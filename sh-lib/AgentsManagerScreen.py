@@ -193,9 +193,21 @@ CLEANUPS = (
                   "does": "Deletes from the team data what its retention has passed, the handled items of the inboxes, the processed items of the board and the trash, warnings and reflections after one day and every other item after seven, and commits the deletions where the team data is a repository. It is what closing the heartbeat runs, as magic-coordinator.",
                   "needs": "rig"}),
     ("sync", {"label": "Sync The Team Data", "operation": ["--magic-team-data-commit-pending", "magic-coordinator"],
-              "does": "Commits everything pending under the team data in one commit and pushes it to its remote, with one retry on a network failure; it pulls nothing, which the main loop does. It takes no lock: run it only while no routine holds the advance or the heartbeat lock.",
+              "does": "Commits everything pending under the team data in one commit, then syncs it with its remote by myx.common git/cloneSync: the remote's commits are pulled and merged in, what is ahead is pushed, and the remote is read back. It takes no lock: run it only while no routine holds the advance or the heartbeat lock.",
               "needs": "remote"}),
 )
+## The stores of the team data that `Team Data` holds as folders, to browse their items, in
+## their order: the id of each, as `--manager-team-data-read` takes it, and what it shows
+## as. Inside a store its folders, the board's states or the audit's months, each a folder
+## of its items, and the items that lie in the store itself; a selected item shows its
+## text, read only.
+TEAM_DATA_STORES = (("board", "Board"), ("audit", "Audit"), ("vault", "Vault"))
+## What a member holds as a folder of `Team Members`, in its order: the id of each folder,
+## what it shows as, and the kind of its row.
+## The kind of the row of the team itself among the members: no member, and no folder.
+MEMBER_TEAM_KIND = "team"
+MEMBER_FOLDERS = (("permissions", "Permissions", "grants"), ("files", "Skillset Files", "files"),
+                  ("sessions", "Sessions", "member-sessions"), ("help", "Member Help", "member-help"))
 ROOT_TITLE = "/"
 ROW_UP = ".."
 ## The rows a level always holds, ahead of the rows its operation gives:
@@ -204,7 +216,8 @@ FIXED_ROWS = {
     "sessions": (("launch", "Launch / Spawn", "launch", True),),
     "sessions/launch": (("free", "Free prompt", "free", False),),
     "configuration": (("checker", "Config Checker", "checker", True), ("keys", "Server Keys", "keys", True)),
-    "teamdata": (("operations", "Operations", "operations", True),),
+    "teamdata": (("operations", "Operations", "operations", True),) + tuple((storeId, label, "store", True) for storeId, label in TEAM_DATA_STORES),
+    "team/*": tuple((folderId, label, kind, True) for folderId, label, kind in MEMBER_FOLDERS),
     "teamdata/operations": tuple((cleanupId, cleanup["label"], "operation", False) for cleanupId, cleanup in CLEANUPS),
 }
 ## What the left window shows of a folder, a row that opens a level of its own, while that
@@ -234,6 +247,14 @@ SUMMARIES = {
     "configuration/keys": {"lines": "serverKeysSummary"},
     "teamdata": {"lines": "teamDataSummary"},
     "teamdata/operations": {"lines": "cleanupsSummary"},
+    "teamdata/board": {"lines": "storeSummary"},
+    "teamdata/audit": {"lines": "storeSummary"},
+    "teamdata/vault": {"lines": "storeSummary"},
+    **{"teamdata/%s/*" % storeId: {"lines": "itemsSummary", "few": 8} for storeId, storeLabel in TEAM_DATA_STORES},
+    "team/*/permissions": {"lines": "grantsSummary"},
+    "team/*/files": {"lines": "filesSummary", "few": 12},
+    "team/*/sessions": {"lines": "sessionsSummary", "counted": ("running", "waiting", "unclosed"), "named": ("running", "waiting")},
+    "team/*/help": {"lines": "helpSummary"},
 }
 
 ## What each level of the list and each view of the left pane asks the tooling for: the
@@ -259,6 +280,8 @@ SUMMARIES = {
 ## "demand": it is read only when its command asks for it ("demand" in COMMANDS), never
 ## because it was not read yet or its period has passed, and "said" is what the status
 ## line says of it then.
+## {parent} in an argument is the id of the level above the level read: the member of a
+## folder of a member.
 ## "each": a read that is made for every row of the level it is named by that carries what
 ## it "needs", by the id of that row; its key is its name and, after a `|`, that id (readEntry).
 ## The list of a level is read also while the row that opens that level is the row
@@ -359,7 +382,28 @@ READS = {
     ## says does not change under the word typed into it.
     "plan:kill:session": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--plan"], "rows": "kill", "kind": "plan", "once": True},
     "plan:kill:run": {"operation": ["--manager-session-kill", "--session-id", "{id}", "--run", "--plan"], "rows": "kill", "kind": "plan", "once": True},
+    ## The folders of a member: its grants and its sessions from the read of the member, the
+    ## files of its skillset folder and one of them whole, and its help as the tooling gives
+    ## a member its help, read when it is opened and when it is asked for.
+    "list:team/*/permissions": {"operation": ["--manager-team-member-read", "{parent}"], "rows": "member-grants"},
+    "list:team/*/files": {"operation": ["--manager-team-member-files", "{parent}"], "rows": "member-files"},
+    "view:team/*/files:file": {"operation": ["--manager-team-member-files", "{parent}", "{id}"], "needs": "text", "once": True},
+    "list:team/*/sessions": {"operation": ["--manager-team-member-read", "{parent}"], "rows": "member-sessions"},
+    "view:team/*/sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
+                                    "rows": "session-read", "needs": "session"},
+    "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],
+                                    "log": ["--log"], "rows": "transcript", "needs": "session"},
+    "list:team/*/help": {"operation": ["--member-help", "{parent}"], "rows": "member-help", "once": True},
 }
+## The stores of the team data (TEAM_DATA_STORES): a store, its folders and the items in
+## it; a folder of it, its items; and one item whole, its text, read once it is selected.
+for storeId, storeLabel in TEAM_DATA_STORES:
+    READS.update({
+        "list:teamdata/%s" % storeId: {"operation": ["--manager-team-data-read", storeId], "rows": "data-store"},
+        "list:teamdata/%s/*" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}"], "rows": "data-items"},
+        "view:teamdata/%s:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "-", "{id}"], "once": True},
+        "view:teamdata/%s/*:item" % storeId: {"operation": ["--manager-team-data-read", storeId, "{level}", "{id}"], "once": True},
+    })
 
 ## What each action asks the tooling for: the operation with its arguments, {id} the id of
 ## what it acts on. The screen itself signals no process and starts no CLI. A session's id
@@ -1407,6 +1451,24 @@ def parseLevels(readKey, form, text):
         return levels
     if form == "places":
         return {level: parsePlaceRows(text)}
+    if form == "data-store":
+        rows, store = parseStoreRows(text)
+        return {level: rows, STORE_OF + level: store}
+    if form == "data-items":
+        return {level: parseItemRows(text)}
+    if form == "member-grants":
+        return {level: parseGrantRows(text)}
+    if form == "member-files":
+        return {level: parseFileRows(text)}
+    if form == "member-sessions":
+        ## a session of the member opens where every session does, in `Sessions (Activity)`
+        rows = parseSessionLevels(text)["sessions"]
+        for row in rows:
+            row["jump"] = ["sessions", row["id"]]
+        return {level: rows}
+    if form == "member-help":
+        rows, whole = parseHelpRows(text)
+        return {level: rows, WHOLE_OF + level: whole}
     return {level: parseRows(readKey, text)}
 
 
@@ -1473,6 +1535,9 @@ def diveIn(state, height):
     row = rows[cursorOf(state, rows, height)["index"]]
     if row["kind"] == "up":
         goUp(state)
+    elif row.get("jump"):
+        ## a row that stands for what has a place of its own elsewhere opens there
+        state.path = list(row["jump"])
     elif row["dive"]:
         state.path = state.path + [row["id"]]
 
@@ -1641,7 +1706,7 @@ def localView(state, row):
     if not logShown(state, row):
         ## the summary of a session and of an agent: its facts, and nothing of its log;
         ## one that has no log has its summary alone, whatever the mode
-        if level == "sessions" and row.get("session"):
+        if level in ("sessions", "team/*/sessions") and row.get("session"):
             return sessionLines(row["session"], state.viewWidth, state.view["info"])
         if level == "sessions/*" and row.get("run"):
             return runLines(row["run"], state.viewWidth, state.view["info"])
@@ -1684,6 +1749,14 @@ def localView(state, row):
         return cleanupLines(state, row)
     if level == "places" and row.get("place"):
         return placeLines(state, row["place"], state.viewWidth, state.view["info"])
+    if row.get("grant"):
+        return grantLines(row["grant"], state.viewWidth)
+    if row.get("grantKind"):
+        return grantKindLines(state, row, state.viewWidth)
+    if row.get("file") and not row["text"]:
+        return ["%s: %s, no text: it is not shown." % (row["id"], shortBytes(row["file"]["bytes"]))]
+    if row.get("help"):
+        return row["help"]
     return None
 
 
@@ -1779,6 +1852,246 @@ def viewHead(state, row):
     if logShown(state, row) and (row.get("session") or row.get("run")):
         lines.extend(fieldLines([("lines", sourceText(state, row))], state.viewWidth))
     return lines
+
+
+## ---- the items of the team data: its board, its audit and its vault ----
+
+## Where what a read of a store says of the store itself is kept, and the whole help of a
+## member, beside the rows of their level: under the level, behind these words.
+STORE_OF = "store:"
+WHOLE_OF = "whole:"
+
+
+## What `--manager-team-data-read <store>` printed: the rows of its folders, each a folder
+## of its items with how many it holds, then the items in the store itself; and the store,
+## whether it is there and how much it holds.
+def parseStoreRows(text):
+    rows = []
+    store = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "store" and len(fields) >= 5:
+            store = [{"state": fields[2], "folders": fields[3], "items": fields[4]}]
+        elif fields[0] == "folder" and len(fields) >= 4:
+            row = newRow(fields[2], fields[2], "folder", True, fields)
+            row["tail"] = fields[3]
+            row["folder"] = {"items": fields[3]}
+            rows.append(row)
+    return rows + parseItemRows(text), store
+
+
+## The `item` rows of a read of the team data: each by its name, its size at the end of its line.
+def parseItemRows(text):
+    rows = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "item" and len(fields) >= 6:
+            row = newRow(fields[3], fields[3], "item", False, fields)
+            row["item"] = {"bytes": fields[4], "stamp": fields[5]}
+            row["tail"] = shortBytes(fields[4])
+            rows.append(row)
+    return rows
+
+
+## The summary of a store: whether it is there, its folders with how many items each holds,
+## and how many items lie in it itself; plainly where it holds none.
+def storeSummary(state, path, row, form):
+    store = state.rows.get(STORE_OF + levelKey(path))
+    rows = state.rows.get(levelKey(path))
+    if not store or rows is None:
+        return None
+    store = store[0]
+    if store["state"] != "present":
+        return ["%s: there is none in this team data: it has no such folder." % row["label"]]
+    folders = [held for held in rows if held["kind"] == "folder"]
+    items = [held for held in rows if held["kind"] == "item"]
+    if not folders and not items:
+        return ["%s: empty. It holds no items." % row["label"]]
+    total = sum(int(held["folder"]["items"]) for held in folders if held["folder"]["items"].isdigit()) + len(items)
+    lines = ["%s: %d items%s." % (row["label"], total, (" in %d folders" % len(folders) + (" and itself" if items else "")) if folders else "")]
+    if folders:
+        lines.extend([""] + summaryTable(("FOLDER", "ITEMS"), [[held["label"], held["folder"]["items"]] for held in folders], state.viewWidth))
+    if items:
+        lines.extend(["", "%d item%s in the %s itself." % (len(items), "" if len(items) == 1 else "s", row["label"].lower())])
+    lines.extend(["", "Enter opens it: a selected item shows its text."])
+    return lines
+
+
+## The summary of a folder of a store: how many items it holds and how much, and the first
+## of them, the newest first where their names are dated.
+def itemsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    items = [held for held in rows if held.get("item")]
+    if not items:
+        return ["%s: empty. It holds no items." % row["label"]]
+    size = sum(int(held["item"]["bytes"]) for held in items if held["item"]["bytes"].isdigit())
+    lines = ["%s: %d item%s, %s." % (row["label"], len(items), "" if len(items) == 1 else "s", shortBytes(str(size))), ""]
+    lines.extend(hangLines(held["label"], state.viewWidth)[0] for held in items[:form["few"]])
+    if len(items) > form["few"]:
+        lines.append("  and %d more" % (len(items) - form["few"]))
+    return lines
+
+
+## ---- a team member as a folder: its grants, its files, its sessions, its help ----
+
+## The columns of the table of a member's grants, grouped by their kind, and what of a
+## grant stands in each: what it covers by the rule of its location, its access, where it
+## comes from, when it ends. The first is cut at that many cells; the grant selected
+## shows whole in the left window.
+GRANT_COLUMNS = (
+    ("COVERS", lambda grant: grant["place"] or grant["target"]),
+    ("ACCESS", lambda grant: grant["access"]),
+    ("FROM", lambda grant: grant["origin"]),
+    ("ENDS", lambda grant: grant["ends"]),
+)
+GRANT_COVERS_CELLS = 40
+
+
+## A member's grants by their kind, counted, in the order they come: `floor 12, standing 3`.
+def grantCounts(grants):
+    counts = {}
+    for grant in grants:
+        counts[grant["kind"]] = counts.get(grant["kind"], 0) + 1
+    return ", ".join("%s %d" % (kind, count) for kind, count in counts.items())
+
+
+## What the read of a member printed of its grants, as rows: under a heading for each kind,
+## in the order they come, its grants as one table.
+def parseGrantRows(text):
+    grants = parseMemberRead(text)["grants"]
+    kinds = []
+    for grant in grants:
+        if grant["kind"] not in kinds:
+            kinds.append(grant["kind"])
+    rows = []
+    for index, grant in enumerate(grants):
+        row = newRow(str(index), grant["place"] or grant["target"], "grant")
+        row["grant"] = grant
+        rows.append(row)
+    words = [[column[1](row["grant"]) or "-" for column in GRANT_COLUMNS] for row in rows]
+    table = {"heads": [column[0] for column in GRANT_COLUMNS], "iconWidth": 0,
+             "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words]) for index, column in enumerate(GRANT_COLUMNS)]}
+    table["widths"][0] = min(table["widths"][0], GRANT_COVERS_CELLS)
+    for row, line in zip(rows, words):
+        row["table"] = table
+        row["cells"] = [""] + line
+    groups = []
+    for kind in kinds:
+        head = newRow("kind:" + kind, "%s (%d)" % (kind, len([row for row in rows if row["grant"]["kind"] == kind])), "grant-kind")
+        head["grantKind"] = kind
+        groups.append((head, [row for row in rows if row["grant"]["kind"] == kind]))
+    return groupedRows(groups)
+
+
+## One grant, whole: its kind, its access, what it covers as a path and by the rule of its
+## location, where it comes from and when it ends.
+def grantLines(grant, width):
+    return fieldLines([("kind", grant["kind"]), ("access", grant["access"]), ("covers", grant["target"]),
+                       ("rule", grant["place"]), ("from", grant["origin"]), ("ends", grant["ends"])], width)
+
+
+## The grants of one kind, a line each.
+def grantKindLines(state, row, width):
+    grants = [held["grant"] for held in state.rows.get(levelKey(state.path), ()) if held.get("grant") and held["grant"]["kind"] == row["grantKind"]]
+    lines = ["%d %s grant%s:" % (len(grants), row["grantKind"], "" if len(grants) == 1 else "s")]
+    for grant in grants:
+        lines.extend(hangLines("%s %s, from %s" % (grant["access"], grant["place"] or grant["target"], grant["origin"] or "-"), width))
+    return lines
+
+
+## The summary of `Permissions`: how many grants, by kind.
+def grantsSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    grants = [held["grant"] for held in rows if held.get("grant")]
+    if not grants:
+        return ["No grants."]
+    return ["%d grants: %s." % (len(grants), grantCounts(grants)), "", "Enter opens them as a table, by kind; a selected grant shows whole."]
+
+
+## What `--manager-team-member-files` printed: a file a row, by its path in the member's
+## skillset folder, its size at the end of its line; one that is no text is dimmed and not read.
+def parseFileRows(text):
+    rows = []
+    for line in text.splitlines():
+        fields = line.split("\t")
+        if fields[0] == "file" and len(fields) >= 4:
+            row = newRow(fields[1], fields[1], "file", False, fields)
+            row["file"] = {"bytes": fields[2]}
+            row["text"] = fields[3] == "yes"
+            row["tail"] = shortBytes(fields[2])
+            if not row["text"]:
+                row["look"] = DIM
+            rows.append(row)
+    return rows
+
+
+## The summary of `Skillset Files`: how many files and how much, and the first of them.
+def filesSummary(state, path, row, form):
+    rows = state.rows.get(levelKey(path))
+    if rows is None:
+        return None
+    files = [held for held in rows if held.get("file")]
+    size = sum(int(held["file"]["bytes"]) for held in files if held["file"]["bytes"].isdigit())
+    lines = ["%d file%s, %s; %d of them text." % (len(files), "" if len(files) == 1 else "s", shortBytes(str(size)), len([held for held in files if held["text"]])), ""]
+    lines.extend("  " + held["label"] for held in files[:form["few"]])
+    if len(files) > form["few"]:
+        lines.append("  and %d more" % (len(files) - form["few"]))
+    return lines
+
+
+## What `--member-help <member>` printed, as rows: each operation of its help an item, by
+## the first of its syntax lines, whose left window is its block as the help gives it, its
+## syntax lines and its text; an operation its syntax names that has no block in the help
+## shows that it has none. And the whole of it, which `Member Help` shows of itself.
+def parseHelpRows(text):
+    lines = [line.expandtabs(4) for line in text.splitlines()]
+    named = []
+    entries = []
+    heading = False
+    for raw, line in zip(text.splitlines(), lines):
+        if raw.startswith("📘 syntax:"):
+            words = [word.strip("[]") for word in raw.split()]
+            operation = next((word for word in words if word.startswith("--")), "")
+            if operation and operation not in named:
+                named.append(operation)
+        elif raw.startswith("\t\t--"):
+            if not heading:
+                entries.append({"operation": raw.split()[0], "lines": []})
+            entries[-1]["lines"].append(line.strip())
+            heading = True
+            continue
+        elif entries and (raw.startswith("\t\t\t") or not raw.strip()):
+            entries[-1]["lines"].append(line[8:] if line.startswith(" " * 8) else line.strip())
+        heading = False
+    rows = []
+    seen = {}
+    for entry in entries:
+        operation = entry["operation"]
+        seen[operation] = seen.get(operation, 0) + 1
+        row = newRow(operation if seen[operation] == 1 else "%s#%d" % (operation, seen[operation]), operation, "help-entry")
+        while entry["lines"] and not entry["lines"][-1].strip():
+            entry["lines"].pop()
+        row["help"] = entry["lines"]
+        rows.append(row)
+    for operation in named:
+        if operation not in seen:
+            row = newRow(operation, operation, "help-entry")
+            row["help"] = [operation, "", "It has no description block in the help."]
+            row["look"] = DIM
+            rows.append(row)
+    return rows, [{"lines": lines}]
+
+
+## The summary of `Member Help`: the member's help whole, as the tooling gives it.
+def helpSummary(state, path, row, form):
+    whole = state.rows.get(WHOLE_OF + levelKey(path))
+    if not whole:
+        return None
+    return whole[0]["lines"]
 
 
 ## ---- the asks that wait for an answer ----
@@ -4140,6 +4453,10 @@ def memberTable(rows):
              "widths": [max([textWidth(column[0])] + [textWidth(line[index]) for line in words])
                         for index, column in enumerate(MEMBER_COLUMNS)],
              "iconWidth": max([textWidth(member["icon"]) for member in members] + [0])}
+    ## the first column holds the mark of a folder after the name of a member that is one
+    if any(row["dive"] for row in rows):
+        table["marks"] = True
+        table["widths"][0] += textWidth(MARKS["folder"])
     for row, member, line in zip(rows, members, words):
         row["table"] = table
         row["cells"] = [member["icon"]] + line
@@ -4178,7 +4495,9 @@ def parseMemberRows(text):
                   "family": unspaced(fields[4]), "alias": unspaced(fields[5]), "kind": absent(fields[6]),
                   "workspace": absent(fields[7]), "setUp": fields[8], "status": absent(fields[9]), "live": fields[10],
                   "icon": absent(fields[11]) if len(fields) > 11 else ""}
-        row = newRow(fields[1], fields[1], "record", False, fields)
+        ## a member is a folder of its own, but one whose workspace cannot be reached, whose
+        ## nothing is read, and the row of the team itself, which is no member
+        row = newRow(fields[1], fields[1], "record", member["setUp"] != "not-present" and member["kind"] != MEMBER_TEAM_KIND, fields)
         row["member"] = member
         if member["live"] == "running":
             row["look"] = BOLD
@@ -4289,11 +4608,9 @@ def memberLines(member, width, info=None):
     for name, shown in (("workspace", "path"), ("home", "home"), ("link-kind", "link"), ("skillset-path", "skillset"), ("persona", "persona")):
         if facts.get(name):
             lines.extend(hangLines("%-9s %s" % (shown, facts[name]), width))
-    lines.extend(["", "its grants: %d" % len(info["grants"])])
-    for grant in info["grants"]:
-        lines.extend(hangLines("%-8s %-7s %s, from %s%s" % (
-            grant["kind"], grant["access"], grant["place"] or grant["target"], grant["origin"] or "-",
-            ", ends " + grant["ends"] if grant["ends"] not in ("", "none") else ""), width))
+    lines.extend(["", "its grants: %d%s" % (len(info["grants"]), (", " + grantCounts(info["grants"])) if info["grants"] else "")])
+    if info["grants"]:
+        lines.extend(hangLines("Permissions holds them as a table.", width))
     lines.extend(["", "its settings: %d" % len(info["settings"])])
     keyWidth = min(34, max([len(setting["key"]) for setting in info["settings"]] or [0]))
     for setting in info["settings"]:
@@ -6470,7 +6787,13 @@ def readWords(entry, state, values, filtered=True):
         words.extend(entry.get("active", ()))
     if rawShown(state):
         words.extend(entry.get("log", ()))
-    return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")) for word in words]
+    return [word.replace("{id}", values.get("id", "")).replace("{level}", values.get("level", "")).replace("{parent}", values.get("parent", "")) for word in words]
+
+
+## The values of the words of a read of the level at that path: {level}, its own id, and
+## {parent}, the id of the level above it.
+def pathValues(path):
+    return {"level": path[-1] if path else "", "parent": path[-2] if len(path) > 1 else ""}
 
 
 ## The entry of READS a read is made by, from its key, or nothing: a read made for a row of
@@ -6507,7 +6830,7 @@ def demandRead(state):
 def shownReads(state):
     wanted = []
     row = selectedRow(state)
-    values = {"level": state.path[-1] if state.path else ""}
+    values = pathValues(state.path)
     for part in VIEW_PARTS:
         entry = viewReadOf(state, row, part)
         if entry and (part != "feed" or modeOf(state)["feed"]):
@@ -6530,7 +6853,7 @@ def shownRead(state, part):
 def wantedReads(state, focus=True):
     wanted = []
     pattern = levelPattern(state.path)
-    values = {"level": state.path[-1] if state.path else ""}
+    values = pathValues(state.path)
     shown = listReadOf(state.path)
     if shown:
         own = shown[0] == "list:" + levelKey(state.path)
@@ -6582,7 +6905,7 @@ def focusReads(state):
     if not opened:
         return []
     wanted = [(opened[1].get("kind", "focus"), opened[0],
-               readWords(opened[1], state, {"level": row["id"]}, opened[0] == "list:" + levelKey(path)))]
+               readWords(opened[1], state, pathValues(path), opened[0] == "list:" + levelKey(path)))]
     pattern = levelPattern(path)
     for also in (READS.get("list:" + pattern) or {}).get("also", ()):
         wanted.append((READS[also].get("kind", "focus"), also, readWords(READS[also], state, {})))
@@ -7226,7 +7549,14 @@ def rowEnters(state, row):
 ## mark of a folder after its name: a name too long for its room is cut ahead of that
 ## mark, which is never cut itself. Gives the text, and where in it the mark stands, or None.
 def listRowParts(row, chosen, width, enters=False):
-    shown = tableLineText(row["table"], row["cells"], width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
+    cells = row.get("cells")
+    if enters and row.get("table") and row["table"].get("marks"):
+        ## a folder of a table: the mark of a folder after its first column, in the look of
+        ## its row, which the column leaves room for; a name too long for the line is cut
+        ## ahead of the mark, which is never cut itself
+        room = width - 1 - (row["table"]["iconWidth"] + 1 if row["table"]["iconWidth"] else 0) - textWidth(MARKS["folder"])
+        cells = [cells[0], (cells[1] if textWidth(cells[1]) <= room else cutToCells(cells[1], max(1, room))) + MARKS["folder"]] + cells[2:]
+    shown = tableLineText(row["table"], cells, width - 1) if row.get("table") else " " * row.get("indent", 0) + row["label"]
     head = (MARK_SELECTED if chosen else " ") + shown
     tail = row.get("tail", "")
     if row.get("wide") and width >= LIST_WIDE["from"]:
