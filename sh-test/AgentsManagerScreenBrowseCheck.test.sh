@@ -107,14 +107,14 @@ keys DOWN
 wait view 10
 get item
 show item
-keys LEFT LEFT DOWN
+keys BACKSPACE BACKSPACE DOWN
 wait focus 10
 keys ENTER
 wait list 10
 keys DOWN DOWN
 wait view 10
 show audit
-keys LEFT DOWN
+keys BACKSPACE DOWN
 wait focus 10
 show vault
 RIGSCRIPT
@@ -159,7 +159,7 @@ wait list 10
 keys DOWN DOWN
 get grant
 show grant
-keys LEFT DOWN
+keys BACKSPACE DOWN
 wait focus 10
 keys ENTER
 wait list 10
@@ -169,7 +169,7 @@ show file
 keys DOWN
 turn
 show icon
-keys LEFT DOWN
+keys BACKSPACE DOWN
 wait focus 10
 show sessions
 keys ENTER

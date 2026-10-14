@@ -368,7 +368,7 @@ wait feed 30
 keys UP
 get other
 wait feed 30
-keys LEFT
+keys BACKSPACE
 wait view 30
 wait feed 30
 turn
@@ -564,7 +564,7 @@ wait view 30
 wait feed 30
 get r
 show r
-keys LEFT DOWN
+keys BACKSPACE DOWN
 advance 1
 turn
 wait view 30

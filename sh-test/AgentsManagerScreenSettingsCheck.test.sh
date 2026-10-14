@@ -228,7 +228,7 @@ rigAssert "workspace: what it holds, and how many of its lines are missing" "$( 
 rigAssert "its missing line first, marked, with the group it is of, since it is a subject of the configuration; then its paths under a line of their own, a path with an underscore as it is written" "[$( rigPane w 6 )][$( rigPane w 7 )][$( rigPane w 9 )][$( rigPane w 10 )]" \
 	"[ missing, first][   ! session-stores  /rig/ws_rig/.local/agents/stores (missing)  in paths][ paths][     workspace-root  /rig/ws_rig]"
 rigAssert "then its places, under a line of their own"               "[$( rigPane w 11 )][$( rigPane w 12 )][$( rigPane w 13 )][$( rigPane w 14 )]" "[][ places][     ws-rig  /rig/ws_rig][]"
-rigAssert "under its lines it says that Enter opens it, the sentence broken at the window, which the status line names; it names no key of its own" "[$( rigPane w 15 )][$( rigPane w 16 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[ Enter opens it: its lines one by one, each with what it is and whether it is][ changed from here.] [] [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help] 0"
+rigAssert "under its lines it says that Enter opens it, the sentence broken at the window, which the status line names; it names no key of its own" "[$( rigPane w 15 )][$( rigPane w 16 )] [$( rigVal wKeys )] [$( rigVal wStatus | sed 's/  *$//' )] $( rigVal w.spills )" "[ Enter opens it: its lines one by one, each with what it is and whether it is][ changed from here.] [] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] 0"
 rigAssert "cli: a missing key first, marked, with its group; then what the workspace asks for, a key as it is written" "[$( rigPane c 3 )][$( rigPane c 6 )][$( rigPane c 7 )][$( rigPane c 11 )][$( rigPane c 12 )]" \
 	"[ cli: the CLI service the workspace asks for, and each CLI the console knows][ missing, first][   ! SPAWN_HARNESS_TIER       missing  in workspace][ workspace][     SPAWN_CLI_SERVICE  claude]"
 rigAssert "a secret shows only as configured or not configured: the one that is not among the missing lines, the one that is in its group"      "[$( rigPane c 8 )][$( rigPane c 14 )][$( rigPane c 15 )][$( rigPane c 16 )][$( rigPane c 17 )]" \
@@ -285,7 +285,7 @@ cells hStatus 39 0 120
 keys DOWN
 turn
 show t
-keys LEFT
+keys BACKSPACE
 turn
 get back
 keys 8
@@ -305,12 +305,12 @@ rigAssert "on the row that goes up the left window shows the subject itself" "[$
 rigAssert "a setting: its label as the title, what it is now first, by the label of the choice and as it is saved" "$( rigVal h.selectedLabel ) [$( rigPane h 2 )][$( rigPane h 3 )][$( rigPane h 4 )]" "Console History Type [ Console History Type [wrap]][ value     Per User In This Workspace (workspace-personal)][]"
 rigAssert "then its description, and under it its key, group, state, source and scope" "[$( rigPane h 5 )][$( rigPane h 6 )][$( rigPane h 7 )][$( rigPane h 8 )][$( rigPane h 9 )][$( rigPane h 10 )][$( rigPane h 11 )]" \
 	"[ Where a console keeps the shell history of this user.][][ key       MDLT_CONSOLE_HISTORY][ group     history][ state     set][ source    saved for this user][ scope     this user, in this workspace]"
-rigAssert "what it takes, where it is saved, and that Enter changes it, which the status line names" "[$( rigPane h 12 )][$( rigPane h 13 )][$( rigPane h 14 )] $( rigPaneHolds h ' keys: Enter change' ) [$( rigVal hStatus | sed 's/  *$//' )]" \
-	"[ takes     Per User In This Workspace, The File Bash Uses][ saved in  /rig/ws_rig/.local/home/rig/MDLT.settings.env][ change    Enter changes it] 1 [ Enter Change  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "what it takes, where it is saved, and that Enter changes it, which the status line names" "[$( rigPane h 12 )][$( rigPane h 13 )][$( rigPane h 14 )] $( rigPaneHolds h ' keys: ENTER change' ) [$( rigVal hStatus | sed 's/  *$//' )]" \
+	"[ takes     Per User In This Workspace, The File Bash Uses][ saved in  /rig/ws_rig/.local/home/rig/MDLT.settings.env][ change    Enter changes it] 1 [ ENTER Change  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "a setting of a kind the screen does not know shows as it is, with nothing it takes" "[$( rigPane t 3 )] $( rigPaneHolds t ' source    the default' ) $( rigScreenHolds t ' takes ' ) $( rigPaneHolds t ' change    Enter changes it' )" "[ value     rig_title] 1 0 1"
-rigAssert "Left goes up, onto the subject that was entered"         "$( rigVal back.path ) $( rigVal back.selected )" "settings console"
+rigAssert "Backspace goes up, onto the subject that was entered"         "$( rigVal back.path ) $( rigVal back.selected )" "settings console"
 rigAssert "a secret of the configuration, titled with its group since the subject has several: only its state, its description, and why it is not changed, in the words of its row" "$( rigVal k.path ) [$( rigPane k 2 )][$( rigPane k 3 )][$( rigPane k 5 )] $( rigPaneHolds k ' change    no: set at deployment: a wizard will change it' ) $( rigScreenHolds k 'sk-must' )" "configuration/cli [ claude: Anthropic API Key [wrap]][ value     configured][ The key the Claude CLI signs in with.] 1 0"
-rigAssert "such a line is no row that is entered, the left window names no key for it, and the status line no change" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>  Anthropic API Key] 0 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "such a line is no row that is entered, the left window names no key for it, and the status line no change" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>  Anthropic API Key] 0 [ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- Configuration: Enter on a line changes nothing, and says why --"
 rigCase viewing
@@ -337,8 +337,8 @@ turn 3
 get end
 RIGSCRIPT
 rigAssert "Enter on a line of the configuration opens nothing: the status line says, in the words of the row, that a wizard will change it" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.quit )" "[] [Change the setting: set at deployment: a wizard will change it] configuration/cli no"
-rigAssert "Right dives nowhere"                                      "$( rigVal dived.path ) [$( rigVal dived.notice )]" "configuration/cli [Open: this row has nothing to open]"
-rigAssert "k and n are no keys of this view: nothing opens, and the status line keeps what it said" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[Open: this row has nothing to open][Open: this row has nothing to open] []"
+rigAssert "Right dives nowhere: it pages down, and the status line keeps what it said" "$( rigVal dived.path ) [$( rigVal dived.notice )]" "configuration/cli [Change the setting: set at deployment: a wizard will change it]"
+rigAssert "k and n are no keys of this view: nothing opens, and the status line keeps what it said" "[$( rigVal kill.notice )][$( rigVal start.notice )] [$( rigVal start.dialog )]" "[Change the setting: set at deployment: a wizard will change it][Change the setting: set at deployment: a wizard will change it] []"
 rigAssert "no operation was called but the reads, and nothing was saved" "$( rigOthers ) $( rigCalled '--manager-config-digest --full' ) $( rigVal end.calls ) [$( rigVal end.dialog )]" "0 1 0 []"
 
 ## A small digest whose subjects and lines carry labels, a line with none ending with `-`.

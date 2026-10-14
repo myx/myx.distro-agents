@@ -525,12 +525,13 @@ PLACED = {
 ## between two status lines with one column between them and nothing spent on frames.
 ## "colours": it is drawn in the colours of LOOKS where the terminal has them; without them,
 ## and on a terminal that has none, in bold, reverse and dim alone. "keys": its key map,
-## an entry of KEYMAPS. The same windows, menus,
+## an entry of KEYMAPS. "names": what its menus, its status line and its help name the keys
+## by, an entry of KEY_NAMES; with none, KEY_WORDS alone. The same windows, menus,
 ## commands and keys are drawn in every style: adding a style is adding an entry here.
 STYLES = (
-    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True, "keys": "tv"}),
+    ("tv", {"label": "Turbo Vision", "frames": True, "colours": True, "keys": "tv", "names": "classic"}),
     ("mc", {"label": "MC (Compact)", "frames": False, "colours": False, "keys": "mc"}),
-    ("bw", {"label": "B/W", "frames": True, "colours": False, "keys": "tv"}),
+    ("bw", {"label": "B/W", "frames": True, "colours": False, "keys": "tv", "names": "classic"}),
 )
 ## The key maps: the key map is the style's ("keys" there names it). Each gives the keys of
 ## the commands whose keys are not the same in every style, by the name of the command;
@@ -588,7 +589,7 @@ WINDOWS = (
      "commands": ("wrap", "pan")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "filter", "page-left", "page-right")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -670,7 +671,8 @@ MENUS = (
 ## <name>) is the handler of that action (ACTION_HANDLERS) with the selected row, which
 ## asks first where it must and then calls the operations "calls" names in CALLS; while
 ## its handler is not built the command does not apply. ("go", <path>) takes the list to
-## that level. ("move", <rows>, <pages>) moves in the active window. The others are the
+## that level. ("move", <rows>, <pages>) moves in the active window; ("move", <rows>, <pages>, <name>)
+## does the command of that name instead where the selection stands on the first row of the list. The others are the
 ## engine's own: "open", "up", "focus", "filter", "read", "menu", "style", "quit",
 ## "demand", which asks for the list shown where that is read on demand alone (READS), or
 ## for the list of the folder selected where that one is, and
@@ -704,7 +706,7 @@ COMMANDS = (
     {"name": "menu", "keys": ("m", "F10"), "status": "Menu", "does": ("menu",)},
     {"name": "exit", "keys": ("CTRL-x", "ALT-x"), "menu": ("go", 4), "label": "E~x~it", "status": "Exit",
      "does": ("quit",)},
-    {"name": "unstarted", "keys": ("ENTER", "RIGHT"),
+    {"name": "unstarted", "keys": ("ENTER",),
      "views": ("sessions/launch",), "for": "a routine that cannot be started", "on": ("sessions/launch:record",), "only": True, "tells": True, "does": ("action", "unstarted")},
     {"name": "launch", "keys": ("ENTER",), "menu": ("session", 2), "label": "Start the ro~u~tine", "status": "Start",
      "views": ("sessions/launch",), "for": "a routine", "on": ("sessions/launch:record",), "only": True, "does": ("action", "launch"), "calls": ("launch",)},
@@ -728,9 +730,9 @@ COMMANDS = (
      "views": ("consoles",), "for": "something to start", "on": ("consoles:record",), "only": True, "says": "start", "does": ("action", "run")},
     {"name": "cleanup", "keys": ("ENTER",), "menu": ("view", 3), "label": "Run the ~o~peration", "status": "Run",
      "views": ("teamdata/operations",), "for": "an operation of the team data", "on": ("teamdata/operations:operation",), "only": True, "says": "run", "does": ("action", "cleanup")},
-    {"name": "open", "keys": ("ENTER", "RIGHT"), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
+    {"name": "open", "keys": ("ENTER",), "menu": ("go", 3), "label": "~O~pen", "status": "Open",
      "does": ("open",)},
-    {"name": "up", "keys": ("LEFT",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
+    {"name": "up", "keys": ("BACKSPACE",), "menu": ("go", 3), "label": "~U~p one level", "status": "Up",
      "does": ("up",)},
     {"name": "focus", "keys": ("TAB", "F6"), "menu": ("view", 2), "label": "~N~ext window", "status": "Window",
      "does": ("focus",)},
@@ -744,7 +746,7 @@ COMMANDS = (
     ## or a narrower one)
     {"name": "wrap", "keys": ("w",), "menu": ("view", 5), "label": "Wra~p~ or cut long lines", "status": ("Wrap", "Cut"), "toggle": "wrap",
      "does": ("wrap",)},
-    {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "Left/Right", "does": ("pan",)},
+    {"name": "pan", "keys": ("LEFT", "RIGHT"), "status": "Scroll", "shown": "LEFT/RIGHT", "does": ("pan",)},
     {"name": "split-wider", "keys": ("[",), "menu": ("view", 5), "label": "Wi~d~er list", "does": ("split", 1)},
     {"name": "split-narrower", "keys": ("]",), "menu": ("view", 5), "label": "Narrower lis~t~", "does": ("split", -1)},
     {"name": "style", "keys": ("i", "F9"), "menu": ("view", 3), "label": "Interface ~s~tyle: the next", "does": ("style",)},
@@ -794,17 +796,30 @@ COMMANDS = (
     {"name": "line-down", "keys": ("DOWN",), "does": ("move", 1, 0)},
     {"name": "page-up", "keys": ("PGUP",), "does": ("move", 0, -1)},
     {"name": "page-down", "keys": ("PGDN",), "does": ("move", 0, 1)},
+    ## the list's own Left and Right: Right pages down as PgDn does, Left pages up as PgUp does
+    ## and, on the first row of the list, goes up one level as "up" does
+    {"name": "page-left", "keys": ("LEFT",), "does": ("move", 0, -1, "up")},
+    {"name": "page-right", "keys": ("RIGHT",), "does": ("move", 0, 1)},
 )
 ## What the status line shows in place of the commands while something else has the keys:
-## a pull-down menu. Each a key and its word. A dialog names its own
+## a pull-down menu. Each a key, or two with / between, and its word. A dialog names its own
 ## keys, from CONTROL_KINDS. The status line names no key but those that act for what has
 ## the keys now.
 STATUS_KEYS = {
-    "menu": (("Enter", "Choose"), ("Esc", "Close"), ("Left/Right", "Menus"), ("Up/Down", "Items")),
+    "menu": (("ENTER", "Choose"), ("ESC", "Close"), ("LEFT/RIGHT", "Menus"), ("UP/DOWN", "Items")),
 }
 ## How the name of a key shows in a menu and in the status line, where it is not its own name.
 KEY_WORDS = {"ENTER": "Enter", "TAB": "Tab", "ESC": "Esc", "LEFT": "Left", "RIGHT": "Right",
-             "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn"}
+             "UP": "Up", "DOWN": "Down", "PGUP": "PgUp", "PGDN": "PgDn", "BACKSPACE": "Backspace"}
+## The names a style gives keys in place of those of KEY_WORDS ("names" of its entry of STYLES).
+## "classic": capitals, and the arrows of the IBM PC character set the frames come from;
+## "symbols": a symbol each. Each name of either is one cell on every terminal (TEXT_SYMBOLS).
+KEY_NAMES = {
+    "classic": {"ENTER": "ENTER", "TAB": "TAB", "ESC": "ESC", "LEFT": "←", "RIGHT": "→",
+                "UP": "UP", "DOWN": "DN", "BACKSPACE": "BSP"},
+    "symbols": {"ENTER": "⏎", "TAB": "⇥", "ESC": "⎋", "LEFT": "←", "RIGHT": "→",
+                "UP": "↑", "DOWN": "↓", "BACKSPACE": "⌫"},
+}
 ## What the status line says when a command of the view is tried and does not apply, by
 ## why it does not; %s is the command as its menu names it. "window": the other window has
 ## the keys; "unbuilt": its action is not built; "row": what is selected is not what it
@@ -828,8 +843,9 @@ REFUSALS = {
 ## ---- the declaration of the dialogs ----
 
 ## The kinds of control a dialog is made of. "focus": whether the keys go to one of that
-## kind. "keys": the keys it takes while they do, each as the status line names it, with
-## its word. Tab and Shift-Tab go to the next control and to the one before, Enter presses
+## kind. "keys": the keys it takes while they do, each by its name in KEY_WORDS (two with /
+## between), which the status line shows in the names of the style (keysShown), with its
+## word. Tab and Shift-Tab go to the next control and to the one before, Enter presses
 ## the first button of the dialog, or the button the keys are on, and Esc closes it and
 ## does nothing: those are every dialog's.
 CONTROL_KINDS = {
@@ -838,15 +854,15 @@ CONTROL_KINDS = {
     ## one line to type in
     "input": {"focus": True, "keys": ()},
     ## several lines to type in: Enter there is a new line, and a button is reached by Tab
-    "area": {"focus": True, "keys": (("Enter", "New line"),)},
+    "area": {"focus": True, "keys": (("ENTER", "New line"),)},
     ## boxes, any number of them checked: [X]
-    "checks": {"focus": True, "keys": (("Space", "Toggle"), ("Up/Down", "Move"))},
+    "checks": {"focus": True, "keys": (("Space", "Toggle"), ("UP/DOWN", "Move"))},
     ## radio buttons, one of them chosen: (*)
-    "radios": {"focus": True, "keys": (("Space", "Choose"), ("Up/Down", "Move"))},
+    "radios": {"focus": True, "keys": (("Space", "Choose"), ("UP/DOWN", "Move"))},
     ## a list: the row its bar is on is the one picked
-    "list": {"focus": True, "keys": (("Up/Down", "Pick"),)},
+    "list": {"focus": True, "keys": (("UP/DOWN", "Pick"),)},
     ## a button of the dialog
-    "button": {"focus": True, "keys": (("Left/Right", "Buttons"),)},
+    "button": {"focus": True, "keys": (("LEFT/RIGHT", "Buttons"),)},
 }
 ## The dialogs, each declared once by its name. "title": what stands in its top border,
 ## where the one that opens it gives no other. "controls": its controls from the top, each
@@ -1141,6 +1157,9 @@ class ManagerState:
 ## into them apart, at its own column (CursesSurface.apartWritten): however far the terminal
 ## moves for it, nothing after it moves, and a cell it leaves is a blank of the screen's own.
 EMOJI_CELLS = 2
+## The symbols of those blocks that are text and no emoji, each one cell as Unicode counts it:
+## names of keys (KEY_NAMES).
+TEXT_SYMBOLS = frozenset("⏎⎋⌫")
 
 
 ## The cells one character takes by Unicode, as itself.
@@ -1153,6 +1172,8 @@ def ownCells(character):
 ## of their width (☀ ⚙ ✔ ❤ in Miscellaneous Symbols and Dingbats, ⌚ ⏳ in Miscellaneous
 ## Technical, ⬛ ⭐ in Miscellaneous Symbols and Arrows, and everything from U+1F000 on).
 def isEmoji(cluster):
+    if cluster in TEXT_SYMBOLS:
+        return False
     first = ord(cluster[0])
     if "\u20e3" in cluster or "\ufe0f" in cluster or "\u200d" in cluster:
         return True
@@ -3271,13 +3292,13 @@ def dialogStatus(dialog):
     pressed = dialog["buttons"][index if what == "button" else 0]
     if what != "area" and (pressed[0] == "cancel" or dialogMissing(dialog) is None):
         ## a button that would act is no default while a required input is not there
-        items.append(("Enter", pressed[1]))
+        items.append(("ENTER", pressed[1]))
     if len(dialogStops(dialog)) > 1:
-        items.append(("Tab", "Next"))
+        items.append(("TAB", "Next"))
     if (dialog["plan"] or {}).get("long"):
-        items.append(("Up/Down" if what in ("input", "area", "button") else "PgUp/PgDn", "Scroll"))
-    items.append(("Esc", dialog["about"].get("esc") or ("Cancel" if "cancel" in [button[0] for button in dialog["buttons"]] else "Close")))
-    return items
+        items.append(("UP/DOWN" if what in ("input", "area", "button") else "PGUP/PGDN", "Scroll"))
+    items.append(("ESC", dialog["about"].get("esc") or ("Cancel" if "cancel" in [button[0] for button in dialog["buttons"]] else "Close")))
+    return [(keysShown(keys), word) for keys, word in items]
 
 
 ## The paragraphs of a text of a dialog as lines of that width: a text is broken between
@@ -6378,11 +6399,12 @@ def askHelp(state, row):
     ] + acting + [
         "The other keys, which act in the other window or on another kind of row:",
     ] + others + [
-        "The menus: %s opens the menu bar. Esc and then its letter, or Alt with that letter, opens one:" % menuKey,
+        "The menus: %s opens the menu bar. %s and then its letter, or Alt with that letter, opens one:" % (menuKey, keyShown("ESC")),
     ] + [(hotLetter(label), hotText(label)) for menuName, label in MENUS] + [
-        "Up, Down, PgUp and PgDn move in the active window. In a dialog Tab and Shift-Tab go from control to"
-        " control, Space toggles a box and chooses a radio button, Enter presses the first button or the one the"
-        " keys are on, and Esc cancels. The mouse does what these keys do.",
+        "%s, %s, %s and %s move in the active window. In a dialog %s and Shift-%s go from control to"
+        " control, Space toggles a box and chooses a radio button, %s presses the first button or the one the"
+        " keys are on, and %s cancels. The mouse does what these keys do."
+        % tuple(keyShown(key) for key in ("UP", "DOWN", "PGUP", "PGDN", "TAB", "TAB", "ENTER", "ESC")),
     ], "information")
 
 
@@ -6429,7 +6451,7 @@ def mouseKey(column, line, buttons):
 
 ## The key a status line shows under that name, or None for a pair of keys shown as one.
 def keyOfShown(shown):
-    for key, word in KEY_WORDS.items():
+    for key, word in keyWords().items():
         if word == shown:
             return key
     if shown == "Space":
@@ -6741,7 +6763,10 @@ def runCommand(state, command, layout, key=None):
         state.noticeOf = None
         state.notice = moveSplit(state, layout["columns"], does[1])
     elif does[0] == "move":
-        if state.focus == "list":
+        if state.focus == "list" and len(does) > 3 and levelRows(state) and cursorOf(state, levelRows(state), listRowsHeight(state, layout))["index"] == 0:
+            ## on the first row of the list: the command it names, in place of the move
+            runCommand(state, commandNamed(does[3]), layout, key)
+        elif state.focus == "list":
             moveSelection(state, listRowsHeight(state, layout), does[1], does[2])
         else:
             scrollView(state, viewScrollHeight(state, layout), does[1], does[2])
@@ -7454,13 +7479,23 @@ def hotLetter(label):
     return parts[1].lower() if len(parts) > 2 else ""
 
 
+## The names of the keys in the style of now: its own (KEY_NAMES) over KEY_WORDS.
+def keyWords():
+    return dict(KEY_WORDS, **KEY_NAMES.get(STYLE.get("names"), {}))
+
+
 ## The name of a key as a menu and the status line show it.
 def keyShown(key):
     if key.startswith("ALT-"):
         return "Alt-" + key[4:].upper()
     if key.startswith("CTRL-"):
         return "^" + key[5:].upper()
-    return KEY_WORDS.get(key, key)
+    return keyWords().get(key, key)
+
+
+## The names of keys with / between, as one: each as keyShown names it.
+def keysShown(keys):
+    return "/".join(keyShown(key) for key in keys.split("/"))
 
 
 def partsWidth(parts):
@@ -7779,7 +7814,7 @@ def statusItems(state):
     if state.dialog is not None:
         return dialogStatus(state.dialog)
     if state.menu is not None:
-        return list(STATUS_KEYS["menu"])
+        return [(keysShown(keys), word) for keys, word in STATUS_KEYS["menu"]]
     if metaPending(state):
         ## after Esc: the keys that are Alt with a letter, each by its letter alone
         return ([(hotLetter(MENUS[index][1]), hotText(MENUS[index][1])) for index in menusShown(state)]
@@ -7790,7 +7825,7 @@ def statusItems(state):
     for command in COMMANDS:
         if command.get("status") and commandOffered(state, command) and command["does"] != ("mode", state.viewMode):
             wide = commandWindow(command) is None and "on" not in command
-            (everywhere if wide else own).append((command.get("shown") or keyShown(commandKeys(command)[0]), statusWord(state, command)))
+            (everywhere if wide else own).append((keysShown(command["shown"]) if command.get("shown") else keyShown(commandKeys(command)[0]), statusWord(state, command)))
     return own + everywhere
 
 

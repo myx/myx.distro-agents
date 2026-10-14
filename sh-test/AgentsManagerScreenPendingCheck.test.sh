@@ -265,7 +265,7 @@ get dived
 RIGSCRIPT
 rigAssert "an ask is selected, and the left pane names no key for it" "$( rigVal on.selected ) [$( rigVal keysLine )]" "1f2e3d4c-0000-4000-8000-000000000003 []"
 rigAssert "its keys are pressed: no dialog opens, nothing is submitted, and the status line says why" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.quit )" "[] [Answer: what can be done with this question is still being read] no"
-rigAssert "Enter and Right dive nowhere"                             "$( rigVal dived.path ) $( rigVal dived.selected )" "pending 1f2e3d4c-0000-4000-8000-000000000003"
+rigAssert "Enter dives nowhere, nor does Right, which pages down"    "$( rigVal dived.path ) $( rigVal dived.selected )" "pending 0d7affda-0000-4000-8000-000000000001"
 rigAssert "no operation that changes an ask is called: every start is the read" "$( rigOtherCalls ) $( [ "$( rigCalls )" -ge 1 ] && printf read )" "0 read"
 
 echo "-- a store with no open ask --"
@@ -482,7 +482,7 @@ show d
 advance 11
 wait view 30
 wait list 30
-keys LEFT
+keys BACKSPACE
 advance 11
 turn 3
 wait focus 30
@@ -540,7 +540,7 @@ RIGSCRIPT
 rigAssert "the pane starts at the top of the ask, and does not follow its end" "$( rigVal c.viewTop ) $( rigVal c.follow ) [$( rigPane c 3 )]" "0 no [ ✏️ change]"
 rigAssert "with the focus on it, PageDown shows its next page"        "$( rigVal paged.focus ) $( rigVal paged.viewTop ) $( rigPaneHolds paged ' the diff:' )" "view 16 1"
 rigAssert "and reaches its last line"                                 "$( rigPaneHolds end ' an ask is answered where it was posted, or from here by its keys' ) $( rigVal end.spills )" "1 0"
-rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Open: this row has nothing to open] pending $rigC"
+rigAssert "a text is typed and Enter is pressed: no line opens, nothing is submitted, nothing is dived into" "[$( rigVal typed.dialog )] [$( rigVal typed.notice )] $( rigVal typed.path ) $( rigVal typed.selected )" "[] [Answer: what can be done with this question is still being read] pending 0d7affda-0000-4000-8000-000000000001"
 rigAssert "every call was a read of the asks: the list, or one ask by its id" "$( LC_ALL=C grep -v -x -e '--manager-place-list' "$MANAGER_SCREEN_RIG/calls" | LC_ALL=C grep -c -v -- '^--member-pending-reply-read magic-coordinator ' || : ) $( [ "$( rigReadOf "$rigC" )" -ge 1 ] && printf read )" "0 read"
 
 rigAsk1=0d7affda-0000-4000-8000-000000000001
@@ -589,13 +589,13 @@ keys ESC TAB
 turn
 cells sView 39 0 120
 RIGSCRIPT
-rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "the left window names the same keys under it"              "[$( rigVal k3 )]" "[keys: Enter answer  d dismiss  o link]"
-rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ Enter Answer  j Reject  d Dismiss  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ Enter Answer  d Dismiss  o Link  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         Enter │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
+rigAssert "a plain question: Enter answers, d dismisses, o shows the link, and it takes no reject" "[$( rigVal s3 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the left window names the same keys under it"              "[$( rigVal k3 )]" "[keys: ENTER answer  d dismiss  o link]"
+rigAssert "a permission with no link: it takes a reject, and no key shows a link" "[$( rigVal s2 )]" "[ ENTER Answer  j Reject  d Dismiss  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "a decision: no reject of its own"                          "[$( rigVal s1 )]" "[ ENTER Answer  d Dismiss  o Link  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the menu Question holds the four, with their keys"         "$( rigVal menu.menu ) $( rigBoxHolds qm '│ Answer         ENTER │' ) $( rigBoxHolds qm '│ Reject             j │' ) $( rigBoxHolds qm '│ Dismiss            d │' ) $( rigBoxHolds qm '│ Show the link      o │' )" "question:answer 1 1 1 1"
 rigAssert "and the one that does not apply to this question is greyed there" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^qr|' | LC_ALL=C sed -n '4p' | LC_ALL=C cut -c18-23 )" "xxxxxx"
-rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "with the keys in the left window the status line names none of them, and that window's own key" "[$( rigVal sView )]" "[ w Cut  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- Enter on a decision: the dialog of its answer, a digit chooses, words go with it, one call --"
 rigCase answer three.asks rows
@@ -630,7 +630,7 @@ rigAssert "the dialog opens on its answers, titled by the kind and who asked" "[
 rigAssert "it says who asked, of whom, as whom the answer stands, and the question" "$( rigBoxHolds abox '║ asked by  keeper-myx' ) $( rigBoxHolds abox '║ asked of  magic-coordinator' ) $( rigBoxHolds abox '║ answer as magic-coordinator' ) $( rigBoxHolds abox 'here after a second round of asking. What next?' )" "1 1 1 1"
 rigAssert "its answers stand with their numbers, and with what each does, as the rows say" "$( rigBoxHolds abox '║ > 1. keep: keep the file  --  settles it' ) $( rigBoxHolds abox '║   2. drop: drop it  --  goes up the chain, it stays open' )" "1 1"
 rigAssert "a field for words, and the buttons Answer and Cancel"      "$( rigBoxHolds abox '║ Words to go with it, or none' ) $( rigBoxHolds abox '[»Answer«]  [ Cancel ]' )" "1 1"
-rigAssert "the status line names the keys of the dialog, the digits among them" "[$( rigVal sDlg )]" "[ Up/Down Pick  1-2 Choose  Enter Answer  Tab Next  Esc Cancel]"
+rigAssert "the status line names the keys of the dialog, the digits among them" "[$( rigVal sDlg )]" "[ UP/DN Pick  1-2 Choose  ENTER Answer  TAB Next  ESC Cancel]"
 rigAssert "a digit chooses the answer of that number"                 "[$( rigVal two.dialog )]" "[answer:answers|2]"
 rigAssert "words are typed into the field"                            "[$( rigVal typed.dialog )]" "[answer:words|be sure]"
 rigAssert "Enter answers: the dialog closes, and the operation is called once, with the number chosen and the words" "[$( rigVal asked.dialog )] $( rigActCalls )" "[] [--manager-pending-reply-answer][--id][$rigAsk1][--answer][2][--text][be sure]"

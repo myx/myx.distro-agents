@@ -349,7 +349,7 @@ turn
 keys DOWN ENTER DOWN
 wait focus 5
 show L
-keys LEFT DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
+keys BACKSPACE DOWN DOWN DOWN DOWN DOWN DOWN ENTER DOWN
 wait focus 5
 advance 11
 turn
@@ -374,7 +374,7 @@ wait focus 5
 show U
 keys r
 get refused
-keys LEFT UP ENTER DOWN
+keys BACKSPACE UP ENTER DOWN
 wait focus 5
 show I
 RIGSCRIPT

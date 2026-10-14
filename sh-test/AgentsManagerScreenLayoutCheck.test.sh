@@ -264,8 +264,8 @@ said refusedSaid
 RIGSCRIPT
 rigAssert "the screen starts with its lines wrapped: a long body takes three lines" "$( rigVal wrapped.wrap ) $( rigVal wrapped.viewLines ) [$( rigVal wrappedTitle )] [$( rigVal w6 )] $( rigIndent w7 w8 w9 )[$( rigVal w10 )]" \
 	"yes 7 [daily of Monday [log] [wrap]] [02:01:10 magic-coordinator:] _________ _________ _________ []"
-rigAssert "the key of the wrap is the left window's: the status line names it there, by what it will do" "[$( rigVal wrappedBottom | LC_ALL=C cut -c1-12 )] [$( rigVal viewBottom | LC_ALL=C cut -c1-12 )]" "[ Enter Open ] [ w Cut  k Ki]"
-rigAssert "w cuts the lines: the title says so, and the status line names Left and Right" "$( rigVal cut.wrap ) $( rigVal cut.viewLines ) [$( rigVal cutTitle )] [$( rigVal cutBottom | LC_ALL=C cut -c1-27 )]" "no 5 [daily of Monday [log] [cut]] [ w Wrap  Left/Right Scroll ]"
+rigAssert "the key of the wrap is the left window's: the status line names it there, by what it will do" "[$( rigVal wrappedBottom | LC_ALL=C cut -c1-12 )] [$( rigVal viewBottom | LC_ALL=C cut -c1-12 )]" "[ ENTER Open ] [ w Cut  k Ki]"
+rigAssert "w cuts the lines: the title says so, and the status line names Left and Right" "$( rigVal cut.wrap ) $( rigVal cut.viewLines ) [$( rigVal cutTitle )] [$( rigVal cutBottom | LC_ALL=C cut -c1-24 )]" "no 5 [daily of Monday [log] [cut]] [ w Wrap  ←/→ Scroll ]"
 rigAssert "a long body is one line, cut with the mark at the border, and still set in" "[$( rigVal c6 )][$( rigChars c7 0 30 )][$( rigChars c7 -1 0 )][$( rigVal c8 )] $( rigVal cut.spills )" \
 	"[02:01:10 magic-coordinator:][         ✉️ to *magic-tester*:][…][] 0"
 rigAssert "Right scrolls sideways, a step a press: what stands to the left is marked, and an indent is not" "$( rigVal indent.viewLeft ) [$( rigVal i4 )][$( rigVal i5 )] $( rigVal indent.spills )" \
@@ -275,7 +275,7 @@ rigAssert "and on: a body whose start is out of view is marked too"   "$( rigVal
 rigAssert "no further than the end of the widest line"               "$( rigVal end.viewLeft ) [$( rigVal e7 | LC_ALL=C sed -e 's/^.* \([a-z]* [a-z]* [a-z]*\)$/\1/' )] $( rigVal end.spills )" "115 [else is started] 0"
 rigAssert "and Left back to its start"                               "$( rigVal start.viewLeft )" "0"
 rigAssert "the choice is kept when the selection moves, and the place sideways is the item's" "$( rigVal moved.wrap ) $( rigVal moved.selected ) $( rigVal moved.viewLeft )" "no $rigS1 0"
-rigAssert "and inside a session, where Left and Right in the list are the list's own" "$( rigVal dived.wrap ) $( rigVal dived.path ) [$( rigVal up.path )] $( rigVal up.wrap )" "no sessions/$rigS1 [sessions] no"
+rigAssert "and inside a session, where Left and Right in the list are the list's own: Left pages up there" "$( rigVal dived.wrap ) $( rigVal dived.path ) [$( rigVal up.path )] $( rigVal up.selected ) $( rigVal up.wrap )" "no sessions/$rigS1 [sessions/$rigS1] .. no"
 rigAssert "w wraps them again"                                       "$( rigVal again.wrap ) $( rigVal again.viewLines ) [$( rigVal againTitle )]" "yes 7 [daily of Monday [log] [wrap]]"
 rigAssert "wrapped, nothing stands to the side: Left says so"         "$( rigVal refused.viewLeft ) [$( rigVal refusedSaid )]" "0 [Scroll: the lines are wrapped, none is cut]"
 

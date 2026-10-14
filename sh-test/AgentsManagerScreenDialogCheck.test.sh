@@ -111,14 +111,14 @@ rigAssert "it is framed, with its title in its top border, and holds its text" "
 rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (*) another ' ) $( rigHas d '║ > first ' ) $( rigHas d '[»OK«]  [ Cancel ]' )" "1 1 1 1 1 1 1 1"
 rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 29 3 58 )" "gGww none $( rigRepeat w 56 )"
 rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 5 1 4 ) $( rigRole r 8 1 4 ) $( rigRole r 27 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbggbbbbbbbbbbg 10,39"
-rigAssert "the status line names the keys of the dialog alone: in a field, Enter, Tab and Esc" "[$( rigVal st1 )]" "[ Enter OK  Tab Next  Esc Cancel]"
+rigAssert "the status line names the keys of the dialog alone: in a field, Enter, Tab and Esc" "[$( rigVal st1 )]" "[ ENTER OK  TAB Next  ESC Cancel]"
 rigAssert "what is typed goes into the field, a space too"            "$( rigVal typed.dialog )" "rig:name|typedx y"
-rigAssert "Tab goes to the next control; in a field of several lines Enter is a new line" "[$( rigVal st2 )] $( rigVal area.dialog )" "[ Enter New line  Tab Next  Esc Cancel] rig:notes|a\\nb"
-rigAssert "Space toggles the box the keys are on, and Up and Down move among the boxes" "[$( rigVal st3 )] $( rigVal who.dialog )" "[ Space Toggle  Up/Down Move  Enter OK  Tab Next  Esc Cancel] rig:who|b,a,c"
-rigAssert "Space chooses the radio button the keys are on"            "[$( rigVal st4 )] $( rigVal how.dialog )" "[ Space Choose  Up/Down Move  Enter OK  Tab Next  Esc Cancel] rig:how|x"
-rigAssert "Up and Down pick in a list, and stop at its end"           "[$( rigVal st5 )] $( rigVal pick.dialog )" "[ Up/Down Pick  Enter OK  Tab Next  Esc Cancel] rig:pick|p3"
-rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 27 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnggbbbbbbbbbbg [ Left/Right Buttons  Enter OK  Tab Next  Esc Cancel]"
-rigAssert "Right goes to the next button, which Enter would then press" "$( rigVal onCancel.dialog ) [$( rigVal st7 )]" "rig:cancel| [ Left/Right Buttons  Enter Cancel  Tab Next  Esc Cancel]"
+rigAssert "Tab goes to the next control; in a field of several lines Enter is a new line" "[$( rigVal st2 )] $( rigVal area.dialog )" "[ ENTER New line  TAB Next  ESC Cancel] rig:notes|a\\nb"
+rigAssert "Space toggles the box the keys are on, and Up and Down move among the boxes" "[$( rigVal st3 )] $( rigVal who.dialog )" "[ Space Toggle  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:who|b,a,c"
+rigAssert "Space chooses the radio button the keys are on"            "[$( rigVal st4 )] $( rigVal how.dialog )" "[ Space Choose  UP/DN Move  ENTER OK  TAB Next  ESC Cancel] rig:how|x"
+rigAssert "Up and Down pick in a list, and stop at its end"           "[$( rigVal st5 )] $( rigVal pick.dialog )" "[ UP/DN Pick  ENTER OK  TAB Next  ESC Cancel] rig:pick|p3"
+rigAssert "after the controls Tab comes to the buttons, and the one with the keys stands out" "$( rigVal onOk.dialog ) $( rigRole rOk 27 19 38 ) [$( rigVal st6 )]" "rig:ok| gnnnnnnggbbbbbbbbbbg [ ←/→ Buttons  ENTER OK  TAB Next  ESC Cancel]"
+rigAssert "Right goes to the next button, which Enter would then press" "$( rigVal onCancel.dialog ) [$( rigVal st7 )]" "rig:cancel| [ ←/→ Buttons  ENTER Cancel  TAB Next  ESC Cancel]"
 rigAssert "Right goes around to the first button, and Shift-Tab back to the control before it" "$( rigVal back.dialog )" "rig:pick|p3"
 rigAssert "no key of a window, of a menu or of the screen works while the dialog is open" "$( rigVal held.dialog ) $( rigVal held.quit ) [$( rigVal held.menu )] $( rigVal held.filter ) $( rigVal held.focus ) [$( rigVal held.notice )]" "rig:pick|p3 no [] all list []"
 rigAssert "the dialog shows what was chosen"                         "$( rigHas d2 '║ [X] alpha ' ) $( rigHas d2 '║ (*) one way ' ) $( rigHas d2 '║ > third ' ) $( rigHas d2 '║ b ' )" "1 1 1 1"
@@ -177,12 +177,12 @@ keys ESC
 get none
 RIGSCRIPT
 rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 '[»OK«]' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 06' ) $( rigHas b1 'line 07' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
-rigAssert "a mark says that it goes on below, and the status line names what scrolls it" "$( rigHas b1 '▼' ) $( rigHas b1 '▲' ) [$( rigVal st1 )]" "1 0 [ Enter OK  Up/Down Scroll  Esc Close]"
+rigAssert "a mark says that it goes on below, and the status line names what scrolls it" "$( rigHas b1 '▼' ) $( rigHas b1 '▲' ) [$( rigVal st1 )]" "1 0 [ ENTER OK  UP/DN Scroll  ESC Close]"
 rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 07' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
 rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 04' ) $( rigHas b3 'line 05' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"
 rigAssert "the box has the keys: q does not end the screen"          "$( rigVal still.dialog ) $( rigVal still.quit )" "message:ok| no"
 rigAssert "a box that comes while one is open waits for it"          "[$( rigVal queued.dialogTitle )] $( rigVal queued.waiting )" "[The start failed] 1"
-rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║ a text that is broken to the box it stands in, ' ) $( rigHas b4 '║ all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ Enter OK  Esc Close]"
+rigAssert "and opens when that one is closed, its text broken between words" "[$( rigVal second.dialogTitle )] $( rigVal second.waiting ) $( rigHas b4 '║ a text that is broken to the box it stands in, ' ) $( rigHas b4 '║ all of it ' ) [$( rigVal st4 )]" "[Second] 0 1 1 [ ENTER OK  ESC Close]"
 rigAssert "Esc closes it, and the keys go back to the windows"       "[$( rigVal none.dialog )] $( rigVal none.waiting )" "[] 0"
 
 echo "-- the status line names only the keys that act for what has the keys --"
@@ -218,12 +218,12 @@ cells onMember 39 0 120
 keys k
 get wrongKey
 RIGSCRIPT
-rigAssert "the list active on Launch / Spawn: what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ Left Up  a Active  k Kill  c Control  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ w Cut  k Kill  c Control  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ Enter Choose  Esc Close  Left/Right Menus  Up/Down Items]"
-rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ Left Up  a Active  k Kill  c Control]"
-rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ Left Up  a Active  n Start  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "the list active on Launch / Spawn: what the list takes there, then the keys of every window" "$( rigVal launch.selected ) [$( rigVal onLaunch )]" "launch [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "on a session: the keys that act on a session, and no Enter, which opens nothing there" "$( rigVal session.selected ) [$( rigVal onSession )]" "s1 [ BSP Up  a Active  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "the left window active: the list's own keys are gone, those that act on the selected session stay" "$( rigVal left.focus ) [$( rigVal onLeft )]" "view [ w Cut  k Kill  c Control  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "a menu open: the keys of the menu alone"                  "[$( rigVal onMenu )]" "[ ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items]"
+rigAssert "a line too short for all: the keys of every window are the first left out" "[$( rigVal narrow )]" "[ BSP Up  a Active  k Kill  c Control]"
+rigAssert "on a member: the key that starts one, and none of a session's" "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal onMember )]" "team m1 [ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- the keys every terminal delivers: a plain key, or Esc and then a letter; no function key and no Alt --"
 rigRun <<'RIGSCRIPT'
@@ -262,9 +262,10 @@ rigAssert "after Esc, with nothing to close, the status line names the letters t
 rigAssert "Esc and then the hot letter of a menu opens that menu, as Alt with that letter does" "$( rigVal byEscS.menu )" "session:kill"
 rigAssert "the Esc that closed a menu is no Alt for the key after it, and neither is one whose key comes too late" "[$( rigVal afterMenuEsc.menu )] $( rigVal afterMenuEsc.quit ) $( rigVal late.quit )" "[] no no"
 rigAssert "a bare q does nothing in the Turbo Vision key map"        "$( rigVal bareQ.quit )" "no"
+rigAssert "the help names the keys as the style does" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'TAB, F6: Next window' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'BSP: Up one level' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'UP, DN, PgUp and PgDn move' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'ESC and then its letter' )" "1 1 1 1"
 rigAssert "u reads now, and ? opens the help: the keys from the declaration, those that act now first" "$( rigVal read.forced ) [$( rigVal help.dialogTitle )] $( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'The keys that act now, on what is selected in the active window: / u, F5: Read now / m, F10: Menu / ^X, Alt-X: Exit' )" "list:sessions [Keys] 1"
 rigAssert "then the other keys, one whose action is not built saying so, and the menus by their letters" "$( rigVal help.dialogHolds | LC_ALL=C grep -c -F 'p: Pause (not built)' ) $( rigVal help.dialogHolds | LC_ALL=C grep -c -F '/ g: Go / s: Session / m: Member / c: Console / v: View / q: Question / h: Help /' )" "1 1"
-rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       i │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 0 0"
+rigAssert "the menus name the keys that need no function key"        "$( rigHas v '│ Read now                        u │' ) $( rigHas v '│ Interface style: the next       i │' ) $( rigHas v '│ Next window                   TAB │' ) $( rigHas v 'F5' ) $( rigHas v 'F9' )" "1 1 1 0 0"
 rigAssert "i takes the next style, and in the compact key map q ends the screen" "$( rigVal styled.style ) $( rigVal mcQ.quit )" "mc yes"
 
 echo "-- inside a container, on the row that goes up, the left window shows the container, and its keys act on it --"
@@ -303,7 +304,7 @@ turn
 border settingsTitle 1 0 84
 RIGSCRIPT
 rigAssert "a session opened, the selection on the row that goes up: the left window still shows that session" "[$( rigVal outside )] [$( rigVal inside )] $( rigVal in.path ) $( rigVal in.selected )" "[one [wrap]] [one [wrap]] sessions/s1 .."
-rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ Enter Open  Left Up  a Active  k Kill  u Read  m Menu  ^X Exit  Tab Window  ? Help] [handled kill on s1]"
+rigAssert "the keys that act on the session stand in the status line there, and act on it" "[$( rigVal st )] [$( rigVal onUp.notice )]" "[ ENTER Open  BSP Up  a Active  k Kill  u Read  m Menu  ^X Exit  TAB Window  ? Help] [handled kill on s1]"
 rigAssert "moving to a child shows the child, and the keys act on the child" "[$( rigVal child )] [$( rigVal onChild.notice )]" "[agent-one [wrap]] [handled kill on a1]"
 rigAssert "Launch / Spawn and the roots, entered with the selection on the row that goes up, show themselves" "$( rigVal launch.path ) [$( rigVal launchTitle )] [$( rigVal teamTitle )] [$( rigVal pendingTitle )] [$( rigVal settingsTitle )]" "sessions/launch [Launch / Spawn [wrap]] [Team Members [wrap]] [Pending Questions [wrap]] [Settings [wrap]]"
 
@@ -338,11 +339,11 @@ turn
 get off
 cells offStatus 39 0 120
 RIGSCRIPT
-rigAssert "g takes the raw log: the title of the left window says so, and the status line names the keys of the two other modes with what each will show" "$( rigVal on.rawLog ) $( rigVal on.viewMode ) [$( rigVal onTitle )] [$( rigVal onStatus )]" "yes raw [one [raw] [wrap]] [ Enter Open  Left Up  a Active  b Summary  l Log  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "g takes the raw log: the title of the left window says so, and the status line names the keys of the two other modes with what each will show" "$( rigVal on.rawLog ) $( rigVal on.viewMode ) [$( rigVal onTitle )] [$( rigVal onStatus )]" "yes raw [one [raw] [wrap]] [ ENTER Open  BSP Up  a Active  b Summary  l Log  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "moving to another session keeps it: that one shows its raw log too" "$( rigVal moved.rawLog ) [$( rigVal movedTitle )]" "yes [two [raw] [wrap]]"
 rigAssert "so do opening a session, moving to an agent, leaving, changing window, a menu" "$( rigVal inside.rawLog ) $( rigVal inside.path ) $( rigVal child.rawLog ) $( rigVal child.selected ) $( rigVal back.rawLog )" "yes sessions/s1 yes a1 yes"
 rigAssert "all or active is kept through the four roots and a tick, and the raw log with it" "$( rigVal roots.filter ) $( rigVal roots.path ) $( rigVal roots.rawLog )" "active sessions yes"
-rigAssert "l takes the log, the feed alone, and the status line names what each key will show now: the two other modes, and all, since only the active are shown" "$( rigVal off.rawLog ) $( rigVal off.viewMode ) [$( rigVal offStatus )]" "no log [ Enter Open  Left Up  a All  b Summary  g Raw log  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "l takes the log, the feed alone, and the status line names what each key will show now: the two other modes, and all, since only the active are shown" "$( rigVal off.rawLog ) $( rigVal off.viewMode ) [$( rigVal offStatus )]" "no log [ ENTER Open  BSP Up  a All  b Summary  g Raw log  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- every style draws the dialogs, and the compact bottom line follows the keys too --"
 rigRun <<'RIGSCRIPT'
@@ -372,7 +373,7 @@ box mcd
 box mcr roles
 RIGSCRIPT
 rigAssert "B/W: the same dialog, with no shadow, in reverse with the control that has the keys in bold" "$( rigRole bw 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigRole bw 29 3 58 | LC_ALL=C tr -d w | LC_ALL=C wc -c | LC_ALL=C tr -d ' ' ) $( rigRole bwk 5 1 4 ) $( rigRole bwk 8 1 4 )" "gG 57 HRBB HR.."
-rigAssert "the compact style's bottom line: the keys of the list and of the selected row, then those of every window, the menu key among them" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^c|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Left Up  a Active  k Kill  u Read  m Menu  q Exit  Tab Window  ? Help"
+rigAssert "the compact style's bottom line: the keys of the list and of the selected row, then those of every window, the menu key among them" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^c|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Backspace Up  a Active  k Kill  u Read  m Menu  q Exit  Tab Window  ? Help"
 rigAssert "with its left pane active the list's own keys are gone"   "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cl|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " w Cut  k Kill  u Read  m Menu  q Exit  Tab Window  ? Help"
 rigAssert "with a menu open it names the keys of the menu"           "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cm|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
 rigAssert "and with a dialog open the keys of the dialog, which is drawn framed there too, with no shadow" "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^cd|//p' | LC_ALL=C sed -n '40p' | LC_ALL=C sed -e 's/|$//' -e 's/  *$//' ) $( rigVal mc.dialogBox ) $( rigHas mcd '╔════════════════ A dialog of the rig ═════════════════╗' ) $( rigRole mcr 2 55 58 | LC_ALL=C tr -d w | LC_ALL=C cut -c1-2 ) $( rigVal mc.spills )" " Enter OK  Tab Next  Esc Cancel 32,6,56,28 1 gG 0"

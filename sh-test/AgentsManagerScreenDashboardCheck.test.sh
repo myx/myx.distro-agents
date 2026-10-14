@@ -206,7 +206,7 @@ keys DOWN DOWN
 turn
 show gamma
 get gamma
-keys LEFT
+keys BACKSPACE
 turn
 get out
 EOF
@@ -215,7 +215,7 @@ rigAssert "a block's row ends with the worst level of its figures, where one is 
 rigAssert "on the row that goes up the left window shows the dashboard itself, whole" "[$( rigVal inTitle )] $( rigHolds in '┌─ Alpha Block ─' ) $( rigHolds in '┌─ Beta Block ─' )" "[Dashboard (Monitor) [wrap]] 1 1"
 rigAssert "on the row of a block it shows that block alone, as wide as the window" "$( rigVal alpha.selected ) [$( rigVal alphaTitle )] $( rigHolds alpha '┌─ Alpha Block ─' ) $( rigHolds alpha '┌─ Beta Block ─' ) $( rigVal alpha.viewLines )" "alpha [Alpha Block [wrap]] 1 0 6"
 rigAssert "there a long value has the room to stand beside its label" "$( rigVal gamma.selected ) $( rigBoth gamma '│ Root Path ' ' /rig/some/where/far/away/a/long/path/that/fits/no/small/box/END │' ) $( rigVal gamma.spills )" "gamma 1 0"
-rigAssert "Left goes back to the root, onto its row" "[$( rigVal out.path )] $( rigVal out.selected )" "[] dashboard"
+rigAssert "Backspace goes back to the root, onto its row" "[$( rigVal out.path )] $( rigVal out.selected )" "[] dashboard"
 
 echo "-- it is read on the period only while its root is selected or opened"
 rigCase period

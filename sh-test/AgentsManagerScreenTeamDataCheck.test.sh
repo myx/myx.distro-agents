@@ -249,7 +249,7 @@ get closed
 RIGSCRIPT
 rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask '[»Run«]  [ Cancel ]' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
 rigAssert "Run opens the big dialog, most of the screen, that runs it: its first line is there while it still runs" "$( rigVal running.dialog ) $( rigVal running.dialogBox ) [$( rigVal running.dialogHolds )] $( rigVal running.reading | LC_ALL=C grep -c -F 'follow:' )" "output:stop| 2,1,116,34 [purge: the first line, on standard output / It runs: Esc or Stop asks whether to stop it.] 1"
-rigAssert "the status line names only its keys while it runs: Enter and Esc ask whether to stop it" "$( rigVal st | LC_ALL=C sed 's/  */ /g' )" " Enter Stop Esc Stop"
+rigAssert "the status line names only its keys while it runs: Enter and Esc ask whether to stop it" "$( rigVal st | LC_ALL=C sed 's/  */ /g' )" " ENTER Stop ESC Stop"
 rigAssert "at its end it holds both streams in the order they were written, a tab as spaces and no sequence of a terminal" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/ \/ Ended with.*//' )" "purge: the first line, on standard output / purge: the second line, on standard error / purge:  a tab, a sequence and a mark ⛔"
 rigAssert "and its result in a line of its own, the status and how long it ran; OK alone; the status line says it too" "$( rigVal ended.dialogHolds | LC_ALL=C sed -n 's/.* \/ \(Ended with status 3, after [0-9.]*s\.\)$/\1/p' | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' ) $( rigVal ended.dialog ) $( rigVal ended.notice | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' )" "Ended with status 3, after Ns. output:ok| Purge The Cleanup Folder: Ended with status 3, after Ns."
 rigAssert "OK closes it; the operation was called once, exactly as the tooling has it" "[$( rigVal closed.dialog )] $( rigWords '[--owner-cleanup-purge]' )" "[] 1"
@@ -293,7 +293,7 @@ keys ENTER
 wait follow 10
 get stopped
 RIGSCRIPT
-rigAssert "Esc while it runs does not close it: it asks whether to stop it, and Stop it and Go on are its buttons" "$( rigVal asked.dialog ) [$( rigVal asked.dialogSays )] [$( rigVal st | LC_ALL=C sed 's/  */ /g' )]" "output:stop| [Stop it? Stop it sends it SIGTERM; Go on and Esc let it run.] [ Left/Right Buttons Enter Stop it Tab Next Esc Go on]"
+rigAssert "Esc while it runs does not close it: it asks whether to stop it, and Stop it and Go on are its buttons" "$( rigVal asked.dialog ) [$( rigVal asked.dialogSays )] [$( rigVal st | LC_ALL=C sed 's/  */ /g' )]" "output:stop| [Stop it? Stop it sends it SIGTERM; Go on and Esc let it run.] [ ←/→ Buttons ENTER Stop it TAB Next ESC Go on]"
 rigAssert "Esc again lets it run on" "$( rigVal goon.dialog ) [$( rigVal goon.dialogSays )]" "output:stop| [It runs on.]"
 rigAssert "Stop it ends it by SIGTERM: the result says so, and the dialog stays for OK" "$( rigVal stopped.dialogHolds | LC_ALL=C sed 's/[0-9.]*s\.$/Ns./' ) / $( rigVal stopped.dialog )" "slow: up / Ended by signal 15 (SIGTERM), after Ns. / output:ok|"
 

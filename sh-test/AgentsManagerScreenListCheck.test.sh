@@ -2,9 +2,10 @@
 ## Behavioural check on the list of the manager screen and on what a key does (sh-lib/AgentsManagerScreen.py), run
 ## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py): each
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
-## `Pending Questions`, `Team Members`, `Consoles (Tools)`, `Settings` and `Configuration` in that order, the first one selected; Enter or
-## Right dives into a row, the first row below the root goes up, and so does Left, back onto the row that was dived
-## into; inside `Sessions (Activity)` the first item is `Launch / Spawn`, a level of its own; Up and Down stop at the
+## `Pending Questions`, `Team Members`, `Consoles (Tools)`, `Settings` and `Configuration` in that order, the first one selected; Enter
+## dives into a row, the first row below the root goes up, and so does Backspace from any row, back onto the row that was
+## dived into; in the list Right pages down as PageDown does, and Left pages up as PageUp does and on the first row goes up
+## a level, and neither dives; inside `Sessions (Activity)` the first item is `Launch / Spawn`, a level of its own; Up and Down stop at the
 ## first and at the last row and never wrap; PageDown and PageUp move the selection by the height of the pane, and
 ## the rows in view with it; Tab moves the focus, and the same keys then scroll the left pane while the selection of
 ## the list stays; `a` switches all and active only while the list has the focus; rows that come again in another
@@ -59,7 +60,7 @@ RIGSCRIPT
 rigAssert "the root holds the eight sections in their order, the dashboard first" "[$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )][$( rigVal row4 )][$( rigVal row5 )][$( rigVal row6 )][$( rigVal row7 )][$( rigVal row8 )]" "[>Dashboard (Monitor)...][ Sessions (Activity)...][ Pending Questions...][ Team Members...][ Locations (Places)...][ Consoles (Tools)...][ Settings...][ Configuration...]"
 rigAssert "the first one, the dashboard, is selected, and the list has the focus" "$( rigVal a.selected ) $( rigVal a.index ) $( rigVal a.focus ) $( rigVal a.rows )" "dashboard 0 list 8"
 
-echo "-- Enter and Right dive in, the first row and Left go up --"
+echo "-- Enter dives in, the first row and Backspace go up --"
 rigScript <<'RIGSCRIPT'
 size 120 40
 root sessions
@@ -71,11 +72,11 @@ cells inRow2 3 85 119
 border inLeft 1 0 84
 keys ENTER
 get out
-keys DOWN DOWN RIGHT
+keys DOWN DOWN ENTER
 get third
-keys LEFT
+keys BACKSPACE
 get back
-keys LEFT
+keys BACKSPACE
 get root
 RIGSCRIPT
 rigAssert "Enter shows the level of that section"                    "$( rigVal in.path ) [$( rigVal inTitle )]" "sessions [Sessions (Activity)  [all]]"
@@ -83,9 +84,9 @@ rigAssert "its first row is the row that goes up, and it is selected" "[$( rigVa
 rigAssert "inside Sessions (Activity) the first item is Launch / Spawn" "[$( rigVal inRow2 )]" "[ Launch / Spawn...]"
 rigAssert "the left pane names what it shows: on the row that goes up, the section itself"                     "[$( rigVal inLeft )]" "[Sessions (Activity) [wrap]]"
 rigAssert "Enter on the row that goes up shows the root again"       "[$( rigVal out.path )] $( rigVal out.selected )" "[] sessions"
-rigAssert "Right dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
-rigAssert "Left goes up and returns to the row it came from"         "[$( rigVal back.path )] $( rigVal back.selected )" "[] team"
-rigAssert "Left at the root stays at the root"                       "[$( rigVal root.path )] $( rigVal root.selected )" "[] team"
+rigAssert "Enter dives into the third section"                       "$( rigVal third.path ) $( rigVal third.selected )" "team .."
+rigAssert "Backspace goes up and returns to the row it came from"    "[$( rigVal back.path )] $( rigVal back.selected )" "[] team"
+rigAssert "Backspace at the root stays at the root, and says why"    "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal root.notice )]" "[] team [Up one level: this is the top level]"
 
 echo "-- Launch / Spawn is a level of its own --"
 rigScript <<'RIGSCRIPT'
@@ -147,6 +148,75 @@ rigAssert "PageUp moves back by one page"                            "$( rigVal 
 rigAssert "PageDown ends on the last row, with the last page in view" "$( rigVal e.index ) $( rigVal e.top ) [$( rigVal eRow20 )]" "100 82 [>row 100]"
 rigAssert "PageUp ends on the first row"                             "$( rigVal f.index ) $( rigVal f.top ) $( rigVal f.spills )" "0 0 0"
 
+echo "-- Left and Right in the list: Right pages down, Left pages up and on the first row goes up a level --"
+rigScript <<'RIGSCRIPT'
+size 120 23
+root sessions
+rowsgen pending 100
+keys DOWN ENTER
+get a
+keys RIGHT
+get b
+keys RIGHT
+get c
+keys DOWN DOWN LEFT
+get d
+keys LEFT
+get e
+keys LEFT
+get f
+keys LEFT
+get g
+keys LEFT
+get h
+keys LEFT
+get i
+RIGSCRIPT
+lrSteps="[$( rigVal b.index ) $( rigVal b.top )][$( rigVal c.index ) $( rigVal c.top )][$( rigVal d.index ) $( rigVal d.top )][$( rigVal e.index ) $( rigVal e.top )][$( rigVal f.index ) $( rigVal f.top )]"
+lrPaths="[$( rigVal b.path )][$( rigVal c.path )][$( rigVal d.path )][$( rigVal e.path )][$( rigVal f.path )]"
+lrGone="[$( rigVal g.path )] $( rigVal g.selected ) [$( rigVal h.path )] $( rigVal h.selected ) [$( rigVal i.path )] $( rigVal i.selected ) [$( rigVal i.notice )]"
+rigScript <<'RIGSCRIPT'
+size 120 23
+root sessions
+rowsgen pending 100
+keys DOWN ENTER
+keys PGDN
+get b
+keys PGDN
+get c
+keys DOWN DOWN PGUP
+get d
+keys PGUP
+get e
+keys PGUP
+get f
+RIGSCRIPT
+rigAssert "Right pages down, Left in the middle pages up, and Left short of the first row ends on it, all in the level" "$lrSteps $lrPaths" "[19 19][38 38][21 19][2 0][0 0] [pending][pending][pending][pending][pending]"
+rigAssert "each exactly as PageDown and PageUp do"                   "$lrSteps" "[$( rigVal b.index ) $( rigVal b.top )][$( rigVal c.index ) $( rigVal c.top )][$( rigVal d.index ) $( rigVal d.top )][$( rigVal e.index ) $( rigVal e.top )][$( rigVal f.index ) $( rigVal f.top )]"
+rigAssert "Left on the first row goes up a level, onto the row dived into; at the root it pages up, and on its first row says there is no level above" "$lrGone" "[] pending [] dashboard [] dashboard [Up one level: this is the top level]"
+
+echo "-- Right opens nothing, Backspace goes up from any row, Enter goes down --"
+rigScript <<'RIGSCRIPT'
+size 120 23
+root sessions
+keys RIGHT
+get root
+rowsgen pending 100
+keys UP UP UP UP UP UP UP UP DOWN DOWN ENTER
+get in
+keys RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT RIGHT
+get bottom
+keys UP BACKSPACE
+get up
+keys ENTER
+get again
+RIGSCRIPT
+rigAssert "Right on a row that dives pages down and does not dive"   "[$( rigVal root.path )] $( rigVal root.selected )" "[] configuration"
+rigAssert "Enter dives"                                               "$( rigVal in.path ) $( rigVal in.selected )" "pending .."
+rigAssert "Right on the last page stays on the last row, as PageDown does, and opens nothing" "$( rigVal bottom.path ) $( rigVal bottom.index ) $( rigVal bottom.top )" "pending 100 82"
+rigAssert "Backspace on a row in the middle goes up a level, onto the row dived into" "[$( rigVal up.path )] $( rigVal up.selected )" "[] pending"
+rigAssert "and Enter dives into it again"                            "$( rigVal again.path )" "pending"
+
 echo "-- Tab moves the focus, and the left pane then scrolls --"
 rigScript <<'RIGSCRIPT'
 size 120 40
@@ -168,7 +238,7 @@ get e
 cells eLast 37 1 83
 keys PGUP PGUP PGUP PGUP PGUP
 get f
-keys ENTER RIGHT LEFT
+keys ENTER BACKSPACE
 get g
 keys TAB DOWN
 get h
@@ -309,23 +379,23 @@ view 100
 turn
 get launch
 cells launchKeys 37 1 83
-keys LEFT DOWN ENTER DOWN
+keys BACKSPACE DOWN ENTER DOWN
 get ask
 cells askKeys 37 1 83
-keys LEFT DOWN ENTER DOWN
+keys BACKSPACE DOWN ENTER DOWN
 get member
 cells memberKeys 37 1 83
 cells memberBottom 39 0 120
 RIGSCRIPT
 rigAssert "a session is selected: with no handler of an action built the pane names no key, and its last line is its content's" "$( rigVal none.selected ) [$( rigVal noneKeys )]" "s1 [line 036]"
-rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "the status line names the keys that act on the session, and after them those of every window"             "[$( rigVal noneBottom )]" "[ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "with handlers built, the keys that act on a session stand under it, and only those" "[$( rigVal builtKeys )] $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^builtLooks|//p' | LC_ALL=C sed -n '38p' | LC_ALL=C cut -c1-12 )" "[keys: k kill] .BBBBBBBBBBB"
 rigAssert "the content of the pane ends one line above them"         "[$( rigVal builtLast )]" "[line 035]"
 rigAssert "and scrolls in the lines it has left"                     "$( rigVal scrolled.viewTop ) [$( rigVal scrolledLast )]" "65 [line 100]"
 rigAssert "Launch / Spawn has no such key"                           "$( rigVal launch.selected ) [$( rigVal launchKeys )]" "launch [line 036]"
 rigAssert "an ask has none: no key answers it"                       "$( rigVal ask.path ) $( rigVal ask.selected ) [$( rigVal askKeys )]" "pending a1 []"
 rigAssert "a team member has the key that starts it"                 "$( rigVal member.path ) $( rigVal member.selected ) [$( rigVal memberKeys )]" "team m1 [keys: n start]"
-rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ Left Up  a Active  n Start  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "on a team member the status line names the key that starts it"                "[$( rigVal memberBottom )]" "[ BSP Up  a Active  n Start  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN LIST CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

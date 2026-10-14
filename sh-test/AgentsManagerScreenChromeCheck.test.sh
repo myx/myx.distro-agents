@@ -126,10 +126,10 @@ rigAssert "each window carries its title in the middle of its top border" "[$( r
 rigAssert "the active window, the list, has a double frame, and the other a single one" "[$( rigVal corners )]" "[┌─────────────────────────── Sessions (Activity) [wrap] ───────────────────────────┐╔══════ Sessions (Activity) ═══════╗]"
 rigAssert "a list longer than its window has a scroll bar for its right border, and the other window its plain border" "[$( rigVal barTop )][$( rigVal barThumb )][$( rigVal barTrack )][$( rigVal barEnd )] [$( rigVal viewSide )] $( rigVal a.rows )" "[▲][■][▒][▼] [│] 62"
 rigAssert "the bottom borders of the two windows are plain: the counters and the load are the dashboard's" "[$( rigVal foot )] [$( rigVal load )] $( rigVal a.counters | LC_ALL=C grep -c 'load=0.42' )" "[] [] 1"
-rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 9 )" "[ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help] mhhhhhmmm"
+rigAssert "the last line names the keys that work now, each key in the look of a hot letter" "[$( rigVal status )] $( rigRole r 40 1 16 )" "[ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help] mhhhhhmmmmmmmhhh"
 rigAssert "Tab makes the other window the active one: the frames change places" "$( rigVal t.focus ) [$( rigVal cornersT )]" "view [╔═══════════════════════════ Sessions (Activity) [wrap] ═══════════════════════════╗┌────── Sessions (Activity) ───────┐]"
-rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ w Cut  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
-rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "and the status line names the keys of that window"        "[$( rigVal statusT )]" "[ w Cut  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "with a row selected it names the keys that act on that row too" "$( rigVal row.selected ) [$( rigVal statusRow )]" "r001 [ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- the menus --"
 rigRun <<'RIGSCRIPT'
@@ -158,9 +158,9 @@ keys ESC ALT-x
 get out
 RIGSCRIPT
 rigAssert "F10 opens the first menu, its bar on its first item"     "$( rigVal m.menu )" "go:dashboard"
-rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions (Activity)      2 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 3 2"
+rigAssert "the pull-down is a frame with its items, their keys at the right, and a line between two groups" "$( rigHas m '┌───' ) $( rigHas m '│ Sessions (Activity)      2 │' ) $( rigHas m '│ Exit                    ^X │' ) $( rigHas m '│ Open                 ENTER │' ) $( rigHas m '│ Up one level           BSP │' ) $( rigHas m '├───' ) $( rigHas m '└───' )" "1 1 1 1 1 3 2"
 rigAssert "the item the bar is on stands in the look of the bar, another has its hot letter in a look of its own, and the pull-down has a shadow" "$( rigRole mr 3 4 9 ) $( rigRole mr 4 4 9 ) $( rigRole mr 4 34 35 )" "moOooo mmhmmm ww"
-rigAssert "the status line names the keys of a menu"                 "$( rigLine m 40 | LC_ALL=C sed -e 's/  *$//' )" " Enter Choose  Esc Close  Left/Right Menus  Up/Down Items"
+rigAssert "the status line names the keys of a menu"                 "$( rigLine m 40 | LC_ALL=C sed -e 's/  *$//' )" " ENTER Choose  ESC Close  ←/→ Menus  UP/DN Items"
 rigAssert "Down moves the bar"                                       "$( rigVal m2.menu )" "go:team"
 rigAssert "Right opens the menu beside it"                           "$( rigVal s.menu )" "session:kill"
 rigAssert "an item that does not apply to the row selected is greyed" "$( rigRole sr 4 9 14 )" "xxxxxx"
@@ -238,10 +238,10 @@ get still
 RIGSCRIPT
 rigAssert "F9 takes the next style at once, and the status line says which" "$( rigVal tv.style ) $( rigVal mc.style ) [$( rigVal mc.notice )]" "tv mc [interface style: MC (Compact)]"
 rigAssert "the compact style has a status line on top: the workspace, the machine, the load and the clock" "$( rigLine c 1 | rigSqueeze )" " ws-rig@rig-host load 0.42 12:34:56 "
-rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Left Up  a Active  u Read  m Menu  q Exit  Tab Window"
+rigAssert "and one at the bottom: the counters, then the keys that act now, the menu key among them" "$( rigLine c 40 | LC_ALL=C sed -e 's/  *$//' )" " running 2  paused 0  working 1  waiting 2  pending 3  Enter Open  Backspace Up  a Active  u Read  m Menu  q Exit"
 rigAssert "it spends nothing on frames: one column parts the two panes, and the list has a line more" "$( rigHas c '║' ) $( rigHas c '┌' ) $( rigHas c '└' ) $( rigHas c '│' ) $( rigVal mc.listHeight ) $( rigVal mc.viewHeight )" "0 0 0 38 37 36"
 rigAssert "its @ stands apart too, in a line that is otherwise in one look" "$( rigLine ck 1 | LC_ALL=C tr -d R )" "B"
-rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions (Activity)      2 │' )" "go:dashboard [ ≡ Go Session View Help ws-rig@rig-host] 1"
+rigAssert "the menu exists in it: F10 shows the menu bar on the top line and the pull-down under it" "$( rigVal cm.menu ) [$( rigLine cmenu 1 | rigSqueeze | LC_ALL=C cut -c1-41 )] $( rigHas cmenu '│ Sessions (Activity)          2 │' )" "go:dashboard [ ≡ Go Session View Help ws-rig@rig-host] 1"
 rigAssert "B/W is the next: it draws what Turbo Vision draws, cell for cell" "$( rigVal bw.style ) $( [ "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^b|//p' | LC_ALL=C sed -n '1,39p' )" = "$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^t|//p' | LC_ALL=C sed -n '1,39p' )" ] && echo same || echo differs )" "bw same"
 rigAssert "and after the last style comes the first again"          "$( rigVal back.style )" "tv"
 rigAssert "a name that is no style is refused, and the style stays"  "$( rigVal style.refused ) $( rigVal still.style )" "nonsense tv"
@@ -365,6 +365,28 @@ RIGSCRIPT
 rigAssert "in a field of a dialog what Option types is text, and ends nothing" "[$( rigVal typed.dialog )] $( rigVal typed.quit )" "[rig:name|typed≈©] no"
 rigAssert "Alt-X does nothing in a dialog; Esc closes it, and the x after it is a plain x" "[$( rigVal alt.dialog )] $( rigVal alt.quit ) [$( rigVal apart.dialog )] $( rigVal apart.quit )" "[rig:name|typed≈©] no [] no"
 rigAssert "Esc closes a menu, and the x after it is a plain x; with the menu open Option-x ends the screen" "[$( rigVal menuApart.menu )] $( rigVal menuApart.quit ) $( rigVal menuOut.quit )" "[] no yes"
+
+echo "-- the names of the keys: each style its own set, each name one cell, and a click on a name finds its key --"
+rigNames="$( "$rigPython" -I -B - "$rigScreen" 2>&1 <<'RIGPY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("screen", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+keys = ("ENTER", "TAB", "ESC", "LEFT", "RIGHT", "UP", "DOWN", "BACKSPACE", "PGUP", "PGDN")
+for style in ("tv", "bw", "mc", "symbols"):
+    if style == "symbols":
+        m.STYLE["names"] = "symbols"
+    else:
+        m.setStyle(style)
+    names = [m.keyShown(key) for key in keys]
+    print(style, " ".join(names), "|", " ".join(str(m.textWidth(name)) for name in names), "|",
+          all(m.keyOfShown(m.keyShown(key)) == key for key in keys), m.keysShown("LEFT/RIGHT"), m.keysShown("UP/DOWN"))
+RIGPY
+)"
+rigAssert "Turbo Vision: capitals, and the arrows of the IBM PC set for Left and Right; a click on each finds its key" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^tv ' )" "tv ENTER TAB ESC ← → UP DN BSP PgUp PgDn | 5 3 3 1 1 2 2 3 4 4 | True ←/→ UP/DN"
+rigAssert "B/W: the same" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^bw ' )" "bw ENTER TAB ESC ← → UP DN BSP PgUp PgDn | 5 3 3 1 1 2 2 3 4 4 | True ←/→ UP/DN"
+rigAssert "the compact style: the names it had" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^mc ' )" "mc Enter Tab Esc Left Right Up Down Backspace PgUp PgDn | 5 3 3 4 5 2 4 9 4 4 | True Left/Right Up/Down"
+rigAssert "the set of symbols: one cell each, and no emoji" "$( printf '%s\n' "$rigNames" | LC_ALL=C grep '^symbols ' )" "symbols ⏎ ⇥ ⎋ ← → ↑ ↓ ⌫ PgUp PgDn | 1 1 1 1 1 1 1 1 4 4 | True ←/→ ↑/↓"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN CHROME CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

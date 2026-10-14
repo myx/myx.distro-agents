@@ -360,7 +360,7 @@ show a
 said answeredLine
 wait sessions 30
 turn
-keys LEFT UP UP ENTER
+keys BACKSPACE UP UP ENTER
 get up
 cells upRow3 4 85 119
 cells upRow4 5 85 119

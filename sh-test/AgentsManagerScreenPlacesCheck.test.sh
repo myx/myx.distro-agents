@@ -168,7 +168,7 @@ turn
 wait view 5
 get odd
 show o
-keys LEFT
+keys BACKSPACE
 turn
 get out
 show s
@@ -186,7 +186,7 @@ rigAssert "in the summary of a location its own path and what declares it stand 
 rigAssert "what stands in it is a table of what, its name and where, each path as it stands under the path of the location, which is said once, at the top; a thing that lies elsewhere keeps its whole path" "$( rigHolds d '│  WHAT           NAME                   WHERE ' ) $( rigHolds d '│  console        DistroAgentsConsole.sh DistroAgentsConsole.sh ' ) $( rigHolds d '│  team-data-root -                      team-data ' ) $( rigHolds d '│  home keeper-far  /rig/elsewhere/homes/keeper-far ' ) $( rigHolds d '/rig/Workspaces/ws-one/source/deep' )" "1 1 1 1 1"
 rigAssert "its members stand under that, a table for each way they are set up as their rows say it, those whose folder lies in the location first, a folder under its path where it lies there; one that no registry names shows plainer, with that word" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^d|' | LC_ALL=C grep -o -e '│Its members: ' -e '│  source-symlink ' -e '│    keeper-own keeper skillset/keeper-own ' -e '│  not-in-registry ' -e '│    stray-one keeper .local/agents/members/stray-one ' -e '│  origin-symlink ' -e '│    magic-linked magic /rig/origin/skillset/magic-linked ' | LC_ALL=C tr -d '│' | LC_ALL=C sed 's/^ *//;s/ *$//' | LC_ALL=C tr '\n' '|' ) $( rigLookAt d dl 'stray-one keeper' ) $( rigLookAt d dl 'keeper-own keeper' )" "Its members:|source-symlink|keeper-own keeper skillset/keeper-own|not-in-registry|stray-one keeper .local/agents/members/stray-one|origin-symlink|magic-linked magic /rig/origin/skillset/magic-linked| DDDDDDDDDDDDDDDD ................."
 rigAssert "a key with a mark in it is given to the read as it is" "$( rigVal odd.selected ) $( rigCalled '--manager-place-read nowhere@ws-two' ) $( rigHolds o '│key       nowhere@ws-two ' ) $( rigHolds o '│path ' )" "nowhere@ws-two 1 1 0"
-rigAssert "Left goes back to the root, onto its row, where the left window says the same of the folder" "[$( rigVal out.path )] $( rigVal out.selected ) $( rigHolds s '5 locations: 3 directory, 2 workspace.' )" "[] places 1"
+rigAssert "Backspace goes back to the root, onto its row, where the left window says the same of the folder" "[$( rigVal out.path )] $( rigVal out.selected ) $( rigHolds s '5 locations: 3 directory, 2 workspace.' )" "[] places 1"
 rigAssert "no operation of the locations was called but the list with no argument and the read of one key" "$( rigPlaceCalls )" "3 0"
 
 echo "-- where the list has little room the columns that do not fit are left out whole"

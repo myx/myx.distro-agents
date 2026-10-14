@@ -203,11 +203,11 @@ cells oddKeys 37 1 83
 RIGSCRIPT
 rigAssert "the free prompt says what a prompt typed there starts"      "$( rigVal free.selected ) [$( rigPane f 3 )][$( rigPane f 4 )][$( rigPane f 5 )]" \
 	"free [ A prompt typed here starts a new coworking session, opened by the coordinator,][ with that prompt as its brief.][ Enter opens its dialog: who runs it, the prompt, the name of the session. An empty]"
-rigAssert "and the left pane names Enter as its key"                 "[$( rigVal freeKeys )]" "[keys: Enter start]"
+rigAssert "and the left pane names Enter as its key"                 "[$( rigVal freeKeys )]" "[keys: ENTER start]"
 rigAssert "a routine: its file, its owner, its title, its executors" "$( rigVal daily.selected ) [$( rigPane d 3 )][$( rigPane d 4 )][$( rigPane d 5 )][$( rigPane d 6 )]" \
 	"magic-coordinator/$rigDaily [ routine   $rigDaily][ owner     magic-coordinator][ title     magic-coordinator.daily.routine — the daily meeting][ executors magic-coordinator]"
 rigAssert "the kind of its session, that Enter starts it, and the name its session takes" "[$( rigPane d 7 )][$( rigPane d 8 )][$( rigPane d 9 )][$( rigPane d 10 )] [$( rigVal dailyKeys )]" \
-	"[ session   coworking: the spawner adds magic-coordinator to it][ start     Enter starts it, as its executors, whoever is at the console][ name      daily, the name its session takes unless another is typed][] [keys: Enter start]"
+	"[ session   coworking: the spawner adds magic-coordinator to it][ start     Enter starts it, as its executors, whoever is at the console][ name      daily, the name its session takes unless another is typed][] [keys: ENTER start]"
 rigAssert "several executors read with their spaces"                 "[$( rigPane r 6 )]" "[ executors magic-coordinator, magic-librarian]"
 rigAssert "one that cannot be started says so, and why"              "$( rigVal discuss.selected ) [$( rigPane n 8 )][$( rigPane n 9 )][$( rigPane n 10 )]" \
 	"magic-team/magic-team.discuss.routine.md [ start     not-startable: Enter does not start it][ why       its executors, magic-team, is any member: the session spawner starts it][           only with members named]"
@@ -240,7 +240,7 @@ show a
 said answeredLine
 wait sessions 30
 turn
-keys LEFT
+keys BACKSPACE
 get up
 cells upRow3 4 85 119
 cells upRow4 5 85 119
@@ -252,7 +252,7 @@ rigAssert "until Enter is pressed again nothing is started"          "[$( rigVal
 rigAssert "Enter again starts it, beside the screen"                 "[$( rigVal started.dialog )] $( rigVal started.reading ) [$( rigVal startedLine )]" "[] action:launch:$rigDaily [start asked of the tooling: $rigDaily, named daily]"
 rigAssert "the operation is called once, with that routine and the name daily" "$( rigStarts ) [$( rigStartWords 1 )]" "1 [[--magic-spawn-session][--routine][$rigDaily][--session-name-or-comment][daily]]"
 rigAssert "nothing goes to its standard input, and nothing else is called" "$( rigInput '' ) $( rigOthers )" "none 0"
-rigAssert "the bottom line shows the id of the new session, and of its members what fits" "[$( rigVal answeredLine )] [$( rigVal answered.notice )]" "[started: session $rigNew, members magic-coordin…] [started: session $rigNew, members magic-coordinator, magic-librarian]"
+rigAssert "the bottom line shows the id of the new session, and of its members what fits" "[$( rigVal answeredLine )] [$( rigVal answered.notice )]" "[started: session $rigNew, members magic-coordina…] [started: session $rigNew, members magic-coordinator, magic-librarian]"
 rigAssert "the left pane shows what the operation printed: the session, its name, the routine, the members" "[$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )][$( rigPane a 6 )][$( rigPane a 7 )]" \
 	"[ the start, answered 02:30:00:][ session   $rigNew][ name      daily][ routine   $rigDaily][ members   magic-coordinator, magic-librarian]"
 rigAssert "and what it noted, then the routine as before"            "[$( rigPane a 8 )][$( rigPane a 9 )][$( rigPane a 10 )]" "[ note      magic-spawn-session: added magic-librarian: the rig says so][][ routine   $rigDaily]"
@@ -307,6 +307,7 @@ keys RIGHT
 get right
 keys ESC
 mouse click 100 7
+mouse click 100 7
 get click
 keys ESC
 keys ALT-s ENTER
@@ -317,7 +318,7 @@ get odd
 keys ESC
 keys UP UP UP RIGHT
 get can
-keys TAB ENTER
+keys UP UP UP TAB ENTER
 get left
 turn 3
 get end
@@ -327,12 +328,12 @@ rigAssert "Enter on a routine that cannot be started opens the information box: 
 	"magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started] [magic-team.discuss cannot be started from here. / routine: magic-team.discuss.routine.md / owner: magic-team / executors: magic-team / start: not-startable / why: its executors, magic-team, is any member: the session spawner starts it only with members named]"
 rigAssert "the box sets its facts out, the reason broken to the box with its underscores as spaces, over one button" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^discussBox|' | LC_ALL=C grep -c -F -e '║ routine   magic-team.discuss.routine.md ' -e '║ executors magic-team ' -e '║ why       its executors, magic-team, is any member: the session ' -e '║           starts it only with members named ' -e '[»OK«]' )" "5"
 rigAssert "the box says it and the status line does not; Enter closes it" "[$( rigVal discuss.notice )] [$( rigVal closed.dialog )] [$( rigVal closed.notice )]" "[] [] []"
-rigAssert "Right on it opens the same box, and dives nowhere"         "$( rigVal right.path ) [$( rigVal right.dialog )] [$( rigVal right.dialogTitle )]" "sessions/launch [information:ok|] [The routine is not started]"
+rigAssert "Right on it opens no box and dives nowhere: it pages down, as in every list" "$( rigVal right.path ) [$( rigVal right.dialog )] $( [ "$( rigVal right.index )" -gt "$( rigVal closed.index )" ] && echo down )" "sessions/launch [] down"
 rigAssert "a click on it while it is selected, the click that opens, too" "$( rigVal click.selected ) [$( rigVal click.dialog )] [$( rigVal click.dialogTitle )]" "magic-team/magic-team.discuss.routine.md [information:ok|] [The routine is not started]"
 rigAssert "its greyed menu item is another thing: tried, it opens no box and says one line of the status line" "[$( rigVal item.dialog )] [$( rigVal item.notice )]" \
 	"[] [Start the routine: magic-team.discuss is not started from here: its executors, magic-team, is any member: the session spawner starts it only with members named]"
 rigAssert "a broken file is not started either"                      "[$( rigVal odd.dialog )] [$( rigVal odd.dialogHolds )]" "[information:ok|] [odd cannot be started from here. / routine: odd.routine.md / owner: rig-member / executors: none are named / start: broken / why: the file does not open with a frontmatter block]"
-rigAssert "Right on a routine that can be started dives nowhere and starts nothing" "$( rigVal can.selected ) $( rigVal can.path ) [$( rigVal can.dialog )]" "magic-coordinator/$rigDaily sessions/launch []"
+rigAssert "Right on a routine that can be started pages down, dives nowhere and starts nothing" "$( rigVal can.selected ) $( rigVal can.path ) [$( rigVal can.dialog )]" "rig-member/odd.routine.md sessions/launch []"
 rigAssert "with the focus on the left pane Enter starts nothing"     "$( rigVal left.focus ) $( rigVal left.selected ) [$( rigVal left.dialog )]" "view magic-coordinator/$rigDaily []"
 rigAssert "the operation that starts a session was never called"     "$( rigStarts ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
 
@@ -399,12 +400,12 @@ keys ESC
 turn 3
 get end
 RIGSCRIPT
-rigAssert "while the prompt is empty the button that starts is greyed, and Enter in a field of one line names no button to press" "$( rigBoxHas off 'gxxxxxxxxxggbbbbbbbbbbg' ) [$( rigVal offStatus )]" "1 [ Tab Next  Esc Cancel]"
+rigAssert "while the prompt is empty the button that starts is greyed, and Enter in a field of one line names no button to press" "$( rigBoxHas off 'gxxxxxxxxxggbbbbbbbbbbg' ) [$( rigVal offStatus )]" "1 [ TAB Next  ESC Cancel]"
 rigAssert "Enter in the empty prompt is a new line, never the button: what is typed after it is in the prompt, the dialog is open, nothing was called" "[$( rigVal typed.dialog )] [$( rigVal typed.dialogSays )] $( rigVal typed.calls )" "[prompt:prompt|\\nhi] [] 0"
 rigAssert "Tab to the button and Space presses nothing: one line in the dialog says that the prompt is empty, and the keys are back in the prompt" "[$( rigVal bySpace.dialog )] [$( rigVal bySpace.dialogSays )] $( rigVal bySpace.calls )" "[prompt:prompt|] [nothing is started: the prompt is empty] 0"
 rigAssert "neither does Enter on the button, nor a click on it" "[$( rigVal byEnter.dialog )] $( rigVal byEnter.calls ) [$( rigVal byClick.dialog )] [$( rigVal byClick.dialogSays )] $( rigVal byClick.calls )" "[prompt:prompt|] 0 [prompt:prompt|] [nothing is started: the prompt is empty] 0"
 rigAssert "nor with a member picked in the list, nor with blanks and a new line alone in the prompt, which stay as they were typed" "[$( rigVal member.dialog )] $( rigVal member.calls ) [$( rigVal blank.dialog )] $( rigVal blank.calls )" "[prompt:prompt|] 0 [prompt:prompt| \\n ] 0"
-rigAssert "with a prompt typed the button is drawn as a button again, and Enter names it" "$( rigBoxHas on 'gbbbbbbbbbggbbbbbbbbbbg' ) [$( rigVal onStatus )]" "1 [ Enter Start  Tab Next  Esc Cancel]"
+rigAssert "with a prompt typed the button is drawn as a button again, and Enter names it" "$( rigBoxHas on 'gbbbbbbbbbggbbbbbbbbbbg' ) [$( rigVal onStatus )]" "1 [ ENTER Start  TAB Next  ESC Cancel]"
 rigAssert "nothing was started at any time: no operation that starts was called" "[$( rigVal end.dialog )] $( rigVal end.calls ) $( rigStarts ) $( LC_ALL=C grep -c -- '^--manager-spawn-member' "$MANAGER_SCREEN_RIG/calls" || : )" "[] 0 0 0"
 rigAssert "the operation that starts a session was never called"     "$( rigStarts ) $( rigOthers ) $( rigVal end.calls )" "0 0 0"
 
@@ -439,7 +440,7 @@ rigAssert "Enter with no name starts it"                             "$( rigVal 
 rigAssert "the operation is called once, with --routine-default and no word of the line" "$( rigStarts ) [$( rigStartWords 1 )] $( rigCalled '--magic-spawn-session --routine-default' )" "1 [[--magic-spawn-session][--routine-default]] 1"
 rigAssert "the line is on its standard input, whole, with a line end" "$( rigInput 'Magic, start retro please' )" same
 rigAssert "what the operation printed is shown"                      "[$( rigVal answeredLine )] [$( rigPane a 3 )][$( rigPane a 4 )][$( rigPane a 5 )]" \
-	"[started: session $rigNew, members magic-coordin…] [ the start, answered 02:30:00:][ session   $rigNew][ name      none: it shows by its id]"
+	"[started: session $rigNew, members magic-coordina…] [ the start, answered 02:30:00:][ session   $rigNew][ name      none: it shows by its id]"
 
 echo "-- the free prompt with a name, with odd characters, and Esc at the name --"
 rigCase named
@@ -495,7 +496,7 @@ show f
 keys ENTER
 wait sessions 30
 turn
-keys LEFT
+keys BACKSPACE
 get up
 RIGSCRIPT
 rigAssert "what the operation wrote stands in a box, whole" "[$( rigVal failed.dialogTitle )] [$( rigVal failed.dialogHolds )]" "[The start failed] [operation: --magic-spawn-session --routine $rigDaily --session-name-or-comment daily / rig-tools: a line that is no error / rig-tools: ⛔ ERROR: the rig said fail]"
@@ -548,11 +549,11 @@ wait action 30
 get answered
 RIGSCRIPT
 rigAssert "a routine that is started only with members named says so at the end of its row" "$( rigVal on.selected ) [$( rigVal onRow )]" "magic-team/$rigDiscuss [>magic-team.discuss        members]"
-rigAssert "the left pane says that Enter asks for its members, and it and the status line name the key" "$( rigPaneHolds o ' start     Enter asks for the members to start it with, in one session' ) [$( rigVal onKeys )] [$( rigVal onStatus )]" "1 [keys: Enter start] [ Enter Start  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "the left pane says that Enter asks for its members, and it and the status line name the key" "$( rigPaneHolds o ' start     Enter asks for the members to start it with, in one session' ) [$( rigVal onKeys )] [$( rigVal onStatus )]" "1 [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Enter opens the dialog of its members, and starts nothing" "$( rigVal opened.dialog ) [$( rigVal opened.dialogTitle )] $( rigVal opened.calls )" "members:members| [Start the routine with members] 0"
 rigAssert "the members are read by the operation that lists the team, once" "$( rigCalled --manager-team-member-list )" "1"
 rigAssert "the dialog names the routine, and has a box for each member that can be started from here, and for no other" "$( rigBoxHas m '║ routine   magic-team.discuss.routine.md ' ) $( rigBoxHas m '║ [ ] magic-coordinator ' ) $( rigBoxHas m '║ [ ] keeper-myx ' ) $( rigBoxHas m '║ [ ] magic-tester ' ) $( rigBoxHas m 'human-owner' ) $( rigBoxHas m 'keeper-gone' )" "1 1 1 1 0 0"
-rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║ What the session is to work on ' ) $( rigBoxHas m '[»OK«]  [ Cancel ]' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  Up/Down Move  Tab Next  Esc Cancel]"
+rigAssert "under them the field for what the session is to work on, and OK and Cancel" "$( rigBoxHas m '║ What the session is to work on ' ) $( rigBoxHas m '[»OK«]  [ Cancel ]' ) [$( rigVal mStatus )]" "1 1 [ Space Toggle  UP/DN Move  TAB Next  ESC Cancel]"
 rigAssert "OK with no member checked is refused inside the dialog, and starts nothing" "$( rigVal none.dialog ) [$( rigVal none.dialogSays )] $( rigVal none.calls )" "members:members| [no member is checked: check one at least, with Space] 0"
 rigAssert "Space checks a member, and Tab goes on to the field"      "$( rigVal typed.dialog )" "members:task|the plan for Monday"
 rigAssert "OK starts it: the dialog closes, and the status line says with whom" "[$( rigVal started.dialog )] [$( rigVal started.notice )]" "[] [start asked of the tooling: $rigDiscuss, with magic-coordinator, magic-tester]"

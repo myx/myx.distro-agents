@@ -145,7 +145,7 @@ rigAssert "the rows stand in the order of the operation, each by its label with 
 rigAssert "a line that is no row of a console, and one too short to hold a command, is left out" "$( rigVal in.rows ) [$( rigVal row6 )]" "5 []"
 rigAssert "on the row that goes up the left window shows the folder itself: how many, group by group" "[$( rigPane u 2 )][$( rigPane u 3 )][$( rigPane u 4 )]" \
 	"[ Consoles (Tools) [wrap]][ 4 to start: 1 shell, 1 agents, 2 distro.][ Enter starts one with the whole terminal; the screen is back when it ends.]"
-rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ Enter Open  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+rigAssert "the menu Console is in the bar in this view"              "[$( rigVal bar )] [$( rigVal upStatus )]" "[ ≡  Go  Console  View  Help] [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "Left goes back to the root, onto its row, and 6 goes there from anywhere" "[$( rigVal root.path )] $( rigVal root.selected ) [$( rigVal six.path )]" "[] consoles [consoles]"
 rigAssert "the Go menu holds it with its key"                        "$( rigScreenHolds g '│ Consoles (Tools)         6 │' )" 1
 
@@ -174,9 +174,9 @@ rigAssert "the folder it is started in, as it is written"            "[$( rigPan
 rigAssert "its command as it will be run, word by word: a word with a blank stands between quotes" "[$( rigPane c 7 )][$( rigPane c 8 )][$( rigPane c 9 )]" \
 	"[ command   /usr/bin/env 'MMDAPP=/rig/ws rig' 'REASON=the shell of the workspace, by][           its own name.' /rig/sh_x --rcfile '/rig/ws rig/rc_file' -i][ terminal  it needs a terminal, on its input and on its output]"
 rigAssert "what Enter does, and its key under the item and in the status line" "[$( rigPane c 10 )][$( rigPane c 11 )] [$( rigVal cKeys )] [$( rigVal cStatus )]" \
-	"[ start     Enter gives it the whole terminal. The screen is back when it ends, and][           says how it ended.] [keys: Enter start] [ Enter Start  Left Up  a Active  u Read  m Menu  ^X Exit  Tab Window  ? Help]"
+	"[ start     Enter gives it the whole terminal. The screen is back when it ends, and][           says how it ended.] [keys: ENTER start] [ ENTER Start  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 rigAssert "nothing was read for it but the list, and nothing spills" "$( rigCalled --manager-console-list ) $( rigOthers ) $( rigVal c.spills )" "1 0 0"
-rigAssert "the menu Console holds the start, with its key"           "$( rigScreenHolds m '│ Start  Enter │' )" 1
+rigAssert "the menu Console holds the start, with its key"           "$( rigScreenHolds m '│ Start  ENTER │' )" 1
 rigAssert "one that needs no terminal says so, and its words stand as they are" "[$( rigPane p 7 )][$( rigPane p 8 )]" "[ command   /rig/tool_x - _][ terminal  it needs none]"
 
 echo "-- Enter gives the terminal to a child, started from the words of the row as they are --"
@@ -331,7 +331,7 @@ rigAssert "the child was started from its words as they are, in its folder, with
 rigAssert "it had the terminal, in the shell's mode, in its size"    "$( rigFact tty ) $( rigFact cooked ) $( rigFact size )" "yes yes 100x30"
 rigAssert "the screen had left its mode before the child came up, wrote nothing while it ran, and was drawn whole after it with its status" "$( rigTraced )" "up at off/out, 0 while it ran, then in on wide said, at the end off/out"
 rigAssert "and the list was read again after it"                     "$( [ "$( rigCalled --manager-console-list )" -ge 2 ] && echo yes || echo "no ($( rigCalled --manager-console-list ))" )" "yes"
-rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended by signal 15 (SIGTERM)'
+rigTrace='on=1000h|off=1000l|in=\e[?1049h|out=\e[?1049l|up=STANDIN-UP|end=STANDIN-END|said=ended by signal 15'
 rigPtyCase pty-signal signal
 rigPty '6\p\aStandin\a\eOB\p\r\p\aended by signal 15\a\x18'
 rigAssert "an end by a signal: the screen does not end with its child, and gives the terminal back at its own end" "$( rigVal pty.frame ) $( rigVal pty.rc ) $( rigVal pty.left ) $( rigVal pty.modeBack ) $( rigVal pty.errorAfterLeft )" "yes 0 yes yes none"

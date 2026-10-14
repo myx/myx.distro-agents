@@ -10,7 +10,7 @@
 ## that is one lone run with no name shows plainer: dimmed, by the member that ran and the head of its id; `a` asks
 ## the operation again with `--active` and shows what that gives, and `a` again all of them; Enter dives into a
 ## session and lists its agents under the row that goes up, each by its member with its state and, where it is
-## alive, its activity, and Left returns onto that session; the left pane shows the selected session from the same
+## alive, its activity, and Backspace returns onto that session; the left pane shows the selected session from the same
 ## rows: its state, when it started and ended, how many agents and in which states, and each agent; and the
 ## selected agent: its state, status, process, dates, host, workspace and ids; a list read again keeps the selection
 ## on the same session; a session that is gone from the list takes its level with it; and with five hundred
@@ -196,9 +196,9 @@ keys DOWN DOWN
 turn
 get agent
 show s
-keys LEFT
+keys BACKSPACE
 get back
-keys RIGHT LEFT
+keys RIGHT
 get again
 RIGSCRIPT
 rigPane(){ ## tag, line counted from 1 -- the left pane's part of that line of the screen, without the spaces at its end
@@ -214,8 +214,8 @@ rigAssert "the left pane shows the selected agent: state, status, process, dates
 	"a2a2a2a2-0000-4000-8000-0000000000a2 [ state     running working][ status    spawn-started][ process   running][ started   2026-10-12 17:05 +0300 (9h ago)]"
 rigAssert "its host, its workspace, its own id and its session"      "[$( rigPane s 7 )][$( rigPane s 8 )][$( rigPane s 9 )][$( rigPane s 10 )]" \
 	"[ host      rig-host][ workspace ws-rig][ run       a2a2a2a2-0000-4000-8000-0000000000a2][ session   $rigS1]"
-rigAssert "Left returns onto the session it came from"               "$( rigVal back.path ) $( rigVal back.selected )" "sessions $rigS1"
-rigAssert "Right dives in as Enter does"                             "$( rigVal again.path ) $( rigVal again.selected )" "sessions $rigS1"
+rigAssert "Backspace returns onto the session it came from"               "$( rigVal back.path ) $( rigVal back.selected )" "sessions $rigS1"
+rigAssert "Right dives nowhere: it pages down in the list"          "$( rigVal again.path )" "sessions"
 
 echo "-- the left pane shows the selected session, from the same rows --"
 rigCase pane five.rows
@@ -253,7 +253,7 @@ keys DOWN DOWN DOWN DOWN
 get before
 keys ENTER
 get inLone
-keys LEFT UP UP
+keys BACKSPACE UP UP
 get named
 advance 11
 wait sessions 30
@@ -289,7 +289,7 @@ border title 1 84 120
 advance 11
 wait sessions 30
 get later
-keys LEFT
+keys BACKSPACE
 get up
 wait sessions 30
 get list
@@ -301,7 +301,7 @@ rigAssert "a session that is not active is entered, one of its agents selected" 
 rigAssert "a switches to the active ones, and the person is still in that session, on that agent" "$( rigVal pressed.filter ) $( rigVal after.path ) $( rigVal after.rows ) $( rigVal after.selected )" "active sessions/$rigS2 3 b1b1b1b1-0000-4000-8000-0000000000b1"
 rigAssert "its agents are all there"                                 "[$( rigVal title )] [$( rigVal row1 )][$( rigVal row2 )][$( rigVal row3 )]" "[22222222-0000-4000-8000-00000…] [ ..][>magic-librarian          finished][ magic-developer          finished]"
 rigAssert "inside a session the list is read without the filter, also on the period" "$( LC_ALL=C grep -c -- '--active' "$MANAGER_SCREEN_RIG/calls" || : ) $( rigVal later.rows )" "1 3"
-rigAssert "Left returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( rigCall '$' )]" "sessions [--manager-session-list --active]"
+rigAssert "Backspace returns to the list, which is read with the filter again" "$( rigVal up.path ) [$( rigCall '$' )]" "sessions [--manager-session-list --active]"
 rigAssert "and shows what the operation gives as the active ones, once it has answered: which are active is the operation's to say" "$( rigVal list.rows ) [$( rigVal listTitle )] [$( rigVal listRow3 )][$( rigVal listRow4 )]" "3 [Sessions (Activity)  [active]] [>daily of Monday...        running][]"
 
 echo "-- five hundred sessions --"
@@ -384,7 +384,7 @@ keys DOWN DOWN
 turn
 get agent
 show t
-keys LEFT DOWN DOWN
+keys BACKSPACE DOWN DOWN
 turn
 get third
 show u
