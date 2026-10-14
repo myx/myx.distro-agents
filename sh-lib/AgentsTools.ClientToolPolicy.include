@@ -92,7 +92,7 @@ AgentsToolsClientToolPolicyClaudeMcpServersJson(){
 ## An empty list would install no reroute while still succeeding, so it is refused.
 AgentsToolsClientToolPolicyRerouteToolNames(){
 	local policyToolNames="" policyToolName
-	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch WebSearch PushNotification ; do
+	for policyToolName in Bash AskUserQuestion Read Write Edit Glob Grep WebFetch WebSearch PushNotification TodoWrite ; do
 		case "$policyToolName" in
 			""|*[!A-Za-z]*)
 				echo "⛔ ERROR: AgentsToolsClientToolPolicyRerouteToolNames: '$policyToolName' is not a bare tool name, and a PreToolUse matcher is written from it verbatim" >&2

@@ -235,7 +235,7 @@ turn
 wait action 5
 get after
 RIGSCRIPT
-rigAssert "the dialog says that the plan could not be read and that nothing is done, takes no word, and has Cancel alone" "[$( rigVal k.selected )] [$( rigVal k.dialog )] $( rigVal k.dialogHolds | LC_ALL=C grep -c -F 'What its kill would do could not be read: rig-tools: ⛔ ERROR: the rig said fail / So it is not asked for: nothing is killed, dismissed or closed.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -F '[ Cancel ]' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -e 'Kill \]' -e 'Close \]' -e 'Type yes' )" "[s-run] [kill:cancel|] 1 1 0"
+rigAssert "the dialog says that the plan could not be read and that nothing is done, takes no word, and has Cancel alone" "[$( rigVal k.selected )] [$( rigVal k.dialog )] $( rigVal k.dialogHolds | LC_ALL=C grep -c -F 'What its kill would do could not be read: rig-tools: ⛔ ERROR: the rig said fail / So it is not asked for: nothing is killed, dismissed or closed.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -F '[»Cancel«]' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^kb|' | LC_ALL=C grep -c -e 'Kill \]' -e 'Close \]' -e 'Type yes' )" "[s-run] [kill:cancel|] 1 1 0"
 rigAssert "the word typed and Enter leave it: no kill was asked of the tooling, only its plan was read" "[$( rigVal after.dialog )] $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run' "$MANAGER_SCREEN_RIG/calls" ) $( LC_ALL=C grep -c -x -F -- '--manager-session-kill --session-id s-run --plan' "$MANAGER_SCREEN_RIG/calls" )" "[] 0 1"
 
 echo "-- the number keys of the roots follow the order of the root list --"

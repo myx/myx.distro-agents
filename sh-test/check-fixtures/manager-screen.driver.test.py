@@ -54,6 +54,7 @@ class TextSurface:
         self.looks = []
         self.spills = 0
         self.frames = 0
+        self.repaints = 0
         self.puts = 0
         self.cursorAt = None
         ## the children that were given the terminal, each as its words and its folder; how
@@ -113,6 +114,10 @@ class TextSurface:
 
     def show(self):
         self.frames += 1
+
+    ## The next frame sent whole: counted, as `repaints`.
+    def repaint(self):
+        self.repaints += 1
 
     ## A child that is given the terminal. None is started here: what it would be started
     ## with is kept, and it ends as the script said the next one does (`child`).
@@ -290,7 +295,7 @@ def scriptRun(module):
             ("counters", ",".join("%s=%s" % pair for pair in sorted(state.counters.items()))),
             ("failed", ",".join(sorted(state.failed))),
             ("forced", ",".join(sorted(state.forced))),
-            ("spills", surface.spills), ("frames", surface.frames), ("puts", surface.puts),
+            ("spills", surface.spills), ("frames", surface.frames), ("repaints", surface.repaints), ("puts", surface.puts),
             ("cursor", "" if surface.cursorAt is None else "%d,%d" % surface.cursorAt),
             ("children", len(surface.children)),
             ("childWords", "".join("[%s]" % word for word in surface.children[-1][0]) if surface.children else ""),

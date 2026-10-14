@@ -180,7 +180,7 @@ rigHooks(){ ## prints: computed list, index-written, index list, then one verdic
 }
 rigHookOut="$( rigHooks )"
 rigPolicyList="$( printf '%s\n' "$rigHookOut" | sed -n 1p )"
-rigAssert "hooks: computed from the policy, settings.json not read, each hook run by the bash the harness runs in" "$rigPolicyList" "[the client tool policy][][10][Read	$BASH $rigHere/client-hooks/deny-memory-md-read.sh\\nGlob	$BASH $rigHere/client-hooks/deny-memory-md-read.sh Glob\\nGrep	$BASH $rigHere/client-hooks/deny-memory-md-read.sh Grep\\nEdit|Write	$BASH $rigHere/client-hooks/protect-memory-md.sh\\n]"
+rigAssert "hooks: computed from the policy, settings.json not read, each hook run by the bash the harness runs in" "$rigPolicyList" "[the client tool policy][][11][Read	$BASH $rigHere/client-hooks/deny-memory-md-read.sh\\nGlob	$BASH $rigHere/client-hooks/deny-memory-md-read.sh Glob\\nGrep	$BASH $rigHere/client-hooks/deny-memory-md-read.sh Grep\\nEdit|Write	$BASH $rigHere/client-hooks/protect-memory-md.sh\\n]"
 rigAssert "hooks: the index is written" "$( printf '%s\n' "$rigHookOut" | sed -n 2p )" written
 rigAssert "hooks: the index gives the policy's answer" "$( printf '%s\n' "$rigHookOut" | sed -n 3p )" "${rigPolicyList/the client tool policy/harness.hooks.index}"
 rigAssert "hooks: another policy's index is refused" "$( printf '%s\n' "$rigHookOut" | sed -n 4p )" "the client tool policy"

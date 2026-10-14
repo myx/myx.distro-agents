@@ -646,6 +646,18 @@ rigAssert "every tool's line leads with its own description (read from the floor
 	"$rigEveryLed:$( [ "$rigEveryTotal" -gt 20 ] && echo floor-read )" "$rigEveryTotal:floor-read"
 rigAssert "and the model's text before the call is on none of them" "$( cat "$rigTmp/k-every"/?????? | LC_ALL=C grep -c -F 'RIG model text' )" 0
 rigAssert "a read line, exactly: the description, then the tool" "$( cat "$rigTmp/k-every"/?????? | LC_ALL=C grep -c -x -F '📖 Intent for Read — Read → 10 B' )" 1
+## A checklist call with no description: its item in progress leads its line, ahead of the
+## model's text, for the native TodoWrite and for CheckList, its counterpart the floor serves.
+: > "$rigTmp/lines.todo"
+for rigName in TodoWrite mcp__myx_distro__CheckList ; do
+	printf '%s' '{"todos":[{"content":"Run it","status":"pending","activeForm":"Running it"},{"content":"Check '"$rigName"'","status":"in_progress","activeForm":"Checking '"$rigName"'"}]}' \
+		| STL_TS="2030-01-01T00:11:00Z" STL_TOOL="$rigName" STL_OUTCOME=ok STL_BYTES=10 STL_LINES=1 STL_COMMENT='RIG model text' \
+		LC_ALL=C awk -v stlStandalone=tool -f "$rigLib/AgentsSessionTranscriptFormat.awk" >> "$rigTmp/lines.todo"
+done
+rigRender feed "$rigTmp/k-todo" "$rigTmp/lines.todo"
+rigAssert "a TodoWrite line leads with its item in progress" "$( cat "$rigTmp/k-todo"/?????? | LC_ALL=C grep -c -F -- 'Checking TodoWrite — ' )" 1
+rigAssert "a CheckList line leads with its item in progress" "$( cat "$rigTmp/k-todo"/?????? | LC_ALL=C grep -c -F -- 'Checking mcp__myx_distro__CheckList — ' )" 1
+rigAssert "and the model's text before the call is on neither" "$( cat "$rigTmp/k-todo"/?????? | LC_ALL=C grep -c -F 'RIG model text' )" 0
 
 ## ---------------------------------------------------------------------------
 echo "-- a Wait says how it resolved, from whom, and what it waited on where that changed --"

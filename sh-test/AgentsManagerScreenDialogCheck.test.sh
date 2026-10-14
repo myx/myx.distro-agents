@@ -108,7 +108,7 @@ said doneLine
 RIGSCRIPT
 rigAssert "the dialog opens over the screen, the keys on its first control" "$( rigVal o.dialog ) [$( rigVal o.dialogTitle )] $( rigVal o.dialogBox ) $( rigVal o.spills )" "rig:name|typed [A dialog of the rig] 32,6,56,28 0"
 rigAssert "it is framed, with its title in its top border, and holds its text" "$( rigHas d '╔════════════════ A dialog of the rig ═════════════════╗' ) $( rigHas d '║ What the rig asks. ' ) $( rigHas d '╚══════════════════════════════════════════════════════╝' )" "1 1 1"
-rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (*) another ' ) $( rigHas d '║ > first ' ) $( rigHas d '[ OK ]  [ Cancel ]' )" "1 1 1 1 1 1 1 1"
+rigAssert "each control under its label: a field, boxes, radio buttons, a list, and the buttons last" "$( rigHas d '║ Name ' ) $( rigHas d '║ typed ' ) $( rigHas d '║ [ ] alpha ' ) $( rigHas d '║ [X] beta ' ) $( rigHas d '║ ( ) one way ' ) $( rigHas d '║ (*) another ' ) $( rigHas d '║ > first ' ) $( rigHas d '[»OK«]  [ Cancel ]' )" "1 1 1 1 1 1 1 1"
 rigAssert "in the Turbo Vision style it has a shadow, at its right from its second line and under it" "$( rigRole r 2 55 58 ) $( [ "$( rigRole r 1 57 58 )" = ww ] && echo shadow || echo none ) $( rigRole r 29 3 58 )" "gGww none $( rigRepeat w 56 )"
 rigAssert "the field that has the keys stands in a look of its own, another field and a button in theirs" "$( rigRole r 5 1 4 ) $( rigRole r 8 1 4 ) $( rigRole r 27 19 38 ) $( rigVal o.cursor )" "GgII Ggii gbbbbbbggbbbbbbbbbbg 10,39"
 rigAssert "the status line names the keys of the dialog alone: in a field, Enter, Tab and Esc" "[$( rigVal st1 )]" "[ Enter OK  Tab Next  Esc Cancel]"
@@ -145,7 +145,7 @@ keys TAB TAB TAB TAB TAB SPACE
 get spaced
 RIGSCRIPT
 rigAssert "what the handler refuses stands in the dialog, which stays open" "$( rigVal refused.dialog ) [$( rigVal refused.dialogSays )] $( rigHas d '║ the rig refuses the name no ' ) [$( rigVal refused.notice )]" "rig:name|no [the rig refuses the name no] 1 []"
-rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 27 1 6 ) $( rigHas d '[ OK ]  [ Cancel ]' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,5,56,29"
+rigAssert "in a look of its own, above the buttons"                  "$( rigRole r 27 1 6 ) $( rigHas d '[»OK«]  [ Cancel ]' ) $( rigVal refused.dialogBox )" "Gg!!!! 1 32,5,56,29"
 rigAssert "Esc closes the dialog and calls nothing"                  "[$( rigVal esc.dialog )] [$( rigVal esc.notice )]" "[] []"
 rigAssert "Shift-Tab from the first control goes around to the last button, and Space presses it: Cancel calls nothing" "$( rigVal last.dialog ) [$( rigVal cancelled.dialog )] [$( rigVal cancelled.notice )]" "rig:cancel| [] []"
 rigAssert "Space on OK presses it"                                   "[$( rigVal spaced.dialog )] [$( rigVal spaced.notice )]" "[] [pressed ok: name=typed notes= who=b how=y pick=p1]"
@@ -176,7 +176,7 @@ cells st4 11 0 60
 keys ESC
 get none
 RIGSCRIPT
-rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 '[ OK ]' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 06' ) $( rigHas b1 'line 07' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
+rigAssert "the message box has its title, one button, and as many lines of its text as the terminal leaves it" "$( rigVal m.dialog ) [$( rigVal m.dialogTitle )] $( rigVal m.dialogBox ) $( rigHas b1 ' The start failed ' ) $( rigHas b1 '[»OK«]' ) $( rigHas b1 'line 01' ) $( rigHas b1 'line 06' ) $( rigHas b1 'line 07' )" "message:ok| [The start failed] 10,1,40,10 1 1 1 1 0"
 rigAssert "a mark says that it goes on below, and the status line names what scrolls it" "$( rigHas b1 '▼' ) $( rigHas b1 '▲' ) [$( rigVal st1 )]" "1 0 [ Enter OK  Up/Down Scroll  Esc Close]"
 rigAssert "Down scrolls it by a line"                                "$( rigHas b2 'line 01' ) $( rigHas b2 'line 07' ) $( rigHas b2 '▲' ) $( rigHas b2 '▼' )" "0 1 1 1"
 rigAssert "PgDn by a page, and it stops at its end"                  "$( rigHas b3 'line 04' ) $( rigHas b3 'line 05' ) $( rigHas b3 'line 10' ) $( rigHas b3 '▼' )" "0 1 1 0"

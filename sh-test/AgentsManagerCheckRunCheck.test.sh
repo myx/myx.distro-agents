@@ -22,8 +22,9 @@ rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigHome" "$rigSkills"
 : > "$rigWs/.local/.agents/keeper-rig.agent.env" ; chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.env
 ## THE STAND-IN of the owner's check: what each domain's check prints, as the real one prints it. The one that
-## hangs sleeps under a name of the rig's own, so that what is left of it can be told from any other sleep, and
-## for a minute and a half at most: this check sends no signal, so what the operation left would end by itself.
+## hangs sleeps, and has started a sleep of its own that hangs too, under a name of the rig's own, so that what is
+## left of it can be told from any other sleep, and for a minute and a half at most: this check sends no signal,
+## so what the operation left would end by itself.
 ln -s "$( PATH=/bin:/usr/bin command -v sleep )" "$rigTmp/rig-sleep"
 cat > "$rigTmp/stand-in" <<RIGSTANDIN
 #!/bin/sh
@@ -33,7 +34,7 @@ case "\$1" in
 		printf '%s\n' '# DistroAgentsTools --owner-setup-claude --check: read-only diagnosis (nothing applied)' 'CLAUDE_HARNESS_INSTALLED: OK' '' '## workspace ws-rig' 'SPAWN_CLI_SERVICE: WARN' '  warn: set to another CLI, so this workspace does not run claude' '  fix:  /rig/tool --owner-setup-claude --set-as-default --apply' 'AGENTS_CONSOLE_SCRIPT: FAIL' '  warn: differs from the template it would be regenerated from, so it is' '        behind this release' '  path: /rig/ws/DistroAgentsConsole.sh'
 		exit 1 ;;
 	--owner-setup-copilot) printf '%s\n' '# a domain with no defined checks' 'copilot has no checks defined yet' ;;
-	--owner-setup-grok) exec "$rigTmp/rig-sleep" 90 ;;
+	--owner-setup-grok) "$rigTmp/rig-sleep" 90 & exec "$rigTmp/rig-sleep" 90 ;;
 	--owner-setup-scaleway) printf '%s\n' 'SCALEWAY_CREDENTIAL: OK' ;;
 	--owner-setup-slack) printf '%s\n' 'SLACK_WORKSPACE_DOMAIN: OK (resolved the workspace)' ;;
 	--owner-setup-storage) printf '%s\n' 'TEAM_DATA_DIRECTORY: OK' 'TEAM_DATA_GIT_REMOTE: WARN' '  warn: no remote is set' ;;
@@ -65,7 +66,7 @@ rigAssert "each result line of a check is one row: the heading above it, its key
 rigAssert "a check that printed no result line is one skipped row, and so is the check that did not end, while the others answered" "$( rigRows copilot )$( rigRows grok )$( rigRows scaleway )$( rigRows slack )" "check|copilot|-|-|Copilot_Check|skipped|the_check_printed_no_result_line|-/check|grok|-|-|Grok_Check|skipped|the_check_did_not_end_within_3_seconds|-/check|scaleway|-|SCALEWAY_CREDENTIAL|Scaleway_Credential|ok|-|-/check|slack|-|SLACK_WORKSPACE_DOMAIN|Slack_Workspace_Domain|ok|(resolved_the_workspace)|-/"
 rigAssert "the rows come domain by domain in the one order, every check row has eight fields, and the one summing row is the last: the checks, those ok, warned, failed and skipped" "$( LC_ALL=C awk -F'\t' '$1 == "check" { if ( !( $2 in seen ) ) { seen[$2] = 1 ; printf "%s ", $2 } ; if ( NF != 8 ) bad++ } END { printf "/ %s / %s", bad + 0, $1 " " $2 " " $3 " " $4 " " $5 " " $6 " " NF }' "$rigTmp/out" )" "claude copilot grok scaleway slack storage / 0 / summary 9 4 2 1 2 7"
 sleep 1
-rigAssert "the check that did not end was ended: nothing of it runs on" "$( pgrep -f "$rigTmp/rig-sleep" | LC_ALL=C grep -c . || : ) $( LC_ALL=C grep -c -e '--owner-setup-' "$rigTmp/stand-in.calls" )" "0 6"
+rigAssert "the check that did not end was ended with what it started: nothing of it runs on" "$( pgrep -f "$rigTmp/rig-sleep" | LC_ALL=C grep -c . || : ) $( LC_ALL=C grep -c -e '--owner-setup-' "$rigTmp/stand-in.calls" )" "0 6"
 rigAssert "each check was asked as the owner asks it, read-only: the domain's own operation with --check and nothing else" "$( LC_ALL=C sort -u "$rigTmp/stand-in.calls" | LC_ALL=C tr '\n' '/' )" "--owner-setup-claude --check/--owner-setup-copilot --check/--owner-setup-grok --check/--owner-setup-scaleway --check/--owner-setup-slack --check/--owner-setup-storage --check/"
 
 echo "-- 2. --local, a domain by its name, and what is refused --"

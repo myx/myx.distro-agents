@@ -9,7 +9,8 @@
 ## string is run by a shell, so the name reaches here as an ordinary argument.
 ##
 ## Every reroute here is payload-blind: the tool is denied whatever arguments it was
-## called with, so stdin is drained and never looked at. The drain is there so the
+## called with, so stdin is drained and never looked at -- but for TodoWrite, whose
+## session id is read from it, below. The drain is there so the
 ## client does not see a broken pipe. The conditional, path-scoped Read guard is
 ## deny-memory-md-read.sh, a separate script, because that one has to read the payload
 ## and it has an allow path.
@@ -32,12 +33,13 @@
 ## -- but a double quote or a backslash would end the JSON string early, so the prose is
 ## written to need neither.
 
-cat >/dev/null
+hookInput="$( cat )"
 
 ## Our own spawned session, any backend CLI: keep its normal tools, unrerouted.
 ## Silence with a clean exit is the allow a *-native client reads, same as every
-## other allow path in this estate's hooks.
-if [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] ; then
+## other allow path in this estate's hooks. TodoWrite alone is decided below for every
+## *-native session, spawned or not, by whether CheckList is offered to it (human-owner).
+if [ "$1" != TodoWrite ] && { [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] || [ -n "${MDAT_SPAWN_AGENT:-}" ] ; } ; then
 	exit 0
 fi
 
@@ -61,6 +63,32 @@ AskUserQuestion|PushNotification)
 		esac
 	done < "$hookSettings"
 	[ -n "$hookTeam" ] && [ -n "$hookOwner" ] && [ -n "$hookBot" ] || exit 0
+;;
+esac
+
+## CheckList is pointed to only where it is offered to this session, spawned or not: where the
+## harness knows the member and the place of its list. The harness is asked that itself
+## (--intern-checklist-place, AgentsHarnessCheckListPlace, which also decides the MCP floor),
+## with the session id this call's input names, this session's own environment, and the
+## workspace and tooling the myx.distro server runs for, so the member is resolved from the
+## skillset folder that server reads; nothing is run, logged or written by the asking. Anywhere
+## else -- no session id, no member known, no tooling to ask -- this hook makes no decision on
+## TodoWrite, and the client's own tool works.
+case "$1" in
+TodoWrite)
+	hookWs="${MMDAPP:-${CLAUDE_PROJECT_DIR:-}}"
+	hookWs="${hookWs%/}"
+	[ -n "$hookWs" ] && [ -d "$hookWs/.local" ] || exit 0
+	hookOrigin="${MDLT_ORIGIN:-$hookWs/.local}"
+	[ -f "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" ] || exit 0
+	hookSession="$( printf '%s\n' "$hookInput" | LC_ALL=C awk -v path=session_id -v optional=1 -f "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2> /dev/null )" || hookSession=""
+	[ -n "$hookSession" ] || exit 0
+	hookAnswer="$( MMDAPP="$hookWs" MDLT_ORIGIN="$hookOrigin" CLAUDE_CODE_SESSION_ID="$hookSession" \
+		"${BASH:-bash}" "$hookOrigin/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null )" || hookAnswer=""
+	case "$hookAnswer" in
+		'CHECKLIST-PLACE: '*) ;;
+		*) exit 0 ;;
+	esac
 ;;
 esac
 
@@ -117,6 +145,10 @@ WebSearch)
 
 PushNotification)
 	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__PushNotification -- one notification path for this estate, under its own team identity, rather than the client own"
+;;
+
+TodoWrite)
+	denyWith "use the myx.distro MCP instead, method mcp__myx_distro__CheckList -- the checklist of session tasks of this session, with the same input, kept in the session state of this estate rather than the client own"
 ;;
 
 *)

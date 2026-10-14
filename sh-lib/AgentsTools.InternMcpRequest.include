@@ -249,6 +249,23 @@ case "$1" in
 				if [ -n "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
 					[ "tools/list" != "$mcpMethod" ] || printf '%s\n' "$MDSC_CMD: mcp-request: reached through another MCP server (MDAT_MCP_SERVED_MARKER is set) -- serving 'execute' only, and declining every harness tool, so enumeration cannot recurse through this server." >&2
 				else
+					## CheckList is served only where the harness offers it: where AgentsHarnessCheckListPlace
+					## knows the caller's member and the place of its list, asked of the harness itself
+					## (--intern-checklist-place) in this server's environment, which is every call's. The
+					## answer holds for this server's life, so it is asked once and kept beside the floor sum.
+					mcpCheckListFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/checklist.offered"
+					if [ ! -s "$mcpCheckListFile" ] ; then
+						mcpCheckListAnswer="no"
+						case "$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null )" in
+							'CHECKLIST-PLACE: '*) mcpCheckListAnswer="yes" ;;
+						esac
+						mcpCheckListTmp="$( mktemp "$mcpCheckListFile.XXXXXX" 2> /dev/null )" \
+							&& { printf '%s\n' "$mcpCheckListAnswer" > "$mcpCheckListTmp" && mv -f "$mcpCheckListTmp" "$mcpCheckListFile" ; } 2> /dev/null \
+							|| rm -f "$mcpCheckListTmp" 2> /dev/null || :
+					else
+						IFS= read -r mcpCheckListAnswer < "$mcpCheckListFile" || mcpCheckListAnswer="no"
+					fi
+					[ "$mcpCheckListAnswer" = "yes" ] || mcpUnservedToolNames="$mcpUnservedToolNames CheckList"
 					mcpServedToolsJson="$( bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessMcpMirror.sh" "" "$mcpUnservedToolNames" )" || mcpServedToolsJson=''
 					case "$mcpServedToolsJson" in
 						'['*']')

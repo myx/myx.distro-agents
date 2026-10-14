@@ -20,8 +20,11 @@
 ##      that has ended and is not yet collected is none. A record with no such header, written before it was kept,
 ##      reads unknown and never gone, and so does one of another host, one cut short, one that names the shell in
 ##      no form this reads, and no file at all.
+##   5b. THE WRITE OF A LAUNCH KEEPS WHAT ANOTHER WRITER CHANGED WHILE IT WROTE. A close put in place between the
+##      launch's read of the record and its rename stays: the record reads closed, with the launch's process named.
 ##   6. --manager-session-read prints the header among the headers of a closed run.
-## Red before the header was kept: every assertion of 1 to 4 and of 6 that reads it, and all of 5.
+## Red before the header was kept: every assertion of 1 to 4 and of 6 that reads it, and all of 5. Red before the
+## launch compared the record before its rename: 5b, the record put back to spawn-started.
 ## Offline: a fake `curl` first on PATH answers as Slack and opens no socket. A ps beside it answers the whole-host
 ## listing from the rig's own list, which holds no line, so a run of this rig is the process its record names, and
 ## hands every other call, when a process began and which process started which, to the real ps. The console is a
@@ -345,6 +348,28 @@ rigProcSignal KILL "$rigHolder" ; wait "$rigHolder" 2> /dev/null
 rigProcSignal KILL "$rigStandPid" ; wait "$rigStandPid" 2> /dev/null
 rigAssert "a process that is no more: gone" "$( rigAsk "$rigTmp/unit/live.md" )" "gone rc=0"
 rigAssert "none of these answers is an error: nothing was written on stderr, in this section or in the four before it" "$( rigAskErrors )" "0"
+
+echo "-- 5b. the write of a launch keeps what another writer changed while it wrote --"
+## Another writer closes the record while the launch writes it: here, as the launch's header writer (an awk given
+## its ops file) has just read the record, a stand-in that runs that awk and then puts a close in place, once, aside
+## and by one rename, as every writer of a record does. The process the launch keeps is this call's own shell.
+rigUnit raced "host: $rigHost" > /dev/null
+( cd "$rigWs" && rigEnv "$rigTmp" bash -c '
+	. "$1" 2> /dev/null ; . "$2" 2> /dev/null
+	awk(){
+		local awkRc=0 awkWriter=""
+		case " $* " in *" opsFile="*) awkWriter="yes" ;; esac
+		command awk "$@" || awkRc=$?
+		if [ -n "$awkWriter" ] && [ ! -e "$RIG_TMP/unit/raced.once" ] ; then
+			: > "$RIG_TMP/unit/raced.once"
+			sed "s/^status: spawn-started\$/status: spawn-ended-without-close/" "$RIG_TMP/unit/raced.md" > "$RIG_TMP/unit/raced.md.rig" && mv -f "$RIG_TMP/unit/raced.md.rig" "$RIG_TMP/unit/raced.md"
+		fi
+		return "$awkRc"
+	}
+	MDAT_SPAWN_SANDBOX_ROOT="$RIG_TMP/unit" MDAT_SPAWN_SESSION_ID=raced AgentsToolsSpawnProxyRunRecord "$$"
+' rig-raced "$rigLib/AgentsTools.Registries.include" "$rigLib/AgentsTools.SpawnSandbox.include" 2>> "$rigTmp/ask.err" )
+rigAssert "control: the close was put in place while the launch wrote, once" "$( [ -e "$rigTmp/unit/raced.once" ] && printf once || printf never )" "once"
+rigAssert "the record keeps that close, and names the process the launch kept" "$( rigHeader "$rigTmp/unit/raced.md" status ) $( rigNames "$rigTmp/unit/raced.md" run-process )" "spawn-ended-without-close 1"
 
 echo "-- 6. --manager-session-read prints the header among the headers of a closed run --"
 rigClosedId="${rigClosedRecord##*/}" ; rigClosedId="${rigClosedId%.md}"

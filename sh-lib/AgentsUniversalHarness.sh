@@ -150,6 +150,15 @@ harnessCredentialNames="${HARNESS_CREDENTIAL_NAMES:-}"
 harnessToolOnly=""
 harnessToolOnlyName=""
 harnessServedWaitBound=""
+## --intern-checklist-place: whether CheckList is offered to the session this process runs for,
+## as a served CheckList call resolves it -- the served identity, then AgentsHarnessCheckListPlace
+## -- and nothing run, logged or written: one line, `CHECKLIST-PLACE: <folder>` or `ERROR: <why>`.
+## The MCP server asks it to decide whether its floor serves CheckList.
+harnessPlaceOnly=""
+if [ "${1:-}" = --intern-checklist-place ] ; then
+	harnessPlaceOnly=1
+	set -- --intern-tool CheckList
+fi
 ## Read and Skill return whole lines up to this many bytes; a served result stays under the MCP client's own limit.
 ## Both values are stated once, in AgentsHarnessReadCap.include, which also fills them into the descriptions.
 . "$harnessHere/AgentsHarnessReadCap.include"
@@ -2548,6 +2557,166 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 		printf 'ERROR: %s\n' "${appendOut#*ERROR: }" ; return 0
 	fi
 	printf '%s\n' "$appendOut" | LC_ALL=C grep '^OK: ' | tail -1
+}
+
+## CheckList: the checklist of session tasks of a member in a session, kept as the native
+## TodoWrite keeps its list -- a call with todos replaces the caller's whole list -- and read by a
+## call with none: the caller's own list, or with member that participant's, or with `*` every
+## participant's. One member, one list in a session, however many runs it has there:
+## <member>.checklist.md, Markdown, one line an item, `- [x]` done, `- [ ]` not yet, the item in
+## progress followed by its activeForm. Kept in the session's place (AgentsHarnessCheckListPlace).
+## A participant writes its own list alone. Checked whole first, so a list with one bad item is
+## refused and the list kept before stays as it was; written to a temp file mktemp names beside
+## it and put in place by one rename, so no reader sees half a list.
+AgentsHarnessToolCheckList(){ ## raw arguments
+	local todoCount todoIndex=0 todoField todoWhere todoPending=0 todoActive=0 todoDone=0 todoFile todoText="" todoLine todoContent todoPathNo=0 todoTmp=""
+	AgentsHarnessArgParse "$1"
+	## No pre-requisites, no tool: a session whose member or place the harness does not know has none.
+	if ! AgentsHarnessCheckListPlace ; then
+		printf 'ERROR: %s Nothing was written.\n' "$checkListWhy" ; return 0
+	fi
+	if ! AgentsHarnessArgFind todos.__count ; then
+		## A value that is there and is no list is told apart from no value at all, which reads.
+		while [ "$todoPathNo" -lt "${#harnessArgPaths[@]}" ] ; do
+			case "${harnessArgPaths[$todoPathNo]}" in
+				todos|todos.*) printf 'ERROR: todos must be an array of items, each an object with content, status and activeForm. Nothing was written.\n' ; return 0 ;;
+			esac
+			todoPathNo=$(( todoPathNo + 1 ))
+		done
+		## Arguments that parsed to nothing are a read only where they are an empty object.
+		if [ "${#harnessArgPaths[@]}" -eq 0 ] ; then
+			case "$1" in
+				*[!{}$' \t\r\n']*) printf 'ERROR: the arguments are no JSON object: give todos to write your own list, or no todos to read a list. Nothing was written.\n' ; return 0 ;;
+			esac
+		fi
+		AgentsHarnessCheckListRead "${harnessArgV_member:-}"
+		return 0
+	fi
+	if [ -n "${harnessArgV_member:-}" ] ; then
+		printf 'ERROR: member reads a list and takes no todos, and you write only your own list: give todos, or member, not both. Nothing was written.\n' ; return 0
+	fi
+	todoCount="$harnessArgFound"
+	case "$todoCount" in ''|*[!0123456789]*) printf 'ERROR: todos could not be read as a list. Nothing was written.\n' ; return 0 ;; esac
+	while [ "$todoIndex" -lt "$todoCount" ] ; do
+		todoWhere="todos item $(( todoIndex + 1 )) of $todoCount"
+		for todoField in content status activeForm ; do
+			if ! AgentsHarnessArgFind "todos.$todoIndex.$todoField" || [ -z "$harnessArgFound" ] ; then
+				printf 'ERROR: %s: %s is required and must not be empty -- each item is an object with content, status and activeForm. Nothing was written.\n' "$todoWhere" "$todoField" ; return 0
+			fi
+		done
+		AgentsHarnessArgFind "todos.$todoIndex.content" || :
+		todoContent="$harnessArgFound"
+		AgentsHarnessArgFind "todos.$todoIndex.status" || :
+		case "$harnessArgFound" in
+			pending) todoPending=$(( todoPending + 1 )) ; todoLine="- [ ] $todoContent" ;;
+			in_progress)
+				todoActive=$(( todoActive + 1 ))
+				AgentsHarnessArgFind "todos.$todoIndex.activeForm" || :
+				todoLine="- [ ] $todoContent (in progress: $harnessArgFound)"
+			;;
+			completed) todoDone=$(( todoDone + 1 )) ; todoLine="- [x] $todoContent" ;;
+			*) printf 'ERROR: %s: status must be pending, in_progress or completed, got: %s. Nothing was written.\n' "$todoWhere" "$( AgentsHarnessTruncateArg "$harnessArgFound" )" ; return 0 ;;
+		esac
+		## One line an item: a line break or a tab inside a text is a space.
+		todoText="$todoText${todoLine//[$'\n\r\t']/ }"$'\n'
+		todoIndex=$(( todoIndex + 1 ))
+	done
+	todoFile="$checkListFolder/$checkListMember.checklist.md"
+	if ! { mkdir -p "$checkListFolder" 2>/dev/null && todoTmp="$( mktemp "$todoFile.XXXXXX" 2>/dev/null )" \
+		&& printf '%s' "$todoText" > "$todoTmp" 2>/dev/null && mv -f "$todoTmp" "$todoFile" 2>/dev/null ; } ; then
+		[ -z "$todoTmp" ] || rm -f "$todoTmp" 2>/dev/null || :
+		printf 'ERROR: the list could not be written to %s. Nothing was written.\n' "$todoFile" ; return 0
+	fi
+	printf 'OK: the checklist of %s in session %s now holds %s item(s): %s pending, %s in progress, %s completed. Kept in %s\n' \
+		"$checkListMember" "$checkListSession" "$todoCount" "$todoPending" "$todoActive" "$todoDone" "${todoFile#"$MMDAPP"/}"
+}
+
+## Whether the harness knows the caller's checklist, and where: the member is the caller as the
+## harness knows it; the session is the coworking session it works in (the one the spawn proxy
+## named, else the one its own spawn record names, else its own); the place is the sandbox root
+## of the spawn that founded the session, where a spawn founded it, else the session folder,
+## sessions/<id>, where a root session founded it. Both are fixed from the session's start, so
+## every run of every participant finds the one place. Sets checkListMember, checkListSession and
+## checkListFolder; returns 1 with the refusal in checkListWhy where the member or the place is
+## not known -- the tool is then not offered either.
+checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
+AgentsHarnessCheckListPlace(){
+	local placeRecord=""
+	checkListMember="" checkListSession="" checkListFolder="" checkListWhy=""
+	if [ -z "$harnessAgent" ] ; then
+		checkListWhy='this session has no team identity, so it has no checklist: CheckList is not offered to it.' ; return 1
+	fi
+	if [ -z "${MMDAPP:-}" ] ; then
+		checkListWhy='MMDAPP is not set in this process, so no checklist has a place: CheckList is not offered here.' ; return 1
+	fi
+	checkListSession="${MDAT_SESSION_ID:-}"
+	if [ -z "$checkListSession" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		placeRecord="$( AgentsHarnessSpawnRecordPath "$MDAT_SPAWN_SESSION_ID" )"
+		[ -z "$placeRecord" ] || checkListSession="$( AgentsHarnessDispatchField "$placeRecord" session-id )"
+	fi
+	[ -n "$checkListSession" ] || checkListSession="$( AgentsHarnessSessionKey )"
+	if [ -z "$checkListSession" ] ; then
+		checkListWhy='this call belongs to no session, so there is no place for a checklist: CheckList is not offered to it.' ; return 1
+	fi
+	if ! AgentsHarnessBareName "$checkListSession" || [ "$checkListSession" = "." ] || [ "$checkListSession" = ".." ] ; then
+		checkListWhy="the session id of this call is no bare name, so it names no place for a checklist: CheckList is not offered to it. The id: $( AgentsHarnessTruncateArg "$checkListSession" )."
+		checkListSession="" ; return 1
+	fi
+	placeRecord="$( AgentsHarnessSpawnRecordPath "$checkListSession" )"
+	if [ -n "$placeRecord" ] ; then
+		checkListFolder="${placeRecord%/*}"
+	else
+		checkListFolder="$MMDAPP/.local/agents/sessions/$checkListSession"
+	fi
+	checkListMember="$harnessAgent"
+	return 0
+}
+
+## The participants of the session with a known member name, sorted, one a line: the caller; the
+## spawn records whose session-id is the session (the rows of the spawned-sessions registry,
+## AgentsToolsRegistrySpawnedSessionsRows, read fresh); and the members whose list is kept in its
+## place. Never a row with no member name.
+AgentsHarnessCheckListMembers(){
+	local membersFile membersName
+	{
+		printf '%s\n' "$checkListMember"
+		( . "$harnessHere/AgentsTools.Registries.include" && AgentsToolsRegistrySpawnedSessionsRows 2> /dev/null ) \
+			| LC_ALL=C awk -v session="$checkListSession" '$2 == session && $5 != "-" { print $5 ; }'
+		for membersFile in "$checkListFolder"/*.checklist.md ; do
+			[ -f "$membersFile" ] || continue
+			membersFile="${membersFile##*/}"
+			printf '%s\n' "${membersFile%.checklist.md}"
+		done
+	} | while IFS= read -r membersName ; do
+		! AgentsHarnessBareName "$membersName" || printf '%s\n' "$membersName"
+	done | LC_ALL=C sort -u
+}
+
+## A read: the caller's own list, one participant's by its member name, or with `*` every
+## participant's, each under its member name, an empty one shown as empty. Writes nothing.
+AgentsHarnessCheckListRead(){ ## member name, `*`, or empty for the caller's own
+	local readWant="${1:-$checkListMember}" readMembers readName readCount=0 readOut=""
+	readMembers="$( AgentsHarnessCheckListMembers )"
+	if [ "$readWant" = "*" ] ; then
+		while IFS= read -r readName ; do
+			[ -n "$readName" ] || continue
+			AgentsHarnessFileText "$checkListFolder/$readName.checklist.md"
+			readOut="$readOut"$'\n\n'"## $readName (${checkListFolder#"$MMDAPP"/}/$readName.checklist.md)"$'\n'"${harnessFileText:-(empty)}"
+			readCount=$(( readCount + 1 ))
+		done <<< "$readMembers"
+		printf 'CHECKLISTS of session %s: %s participant(s), each under its member name.%s\n' "$checkListSession" "$readCount" "$readOut"
+		return 0
+	fi
+	case $'\n'"$readMembers"$'\n' in
+		*$'\n'"$readWant"$'\n'*) ;;
+		*)
+			printf 'ERROR: %s is not a participant of session %s, so it has no checklist here. Its participants are: %s. Give one of them as member, or * for all. Nothing was written.\n' \
+				"$( AgentsHarnessTruncateArg "$readWant" )" "$checkListSession" "$( printf '%s\n' "$readMembers" | LC_ALL=C awk 'NF { printf "%s%s", ( n++ ? ", " : "" ), $0 ; }' )"
+			return 0
+		;;
+	esac
+	AgentsHarnessFileText "$checkListFolder/$readWant.checklist.md"
+	printf 'CHECKLIST of %s in session %s (%s):\n%s\n' "$readWant" "$checkListSession" "${checkListFolder#"$MMDAPP"/}/$readWant.checklist.md" "${harnessFileText:-(empty)}"
 }
 
 ## Helpers behind Agent, TaskStop and TaskOutput. Deliberately NOT named
@@ -5428,7 +5597,9 @@ AgentsHarnessToolReadMcpResourceDirTool(){ ## server, uri_prefix, limit
 ## $harnessMcpToolsJson, each already carrying its separating comma.
 harnessToolSearchFloorFile="$harnessScratch/toolsearch.floor"
 AgentsHarnessToolToolSearch(){ ## query, max_results
-	local toolQuery="$1" toolMax="$2" searchFloor="" searchRc=0
+	local toolQuery="$1" toolMax="$2" searchFloor="" searchRc=0 searchUnoffered=""
+	## A tool this session is not offered is not found either.
+	AgentsHarnessCheckListPlace || searchUnoffered="CheckList"
 	if [ -z "$toolQuery" ] ; then
 		printf 'ERROR: ToolSearch: query is required and was empty. Nothing was searched.\n' ; return 0
 	fi
@@ -5443,7 +5614,7 @@ AgentsHarnessToolToolSearch(){ ## query, max_results
 		AgentsHarnessFileText "$harnessToolSearchFloorFile"
 		searchFloor="$harnessFileText"
 	else
-		searchFloor="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" )" || searchRc=$?
+		searchFloor="$( bash "$harnessHere/AgentsHarnessMcpMirror.sh" "" "$searchUnoffered" )" || searchRc=$?
 	fi
 	case "$searchRc:$searchFloor" in
 		'0:['*']')
@@ -6001,6 +6172,15 @@ AgentsHarnessAnnounceTool(){
 			announceIcon="🗒️"
 			announceDetail="$harnessValue$( AgentsHarnessTruncateArg "${harnessArgV_note}" )$harnessOff"
 		;;
+		## The list is an array, so its length is shown rather than one field of it.
+		CheckList)
+			announceIcon="📋"
+			if AgentsHarnessArgFind todos.__count ; then
+				announceDetail="$harnessValue$harnessArgFound$harnessOff$harnessDim item(s)$harnessOff"
+			else
+				announceDetail="$harnessDim the checklist of ${harnessArgV_member:-this member}$harnessOff"
+			fi
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## A call carrying a command is announced like Bash/Grep/Glob above: the command
 		## on the announce line, an optional comment on its own labelled line below, no
@@ -6107,6 +6287,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		TaskOutput) harnessResult="$( AgentsHarnessToolTaskOutput "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" "${harnessArgV_output_file}" )" ;;
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;
 		SessionTranscriptAppend) harnessResult="$( AgentsHarnessToolSessionTranscriptAppend "${harnessArgV_note}" )" ;;
+		CheckList) harnessResult="$( AgentsHarnessToolCheckList "$harnessFuncArgsRaw" )" ;;
 		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "${harnessArgV_command}" "${harnessArgV_cwd}" "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;
@@ -6152,6 +6333,10 @@ if [ -n "$harnessNeedsMcp" ] ; then
 	. "$harnessWireFile"
 	## The declarations a hosted model is given state the cap this process applies.
 	[ -z "${harnessToolsJson:-}" ] || harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | AgentsReadCapFill "$harnessReadCap" )"
+	## No pre-requisites, no tool: CheckList is offered only where the harness knows the member and
+	## the place of its list (AgentsHarnessCheckListPlace), on every path the wire is read on.
+	AgentsHarnessCheckListPlace || [ -z "${harnessToolsJson:-}" ] \
+		|| harnessToolsJson="$( printf '%s\n' "$harnessToolsJson" | LC_ALL=C grep -v -F '{"type":"function","function":{"name":"CheckList",' )"
 fi
 
 ## The bearer the auth header is built from. With no exchange declared it is the stored
@@ -6248,6 +6433,14 @@ fi
 ## on stdin as the same raw JSON a tool_call carries, so a served call and a model call
 ## read their arguments through one reader. stdout carries the result and nothing else.
 if [ -n "$harnessToolOnly" ] ; then
+	if [ -n "$harnessPlaceOnly" ] ; then
+		if AgentsHarnessCheckListPlace ; then
+			printf 'CHECKLIST-PLACE: %s\n' "$checkListFolder"
+		else
+			printf 'ERROR: %s\n' "$checkListWhy"
+		fi
+		harnessExitClean=1 ; exit 0
+	fi
 	harnessToolOnlyArgs="$( cat )"
 	[ -n "$harnessToolOnlyArgs" ] || harnessToolOnlyArgs="{}"
 	AgentsTranscriptToolStart "$harnessToolOnlyName" || :

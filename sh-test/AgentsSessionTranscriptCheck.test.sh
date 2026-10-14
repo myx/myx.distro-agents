@@ -64,6 +64,13 @@ rigAssert "a Grep line carries pattern, path, glob and mode" "$rigLine" 'T0 TOOL
 rigLine="$( printf '%s' '{"command":"ls -la\nrm -rf x","description":"List it"}' | STL_TS=T0 STL_TOOL=execute STL_OUTCOME=error STL_FIRST='ERROR: boom' STL_DUR_MS=2500 STL_COMMENT='model text' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
 rigAssert "a command is its first line only, and the call's own description wins as the comment" "$rigLine" 'T0 TOOL execute cmd="ls -la" -> error "ERROR: boom" 2.5s | "List it"'
 rigAssert "file content never reaches a line" "$( printf '%s' '{"file_path":"/f","content":"SECRET-BODY"}' | STL_TS=T0 STL_TOOL=Write STL_OUTCOME=ok LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" | LC_ALL=C grep -c SECRET )" 0
+## A checklist call's item in progress is its comment, ahead of the model's text: the native
+## TodoWrite, and CheckList, its counterpart in the harness, bare or served.
+rigTodoArgs='{"todos":[{"content":"Read it","status":"completed","activeForm":"Reading it"},{"content":"Write the check","status":"in_progress","activeForm":"Writing the check"}]}'
+for rigTodoTool in TodoWrite CheckList mcp__myx_distro__CheckList ; do
+	rigLine="$( printf '%s' "$rigTodoArgs" | STL_TS=T0 STL_TOOL="$rigTodoTool" STL_OUTCOME=ok STL_COMMENT='model text' LC_ALL=C awk -v stlStandalone=tool -f "$rigFormat" )"
+	rigAssert "a $rigTodoTool line's comment is its item in progress" "$rigLine" "T0 TOOL $rigTodoTool args=${#rigTodoArgs}B -> ok | \"Writing the check\""
+done
 rigLine="$( printf 'one\ntwo\x01three\n' | STL_CAP=9 LC_ALL=C awk -v stlStandalone=body -f "$rigFormat" )"
 rigAssert "a body is > lines, control bytes folded, cut with its full size named" "$rigLine" $'> one\n> two t\n> [... cut at 9 of 13 bytes]'
 rigLine="$( printf 'to\tC1:2.3\nempty\t\nwho\tmagic tester\n' | STL_TS=T0 STL_KIND=MSG-OUT LC_ALL=C awk -v stlStandalone=event -f "$rigFormat" )"
@@ -345,6 +352,7 @@ rigAssert "the loop: a call without one carries the model's text" "$( LC_ALL=C g
 rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL=C grep -F " TOOL Glob pattern=read.txt path=$rigLoop2 -> ok" "$rigLoopT2" | LC_ALL=C grep -c ' | "Look for the rig file"$' )" 1
 rigAssert "the loop: the call with one ran as without, its result back to the model" \
 	"$( LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' "$rigLoop2/req.2" )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
+## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
 rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 30
 
 echo "-- a native spawn: model text redacted, a provider or CLI error kept before the first tool --"

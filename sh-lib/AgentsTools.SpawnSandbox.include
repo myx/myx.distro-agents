@@ -495,10 +495,14 @@ AgentsToolsBoardAcceptDismissChild(){ ## sending member, item path
 ## (AgentsToolsRegistryRecordedSupervisor, AgentsTools.Registries.include). Kept also where
 ## the console had ended before its own start could be read: `run-process` is then not written.
 ## Through this package's own header writer, aside and then one rename. Never fails the launch.
-## A record is read, changed and put back whole, and what another writer changes between those
-## two is lost. So the time a launch holds it is kept as short, and as soon after the launch,
-## as it was before the shell was named: which shell this is, is read before the launch
-## (AgentsToolsSpawnProxyShellNote) and only looked up here.
+## A record is read, changed and put back whole, and put back only while it is still what was
+## read: what another writer -- a closer, the mark of a kill -- put in place meanwhile is kept,
+## and the same lines are written again on the record as it then stands, three times at most.
+## The record is read and compared by the shell itself, so no process is started between the
+## compare and the rename; only a change made in that moment is lost. And the time a launch
+## holds it is kept as short, and as soon after the launch, as it was before the shell was
+## named: which shell this is, is read before the launch (AgentsToolsSpawnProxyShellNote) and
+## only looked up here.
 AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is called in, for that shell (agentsSpawnProxyShellIs)
 	local noteShell noteStart
 	## Kept already, by this very shell: nothing is started to find that out. What a subshell
@@ -515,7 +519,7 @@ AgentsToolsSpawnProxyShellNote(){ ## -- keeps `<pid> <start>` of the shell it is
 	return 0
 }
 AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
-	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody
+	local runFile="${MDAT_SPAWN_SANDBOX_ROOT:-}/${MDAT_SPAWN_SESSION_ID:-}.md" runStart runOps runBody runSeen runNow runTries=0
 	[ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] && [ -n "${MDAT_SPAWN_SESSION_ID:-}" ] && [ -f "$runFile" ] || return 0
 	case "${1:-}" in ''|*[!0123456789]*) return 0 ;; esac
 	type AgentsToolsRegistryProcessStart > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || return 0
@@ -528,10 +532,19 @@ AgentsToolsSpawnProxyRunRecord(){ ## pid of the console process just started
 		[ -z "$runStart" ] || printf 'upsert\trun-process\t%s %s\n' "$1" "$runStart"
 		[ -z "${agentsSpawnProxyShellIs:-}" ] || printf 'upsert\tsupervisor-process\t%s\n' "$agentsSpawnProxyShellIs"
 	} > "$runOps" 2> /dev/null || return 0
-	runBody="$( LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" < "$runFile" 2> /dev/null )" || runBody=""
-	rm -f "$runOps"
-	[ -n "$runBody" ] || return 0
-	{ printf '%s\n' "$runBody" > "$runFile.run.$$" && mv -f "$runFile.run.$$" "$runFile" ; } 2> /dev/null || rm -f "$runFile.run.$$"
+	while [ "$runTries" -lt 3 ] ; do
+		runTries=$(( runTries + 1 ))
+		runSeen="" ; IFS= read -r -d '' runSeen < "$runFile" 2> /dev/null || :
+		[ -n "$runSeen" ] || break
+		runBody="$( printf '%s' "$runSeen" | LC_ALL=C awk -v opsFile="$runOps" -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsBoardItemHeaderOpsApply.awk" 2> /dev/null )" || runBody=""
+		[ -n "$runBody" ] || break
+		printf '%s\n' "$runBody" 2> /dev/null > "$runFile.run.$$" || break
+		runNow="" ; IFS= read -r -d '' runNow < "$runFile" 2> /dev/null || :
+		[ "$runNow" = "$runSeen" ] || continue
+		mv -f "$runFile.run.$$" "$runFile" 2> /dev/null
+		break
+	done
+	rm -f "$runOps" "$runFile.run.$$"
 	return 0
 }
 

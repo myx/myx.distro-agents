@@ -69,7 +69,19 @@ case "$fixMethod" in
 		;; esac
 		printf '],"response_metadata":{"next_cursor":""}}\n'
 	;;
-	users.info) printf '{"ok":true,"user":{"id":"UFIX0000001","name":"alice"}}\n' ;;
+	users.info)
+		## The user asked for, as Slack answers it: by the name users.list gives that user, and any other
+		## user by a name of its own, so that two direct conversations are never one person's.
+		fixUser="$( fv user )"
+		case "$fixUser" in
+			UFIXSELF) fixName="fixself" ;;
+			UFIX0000001) fixName="alice" ;;
+			UFIX0000002) fixName="bob" ;;
+			UFIXPEER01) fixName="peer" ;;
+			*) fixName="user-$fixUser" ;;
+		esac
+		printf '{"ok":true,"user":{"id":"%s","name":"%s"}}\n' "$fixUser" "$fixName"
+	;;
 	conversations.open) printf '{"ok":true,"channel":{"id":"DFIXOWNER01"}}\n' ;;
 	conversations.info)
 		case "$fixChannel" in

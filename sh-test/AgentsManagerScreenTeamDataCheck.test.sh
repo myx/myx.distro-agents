@@ -247,7 +247,7 @@ cells end 35 0 120
 keys ENTER
 get closed
 RIGSCRIPT
-rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask '[ Run ]  [ Cancel ]' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
+rigAssert "Enter asks first: what will run, its operation, and Run or Cancel" "$( rigVal ask.dialog ) [$( rigVal ask.dialogTitle )] $( rigHolds ask 'operation --owner-cleanup-purge' ) $( rigHolds ask '[»Run«]  [ Cancel ]' )" "cleanup:run| [Run: Purge The Cleanup Folder] 1 1"
 rigAssert "Run opens the big dialog, most of the screen, that runs it: its first line is there while it still runs" "$( rigVal running.dialog ) $( rigVal running.dialogBox ) [$( rigVal running.dialogHolds )] $( rigVal running.reading | LC_ALL=C grep -c -F 'follow:' )" "output:stop| 2,1,116,34 [purge: the first line, on standard output / It runs: Esc or Stop asks whether to stop it.] 1"
 rigAssert "the status line names only its keys while it runs: Enter and Esc ask whether to stop it" "$( rigVal st | LC_ALL=C sed 's/  */ /g' )" " Enter Stop Esc Stop"
 rigAssert "at its end it holds both streams in the order they were written, a tab as spaces and no sequence of a terminal" "$( rigVal ended.dialogHolds | LC_ALL=C sed 's/ \/ Ended with.*//' )" "purge: the first line, on standard output / purge: the second line, on standard error / purge:  a tab, a sequence and a mark ⛔"

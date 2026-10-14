@@ -13,6 +13,11 @@
 ##   3. a call the grants allow is answered allow by allow-granted-native-tool.sh with Slack set up
 ##      and without it, and the reroute hook does not refuse it; a call not allowed gets no answer
 ##      without Slack, never allow.
+## And, beside the gate: a native TodoWrite is refused, naming CheckList, with Slack set up and
+## without it, in a session CheckList is offered to -- its member and the place of its list known
+## to the harness, the session id read from the call's input, spawned or not; a session it is
+## not offered to (no member known, no session id), spawned or not, gets no decision, and the
+## native tool works.
 ## Red before the fix: the bot token alone, a channel emptied by a later line and a channel only in
 ## a comment were refused.
 ## Offline: HOME, the workspace and every registry are this rig own; nothing is requested.
@@ -135,12 +140,43 @@ rigOthers="$( env -i PATH=/usr/bin:/bin MDLT_ORIGIN="$MDLT_ORIGIN" bash -c '. "'
 	|| rigRefuse "the reroute tool names could not be read"
 rigOtherAll=0 rigOtherDeny=0
 while IFS= read -r rigOne ; do
-	case "$rigOne" in ''|AskUserQuestion|PushNotification) continue ;; esac
+	case "$rigOne" in ''|AskUserQuestion|PushNotification|TodoWrite) continue ;; esac
 	rigOtherAll=$(( rigOtherAll + 1 ))
 	case "$( rigRerouteRun "$rigOne" "$( rigObj file_path "$rigTmp/granted/a.txt" )" )" in deny:*) rigOtherDeny=$(( rigOtherDeny + 1 )) ;; esac
 done <<< "$rigOthers"
 rigAssert "every other reroute still refuses there" "$rigOtherDeny of $rigOtherAll" "$rigOtherAll of $rigOtherAll"
 rigAssert "control: there are other reroutes"  "$( [ "$rigOtherAll" -gt 0 ] && printf yes || printf no )" yes
+
+echo "-- 2b. a native TodoWrite goes to CheckList only where CheckList is offered, outside the Slack gate --"
+## A tooled session: the member a root session is served as, magic-coordinator, in the members
+## index of the workspace the server runs for, and the tooling found by MDLT_ORIGIN.
+rigTodo="$( rigObj todos rig )"
+rigTooled(){ ## present|absent -- the root session's member, and rig-member, in the rig workspace's members index
+	rm -rf "$rigWs/.local/agents/members"
+	[ "$1" = present ] || return 0
+	for rigOne in magic-coordinator rig-member ; do
+		mkdir -p "$rigWs/.local/agents/members/$rigOne" && printf 'rig\n' > "$rigWs/.local/agents/members/$rigOne/$rigOne.basic.md"
+	done
+}
+rigNoSessionRun(){ ## [extra env]... -- a TodoWrite call whose input names no session
+	local runRc=0 runOut
+	runOut="$( printf '{"hook_event_name":"PreToolUse","tool_name":"TodoWrite","tool_input":%s}' "$rigTodo" | env -i HOME="$rigTmp/home" PATH=/usr/bin:/bin CLAUDE_PROJECT_DIR="$rigWs" \
+		"$@" bash "$rigReroute" TodoWrite 2> "$rigTmp/reroute.err" )" || runRc=$?
+	rigVerdict "$runRc" "$runOut" "$rigTmp/reroute.err"
+}
+rigTooled present
+rigAssert "a tooled session without Slack: refused, naming CheckList" "$( rigRerouteRun TodoWrite "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" )" "deny:CheckList"
+rigSlackSet
+rigAssert "a tooled session with Slack: refused, naming CheckList" "$( rigRerouteRun TodoWrite "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" )" "deny:CheckList"
+rigAssert "a spawned claude-native session whose rule resolves is redirected too" "$( rigRerouteRun TodoWrite "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID=s-rig )" "deny:CheckList"
+rigAssert "a spawned session whose member is not known: no decision" "$( rigRerouteRun TodoWrite "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SPAWN_AGENT=rig-unknown MDAT_SPAWN_SESSION_ID=s-rig )" "none"
+rigAssert "control: the other reroutes still let a spawned session through" "$( rigRerouteRun Grep "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_SPAWN_AGENT=rig-member MDAT_SPAWN_SESSION_ID=s-rig )" "none"
+rigAssert "a session whose input names no session id: no decision, the native tool works" "$( rigNoSessionRun MDLT_ORIGIN="$MDLT_ORIGIN" )" "none"
+rigTooled absent
+rigAssert "a session whose member is not known: no decision, the native tool works" "$( rigRerouteRun TodoWrite "$rigTodo" MDLT_ORIGIN="$MDLT_ORIGIN" )" "none"
+rigAssert "a workspace with no tooling to ask: no decision" "$( rigRerouteRun TodoWrite "$rigTodo" )" "none"
+rigAssert "nothing was written into the rig workspace by any of them" "$( find "$rigWs" -name '*.checklist.md' | LC_ALL=C grep -c . )" "0"
+rigSlack "SLACK_BOT_TOKEN=rig-not-a-token"
 
 echo "-- 3. allowed by the grants: allow, with Slack and without --"
 rigIn="$( rigObj file_path "$rigTmp/granted/a.txt" old_string a new_string b )"

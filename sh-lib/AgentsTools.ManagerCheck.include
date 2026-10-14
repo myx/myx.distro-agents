@@ -22,13 +22,17 @@
 ## WHAT IS ENDED IS PROVED TO BE WHAT WAS STARTED. A pid is a number the system gives again.
 ## Each check is started as the leader of a process group of its own and kept with when it
 ## began, read as it is started (AgentsToolsRegistryProcessesBegan, the one reading a process
-## is kept by). At the bound its group is signalled only while that pid is still the process
-## that began then, shown in the statement of the signal itself (AgentsToolsRegistryGroupBegan
-## for the first signal, the same reading for the second): a check that ended by itself, and
-## one whose start could not be read, is never signalled.
+## is kept by). At the bound the check is ended with what it started, each by its own pid and
+## never as a process group, as every kill of the family ends what it ends: TERM to the check
+## while it is still the process that began then, and to every process it started, to any
+## depth, that stayed in its group, as the process list stands at that moment
+## (AgentsToolsRegistryGroupLeft); KILL two seconds later to those of them that are still the
+## processes they were, and to what they started since, by the same reading. A check that
+## ended by itself, and one whose start could not be read, is never signalled. A process that
+## left the check's tree before the bound is not found.
 ##
 
-type AgentsToolsRegistryGroupBegan > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
+type AgentsToolsRegistryGroupLeft > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include"
 
 ## The domains the owner setup has, in the order their rows are printed.
 agentsManagerCheckDomains="claude copilot grok scaleway slack storage"
@@ -75,7 +79,7 @@ case "$1" in
 	## then one row that sums them. Its form is the help entry's.
 	--manager-check-run)
 		local runOp="$1" runLocal="" runSeconds="$agentsManagerCheckSeconds" runWanted="" runName runKnown runFound runFolder runPids="" runPid runWaited=0 runAlive runRows runBegan="$SECONDS"
-		local runMonitor runKept endName endPid endBegan
+		local runMonitor runKept endName endPid endBegan endFound endKept="" endLeft
 		local runTool="${MDAT_MANAGER_CHECK_TOOL:-$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh}"
 		shift
 		while [ $# -gt 0 ] ; do
@@ -101,7 +105,7 @@ case "$1" in
 		done
 		[ -n "$runWanted" ] || runWanted=" $agentsManagerCheckDomains"
 		set +e
-		runFolder="$( mktemp -d -t AgentsManagerCheck )" || {
+		runFolder="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerCheck.XXXXXX" )" || {
 			echo "⛔ ERROR: $MDSC_CMD $runOp: no folder for what the checks print could be made -- nothing was run" >&2
 			return 1
 		}
@@ -117,9 +121,8 @@ case "$1" in
 			[ -z "$runKept" ] || runPids="$runPids $runName|${runKept%% *}|${runKept#* }"
 		done
 		case "$runMonitor" in 0:*m*) ;; *) set +m ;; esac
-		## They are waited for together. One that has not ended in time is ended, its whole
-		## group, while its leader is still the process that was started, and is no row of a
-		## result.
+		## They are waited for together. One that has not ended in time is ended, with what it
+		## started, while it is still the process that was started, and is no row of a result.
 		while : ; do
 			runAlive=""
 			for runPid in $runPids ; do
@@ -131,12 +134,18 @@ case "$1" in
 				for runPid in $runAlive ; do
 					endName="${runPid%%|*}" ; endPid="${runPid#*|}" ; endBegan="${endPid%%|*} ${endPid#*|}" ; endPid="${endPid%%|*}"
 					: > "$runFolder/$endName.late"
-					AgentsToolsRegistryGroupBegan "$endBegan" > /dev/null 2>&1 && kill -TERM -- "-$endPid" 2> /dev/null
+					endFound="$( AgentsToolsRegistryGroupLeft "$endPid" "$endBegan" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+					[ -n "${endFound// /}" ] || continue
+					## Each with when it began, under the pid of its check, so that what is still there
+					## later is known to be that process.
+					endKept="$endKept$( printf '%s\n' $endFound | AgentsToolsRegistryProcessesBegan 2> /dev/null | LC_ALL=C awk -v endPid="$endPid" '{ print endPid, $0 ; }' )"$'\n'
+					kill -TERM $endFound 2> /dev/null
 				done
 				sleep 2
 				for runPid in $runAlive ; do
-					endPid="${runPid#*|}" ; endBegan="${endPid%%|*} ${endPid#*|}" ; endPid="${endPid%%|*}"
-					[ "$( printf '%s\n' "$endPid" | AgentsToolsRegistryProcessesBegan 2> /dev/null )" = "$endBegan" ] && kill -KILL -- "-$endPid" 2> /dev/null
+					endPid="${runPid#*|}" ; endPid="${endPid%%|*}"
+					endLeft="$( AgentsToolsRegistryGroupLeft "$endPid" "$( printf '%s\n' "$endKept" | LC_ALL=C awk -v endPid="$endPid" '$1 == endPid { print $2, $3 ; }' )" 2> /dev/null | LC_ALL=C tr '\n' ' ' )"
+					[ -z "${endLeft// /}" ] || kill -KILL $endLeft 2> /dev/null
 				done
 				break
 			fi

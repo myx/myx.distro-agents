@@ -279,7 +279,8 @@ function stlToolArgs(toolName, jsonText,   baseName, outText, listCount) {
 # The call's own comment, where its arguments carry one: a task tool's subject, a
 # description (any tool's: every harness and served tool declares one as the call's
 # intent, and native Bash and Agent have their own), an action_summary or a comment; a
-# TodoWrite's item in progress, its activeForm else its content.
+# TodoWrite's item in progress, its activeForm else its content -- and a CheckList's, the
+# harness counterpart of TodoWrite, which takes the same input.
 function stlArgComment(jsonText, toolName,   commentText, baseName, objectText, objectStart, closeAt) {
 	commentText = ""
 	baseName = stlBaseTool(toolName)
@@ -287,7 +288,7 @@ function stlArgComment(jsonText, toolName,   commentText, baseName, objectText, 
 	if (commentText == "") commentText = stlJsonStr(jsonText, "description")
 	if (commentText == "") commentText = stlJsonStr(jsonText, "action_summary")
 	if (commentText == "") commentText = stlJsonStr(jsonText, "comment")
-	if (commentText == "" && baseName == "TodoWrite" && match(jsonText, /"status"[ \t\r\n]*:[ \t\r\n]*"in_progress"/)) {
+	if (commentText == "" && (baseName == "TodoWrite" || baseName == "CheckList") && match(jsonText, /"status"[ \t\r\n]*:[ \t\r\n]*"in_progress"/)) {
 		## The object holding that status: from the last { before it to the first } after it.
 		objectText = substr(jsonText, 1, RSTART)
 		objectStart = 0

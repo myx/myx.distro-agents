@@ -322,7 +322,9 @@ rigList(){
 		'AgentsWaitRoundCheck.test.sh|1|kill -TERM "$rigOpLeft"|@own-path' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookRunPid"|@kept-copy' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookWatchPid"|@kept-copy' \
-		'check-fixtures/manager-screen.driver.test.py|1|process.kill()|@uncollected'
+		'check-fixtures/manager-screen.driver.test.py|1|process.kill()|@uncollected' \
+		'check-fixtures/manager-screen.vt.test.py|1|process.send_signal(getattr(signal, words[0]))|@uncollected' \
+		'check-fixtures/manager-screen.vt.test.py|2|process.kill()|@uncollected'
 }
 rigToolingList(){
 	printf '%s\n' \
@@ -360,8 +362,8 @@ rigToolingList(){
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid" 2>/dev/null ; AgentsToolsSpawnProxyHelperEnd "$tailBegan"|@waited-on' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -TERM "$spawnPid"|@probed' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill -KILL "$spawnPid"|@probed' \
-		'sh-lib/AgentsTools.ManagerCheck.include|1|AgentsToolsRegistryGroupBegan "$endBegan" > /dev/null 2>&1 && kill -TERM -- "-$endPid"|@own-group' \
-		'sh-lib/AgentsTools.ManagerCheck.include|1|= "$endBegan" ] && kill -KILL -- "-$endPid"|@own-group' \
+		'sh-lib/AgentsTools.ManagerCheck.include|1|kill -TERM $endFound|the polite end of a check past its bound, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: the check while it is still the process that began when it was started, and every process it started that stayed in its group, each by its own pid, never the group by its number' \
+		'sh-lib/AgentsTools.ManagerCheck.include|1|kill -KILL $endLeft|the hard end of a check past its bound, two seconds after the polite one, at once, to what AgentsToolsRegistryGroupLeft gave at that moment: of the processes signalled, those that are still the processes they were, each kept with when it began, and what those started since, each by its own pid' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$hostPid"|@probed' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -TERM "$killPid"|@walk-now' \
 		'sh-lib/AgentsTools.ManagerSession.include|1|kill -KILL "$killPid"|@walk-now' \

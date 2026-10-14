@@ -92,13 +92,14 @@ LOOKS = (
     ## the shadow of what lies over the desktop: a menu, a dialog
     ("w", "D", "black", "black", True),
     ## a dialog: its text; its frame with its title; a field to type in or to pick from; the
-    ## control, or the item of one, that has the keys; a button, and the one that has the
-    ## keys; what the dialog refuses
+    ## control, or the item of one, that has the keys; a button, plain as the text of the
+    ## dialog, and the one that has the keys, the only one in a look of its own; what the
+    ## dialog refuses
     ("g", "R", "black", "white", False),
     ("G", "RB", "white", "white", True),
     ("i", "", "white", "blue", False),
     ("I", "B", "white", "cyan", True),
-    ("b", "R", "black", "green", False),
+    ("b", "R", "black", "white", False),
     ("n", "B", "white", "green", True),
     ("!", "RB", "red", "white", False),
     ## the mark of a folder after the name of a row that Enter enters
@@ -118,6 +119,8 @@ MONO_LETTERS = {"": ".", "B": "B", "R": "R", "D": "D", "RB": "H", "RD": "d"}
 MARKS = {"separator": "│", "cut": "…", "plain": False,
          "frame": "┌─┐│└┘", "frameOn": "╔═╗║╚╝", "rule": "├─┤", "shade": "░", "system": "≡",
          "barUp": "▲", "barDown": "▼", "barTrack": "▒", "barThumb": "■", "on": "•",
+         ## what stands inside the brackets of the button Enter presses where the keys are on no button
+         "default": "»«",
          ## what stands after the name of a row that Enter enters, a folder: never what is cut
          "folder": "..."}
 MARK_SELECTED = ">"
@@ -1121,30 +1124,86 @@ class ManagerState:
         self.ran = {}
         ## the item the reads of the focus were last made for, or found fresh (startDueReads)
         self.focusSeen = None
+        ## what the last frame was drawn as: its size, its style and its split; the dialog or the menu over it (drawScreen)
+        self.drawnAs = None
         self.quit = False
 
 
 ## ---- text in cells ----
 
+## The cells an emoji takes on a line, on every terminal alike. An emoji is one character,
+## however many code points it is written with: one a selector U+FE0F makes of a character
+## whose own presentation is text (🏛️ ⚖️ ⚠️ ⚒️), a keycap (1️⃣), one wide by itself (🔗 🤔 📥),
+## emoji joined by U+200D or with the mark of a skin (🧑‍💻 👍🏽), a flag (🇳🇿). Terminals do not
+## agree how far they move for one, and a multiplexer between may count otherwise again: so it
+## takes EMOJI_CELLS, or as many as its parts would take each in its own where that is more
+## (🧑‍💻 four), and curses is never given one. Curses holds blanks there, and the emoji is written
+## into them apart, at its own column (CursesSurface.apartWritten): however far the terminal
+## moves for it, nothing after it moves, and a cell it leaves is a blank of the screen's own.
+EMOJI_CELLS = 2
+
+
+## The cells one character takes by Unicode, as itself.
+def ownCells(character):
+    return 2 if unicodedata.east_asian_width(character) in ("W", "F") else 1
+
+
+## Whether a character of the screen is an emoji, or may be drawn as one: by what it is written
+## with, and by its block, where a terminal may draw its symbols as emoji whatever Unicode says
+## of their width (☀ ⚙ ✔ ❤ in Miscellaneous Symbols and Dingbats, ⌚ ⏳ in Miscellaneous
+## Technical, ⬛ ⭐ in Miscellaneous Symbols and Arrows, and everything from U+1F000 on).
+def isEmoji(cluster):
+    first = ord(cluster[0])
+    if "\u20e3" in cluster or "\ufe0f" in cluster or "\u200d" in cluster:
+        return True
+    if any(0x1F3FB <= ord(character) <= 0x1F3FF for character in cluster[1:]):
+        return True
+    if 0x1F1E6 <= first <= 0x1F1FF:
+        return len(cluster) > 1
+    return first >= 0x1F000 or 0x2600 <= first < 0x27C0 or 0x2300 <= first < 0x2400 or 0x2B00 <= first < 0x2C00
+
+
+## The cells a character of the screen takes on a line: an emoji EMOJI_CELLS, or its parts'
+## where they take more; another as Unicode counts it, a mark that joins it taking none.
+def clusterCells(cluster):
+    own = sum(0 if ord(character) == 0x200D or 0xFE00 <= ord(character) <= 0xFE0F or 0x20E3 == ord(character)
+              or unicodedata.category(character) in ("Mn", "Me") else ownCells(character) for character in cluster)
+    if (len(cluster) > 1 or ord(cluster) >= 0x2300) and isEmoji(cluster):
+        return max(EMOJI_CELLS, own)
+    return own
+
+
 ## A text as the cells it takes on a terminal: [what is written, how many cells]. A mark
-## that joins the character before it stays with that character; an emoji selector makes
-## it two cells wide. What a terminal would act on, and not show, is left out.
+## that joins the character before it stays with that character; an emoji is one character,
+## in the cells clusterCells gives it. What a terminal would act on, and not show, is left out.
 def textCells(text):
     cells = []
+    joining = False
     for character in text:
         if character == "\t":
             character = " "
         codePoint = ord(character)
         category = unicodedata.category(character)
+        if cells and (joining or (0x1F3FB <= codePoint <= 0x1F3FF and isEmoji(cells[-1][0]))
+                      or (0x1F1E6 <= codePoint <= 0x1F1FF and len(cells[-1][0]) == 1 and 0x1F1E6 <= ord(cells[-1][0]) <= 0x1F1FF)):
+            ## the emoji joined to the one before, the mark of its skin, the second letter of a flag: one emoji with it
+            joining = False
+            cells[-1][0] += character
+            continue
         if codePoint == 0x200D or 0xFE00 <= codePoint <= 0xFE0F or category in ("Mn", "Me"):
             if cells:
                 cells[-1][0] += character
-                if codePoint == 0xFE0F:
-                    cells[-1][1] = 2
+                joining = codePoint == 0x200D
             continue
+        joining = False
         if category in ("Cc", "Cf", "Cs", "Zl", "Zp"):
             continue
-        cells.append([character, 2 if unicodedata.east_asian_width(character) in ("W", "F") else 1])
+        cells.append([character, 0])
+    for cell in cells:
+        if len(cell[0]) == 1 and ord(cell[0]) < 0x2300:
+            cell[1] = ownCells(cell[0])
+        else:
+            cell[1] = clusterCells(cell[0])
     return cells
 
 
@@ -1241,7 +1300,8 @@ def wrapToCells(text, width):
 ## For a terminal that is not UTF-8: marks of one byte, and plainText() for what is drawn.
 def plainMarks():
     MARKS.update({"separator": "|", "cut": "+", "plain": True, "frame": "+-+|++", "frameOn": "#=#|##", "rule": "+-+",
-                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "on": "*"})
+                  "shade": " ", "system": "=", "barUp": "^", "barDown": "v", "barTrack": ":", "barThumb": "#", "on": "*",
+                  "default": "><"})
 
 
 ## A text for a terminal that is not UTF-8: what it cannot show becomes `?`, cell for cell.
@@ -3414,7 +3474,12 @@ def drawDialog(surface, state, columns, lines):
     for offset, text in enumerate(plan["says"]):
         if plan["saysLine"] + offset < last:
             surface.put(plan["saysLine"] + offset, column, cutToCells(text, inner), BOX_SAYS)
-    labels = ["[ %s ]" % label for name, label in dialog["buttons"]]
+    ## Each button between its brackets; the first, which Enter presses where the keys are on
+    ## no button, with the marks of the default inside them, whichever has the keys. The button
+    ## that has the keys, and no other, stands in the look of the keys: plain, greyed or that one,
+    ## each in the same cells, so a move of the keys changes a look and no character.
+    labels = [("[%s%s%s]" % (MARKS["default"][0], label, MARKS["default"][1]) if index == 0 else "[ %s ]" % label)
+              for index, (name, label) in enumerate(dialog["buttons"])]
     column = left + max(2, (width - sum(textWidth(label) + 2 for label in labels) + 2) // 2)
     for index, label in enumerate(labels):
         if column + textWidth(label) > left + width - 2:
@@ -7945,6 +8010,15 @@ def drawMenu(surface, state, layout):
 def drawScreen(surface, state):
     columns, lines = surface.size()
     layout = layoutOf(columns, lines, state.split)
+    ## What this frame is drawn as: its size, its style and where the windows part; and the
+    ## dialog or the menu over it. Where that changed, or what lay over the frame before has
+    ## closed, the terminal may hold cells curses no longer knows of: the frame is sent whole,
+    ## once. Every other frame curses sends as the cells that changed.
+    shape = (columns, lines, STYLE["name"], layout["listLeft"] if layout else None)
+    over = ("dialog", id(state.dialog)) if state.dialog is not None else ("menu", state.menu["menu"]) if state.menu is not None else None
+    if state.drawnAs is not None and (state.drawnAs[0] != shape or state.drawnAs[1] not in (None, over)):
+        surface.repaint()
+    state.drawnAs = (shape, over)
     surface.clear()
     surface.cursor(None, None)
     state.spots = []
@@ -8034,11 +8108,40 @@ def screenTurn(surface, state, reader, now, key):
 ## ---- the terminal ----
 
 ## The surface of the real terminal: a curses window. A text is drawn where it is put, and
-## whoever puts it has cut it to fit.
+## whoever puts it has cut it to fit. Curses is given every character in the cells the
+## screen counts it in (textCells), and no emoji, nor any character curses counts otherwise:
+## it gets blanks in its cells, and the character is written into them apart (apartWritten),
+## so curses' copy of the terminal stays the terminal's whatever the terminal makes of it.
+## Curses never shifts cells sideways or lines up and down to save a write (idcok, idlok),
+## which would carry what was written apart with them.
 class CursesSurface:
     def __init__(self, window):
         self.window = window
+        for kept in (lambda: window.idcok(False), lambda: window.idlok(False)):
+            try:
+                kept()
+            except (curses.error, AttributeError):
+                pass
         self.plain, self.coloured = self.looksOf()
+        ## what the terminal is told to place the cursor and to draw in a look by, or None where it cannot be
+        self.codes = self.codesOf()
+        self.sgrs = {}
+        ## how many cells curses counts a character in, by the character; what curses is given for a text, by
+        ## the text (handedOf)
+        self.counted = {}
+        self.handed = {}
+        try:
+            self.counter = curses.newpad(1, 16)
+        except curses.error:
+            self.counter = None
+        ## of the frame being drawn, by line: the characters curses is given that take more than one cell, where
+        ## each starts and ends, and its look. Of it and of the one drawn last, by line: the characters written
+        ## apart, by their column, each with its cells and its look; and what was put on that line, in its order
+        self.wide = {}
+        self.apart, self.apartDrawn = {}, {}
+        self.puts, self.putsDrawn = {}, {}
+        ## whether the next frame is sent to the terminal whole
+        self.whole = True
         self.keyNames = {
             curses.KEY_UP: "UP", curses.KEY_DOWN: "DOWN", curses.KEY_LEFT: "LEFT", curses.KEY_RIGHT: "RIGHT",
             curses.KEY_PPAGE: "PGUP", curses.KEY_NPAGE: "PGDN", curses.KEY_ENTER: "ENTER",
@@ -8076,7 +8179,7 @@ class CursesSurface:
     ## The terminal is the screen's again: its mode as it was kept, the keypad, the mouse.
     ## What was typed and not read by the child is dropped, not taken as keys of the screen.
     ## The size of the terminal is read anew, since it may have changed meanwhile and no
-    ## signal of that need have come here, and the next drawing draws every cell.
+    ## signal of that need have come here, and the next drawing is sent whole.
     def back(self):
         for restore in (curses.reset_prog_mode, lambda: self.window.keypad(True), curses.flushinp):
             try:
@@ -8090,10 +8193,7 @@ class CursesSurface:
                 curses.resizeterm(size.lines, size.columns)
         except (OSError, ValueError, AttributeError, curses.error):
             pass
-        try:
-            self.window.clearok(True)
-        except curses.error:
-            pass
+        self.repaint()
 
     ## Gives the whole terminal to a child and waits for its end: the command from its words
     ## as they are, with no shell, started in that folder, with the environment and the
@@ -8210,20 +8310,150 @@ class CursesSurface:
         return self.coloured if STYLE["colours"] and self.coloured is not None else self.plain
 
     def clear(self):
+        self.apart, self.puts, self.wide = {}, {}, {}
         try:
             self.window.bkgdset(" ", self.looks()[PLAIN])
         except curses.error:
             pass
         self.window.erase()
 
+    ## The next frame is sent to the terminal whole, every cell of it: once, where the terminal
+    ## may no longer hold what curses holds of it.
+    def repaint(self):
+        self.whole = True
+        try:
+            self.window.clearok(True)
+        except curses.error:
+            pass
+
     def put(self, line, column, text, look):
         if MARKS["plain"]:
             text = plainText(text)
+        if text.isascii() and text.isprintable():
+            handed, apart, wide, cells = text, (), (), len(text)
+        else:
+            handed, apart, wide, cells = self.handedOf(text)
+        self.puts.setdefault(line, []).append((column, text, look))
+        held = self.wide.get(line)
+        if held:
+            ## A character of two cells that the text covers one half of is blanked whole first: curses would keep
+            ## the other half as it was, and send it where the terminal has wiped it, or leave an emoji painted
+            ## over what now stands on its blank.
+            for start, end, was in [one for one in held if one[0] < column < one[1] or one[0] < column + cells < one[1]]:
+                try:
+                    self.window.addstr(line, start, " " * (end - start), self.looks()[was])
+                except curses.error:
+                    pass
+            held[:] = [one for one in held if one[1] <= column or column + cells <= one[0]]
+        for at, width in wide:
+            self.wide.setdefault(line, []).append((column + at, column + at + width, look))
+        held = self.apart.get(line)
+        if held:
+            ## what is put over a character written apart takes its cells
+            for at in [at for at, (cluster, width, was) in held.items() if at < column + cells and column < at + width]:
+                del held[at]
+        for at, cluster, width in apart:
+            self.apart.setdefault(line, {})[column + at] = (cluster, width, look)
         try:
-            self.window.addstr(line, column, text, self.looks()[look])
+            self.window.addstr(line, column, handed, self.looks()[look])
         except curses.error:
             ## the last cell of the screen: it is written, and the cursor has nowhere to go
             pass
+
+    ## What curses is given for a text: each character in the cells the screen counts it in, but
+    ## blanks for an emoji and for a character curses counts otherwise, which is written apart,
+    ## with the cell it starts at. The characters curses is given that take more than one cell,
+    ## each where it starts and its cells; and the cells of the whole.
+    def handedOf(self, text):
+        held = self.handed.get(text)
+        if held is None:
+            parts = []
+            apart = []
+            wide = []
+            at = 0
+            for cluster, cells in textCells(text):
+                if self.codes is not None and (len(cluster) > 1 or ord(cluster) >= 0x300) and (
+                        isEmoji(cluster) or self.cursesCells(cluster) != cells):
+                    parts.append(" " * cells)
+                    apart.append((at, cluster, cells))
+                else:
+                    parts.append(cluster)
+                    if cells > 1:
+                        wide.append((at, cells))
+                at += cells
+            if len(self.handed) > 4096:
+                self.handed.clear()
+            held = self.handed[text] = ("".join(parts), tuple(apart), tuple(wide), at)
+        return held
+
+    ## How many cells curses counts a character in, as its own cursor moves over it.
+    def cursesCells(self, cluster):
+        cells = self.counted.get(cluster)
+        if cells is None:
+            cells = -1
+            try:
+                self.counter.erase()
+                self.counter.addstr(0, 0, cluster)
+                cells = self.counter.getyx()[1]
+            except (curses.error, AttributeError):
+                pass
+            self.counted[cluster] = cells
+        return cells
+
+    ## What the terminal is told to place its cursor, to keep and to give back where it stands and
+    ## how it draws, and to draw in a look by; None where it has no way to place the cursor.
+    def codesOf(self):
+        try:
+            codes = dict((name, curses.tigetstr(name) or b"") for name in ("cup", "sc", "rc", "sgr0", "bold", "dim", "rev", "setaf", "setab"))
+        except curses.error:
+            return None
+        if not codes["cup"]:
+            return None
+        codes["sc"] = codes["sc"] or b"\x1b7"
+        codes["rc"] = codes["rc"] or b"\x1b8"
+        return codes
+
+    ## What the terminal is told to draw in that look by, as curses draws it.
+    def sgrOf(self, look):
+        attribute = self.looks()[look]
+        held = self.sgrs.get(attribute)
+        if held is None:
+            held = self.codes["sgr0"]
+            for flag, name in ((curses.A_BOLD, "bold"), (curses.A_DIM, "dim"), (curses.A_REVERSE, "rev")):
+                if attribute & flag:
+                    held += self.codes[name]
+            try:
+                pair = curses.pair_number(attribute)
+                if pair:
+                    text, ground = curses.pair_content(pair)
+                    if text >= 0 and self.codes["setaf"]:
+                        held += curses.tparm(self.codes["setaf"], text)
+                    if ground >= 0 and self.codes["setab"]:
+                        held += curses.tparm(self.codes["setab"], ground)
+            except curses.error:
+                pass
+            self.sgrs[attribute] = held
+        return held
+
+    ## The characters written apart, after curses has sent its frame: each at its own column, in
+    ## its look, the cursor and how the terminal draws kept before and given back after, so that
+    ## curses' copy of the terminal stays as it is. On each line curses has sent anew or sent
+    ## whole (show), and on every line of a frame sent whole.
+    def apartWritten(self, renewed):
+        written = []
+        for line in sorted(self.apart):
+            if self.whole or line in renewed or self.puts.get(line) != self.putsDrawn.get(line):
+                for column, (cluster, width, look) in sorted(self.apart[line].items()):
+                    written.append(curses.tparm(self.codes["cup"], line, column) + self.sgrOf(look) + cluster.encode("utf-8"))
+        if written:
+            data = self.codes["sc"] + b"".join(written) + self.codes["rc"]
+            while data:
+                try:
+                    data = data[os.write(sys.stdout.fileno(), data):]
+                except InterruptedError:
+                    continue
+                except OSError:
+                    break
 
     def cursor(self, line, column):
         try:
@@ -8235,8 +8465,38 @@ class CursesSurface:
         except curses.error:
             pass
 
+    ## The screen leaves nothing of itself: every cell blank in the terminal's own colours, sent
+    ## whole, the cursor shown at the start of the first line, before curses gives the terminal
+    ## back. Where the terminal gives back the screen it had before (its alternate screen) that
+    ## comes back as it was; where it has none, it is left empty, and what is said after the end,
+    ## and the prompt of the shell, start on a line of their own.
+    def wipe(self):
+        for leaving in (lambda: self.window.bkgdset(" ", curses.A_NORMAL), self.window.erase, lambda: self.window.clearok(True),
+                        lambda: self.window.move(0, 0), self.window.refresh, lambda: curses.curs_set(1)):
+            try:
+                leaving()
+            except curses.error:
+                pass
+
+    ## The frame to the terminal. A line where a character written apart in the frame before no
+    ## longer stands as it stood is sent whole, every cell of it, once: curses holds blanks there
+    ## and would send nothing, and whatever the terminal made of that character, nothing of it
+    ## outlives the change. Every other line curses sends as the cells that changed, so a quiet
+    ## tick sends what changed alone.
     def show(self):
+        renewed = []
+        for line, held in self.apartDrawn.items():
+            if self.apart.get(line) != held:
+                renewed.append(line)
+                try:
+                    self.window.redrawln(line, 1)
+                except curses.error:
+                    pass
         self.window.refresh()
+        if self.apart:
+            self.apartWritten(renewed)
+        self.apartDrawn, self.putsDrawn = self.apart, self.puts
+        self.whole = False
 
     def read(self):
         try:
@@ -8279,14 +8539,19 @@ class CursesSurface:
         return got if got.isprintable() else None
 
 
+## The screen until it is left, by its key or by anything that ends it: it leaves nothing of
+## itself on the terminal either way (CursesSurface.wipe).
 def runScreen(window, state, reader):
     surface = CursesSurface(window)
     key = None
-    while True:
-        screenTurn(surface, state, reader, time.monotonic(), key)
-        if state.quit:
-            return
-        key = surface.key(keyWait(state, time.monotonic()))
+    try:
+        while True:
+            screenTurn(surface, state, reader, time.monotonic(), key)
+            if state.quit:
+                return
+            key = surface.key(keyWait(state, time.monotonic()))
+    finally:
+        surface.wipe()
 
 
 ## Why the screen cannot start here, or None where it can.
