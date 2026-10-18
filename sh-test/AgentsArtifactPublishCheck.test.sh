@@ -27,13 +27,13 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to read under"
-for rigFixture in artifact-publish.curl.test.sh artifact-publish.confluence.test.py artifact-publish.sitecustomize.test.py harness-ask-check.curl.test.sh ; do
+for rigFixture in artifact-publish.curl.stub.sh artifact-publish.confluence.stub.py artifact-publish.sitecustomize.stub.py harness-ask-check.curl.stub.sh ; do
 	[ -f "$rigTest/check-fixtures/$rigFixture" ] || rigRefuse "the fixture $rigFixture is missing from the package"
 done
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsArtifactPublishCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/tmp"
-cp "$rigTest/check-fixtures/artifact-publish.curl.test.sh" "$rigTmp/bin/curl"
+cp "$rigTest/check-fixtures/artifact-publish.curl.stub.sh" "$rigTmp/bin/curl"
 for rigModel in claude codex ; do
 	printf '#!/bin/sh\necho "%s $*" >> "%s/model-calls"\nexit 1\n' "$rigModel" "$rigTmp" > "$rigTmp/bin/$rigModel"
 done
@@ -66,7 +66,7 @@ rigStart(){ ## scenario directory name
 	mkdir -p "$rigScenarioDir/ws/.local/.agents" "$rigScenarioDir/data" "$rigScenarioDir/py" "$rigScenarioDir/google" "$rigWork"
 	printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n' > "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=rig-user-token-TESTER\n' > "$rigScenarioDir/ws/.local/.agents/$rigMember.agent.env"
-	cp "$rigTest/check-fixtures/artifact-publish.sitecustomize.test.py" "$rigScenarioDir/py/sitecustomize.py"
+	cp "$rigTest/check-fixtures/artifact-publish.sitecustomize.stub.py" "$rigScenarioDir/py/sitecustomize.py"
 	RIG_CURL_LOG="$rigScenarioDir/curl.log"
 	export RIG_CURL_LOG
 	: > "$RIG_CURL_LOG"

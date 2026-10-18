@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the frame of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read. The
-## screen's own code draws through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py),
+## screen's own code draws through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## which keeps the cells it is given, so each case reads the screen back as text; the cases at the end start the real
 ## screen, on a pseudo-terminal the driver makes. Held: at 120 and at 80 columns the list on the right takes a quarter
 ## to a third of the width and the left pane the rest, and the last line of the left pane is the line of its bottom border, where nothing is typed; the
@@ -12,12 +12,12 @@
 ## status 0 and leaves the terminal in the mode it had; a failure inside the real screen gives the terminal back before
 ## its one error line is written, and the status is not 0; and where Python has no curses module, or there is no
 ## terminal, the screen says so in one line, starts nothing and ends with a status that is not 0.
-## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
+## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
+rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -30,7 +30,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"
 export MANAGER_SCREEN_RIG="$rigTmp/rig"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.test.sh" > "$rigTmp/tools"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.stub.sh" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
 printf 's1\tfirst\ns2\tsecond\n' > "$rigTmp/rig/rows"
 
@@ -212,7 +212,7 @@ rigAssert "the error is one line of the screen's own"                "$( rigVal 
 
 echo "-- Python without the curses module --"
 rigCallsBefore="$( LC_ALL=C grep -c '' "$rigTmp/rig/calls" )"
-RIG_REAL_PYTHON3="$rigPython" bash "$rigFixtures/manager-screen.python3.test.sh" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" < /dev/null > "$rigTmp/nocurses.out" 2> "$rigTmp/nocurses.err"
+RIG_REAL_PYTHON3="$rigPython" bash "$rigFixtures/manager-screen.python3.stub.sh" -I -B "$rigScreen" --workspace "$rigTmp/ws-rig" --tools "$rigTmp/tools" < /dev/null > "$rigTmp/nocurses.out" 2> "$rigTmp/nocurses.err"
 rigAssert "the status is not 0"                                      "$?" 1
 rigAssert "it says so in one line, and nothing else"                 "$( LC_ALL=C grep -c '' "$rigTmp/nocurses.err" ) $( LC_ALL=C grep -c 'needs the curses module of Python' "$rigTmp/nocurses.err" ) $( LC_ALL=C grep -c '' "$rigTmp/nocurses.out" )" "1 1 0"
 echo "-- sibling: the same call with the module there, and no terminal --"

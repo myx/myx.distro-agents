@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on browsing in the manager screen (sh-lib/AgentsManagerScreen.py): the items of the team data
 ## in `Team Data` (P13), and a team member as a folder (P14), run rather than read. The screen's own code runs
-## through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py), and where it would
-## call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each
+## through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would
+## call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each
 ## start and prints the fixture.
 ## Held: `Team Data` holds Board, Audit and Vault as folders after Operations; a store selected says what it holds,
 ## folder by folder, and a store that is empty or not there says so plainly; a folder of it selected shows its items
@@ -26,8 +26,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -397,13 +397,13 @@ rigAssert "Member Help selected shows the text of the help before its first opti
 	"$( rigHolds whole '│📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>' ) $( rigHolds whole 'HEAD-TEXT-OF-THE-HELP before the summary.' ) $( rigHolds whole 'FOOT-TEXT-OF-THE-HELP after the options.' ) $( rigHolds whole 'Read-only. Prints its help.' ) $( rigHolds whole 'Its second line.' ) $( printf '%s\n' "$rigOut" | LC_ALL=C grep '^whole|' | LC_ALL=C awk '/HEAD-TEXT/ { a = NR } /--console-list/ && !b { b = NR } /FOOT-TEXT/ { c = NR } END { print ( a && a < b && b < c ) ? "in-order" : "out-of-order" }' )" \
 	"1 1 1 0 0 in-order"
 rigAssert "the syntax lines are the member's, by --member-help, and the chapters are read by --manager-help-read" "$( rigWords '[--member-help][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' ) $( rigWords '[--manager-help-read]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "1 1"
-rigAssert "the examples of the help, a paragraph whose first line is a comment of the shell, show as they are written, as code, set in: a comment is no heading, a fence and runs of blanks are kept" \
-	"$( rigHolds whole '│          # Start the rig,' ) $( rigHolds whole '│          # then stop it' ) $( rigHolds whole '│          ```' ) $( rigHolds whole '│          rig  --start   now' ) $( rigHolds whole '│        Start the rig,' ) $( rigHolds whole '━' )" "1 1 2 1 0 0"
-rigAssert "the chapters are Markdown: a heading without its marks, strong words without theirs, the text under a heading as a paragraph" "$( rigHolds whole '│Summary:' ) $( rigHolds whole '│Notes:' ) $( rigHolds whole '##' ) $( rigHolds whole '**' ) $( rigHolds whole '│        The rig tool, in short.' )" "1 1 0 0 1"
+rigAssert "the examples of the help, a paragraph whose first line is a comment of the shell, show as they are written, as --help prints them: a comment is no heading, a fence and runs of blanks are kept" \
+	"$( rigHolds whole '│        # Start the rig,' ) $( rigHolds whole '│        # then stop it' ) $( rigHolds whole '│        ```' ) $( rigHolds whole '│        rig  --start   now' ) $( rigHolds whole '│        Start the rig,' ) $( rigHolds whole '━' )" "1 1 2 1 0 0"
+rigAssert "the chapters are Markdown: a heading without its marks, strong words without theirs, the text under a heading as a paragraph" "$( rigHolds whole '│ Summary:' ) $( rigHolds whole '│ Notes:' ) $( rigHolds whole '##' ) $( rigHolds whole '**' ) $( rigHolds whole '│        The rig tool, in short.' )" "1 1 0 0 1"
 rigAssert "inside, an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.rows ) $( rigHolds entry ' --member-help ' ) $( rigHolds entry ' --member-board-item-read ' ) $( rigHolds entry ' --console-list ' )" "4 1 1 1"
 rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--member-board-item-read <team-member> <item-name> --board-state <state>' ) $( rigHolds entry '│    Reads one item.' ) $( rigHolds entry 'Prints its help.' )" "1 1 0"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"
-rigAssert "the help is Markdown: an operation's block rendered, a paragraph's lines as one, and the titles say so" "$( rigHolds entry '│    Reads one item. Its second line.' ) $( rigHolds entry '--member-board-item-read [markdown]' ) $( rigHolds whole 'Member Help [markdown]' )" "1 1 1"
+rigAssert "the help is Markdown: an operation's block rendered, its lines as --help prints them, and the titles say so" "$( rigHolds entry '│    Reads one item.' )$( rigHolds entry '│    Its second line.' ) $( rigHolds entry '--member-board-item-read [markdown]' ) $( rigHolds whole 'Member Help [markdown]' )" "11 1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN BROWSE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

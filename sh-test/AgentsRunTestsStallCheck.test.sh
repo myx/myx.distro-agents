@@ -30,7 +30,7 @@ rigRefuse(){
 [ -f "${MYXROOT:-/usr/local/share/myx.common}/bin/lib/parallel.Common" ] || rigRefuse "myx.common lib/parallel, which the runner runs its tests with, is not at ${MYXROOT:-/usr/local/share/myx.common}"
 rigRealDd="$( command -v dd )" || rigRefuse "no dd on PATH to hand the other calls to"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mktemp -d -t AgentsRunTestsStallCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Only what this shell started and knows to be running still is ever signalled, with what is under it, read at

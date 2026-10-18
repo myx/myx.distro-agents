@@ -60,6 +60,15 @@ AgentsToolsRetestCopyRoot(){ ## operation, scratch folder or nothing -- the sour
 	}
 	( cd "$rootOf" && pwd -P )
 }
+## Whether the sh-test folder of a copy holds a test of that name: in sh-test itself, or in a subfolder of it one
+## level down, where its runner finds tests (sh-test/AgentsRunTests.sh). rc 0 where it does.
+AgentsToolsRetestTestHeld(){ ## sh-test folder of a copy, test name
+	local heldFile
+	for heldFile in "$1/$2.test.sh" "$1"/*/"$2.test.sh" ; do
+		[ -f "$heldFile" ] && return 0
+	done
+	return 1
+}
 AgentsToolsRetestRunner(){ ## source root of a copy, runner arguments... -- that copy's own runner, on that copy
 	local runnerRoot="$1" ; shift
 	if [ "$runnerRoot" = "$( cd "$MDLT_ORIGIN" 2> /dev/null && pwd -P )" ] ; then
@@ -104,20 +113,21 @@ AgentsToolsRetestQueue(){ ## operation, its arguments... -- one request into the
 				queueFile="${queueName#file:}"
 				case "$queueFile" in *myx/myx.distro-agents/*) queueFile="${queueFile##*myx/myx.distro-agents/}" ;; esac
 				## a changed test is covered by itself, and that is all that can be known here of what covers a file.
-				## A test stands in sh-test itself: a file further down, a fixture of the tests, is no test whatever
-				## its name ends in, and the runner would find none by it.
+				## A test stands in sh-test itself or in a subfolder of it, one level down, and nothing but a test ends
+				## in .test.sh there: a file further down is no test, and the runner would find none by it.
 				queueName="${queueFile#sh-test/}" ; queueName="${queueName%.test.sh}"
-				if [ "sh-test/$queueName.test.sh" != "$queueFile" ] || [ "${queueName#*/}" != "$queueName" ] || [ ! -f "$queueDir/$queueName.test.sh" ] ; then
+				if [ "sh-test/$queueName.test.sh" != "$queueFile" ] || [ "${queueName#*/*/}" != "$queueName" ] || [ ! -f "$queueDir/$queueName.test.sh" ] ; then
 					case $'\n'"$queueFiles" in *$'\n'"$queueFile"$'\n'*) ;; *) queueFiles="$queueFiles$queueFile"$'\n' ; queueFileCount=$(( queueFileCount + 1 )) ;; esac
 					continue
 				fi
+				queueName="${queueName##*/}"
 			;;
 			*)
 				queueName="${queueName#test:}" ; queueName="${queueName##*/}" ; queueName="${queueName%.test.sh}"
 				case "$queueName" in
 					''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*) echo "$queueSyntax -- not the name of a test: $queueName" >&2 ; return 1 ;;
 				esac
-				[ -f "$queueDir/$queueName.test.sh" ] || {
+				AgentsToolsRetestTestHeld "$queueDir" "$queueName" || {
 					echo "⛔ ERROR: $MDSC_CMD $queueOp: no test of that name in the copy the request is about: $queueName ($queueDir) -- nothing was queued; a changed file is named with --file" >&2 ; return 1
 				}
 			;;
@@ -207,19 +217,19 @@ AgentsToolsRetestCopy(){ ## batch folder, number of the copy, its source root, 1
 				printf '%s before %s\n' "$copyTest" "$copyWhen" >> "$copyWork/$copyNo.outcome"
 			fi
 		done <<< "$( AgentsToolsRetestRunner "$copyRoot" --passed 2> /dev/null )"
-		[ -s "$copyWork/$copyNo.every" ] || ( cd "$copyDir" && for copyTest in *.test.sh ; do [ -f "$copyTest" ] && printf '%s\n' "${copyTest%.test.sh}" ; done ) | tee -a "$copyWork/$copyNo.tests" > "$copyWork/$copyNo.every"
+		[ -s "$copyWork/$copyNo.every" ] || ( cd "$copyDir" && for copyTest in *.test.sh */*.test.sh ; do [ -f "$copyTest" ] && { copyTest="${copyTest##*/}" ; printf '%s\n' "${copyTest%.test.sh}" ; } ; done ) | tee -a "$copyWork/$copyNo.tests" > "$copyWork/$copyNo.every"
 	fi
 	## each test once, and only the tests the copy holds
 	LC_ALL=C sort -u "$copyWork/$copyNo.tests" | while IFS= read -r copyTest ; do
 		[ -n "$copyTest" ] || continue
-		if [ -f "$copyDir/$copyTest.test.sh" ] ; then printf '%s\n' "$copyTest" ; else printf '%s the copy holds no test of that name any more\n' "$copyTest" >> "$copyWork/$copyNo.outcome" ; fi
+		if AgentsToolsRetestTestHeld "$copyDir" "$copyTest" ; then printf '%s\n' "$copyTest" ; else printf '%s the copy holds no test of that name any more\n' "$copyTest" >> "$copyWork/$copyNo.outcome" ; fi
 	done > "$copyWork/$copyNo.run"
 	copyCount="$( LC_ALL=C grep -c . "$copyWork/$copyNo.run" )"
 	if [ "$copyCount" = 0 ] ; then
 		echo "# retest: about $( AgentsToolsRetestCopyName "$copyRoot" ): nothing to run: every test asked for has passed on the state that copy is in" >&2
 		return 0
 	fi
-	copyEvery="$( cd "$copyDir" && ls *.test.sh 2> /dev/null | LC_ALL=C grep -c . )"
+	copyEvery="$( cd "$copyDir" && ls *.test.sh */*.test.sh 2> /dev/null | LC_ALL=C grep -c . )"
 	echo "# retest: about $( AgentsToolsRetestCopyName "$copyRoot" ) ($copyRoot): $copyCount test(s), each once" >&2
 	## Every test of the copy is its whole suite, and is run as one, so it waits its turn in the machine's line for those.
 	if [ "$copyCount" = "$copyEvery" ] ; then

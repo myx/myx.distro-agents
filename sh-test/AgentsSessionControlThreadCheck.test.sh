@@ -47,7 +47,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 command -v perl > /dev/null 2>&1 || rigRefuse "no perl on PATH to start a process with its signals at their defaults"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$rigPackage/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mktemp -d -t AgentsSessionControlThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Every thread and every stand-in of this check: at its end each is ended, with what it started, while it is still itself.

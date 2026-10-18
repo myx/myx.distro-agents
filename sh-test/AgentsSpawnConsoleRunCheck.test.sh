@@ -20,7 +20,7 @@ rigRefuse(){
 }
 [ -f "$rigSpawnInclude" ] || rigRefuse "the spawn proxy is not at the origin this workspace resolves: $rigSpawnInclude"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mktemp -d -t AgentsSpawnConsoleRunCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.

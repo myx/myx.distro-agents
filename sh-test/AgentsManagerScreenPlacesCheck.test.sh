@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the root `Locations (Places)` of the manager screen (sh-lib/AgentsManagerScreen.py) and on
 ## its rule that shows a path inside a registered location by the name of that location, run rather than read. The
-## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py),
-## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh),
+## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
+## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start and prints the fixture: rows in the forms `--manager-place-list` and
 ## `--manager-place-read <place>` print.
 ## Held: the root list holds `Locations (Places)` as a folder after `Team Members`, and `9` goes there; its list is
@@ -27,8 +27,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

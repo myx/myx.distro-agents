@@ -44,7 +44,7 @@ mkdir -p "$rigTmp/bin" "$rigTmp/tmp" "$rigTmp/home"
 ## source tree is refused as one in a real source tree is.
 HOME="$rigTmp/home"
 export HOME
-cp "$rigTest/check-fixtures/harness-ask-forms.curl.test.sh" "$rigTmp/bin/curl.fixture" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-forms.curl.stub.sh" "$rigTmp/bin/curl.fixture" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl.fixture"
 ## THE OWNER ANSWERS LATER. The curl first on PATH is the fixture with one thing ahead of it: a
 ## scenario can keep the thread the owner has answered in aside (replies.later.json), and name

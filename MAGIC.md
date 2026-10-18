@@ -56,9 +56,9 @@ that the code and docs do not readily tell you.
   share one arm per platform. `--intern-op-atlassian-*` → `AgentsTools.InternOpAtlassianCall.include`.
   `--magic-<routine>-*` → `AgentsTools.Magic<Routine>.include`, one explicit arm per op even where
   two arms are identical today. `--manager-*` → `sh-lib/AgentsTools.Manager.include`, one further
-  include per subject: sessions `AgentsTools.ManagerSession.include`, routines
-  `AgentsTools.ManagerRoutine.include`, spawning `AgentsTools.ManagerSpawn.include`, settings
-  `AgentsTools.ManagerConfig.include`, team members `AgentsTools.ManagerTeamMember.include`.
+  include per subject, `AgentsTools.Manager<Subject>.include`: `Session`, `Routine`, `Spawn`, `Config`,
+  `TeamMember`, `TeamData`, `PendingReply`, `Dashboard`, `Place`, `Console`, `Check`, `Keys`, `Command`,
+  `Help`.
 - **One team, two organisations.** A call reaches our own organisation unless it is on the client
   side: a `--client-*` operation, or a `client:` address, of a `client-*` member
   (`AgentsTools.CommsSide.include`). A `client-*` member's own settings for an outside system are the
@@ -82,8 +82,9 @@ that the code and docs do not readily tell you.
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
   `--intern-artifact-*` is one, approved for the Artifact publish (`AgentsTools.InternArtifact.include`).
-  `--intern-manager` is another, approved for the console's manager screen: no argument, runs
-  `sh-lib/AgentsManagerScreen.py` with Python. `--intern-session-control` is a third, approved for the
+  `--intern-manager` is another, approved for the console's manager screen: one option,
+  `--style <name>`, and runs `sh-lib/AgentsManagerScreen.py` with Python. `--intern-session-control`
+  is a third, approved for the
   control thread of a session (`AgentsTools.InternSessionControl.include`).
 - **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
   even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
@@ -212,9 +213,10 @@ that the code and docs do not readily tell you.
   longer its own. Fork under `set -m` and put the whole pipeline in the
   backgrounded subshell, or `$!` names the last process while the group id is the first.
 - **`nohup` sets `SIGHUP` to ignored in the child.** Use `SIGUSR1` to signal a holder.
-- **`myx.common lib/catMarkdown` drops `_` everywhere**, backticks included (`ANTHROPIC_API_KEY` prints
-  as `ANTHROPICAPIKEY`); only fenced blocks survive. This already affects `--help`. The fix belongs to
-  `myx.common`.
+- **`myx.common lib/catMarkdown` is the one Markdown renderer.** An `_` inside a word and in code stays,
+  and its plain output keeps the backticks of code. Its `--spans` output (`--width <cells>` or
+  `--no-wrap`, `--ascii`) gives each line as its text, a TAB and its spans, for a program that draws the
+  text itself: the manager screen draws only that.
 
 ## 4. Writing code here
 
@@ -228,7 +230,12 @@ that the code and docs do not readily tell you.
   markdown, RFC822). Extend one; do not write another. JSON field readers are copies of one engine
   (`AgentsSlackJsonField.awk` and its lineage, `AgentsHarnessJsonField.awk`).
 - **Tests and fixtures live in `sh-test/` and `sh-test/check-fixtures/`.** Anything production code
-  calls stays in `sh-lib/`. A check keeps `rigHere` at `sh-lib` and uses
+  calls stays in `sh-lib/`. A check is `sh-test/Agents<Subject>Check.test.sh`, in `sh-test/` or in a subfolder
+  of it one level down, and its name is its own in the whole of `sh-test/`. Nothing but a check ends in
+  `.test.sh`: a fixture is named by its type, `<name>.<command>.stub.sh` or `.stub.py` for a stand-in of a
+  command or a module, `<name>.include.sh` for a rig part a check sources, `<name>.driver.py` for a driver,
+  `<name>.legacy.<ext>` for a kept previous implementation, and a data fixture by its own extension.
+  `AgentsRunTestsSubfolderCheck` holds both. A check keeps `rigHere` at `sh-lib` and uses
   `rigTest="${rigHere%/sh-lib}/sh-test"`.
 - **Generated content has two shapes only**: a body file at zero indentation (the caller indents), or
   one `printf`. No heredoc, no stack of `printf` lines, no `eval`-expanded template. A runnable artefact
@@ -246,6 +253,13 @@ that the code and docs do not readily tell you.
   (`<name>.$$`) is shared by every subshell of that one shell, so two writers of one call can collide
   on it; such a name stands only where `AgentsTempNamesCheck` already lists it, with its reason -- a
   new site that makes one fails that test.
+- **A bash script of the package starts `#!/usr/bin/env bash`**, and the tooling starts one as
+  `"$BASH" <script>`, the bash it runs in, never by the script's path alone nor by a fixed path to bash.
+  Where `command -v bash` finds none, the tool, the harness and the generated console put the directory
+  of the running bash at the end of `PATH`. The tool's entry exports `MDAT_BASH`, the running bash, which
+  the Python starters (`AgentsManagerScreen.py`, `AgentsSlackSocketMode.py`) start the tool with.
+  `AgentsBashPathGuardCheck` lists the places left, each with its reason; `AgentsBashPathProofCheck`
+  runs them on a `PATH` whose bash is a recording stand-in.
 - **Severity marks**: `⛔ ERROR` for a fault, `🙋 WARNING` for a designed refusal. Keep the asymmetry. A
   warning inside a composed operation is lost in scrollback, so the closing summary repeats it.
 - **The bare-name gate** (`AgentsToolsAssertBareName`) validates every member, item and document name.
@@ -576,7 +590,9 @@ User view: [docs/installation.md](docs/installation.md#workspace-restrictions-op
 - **A hook binds every agent on the machine.** Wiring one is the user's decision. An op that silently
   wires a hook is a defect.
 - **Each hook is one real script in `sh-lib/client-hooks/`, installed by copying.** Nothing is templated
-  into it. The harness runs the package's script, never the `.claude/hooks` copy.
+  into it. The harness runs the package's script, never the `.claude/hooks` copy, with the bash it runs
+  in (`"$BASH" <script>`); a hook starts `#!/usr/bin/env bash` for the clients that run the copy by its
+  path.
 - **A deny hook uses shell builtins only.** A missing external binary yields empty stdout and exit 0,
   which reads as allow. Fail closed on anything unparsed.
 - **Two kinds of deny hook.** A REROUTE drains stdin unread, denies every call alike, and names the MCP method
@@ -643,26 +659,32 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`DAGC_NONINTERACTIVE_CLIS`** is `copilot copilot-native claude claude-native grok scaleway`, plus any
   discovered leg. `grok-native` is not in it (a real interactive binary not proven non-interactive). A
   leg has no interactive shape; `--cli <leg>` without `--non-interactive` is refused with a stated reason.
-- **An interactive start of a harness leg now starts the manager screen by default**, whatever leg
-  (`claude`, `copilot`, `grok`, `scaleway`); an interactive start of a `-native` service still starts
-  that vendor's own console. `--non-interactive` is unchanged. A console generated before 13 October
-  keeps the old default until it is made again (`--make-console-command`).
+- **A start on a terminal that names no CLI starts the manager screen**, whatever service is
+  configured, a native one included; `--cli-auto` and `--cli-configured` name none. A vendor's own
+  console starts only where it is named: `--cli claude-native`. With no terminal, and with
+  `--non-interactive`, a start is what it always was. A console generated before this keeps its old
+  default until it is made again (`--make-console-command`).
 - **`--manager` starts the console's manager screen in place of a CLI**, whatever service is configured.
   It takes nothing after it, and is refused together with `--non-interactive`.
-- **`--intern-manager` has no help; its contract is here.** The console's own inner entry for the
-  manager screen, a new approved `--intern-` kind. It takes no argument and runs
-  `sh-lib/AgentsManagerScreen.py` with Python. It ends with status 1 and one plain line where Python,
-  its `curses` module, or a terminal is missing; it ends with status 0 on `q`.
+- **`--intern-manager [--style <name>]` has no help; its contract is here.** The console's own inner
+  entry for the manager screen, a new approved `--intern-` kind. It runs `sh-lib/AgentsManagerScreen.py`
+  with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
+  user's saved `MDAT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
+  default. It ends with status 1 and one plain line where Python, its `curses` module, or a terminal is
+  missing; it ends with status 0 on Ctrl-X (or Alt-X). `AgentsManagerStartStyleCheck` is its test.
 - **`--manager-session-list [--active]`** is the `--manager-*` family's first operation: it lists the
   coworking sessions with their runs, ending with one row of counters. It is the only one of the three
   session operations that rebuilds the `spawned-sessions` and `pending-replies` registries at every
-  call. Each `session` row now ends with three more fields, `<session-state> <session-state-at>
-  <control-thread>`: the stored state beside the one derived at this call, and the thread as `alive`,
-  `gone` or `none`, measured at the call and stored nowhere.
+  call. Each `session` row ends `<session-state> <session-state-at> <control-thread> <tokens>`: the
+  stored state beside the one derived at this call, the thread as `alive`, `gone` or `none`, measured at
+  the call and stored nowhere, and the tokens of the session (`sessions/<spawn id>/tokens`, summed by
+  `AgentsManagerSessionTokens.awk`). The last field of the `counters` row is the full name of the host,
+  asked once and kept in `$HOME/.agents/magic-team/host-full-name`; every other host field of the
+  tooling stays the short name.
 - **`--manager-session-read --session-id <id> [--run]`** shows one session, or with `--run` one run of
-  it: its rows, its dispatch, each run's record headers and store. It now prints one more row after
-  `dispatch`: `control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`;
-  the stored state is read from the session's own folder at every call.
+  it: its rows, its dispatch, each run's record headers and store. After `dispatch` it prints
+  `control <session-id> <session-state> <session-state-at> <control-thread> <control-pid>`, then the
+  session's `tokens` row; the stored state is read from the session's own folder at every call.
 - **`--manager-session-transcript-read --session-id <id> [--run] [--tail <lines>] [--log]`** gives the
   messages and tool use of a session's members as feed rows, newest last, made by the tracking post's
   own renderer, in a rows form that writes no post.
@@ -690,9 +712,15 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   (`AgentsToolsTeamMemberStartCheck`). `--magic-spawn-session` asks this check of every member before
   its first spawn. `--manager-routine-list` says `not-startable` for a routine whose `executors` names
   such a member. `AgentsSpawnReferenceOnlyCheck` is the rule's own test.
-- **`--manager-config-digest [<subject>...]`** prints the settings as they are, by subject: workspace,
-  cli, systems, loop, scopes. A secret reads only as set or missing; its value is never printed. Its
-  code is `sh-lib/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
+- **`--manager-config-digest [--full] [<subject>...]`** prints the settings as they are, by subject; every
+  row ends with its `<label>`, from the one declaration `sh-lib/AgentsManagerConfigLabels.awk`. Without
+  `--full` the rows keep their earlier fields, on purpose: a screen of before reads the label as the last
+  field. A secret reads only as set or missing; its value is never printed. Its code is
+  `sh-lib/AgentsTools.ManagerConfig.include`; `AgentsManagerConfigDigestCheck` is its test.
+- **`--manager-config-set <key> <value>`** saves one setting that can be changed, in its own scope, and
+  prints `saved <key> <value> <scope> <where>`: the one operation of `AgentsTools.ManagerConfig.include`
+  that writes. A user-scope setting goes through the local tools' `--custom-config-option`.
+  `AgentsManagerConfigSetCheck` is its test.
 - **`--manager-session-kill --session-id <id> [--run]`** ends runs the hard way: no closure of a
   routine runs, and no agent is asked anything. A session's id ends every live run of it; `--run` ends
   the founder alone. The ending is recorded first, under the name the console's user has in the
@@ -700,7 +728,10 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   polite end goes to the run's own processes, and the hard kill to what is still there two seconds
   later. Who carries it out: the session's control thread, where one lives, by `control/request` and a
   `USR1` wake, its own `control/outcome` read back; else the call itself, directly, each ending printed
-  on stderr. The handback retry never resumes a record that carries `killed-at`. Its own bound ends with its
+  on stderr. A request the thread has not taken within `SESSION_CONTROL_REQUEST_SECONDS` (5) is taken
+  back by one rename and carried out by the call; the thread's own call ends its work at
+  `SESSION_CONTROL_KILL_SECONDS` (30). The thread sends no signal itself. The handback retry never
+  resumes a record that carries `killed-at`. Its own bound ends with its
   own sleep, and the lines of a missing handback are said only after the record is closed
   (`AgentsToolsSpawnProxyHandbackNotice`). A killed run is told as killed, by `killed-by` and at
   `killed-at`, in the thread of the session that requested it, in place of the line of a missing
@@ -726,40 +757,57 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   a signal sent to it.
 - **`--manager-team-member-list` and `--manager-team-member-read <team-member>`**: the list has one row
   per member -- its mark, names, alias, kind, workspace, where it is set up, its status, and whether a
-  run of it is alive, a member set up only in another workspace of this machine included, and, last, its
-  icon, the one the installer's own member table shows (`AgentsToolsTeamMemberKindIcon`); the read adds
+  run of it is alive, a member set up only in another workspace of this machine included, then its
+  icon, the one the installer's own member table shows (`AgentsToolsTeamMemberKindIcon`), and, last, its
+  folder, its link followed to where its skillset lies; the read adds
   its description, its sessions, its grants and its settings, a secret setting reading only as set or
   missing. Their code is `sh-lib/AgentsTools.ManagerTeamMember.include`; `AgentsManagerTeamMemberCheck`
   is their test.
-- **The manager screen's own `Pending Questions` section and its `pending` counter** are fed by
-  `--member-pending-reply-read magic-coordinator --any-owner`, read only while that section is shown;
-  the selected ask is read by its id while it is selected; `F5` reads now.
-- **The screen's five other counters and its load average** come from `--manager-session-list`'s own
-  `counters` row, read every 10 seconds, whatever is shown.
-- **Key `l` is built now, no longer only reserved.** The screen calls `--manager-session-read` and
-  `--manager-session-transcript-read` for the selected session or agent only, passing `--run` for an
-  agent and `--log` on `l`.
-  `AgentsManagerScreenPendingCheck`, `AgentsManagerScreenSessionsCheck`,
-  `AgentsManagerScreenStatusCheck` and `AgentsManagerScreenPaneCheck` are among the screen's tests.
-- **Key `k` is built**: it takes the typed word `yes`, then calls `--manager-session-kill`, with
-  `--run` on an agent's row. **`Launch / Spawn` is built**: it calls `--manager-routine-list`, and
-  `--magic-spawn-session` with `--routine <selector>` or `--routine-default`; a free prompt goes to
-  that operation on its standard input. The reads of a selected item start only once the selection has
-  rested a third of a second. A kill or a start the screen began is not ended with the screen.
-- **Key `c` is built**: on the row of a session it calls `--manager-session-control-start --session-id
-  <id>`, asking no confirmation; the bottom line gives the outcome from the `control` row, or says there
-  is nothing to control on any other row. The list marks a session whose control thread reads `gone`
-  with `x` ahead of its state. The left pane of a session has a line `control` under `state`: the
-  thread, its pid once the read of the session has come, and the stored state with its date; `-` for a
-  row of before. For a finished session the mark goes once `c` was pressed on it, which removes what the
-  dead thread left. `AgentsManagerScreenControlCheck` is its test.
-  `AgentsManagerScreenKillCheck` and `AgentsManagerScreenLaunchCheck` are two more.
-- **`Team Members` is built.** Key `n` calls `--manager-spawn-member <member>`, with the prompt on
-  standard input. The screen itself calls `--manager-team-member-list` and
-  `--manager-team-member-read <member>`. `p`, `r`, `s` and `R` stay reserved; no key answers an ask.
-- **`Settings / Configuration` is built**, for viewing only: the screen calls `--manager-config-digest`.
-  `AgentsManagerScreenMembersCheck` and `AgentsManagerScreenSettingsCheck` are two more: eleven screen
-  tests in all.
+- **The other `--manager-*` reads**, each in its own include, rows as its help entry gives them, and
+  each the screen's alone: `--manager-dashboard-read` (`AgentsManagerDashboardCheck`),
+  `--manager-team-data-read <store> [<folder> [<item>]]` (`AgentsManagerBrowseCheck`),
+  `--manager-team-member-files <team-member> [<file>]`, `--manager-pending-reply-read`,
+  `-answer` and `-dismiss` (`AgentsManagerPendingReplyCheck`), `--manager-place-list` and
+  `--manager-place-read <place>` (`AgentsManagerPlaceCheck`), `--manager-place-command-list` and
+  `--manager-place-command-run` (`AgentsManagerPlaceCommandCheck`), `--manager-console-list`
+  (`AgentsManagerConsoleListCheck`), `--manager-check-run` (`AgentsManagerCheckRunCheck`),
+  `--manager-keys-list` and `--manager-keys-read <key>` (`AgentsManagerKeysCheck`),
+  `--manager-command-list` (`<Name>.fn.sh`, a TAB, the file it resolves to;
+  `AgentsManagerCommandListCheck`) and `--manager-help-read [<Name>.fn.sh]` (the help of that command,
+  read, never run; `AgentsManagerHelpReadCheck`).
+- **The manager screen is declared at the top of `sh-lib/AgentsManagerScreen.py`**: its styles, windows,
+  menus, commands, reads, summaries and dialogs; a new root, key or dialog is a declaration. Its roots
+  are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
+  dashboard says it is there), Locations (Places), Consoles (Tools), Settings, Configuration and Manuals
+  (Help); the number keys follow the list as it stands. Every fact is a row of a `--manager-*` read or
+  another operation, every action one.
+- **Its reads**: a folder is read while its row is selected, after a rest of a third of a second; a read
+  may be `once`, on `demand` alone (its command asks for it), read `also` beside another list, and take
+  `{parent}`, the id of the level above. The dashboard is read only while its root is selected or
+  opened.
+- **Its actions**, each an operation: `k` kills (`--manager-session-kill`, its plan read first with
+  `--plan`, the word `yes` typed), `c` starts a control thread (`--manager-session-control-start`, no
+  confirmation), Launch / Spawn starts a routine or a free prompt (`--magic-spawn-session --routine
+  <selector>` or `--routine-default`, the prompt on standard input), `n` starts a member
+  (`--manager-spawn-member`, the prompt on standard input). An action the screen began is not ended with
+  the screen. Pending Questions is read by `--member-pending-reply-read magic-coordinator --any-owner`.
+- **One table drawer** draws every table of the left pane (`paneTable`): wrapped, a table spans the pane
+  and wraps its cells, rows banded; cut, it is as wide as its words. Every row shows, nothing above it,
+  and the count of rows stands once at the bottom right of the window's frame.
+- **Panels have no cut mode**: a view drawn by `blocksView` (the dashboard, a block of it or of Team
+  Data) is always set out wrapped, at the pane's own width; there `w` is greyed and refused, and the
+  title says `[wrap]`.
+- **Markdown and the help are drawn by `lib/catMarkdown --spans`** of myx.common, once for each text,
+  width and mode, never on a tick: the help as `--help` prints it. Where no catMarkdown with `--spans` is
+  found, the text shows as it is. The screen holds no renderer of its own.
+- **Magic keeps an empty line under the top of each window** (`STYLES` "bodyLower", where it draws its
+  edges of blocks), the line its scroll bar already starts under ("barLower").
+- **Consoles (Tools) is the one thing the screen starts itself**: a row from `--manager-console-list`
+  starts with the whole terminal, no shell, the words as printed; the screen leaves its mode and takes it
+  back however the child ended.
+- **Team Data** holds Operations (its cleanups and the sync, each run in a big output dialog) and the
+  stores Board, Audit and Vault. **A member is a folder**: Permissions, Skillset Files, Sessions and
+  Member Help. **Pending Questions** answers (Enter, `y`), rejects (`j`) and dismisses (`d`) an ask.
 - **`MDAT_<NAME>_HARNESS` points one leg at another file**: a bare filename in `sh-lib`, or an absolute
   path; a relative path with `/` is refused (it would resolve against `$MMDAPP`). It must exist and be
   executable. Install probes and `AgentsToolsSpawnCliPresent` test the default file, not the override.
@@ -1034,6 +1082,11 @@ contracts are here.
   remote only; `clonePull` never makes it a clone. `TEAM_DATA_BRANCH` travels as `init.defaultBranch` via
   `GIT_CONFIG_*`, or the push fails and `clonePull` then deletes the checkout. A remote with history plus
   local content is reported, to merge by hand.
+- **`--magic-team-data-commit-pending` commits, then syncs by `myx.common git/cloneSync`**, with
+  `pull.rebase=false`: it pulls by a merge and pushes, with no push loop of its own. A real conflict
+  leaves the merge in the store (`MERGE_HEAD`) and the call ends with status 1. A store that has no
+  `README.md` gets an empty one from `cloneSync`, once. The store's branch must track its origin.
+  `AgentsTeamDataCommitPendingCheck` is its test.
 - **`--intern-root-harness [--routine <selector>] [--non-interactive] [--wait]`**, no member argument.
   The console no longer runs it; its callers are the main loop and a person by hand.
   It spawns `--magic-heartbeat-spawn-proxy magic-coordinator`. Interactive (default) loops in its own
@@ -1300,8 +1353,8 @@ contracts are here.
   `ReportFindings`, `PushNotification`, `Artifact`, `AskQuestion`, `ConfirmReadback`,
   `EscalateDecision`, `RequestPermission`, `ProposeApprove`, `ListMcpResourcesTool`,
   `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `Skill`, `Agent`, `TaskStop`, `TaskOutput`,
-  `ToolSearch`, `SessionTranscriptAppend`, `Monitor`. 30 tools. Each has four sites: the declaration,
-  and in the core the announce arm, the dispatch arm and the function.
+  `ToolSearch`, `SessionTranscriptAppend`, `CheckList`, `Monitor`. 31 tools. Each has four sites: the
+  declaration, and in the core the announce arm, the dispatch arm and the function.
 - **The tools literal is one bash single-quoted string.** An English possessive closes it
   (`HARNESS_PARSES` catches this; the site check does not). A missing comma between declarations passes
   `bash -n` and the site check and fails only at the endpoint as a 400; `HARNESS_TOOLS_JSON` catches it by
@@ -2280,7 +2333,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   tooling list of `AgentsTestSignalsCheck` names no place left by the number alone outside the spawn
   proxy.
 - **A check that calls the scan, the main loop or the console's control-thread start ends the control
-  threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.test.sh`
+  threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.sh`
   (`rigControlThreadNotes`, `rigControlThreadsEnd`, called in its `EXIT` trap); the guard for this is in
   `AgentsSessionControlStartCheck`, which fails a check of `sh-test` that names
   `--magic-advance-input-scan`, `--intern-main-loop`, `--manager-session-control-start`,
@@ -2289,7 +2342,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   Agent` outside a comment and does not do so (35 checks carry the fixture). A thread whose rig is
   removed now ends at its own next tick; the fixture still matters, for the time until that tick and for
   a thread that runs older code.
-- **A test signals a process it kept only through one helper**, `sh-test/check-fixtures/rig-processes.include.test.sh`:
+- **A test signals a process it kept only through one helper**, `sh-test/check-fixtures/rig-processes.include.sh`:
   the helper notes a process with when it began, and signals it later only while its pid is still that
   same process -- process ids come round within about a minute here while tests run, so a kept number
   can belong to a stranger by then. `AgentsTestSignalsCheck` holds the helper, and is also the guard
@@ -2305,16 +2358,15 @@ Each instrument states what it proves and its red recipe in its own header. What
   closing brace on one line need `;`, for awks not on a dev box), `AgentsOwnerSetupCheck`.
 - **`AgentsHarnessContainmentCheck.test.sh` is wired into nothing** and runs only by hand. It tests
   `AgentsHarnessResolveDir` and `AgentsHarnessPathAllowed` together, in both polarities.
-- **The manager screen's twelve tests**: `AgentsManagerScreenFrameCheck`, `AgentsManagerScreenListCheck`,
-  `AgentsManagerScreenReadCheck`, `AgentsManagerScreenPendingCheck`, `AgentsManagerScreenSessionsCheck`,
-  `AgentsManagerScreenStatusCheck`, `AgentsManagerScreenPaneCheck`, `AgentsManagerScreenKillCheck`,
-  `AgentsManagerScreenLaunchCheck`, `AgentsManagerScreenMembersCheck`,
-  `AgentsManagerScreenSettingsCheck` and `AgentsManagerScreenControlCheck`.
+- **The manager screen's tests** are every `sh-test/AgentsManagerScreen*Check.test.sh`, 31 of them, all
+  through the driver `check-fixtures/manager-screen.driver.py` and the stand-in dispatcher
+  `check-fixtures/manager-screen.tools.stub.sh`.
   `AgentsManagerSessionListCheck`, `AgentsManagerSessionReadCheck`
   and `AgentsManagerSessionTranscriptReadCheck` are the three session operations' own.
   `AgentsManagerRoutineListCheck`, `AgentsManagerSpawnMemberCheck` and `AgentsManagerConfigDigestCheck`
   are the routine, spawn and config operations' own. `AgentsManagerSessionKillCheck` and
-  `AgentsManagerTeamMemberCheck` are the kill and team-member operations' own.
+  `AgentsManagerTeamMemberCheck` are the kill and team-member operations' own. The tests of the other
+  `--manager-*` reads are named with them in section 10.
   `AgentsSpawnReferenceOnlyCheck` is the no-start-for-a-reference-only-member rule's own.
 - **Diff checks hold a rewrite to its previous implementation**, kept only as fixtures in
   `sh-test/check-fixtures/*.legacy.*`: `AgentsWireStreamDiffCheck`, `AgentsHarnessJsonFieldDiffCheck`,
@@ -2329,7 +2381,7 @@ Each instrument states what it proves and its red recipe in its own header. What
   the allowed root), or use the granted work directories `$MMDAPP/.local/temp/team`,
   `.../member/<member>`, `.../task/<member>`.
 - **Other offline checks**: `AgentsSlackBlocksLinkifyCheck`, `AgentsSlackBareUrlLinkCheck` (through a real
-  send with `check-fixtures/slack-send-identity-check.curl.test.sh`), `AgentsEmailHtmlPartCheck`
+  send with `check-fixtures/slack-send-identity-check.curl.stub.sh`), `AgentsEmailHtmlPartCheck`
   (build-only), `AgentsSessionContextReadsCheck` (fake Slack and fake `imaplib`), `AgentsSlackRateLimitCheck`,
   `AgentsHeartbeatDayRhythmCheck`, `AgentsBoardRecheckInCheck`, `AgentsApprovalCascadeCheck`,
   `AgentsGroomingToBacklogApprovalClearCheck`, `AgentsVscodePanelInstallCheck`,

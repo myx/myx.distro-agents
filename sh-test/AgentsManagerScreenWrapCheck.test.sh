@@ -3,8 +3,8 @@
 ## (sh-lib/AgentsManagerScreen.py), run rather than read, in each kind of view of the left window: a summary with a table
 ## of its own (a store of the team data), a table of the left pane (a folder's items, a member's grants, the members), a
 ## Markdown text rendered, the same text raw, and a member's help. The screen's own code runs through the stand-in
-## terminal of the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which prints the fixture.
+## terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which prints the fixture.
 ## Held, in each: wrapped, the title says [wrap], no line of the pane is cut with the mark of a cut text, and the word at
 ## the end of the longest line of the fixture is there to be read (with `e`, every row of a table); cut, the title says [cut], that word is out of view,
 ## and the pane scrolls sideways. Offline: no operation of the real tooling is called.
@@ -12,8 +12,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

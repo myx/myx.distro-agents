@@ -3,7 +3,7 @@
 ## AgentsHarnessAskCheck, every other call to the Confluence stand-in. Opens no socket.
 for rigArg in "$@" ; do
 	case "$rigArg" in
-		https://slack.com/*) exec bash "$RIG_FIXTURES/harness-ask-check.curl.test.sh" "$@" ;;
+		https://slack.com/*) exec bash "$RIG_FIXTURES/harness-ask-check.curl.stub.sh" "$@" ;;
 	esac
 done
-exec python3 "$RIG_FIXTURES/artifact-publish.confluence.test.py" "$@"
+exec python3 "$RIG_FIXTURES/artifact-publish.confluence.stub.py" "$@"

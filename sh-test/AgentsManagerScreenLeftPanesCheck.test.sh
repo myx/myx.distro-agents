@@ -2,7 +2,7 @@
 ## Behavioural check on the left panes of the manager screen (sh-lib/AgentsManagerScreen.py) by the owner's rule:
 ## structured, padded, coloured, compact, what matters first, nothing unimportant, and a folder never shows less than the
 ## list on the right. Run rather than read, through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py) and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
+## (check-fixtures/manager-screen.driver.py) and the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 ## Held, view by view: Sessions (a bold caption; every session of the list in one table of the left pane, its state in the
 ## colour of what is well, to look at, or over; `e` and the title where the pane holds fewer); a session (its agents as a
 ## table under a heading, no thread ids, its id last); Launch / Spawn (every routine, its start in its colour); Pending
@@ -18,8 +18,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

@@ -17,8 +17,8 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.curl.test.sh" ] || rigRefuse "the fake Slack fixture is missing from the package"
-[ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.test.py" ] || rigRefuse "the fake imaplib fixture is missing from the package"
+[ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.curl.stub.sh" ] || rigRefuse "the fake Slack fixture is missing from the package"
+[ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.stub.py" ] || rigRefuse "the fake imaplib fixture is missing from the package"
 rigTmp="$( mktemp -d -t AgentsSessionContextReadsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -46,8 +46,8 @@ rigScan(){
 	shift 2
 	mkdir -p "$scanDir/bin" "$scanDir/py" "$scanDir/ws/.local/.agents" "$scanDir/ws/.local/temp" \
 		"$scanDir/ws/.local/agents/members/client-fix1" "$scanDir/data/inboxes/client-fix1" "$scanDir/data/board/running"
-	cp "$rigPackage/sh-test/check-fixtures/session-context-reads.curl.test.sh" "$scanDir/bin/curl" && chmod +x "$scanDir/bin/curl"
-	cp "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.test.py" "$scanDir/py/imaplib.py"
+	cp "$rigPackage/sh-test/check-fixtures/session-context-reads.curl.stub.sh" "$scanDir/bin/curl" && chmod +x "$scanDir/bin/curl"
+	cp "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.stub.py" "$scanDir/py/imaplib.py"
 	printf '# fixture\n' > "$scanDir/ws/.local/agents/members/client-fix1/SKILL.md"
 	printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$scanDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-client1\nSLACK_CONVERSATIONS=CFIXAAAA001\nEMAIL_IMAP_HOST=imap.rig.invalid\nEMAIL_USER=rig@rig.invalid\nEMAIL_APP_PASSWORD=rig-app-password\n' \

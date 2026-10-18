@@ -24,8 +24,8 @@ rigWs="$rigTmp/ws"
 rigScenario="$rigTmp/scenario"
 mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/temp" "$rigTmp/bin" "$rigTmp/home" "$rigWs/tmp" "$rigTmp/skills/client-rig" "$rigTmp/skills/magic-team" "$rigScenario"
 
-cp "$rigTest/check-fixtures/credential-exposure-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/credential-exposure-check.curl.test.sh"
+cp "$rigTest/check-fixtures/credential-exposure-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/credential-exposure-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
@@ -114,8 +114,8 @@ echo "-- the harness scratch is created under \$TMPDIR --"
 ## $TMPDIR while the harness is in flight.
 rigHarnessDir="$rigTmp/harness"
 mkdir -p "$rigHarnessDir/.local/temp" "$rigHarnessDir/tmp" "$rigTmp/hbin"
-cp "$rigTest/check-fixtures/harness-scratch-check.curl.test.sh" "$rigTmp/hbin/curl" \
-	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/harness-scratch-check.curl.test.sh"
+cp "$rigTest/check-fixtures/harness-scratch-check.curl.stub.sh" "$rigTmp/hbin/curl" \
+	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/harness-scratch-check.curl.stub.sh"
 chmod +x "$rigTmp/hbin/curl"
 ( PATH="$rigTmp/hbin:$PATH" ; cd "$rigHarnessDir" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
 	TMPDIR="$rigHarnessDir/tmp" RIG_SCENARIO="$rigHarnessDir" MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" \

@@ -37,10 +37,10 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at: $rigHarness"
 [ -f "$rigSlackInclude" ] || rigRefuse "the Slack include is not at: $rigSlackInclude"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsClientSidesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
@@ -52,8 +52,8 @@ rigWork="$rigTmp/work" ; rigHome="$rigTmp/home"
 rigIndexFile="$rigHome/.agents/magic-team/members.registry"
 rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/client-sides-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/client-sides-check.curl.test.sh"
+cp "$rigTest/check-fixtures/client-sides-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/client-sides-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"

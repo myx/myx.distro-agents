@@ -36,13 +36,13 @@ rigInstallFixture(){
 }
 ## The Copilot leg check's own fake curl: nothing in it is Copilot's, so it is shared
 ## rather than copied, on the same terms as the hook fixture below.
-rigInstallFixture harness-copilot-leg-check.curl.test.sh "$rigTmp/bin/curl"
+rigInstallFixture harness-copilot-leg-check.curl.stub.sh "$rigTmp/bin/curl"
 
 ## Denies exactly when the payload carries the rig's argument marker. Silence and exit 0
 ## is the allow every hook in this estate uses. Shared with AgentsHarnessMcpCheck.test.sh,
 ## which asserts the same thing about the same marker -- one fixture, because the two
 ## bodies were byte-identical copies.
-rigInstallFixture pre-tool-use-deny-on-marker.test.sh "$rigTmp/bin/rigdeny"
+rigInstallFixture pre-tool-use-deny-on-marker.hook.stub.sh "$rigTmp/bin/rigdeny"
 
 PATH="$rigTmp/bin:$PATH"
 export PATH

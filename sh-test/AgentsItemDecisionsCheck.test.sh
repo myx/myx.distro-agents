@@ -26,7 +26,7 @@ mkdir -p "$rigStore" "$rigTmp/home" "$rigTmp/skills" "$rigTmp/bin" "$rigTmp/tmp"
 	"$rigTmp/ws/.local/agents/spawned/rig-spawn-1" "$rigTmp/ws/.local/agents/spawned/rig-spawn-1/input"
 for rigState in backlog pending running review blocked parked processed archived retained ; do mkdir -p "$rigBoard/$rigState" ; done
 ## Nothing here should reach Slack; the Slack-shaped fake curl is first on PATH in case anything tries.
-cp "${MDLT_ORIGIN}/myx/myx.distro-agents/sh-test/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "${MDLT_ORIGIN}/myx/myx.distro-agents/sh-test/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 RIG_SCENARIO="$rigTmp/scenario"

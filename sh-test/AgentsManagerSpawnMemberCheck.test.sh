@@ -32,10 +32,10 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsManagerSpawnMemberCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPassPid=""
@@ -44,8 +44,8 @@ rigWs="$rigTmp/ws-here" ; rigThere="$rigTmp/ws-there" ; rigHome="$rigTmp/home" ;
 rigSkills="$rigWs/.local/agents/members"
 rigThereSkills="$rigThere/.local/agents/members"
 mkdir -p "$rigTmp/bin" "$rigSc" "$rigWs/.local/.agents" "$rigSkills" "$rigThere/.local/.agents" "$rigThereSkills" "$rigHome/.agents/magic-team" "$rigData/board"
-cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.test.sh"
+cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH
@@ -107,7 +107,7 @@ rigConsoleWrite(){
 		'printf "rig-cli\n" > "$MDAT_SPAWN_LAUNCH_MARKER"' \
 		'ps -o pgid= -p $$ | tr -d " " > "$RIG_SCENARIO/pgid.$MDAT_SPAWN_SESSION_ID"' \
 		'echo $$ > "$RIG_SCENARIO/pid.$MDAT_SPAWN_SESSION_ID"' \
-		". '$rigTest/check-fixtures/rig-processes.include.test.sh' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/began.\$MDAT_SPAWN_SESSION_ID\" \$\$" \
+		". '$rigTest/check-fixtures/rig-processes.include.sh' 2> /dev/null && rigProcNoteFile \"\$RIG_SCENARIO/began.\$MDAT_SPAWN_SESSION_ID\" \$\$" \
 		'rigLeft="${RIG_RUN:-0}"' \
 		'while [ "$rigLeft" -gt 0 ] && [ ! -e "$RIG_SCENARIO/release" ] ; do sleep 1 ; rigLeft=$(( rigLeft - 1 )) ; done' \
 		'echo finished > "$RIG_SCENARIO/done.$MDAT_SPAWN_SESSION_ID"' > "$rigWs/DistroAgentsConsole.sh"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the root `Manuals (Help)` of the manager screen (sh-lib/AgentsManagerScreen.py, P15), run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
-## (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture.
+## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
+## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture.
 ## Held: the root stands last in the root list, a folder, with the number of its place; selected, the left window
 ## shows the first part of what the tooling gives by --manager-help-read (the syntax lines a user calls), and no entry
 ## of an operation; entered, it holds an item for every operation of the help, as `Member Help` holds a member's, each
@@ -17,8 +17,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -124,7 +124,7 @@ RIGSCRIPT
 rigAssert "an item for each operation of the help, then each its syntax names with no block" "$( rigVal in.path ) $( rigVal in.rows ) $( rigHolds entry ' --agents-config-option ' ) $( rigHolds entry ' --owner-setup-<domain> ' ) $( rigHolds entry ' --console-list ' )" "manuals 4 1 1 1"
 rigAssert "on the row that goes up the folder shows itself: the first part of the read" "$( rigHolds up '│📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain>' ) $( rigHolds up 'Sets up one domain.' )" "1 0"
 rigAssert "the chapters the read gives after its operations are no operation and stand neither in the root's view nor among its items" "$( rigHolds up 'CHAPTER-HEAD-TEXT' ) $( rigHolds up 'Summary' ) $( rigHolds up 'chapter-foot-text' ) $( rigHolds entry 'chapter-foot-text' ) $( rigHolds none 'chapter-foot-text' ) $( rigHolds none 'Notes' )" "0 0 0 0 0 0"
-rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--agents-config-option <id> <op>' ) $( rigHolds entry '│    Reads or writes one option.' ) $( rigHolds entry 'Sets up one domain.' ) $( rigHolds second '│--owner-setup-<domain> --apply' ) $( rigHolds second '│    Sets up one domain. Its second line.' )" "1 1 0 1 1"
+rigAssert "an operation selected shows its block alone: its syntax lines and its text" "$( rigHolds entry '│--agents-config-option <id> <op>' ) $( rigHolds entry '│    Reads or writes one option.' ) $( rigHolds entry 'Sets up one domain.' ) $( rigHolds second '│--owner-setup-<domain> --apply' ) $( rigHolds second '│    Sets up one domain.' )$( rigHolds second '│    Its second line.' )" "1 1 0 1 11"
 rigAssert "one with no block in the help says so plainly" "$( rigHolds none '│It has no description block in the help.' )" "1"
 
 echo "-- 3. the help is Markdown: an operation's block and the root's view rendered; the raw mode shows it as it is --"
@@ -148,13 +148,13 @@ keys b
 turn
 show back
 RIGSCRIPT
-rigAssert "its heading shows without its marks, a line under it, in the look of a heading" "$( rigHolds md '│    Its kinds' ) $( rigHolds md '###' ) $( rigHolds md '│    ┄┄┄┄┄┄┄┄┄ ' ) $( rigLookOf md mdr 'Its kinds' )" "1 0 1 BBBBBBBBB"
-rigAssert "its list has its marks, its code and its strong words show without their marks, each in its look" "$( rigHolds md '│    • read_one: prints it.' ) $( rigHolds md '`' ) $( rigHolds md '**' ) $( rigLookOf md mdr '• read_one' ) $( rigLookOf md mdr 'write: sets' )" "1 0 0 e.DDDDDDDD BBBBB......"
-rigAssert "its syntax line stands as it is, in the look of a heading, and its title says it is rendered" "$( rigHolds md '│--agents-config-option <id> <op>' ) $( rigLookOf md mdr '--agents-config-option <id> <op>' ) $( rigHolds md '--agents-config-option [markdown]' )" "1 BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB 1"
-rigAssert "a shell example in a block shows as it is written, as code, set in: its comment no heading, its runs of blanks kept" \
-	"$( rigHolds md '│      # read one option' ) $( rigHolds md '│      rig-tool a  --select   KEY' ) $( rigHolds md '│    read one option' ) $( rigLookOf md mdr '# read one option' )" "1 1 0 DDDDDDDDDDDDDDDDD"
+rigAssert "a heading set in under an entry shows as --help prints it, as it is written" "$( rigHolds md '│    ### Its kinds' ) $( rigHolds md '│    ┄┄┄┄┄┄┄┄┄ ' ) $( rigLookOf md mdr 'Its kinds' )" "1 0 ........."
+rigAssert "its list has its marks, its code and its strong words show without their marks, each in its look" "$( rigHolds md '│    ➤ read_one: prints it.' ) $( rigHolds md '`' ) $( rigHolds md '**' ) $( rigLookOf md mdr '➤ read_one' ) $( rigLookOf md mdr 'write: sets' )" "1 0 0 e.DDDDDDDD BBBBB......"
+rigAssert "its syntax line stands as it is, plain, as --help prints it, and its title says it is rendered" "$( rigHolds md '│--agents-config-option <id> <op>' ) $( rigLookOf md mdr '--agents-config-option <id> <op>' ) $( rigHolds md '--agents-config-option [markdown]' )" "1 ................................ 1"
+rigAssert "a shell example in a block shows as it is written, as --help prints it: its comment no heading, its runs of blanks kept" \
+	"$( rigHolds md '│    # read one option' ) $( rigHolds md '│    rig-tool a  --select   KEY' ) $( rigHolds md '│    read one option' ) $( rigLookOf md mdr '# read one option' )" "1 1 0 ................."
 rigAssert "the raw mode shows the block as it is, and says so" "$( rigVal raw.textMode ) $( rigHolds raw '│    ### Its kinds' ) $( rigHolds raw '│    - `read_one`: prints it.' ) $( rigHolds raw '--agents-config-option [raw]' )" "raw 1 1 1"
-rigAssert "the summary mode renders it again" "$( rigHolds back '│    Its kinds' ) $( rigHolds back '###' ) $( rigHolds back '--agents-config-option [markdown]' )" "1 0 1"
+rigAssert "the summary mode renders it again" "$( rigHolds back '│    ➤ read_one: prints it.' ) $( rigHolds back '`read_one`' ) $( rigHolds back '--agents-config-option [markdown]' )" "1 0 1"
 rigAssert "the root's view is rendered too, its syntax lines as they are, and its title says so" "$( rigHolds root '│📘 syntax: DistroAgentsTools.fn.sh --agents-config-option <id> <op>' ) $( rigHolds root 'Manuals (Help) [markdown]' )" "1 1"
 
 if [ "$rigFailCount" -ne 0 ] ; then

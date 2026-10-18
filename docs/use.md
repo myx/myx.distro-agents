@@ -26,19 +26,24 @@ See exactly which operations one member is allowed to run:
 
 ## Running the agents console
 
-The console starts an agent CLI, not a shell. A line you pipe into it is a prompt: a model reads it
-and decides what to run. So even a read-only tooling call through the console costs a full model
-round trip. For a read, run the tool directly instead:
+Started on a terminal, the console opens the manager screen: the team's sessions, questions, members,
+settings and help in one terminal screen. Ctrl-X (or Alt-X) leaves it. `--manager` opens it whatever is
+configured. A vendor's own CLI starts only where it is named, as `--cli claude-native`; `--cli` with one
+of this package's harnesses (`claude`, `copilot`, `grok`, `scaleway`) opens the manager screen too.
+
+With `--non-interactive` the console starts an agent CLI, not a shell. A line you pipe into it is a
+prompt: a model reads it and decides what to run. So even a read-only tooling call through the console
+costs a full model round trip. For a read, run the tool directly instead:
 
 	bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" <operation> ...
 
 Keep the console for work that needs an agent session.
 
-	DistroAgentsConsole.sh [--cli copilot|copilot-native|claude|claude-native|grok|grok-native|scaleway] [--cli-auto] [--non-interactive] [args...]
+	DistroAgentsConsole.sh [--manager] [--cli copilot|copilot-native|claude|claude-native|grok|grok-native|scaleway] [--cli-auto] [--non-interactive] [args...]
 
 	./DistroAgentsConsole.sh
-	./DistroAgentsConsole.sh --cli claude
-	./DistroAgentsConsole.sh --cli-auto
+	./DistroAgentsConsole.sh --cli claude-native
+	./DistroAgentsConsole.sh --cli-auto --non-interactive "list the projects that changed today"
 	./DistroAgentsConsole.sh --non-interactive "list the projects that changed today"
 	echo "list the projects that changed today" | ./DistroAgentsConsole.sh --non-interactive
 
@@ -55,12 +60,13 @@ Keep the console for work that needs an agent session.
   on a machine where nothing else is set up. Configure it once with
   `DistroAgentsTools.fn.sh --owner-setup-scaleway`. It is one-shot only: always pass
   `--non-interactive`, and it will tell you so if you forget.
-- `--cli-auto` — take the configured CLI (`SPAWN_CLI_SERVICE`), or the first installed one from the
-  order above when none is configured.
+- `--cli-auto` — for a start with no terminal, as `--non-interactive`: take the configured CLI
+  (`SPAWN_CLI_SERVICE`), or the first installed one from the order above when none is configured. On a
+  terminal it opens the manager screen, as a plain start does.
 - `--cli <name>` — start that CLI. A CLI missing from `PATH` is an error; there is no fallback.
-- No `--cli` given — the same as `--cli-auto`: the configured CLI, else the first installed one from
-  the order above, else an interactive bash session. A configured CLI missing from `PATH` is an
-  error, the same as naming it with `--cli`.
+- No `--cli` given — on a terminal, the manager screen. With no terminal, the same as `--cli-auto`: the
+  configured CLI, else the first installed one from the order above, else a bash session. A configured
+  CLI missing from `PATH` is an error, the same as naming it with `--cli`.
 - `--non-interactive` — one-shot, no attached terminal.
 	- Supported for `copilot`, `copilot-native`, `claude`, `claude-native`, `grok` and `scaleway`.
 	  Not for `grok-native`.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the list of the manager screen and on what a key does (sh-lib/AgentsManagerScreen.py), run
-## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py): each
+## rather than read, through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py): each
 ## case feeds keys and reads the screen and the state back as text. Held: the root holds `Sessions (Activity)`,
 ## `Pending Questions`, `Team Members`, `Consoles (Tools)`, `Settings` and `Configuration` in that order, the first one selected; Enter
 ## dives into a row, the first row below the root goes up, and so does Backspace from any row, back onto the row that was
@@ -18,7 +18,7 @@
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
-rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.test.py"
+rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

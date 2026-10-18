@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##
-## manager-screen.vt.test.py -- a terminal that keeps its cells, for the checks of the manager screen
+## manager-screen.vt.stub.py -- a terminal that keeps its cells, for the checks of the manager screen
 ## that must see what stays on a real terminal after it was drawn on, and not only what the screen
 ## meant to draw. Run with `python3 -I -B`.
 ##
@@ -705,7 +705,7 @@ def main(arguments):
         return runSteps(arguments[2:])
     if len(arguments) >= 4 and arguments[1] == "inner" and arguments[3] == "--":
         return innerRun(arguments[0], arguments[2], arguments[4:])
-    sys.stderr.write("manager-screen.vt.test.py: expects <screen file> run <columns> <lines> <dump> -- <command...>"
+    sys.stderr.write("manager-screen.vt.stub.py: expects <screen file> run <columns> <lines> <dump> -- <command...>"
                      " | inner <dump> -- <arguments...>\n")
     return 2
 

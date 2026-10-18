@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on what stays on a real terminal after the manager screen (sh-lib/AgentsManagerScreen.py) drew on
 ## it, run rather than read. The real screen runs on a pseudo-terminal in front of a terminal that keeps its cells and
-## answers where its cursor is (check-fixtures/manager-screen.vt.test.py), and after each step every cell of that
+## answers where its cursor is (check-fixtures/manager-screen.vt.stub.py), and after each step every cell of that
 ## terminal is compared with what the screen drew last: nothing of an earlier frame may stand anywhere, no mark of the
 ## selection, no line of a frame, no shade of a scroll bar, no character of another view. Held on a terminal that
 ## moves one cell for an emoji a selector makes of a character of one cell and for a keycap, and each joined emoji in
@@ -17,16 +17,16 @@
 ## both ways. A menu walked item by item changes the look of two items and no character; in every dialog the button
 ## that has the keys is the only one in its look, and the first one, the default, keeps its marks. A quiet tick sends
 ## the clock alone; a frame is sent whole only where its layout changed or what lay over it closed (`repaints` of the
-## driver, check-fixtures/manager-screen.driver.test.py). At its end, by its key or
+## driver, check-fixtures/manager-screen.driver.py). At its end, by its key or
 ## by a signal, on a terminal with another screen and on one without, nothing of the screen stays and the cursor
 ## stands at the start of a blank line; a failure is said after the terminal was given back, and stays to be read.
-## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
+## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigVt="$rigFixtures/manager-screen.vt.test.py"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigVt="$rigFixtures/manager-screen.vt.stub.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -40,7 +40,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"
 export MANAGER_SCREEN_RIG="$rigTmp/rig"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.test.sh" > "$rigTmp/tools"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.stub.sh" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
 export TZ=UTC
 rigPassCount=0

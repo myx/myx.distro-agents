@@ -59,8 +59,8 @@ rigTool="$rigTmp/origin/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh
 rigBasic="$rigTmp/origin/myx/myx.distro-agents/skillset/magic-team/magic-team/magic-team.basic.md"
 
 mkdir -p "$rigTmp/bin" "$rigTmp/scenario" "$rigTmp/home" "$rigTmp/tmp"
-cp "$rigTest/check-fixtures/vscode-panel-check.code.test.sh" "$rigTmp/bin/code" \
-	|| rigRefuse "the fake code fixture is missing: $rigTest/check-fixtures/vscode-panel-check.code.test.sh"
+cp "$rigTest/check-fixtures/vscode-panel-check.code.stub.sh" "$rigTmp/bin/code" \
+	|| rigRefuse "the fake code fixture is missing: $rigTest/check-fixtures/vscode-panel-check.code.stub.sh"
 chmod +x "$rigTmp/bin/code"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v code )" = "$rigTmp/bin/code" ] || rigRefuse "the fake code is not first on PATH"

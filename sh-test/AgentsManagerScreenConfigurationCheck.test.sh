@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the two folders of the root `Configuration` of the manager screen (sh-lib/AgentsManagerScreen.py),
 ## `Config Checker` and `Server Keys`, run rather than read. The screen's own code runs through the stand-in terminal
-## of the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture: rows
+## of the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture: rows
 ## in the forms `--manager-check-run`, `--manager-keys-list` and `--manager-keys-read <key>` print.
 ## Held: the two folders stand in `Configuration` ahead of its subjects, and neither is read before it is entered;
 ## the checks are run on demand alone, by the key the status line names, never on entering, never on the period and
@@ -29,8 +29,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -526,8 +526,8 @@ rigAssert "on its row the left window is a table of each name and where it is, n
 rigAssert "PATH is where the command is located, its project as workspace:project path, under the source folder of the workspace, no file name, no sh-scripts, no source (the owner: \"no command name inclided in path - it is where the command located at!\", \"Even sh-scripts is not needed\", \"Just a workspace:project_path\"); a folder in no workspace's source by the place: form, in no location as it is, and a dash where nothing resolves, in the order the operation gives" "$( rigColumnJoined t PATH | head -c 56 ) $( rigColumnJoined t PATH | LC_ALL=C grep -c -F -e '.fn.sh' -e 'sh-scripts' -e 'source/' )" "ws-one:myx/myx.distro-agents/rig/elsewhere-tools-dir:pkg 0"
 rigAssert "it is read by the one operation, with no argument, once" "$( rigCalled --manager-command-list ) $( LC_ALL=C grep -c -e '--manager-command-list' "$MANAGER_SCREEN_RIG/calls" )" "1 1"
 rigAssert "inside, each command is a row of its own, by its name" "$( rigVal in.path ) $( rigVal in.rows ) [$( rigCell row2 )][$( rigCell row3 )][$( rigCell row4 )]" "configuration/commands 5 [ DistroAgentsTools.fn.sh][ JumpRig.fn.sh][ ScreenTo.fn.sh]"
-rigAssert "a command selected: its help is read by the help read with its name, once, and the left window shows it rendered, its title says so" "$( rigVal help.selected ) $( rigCalled '--manager-help-read DistroAgentsTools.fn.sh' ) [$( rigPane h 2 )] $( rigPaneHolds h ' 📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include' ) $( rigPaneHolds h ' Summary:' ) $( rigScreenHolds h '##' ) $( rigScreenHolds h '**' ) $( rigScreenHolds h '`' )" "DistroAgentsTools.fn.sh 1 [ DistroAgentsTools.fn.sh [markdown] [wrap]] 1 1 0 0 0"
-rigAssert "its option heads its text, set in as the help sets it, in the look of a heading, and a long sentence is broken to the window" "$( rigPaneHolds h '         --rig-option <value>' ) $( rigLookOf h hr '--rig-option <value>' ) $( rigScreenHolds h 'ENDWORD' ) $( rigScreenHolds h 'What the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.' )" "1 BBBBBBBBBBBBBBBBBBBB 1 0"
+rigAssert "a command selected: its help is read by the help read with its name, once, and the left window shows it rendered, its title says so" "$( rigVal help.selected ) $( rigCalled '--manager-help-read DistroAgentsTools.fn.sh' ) [$( rigPane h 2 )] $( rigPaneHolds h ' 📘 syntax: DistroAgentsTools.fn.sh --only-in-the-include' ) $( rigPaneHolds h '  Summary:' ) $( rigScreenHolds h '##' ) $( rigScreenHolds h '**' ) $( rigScreenHolds h '`' )" "DistroAgentsTools.fn.sh 1 [ DistroAgentsTools.fn.sh [markdown] [wrap]] 1 1 0 0 0"
+rigAssert "its option heads its text, set in as the help sets it, plain as --help prints it, and a long sentence is broken to the window" "$( rigPaneHolds h '         --rig-option <value>' ) $( rigLookOf h hr '--rig-option <value>' ) $( rigScreenHolds h 'ENDWORD' ) $( rigScreenHolds h 'What the option does, a long sentence that goes on and on, so that it is broken across the width of the left window, and ENDWORD.' )" "1 .................... 1 0"
 rigAssert "g shows it as it is, b renders it again, and w cuts each line instead of breaking it" "$( rigVal raw.textMode ) $( rigPaneHolds r ' ##  Summary:' ) $( rigVal cut.textMode ) $( rigScreenHolds c 'What the option does, a long sentence that goes on and on, so that' ) $( rigScreenHolds c 'ENDWORD' ) $( rigScreenHolds c '[cut]' )" "raw 1 summary 1 0 1"
 rigAssert "a command whose help read gives nothing says plainly that it has no help file, and only the selected commands were read" "$( rigVal none.selected ) $( rigPaneHolds n ' JumpRig.fn.sh has no help file beside it.' ) $( LC_ALL=C grep -c -e '^--manager-help-read' "$MANAGER_SCREEN_RIG/calls" ) $( rigCalled '--manager-help-read ScreenTo.fn.sh' )" "JumpRig.fn.sh 1 2 0"
 

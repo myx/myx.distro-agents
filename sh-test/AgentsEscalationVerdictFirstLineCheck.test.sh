@@ -155,7 +155,7 @@ rigAssert "a reply that is none does not end the reading: the next one that answ
 
 echo "-- the tools: his words come with the verdict, and a reply that is none comes back whole --"
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/fixture-curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/fixture-curl" || rigRefuse "the fake curl fixture is missing from the package"
 cat > "$rigTmp/bin/curl" <<'RIG_CURL'
 #!/usr/bin/env bash
 ## The package's fake curl, with one thing added: a thread that grows. After the first read of

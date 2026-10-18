@@ -53,8 +53,8 @@ rigNamesFile="$rigAgentsDir/$rigNamesName.registry"
 rigMembersFile="$rigAgentsDir/$rigMembersName.registry"
 rigLinkedFile="$rigWs/.local/agents/members.registry"
 mkdir -p "$rigTmp/bin" "$rigHome"
-cp "$rigTest/check-fixtures/slack-client-persona-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-client-persona-check.curl.test.sh"
+cp "$rigTest/check-fixtures/slack-client-persona-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-client-persona-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"

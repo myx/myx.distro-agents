@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the root `Team Data` of the manager screen (sh-lib/AgentsManagerScreen.py) and on its
 ## `Operations`, its cleanups and its sync, run in the big output dialog, run rather than read. The screen's own code runs through the stand-in
-## terminal of the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it
-## calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the
+## terminal of the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it
+## calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the
 ## fixture, or becomes a script of the rig that writes on both streams over time and ends as it is told.
 ## Held: the root stands after Team Members only where the dashboard says that the team data is there, the number
 ## keys follow the list as it is shown, so where it is not the roots after it keep their numbers, and its item of the
@@ -17,8 +17,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

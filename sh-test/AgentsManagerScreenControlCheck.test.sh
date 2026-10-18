@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on what the manager screen (sh-lib/AgentsManagerScreen.py) shows of the control thread of a
 ## session, and on its key `c`, run rather than read. The screen's own code runs through the stand-in terminal of
-## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start, its arguments word for word
+## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start, its arguments word for word
 ## and what came on its standard input, and prints the fixture kept for those very arguments: rows in the forms
 ## `--manager-session-list`, `--manager-session-read` and `--manager-session-control-start` print.
 ## Held: the three fields at the end of a `session` row come with the rows the screen already asks for, and no call
@@ -28,8 +28,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -40,7 +40,7 @@ rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH"
 ## This check names the operation that starts a control thread, and only its stand-in is ever called. It ends the
 ## control threads of its rig all the same, as every check that names that operation does: the guard of
 ## AgentsSessionControlStartCheck holds it to that, and none is found here.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the fixture that ends the control threads of a rig is missing: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the fixture that ends the control threads of a rig is missing: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsManagerScreenControlCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT

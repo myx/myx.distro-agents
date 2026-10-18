@@ -30,7 +30,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 rigRealPython="$( command -v python3 )" || rigRefuse "no python3 on PATH to hand every other script to"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mktemp -d -t AgentsClientSettingsFallbackCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## A loop in the code under test must end the check rather than hang it: nothing here legitimately runs long.
@@ -43,8 +43,8 @@ rigIndexFile="$rigHome/.agents/magic-team/members.registry"
 rigListFile="$rigHome/.agents/magic-team/known-workspaces.registry"
 mkdir -p "$rigTmp/bin"
 for rigFake in curl python3 ; do
-	cp "$rigTest/check-fixtures/client-systems-check.$rigFake.test.sh" "$rigTmp/bin/$rigFake" \
-		|| rigRefuse "the fake $rigFake fixture is missing from the package: $rigTest/check-fixtures/client-systems-check.$rigFake.test.sh"
+	cp "$rigTest/check-fixtures/client-systems-check.$rigFake.stub.sh" "$rigTmp/bin/$rigFake" \
+		|| rigRefuse "the fake $rigFake fixture is missing from the package: $rigTest/check-fixtures/client-systems-check.$rigFake.stub.sh"
 	chmod +x "$rigTmp/bin/$rigFake"
 done
 PATH="$rigTmp/bin:$PATH"

@@ -243,7 +243,7 @@ rigAssert "a served tool's line carries its description" "$( LC_ALL=C grep -F ' 
 rigAssert "the daemon log lines carry them too" "$( LC_ALL=C grep -c -e '^aaaa1111 .* | "Say the rig intent"$' -e '^aaaa1111 .* | "Look for the rig intent files"$' "$rigTmp/err3" )" 2
 
 echo "-- the harness model loop: rounds, tokens, text, tools, restart, final --"
-cp "$rigTest/check-fixtures/harness-restart-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
+cp "$rigTest/check-fixtures/harness-restart-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
 chmod +x "$rigTmp/bin/curl"
 rigLoopSid="cccc3333-0000-4000-8000-000000000003"
 rigLoop="$rigTmp/loop"

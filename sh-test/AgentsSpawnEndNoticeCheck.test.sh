@@ -48,8 +48,8 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigLib="$rigPackage/sh-lib"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigLib/AgentsUniversalHarness.sh"
-rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.test.sh"
-rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.test.sh"
+rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
+rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 rigNote="tooling-note.post.format.md"
 
 rigRefuse(){
@@ -59,8 +59,8 @@ rigRefuse(){
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is
 ## still that process; a control thread the advance scan of this rig starts is ended the same way, at the end.
-. "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsSpawnEndNoticeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"

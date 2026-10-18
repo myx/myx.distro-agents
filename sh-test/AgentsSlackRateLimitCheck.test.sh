@@ -18,8 +18,8 @@ rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSlackRateLimitCheck.XXXXXX" )" || ex
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/magic-team"
-cp "$rigTest/check-fixtures/slack-ratelimit-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/slack-ratelimit-check.curl.test.sh"
+cp "$rigTest/check-fixtures/slack-ratelimit-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/slack-ratelimit-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"

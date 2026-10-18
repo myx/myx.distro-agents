@@ -146,7 +146,7 @@ rigErrors(){ ## how many lines the console wrote to its error output, and how ma
 ## makes: once the text was drawn the keys are written. What the driver says of the run is kept in rigPty.
 rigEntryPty(){ ## the text to wait for, the keys, console args...
 	local ptyWait="$1" ptyKeys="$2" ; shift 2
-	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.test.py" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
+	rigPty="$( python3 -I -B "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py" pty 100 30 "$ptyWait" "$ptyKeys" 90 -- \
 		env -i HOME="$rigDir/home" PATH="$rigDir/bin:/usr/bin:/bin" TERM=xterm RIG_TMP="$rigTmp" RIG_CONSOLE="$rigDir/ws/DistroAgentsConsole.sh" \
 		bash -c '
 			case "$RIG_CONSOLE" in "$RIG_TMP"/*) ;; *) echo "RIG-GUARD: console outside the rig tree" >&2 ; exit 99 ;; esac
@@ -281,7 +281,7 @@ rigAssert "no bash console opens"                             "$( rigBashConsole
 echo "-- refusal: --manager where the python3 first on PATH cannot load curses --"
 rigScenario manager-nocurses claude-native "" claude
 rigRealPython="$( command -v python3 )" || rigRefuse "no python3 on PATH to stand behind the one that cannot load curses"
-printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.test.sh" > "$rigDir/bin/python3"
+printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.stub.sh" > "$rigDir/bin/python3"
 chmod +x "$rigDir/bin/python3"
 rigEntryPty "Sessions (Activity)" '\x18' --manager
 rigAssert "on a terminal too, no screen comes up"             "$( rigPtyVal frame ) $( rigPtyVal entered )" "no no"
@@ -293,7 +293,7 @@ rigAssert "the screen came up there"                          "$( LC_ALL=C grep 
 
 echo "-- a plain start of a leg where the python3 first on PATH cannot load curses: one line, status 1, nothing in its place --"
 rigScenario leg-nocurses claude "" claude
-printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.test.sh" > "$rigDir/bin/python3"
+printf '#!/bin/sh\nRIG_REAL_PYTHON3="%s" exec bash "%s" "$@"\n' "$rigRealPython" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.python3.stub.sh" > "$rigDir/bin/python3"
 chmod +x "$rigDir/bin/python3"
 rigEntryPty "Sessions (Activity)" '\x18'
 rigAssert "no screen comes up"                                "$( rigPtyVal frame ) $( rigPtyVal entered )" "no no"

@@ -13,7 +13,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.test.sh" ] || rigRefuse "the sweep-concurrency fixture is missing from the package"
+[ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" ] || rigRefuse "the sweep-concurrency fixture is missing from the package"
 rigTmp="$( mktemp -d -t AgentsSweepConcurrencyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -76,7 +76,7 @@ rigSweep(){ ## name, origin
 	local sweepDir="$rigTmp/$1" sweepClient
 	mkdir -p "$sweepDir/bin" "$sweepDir/ws/.local/.agents" "$sweepDir/ws/.local/temp" "$sweepDir/ws/.local/agents/members/magic-coordinator" \
 		"$sweepDir/data/inboxes/magic-coordinator" "$sweepDir/data/board/running" "$sweepDir/data/audit"
-	cp "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.test.sh" "$sweepDir/bin/curl" && chmod +x "$sweepDir/bin/curl"
+	cp "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" "$sweepDir/bin/curl" && chmod +x "$sweepDir/bin/curl"
 	printf '# fixture\n' > "$sweepDir/ws/.local/agents/members/magic-coordinator/SKILL.md"
 	printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$sweepDir/ws/.local/.agents/magic-team.agent.env"
 	printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$sweepDir/ws/.local/.agents/magic-coordinator.agent.env"

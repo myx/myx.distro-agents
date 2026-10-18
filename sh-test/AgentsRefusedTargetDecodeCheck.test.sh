@@ -27,8 +27,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/harness-ask-check.curl.test.sh"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/harness-ask-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH

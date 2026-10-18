@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on how the log mode of the left window of the manager screen (sh-lib/AgentsManagerScreen.py)
 ## sets out an entry of the feed, run rather than read. The screen's own code runs through the stand-in terminal of
-## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which prints rows in the forms the operations print.
+## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which prints rows in the forms the operations print.
 ## Held: an entry is a head line, its time and its member ended by a colon, and its body on the lines after it, set
 ## in by the width of the time and one blank; the mark of the entry starts the body; every body starts in the same
 ## column; a long body is broken at words, keeps that indent on every line it goes on, and loses no word; every
@@ -16,8 +16,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

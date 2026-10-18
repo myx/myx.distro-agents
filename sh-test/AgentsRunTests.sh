@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ##
-## AgentsRunTests.sh -- runs sh-test/*.test.sh in parallel (myx.common lib/parallel) and keeps
+## AgentsRunTests.sh -- runs sh-test/*.test.sh and sh-test/*/*.test.sh in parallel (myx.common lib/parallel) and keeps
 ## one log and one receipt per test in a run folder:
 ##   $MMDAPP/.local/temp/mdat-tests/<UTC-stamp>/<test>.log      the test's whole output
 ##     (<UTC-stamp>-<pid> for a run started in the same second as another)
@@ -10,7 +10,8 @@
 ##
 ## Usage: AgentsRunTests.sh [-w <workers>] [-t <timeout-seconds>] [--stall-margin <seconds>] [<name-substring>...]
 ##        AgentsRunTests.sh --passed [<name-substring>...]
-##   no substrings: every *.test.sh; otherwise the tests whose name contains any of them.
+##   no substrings: every *.test.sh of sh-test and of its subfolders, one level down (a test is
+##   known by its name, so no two share one); otherwise the tests whose name contains any of them.
 ##   --passed runs nothing: for each of those tests it prints one line, `<test> <when>`, the
 ##   time it passed on the very state it would run on now, or `<test> -` where no such pass
 ##   is on record (the pass record, below).
@@ -360,9 +361,10 @@ AgentsRunPassKeep(){ ## test name, key, seconds -- that pass on record, whole or
 	printf 'passed=%s\nseconds=%s\norigin=%s\n' "$( date -u +%Y-%m-%dT%H:%M:%SZ )" "$3" "$MDLT_ORIGIN" > "$runPassDir/$1/.$2.$$" 2>/dev/null \
 		&& mv -f "$runPassDir/$1/.$2.$$" "$runPassDir/$1/$2" 2>/dev/null || { rm -f "$runPassDir/$1/.$2.$$" 2>/dev/null ; return 1 ; }
 }
-AgentsRunNames(){ ## name-substring... -- the tests of this copy, one on a line: every *.test.sh, or those whose name contains any of the substrings
+AgentsRunNames(){ ## name-substring... -- the tests of this copy, one on a line: every *.test.sh of sh-test and of its subfolders, or those whose name contains any of the substrings
 	local namesTest namesName namesWant namesPick
-	for namesTest in "$testDir"/*.test.sh ; do
+	for namesTest in "$testDir"/*.test.sh "$testDir"/*/*.test.sh ; do
+		[ -f "$namesTest" ] || continue
 		namesName="$( basename "$namesTest" .test.sh )"
 		if [ $# -gt 0 ] ; then
 			namesPick=""
@@ -373,6 +375,14 @@ AgentsRunNames(){ ## name-substring... -- the tests of this copy, one on a line:
 		fi
 		printf '%s\n' "$namesName"
 	done
+}
+## The file of a test, by its name: in sh-test itself, else in the subfolder that holds it, one level down.
+AgentsRunTestPath(){ ## test name
+	local pathTest
+	for pathTest in "$testDir/$1.test.sh" "$testDir"/*/"$1.test.sh" ; do
+		[ -f "$pathTest" ] && { printf '%s\n' "$pathTest" ; return 0 ; }
+	done
+	printf '%s\n' "$testDir/$1.test.sh"
 }
 ## Asked what has passed, it runs nothing, stands in no line and makes no run folder.
 if [ -n "$runPassed" ] ; then
@@ -503,7 +513,7 @@ AgentsRunOneTest(){ ## test name, timeout seconds -- one task line of the run li
 		export CLAUDE_CODE_SESSION_ID="rig-run-$oneName-test-only"
 		export MDAT_WAIT_REMIND=off
 		cd "$testDir" || exit 1
-		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$testDir/$oneName.test.sh"
+		exec perl -e "$runSlotKeeper" take "$runSlotDir" "$runSlotDefault" 8 "$runDir/slot-wait.said" "$runDir/$oneName.started" "$runTestLock" "$runOwnFolder" "$oneTimeout" "$BASH" "$( AgentsRunTestPath "$oneName" )"
 	) 8>&2 > "$runDir/$oneName.log" 2>&1 &
 	onePid=$!
 	wait "$onePid" || oneRc=$?

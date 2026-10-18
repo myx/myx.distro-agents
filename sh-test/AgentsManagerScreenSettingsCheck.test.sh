@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the roots `Settings` and `Configuration` of the manager screen (sh-lib/AgentsManagerScreen.py),
 ## run rather than read. The screen's own code runs through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
-## (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture: rows in the form
+## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
+## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture: rows in the form
 ## `--manager-config-digest --full` prints, a `subject` row and then its `line` rows of fifteen fields.
 ## Held: the digest is read only while one of the two roots is shown, by `--manager-config-digest --full`, once
 ## for both, and again on its period; which root a line stands in is the last field of its row, and a subject
@@ -24,8 +24,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

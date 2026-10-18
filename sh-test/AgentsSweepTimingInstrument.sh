@@ -25,8 +25,8 @@ instTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSweepTimingInstrument.XXXXXX" )" ||
 trap 'rm -rf -- "$instTmp"' EXIT
 mkdir -p "$instTmp/bin" "$instTmp/ws/.local/.agents" "$instTmp/ws/.local/agents/members/magic-coordinator" \
 	"$instTmp/data/inboxes/magic-coordinator" "$instTmp/data/board/running" "$instTmp/data/audit"
-cp "$instHere/check-fixtures/sweep-timing.curl.test.sh" "$instTmp/bin/curl" \
-	|| { echo "⛔ ERROR: the fake curl fixture is missing: $instHere/check-fixtures/sweep-timing.curl.test.sh" >&2 ; exit 1 ; }
+cp "$instHere/check-fixtures/sweep-timing.curl.stub.sh" "$instTmp/bin/curl" \
+	|| { echo "⛔ ERROR: the fake curl fixture is missing: $instHere/check-fixtures/sweep-timing.curl.stub.sh" >&2 ; exit 1 ; }
 chmod +x "$instTmp/bin/curl"
 [ "$( PATH="$instTmp/bin:$PATH" command -v curl )" = "$instTmp/bin/curl" ] \
 	|| { echo "⛔ ERROR: the fake curl is not first on PATH, so this would issue real requests" >&2 ; exit 1 ; }

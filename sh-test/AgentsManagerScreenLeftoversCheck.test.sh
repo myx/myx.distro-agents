@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the leftovers of the manager screen (sh-lib/AgentsManagerScreen.py), the small things its
 ## specification left for last, run rather than read. The screen's own code runs through the stand-in terminal of
-## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture.
+## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture.
 ## Held: the title of the left window always says how its long lines are shown, `[wrap]` or `[cut]`, beside the
 ## mode of a thing that has a log, in every style, and the choice is kept as the selection moves; the status line
 ## names the key of the help, last of the keys that work in every window; a kill whose plan could not be read is
@@ -17,8 +17,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

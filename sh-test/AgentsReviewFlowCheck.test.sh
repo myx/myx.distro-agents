@@ -18,7 +18,7 @@ set -u
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigHarness="$rigLib/AgentsUniversalHarness.sh"
-rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.test.sh"
+rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -27,9 +27,9 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found: $rigHarness"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsReviewFlowCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
@@ -347,13 +347,19 @@ rigEnv=()
 rigAssert "its next handback goes to review again"         "$( rigLoc dispatch-20261008T1200Z-ret )" review
 
 echo "-- 9. return to an ended session: the same session restarted, with corrections and Decisions --"
-rigRecord rig-ended-ret spawn-succeeded CEND00001:1700000000.000500 dispatch-20261008T1200Z-rst trk-rig-rst
+## The run it replaces was brought into its caller's own session, rig-par-rst, whose thread is recorded for it.
+rigRecord rig-ended-ret spawn-succeeded CEND00001:1700000000.000500 dispatch-20261008T1200Z-rst trk-rig-rst 'start-context: inline
+parent-session: rig-par-rst
+'
+mkdir -p "$rigWs/.local/agents/sessions/rig-par-rst" && printf '%s\n' CPRS00001:1700000000.000550 > "$rigWs/.local/agents/sessions/rig-par-rst/session.thread"
 rigItem review dispatch-20261008T1200Z-rst rig-ended-ret
 rigOp "$rigTmp/v3" --member-review-return magic-coordinator dispatch-20261008T1200Z-rst --message "redo the rig step"
 rigAssert "the op succeeds"                                "$( cat "$rigTmp/v3.rc" )" 0
 rigAssert "it says it restarted the session"               "$( LC_ALL=C grep -c '^RETURN: restarted keeper-myx on dispatch-20261008T1200Z-rst' "$rigTmp/v3" )" 1
 rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-rst"/*.md ; do [ "${rigCandidate##*/}" = rig-ended-ret.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
 rigAssert "a new spawn joined the same sandbox"            "$( [ -n "$rigNewRecord" ] && LC_ALL=C grep -c -x 'spawned-by: dispatch-20261008T1200Z-rst' "$rigNewRecord" )" 1
+rigAssert "it carries the start context and the parent session of the run it replaces" \
+	"$( LC_ALL=C sed -n -e 's/^start-context: //p' -e 's/^parent-session: //p' "$rigNewRecord" | tr '\n' ' ' )" "inline rig-par-rst "
 rigNewSpawn="${rigNewRecord##*/}" ; rigNewSpawn="${rigNewSpawn%.md}"
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigNewSpawn"
 rigAssert "its brief carries the corrections"              "$( LC_ALL=C grep -c -x 'redo the rig step' "$rigTmp/console-in.$rigNewSpawn" )" 1
@@ -361,6 +367,12 @@ rigAssert "and the item's Decisions first"                 "$( LC_ALL=C grep -c 
 rigAssert "the item names the new spawn"                   "$( LC_ALL=C grep -h -c -x "spawn-id: $rigNewSpawn" "$rigData"/board/*/dispatch-20261008T1200Z-rst.md )" 1
 rigWaitFor 40 test -f "$rigData/board/review/dispatch-20261008T1200Z-rst.md"
 rigAssert "it ends with no handback, so back to review"    "$( rigLoc dispatch-20261008T1200Z-rst )" review
+: > "$rigTmp/calls" ; : > "$rigTmp/bodies"
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID="$rigNewSpawn" )
+rigTool "$rigTmp/v3h" SubagentHandback '{"outcome":"redone","to":"session-parent"}'
+rigEnv=()
+rigAssert "its handback to session-parent reaches the thread of the session that started the run it replaces" \
+	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep -c '"channel": *"CPRS00001"' "$rigTmp/bodies" )" 0:1
 
 echo "-- 10. reject: -> pending, the child dismissed, corrections in Decisions for the fresh spawn --"
 rigLive rig-live-rej-$$

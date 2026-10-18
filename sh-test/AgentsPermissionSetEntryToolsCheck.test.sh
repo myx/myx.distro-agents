@@ -30,7 +30,7 @@ rigTmp="$( mktemp -d -t AgentsPermissionSetEntryToolsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-ask-forms.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-forms.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds

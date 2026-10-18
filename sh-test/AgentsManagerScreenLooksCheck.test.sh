@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the small looks of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read. The
-## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py), and
-## where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh), which
+## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py), and
+## where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh), which
 ## prints rows in the forms the operations print, at once, after a wait, or fails, as the case says.
 ## Held: a window that waits for its first rows says `Populating <its name>...` in a pale look, the list under its
 ## fixed rows and the left window on its first line, and no more once the rows have come; a list that was read and
@@ -16,8 +16,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

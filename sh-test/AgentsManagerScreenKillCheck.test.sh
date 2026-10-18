@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the kill key of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read.
-## The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py),
-## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.test.sh),
+## The screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
+## and where it would call the dispatcher it calls a stand-in script (check-fixtures/manager-screen.tools.stub.sh),
 ## which notes each start, its arguments word for word and what came on its standard input, and prints the fixture
 ## kept for those very arguments: rows in the forms `--manager-session-list` and `--manager-session-kill` print.
 ## Held: `k` on a running session opens the line to type in and says above it exactly what will be killed: the
@@ -25,8 +25,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

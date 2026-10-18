@@ -34,7 +34,7 @@ rigInstallFixture(){
 	cp "$rigFixtures/$1" "$2" || rigRefuse "a fixture is missing from the package: $rigFixtures/$1"
 	chmod +x "$2"
 }
-rigInstallFixture harness-mcp-check.curl.test.sh "$rigTmp/bin/curl"
+rigInstallFixture harness-mcp-check.curl.stub.sh "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
 
@@ -42,14 +42,14 @@ PATH="$rigTmp/bin:$PATH"
 ## line-per-object stdio transport over the same three requests. It records what it was
 ## asked for, so the rig can assert that enumeration happened once per round, across a
 ## summarise-and-restart, and that a refused call never reached it at all.
-rigInstallFixture harness-mcp-check.mcp-server.test.sh "$rigTmp/bin/rigmcp"
+rigInstallFixture harness-mcp-check.mcp-server.stub.sh "$rigTmp/bin/rigmcp"
 
 ## Denies exactly when the payload carries the rig's argument marker, which reaches a
 ## hook only through `tool_input`. Silence and exit 0 is the allow every hook in this
 ## estate uses, so an emptied `tool_input` makes this same hook permit the call.
 ## Shared with AgentsHarnessCopilotLegCheck.test.sh, which asserts the same thing about the
 ## same marker -- one fixture, because the two bodies were byte-identical copies.
-rigInstallFixture pre-tool-use-deny-on-marker.test.sh "$rigTmp/bin/rigdeny"
+rigInstallFixture pre-tool-use-deny-on-marker.hook.stub.sh "$rigTmp/bin/rigdeny"
 
 ## A provider stub's job, done here instead: the core refuses to start without these.
 ## The host is a reserved .invalid name that can never resolve and the token is a

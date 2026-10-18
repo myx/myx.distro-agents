@@ -14,7 +14,7 @@ rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
-[ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.test.sh" ] || rigRefuse "the sweep fixture is missing from the package"
+[ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" ] || rigRefuse "the sweep fixture is missing from the package"
 rigTmp="$( mktemp -d -t AgentsSweepOwnCutoffCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
@@ -36,7 +36,7 @@ rigExplicitTs="$(( rigNow - 3000 )).000300"
 rigDir="$rigTmp/fix"
 mkdir -p "$rigDir/bin" "$rigDir/home" "$rigDir/ws/.local/.agents" "$rigDir/ws/.local/temp" "$rigDir/ws/.local/agents/members/magic-coordinator" \
 	"$rigDir/data/inboxes/magic-coordinator" "$rigDir/data/board/running" "$rigDir/data/audit"
-cp "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.test.sh" "$rigDir/bin/curl" && chmod +x "$rigDir/bin/curl"
+cp "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" "$rigDir/bin/curl" && chmod +x "$rigDir/bin/curl"
 printf '# fixture\n' > "$rigDir/ws/.local/agents/members/magic-coordinator/SKILL.md"
 printf 'SLACK_BOT_TOKEN=xoxb-fixture\nSLACK_CHANNEL_MAGIC_TEAM=CFIXTEAM001\nSLACK_CHANNEL_HUMAN_OWNER=UFIXOWNER01\n' > "$rigDir/ws/.local/.agents/magic-team.agent.env"
 printf 'SLACK_USER_TOKEN=xoxp-fixture-coordinator\n' > "$rigDir/ws/.local/.agents/magic-coordinator.agent.env"

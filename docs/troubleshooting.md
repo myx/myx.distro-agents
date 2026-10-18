@@ -4,7 +4,7 @@
 
 ## A read-only call through the console is slow and costs credits
 
-`DistroAgentsConsole.sh` starts an agent CLI. A line piped into it arrives as a prompt, so a model reads it and decides whether to run it. Every call through it costs a full model round trip, even a plain read. See [Running the agents console](use.md#running-the-agents-console).
+With no terminal, `DistroAgentsConsole.sh` starts an agent CLI. A line piped into it arrives as a prompt, so a model reads it and decides whether to run it. Every call through it costs a full model round trip, even a plain read. See [Running the agents console](use.md#running-the-agents-console).
 
 For anything read-only, run the script directly:
 
@@ -14,9 +14,9 @@ Keep the console for work that needs an agent session. Whether a write operation
 
 ## Underscores are missing from --help output
 
-The help renderer drops an underscore wherever it appears. `ANTHROPIC_API_KEY` prints as `ANTHROPICAPIKEY`.
+An older `myx.common` renders the help: its `lib/catMarkdown` drops an underscore wherever it appears, so `ANTHROPIC_API_KEY` prints as `ANTHROPICAPIKEY`. Update `myx.common`.
 
-Read the manual file itself, or use `--help-setup-<domain>`, which prints the setup manual as it is.
+Until then, read the manual file itself, or use `--help-setup-<domain>`, which prints the setup manual as it is.
 
 ## A setup call asks for something I did not expect
 

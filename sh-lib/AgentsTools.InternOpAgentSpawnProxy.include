@@ -664,6 +664,10 @@ case "$1" in
 		## says it: a session never spawned carries no member, and each call it makes is served
 		## as one.
 		local callingMemberSaid=""
+		## --parent-session and --start-context: said only by a restart (AgentsReviewRestart), off the
+		## record of the run it replaces, which this one continues: the session that started that run,
+		## and how it was started. Recorded as said, in place of what this call's own caller would give.
+		local parentSessionSaid="" startContextSaid=""
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
@@ -859,6 +863,25 @@ case "$1" in
 					callingMemberSaid="$2"
 					shift 2
 				;;
+				--parent-session)
+					if [ -z "${2:-}" ] ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --parent-session requires <session-id>" >&2
+						set +e ; return 1
+					fi
+					AgentsToolsAssertBareName "$2" "--parent-session" agent-spawn-proxy || { set +e ; return 1 ; }
+					parentSessionSaid="$2"
+					shift 2
+				;;
+				--start-context)
+					case "${2:-}" in
+						spawned|inline|joined) startContextSaid="$2" ;;
+						*)
+							echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --start-context requires spawned, inline or joined, got: ${2:-}" >&2
+							set +e ; return 1
+						;;
+					esac
+					shift 2
+				;;
 				--wait)
 					waitMode="true"
 					shift
@@ -877,7 +900,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>] [--start-context spawned|inline|joined] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -1227,6 +1250,29 @@ case "$1" in
 			sessionId="$parentSessionId"
 			sessionOfCaller="true"
 		fi
+		## HOW THIS RUN IS STARTED, and WHICH SESSION STARTED IT, both kept on its record from its
+		## first write (`start-context:`, `parent-session:`), read off the decision above: `joined`
+		## where it joins a session (by id, by a conversation, or the one its caller is in),
+		## `inline` where it is brought into its caller's own session, `spawned` where it starts a
+		## session. Its parent session is the session its caller works in: the one the caller was
+		## handed, else the one the caller's own record names, else a caller never spawned, whose
+		## own id names its session. None for a bare command line: then no field is written. A
+		## restart says both instead, for the run it continues.
+		local startContext="spawned" parentSession="$inheritedSessionId" parentSessionRecord
+		if [ -n "$joinSessionId" ] || { [ -z "$sessionNew" ] && [ "$sessionThreadMode" != "event-track" ] && [ -n "$inheritedSessionId" ] ; } ; then
+			startContext="joined"
+		elif [ -n "$sessionOfCaller" ] ; then
+			startContext="inline"
+		fi
+		if [ -z "$parentSession" ] && [ -n "$parentSessionId" ] ; then
+			for parentSessionRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentSessionId.md" ; do
+				[ ! -f "$parentSessionRecord" ] || parentSession="$( AgentsToolsSpawnSandboxRecordHeader "$parentSessionRecord" session-id )"
+			done
+			[ -n "$parentSession" ] || parentSession="$parentSessionId"
+		fi
+		[ -z "$startContextSaid" ] || startContext="$startContextSaid"
+		[ -z "$parentSessionSaid" ] || parentSession="$parentSessionSaid"
+		AgentsToolsAssertBareName "$parentSession" "the parent session" agent-spawn-proxy 2> /dev/null || parentSession=""
 
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
@@ -1641,7 +1687,8 @@ case "$1" in
 		## handback, and the DISMISSED that follows it, a thread (AgentsTools.ReviewFlow.include).
 		local parentThread=""
 		type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
-		parentThread="$( AgentsToolsSpawnParentThread "$parentSessionId" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
+		## A restart's own caller is not its parent: the thread is the one of the session it names.
+		parentThread="$( AgentsToolsSpawnParentThread "${parentSessionSaid:-${parentSessionId:-$parentSession}}" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -1659,6 +1706,9 @@ case "$1" in
 			## belongs to which session -- computed above and until now only ever
 			## reaching the event-track post, never this durable record.
 			printf 'parent-session-id: %s\n' "${parentSessionId:-none}"
+			## How this run was started, and the session that started it, where there is one.
+			printf 'start-context: %s\n' "$startContext"
+			[ -z "$parentSession" ] || printf 'parent-session: %s\n' "$parentSession"
 			## The member that made this spawn call, where one is known: who a handback of this
 			## session is for when it names nobody (AgentsToolsSessionParentMember). The calling
 			## session may have no record of its own to read it from.

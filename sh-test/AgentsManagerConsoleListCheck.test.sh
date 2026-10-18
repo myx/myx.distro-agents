@@ -24,7 +24,7 @@ set -u
 rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigPackage="${rigHere%/sh-lib}"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigDriver="$rigPackage/sh-test/check-fixtures/manager-screen.driver.test.py"
+rigDriver="$rigPackage/sh-test/check-fixtures/manager-screen.driver.py"
 rigScreenFile="$rigHere/AgentsManagerScreen.py"
 rigOp="--manager-console-list"
 

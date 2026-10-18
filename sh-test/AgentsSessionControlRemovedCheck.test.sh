@@ -19,7 +19,7 @@
 ## Red before the fix: 2, 3 and 4. The thread stayed for good: its next tick made its control folder again, the
 ## whole removed path with it, took its lock again, and watched nothing.
 ## Offline: only the rig's own tree is read or written. Every thread this check starts is ended by it through
-## check-fixtures/rig-control-threads.include.test.sh, by the notes kept beside the rig's stores, and through
+## check-fixtures/rig-control-threads.include.sh, by the notes kept beside the rig's stores, and through
 ## nothing else; it starts no other process that stays.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -34,7 +34,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 command -v perl > /dev/null 2>&1 || rigRefuse "no perl on PATH to start a process with its signals at their defaults"
 ## The one way this check ends a thread: by its note, `<pid> <start>`, while its pid is still that process.
-. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the fixture that ends the control threads of a rig is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the fixture that ends the control threads of a rig is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsSessionControlRemovedCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT

@@ -45,8 +45,8 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigLib="$rigPackage/sh-lib"
 rigTool="$rigPackage/sh-scripts/DistroAgentsTools.fn.sh"
-rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.test.sh"
-rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.test.sh"
+rigFixture="$rigPackage/sh-test/check-fixtures/slack-send-identity-check.curl.stub.sh"
+rigHelper="$rigPackage/sh-test/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -54,10 +54,10 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigFixture" ] || rigRefuse "the fake curl fixture is missing: $rigFixture"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsSpawnSupervisorHoldsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"

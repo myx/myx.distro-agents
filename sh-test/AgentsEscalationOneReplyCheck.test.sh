@@ -27,7 +27,7 @@ rigTmp="$( mktemp -d -t AgentsEscalationOneReplyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 ## THE RIG'S OWN PROCESS LIST: a spawn is found running by its spawn id in the host's process
 ## list, so the ps first on PATH answers the whole-host listing from the rig's own list and

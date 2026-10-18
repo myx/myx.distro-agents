@@ -49,8 +49,8 @@ printf 'own\t%s\n' "$rigTmp/FRAGMENT-ONLY-ROOT" > "$rigTmp/.claude/copilot-add-d
 ## that is itself shell takes the rest of this check with it, and a check that stops
 ## checking still prints its PASS lines. A missing fixture refuses instead.
 rigFixtures="$rigTest/check-fixtures"
-cp "$rigFixtures/harness-access-roots-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-access-roots-check.curl.test.sh"
+cp "$rigFixtures/harness-access-roots-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-access-roots-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 
 PATH="$rigTmp/bin:$PATH"

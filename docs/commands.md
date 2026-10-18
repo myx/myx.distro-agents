@@ -4,7 +4,7 @@
 
 - `DistroAgentsTools.fn.sh` — the team's operations interface: install, configure, message,
   read and write board items, run console sessions, drive the routine state machinery.
-- `DistroAgentsConsole.sh` — start an agent CLI session against this workspace.
+- `DistroAgentsConsole.sh` — open the manager screen on a terminal, or run one prompt through an agent CLI with `--non-interactive`.
 
 
 ## Setup operations

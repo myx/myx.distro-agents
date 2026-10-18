@@ -253,15 +253,39 @@ case "$1" in
 					## knows the caller's member and the place of its list, asked of the harness itself
 					## (--intern-checklist-place) in this server's environment, which is every call's. The
 					## answer holds for this server's life, so it is asked once and kept beside the floor sum.
+					## The question is bounded as a call is (AgentsMcpCallWatch, in a process group of its
+					## own), at 10 seconds: a harness that does not answer cannot hold this request, a
+					## server's first tools/list or tools/call. Not answered in time, this request serves no
+					## CheckList and nothing is kept: the next tools/list or tools/call asks again, so bounded.
 					mcpCheckListFile="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/checklist.offered"
 					if [ ! -s "$mcpCheckListFile" ] ; then
-						mcpCheckListAnswer="no"
-						case "$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null )" in
-							'CHECKLIST-PLACE: '*) mcpCheckListAnswer="yes" ;;
-						esac
-						mcpCheckListTmp="$( mktemp "$mcpCheckListFile.XXXXXX" 2> /dev/null )" \
-							&& { printf '%s\n' "$mcpCheckListAnswer" > "$mcpCheckListTmp" && mv -f "$mcpCheckListTmp" "$mcpCheckListFile" ; } 2> /dev/null \
-							|| rm -f "$mcpCheckListTmp" 2> /dev/null || :
+						mcpCheckListAnswer="no" ; mcpCheckListAnswered=""
+						mcpCheckListOut="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/checklist.$AGENTS_MCP_REQ_SEQ"
+						mcpCheckListKill="$MMDAPP/.local/temp/agent-mcp.$mcpServerPid/checklistkilled.$AGENTS_MCP_REQ_SEQ"
+						rm -f "$mcpCheckListKill"
+						set -m
+						( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsUniversalHarness.sh" --intern-checklist-place < /dev/null 2> /dev/null ) > "$mcpCheckListOut" 3>&- &
+						mcpCheckListPid=$!
+						AgentsMcpCallWatch 10 "$mcpCheckListPid" "$mcpCheckListKill" 3>&- &
+						mcpCheckListWatchPid=$!
+						set +m
+						wait "$mcpCheckListPid"
+						## Answered in time, its watchdog is ended with it. Once that has fired it is left to
+						## finish, as a call's is, and this request answers without CheckList.
+						if [ ! -f "$mcpCheckListKill" ] ; then
+							mcpCheckListAnswered=1
+							kill -TERM -- "-$mcpCheckListWatchPid" 2>/dev/null
+							wait "$mcpCheckListWatchPid" 2>/dev/null
+							case "$( cat "$mcpCheckListOut" 2> /dev/null )" in
+								'CHECKLIST-PLACE: '*) mcpCheckListAnswer="yes" ;;
+							esac
+						fi
+						rm -f "$mcpCheckListKill" "$mcpCheckListOut"
+						if [ -n "$mcpCheckListAnswered" ] ; then
+							mcpCheckListTmp="$( mktemp "$mcpCheckListFile.XXXXXX" 2> /dev/null )" \
+								&& { printf '%s\n' "$mcpCheckListAnswer" > "$mcpCheckListTmp" && mv -f "$mcpCheckListTmp" "$mcpCheckListFile" ; } 2> /dev/null \
+								|| rm -f "$mcpCheckListTmp" 2> /dev/null || :
+						fi
 					else
 						IFS= read -r mcpCheckListAnswer < "$mcpCheckListFile" || mcpCheckListAnswer="no"
 					fi

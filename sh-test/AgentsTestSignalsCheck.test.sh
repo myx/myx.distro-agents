@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the one way a check of sh-test signals a process it kept for later
-## (sh-test/check-fixtures/rig-processes.include.test.sh), and the guard over every other signal of sh-test and
+## (sh-test/check-fixtures/rig-processes.include.sh), and the guard over every other signal of sh-test and
 ## over every signal of the tooling itself (sh-lib, sh-scripts, builders).
 ## A process id is a number the system gives again, on a busy host within about a minute: a check that keeps the
 ## pid of a stand-in and signals it minutes later, in a cleanup or in a trap, signals whoever has that number then.
@@ -36,7 +36,7 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigTest="$rigPackage/sh-test"
-rigHelper="$rigTest/check-fixtures/rig-processes.include.test.sh"
+rigHelper="$rigTest/check-fixtures/rig-processes.include.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -322,9 +322,9 @@ rigList(){
 		'AgentsWaitRoundCheck.test.sh|1|kill -TERM "$rigOpLeft"|@own-path' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookRunPid"|@kept-copy' \
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookWatchPid"|@kept-copy' \
-		'check-fixtures/manager-screen.driver.test.py|1|process.kill()|@uncollected' \
-		'check-fixtures/manager-screen.vt.test.py|1|process.send_signal(getattr(signal, words[0]))|@uncollected' \
-		'check-fixtures/manager-screen.vt.test.py|2|process.kill()|@uncollected'
+		'check-fixtures/manager-screen.driver.py|1|process.kill()|@uncollected' \
+		'check-fixtures/manager-screen.vt.stub.py|1|process.send_signal(getattr(signal, words[0]))|@uncollected' \
+		'check-fixtures/manager-screen.vt.stub.py|2|process.kill()|@uncollected'
 }
 rigToolingList(){
 	printf '%s\n' \
@@ -351,6 +351,7 @@ rigToolingList(){
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$watchBegan" ] ; then kill -KILL -- "-$2"|@own-group' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -KILL $watchLeft|the hard end of a call whose leader the polite one has ended: the group of that number is no longer signalled, and this goes, at once, to what AgentsToolsRegistryGroupLeft gave at that moment, the members kept while the leader lived that are still the processes they were and what those started since' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill -TERM -- "-$mcpWatchPid"|@own-watch' \
+		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM -- "-$mcpCheckListWatchPid"|@own-watch' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
@@ -446,9 +447,9 @@ rigReasons > "$rigTmp/reasons"
 ## Every file of sh-test but two: the helper, where the signals of a kept pid are meant to stand, and this check, whose
 ## list and controls are the texts of signals. What this check itself sends is read further down.
 rigSelf="${0##*/}"
-( cd "$rigTest" && find . -type f | LC_ALL=C sed 's|^\./||' | LC_ALL=C grep -v -x -F -e 'check-fixtures/rig-processes.include.test.sh' -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/files"
+( cd "$rigTest" && find . -type f | LC_ALL=C sed 's|^\./||' | LC_ALL=C grep -v -x -F -e 'check-fixtures/rig-processes.include.sh' -e "$rigSelf" | LC_ALL=C sort ) > "$rigTmp/files"
 rigAssert "control: the files of sh-test are read, the runner, the fixtures and the checks among them, and none has a space in its name" \
-	"$( [ "$( wc -l < "$rigTmp/files" | LC_ALL=C tr -d ' ' )" -ge 200 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'AgentsRunTests.sh' -e 'check-fixtures/manager-screen.driver.test.py' -e 'check-fixtures/AgentsHarnessHooks.legacy.sh' -e 'AgentsReviewFlowCheck.test.sh' "$rigTmp/files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/files" || : )" "many 4 0"
+	"$( [ "$( wc -l < "$rigTmp/files" | LC_ALL=C tr -d ' ' )" -ge 200 ] && echo many ) $( LC_ALL=C grep -c -x -F -e 'AgentsRunTests.sh' -e 'check-fixtures/manager-screen.driver.py' -e 'check-fixtures/AgentsHarnessHooks.legacy.sh' -e 'AgentsReviewFlowCheck.test.sh' "$rigTmp/files" || : ) $( LC_ALL=C grep -c ' ' "$rigTmp/files" || : )" "many 4 0"
 rigGuardOut="$( cd "$rigTest" && rigGuard "$rigTmp/list" $( cat "$rigTmp/files" ) )"
 rigAssert "every signal of sh-test outside the helper is on the list, and every line of the list stands in the code as often as it says (a signal to a pid that was kept goes through the helper, or is listed with the reason its target cannot be gone and its number given again)" "${rigGuardOut:-none}" "none"
 rigAssert "every line of the list gives its reason: one of the named ones, or one written out" \

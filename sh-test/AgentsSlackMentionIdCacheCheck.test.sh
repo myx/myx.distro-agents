@@ -27,8 +27,8 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigData="$rigTmp/data" ; rigHome="$rigTmp/home"
 mkdir -p "$rigTmp/bin" "$rigHome"
-cp "$rigTest/check-fixtures/slack-mention-id-cache-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-mention-id-cache-check.curl.test.sh"
+cp "$rigTest/check-fixtures/slack-mention-id-cache-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-mention-id-cache-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"

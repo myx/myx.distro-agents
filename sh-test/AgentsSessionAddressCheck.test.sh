@@ -36,7 +36,7 @@ rigRefuse(){
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsSessionAddressCheck.XXXXXX" )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/tmp"
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 ## A model call anywhere would reach one of these first, and it only logs.
 for rigModel in claude codex ; do
 	printf '#!/bin/sh\necho "%s $*" >> "%s/model-calls"\nexit 1\n' "$rigModel" "$rigTmp" > "$rigTmp/bin/$rigModel"
@@ -184,6 +184,21 @@ rigRecords rig-parent-id ""
 rigAssert "a parent with no thread: refused, the parent named"    "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParentThread"
 rigStart resolveNoRecord
 rigAssert "no record at all: refused"                             "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParent"
+
+echo "-- the resolver: the parent session the start recorded (parent-session) names the parent --"
+rigScene resolveStartParent
+rigChild(){ ## parent-session-id, start-context, parent-session -- the child's record, as a start writes it now
+	printf -- '---\nspawn-id: rig-child-id\nparent-session-id: %s\nstart-context: %s\nparent-session: %s\n---\n' "$1" "$2" "$3" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
+}
+rigChild none joined rig-parent-id
+rigAssert "a start whose caller had no run id: the recorded parent session still names the parent" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
+rigChild rig-run-elsewhere spawned rig-parent-id
+rigAssert "the recorded parent session wins over the run id beside it" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
+rigChild none inline rig-native-id
+rigSessionRecord rig-native-id "$rigNativeThread"
+rigAssert "a parent that is a native session, with no record of its own: the thread recorded for that session" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CNATIVE1|THREAD_TS=1700000005.000505|PARENT_SESSION_ID=rig-native-id"
+rigChild none joined rig-silent-id
+rigAssert "a recorded parent session with no thread: refused, that session named" "$( rigResolve "$rigCurrent" session-parent )" "rc=3 the parent session rig-silent-id has no recorded thread, so session-parent names nowhere. $rigPass"
 
 echo "-- the resolver: the other targets are as they were --"
 rigScene resolveOther

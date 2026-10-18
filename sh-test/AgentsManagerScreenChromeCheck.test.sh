@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the look of the manager screen (sh-lib/AgentsManagerScreen.py) and on what draws it from its
 ## declaration, run rather than read. The screen's own code draws through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py), which keeps the cells it is given and the look of each, so each case
+## (check-fixtures/manager-screen.driver.py), which keeps the cells it is given and the look of each, so each case
 ## reads the screen back; the cases at the end start the real screen on a pseudo-terminal the driver makes. Held, in the
 ## Turbo Vision style, which a screen starts in: the first line is the menu bar, the system mark and the menus of MENUS,
 ## each with its hot letter in a look of its own, and at its right end the workspace, an `@` in a look of its own, the
@@ -22,12 +22,12 @@
 ## its content under it, the list's first row beside the ↑ of its scroll bar; Turbo Vision and B/W have none.
 ## The menus follow the view, the level the list is at: a menu with no command of the view is not in the bar, the commands
 ## of a view all stand in its menus, and one that does not apply to the row selected is greyed and, tried, says why.
-## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
+## Offline: the only thing the screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
+rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -40,7 +40,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"
 export MANAGER_SCREEN_RIG="$rigTmp/rig"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.test.sh" > "$rigTmp/tools"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.stub.sh" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
 printf 's1\tfirst\ns2\tsecond\n' > "$rigTmp/rig/rows"
 rigPassCount=0
@@ -386,7 +386,7 @@ printf 'counters\t2\t0\t1\t2\t3\t0.42\tmagic-mac-studio.office.example.net\n' > 
 for rigStyle in tv ; do
 	MANAGER_SCREEN_RIG="$rigTmp/long" rigScript <<RIGSCRIPT
 style $rigStyle
-tools bash $MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.test.sh
+tools bash $MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.stub.sh
 workspace /rig/workspace.mdci
 clock 12:34:56
 size 120 30

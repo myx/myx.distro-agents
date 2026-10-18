@@ -23,7 +23,7 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
@@ -435,7 +435,7 @@ rigScan "$rigTmp/b2n.s2"
 rigCheck "a second pass leaves the live one as it is" "$( rigHeader "$( rigRec rig-nwlive )" status ):$( rigLoc dispatch-rig-nwlive.md )" "spawn-started:running"
 
 echo "-- the report: one post to the advance spawn's event-track thread per acting pass, none otherwise --"
-rigFake="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/credential-exposure-check.curl.test.sh"
+rigFake="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/credential-exposure-check.curl.stub.sh"
 [ -f "$rigFake" ] || rigRefuse "the fake curl fixture is missing: $rigFake"
 mkdir -p "$rigTmp/bin" && cp "$rigFake" "$rigTmp/bin/curl" && chmod +x "$rigTmp/bin/curl"
 rigPosts(){ ## scenario dir -- how many chat.postMessage calls reached the fake curl

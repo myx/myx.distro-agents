@@ -45,8 +45,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 ## checking still prints its PASS lines. A missing fixture refuses instead.
 mkdir -p "$rigTmp/bin"
 rigFixtures="$rigTest/check-fixtures"
-cp "$rigFixtures/harness-wait-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-wait-check.curl.test.sh"
+cp "$rigFixtures/harness-wait-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigFixtures/harness-wait-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH
@@ -649,8 +649,8 @@ rigVerdict "AgentsSlackThreadAnswers.awk -- a dismissal tagged to the caller sur
 ## ---------------------------------------------------------------------------
 rigSlackBin="$rigTmp/slackbin"
 mkdir -p "$rigSlackBin"
-cp "$rigFixtures/harness-ask-check.curl.test.sh" "$rigSlackBin/curl" \
-	|| rigRefuse "the Slack-shaped fake curl fixture is missing from the package: $rigFixtures/harness-ask-check.curl.test.sh"
+cp "$rigFixtures/harness-ask-check.curl.stub.sh" "$rigSlackBin/curl" \
+	|| rigRefuse "the Slack-shaped fake curl fixture is missing from the package: $rigFixtures/harness-ask-check.curl.stub.sh"
 chmod +x "$rigSlackBin/curl"
 rigSlackPath="$rigSlackBin:$PATH"
 [ "$( PATH="$rigSlackPath" command -v curl )" = "$rigSlackBin/curl" ] || rigRefuse "the Slack-shaped fake curl is not first on its PATH, so a new row could issue real requests"

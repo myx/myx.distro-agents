@@ -3,7 +3,7 @@
 ##
 ## The one way a check of sh-test signals a process it started and kept for later. Sourced by
 ## the check, before its rig puts anything of its own on PATH:
-##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh"
+##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh"
 ##
 ## WHY. A process id is a number the system gives again. On a busy host the numbers come
 ## round in about a minute (2026-10-13: about 1600 new processes a second while tests ran,

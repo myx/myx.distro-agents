@@ -36,7 +36,7 @@ rigLib="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib"
 rigFn="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigLib/AgentsUniversalHarness.sh"
 rigHook="$rigLib/client-hooks/allow-granted-native-tool.sh"
-rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/change-approval.curl.test.sh"
+rigFixture="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/change-approval.curl.stub.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

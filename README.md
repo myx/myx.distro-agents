@@ -17,9 +17,10 @@ wires both into a workspace.
   for every stateful action: Slack, email and Trello messaging; board and inbox
   items; per-member credentials; keep-alive console sessions; and the state
   machinery the team's routines run on.
-- **The console** — `DistroAgentsConsole.sh`, which starts an agent CLI session
-  against the workspace instead of a bash shell. Every line sent to it goes
-  through a model, so run `DistroAgentsTools.fn.sh` directly for read-only calls.
+- **The console** — `DistroAgentsConsole.sh`. On a terminal it opens the manager
+  screen: sessions, questions, members and settings. With `--non-interactive` it
+  runs one prompt through an agent CLI, so every line goes through a model; run
+  `DistroAgentsTools.fn.sh` directly for read-only calls.
   See [Use](docs/use.md#running-the-agents-console).
 
 ## Getting started

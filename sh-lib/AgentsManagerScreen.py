@@ -21,7 +21,7 @@
 ## levels of the list, the selection, the focus, the filter, what a key does and
 ## which read is due. The drawing goes through a surface: the terminal here
 ## (CursesSurface), and in a test a stand-in that keeps the cells it was given
-## (sh-test/check-fixtures/manager-screen.driver.test.py).
+## (sh-test/check-fixtures/manager-screen.driver.py).
 ##
 
 import datetime
@@ -1160,35 +1160,28 @@ LINE_LOOKS = {"head": DIM}
 ## shows it as it is, in the summary mode (`b`) rendered again; its title says which, by the
 ## mark of the raw mode or by "mark". It is set out once for each text, width and mode, never
 ## on a tick (viewText). A text of more than "lines" lines is set out that far, and the rest
-## follows as it is under the line "bound" says; "rule": the cells a rule takes at most.
-## The screen's own: the family's catMarkdown drops an underscore inside a word and in code
-## (the help of the tooling cats its setup manuals for that, Help.DistroAgentsTools.include),
-## draws no table, link, rule or front matter, and prints colours for a terminal.
-MARKDOWN = {"suffixes": (".md", ".markdown"), "lines": 2000, "rule": 72, "mark": "[markdown]",
-            "bound": "The first %d lines are rendered; the %d after them follow as they are."}
+## follows as it is under the line "bound" says. It is rendered by the family's one renderer,
+## lib/catMarkdown of myx.common ("command", under its root), in its form for a program
+## (--spans), in "seconds" at most; where none is there, or it fails, the text shows as it is.
+MARKDOWN = {"suffixes": (".md", ".markdown"), "lines": 2000, "mark": "[markdown]",
+            "bound": "The first %d lines are rendered; the %d after them follow as they are.",
+            "command": "bin/lib/catMarkdown.Common", "seconds": 10}
 MARKDOWN_ON = ("team/*/files:file",) + tuple(place for storeId, storeLabel in TEAM_DATA_STORES
                                              for place in ("teamdata/%s:item" % storeId, "teamdata/%s/*:item" % storeId))
 MARKDOWN_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_ON)
-## The help of the tooling is Markdown too, in a layout of its own (helpMarkdownLines): the
+## The help of the tooling is Markdown too, rendered as `--help` prints it (markdownLines): the
 ## places of its texts, an operation of `Manuals (Help)` and of `Member Help`, the root and
 ## the folder of a member whose summary is the help (helpSummary), and a command of `Tooling
 ## Commands`, whose help the family writes in the same layout, each rendered, and raw in the
 ## raw mode, as a Markdown text is.
 MARKDOWN_HELP = ("manuals:help-entry", "team/*/help:help-entry", ":section", "team/*:member-help", "configuration/commands:help-entry")
 MARKDOWN_HELP_VIEWS = tuple(place.partition(":")[0] for place in MARKDOWN_HELP)
-## The look of each part of a rendered Markdown text: its headings by their level, from the
-## third on as the third; its strong and its emphasized words; its code; a quote; a rule;
-## its front matter; the mark of an item of a list; the head of a table.
+## The look of each part of a rendered Markdown text, by the name catMarkdown gives it: its
+## headings by their level, from the third on as the third; its strong and its emphasized
+## words; its code; a quote; a rule; its front matter; the mark of an item of a list; the
+## head of a table; the text of a link.
 MARKDOWN_LOOKS = {"h1": FOLDER, "h2": BOLD, "h3": BOLD, "strong": BOLD, "em": LEVEL_OK, "code": DIM,
-                  "quote": DIM, "rule": DIM, "meta": DIM, "item": FOLDER, "head": BOLD}
-## The marks of a rendered Markdown text on a terminal that is UTF-8 ("text") and on one that
-## is not ("plain"): the line under a heading of the first, the second and the third level;
-## the mark of an item of a list; a rule; what stands ahead of each line of a quote; what
-## parts two columns of a table, and the line under its head with where it crosses them.
-MARKDOWN_MARKS = {
-    "text": {"under": "━─┄", "item": "•", "rule": "─", "quote": "│ ", "column": " │ ", "headRule": "─┼"},
-    "plain": {"under": "=--", "item": "*", "rule": "-", "quote": "| ", "column": " | ", "headRule": "-+"},
-}
+                  "quote": DIM, "rule": DIM, "meta": DIM, "item": FOLDER, "head": BOLD, "link": FOLDER}
 
 ## The menus of the menu bar, in their order: the name of each and what it shows as, its hot
 ## letter between tildes. Alt with that letter opens it, and F10 opens the first.
@@ -1743,8 +1736,9 @@ class ManagerState:
 ## moves for it, nothing after it moves, and a cell it leaves is a blank of the screen's own.
 EMOJI_CELLS = 2
 ## The symbols of those blocks that are text and no emoji, each one cell as Unicode counts it:
-## names of keys (KEY_NAMES), the tick of a box (STYLE_MARKS).
-TEXT_SYMBOLS = frozenset("⏎⎋⌫✓")
+## names of keys (KEY_NAMES), the tick of a box (STYLE_MARKS), the mark of an item of a list
+## that catMarkdown draws (markdownLines).
+TEXT_SYMBOLS = frozenset("⏎⎋⌫✓➤")
 
 
 ## The cells one character takes by Unicode, as itself.
@@ -3788,7 +3782,7 @@ def helpShown(state, row):
 
 
 ## The lines of the left window for a text of the help, the block of an operation or a summary:
-## rendered (helpMarkdownLines), but in the raw mode of a text, where they are as the help gives
+## rendered (markdownLines), but in the raw mode of a text, where they are as the help gives
 ## them, a long one broken to the window (rawLines); the looks of the window go with them. Set
 ## out again only when the text, the width of the window, the marks or the mode have changed,
 ## so never on a tick.
@@ -3800,7 +3794,7 @@ def helpLines(state, row, lines):
     stamp = (lines, state.viewWidth, MARKS["plain"], state.textMode)
     if view.get("helpFor") != stamp:
         view["helpFor"] = stamp
-        view["helpText"] = (rawLines(lines, state.viewWidth), {}) if textRawShown(state) else helpMarkdownLines(lines, state.viewWidth)
+        view["helpText"] = (rawLines(lines, state.viewWidth), {}) if textRawShown(state) else markdownLines("\n".join(lines), state.viewWidth)
     view["looks"] = view["helpText"][1]
     return view["helpText"][0]
 
@@ -3865,438 +3859,83 @@ def rawLines(lines, width):
     return out
 
 
-## The blocks of a Markdown text by the start of a line, and what is inside a line of it: a
-## span of code, a character escaped, a link and an image as their text, an address in angle
-## brackets, strong and emphasized words, an underscore marking them only at the edges of a
-## word, so that one inside a word, a name of a tool or of a setting, stays as it is.
-MARKDOWN_BLOCKS = {
-    "fence": re.compile(r"^( *)(`{3,}|~{3,})"),
-    "heading": re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$"),
-    "rule": re.compile(r"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$"),
-    "under": re.compile(r"^ {0,3}(=+|-+)[ \t]*$"),
-    "quote": re.compile(r"^ {0,3}> ?(.*)$"),
-    "item": re.compile(r"^( *)([-*+]|[0-9]{1,9}[.)])(?:[ \t]+(.*))?$"),
-    "delimiter": re.compile(r"^ *\|? *:?-+:? *(?:\| *:?-+:? *)*\|? *$"),
-}
-MARKDOWN_INLINE = re.compile(
-    r"(?P<code>(?P<ticks>`+)(?P<coded>.+?)(?P=ticks)(?!`))"
-    r"|\\(?P<escaped>[!-/:-@\[-`{-~])"
-    r"|!?\[(?P<linked>[^\]]*)\]\((?P<target>[^)\s]*)(?:\s+\"[^\"]*\")?\)"
-    r"|!?\[(?P<referred>[^\]]+)\]\[[^\]]*\]"
-    r"|<(?P<auto>(?:https?|ftp|mailto):[^>\s]+)>"
-    r"|\*\*(?=[^\s*])(?P<strong>.+?)(?<=[^\s*])\*\*"
-    r"|(?<![0-9A-Za-z_])__(?=[^\s_])(?P<strongUnder>.+?)(?<=[^\s_])__(?![0-9A-Za-z_])"
-    r"|\*(?=[^\s*])(?P<em>.+?)(?<=[^\s*])\*"
-    r"|(?<![0-9A-Za-z_])_(?=[^\s_])(?P<emUnder>.+?)(?<=[^\s_])_(?![0-9A-Za-z_])")
-
-
-## What is inside a line of Markdown as parts, each a text and its look, None the plain
-## one: strong and emphasized words in theirs where the text around them is plain or a
-## quote, and in the look around them else (a heading, the head of a table); code in its own.
-def markdownSpans(text, look=None):
-    parts = []
-    at = 0
-    for match in MARKDOWN_INLINE.finditer(text):
-        if match.start() > at:
-            parts.append((text[at:match.start()], look))
-        at = match.end()
-        found = match.groupdict()
-        stressed = look in (None, MARKDOWN_LOOKS["quote"])
-        if found["code"] is not None:
-            coded = found["coded"]
-            if len(coded) > 2 and coded[0] == coded[-1] == " " and coded.strip():
-                coded = coded[1:-1]
-            parts.append((coded, MARKDOWN_LOOKS["code"]))
-        elif found["escaped"] is not None:
-            parts.append((found["escaped"], look))
-        elif found["linked"] is not None:
-            parts.extend(markdownSpans(found["linked"] or found["target"], look))
-        elif found["referred"] is not None:
-            parts.extend(markdownSpans(found["referred"], look))
-        elif found["auto"] is not None:
-            parts.append((found["auto"], look))
-        elif found["strong"] is not None or found["strongUnder"] is not None:
-            parts.extend(markdownSpans(found["strong"] or found["strongUnder"], MARKDOWN_LOOKS["strong"] if stressed else look))
-        else:
-            parts.extend(markdownSpans(found["em"] or found["emUnder"], MARKDOWN_LOOKS["em"] if look is None else look))
-    if at < len(text):
-        parts.append((text[at:], look))
-    return parts
-
-
-## Parts as cells, each what is written in it, how many cells it takes (textCells, so an
-## emoji is one character of its own cells) and its look; and how many cells some take.
-def markdownCells(parts):
-    return [(cluster, clusterWidth, look) for text, look in parts for cluster, clusterWidth in textCells(text)]
-
-
-def markdownWidth(cells):
-    return sum(cell[1] for cell in cells)
-
-
-## Parts broken into lines of at most `room` cells between their words, as cells: `first`
-## ahead of the first line and `after` ahead of each other, both parts; a word longer than
-## a line is broken where the line ends. A blank between two words of one look is in it.
-def markdownWrap(parts, room, first=(), after=()):
-    words = []
-    word = []
-    for cell in markdownCells(parts):
-        if cell[0].isspace():
-            if word:
-                words.append(word)
-                word = []
-        else:
-            word.append(cell)
-    if word:
-        words.append(word)
-    lines = []
-    line = markdownCells(first)
-    left = room - markdownWidth(line)
-    placed = False
-    for word in words:
-        wordWidth = markdownWidth(word)
-        if placed and wordWidth + 1 <= left:
-            line.append((" ", 1, line[-1][2] if line[-1][2] == word[0][2] else None))
-            line.extend(word)
-            left -= wordWidth + 1
-            continue
-        if placed:
-            lines.append(line)
-            line = markdownCells(after)
-            left = room - markdownWidth(line)
-            placed = False
-        while wordWidth > left > 0:
-            piece = []
-            while word and markdownWidth(piece) + word[0][1] <= left:
-                piece.append(word.pop(0))
-            if not piece:
-                break
-            lines.append(line + piece)
-            line = markdownCells(after)
-            left = room - markdownWidth(line)
-            wordWidth = markdownWidth(word)
-        if word:
-            line.extend(word)
-            left -= wordWidth
-            placed = True
-    lines.append(line)
-    return lines
-
-
-## The cells of the row of a table of Markdown: its outer bars aside, parted at a bar that
-## is not escaped.
-def markdownRow(line):
-    line = line.strip()
-    if line.startswith("|"):
-        line = line[1:]
-    if line.endswith("|") and not line.endswith("\\|"):
-        line = line[:-1]
-    return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", line)]
-
-
-## Whether that line of a Markdown text starts a block of its own, and so ends a paragraph:
-## a fence, a heading, a rule, a quote, an item of a list, the head of a table.
-def markdownStarts(source, index):
-    line = source[index]
-    if any(MARKDOWN_BLOCKS[name].match(line) for name in ("fence", "heading", "rule", "quote", "item")):
-        return True
-    return ("|" in line and index + 1 < len(source) and "|" in source[index + 1]
-            and bool(MARKDOWN_BLOCKS["delimiter"].match(source[index + 1])))
-
-
-## A Markdown text as the lines of the left window, set out to that width, and the looks of
-## their parts, as the view holds them: (lines, {number of a line: [(cell, cells, look)]}).
-## Its front matter, its headings with a line under the first three levels, its paragraphs
-## and the items of its lists wrapped at words, an item's lines under its text, its code as
-## it is, set in and broken only where a line is wider than the window, its tables in
-## columns and never wrapped, its rules, its quotes behind a bar; its blank lines one at most.
-def markdownLines(text, width):
-    room = max(10, width - 1)
-    marks = MARKDOWN_MARKS["plain" if MARKS["plain"] else "text"]
-    looks = MARKDOWN_LOOKS
-    source = text.expandtabs(4).splitlines()
-    later = source[MARKDOWN["lines"]:]
-    source = source[:MARKDOWN["lines"]]
-    lines = []
-    spansOf = {}
-
-    def emit(cells):
-        spans = []
-        at = 0
-        for cluster, clusterWidth, look in cells:
-            if look is not None and spans and spans[-1][2] == look and spans[-1][0] + spans[-1][1] == at:
-                spans[-1] = (spans[-1][0], spans[-1][1] + clusterWidth, look)
-            elif look is not None:
-                spans.append((at, clusterWidth, look))
-            at += clusterWidth
-        if spans:
-            spansOf[len(lines)] = spans
-        lines.append("".join(cell[0] for cell in cells))
-
-    def blank():
-        if lines and lines[-1]:
-            lines.append("")
-
-    def wrapped(parts, first=(), after=()):
-        for cells in markdownWrap(parts, room, first, after):
-            emit(cells)
-
-    def heading(words, level):
-        blank()
-        look = looks["h%d" % min(level, 3)]
-        rows = markdownWrap(markdownSpans(words.strip(), look), room)
-        for cells in rows:
-            emit(cells)
-        if level <= len(marks["under"]):
-            emit(markdownCells([(marks["under"][level - 1] * max(1, min(room, max(markdownWidth(cells) for cells in rows))), look)]))
-
-    ## a line kept as it is, set in; broken where it is wider than the window, which it is not while lines are cut
-    def preformatted(words, look, indent):
-        cells = markdownCells([(" " * indent, None), (words, look)])
-        while markdownWidth(cells) > room:
-            used = 0
-            cut = 0
-            for cell in cells:
-                if used + cell[1] > room:
+## The root of the myx.common whose catMarkdown renders Markdown in its form for a program
+## (--spans): MYXROOT, as the tooling exports it, else the one of the source the screen runs
+## from, else the one installed; the first that has it. None where none has. Found once.
+def catMarkdownRoot():
+    if "catMarkdownRoot" not in MARKDOWN_FOUND:
+        MARKDOWN_FOUND["catMarkdownRoot"] = None
+        origin = os.environ.get("MDLT_ORIGIN")
+        for root in (os.environ.get("MYXROOT"), os.path.join(origin, "myx/myx.common/os-myx.common/host/tarball/share/myx.common") if origin else None,
+                     "/usr/local/share/myx.common"):
+            try:
+                if root and "--spans" in open(os.path.join(root, "include/data/catMarkdown.awk"), encoding="utf-8", errors="replace").read():
+                    MARKDOWN_FOUND["catMarkdownRoot"] = root
                     break
-                used += cell[1]
-                cut += 1
-            if cut <= indent:
-                break
-            emit(cells[:cut])
-            cells = markdownCells([(" " * indent, None)]) + cells[cut:]
-        emit(cells)
-
-    index = 0
-    if source and source[0].strip() == "---":
-        for end in range(1, len(source)):
-            if source[end].strip() in ("---", "..."):
-                for line in source[1:end]:
-                    wrapped([(line.strip(), looks["meta"])], (), (("  ", None),))
-                blank()
-                index = end + 1
-                break
-    ## the indents of the items of the lists that are open, and where the text of the last one starts
-    stack = []
-    column = 0
-    while index < len(source):
-        line = source[index]
-        if not line.strip():
-            blank()
-            index += 1
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        item = MARKDOWN_BLOCKS["item"].match(line)
-        rule = MARKDOWN_BLOCKS["rule"].match(line)
-        inside = bool(stack) and indent > stack[-1] and not item
-        if not inside and (not item or rule):
-            stack = []
-        fence = MARKDOWN_BLOCKS["fence"].match(line)
-        titled = MARKDOWN_BLOCKS["heading"].match(line)
-        quote = MARKDOWN_BLOCKS["quote"].match(line)
-        if fence:
-            opened = fence.group(2)
-            index += 1
-            while index < len(source):
-                code = source[index]
-                closed = MARKDOWN_BLOCKS["fence"].match(code)
-                index += 1
-                if closed and closed.group(2)[0] == opened[0] and len(closed.group(2)) >= len(opened) and not code.strip().strip(opened[0]):
-                    break
-                preformatted(code[min(len(fence.group(1)), len(code) - len(code.lstrip(" "))):], looks["code"], (column if inside else 0) + 2)
-            continue
-        if titled:
-            heading(titled.group(2) or "", len(titled.group(1)))
-            index += 1
-            continue
-        if rule:
-            emit(markdownCells([(marks["rule"] * min(room, MARKDOWN["rule"]), looks["rule"])]))
-            index += 1
-            continue
-        if markdownStarts(source, index) and not quote and not item:
-            ## a table: its head, the line under it, its rows, in columns as wide as their widest cell
-            aligns = [cell.endswith(":") and not cell.startswith(":") for cell in markdownRow(source[index + 1])]
-            rows = [[markdownSpans(cell, looks["head"]) for cell in markdownRow(line)]]
-            index += 2
-            while index < len(source) and source[index].strip() and "|" in source[index]:
-                rows.append([markdownSpans(cell) for cell in markdownRow(source[index])])
-                index += 1
-            count = len(rows[0])
-            rows = [(row + [[] for missing in range(count)])[:count] for row in rows]
-            widths = [max(markdownWidth(markdownCells(row[number])) for row in rows) for number in range(count)]
-            if width < UNWRAPPED_WIDTH and 2 + sum(widths) + 3 * (count - 1) > room:
-                ## too wide for the pane, its lines wrapped: the table of the left pane, each cell as its text
-                head, blocks = paneTable(["".join(cell[0] for cell in markdownCells(part)) for part in rows[0]],
-                                         [["".join(cell[0] for cell in markdownCells(part)) or "-" for part in row] for row in rows[1:]], room, indent="  ")
-                for line in head + [line for block in blocks for line in block]:
-                    emit(markdownCells([(str(line), line.looks[0][2])]))
+            except OSError:
                 continue
-            for number, row in enumerate(rows):
-                parts = [("  ", None)]
-                for place, cell in enumerate(row):
-                    pad = (" " * (widths[place] - markdownWidth(markdownCells(cell))), None)
-                    parts.extend(([(marks["column"], looks["rule"])] if place else []) + ([pad] + cell if place < len(aligns) and aligns[place] else cell + [pad]))
-                emit(markdownCells(parts))
-                if not number:
-                    under = marks["headRule"][0] + marks["headRule"][1] + marks["headRule"][0]
-                    emit(markdownCells([("  ", None), (under.join(marks["headRule"][0] * cells for cells in widths), looks["rule"])]))
-            continue
-        if quote:
-            ## a quote, each of its paragraphs behind a bar for each level it stands at
-            paragraphs = []
-            while index < len(source) and MARKDOWN_BLOCKS["quote"].match(source[index]):
-                inner = source[index]
-                depth = 0
-                found = MARKDOWN_BLOCKS["quote"].match(inner)
-                while found:
-                    depth += 1
-                    inner = found.group(1)
-                    found = MARKDOWN_BLOCKS["quote"].match(inner)
-                inner = inner.strip()
-                if inner and paragraphs and paragraphs[-1][1] and paragraphs[-1][0] == depth:
-                    paragraphs[-1] = (depth, paragraphs[-1][1] + " " + inner)
-                else:
-                    paragraphs.append((depth, inner))
-                index += 1
-            for depth, inner in paragraphs:
-                bar = ((marks["quote"] * depth, looks["quote"]),)
-                wrapped(markdownSpans(inner, looks["quote"]), bar, bar)
-            continue
-        if item:
-            ## an item of a list: its mark, set in by its level, and its lines under its text
-            itemIndent = len(item.group(1))
-            while stack and stack[-1] > itemIndent:
-                stack.pop()
-            if not stack or stack[-1] < itemIndent:
-                stack.append(itemIndent)
-            lead = "  " * (len(stack) - 1)
-            mark = marks["item"] if item.group(2) in "-*+" else item.group(2)
-            words = item.group(3) or ""
-            index += 1
-            while index < len(source) and source[index].strip() and not markdownStarts(source, index):
-                words += " " + source[index].strip()
-                index += 1
-            column = textWidth(lead + mark) + 1
-            wrapped(markdownSpans(words.strip()), ((lead, None), (mark, looks["item"]), (" ", None)), ((" " * column, None),))
-            continue
-        if indent >= 4 and not inside:
-            ## code set in by four
-            while index < len(source) and (source[index].startswith("    ") or not source[index].strip()):
-                if not source[index].strip() and not (index + 1 < len(source) and source[index + 1].startswith("    ")):
-                    break
-                preformatted(source[index][4:], looks["code"], 2)
-                index += 1
-            continue
-        ## a paragraph: its lines as one, a heading where a line of = or of - stands under it
-        words = line.strip()
-        index += 1
-        level = 0
-        while index < len(source) and source[index].strip():
-            under = MARKDOWN_BLOCKS["under"].match(source[index])
-            if under:
-                level = 1 if under.group(1)[0] == "=" else 2
-                index += 1
-                break
-            if markdownStarts(source, index):
-                break
-            words += " " + source[index].strip()
-            index += 1
-        if level:
-            heading(words, level)
-        else:
-            lead = ((" " * column, None),) if inside else ()
-            wrapped(markdownSpans(words), lead, lead)
-    while lines and not lines[-1]:
-        lines.pop()
-    if later:
-        blank()
-        wrapped([(MARKDOWN["bound"] % (MARKDOWN["lines"], len(later)), looks["meta"])])
-        lines.extend(later)
+    return MARKDOWN_FOUND["catMarkdownRoot"]
+
+
+MARKDOWN_FOUND = {}
+
+
+## A Markdown text as catMarkdown renders it for the left window, at that width: broken at its
+## words where the window wraps its lines, whole where it cuts them (--no-wrap), in the marks of
+## one byte on a terminal that is not UTF-8 (--ascii). Gives (lines, {number of a line: [(cell,
+## cells, look)]}), each look by MARKDOWN_LOOKS, or None where it could not be rendered.
+def catMarkdownSpans(text, width):
+    root = catMarkdownRoot()
+    if root is None:
+        return None
+    words = ["sh", os.path.join(root, MARKDOWN["command"]), "--spans"] + (
+        ["--width", str(max(10, width - 1))] if width < UNWRAPPED_WIDTH else ["--no-wrap"]) + (["--ascii"] if MARKS["plain"] else [])
+    try:
+        done = subprocess.run(words, input=text.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              timeout=MARKDOWN["seconds"], env=dict(os.environ, MYXROOT=root))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    lines, spansOf = [], {}
+    for record in done.stdout.split(b"\n")[:-1]:
+        raw, tab, spans = record.partition(b"\t")
+        if not tab:
+            return None
+        looks = []
+        for span in spans.decode("ascii", "replace").split(","):
+            parts = span.split("+")
+            if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2] in MARKDOWN_LOOKS:
+                start, length = int(parts[0]), int(parts[1])
+                cells = textWidth(raw[start:start + length].decode("utf-8", "replace"))
+                if cells:
+                    looks.append((textWidth(raw[:start].decode("utf-8", "replace")), cells, MARKDOWN_LOOKS[parts[2]]))
+        if looks:
+            spansOf[len(lines)] = looks
+        lines.append(raw.decode("utf-8", "replace"))
     return lines, spansOf
 
 
-## The help of the tooling rendered, as the lines of the left window and their looks, as
-## markdownLines gives them. Its layout is its own (Help.DistroAgentsTools.help.md), and it is
-## read by it: a syntax line, and the head of an entry, a line that names an operation or an
-## option of it with what is set in under it, or another such head, right after it, stands as
-## it is, a head in the look of a heading; the heading of a chapter, `##  Notes:` at the start of
-## its line, is a heading of Markdown; the lines set in under a head are its text, Markdown, its
-## shell examples code (helpExamplesFenced),
-## set out by markdownLines to the width that is left and set in as far as they are. Every line
-## is broken to the window, so a summary (folderSummary) breaks none of them again.
-def helpMarkdownLines(lines, width):
-    room = max(10, width - 1)
-    heads = [False] * len(lines)
-    for number in range(len(lines) - 1, -1, -1):
-        word = lines[number].lstrip(" ")
-        after = lines[number + 1] if number + 1 < len(lines) else ""
-        indent = len(lines[number]) - len(word)
-        afterIndent = len(after) - len(after.lstrip(" "))
-        heads[number] = word.startswith("📘") or (indent == 0 and word.startswith("#")) or (word.startswith("--") and bool(after.strip()) and (
-            afterIndent > indent or (afterIndent == indent and heads[number + 1] and after.lstrip(" ").startswith("--"))))
-    out = []
-    spansOf = {}
-    number = 0
-    while number < len(lines):
-        line = lines[number]
-        indent = len(line) - len(line.lstrip(" "))
-        if not line.strip():
-            if out and out[-1]:
-                out.append("")
-            number += 1
-        elif heads[number] and line.startswith("#"):
-            ## the heading of a chapter of the help, `##  Notes:`, a heading of Markdown
-            text, spans = markdownLines(line, width)
-            for at, part in enumerate(text):
-                if at in spans:
-                    spansOf[len(out)] = spans[at]
-                out.append(part)
-            number += 1
-        elif heads[number]:
-            look = None if line.lstrip(" ").startswith("📘") else MARKDOWN_LOOKS["h3"]
-            words = line.strip()
-            for part in (wrapToCells(words, max(10, room - indent)) if textWidth(words) > room - indent else [words]):
-                if look is not None:
-                    spansOf[len(out)] = [(indent, textWidth(part), look)]
-                out.append(" " * indent + part)
-            number += 1
-        else:
-            ## a text, to the next head or to a line set in less than its first
-            end = number + 1
-            while end < len(lines) and not heads[end] and (not lines[end].strip() or len(lines[end]) - len(lines[end].lstrip(" ")) >= indent):
-                end += 1
-            while not lines[end - 1].strip():
-                end -= 1
-            text, spans = markdownLines(helpExamplesFenced([part[indent:] for part in lines[number:end]]), width - indent)
-            for at, part in enumerate(text):
-                if at in spans:
-                    spansOf[len(out)] = [(cell + indent, cells, look) for cell, cells, look in spans[at]]
-                out.append(" " * indent + part if part else part)
-            number = end
-    while out and not out[-1]:
-        out.pop()
-    return out, spansOf
-
-
-## A text of the help as Markdown, its shell examples fenced: a paragraph whose first line is
-## a comment of the shell, `# ` and its words, as the help writes an example (its Examples),
-## is code, shown as it is written, its comments, its own fences and its blanks with it, where
-## Markdown would read that line as a heading. The help writes no heading inside a text. The
-## fence is one no line of the help closes (four tildes).
-def helpExamplesFenced(lines):
-    out = []
-    example = False
-    for at, line in enumerate(lines):
-        if example and not line.strip():
-            out.append("~~~~")
-            example = False
-        elif not example and line.startswith("# ") and (at == 0 or not lines[at - 1].strip()):
-            out.append("~~~~")
-            example = True
-        out.append(line)
-    if example:
-        out.append("~~~~")
-    return "\n".join(out)
+## A Markdown text as the lines of the left window, set out to that width, and the looks of
+## their parts, as the view holds them: (lines, {number of a line: [(cell, cells, look)]}), as
+## catMarkdown renders it (catMarkdownSpans), its first "lines" lines; where it cannot, the
+## text as it is (rawLines).
+def markdownLines(text, width):
+    source = text.expandtabs(4).splitlines()
+    later = source[MARKDOWN["lines"]:]
+    rendered = catMarkdownSpans("\n".join(source[:MARKDOWN["lines"]]), width)
+    if rendered is None:
+        return rawLines(text.splitlines(), width), {}
+    lines, spansOf = rendered
+    while lines and not lines[-1]:
+        lines.pop()
+    if later:
+        lines.append("")
+        for part in wrapToCells(MARKDOWN["bound"] % (MARKDOWN["lines"], len(later)), max(10, width - 1)):
+            spansOf[len(lines)] = [(0, textWidth(part), MARKDOWN_LOOKS["meta"])]
+            lines.append(part)
+        lines.extend(later)
+    return lines, spansOf
 
 
 ## The agents of a session in a few words, from its row: how many, and how many of each

@@ -3,8 +3,8 @@
 ##
 ## The one way a check of sh-test ends the control threads the tooling started in its rig. Sourced by the
 ## check, before its rig puts anything of its own on PATH, as the rig's process helper is, through which it
-## signals (rig-processes.include.test.sh, sourced here where the check has not):
-##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh"
+## signals (rig-processes.include.sh, sourced here where the check has not):
+##   . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh"
 ##
 ## WHY. The control thread of a session is a detached process of the tooling that outlives the call that
 ## started it (sh-lib/AgentsTools.SessionControlStart.include), and the check with it. The advance input scan
@@ -26,7 +26,7 @@
 ##   rigControlThreadsEnd <dir>...    ends every such process that is still itself, with what it started (the
 ##                                    sleep it waits on), the hard way: nothing of it is wanted any more
 
-type rigProcSignalWithChildren > /dev/null 2>&1 || . "$( cd "$( dirname "${BASH_SOURCE[0]}" )" 2> /dev/null && pwd -P )/rig-processes.include.test.sh"
+type rigProcSignalWithChildren > /dev/null 2>&1 || . "$( cd "$( dirname "${BASH_SOURCE[0]}" )" 2> /dev/null && pwd -P )/rig-processes.include.sh"
 
 rigControlThreadNotes(){ ## dir...
 	[ $# -gt 0 ] || return 0

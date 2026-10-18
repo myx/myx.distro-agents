@@ -33,7 +33,7 @@
 ##   9. THE GUARD OVER sh-test. A thread is a detached process that outlives the check, and one whose rig is
 ##      removed never ends by itself. So every check that names an operation which starts control threads, the
 ##      advance input scan, the main loop, this one or one of the spawner's, ends the threads of its rig in its EXIT trap, through
-##      sh-test/check-fixtures/rig-control-threads.include.test.sh, which this check holds too: a new check that
+##      sh-test/check-fixtures/rig-control-threads.include.sh, which this check holds too: a new check that
 ##      names one and does not fails here.
 ## Red before the operation existed: every assertion but the controls. Offline: only the rig's own tree is read or
 ## written, and every thread and stand-in this check starts is ended by it, through the rig's process helper.
@@ -50,9 +50,9 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$rigPackage/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## And the control threads the tooling starts in this rig are ended by it, each only while it is still the process that was started.
-. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d -t AgentsSessionControlStartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The ids of this run's sessions carry the name mktemp gave it, so that a copy of this check that runs beside it never counts this one's threads.
@@ -489,7 +489,7 @@ rigAssert "one function starts a thread, and the console, the advance scan and t
 echo "-- 10. the guard: every check of sh-test that names an operation which starts control threads ends them --"
 ## THE OPERATIONS that start the control thread of a session of the workspace they are called for: the advance
 ## input scan and the main loop, for every session that is not finished, and the console's start. A check that
-## names one of them, outside a comment, sources the fixture (sh-test/check-fixtures/rig-control-threads.include.test.sh)
+## names one of them, outside a comment, sources the fixture (sh-test/check-fixtures/rig-control-threads.include.sh)
 ## and ends the threads of its rig in its EXIT trap, before its tree is removed: a thread whose rig is gone never
 ## ends by itself. A new check that names one and does not end them fails here. And the spawner, by each of its
 ## operations: the supervising shell of a start that is not waited for starts the thread of its session, so a check
@@ -499,11 +499,11 @@ echo "-- 10. the guard: every check of sh-test that names an operation which sta
 rigGuardOps='--magic-advance-input-scan|--intern-main-loop|--manager-session-control-start|--intern-op-agent-spawn-proxy|--magic-heartbeat-spawn-proxy|--magic-spawn-session|--manager-spawn-member|--member-review-return|--intern-op-review-return|--intern-tool +"?Agent'
 rigGuard(){ ## folder of checks -- `NOT ENDED: <file>` for each check that names one of the operations and does not end the threads of its rig, then how many name one
 	local guardFile guardNamed=0
-	for guardFile in "$1"/*.test.sh ; do
+	for guardFile in "$1"/*.test.sh "$1"/*/*.test.sh ; do
 		[ -f "$guardFile" ] || continue
 		LC_ALL=C grep -v '^[[:space:]]*#' "$guardFile" | LC_ALL=C grep -q -E -e "$rigGuardOps" || continue
 		guardNamed=$(( guardNamed + 1 ))
-		LC_ALL=C grep -q -E -e '^\. "[^"]*check-fixtures/rig-control-threads\.include\.test\.sh" ' "$guardFile" \
+		LC_ALL=C grep -q -E -e '^\. "[^"]*check-fixtures/rig-control-threads\.include\.sh" ' "$guardFile" \
 			&& LC_ALL=C grep -q -E -e "^trap '.*rigControlThreadsEnd \"\\\$rig[A-Za-z]+\" .*' EXIT\$" "$guardFile" \
 			|| printf 'NOT ENDED: %s\n' "${guardFile##*/}"
 	done
@@ -515,16 +515,18 @@ rigAssert "every check of the package that names one of those operations sources
 rigAssert "control: the guard read the checks, and found those that name one: ten or more, this one, the scan's, the main loop's and three of the spawner's among them" \
 	"$( printf '%s\n' "$rigGuarded" | LC_ALL=C sed -n 's/^named: //p' | LC_ALL=C awk '{ print ( $1 >= 10 ) ? "ten-or-more" : $1 }' ):$( for rigName in AgentsSessionControlStartCheck AgentsSessionControlScanCheck AgentsSessionControlMainLoopCheck AgentsAdvanceInputScanStatesCheck AgentsMainLoopPassBoundCheck AgentsSpawnDetachCheck AgentsMagicSpawnSessionCheck AgentsManagerSpawnMemberCheck ; do LC_ALL=C grep -v '^[[:space:]]*#' "$rigPackage/sh-test/$rigName.test.sh" | LC_ALL=C grep -q -E -e "$rigGuardOps" && printf y || printf n ; done )" "ten-or-more:yyyyyyyy"
 ## Made to fail: a check that calls the scan and ends nothing, one that sources the fixture and never calls it,
-## and beside them one that does both, one that names the operation in a comment alone, and one that names none.
-mkdir -p "$rigTmp/probe"
+## and beside them one that does both, one that names the operation in a comment alone, and one that names none;
+## and one in a subfolder, where the runner finds tests too, that calls the scan and ends nothing.
+mkdir -p "$rigTmp/probe/sub"
 printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-input-scan magic-coordinator' > "$rigTmp/probe/Bare.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-input-scan' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo nothing' > "$rigTmp/probe/None.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
-rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, and one that starts a session through the spawner and ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
-	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh named: 4 "
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-input-scan magic-coordinator' > "$rigTmp/probe/sub/Nested.test.sh"
+rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, one that starts a session through the spawner and ends nothing, and one in a subfolder that ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
+	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh NOT ENDED: Nested.test.sh named: 5 "
 
 echo "-- 11. nothing is left running, and nothing was asked of the network --"
 rigThreadsEnd

@@ -27,17 +27,17 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.test.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSpawnDetachCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigPassPid=""
 trap '[ -z "$rigPassPid" ] || rigProcGroupSignal KILL "$rigPassPid" ; rigProcSignalKept KILL "$rigTmp"/*/console.began "$rigTmp"/*/*/console.began ; chmod -R u+w -- "$rigTmp" 2>/dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/.local/.agents" "$rigTmp/bin"
-cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
+cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
 	|| rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
@@ -72,7 +72,7 @@ printf '%s\n' '#!/usr/bin/env bash' \
 	'[ -z "${RIG_HANDBACK:-}" ] || printf "📦 SubagentHandback\n"' \
 	'ps -o pgid= -p $$ | tr -d " " > "$rigOut/console.pgid"' \
 	'echo $$ > "$rigOut/console.pid"' \
-	". '$rigTest/check-fixtures/rig-processes.include.test.sh' 2> /dev/null && rigProcNoteFile \"\$rigOut/console.began\" \$\$" \
+	". '$rigTest/check-fixtures/rig-processes.include.sh' 2> /dev/null && rigProcNoteFile \"\$rigOut/console.began\" \$\$" \
 	'rigLeft="$RIG_RUN"' \
 	'while [ "$rigLeft" -gt 0 ] && [ ! -e "$RIG_SCENARIO/release" ] && [ ! -e "$rigOut/release" ] ; do' \
 	'	[ ! -e "$RIG_SCENARIO/say" ] || [ -e "$rigOut/said" ] || { printf "2030-01-01T00:00:01Z TOOL Read path=/rig/after-the-hangup.md -> ok 10B/1L 1ms\n" >> "$MMDAPP/.local/agents/sessions/$MDAT_SPAWN_SESSION_ID/feed" ; : > "$rigOut/said" ; }' \
@@ -338,7 +338,7 @@ mkdir -p "$rigDir" "$rigWs/.local/agents/sessions/rig-poster-hup"
 ( cd "$rigWs" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigDir" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	perl -e '$SIG{HUP} = "DEFAULT" ; exec @ARGV' bash -c '
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.EventTrackFeed.include"
-		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
+		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || { echo "RIG-GUARD: the process helper of the rig is missing from the package" >&2 ; exit 99 ; }
 		rigFeed="$MMDAPP/.local/agents/sessions/rig-poster-hup/feed"
 		AgentsEventTrackFeedRun rig-poster-hup keeper-myx CRIGTRACK:9.9 &
 		rigPoster=$!

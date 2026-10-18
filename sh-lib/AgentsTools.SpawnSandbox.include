@@ -147,14 +147,19 @@ AgentsToolsSessionCurrentThreadFind(){
 ## prints "<channel>:<ts> <parent id>" and returns 0. Returns 1, nothing printed, when no
 ## parent session is recorded, and 2, the parent id printed, when that parent has no
 ## recorded thread. The sandbox folder is named by tracking name or session id, so records
-## are found by file name.
+## are found by file name. The parent is the session the start recorded as the one that
+## started this one (`parent-session:`), where it did, else the run `parent-session-id:`
+## names, as on a record written before that field was; a parent session with no record of
+## its own, a native client's, has its thread in the one recorded for that session.
 AgentsToolsSessionParentThreadFind(){
-	local parentRecord parentId="" parentThread=""
+	local parentRecord parentId="" parentThread="" parentSession=""
 	for parentRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
 		[ ! -f "$parentRecord" ] || parentId="$( LC_ALL=C awk '/^parent-session-id: /{ sub( /^parent-session-id: /, "" ) ; print ; exit ; }' "$parentRecord" )"
 		## The thread the spawn settled for its parent, magic-coordinator's when the parent had none.
 		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^parent-thread: / { sub( /^parent-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
+		[ ! -f "$parentRecord" ] || parentSession="$( AgentsToolsSpawnSandboxRecordHeader "$parentRecord" parent-session )"
 	done
+	case "$parentSession" in ''|*/*|.|..) parentSession="" ;; *) parentId="$parentSession" ;; esac
 	if [ -z "$parentId" ] || [ "$parentId" = "none" ] ; then
 		return 1
 	fi
@@ -162,6 +167,8 @@ AgentsToolsSessionParentThreadFind(){
 	for parentRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentId.md" ; do
 		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^session-thread: /{ sub( /^session-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
 	done
+	[ -n "$parentThread" ] || [ -z "$parentSession" ] || [ ! -s "$MMDAPP/.local/agents/sessions/$parentSession/session.thread" ] \
+		|| IFS= read -r parentThread < "$MMDAPP/.local/agents/sessions/$parentSession/session.thread" || :
 	if [ -z "$parentThread" ] ; then
 		printf '%s\n' "$parentId" ; return 2
 	fi

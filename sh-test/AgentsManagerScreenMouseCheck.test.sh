@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ## Behavioural check on the mouse of the manager screen (sh-lib/AgentsManagerScreen.py), run rather than read. The
-## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.test.py),
+## screen's own code runs through the stand-in terminal of the driver (check-fixtures/manager-screen.driver.py),
 ## which feeds it an event of the mouse at a cell as one turn. Held: a click inside a window gives it the keys; a
 ## click on a row of the list selects that row, and a second click on the selected row, or a double click, opens it
 ## as Enter does; the wheel moves in the window under the pointer; a click on a half of the scroll bar pages. A click
@@ -10,12 +10,12 @@
 ## the status line shows does what that key does. What curses reports of the mouse becomes a click, when the first
 ## button is let go, a double click and the wheel, and nothing else. The real screen comes up and is ended by a click on the menu bar and the hot
 ## letter of Exit on a terminal that reports the mouse, and comes up all the same on one that reports none.
-## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.test.sh).
+## Offline: the only thing the real screen calls here is the stand-in for the dispatcher (check-fixtures/manager-screen.tools.stub.sh).
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
+rigDriver="$rigFixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -28,7 +28,7 @@ rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"
 export MANAGER_SCREEN_RIG="$rigTmp/rig"
-printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.test.sh" > "$rigTmp/tools"
+printf '#!/bin/sh\nexec bash "%s" "$@"\n' "$rigFixtures/manager-screen.tools.stub.sh" > "$rigTmp/tools"
 chmod +x "$rigTmp/tools"
 printf 's1\tfirst\ns2\tsecond\n' > "$rigTmp/rig/rows"
 export TZ=UTC

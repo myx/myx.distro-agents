@@ -163,20 +163,16 @@ rigAssert "the folder is a clone of the remote now"              "$( git -C "$ri
 rigAssert "no file of it was changed"                            "$( cat "$rigStore/README.md" "$rigStore/board/running/note-20261014T0101Z-local.md" "$rigStore/inboxes/magic-tester/note-rig.md" 2> /dev/null | LC_ALL=C tr '\n' '/' )" "local readme/local item/local note/"
 rigAssert "one line says git/cloneSync made it a clone"          "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" )" 1
 
-echo "-- a folder with content and an empty remote: handed to git/cloneSync, which does not adopt it today --"
-## myx.common git/cloneSync means to commit such a folder and push it into an empty remote,
-## but its test for an empty remote, `git ls-remote --exit-code` inside a command
-## substitution under its `set -e`, ends that substitution at the ls-remote's status 2 before
-## its `echo $?`; it then touches README.md and runs `git add` outside any repository, and
-## fails. Asserted here as it is, so that a change of git/cloneSync shows: the folder stays a
-## folder, its file stands, and the step says the store is no clone yet.
+echo "-- a folder with content and an empty remote: handed to git/cloneSync, which adopts it --"
+## myx.common git/cloneSync commits such a folder and pushes it into an empty remote: the
+## folder becomes a clone of the remote, its file stands, and the file is in the remote.
 git init -q --bare "$rigTmp/unborn.git" || rigRefuse "could not init the empty remote"
 rigScenario unborn "$rigTmp/unborn.git"
 rigStore="$rigDir/ws/.local/agents/team-data-root"
 mkdir -p "$rigStore/board/running" && printf 'local item\n' > "$rigStore/board/running/note-20261014T0101Z-local.md"
 rigSetup "$rigDir/a"
-rigAssert "git/cloneSync was asked and did not adopt it: still a folder, its file stands" "$( [ -e "$rigStore/.git" ] && printf repo || printf folder ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" 2> /dev/null ):$( git -C "$rigTmp/unborn.git" rev-parse -q --verify refs/heads/main 2> /dev/null || printf none )" "folder:local item:none"
-rigAssert "and the step says the store is no clone yet"          "$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" ):$( rigCount "$rigDir/a.err" "fatal: not a git repository" )" "1:1"
+rigAssert "git/cloneSync adopted it: a clone of the remote, its file stands and is in the remote" "$( [ -e "$rigStore/.git" ] && printf repo || printf folder ):$( cat "$rigStore/board/running/note-20261014T0101Z-local.md" 2> /dev/null ):$( git -C "$rigStore" remote get-url origin 2> /dev/null ):$( git --git-dir="$rigTmp/unborn.git" log --all --format= --name-only 2> /dev/null | LC_ALL=C grep -c -x -F 'board/running/note-20261014T0101Z-local.md' )" "repo:local item:$rigTmp/unborn.git:1"
+rigAssert "and the step says git/cloneSync made it a clone"      "$( rigCount "$rigDir/a.err" "git/cloneSync made $rigStore a clone of TEAM_DATA_GIT_REMOTE" ):$( rigCount "$rigDir/a.err" "is not a clone of TEAM_DATA_GIT_REMOTE yet" ):$( rigCount "$rigDir/a.err" "fatal: not a git repository" )" "1:0:0"
 
 echo "-- a folder with content whose remote cannot be reached is left as it was --"
 rigScenario unreach "$rigTmp/missing.git"

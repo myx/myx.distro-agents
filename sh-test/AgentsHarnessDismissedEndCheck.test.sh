@@ -25,7 +25,7 @@ rigRefuse(){
 }
 [ -f "$rigHarness" ] || rigRefuse "the harness is not at the origin this workspace resolves: $rigHarness"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsHarnessDismissedEndCheck.XXXXXX" )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigRunPids=""
@@ -35,8 +35,8 @@ for rigName in "$rigMember" "$rigLead" magic-coordinator ; do
 	mkdir -p "$rigTmp/skills/$rigName"
 	printf -- '---\nmaintainers: rig\n---\n%s\n' "$rigName" > "$rigTmp/skills/$rigName/$rigName.basic.md"
 done
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/served/curl" || rigRefuse "the fake curl fixture of the served calls is missing from the package"
-cp "$rigTest/check-fixtures/harness-arm-gate.curl.test.sh" "$rigTmp/loop/curl" || rigRefuse "the fake curl fixture of the model loop is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/served/curl" || rigRefuse "the fake curl fixture of the served calls is missing from the package"
+cp "$rigTest/check-fixtures/harness-arm-gate.curl.stub.sh" "$rigTmp/loop/curl" || rigRefuse "the fake curl fixture of the model loop is missing from the package"
 ## A model call from a served tool would reach one of these first, and it only logs.
 for rigModel in claude codex ; do
 	printf '#!/bin/sh\necho "%s $*" >> "%s/model-calls"\nexit 1\n' "$rigModel" "$rigTmp" > "$rigTmp/served/$rigModel"

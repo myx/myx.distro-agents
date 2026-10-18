@@ -25,8 +25,8 @@ trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/home" "$rigTmp/bin" "$rigTmp/skills/magic-coordinator"
 printf 'rig-coordinator\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"
 
-cp "$rigTest/check-fixtures/slack-send-identity-check.curl.test.sh" "$rigTmp/bin/curl" \
-	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.test.sh"
+cp "$rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh" "$rigTmp/bin/curl" \
+	|| rigRefuse "the fake curl fixture is missing from the package: $rigTest/check-fixtures/slack-send-identity-check.curl.stub.sh"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would post for real"

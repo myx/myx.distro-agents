@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 ## Behavioural check on Markdown in the left window of the manager screen (sh-lib/AgentsManagerScreen.py), run rather
 ## than read. The screen's own code runs through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a stand-in script
-## (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture.
-## Held: a skillset file and an item of the team data whose name ends in .md show rendered: its front matter, its
+## (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a stand-in script
+## (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture.
+## Held: a skillset file and an item of the team data whose name ends in .md show rendered by lib/catMarkdown of
+## myx.common, the window holding exactly what its --spans gives at the window's width (whole while lines are cut, the
+## text as it is where no catMarkdown is there): its front matter, its
 ## headings with the line under them (an emoji in one counted as one character of two cells), its strong and emphasized
 ## words, an underscore inside a word and in code kept, its lists with their marks and nesting, a long item wrapped under
 ## its own text, its links as their text, its code without its fences, its table in columns with a line under its head,
@@ -18,8 +20,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -162,17 +164,51 @@ rigAssert "a heading shows without its marks, a line under it, in the look of it
 rigAssert "an emoji in a heading is one character of two cells: the line under it is as long as that" "$( rigHolds md '│┄┄┄┄┄┄┄ ' ) $( rigHolds md '│┄┄┄┄┄┄┄┄' )" "1 0"
 rigAssert "strong and emphasized words show without their marks, in their looks" "$( rigHolds md 'Keeps the rig in order' ) $( rigLookOf md mdr 'rig in' ) $( rigLookOf md mdr 'MDAT_MANAGER_STYLE' ) $( rigHolds md '**' )" "1 BBB... kkkkkkkkkkkkkkkkkk 0"
 rigAssert "an underscore inside a word and in code is kept, the code in its look and without its marks" "$( rigHolds md 'mcp__myx_distro__Wait' ) $( rigHolds md 'snake_case_words.' ) $( rigLookOf md mdr 'mcp__myx_distro__Wait' ) $( rigHolds md '`' )" "1 1 DDDDDDDDDDDDDDDDDDDDD 0"
-rigAssert "the items of a list have their marks, a nested one set in, a numbered one its number" "$( rigHolds md '│• first item' ) $( rigLookOf md mdr '• first' ) $( rigHolds md '│  • nested item' ) $( rigHolds md '│1. numbered one' )" "1 e...... 1 1"
+rigAssert "the items of a list have their marks, a nested one set in, a numbered one its number" "$( rigHolds md '│➤ first item' ) $( rigLookOf md mdr '➤ first' ) $( rigHolds md '│  ➤ nested item' ) $( rigHolds md '│1. numbered one' )" "1 e...... 1 1"
 rigAssert "a long item wraps under its own text, and a link shows as its text" "$( printf '%s\n' "$rigOut" | LC_ALL=C grep '^md|' | LC_ALL=C grep -c -E '│  [a-z].*WRAPEND' ) $( rigHolds md 'with a link to the spec inside' ) $( rigHolds md 'example.invalid' )" "1 1 0"
-rigAssert "code shows without its fences, set in, in the look of code" "$( rigHolds md '│  echo "code_block_line"' ) $( rigHolds md '```' ) $( rigLookOf md mdr 'echo' )" "1 0 DDDD"
-rigAssert "a table stands in columns, a line under its head, a column aligned to the right" "$( rigHolds md '│  Key │ Value ' ) $( rigHolds md '│  ────┼──────' ) $( rigHolds md '│  a_b │     1 ' ) $( rigLookOf md mdr 'Key' )" "1 1 1 BBB"
-rigAssert "a rule and a quote" "$( rigHolds md '│────────────────────────────────────────' ) $( rigHolds md '││ A quoted line.' ) $( rigLookOf md mdr 'A quoted' )" "1 1 DDDDDDDD"
+rigAssert "code shows without its fences, in the look of code" "$( rigHolds md '│echo "code_block_line"' ) $( rigHolds md '```' ) $( rigLookOf md mdr 'echo' )" "1 0 DDDD"
+rigAssert "a table stands in columns, a line under its head, a column aligned to the right" "$( rigHolds md '│Key │ Value ' ) $( rigHolds md '│────┼──────' ) $( rigHolds md '│a_b │     1 ' ) $( rigLookOf md mdr 'Key' )" "1 1 1 BBB"
+rigAssert "a rule and a quote" "$( rigHolds md '│────────────────────────────────────────' ) $( rigHolds md '│> A quoted line.' ) $( rigLookOf md mdr 'A quoted' )" "1 1 DDDDDDDD"
 rigAssert "the raw mode shows the file as it is, and says so" "$( rigVal raw.textMode ) $( rigHolds raw '│# The rig keeper' ) $( rigHolds raw '│```sh' ) $( rigHolds raw '│| Key | Value |' ) $( rigHolds raw '│- first item' ) $( rigHolds raw 'SKILL.md [raw] [wrap]' )" "raw 1 1 1 1 1"
 rigAssert "the summary mode renders it again" "$( rigHolds back '│The rig keeper ' ) $( rigHolds back '│# The rig keeper' ) $( rigHolds back 'SKILL.md [markdown] [wrap]' )" "1 0 1"
 rigAssert "it is set out once: a line put into the window stays through turns" "$( rigVal held.viewLines )" "$(( $( rigVal wide.viewLines ) + 1 ))"
 rigAssert "a new size sets it out again, narrower" "$( rigHolds narrow 'MARKER-LINE' ) $( [ "$( rigVal narrow.viewLines )" -gt "$( rigVal wide.viewLines )" ] && echo more || echo "not more: $( rigVal narrow.viewLines ) of $( rigVal wide.viewLines )" )" "0 more"
 rigAssert "a text that is no Markdown shows as it is" "$( rigHolds txt '│# not a heading' ) $( rigHolds txt '│**kept as it is**' ) $( rigHolds txt '[markdown]' )" "1 1 0"
 rigAssert "a text longer than the bound is rendered that far, the rest as it is under a line that says so" "$( rigHolds big '│The first 2000 lines are rendered; the 2 after them' ) $( rigHolds big '│follow as they are.' ) $( rigHolds big '│# after the bound' ) $( rigHolds big '│**raw**' )" "1 1 1 1"
+rigOne="$( "$rigPython" -I -B - "$rigScreen" "$MDLT_ORIGIN/myx/myx.common/os-myx.common/host/tarball/share/myx.common" "$rigTmp/files/rows.--manager-team-member-files keeper-rig SKILL.md" <<'RIGPY' 2>&1
+import importlib.util, os, subprocess, sys
+spec = importlib.util.spec_from_file_location("AgentsManagerScreen", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module.setStyle("tv-system")
+root, text = sys.argv[2], open(sys.argv[3], encoding="utf-8").read()
+def given(*words):
+    done = subprocess.run(["sh", os.path.join(root, "bin/lib/catMarkdown.Common"), "--spans"] + list(words), input=text.encode("utf-8"),
+                          stdout=subprocess.PIPE, env=dict(os.environ, MYXROOT=root))
+    records = [record.split(b"\t") for record in done.stdout.split(b"\n")[:-1]]
+    while records and not records[-1][0]:
+        records.pop()
+    return records
+def same(drawn, records):
+    lines, looks = drawn
+    if [str(line) for line in lines] != [record[0].decode("utf-8") for record in records]:
+        return "lines-differ"
+    for number, record in enumerate(records):
+        want = []
+        for span in [part for part in record[1].decode("ascii").split(",") if part]:
+            start, length, look = span.split("+")
+            start, length = int(start), int(length)
+            want.append((module.textWidth(record[0][:start].decode("utf-8")), module.textWidth(record[0][start:start + length].decode("utf-8")), module.MARKDOWN_LOOKS[look]))
+        if looks.get(number, []) != want:
+            return "looks-differ"
+    return "same"
+print(same(module.markdownLines(text, 80), given("--width", "79")), same(module.markdownLines(text, module.UNWRAPPED_WIDTH), given("--no-wrap")))
+module.MARKDOWN_FOUND["catMarkdownRoot"] = None
+lines, looks = module.markdownLines(text, 80)
+print("raw" if lines == module.rawLines(text.splitlines(), 80) and not looks else "rendered")
+RIGPY
+)"
+rigAssert "the text is rendered by catMarkdown: the window holds exactly what its --spans gives at that width, each look where it says; cut, it is given whole (--no-wrap); with no catMarkdown there, the text as it is" "$( printf '%s' "$rigOne" | LC_ALL=C tr '\n' ' ' )" "same same raw"
 
 echo "-- 2. an item of the team data that is Markdown, rendered --"
 rigCase item
@@ -194,7 +230,7 @@ wait view 10
 get item
 show item
 RIGSCRIPT
-rigAssert "a board item is rendered: its front matter, its heading, its list" "$( rigVal item.selected ) $( rigHolds item '│title: A' ) $( rigHolds item '│Task A ' ) $( rigHolds item '│━━━━━━ ' ) $( rigHolds item '│• step one' ) $( rigHolds item 'task-a.md [markdown] [wrap]' )" "task-a.md 1 1 1 1 1"
+rigAssert "a board item is rendered: its front matter, its heading, its list" "$( rigVal item.selected ) $( rigHolds item '│title: A' ) $( rigHolds item '│Task A ' ) $( rigHolds item '│━━━━━━ ' ) $( rigHolds item '│➤ step one' ) $( rigHolds item 'task-a.md [markdown] [wrap]' )" "task-a.md 1 1 1 1 1"
 
 echo "-- 3. a text has a mode of its own, rendered first; raw, its long lines are wrapped --"
 rigCase textmode

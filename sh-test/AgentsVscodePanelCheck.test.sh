@@ -5,7 +5,7 @@
 ## needs no JavaScript runtime: package.json is read through the package's own JSON field
 ## reader, and the two scripts by grep. The JavaScript part, a syntax check, a headless render and
 ## the clicks through a stub `vscode` module, runs on `node` when node is on PATH, else
-## on the stand-in beside this test, check-fixtures/vscode-panel-check.node.test.sh:
+## on the stand-in beside this test, check-fixtures/vscode-panel-check.node.stub.sh:
 ## macOS's own JavaScriptCore shell, put first on PATH as `node`. With neither, the rig
 ## says so and passes on the rest. Which of the two ran is in the last line. A click
 ## takes the road VS Code gives it: the link's command, the view's own enableCommandUris,
@@ -16,7 +16,7 @@ set -u
 rigPackage="$MDLT_ORIGIN/myx/myx.distro-agents"
 rigPanel="$rigPackage/vscode/magic-team"
 rigField="$rigPackage/sh-lib/AgentsHarnessJsonField.awk"
-rigStandIn="$rigPackage/sh-test/check-fixtures/vscode-panel-check.node.test.sh"
+rigStandIn="$rigPackage/sh-test/check-fixtures/vscode-panel-check.node.stub.sh"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1

@@ -289,7 +289,7 @@ larger one before quoting it.
 ## A check that leaves a process running signals it only while it is still that process
 
 A check that signals a process it kept from an earlier step sources the one shared helper for this,
-`sh-test/check-fixtures/rig-processes.include.test.sh` (`AgentsTestSignalsCheck` holds it and guards
+`sh-test/check-fixtures/rig-processes.include.sh` (`AgentsTestSignalsCheck` holds it and guards
 against a new `kill`, `pkill` or `killall` outside it). Process ids come round quickly while tests run,
 so a kept number can belong to a different process by the time it is signalled; the helper notes a
 process together with when it began, and signals it later only while its pid is still that same one.
@@ -416,7 +416,8 @@ finding being false.
 ## Where a package's checks live, and how a row is shown able to fail
 
 - **A package's checks live in its own `sh-test/`, fixtures in
-  `sh-test/check-fixtures/`, named `<check>.<command>.test.sh`.** A check finds
+  `sh-test/check-fixtures/`, named by their type, such as `<check>.<command>.stub.sh`.
+  Nothing but a check ends in `.test.sh`.** A check finds
   its package from its own location, with an override variable for a mutated
   copy, and does not assume `MDLT_ORIGIN` points at the package.
 - **A row is shown able to fail on a copy.** Copy the package tree to a

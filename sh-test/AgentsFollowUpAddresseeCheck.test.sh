@@ -33,7 +33,7 @@ for rigName in "$rigAsker" "$rigAnswerer" rig-part-a rig-part-b human-owner magi
 	mkdir -p "$rigTmp/skills/$rigName"
 	printf '%s\n' "$rigName" > "$rigTmp/skills/$rigName/$rigName.basic.md"
 done
-cp "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 export PATH

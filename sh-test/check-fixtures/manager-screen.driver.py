@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ##
-## manager-screen.driver.test.py -- the driver of the manager screen's tests. It loads
+## manager-screen.driver.py -- the driver of the manager screen's tests. It loads
 ## sh-lib/AgentsManagerScreen.py as a module and stands in for the terminal, so a test
 ## reads the screen back as text and needs no real terminal. Run with `python3 -I -B`.
 ##
@@ -353,7 +353,7 @@ def scriptRun(module):
         elif command == "root":
             known = [sectionId for sectionId, sectionLabel in module.SECTIONS]
             if rest not in known:
-                sys.stderr.write("manager-screen.driver.test.py: no root of that id: %s (the roots: %s)\n" % (rest, " ".join(known)))
+                sys.stderr.write("manager-screen.driver.py: no root of that id: %s (the roots: %s)\n" % (rest, " ".join(known)))
                 if reader[0] is not None:
                     reader[0].stop()
                 return 2
@@ -453,7 +453,7 @@ def scriptRun(module):
         elif command == "get":
             get(rest)
         else:
-            sys.stderr.write("manager-screen.driver.test.py: unknown command: %s\n" % line)
+            sys.stderr.write("manager-screen.driver.py: unknown command: %s\n" % line)
             if reader[0] is not None:
                 reader[0].stop()
             return 2
@@ -612,7 +612,7 @@ def childRaise(module, arguments):
 
 def main(arguments):
     if len(arguments) < 2:
-        sys.stderr.write("manager-screen.driver.test.py: expects <screen file> script|pty|child-raise ...\n")
+        sys.stderr.write("manager-screen.driver.py: expects <screen file> script|pty|child-raise ...\n")
         return 2
     if arguments[1] == "pty":
         return ptyRun(arguments[2:])
@@ -621,7 +621,7 @@ def main(arguments):
         return scriptRun(module)
     if arguments[1] == "child-raise":
         return childRaise(module, arguments[2:])
-    sys.stderr.write("manager-screen.driver.test.py: unknown mode: %s\n" % arguments[1])
+    sys.stderr.write("manager-screen.driver.py: unknown mode: %s\n" % arguments[1])
     return 2
 
 

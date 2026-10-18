@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on the left pane of a session and of an agent in the manager screen
 ## (sh-lib/AgentsManagerScreen.py), run rather than read. The screen's own code runs through the stand-in terminal of
-## the driver (check-fixtures/manager-screen.driver.test.py), and where it would call the dispatcher it calls a
-## stand-in script (check-fixtures/manager-screen.tools.test.sh), which notes each start and prints the fixture kept
+## the driver (check-fixtures/manager-screen.driver.py), and where it would call the dispatcher it calls a
+## stand-in script (check-fixtures/manager-screen.tools.stub.sh), which notes each start and prints the fixture kept
 ## for those very arguments: rows in the forms `--manager-session-list`, `--manager-session-read` and
 ## `--manager-session-transcript-read` print. The time and the time zone are the case's own.
 ## Held: the left pane has three modes, one at a time and never mixed, summary, log and raw log, chosen by a key and
@@ -33,8 +33,8 @@ set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
 rigFixtures="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures"
-rigDriver="$rigFixtures/manager-screen.driver.test.py"
-rigTools="$rigFixtures/manager-screen.tools.test.sh"
+rigDriver="$rigFixtures/manager-screen.driver.py"
+rigTools="$rigFixtures/manager-screen.tools.stub.sh"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }

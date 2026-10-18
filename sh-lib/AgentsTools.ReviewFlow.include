@@ -323,7 +323,7 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## (AgentsToolsSessionControlDeathAct, AgentsTools.SessionControlDeath.include).
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
-	local rsFrom="" rsWhy="" rsPaying="" rsAsked=""
+	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
 	## Taken here and taken out of the environment: the run that is started must not inherit it.
 	local rsFresh="${MDAT_REVIEW_RESTART_FRESH:-}"
@@ -355,6 +355,8 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 		rsThread="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-thread )"
 		rsPaying="$( AgentsReviewRecordPaying "$rsRecord" )"
 		rsAsked="$( AgentsReviewRecordCliAsked "$rsRecord" )"
+		rsParent="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" parent-session )"
+		rsStart="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" start-context )"
 	fi
 	[ -n "$rsMember" ] || rsMember="$( AgentsToolsDecisionsField "$rsPath" owner )"
 	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
@@ -364,10 +366,13 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	## was started on by name: both off its record (above), neither asked for again.
 	[ -z "$rsPaying" ] || set -- "$@" --spawn-settings-workspace "$rsPaying"
 	[ -z "$rsAsked" ] || set -- "$@" --spawn-cli-service "$rsAsked"
+	## Started by the session that started the run it replaces, whoever restarts it: off its record.
+	[ -z "$rsParent" ] || set -- "$@" --parent-session "$rsParent"
 	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
 	## A resumed session keeps the thread it remembers, so it resumes only when joined there.
+	## Joined, it goes on with the participation of the run it replaces, so it keeps its start-context too.
 	if [ -n "$rsSession" ] && [ -n "$rsThread" ] && [ "$rsThread" != "-" ] ; then
-		rsOut="$( [ -z "$rsFrom" ] || export MDAT_SPAWN_RESUME_FROM="$rsFrom" MDAT_SPAWN_RESUME_TEXT="$rsText" ; [ -z "$rsContext" ] || export MDAT_SPAWN_RESUME_CONTEXT="$rsContext" MDAT_SPAWN_RESUME_TEXT="$rsText" ; AgentsReviewTools "$@" --session-id "$rsSession" --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
+		rsOut="$( [ -z "$rsFrom" ] || export MDAT_SPAWN_RESUME_FROM="$rsFrom" MDAT_SPAWN_RESUME_TEXT="$rsText" ; [ -z "$rsContext" ] || export MDAT_SPAWN_RESUME_CONTEXT="$rsContext" MDAT_SPAWN_RESUME_TEXT="$rsText" ; AgentsReviewTools "$@" --session-id "$rsSession" ${rsStart:+--start-context "$rsStart"} --context "${MDSC_CMD:-review}" 2>&1 )" || rsRc=$?
 		[ "$rsRc" = 0 ] || {
 			rsRc=0
 			[ -z "$rsFrom" ] || { rsFrom="" ; rsWhy="the session $rsSession could not be joined" ; }

@@ -33,7 +33,7 @@ for rigNeed in magic-tester magic-developer magic-coordinator ; do
 	[ -r "${MDAT_SKILLSET_ROOT:-}/$rigNeed/$rigNeed.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigNeed"
 done
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
-. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.test.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.test.sh"
+. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 rigTmp="$( mktemp -d -t AgentsHarnessAskVerdictWordsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
@@ -78,7 +78,7 @@ rigAssert "words never make a verdict of a reply that names none" "$( rigVerdict
 ## the host's process list: the ps first on PATH answers the whole-host listing from the rig's
 ## own list and hands every other call to the real ps. The fake curl opens no socket.
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-ask-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
+cp "$rigTest/check-fixtures/harness-ask-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing from the package"
 RIG_PS_REAL="$( command -v ps )" || rigRefuse "no ps on PATH to hand the other calls to"
 RIG_PS_LIST="$rigTmp/ps.list"
 export RIG_PS_REAL RIG_PS_LIST
@@ -352,7 +352,7 @@ echo "-- a review prompt: the verdict, and everything he wrote with it --"
 ## session that hands back, a fake console, and every command guarded to this check's tree.
 PATH="$rigPathBefore"
 export PATH
-revFixture="$rigTest/check-fixtures/review-prompt.curl.test.sh"
+revFixture="$rigTest/check-fixtures/review-prompt.curl.stub.sh"
 [ -f "$revFixture" ] || rigRefuse "the fake curl fixture of the review prompt is missing: $revFixture"
 mkdir -p "$rigTmp/revbin"
 cp "$revFixture" "$rigTmp/revbin/curl" && chmod +x "$rigTmp/revbin/curl" || rigRefuse "could not install the fake curl of the review prompt"

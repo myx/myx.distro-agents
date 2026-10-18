@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on the dialogs of the manager screen (sh-lib/AgentsManagerScreen.py) and on its status line, run
 ## rather than read. The screen's own code runs through the stand-in terminal of the driver
-## (check-fixtures/manager-screen.driver.test.py), which opens a dialog of the rig's own with a control of every kind.
+## (check-fixtures/manager-screen.driver.py), which opens a dialog of the rig's own with a control of every kind.
 ## Held: a dialog is drawn from its declaration, framed, with its title, over the windows, and in the Turbo Vision
 ## style with a shadow; it has the keys, so no key of a window, of a menu or of the screen works while it is open; Tab
 ## and Shift-Tab move between its controls and its buttons; a field takes what is typed and Backspace; in a field of
@@ -22,14 +22,14 @@
 ## of the feed, all or active, is kept for the run of the screen whatever is selected. The help lists the keys
 ## from the declaration.
 ## And, with the real screen on a pseudo-terminal in front of a terminal that keeps its cells
-## (check-fixtures/manager-screen.vt.test.py), in every style: while a field of a dialog, of one line or of several, has
+## (check-fixtures/manager-screen.vt.stub.py), in every style: while a field of a dialog, of one line or of several, has
 ## the keys, the cursor shows, where what is typed goes, an emoji typed too, and stays there as the screen draws
 ## again; while a button has them it shows nowhere; at the end it shows again.
 ## Offline: nothing but the screen's own code runs, and no operation of the tooling is called.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
 rigScreen="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsManagerScreen.py"
-rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.test.py"
+rigDriver="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.driver.py"
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
@@ -489,8 +489,8 @@ rigAssert "Magic: the shadow at the right of a dialog starts beside its second l
 
 echo "-- on a real terminal, in every style: the cursor shows where what is typed goes while a field has the keys, and nowhere while a button has them --"
 "$rigPython" -I -c 'import curses' 2> /dev/null || rigRefuse "the python3 on PATH has no curses module, so the real screen cannot be started here: $rigPython"
-rigVt="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.vt.test.py"
-rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.test.sh"
+rigVt="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.vt.stub.py"
+rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.stub.sh"
 [ -f "$rigVt" ] || rigRefuse "the terminal of the screen tests is missing: $rigVt"
 [ -f "$rigTools" ] || rigRefuse "the stand-in for the dispatcher is missing: $rigTools"
 rigTmp="$( mktemp -d -t AgentsManagerScreenDialogCheck )" || exit 1

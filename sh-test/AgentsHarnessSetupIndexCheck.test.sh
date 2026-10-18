@@ -189,7 +189,7 @@ rigAssert "hooks: an index cut short is refused" "$( printf '%s\n' "$rigHookOut"
 
 echo "-- through the harness: the same request and report, indexes or not --"
 mkdir -p "$rigTmp/bin"
-cp "$rigTest/check-fixtures/harness-mcp-check.curl.test.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
+cp "$rigTest/check-fixtures/harness-mcp-check.curl.stub.sh" "$rigTmp/bin/curl" || rigRefuse "the fake curl fixture is missing"
 chmod +x "$rigTmp/bin/curl"
 PATH="$rigTmp/bin:$PATH"
 [ "$( command -v curl )" = "$rigTmp/bin/curl" ] || rigRefuse "the fake curl is not first on PATH, so this check would issue real requests"
