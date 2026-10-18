@@ -407,7 +407,7 @@ revStart(){ ## scenario name
 	printf -- '---\ntype: task\nowner: keeper-myx\n---\n\n# Rework the rig widget\n\nThe widget drops its last line.\n' > "$revData/board/running/task-20261012T0000Z-$1.md"
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\nreview-by: human-owner\n---\n\n# rig dispatch\n' \
 		"$revSpawn" "$1" > "$revData/board/running/$revItem.md"
-	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
+	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
 		"$1" "$revSpawn" "$revSpawn" "$rigHost" "$revItem" > "$revWs/.local/agents/spawned/$revSpawn/$revSpawn.md"
 	: > "$revDir/transcript.log"
 	printf '%s\n' "$revDir/transcript.log" > "$revWs/.local/agents/sessions/$revSpawn/transcript"

@@ -345,7 +345,7 @@ rigOne s-done
 rigAssert "a finished session that a run joins again reads running again: the word changed, so the state is written" \
 	"$rigRc:$( rigState s-done ):$( [ "$( rigPrint "$rigStores/s-done/control/state" )" != "$rigDonePrint" ] && echo written || echo untouched )" "0:running:written"
 ## The founder is a client's own session, with no record of its own: the session is its members' records.
-rigRec member-1 member-1 s-client member-1 "$rigHost" spawn-started 'parent-session-id: s-client
+rigRec member-1 member-1 s-client member-1 "$rigHost" spawn-started 'parent-spawn-id: s-client
 '
 rigStand member-1
 rigOne s-client

@@ -240,7 +240,7 @@ rigShort(){ rigRunId | cut -c1-8 ; }
 rigParent="rig-parent-$$"
 rigParentThread="CRIGPARENT:1700000000.000100"
 mkdir -p "$rigSp/$rigParent"
-printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: %s\n---\n\n# Spawn session: %s\n' \
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: %s\n---\n\n# Spawn session: %s\n' \
 	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParentThread" "$rigParent" > "$rigSp/$rigParent/$rigParent.md"
 ## It runs: a stand-in process of this rig stands in the rig's process list as its run, by its own session word,
 ## so that the session lives for whoever measures it, the advance scan among them.
@@ -362,7 +362,7 @@ echo "-- 4. a run no session requested, its item with no reviewer, is told to th
 rigStart unrequested --session-name-or-comment "the rig's own errand"
 rigOwnThread="$( rigHeader "$rigRecord" session-thread )"
 rigAssert "control: no session requested it, and its item names no reviewer" \
-	"$( rigHeader "$rigRecord" parent-session-id ):$( rigHeader "$rigRecord" parent-thread ):$( LC_ALL=C grep -c '^review-by: ' "$rigData/board/running/$rigItem.md" 2> /dev/null )" "none::0"
+	"$( rigHeader "$rigRecord" parent-spawn-id ):$( rigHeader "$rigRecord" parent-thread ):$( LC_ALL=C grep -c '^review-by: ' "$rigData/board/running/$rigItem.md" 2> /dev/null )" "none::0"
 rigLetGo
 rigEnded
 rigAssert "it ends with no handback: one message, in the bot's direct conversation with the human-owner, in no thread, addressed to him" "$( rigNotes "$rigDir" "$rigMissing" )" "URIGOWNER - 👤 *_human-owner_* <@URIGOWNER>"
@@ -370,6 +370,17 @@ rigAssert "its words: the same fact, and that no session requested the run, with
 	"📦 rig-member-a ended its run \`$( rigShort )\` $rigMissing No session requested this run, so its end is told here. Its session: the rig's own errand."
 rigAssert "it is no ask: no record of a question is opened, and nothing is placed under it" "$( ls "$rigWs/.local/agents/pending" 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( LC_ALL=C grep -c '^reactions.add .*' "$rigDir/calls" 2> /dev/null )" "0:1"
 rigAssert "and its record is closed, its item in review" "$( rigHeader "$rigRecord" status ):$( rigItemIn "$rigItem" )" "spawn-succeeded:review"
+
+echo "-- 4b. a run that reports to a member is told in that member's own conversation: its inbox, where it has no Slack DM --"
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigLib/AgentsTools.SpawnSandbox.include" )"
+rigToMember="rtm4b$$x"
+mkdir -p "$rigSp/$rigToMember" "$rigTmp/s4b"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\n%s: rig-member-b\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-ended-without-close\nsession-thread: CRIGOWN4B:1700000004.000200\n---\n' \
+	"$rigToMember" "$rigToMember" "$rigReportsTo" "$rigToMember" "$rigHost" > "$rigSp/$rigToMember/$rigToMember.md"
+printf '%s\n' ". \"\$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include\" ; AgentsToolsSpawnProxyEndNotice '$rigSp/$rigToMember/$rigToMember.md' missing ; printf 'SAID=%s\\n' \"\$agentsSpawnProxyEndNoticeSaid\"" \
+	| rigEnv "$rigTmp/s4b" bash "$rigTool" --intern-mcp-execute > "$rigTmp/s4b/out" 2>&1
+rigAssert "told once, in the inbox of the member it reports to, and in no conversation" \
+	"$( LC_ALL=C grep -c -x 'SAID=posted' "$rigTmp/s4b/out" ):$( LC_ALL=C grep -l -F -- "${rigToMember:0:8}" "$rigData/inboxes/rig-member-b"/inquiry-*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 }' ):$( rigNoteCount "$rigTmp/s4b" "${rigToMember:0:8}" )" "1:1:0"
 
 echo "-- 5. a killed run is told as killed, and by whom --"
 ## One call of the console in the rig workspace, as a bare console makes it.
@@ -433,8 +444,8 @@ rigDeadItem="dispatch-20261013T0900Z-rigdead"
 rigDir="$rigTmp/advance"
 mkdir -p "$rigDir" "$rigSp/$rigDead/input" "$rigSp/$rigDead/output"
 rigRecord="$rigSp/$rigDead/$rigDead.md"
-printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: %s\nparent-member: rig-member-b\nparent-thread: %s\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nstarted-at: 2026-10-13 09:10 +0300\nsession-thread: CRIGDEAD:1700000001.000100\nspawns: %s\n---\n\n# Spawn session: %s\n' \
-	"$rigDead" "$rigDead" "$rigParent" "$rigParentThread" "$rigDead" "$rigHost" "$rigDeadItem" "$rigDead" > "$rigRecord"
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\nparent-session-id: %s\nparent-member: rig-member-b\nparent-thread: %s\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-a\nstatus: spawn-started\nstarted-at: 2026-10-13 09:10 +0300\nsession-thread: CRIGDEAD:1700000001.000100\nspawns: %s\n---\n\n# Spawn session: %s\n' \
+	"$rigDead" "$rigDead" "$rigParent" "$rigParent" "$rigParentThread" "$rigDead" "$rigHost" "$rigDeadItem" "$rigDead" > "$rigRecord"
 printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nsession-id: %s\nspawn-id: %s\nreview-by: %s\n---\n\n# rig dispatch\n\n## Brief\n\nRIG-BRIEF\n' "$rigDead" "$rigDead" "$rigParent" > "$rigData/board/running/$rigDeadItem.md"
 rigStampText="$( rigStampEpoch=$(( $( date +%s ) - 1800 )) ; date -r "$rigStampEpoch" +%Y%m%d%H%M.%S 2> /dev/null || date -d "@$rigStampEpoch" +%Y%m%d%H%M.%S )"
 find "$rigSp/$rigDead" -exec touch -t "$rigStampText" {} +

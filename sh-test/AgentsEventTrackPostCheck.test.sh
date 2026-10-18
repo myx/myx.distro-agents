@@ -184,7 +184,7 @@ rigAssert "a line whose first field is empty opens with the next one, not its se
 rigAssert "a value given as - is no value" "$( rigRender end "$rigTmp/k-dash" /dev/null outcome=- exit-code=0 ; sed -n 3p "$rigTmp/k-dash/000001" )" 'exit: 0'
 ## The first post of a thread, by the spawn that starts the session: the session's block, with
 ## only what is the session's, then that spawn's own start entry, a run block as any other's.
-rigRender start "$rigTmp/k-root" /dev/null cli=claude-native runs=native tier=max started-by=magic-tester session-id=154edb9e joined-session=- parent-session-id=- tracking-name=- \
+rigRender start "$rigTmp/k-root" /dev/null cli=claude-native runs=native tier=max started-by=magic-tester session-id=154edb9e joined-session=- parent-spawn-id=- tracking-name=- \
 	session-thread=CRIG:1.2 host=rig-host workspace=rig-ws started-at='2030-01-01 00:00 +0000' output-file=rig-ws/session.log receipt=spawn-proxy-rig context=rig-context
 rigAssert "a root: the session's block holds its id, who started it and its thread, and the starter's own run block its cli, tier and where it runs; no parent or tracking that only repeats the session, no output, receipt or context" \
 	"$( rigMask < "$rigTmp/k-root/000001" | LC_ALL=C tr '\n' '|' )" \
@@ -216,7 +216,7 @@ rigAssert "both given as -, the three being one: the run says its workspace once
 	"$( rigRender start "$rigTmp/k-ws-one" /dev/null cli=rig-cli host=rig-host workspace=rig-ws member-workspace=- paying-workspace=- ; LC_ALL=C grep -e '^where: ' -e 'workspace: ' "$rigTmp/k-ws-one/000001.plain.001" | LC_ALL=C tr '\n' '|' )" \
 	"where: rig-host / rig-ws|"
 ## A spawn that joins: its own start entry alone, a reply, with the session it joined.
-rigRender start "$rigTmp/k-join" /dev/null cli=grok runs=harness tier=fast started-by=- session-id=- session-thread=- joined-session=154edb9e parent-session-id=3f2488f9 tracking-name=rig-track
+rigRender start "$rigTmp/k-join" /dev/null cli=grok runs=harness tier=fast started-by=- session-id=- session-thread=- joined-session=154edb9e parent-spawn-id=3f2488f9 tracking-name=rig-track
 rigAssert "one that joins posts its run block alone: no session block, the session it joined, its own cli and tier" \
 	"$( rigMask < "$rigTmp/k-join/000001" | LC_ALL=C tr '\n' '|' )" \
 	'BOX [bust_in_silhouette] magic-tester (run `abcdef01`) | <date {date_short_pretty} at {time}>|▶️ run start · joined session `154edb9e`|cli: grok · runs: harness · tier: fast|~ parent: `3f2488f9` · tracking: `rig-track`|'

@@ -72,7 +72,7 @@ rigStart(){ ## scenario directory name
 	: > "$RIG_CURL_LOG"
 	## The spawn record of the session the call runs in: not ended, so its grants live.
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/child-folder"
-	printf -- '---\nspawn-id: rig-child-id\nowner: %s\nparent-session-id: none\n---\n' "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
+	printf -- '---\nspawn-id: rig-child-id\nowner: %s\nparent-spawn-id: none\n---\n' "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
 }
 rigTeam(){ ## KEY=value
 	printf '%s\n' "$1" >> "$rigScenarioDir/ws/.local/.agents/magic-team.agent.env"

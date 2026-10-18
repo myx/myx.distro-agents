@@ -123,7 +123,7 @@ registryRows == "spawned" && entryKind == "S" {
 	registryFrontmatterRead(entryText) ;
 	recordTracking = registryHeader("tracking-name") ;
 	if (recordTracking != "-") sandboxTracking = recordTracking ;
-	printf "%s %s %s %s %s %s %s %s %s %s %s", sandboxTracking, registryHeader("session-id"), registryHeader("parent-session-id"), registryHeader("host"), registryHeader("owner"), registryHeader("status"), registryHeader("exit-code"), registryHeader("spawn-id"), registryHeader("agent-log-thread"), registryHeader("session-thread"), registryHeader("workspace") ;
+	printf "%s %s %s %s %s %s %s %s %s %s %s", sandboxTracking, registryHeader("session-id"), registryHeader("parent-spawn-id"), registryHeader("host"), registryHeader("owner"), registryHeader("status"), registryHeader("exit-code"), registryHeader("spawn-id"), registryHeader("agent-log-thread"), registryHeader("session-thread"), registryHeader("workspace") ;
 	if ( registryColumns >= 14 ) printf " %s %s %s", registryHeader("started-at"), registryHeader("resolved-at"), registryHeader("session-comment") ;
 	if ( registryColumns >= 16 ) {
 		recordSession = registryHeader("session-id") ;

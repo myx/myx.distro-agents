@@ -163,7 +163,7 @@ rigAssert "and both histories are there"                  "$( grep -c -E '^## Th
 
 echo "-- a thread that is a known session's own joins that session --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-old-session"
-printf '%s\n' '---' 'session-id: rig-old-session' 'spawn-id: rig-old-session' 'parent-session-id: none' 'tracking-name: rig-old-session' \
+printf '%s\n' '---' 'session-id: rig-old-session' 'spawn-id: rig-old-session' 'parent-spawn-id: none' 'tracking-name: rig-old-session' \
 	"host: $( hostname -s )" 'workspace: ws' 'owner: keeper-myx' 'status: spawn-failed' 'session-thread: DRIGOLD:200.000001' '---' \
 	> "$rigWs/.local/agents/spawned/rig-old-session/rig-old-session.md"
 rigOut="$( rigSpawn "RIG-JOIN-TASK" --conversation DRIGOLD:200.000001 )"

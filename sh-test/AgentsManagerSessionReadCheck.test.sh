@@ -127,26 +127,26 @@ rigOthers(){ ## -- every file of the rig workspace but the two session registrie
 ## THE STORES. One session of three: its founder, live and inside a Wait; a member, live and working; a member that
 ## closed and was dismissed. The founder's description holds a TAB and a backslash.
 {
-	printf 'session-id: sess-a\nspawn-id: sess-a\nparent-session-id: none\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-coordinator\n' "$rigHost"
+	printf 'session-id: sess-a\nspawn-id: sess-a\nparent-spawn-id: none\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-coordinator\n' "$rigHost"
 	printf 'routine: magic-team.daily.routine\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\n'
 	printf 'agent-log-thread: CTRACK:1.000100\nsession-thread: CSESS:2.000200\n'
 	printf 'description: Run the daily\tof Monday, and keep C:\\notes.\n'
 	printf 'session-comment: daily of Monday\nspawns: dispatch-20261013T060000Z-spawn-proxy-1\n'
 } | rigRecord sess-a sess-a
 {
-	printf 'session-id: sess-a\nspawn-id: run-b\nparent-session-id: sess-a\nparent-member: magic-coordinator\nhost: %s\nworkspace: rigws\ncli: grok-harness\nowner: keeper-rig\n' "$rigHost"
+	printf 'session-id: sess-a\nspawn-id: run-b\nparent-spawn-id: sess-a\nparent-member: magic-coordinator\nhost: %s\nworkspace: rigws\ncli: grok-harness\nowner: keeper-rig\n' "$rigHost"
 	printf 'status: spawn-started\nstarted-at: 2026-10-13 09:05 +0300\nagent-log-thread: CTRACK:1.000100\nsession-thread: CSESS:2.000200\n'
 	printf 'description: Answer the daily.\nspawns: dispatch-20261013T060500Z-spawn-proxy-2\n'
 } | rigRecord run-b run-b
 {
-	printf 'session-id: sess-a\nspawn-id: run-c\nparent-session-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-tester\n' "$rigHost"
+	printf 'session-id: sess-a\nspawn-id: run-c\nparent-spawn-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-tester\n' "$rigHost"
 	printf 'status: spawn-succeeded\nexit-code: 0\nstarted-at: 2026-10-13 09:10 +0300\nresolved-at: 2026-10-13 09:40 +0300\n'
 } | rigRecord run-c run-c
 ## A lone run that closed and has no folder under sessions/.
 printf 'session-id: sess-n\nspawn-id: sess-n\nhost: %s\nworkspace: rigws\nowner: magic-librarian\nstatus: spawn-failed\nexit-code: 3\nstarted-at: 2026-10-12 08:00 +0300\nresolved-at: 2026-10-12 08:30 +0300\n' "$rigHost" | rigRecord sess-n sess-n
 ## A session a desktop client founded: only its members have records.
-printf 'session-id: sess-desk\nspawn-id: desk-b\nparent-session-id: sess-desk\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-succeeded\nstarted-at: 2026-10-11 10:00 +0300\nresolved-at: 2026-10-11 10:30 +0300\nagent-log-thread: CTRACK:5.000500\nsession-thread: CSESS:6.000600\n' "$rigHost" | rigRecord desk-b desk-b
-printf 'session-id: sess-desk\nspawn-id: desk-c\nparent-session-id: sess-desk\nhost: %s\nworkspace: rigws\nowner: magic-tester\nstatus: spawn-started\nstarted-at: 2026-10-11 10:05 +0300\n' "$rigHost" | rigRecord desk-c desk-c
+printf 'session-id: sess-desk\nspawn-id: desk-b\nparent-spawn-id: sess-desk\nhost: %s\nworkspace: rigws\nowner: keeper-rig\nstatus: spawn-succeeded\nstarted-at: 2026-10-11 10:00 +0300\nresolved-at: 2026-10-11 10:30 +0300\nagent-log-thread: CTRACK:5.000500\nsession-thread: CSESS:6.000600\n' "$rigHost" | rigRecord desk-b desk-b
+printf 'session-id: sess-desk\nspawn-id: desk-c\nparent-spawn-id: sess-desk\nhost: %s\nworkspace: rigws\nowner: magic-tester\nstatus: spawn-started\nstarted-at: 2026-10-11 10:05 +0300\n' "$rigHost" | rigRecord desk-c desk-c
 rigAsk ask-1 sess-a reply-pending
 rigAsk ask-2 run-b reply-pending
 rigAsk ask-3 run-b reply-pending
@@ -185,7 +185,7 @@ rigTokensRow="$( printf 'tokens\tsess-a\t608\t87390597\t685590\t0\t1\t1\tso-far\
 rigDispatchRow="$( printf 'dispatch\tsess-a\trecord\tmagic-coordinator\tmagic-team.daily.routine\tdispatch-20261013T060000Z-spawn-proxy-1\tCSESS:2.000200\tCTRACK:1.000100\tRun the daily\\tof Monday, and keep C:\\\\notes.' )"
 rigFounderRows="$( {
 	printf 'run\tsess-a\tsess-a\tmagic-coordinator\tspawn-started\trunning\trunning\t2026-10-13_09:00_+0300\t-\t%s\trigws\twaiting\n' "$rigHost"
-	printf 'header\tsess-a\tsession-id\tsess-a\nheader\tsess-a\tspawn-id\tsess-a\nheader\tsess-a\tparent-session-id\tnone\nheader\tsess-a\thost\t%s\nheader\tsess-a\tworkspace\trigws\nheader\tsess-a\tcli\tclaude-native\nheader\tsess-a\towner\tmagic-coordinator\n' "$rigHost"
+	printf 'header\tsess-a\tsession-id\tsess-a\nheader\tsess-a\tspawn-id\tsess-a\nheader\tsess-a\tparent-spawn-id\tnone\nheader\tsess-a\thost\t%s\nheader\tsess-a\tworkspace\trigws\nheader\tsess-a\tcli\tclaude-native\nheader\tsess-a\towner\tmagic-coordinator\n' "$rigHost"
 	printf 'header\tsess-a\troutine\tmagic-team.daily.routine\nheader\tsess-a\tstatus\tspawn-started\nheader\tsess-a\tstarted-at\t2026-10-13 09:00 +0300\n'
 	printf 'header\tsess-a\tagent-log-thread\tCTRACK:1.000100\nheader\tsess-a\tsession-thread\tCSESS:2.000200\n'
 	printf 'header\tsess-a\tdescription\tRun the daily\\tof Monday, and keep C:\\\\notes.\n'
@@ -194,14 +194,14 @@ rigFounderRows="$( {
 } )"
 rigMemberRows="$( {
 	printf 'run\tsess-a\trun-b\tkeeper-rig\tspawn-started\trunning\trunning\t2026-10-13_09:05_+0300\t-\t%s\trigws\tworking\n' "$rigHost"
-	printf 'header\trun-b\tsession-id\tsess-a\nheader\trun-b\tspawn-id\trun-b\nheader\trun-b\tparent-session-id\tsess-a\nheader\trun-b\tparent-member\tmagic-coordinator\nheader\trun-b\thost\t%s\nheader\trun-b\tworkspace\trigws\nheader\trun-b\tcli\tgrok-harness\nheader\trun-b\towner\tkeeper-rig\n' "$rigHost"
+	printf 'header\trun-b\tsession-id\tsess-a\nheader\trun-b\tspawn-id\trun-b\nheader\trun-b\tparent-spawn-id\tsess-a\nheader\trun-b\tparent-member\tmagic-coordinator\nheader\trun-b\thost\t%s\nheader\trun-b\tworkspace\trigws\nheader\trun-b\tcli\tgrok-harness\nheader\trun-b\towner\tkeeper-rig\n' "$rigHost"
 	printf 'header\trun-b\tstatus\tspawn-started\nheader\trun-b\tstarted-at\t2026-10-13 09:05 +0300\nheader\trun-b\tagent-log-thread\tCTRACK:1.000100\nheader\trun-b\tsession-thread\tCSESS:2.000200\n'
 	printf 'header\trun-b\tdescription\tAnswer the daily.\nheader\trun-b\tspawns\tdispatch-20261013T060500Z-spawn-proxy-2\n'
 	printf 'store\trun-b\tstore\tgrok-4\t-\t-\t-\t-\task-2,ask-3\t-\t2026-10-13T07:20:00Z\tmessage out\t-\t-\t%s\t-\n' "$rigStores/run-b/session.log"
 } )"
 rigClosedRows="$( {
 	printf 'run\tsess-a\trun-c\tmagic-tester\tspawn-succeeded\tno-process\tfinished\t2026-10-13_09:10_+0300\t2026-10-13_09:40_+0300\t%s\trigws\t-\n' "$rigHost"
-	printf 'header\trun-c\tsession-id\tsess-a\nheader\trun-c\tspawn-id\trun-c\nheader\trun-c\tparent-session-id\tsess-a\nheader\trun-c\thost\t%s\nheader\trun-c\tworkspace\trigws\nheader\trun-c\tcli\tclaude-native\nheader\trun-c\towner\tmagic-tester\n' "$rigHost"
+	printf 'header\trun-c\tsession-id\tsess-a\nheader\trun-c\tspawn-id\trun-c\nheader\trun-c\tparent-spawn-id\tsess-a\nheader\trun-c\thost\t%s\nheader\trun-c\tworkspace\trigws\nheader\trun-c\tcli\tclaude-native\nheader\trun-c\towner\tmagic-tester\n' "$rigHost"
 	printf 'header\trun-c\tstatus\tspawn-succeeded\nheader\trun-c\texit-code\t0\nheader\trun-c\tstarted-at\t2026-10-13 09:10 +0300\nheader\trun-c\tresolved-at\t2026-10-13 09:40 +0300\n'
 	printf 'store\trun-c\tstore\t-\t-\t-\t-\t-\t-\tdismissed,dismissed.handback,ended\t2026-10-13T06:39:58Z\tend\t-\tmagic-coordinator (the daily is over)\t-\t-\n'
 } )"
@@ -320,7 +320,7 @@ rigRun "$rigOp" --session-id sess-missed
 rigAssert "a registry years newer than the store by its time is not taken for that: it does not hold the folder, so it is rebuilt, and the session is read" "$rigRc $( rigRows session ) $( LC_ALL=C grep -c -e 'sess-missed' "$rigAgents/spawned-sessions.registry" || : )" "0 session sess-missed - finished 2026-10-06_06:00_+0300 2026-10-06_06:30_+0300 1 finished=1 - - none - 1"
 ## A MEMBER JOINS A RUNNING SESSION: its record is added to the sandbox folder the session already has, which is
 ## where a spawn that joins a session by its id keeps it. No folder is new, and the id has its rows already.
-printf 'session-id: sess-a\nspawn-id: run-j\nparent-session-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-librarian\nstatus: spawn-started\nstarted-at: 2026-10-13 09:20 +0300\n' "$rigHost" | rigRecord sess-a run-j
+printf 'session-id: sess-a\nspawn-id: run-j\nparent-spawn-id: sess-a\nhost: %s\nworkspace: rigws\ncli: claude-native\nowner: magic-librarian\nstatus: spawn-started\nstarted-at: 2026-10-13 09:20 +0300\n' "$rigHost" | rigRecord sess-a run-j
 rigOld "$rigSp/sess-a/run-j.md" "$rigSp/sess-a" "$rigSp"
 rigLive sess-a run-b run-j
 rigAssert "control: the member's record stands in the session's own folder, nothing there is newer than the registry, and the registry holds the session and not the member" "$( ls "$rigSp/sess-a" | LC_ALL=C tr '\n' ' ' )$( rigNoneNewer "$rigAgents/spawned-sessions.registry" "$rigSp" "$rigSp/sess-a" "$rigSp/sess-a/run-j.md" "$rigSp/sess-a/sess-a.md" ) $( LC_ALL=C awk '$2 == "sess-a" { rows++ } $8 == "run-j" { joined++ } END { print rows + 0 ":" joined + 0 }' "$rigAgents/spawned-sessions.registry" )" "run-j.md sess-a.md none-newer 3:0"
@@ -334,7 +334,7 @@ rigRun "$rigOp" --session-id sess-a
 rigAssert "the read after it changes nothing: where the registries hold the store as it is, neither is rewritten" "$rigRc $( rigRows session | LC_ALL=C awk '{ print $7 }' ) $( rigPrint "$rigAgents/spawned-sessions.registry" ) $( rigPrint "$rigAgents/pending-replies.registry" )" "0 4 $rigRegBefore"
 ## A RECORD THAT CHANGED IN PLACE, with no new file: the member closes, as the spawner closes a record.
 {
-	printf 'session-id: sess-a\nspawn-id: run-b\nparent-session-id: sess-a\nparent-member: magic-coordinator\nhost: %s\nworkspace: rigws\ncli: grok-harness\nowner: keeper-rig\n' "$rigHost"
+	printf 'session-id: sess-a\nspawn-id: run-b\nparent-spawn-id: sess-a\nparent-member: magic-coordinator\nhost: %s\nworkspace: rigws\ncli: grok-harness\nowner: keeper-rig\n' "$rigHost"
 	printf 'status: spawn-succeeded\nexit-code: 0\nstarted-at: 2026-10-13 09:05 +0300\nresolved-at: 2026-10-13 09:50 +0300\n'
 } > "$rigTmp/run-b.closed"
 { printf -- '---\n' ; cat "$rigTmp/run-b.closed" ; printf -- '---\n\n# Spawn session\n' ; } > "$rigSp/run-b/run-b.md"

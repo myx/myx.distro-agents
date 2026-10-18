@@ -664,10 +664,13 @@ case "$1" in
 		## says it: a session never spawned carries no member, and each call it makes is served
 		## as one.
 		local callingMemberSaid=""
-		## --parent-session and --start-context: said only by a restart (AgentsReviewRestart), off the
-		## record of the run it replaces, which this one continues: the session that started that run,
-		## and how it was started. Recorded as said, in place of what this call's own caller would give.
-		local parentSessionSaid="" startContextSaid=""
+		## --parent-session, --start-context and --reports-to: said only by a restart
+		## (AgentsReviewRestart), off the record of the run it replaces, which this one continues:
+		## the session that started that run, how it was started, and where it reports to. Recorded
+		## as said, in place of what this call's own caller would give.
+		## --parent-none, the restart's too: the run it replaces had no parent session and named no
+		## address, and so has this one, whoever restarts it.
+		local parentSessionSaid="" startContextSaid="" reportsToSaid="" parentNoneSaid=""
 		## --description: the spawner's own words for what this spawn is for. Kept on the records
 		## of the spawn it came from, and shown on the first line of its start post.
 		local spawnDescription=""
@@ -872,6 +875,18 @@ case "$1" in
 					parentSessionSaid="$2"
 					shift 2
 				;;
+				--parent-none)
+					parentNoneSaid="true"
+					shift
+				;;
+				--reports-to)
+					if ! AgentsToolsRunRouteValid "${2:-}" ; then
+						echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: --reports-to requires <session>[:<member>], <member>, user-<account> or human-owner, got: ${2:-}" >&2
+						set +e ; return 1
+					fi
+					reportsToSaid="$2"
+					shift 2
+				;;
 				--start-context)
 					case "${2:-}" in
 						spawned|inline|joined) startContextSaid="$2" ;;
@@ -900,7 +915,7 @@ case "$1" in
 			esac
 		done
 		if [ -z "$callerName" ] ; then
-			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>] [--start-context spawned|inline|joined] [--wait]" >&2
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: syntax is <agent-or-meta-name> [--from-board <board-item-name> [--board-state <state>]...] [--from-vault <vault-item-name>] [--from-audit <audit-item-name>] [--tracking-name <tracking-name>] [--session-thread:event-track|magic-team] [--session-name-or-comment <text>] [--description <text>] [--session-id <session-id>|--session-new] [--conversation <channel>:<thread-ts>]... [--routine <selector>|--routine-default] [--calling-member <team-member>] [--parent-session <session-id>|--parent-none] [--start-context spawned|inline|joined] [--reports-to <address>] [--wait]" >&2
 			set +e ; return 1
 		fi
 		if [ -n "$routineSelector" ] && [ "$routineDefault" = "true" ] ; then
@@ -951,6 +966,10 @@ case "$1" in
 		## functions AgentsTools.Registries.include defines, and the rebuilt
 		## registry file it writes, stay behind that one fork and never touch a
 		## caller running this op as a sourced function in its own long-lived shell.
+		if [ -n "$parentSessionSaid" ] && [ -n "$parentNoneSaid" ] ; then
+			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --parent-session <session-id> | --parent-none" >&2
+			set +e ; return 1
+		fi
 		if [ -n "$joinSessionId" ] && [ -n "$sessionNew" ] ; then
 			echo "$MDSC_CMD: agent-spawn-proxy: ⛔ ERROR: use only one of --session-id <session-id> | --session-new: one joins a session, the other starts one" >&2
 			set +e ; return 1
@@ -1250,15 +1269,17 @@ case "$1" in
 			sessionId="$parentSessionId"
 			sessionOfCaller="true"
 		fi
-		## HOW THIS RUN IS STARTED, and WHICH SESSION STARTED IT, both kept on its record from its
-		## first write (`start-context:`, `parent-session:`), read off the decision above: `joined`
-		## where it joins a session (by id, by a conversation, or the one its caller is in),
-		## `inline` where it is brought into its caller's own session, `spawned` where it starts a
-		## session. Its parent session is the session its caller works in: the one the caller was
-		## handed, else the one the caller's own record names, else a caller never spawned, whose
-		## own id names its session. None for a bare command line: then no field is written. A
-		## restart says both instead, for the run it continues.
-		local startContext="spawned" parentSession="$inheritedSessionId" parentSessionRecord
+		## HOW THIS RUN IS STARTED, WHICH SESSION STARTED IT, and WHERE IT REPORTS TO, kept on its
+		## record from its first write (`start-context:`, `parent-session-id:`, `reports-to:`), read
+		## off the decision above: `joined` where it joins a session (by id, by a conversation, or
+		## the one its caller is in), `inline` where it is brought into its caller's own session,
+		## `spawned` where it starts a session. Its parent session is the session its caller works
+		## in: the one the caller was handed, else the one the caller's own record names, else a
+		## caller never spawned, whose own id names its session. It reports to that session, which
+		## needs no field of its own (AgentsToolsRunRoute); where there is none, to the member that
+		## made the call, else to the person whose account started it at a console, as
+		## `user-<account>`. A restart says all three instead, for the run it continues.
+		local startContext="spawned" parentSession="$inheritedSessionId" parentSessionRecord reportsTo=""
 		if [ -n "$joinSessionId" ] || { [ -z "$sessionNew" ] && [ "$sessionThreadMode" != "event-track" ] && [ -n "$inheritedSessionId" ] ; } ; then
 			startContext="joined"
 		elif [ -n "$sessionOfCaller" ] ; then
@@ -1272,7 +1293,19 @@ case "$1" in
 		fi
 		[ -z "$startContextSaid" ] || startContext="$startContextSaid"
 		[ -z "$parentSessionSaid" ] || parentSession="$parentSessionSaid"
+		[ -z "$parentNoneSaid" ] || parentSession=""
 		AgentsToolsAssertBareName "$parentSession" "the parent session" agent-spawn-proxy 2> /dev/null || parentSession=""
+		if [ -n "$reportsToSaid" ] ; then
+			reportsTo="$reportsToSaid"
+		elif [ -z "$parentSession" ] && [ -z "$parentSessionSaid" ] && [ -z "$parentNoneSaid" ] ; then
+			reportsTo="$spawnCallMember"
+			if [ -z "$reportsTo" ] ; then
+				reportsTo="$( id -un 2> /dev/null )" || reportsTo=""
+				[ -n "$reportsTo" ] || reportsTo="${USER:-${LOGNAME:-}}"
+				[ -z "$reportsTo" ] || reportsTo="user-$reportsTo"
+			fi
+		fi
+		AgentsToolsRunRouteValid "$reportsTo" || reportsTo=""
 
 		## The session transcript (AgentsTools.SessionTranscript.include), named now so the
 		## dispatch item and the tracking file below carry its `transcript:` from the start.
@@ -1644,7 +1677,7 @@ case "$1" in
 			--field dispatch="$dispatchDocMode${dispatchItemName:+ $dispatchItemName}${trackedItemName:+ $trackedItemName}" \
 			--field resume="${resumeFrom:+native session $resumeFrom}${resumeContextFile:+kept harness context}" \
 			--field started-by="$eventTrackStartedBy" --field session-id="$eventTrackSessionId" --field joined-session="$eventTrackJoined" \
-			--field parent-session-id="$eventTrackParent" \
+			--field parent-spawn-id="$eventTrackParent" \
 			--field session-thread="$eventTrackSessionThread" --field session-thread-link="$eventTrackSessionLink" \
 			--field tracking-name="$eventTrackTracking" --field host="$( hostname -s 2>/dev/null || echo unknown )" --field workspace="$workspaceName" \
 			--field member-workspace="$eventTrackMemberWorkspace" --field paying-workspace="$eventTrackPayingWorkspace" \
@@ -1688,7 +1721,7 @@ case "$1" in
 		local parentThread=""
 		type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
 		## A restart's own caller is not its parent: the thread is the one of the session it names.
-		parentThread="$( AgentsToolsSpawnParentThread "${parentSessionSaid:-${parentSessionId:-$parentSession}}" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
+		parentThread="$( AgentsToolsSpawnParentThread "${parentSession:-$parentSessionId}" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
 		{
 			printf '%s\n' "---"
 			## `session-id` is the coworking session's own shared identifier now,
@@ -1705,10 +1738,11 @@ case "$1" in
 			## The calling session's own id, so the registry can show which spawn
 			## belongs to which session -- computed above and until now only ever
 			## reaching the event-track post, never this durable record.
-			printf 'parent-session-id: %s\n' "${parentSessionId:-none}"
-			## How this run was started, and the session that started it, where there is one.
+			printf 'parent-spawn-id: %s\n' "${parentSessionId:-none}"
+			## How this run was started, the session that started it, and where it reports to, where there is one.
 			printf 'start-context: %s\n' "$startContext"
-			[ -z "$parentSession" ] || printf 'parent-session: %s\n' "$parentSession"
+			[ -z "$parentSession" ] || printf 'parent-session-id: %s\n' "$parentSession"
+			[ -z "$reportsTo" ] || printf '%s: %s\n' "$agentsRunRouteField" "$reportsTo"
 			## The member that made this spawn call, where one is known: who a handback of this
 			## session is for when it names nobody (AgentsToolsSessionParentMember). The calling
 			## session may have no record of its own to read it from.

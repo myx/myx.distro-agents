@@ -860,7 +860,7 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **`MDAT_SPAWN_SESSION_ID` is a uuid minted by the proxy** and written to the dispatch item's
   `session-id`; it is the only join between the dispatch record and hook reports. Lowercase it.
   No uuid, no spawn. The caller's previous value, else `CLAUDE_CODE_SESSION_ID`, becomes
-  `parent-session-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`), named
+  `parent-spawn-id`. `receiptId` is a different id (the audit log, `RECEIPT_ID=`), named
   `spawn-proxy-<UTC stamp>-<pid>-<first eight of the spawn id>`; its dispatch item is
   `dispatch-<UTC stamp>-spawn-proxy-<pid>-<first eight>.md`. Older names end at the pid.
 - **`--description`** (agent-spawn-proxy, `--magic-spawn-session`, `--magic-heartbeat-spawn-proxy`): the
@@ -899,7 +899,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   or a record under 10 minutes old.
 - **The session record** `<sandbox>/<spawn-id>.md` sits outside `input/` and `output/`, so the session
   cannot forge it. Its frontmatter rebuilds the spawned-sessions registry. Fields: `session-id`,
-  `spawn-id`, `parent-session-id`, `tracking-name`, `host`, `workspace` (basename, never a path, the
+  `spawn-id`, `parent-spawn-id` (the run that made the spawn call; a native caller's client session
+  id stands as its spawn id), `tracking-name`, `host`, `workspace` (basename, never a path, the
   one this record is kept in), `executing-workspace`, `paying-workspace`, `member-workspace` (the three
   workspaces of this run, always: which executes it, which pays for it, which is the member's),
   `owner`, `parent-member` (the member whose own call made this spawn), `status`, `started-at`,

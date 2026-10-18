@@ -207,7 +207,7 @@ rm -f "$rigTmp/console.handback"
 echo "-- a session started before the rule, which hands its tracking thread down as its session thread --"
 rigOldTrack="$rigTrackChannel:1600000000.000100"
 mkdir -p "$rigWs/.local/agents/spawned/rig-old-pass" "$rigWs/.local/agents/sessions/rig-old-pass"
-printf -- '---\nsession-id: rig-old-pass\nspawn-id: rig-old-pass\nparent-session-id: none\nhost: %s\nowner: magic-coordinator\nstatus: spawn-started\nagent-log-thread: %s\nsession-thread: %s\n---\n\n# Spawn session: rig-old-pass\n' \
+printf -- '---\nsession-id: rig-old-pass\nspawn-id: rig-old-pass\nparent-spawn-id: none\nhost: %s\nowner: magic-coordinator\nstatus: spawn-started\nagent-log-thread: %s\nsession-thread: %s\n---\n\n# Spawn session: rig-old-pass\n' \
 	"$( hostname -s 2> /dev/null || echo unknown )" "$rigOldTrack" "$rigOldTrack" > "$rigWs/.local/agents/spawned/rig-old-pass/rig-old-pass.md"
 printf '%s\n' "$rigOldTrack" > "$rigWs/.local/agents/sessions/rig-old-pass/event-track.thread"
 rigCaller=( MDAT_SPAWN_SESSION_ID=rig-old-pass MDAT_SESSION_ID=rig-old-pass MDAT_SESSION_THREAD="$rigOldTrack" MDAT_SPAWN_AGENT=magic-coordinator )

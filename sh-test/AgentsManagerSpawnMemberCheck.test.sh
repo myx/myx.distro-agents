@@ -182,7 +182,7 @@ rigAssert "behind the spawn brief block of the standing default routine, which n
 rigAssert "the id printed is the run's own id and its session's: the session is the member's own, and new" \
 	"$( LC_ALL=C awk '{ print $2 }' "$rigSc/who.$rigFirst" ) $( rigHeader "$rigFirst" session-id ) $( rigHeader "$rigFirst" spawn-id )" "$rigFirst $rigFirst $rigFirst"
 rigAssert "its record names the member as its owner and the routine its session runs, and no session it was started from" \
-	"$( rigHeader "$rigFirst" owner ) $( rigHeader "$rigFirst" routine ) $( rigHeader "$rigFirst" parent-session-id )" "keeper-myx magic-team.coworking.routine.md none"
+	"$( rigHeader "$rigFirst" owner ) $( rigHeader "$rigFirst" routine ) $( rigHeader "$rigFirst" parent-spawn-id )" "keeper-myx magic-team.coworking.routine.md none"
 rigItem="$( LC_ALL=C awk -F'\t' '{ print $5 }' "$rigTmp/out" )"
 rigItemPath="$( find "$rigData/board" -type f -name "$rigItem" 2> /dev/null | head -1 )"
 rigAssert "it made a dispatch item, the one the row names, whose brief holds the prompt" \
@@ -322,7 +322,7 @@ rigPassStarted(){ [ -s "$rigTmp/pass.out" ] && [ -s "$rigSc/pid.$( LC_ALL=C awk 
 rigWaitFor 40 rigPassStarted || rigRefuse "the stand-in console never started for the start from a bare console: $( rigFirstError "$rigTmp/pass.err" )"
 rigLone="$( LC_ALL=C awk -F'\t' '$1 == "spawn" { print $2 ; exit }' "$rigTmp/pass.out" )"
 rigLoneAlive(){ kill -0 "$( cat "$rigSc/pid.$rigLone" 2> /dev/null || echo 999999 )" 2> /dev/null && printf alive || printf gone ; }
-rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-session-id )" "spawn keeper-myx outlives_its_starter alive none"
+rigAssert "the caller had no session id in its environment, and was returned to at once: its row is there while the member runs" "$( LC_ALL=C awk -F'\t' '{ print $1, $3, $4 }' "$rigTmp/pass.out" ) $( rigLoneAlive ) $( rigHeader "$rigLone" parent-spawn-id )" "spawn keeper-myx outlives_its_starter alive none"
 rigOwnGroup="$( ps -o pgid= -p $$ | tr -d ' ' )"
 rigLoneGroup="$( cat "$rigSc/pgid.$rigLone" 2> /dev/null || printf none )"
 rigAssert "the member's run is in a process group of its own, not its starter's and not this check's" \

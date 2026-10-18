@@ -315,7 +315,8 @@ rigReqThread="CRIGSESS1:1700000001.000100"
 rigRec s-req s-req magic-coordinator spawn-started "session-thread: $rigReqThread
 "
 rigStand s-req
-rigAsked="parent-session-id: s-req
+rigAsked="parent-spawn-id: s-req
+parent-session-id: s-req
 parent-member: magic-coordinator
 parent-thread: $rigReqThread
 "
@@ -464,8 +465,8 @@ rigAnswer s-req d-fresh fresh ; rigCarry s-req d-fresh
 rigFreshNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-fresh.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "fresh starts a new process on the same brief: the record of the dead run is closed as ended without close, its item is back in running under a new run of the same session, and the console was started once, with no resume" \
 	"$( rigHeader d-fresh status ):$( rigItemIn item-d-fresh ):$( [ -n "$rigFreshNew" ] && [ "$rigFreshNew" != "d-fresh" ] && echo new-run ):$( LC_ALL=C grep -c -x -F -- "$rigFreshNew s-req brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: new-process (a fresh start was asked for)' "$rigData/board/running/item-d-fresh.md" )" "spawn-ended-without-close:running:new-run:1:1"
-rigAssert "the member that is started again is told why, in its brief, and what was done is told once to the one who answered, in the thread of the question, and once to the session that requested the run" \
-	"$( LC_ALL=C grep -c -F -- 'Your run died, and human-owner answered `fresh`' "$rigTmp/brief.$rigFreshNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' ):$( rigLines 'from its brief, with no context. human-owner answered `fresh`' d-fresh )" "told:DRIG00001 thread human-owner;${rigReqThread%%:*} thread magic-coordinator;"
+rigAssert "the member that is started again is told why, in its brief, and what was done is told once to the one who answered, in the thread of the question, where its member was asked, and in the thread of the session it reports to" \
+	"$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `fresh`' "$rigTmp/brief.$rigFreshNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' ):$( rigLines 'from its brief, with no context. magic-coordinator answered `fresh`' d-fresh )" "told:DRIG00001 thread magic-coordinator;${rigReqThread%%:*} thread magic-coordinator;"
 rigFreshLaunches="$( rigLaunches )"
 rigTen=0
 while [ "$rigTen" -lt 6 ] ; do rigOne s-req ; sleep 1 ; rigTen=$(( rigTen + 1 )) ; done
@@ -500,9 +501,9 @@ rigAnswer d-ctx d-ctx resume ; rigCarry d-ctx d-ctx
 rigWaitFor 20 rigStateIs d-ctx running
 rigCtxNew="$( LC_ALL=C sed -n 's/^spawn-id: //p' "$rigData/board/running/item-d-ctx.md" 2> /dev/null | LC_ALL=C sed -n '1p' )"
 rigAssert "resume starts the member again FROM its kept context, in the same session: the console is started once, with that context and not with the brief, the item records that it resumed from the dead run, and what it is given to go on with says why it is started again" \
-	"$( LC_ALL=C grep -c -x -F -- "$rigCtxNew d-ctx context:$rigSp/d-ctx/context.jsonl" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- " d-ctx brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: resumed-context (from d-ctx)' "$rigData/board/running/item-d-ctx.md" ):$( LC_ALL=C grep -c -F -- 'Your run died, and human-owner answered `resume`' "$rigTmp/brief.$rigCtxNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' )" "1:0:1:told"
+	"$( LC_ALL=C grep -c -x -F -- "$rigCtxNew d-ctx context:$rigSp/d-ctx/context.jsonl" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- " d-ctx brief" "$rigTmp/launches" ):$( LC_ALL=C grep -c -F -- 'restart: resumed-context (from d-ctx)' "$rigData/board/running/item-d-ctx.md" ):$( LC_ALL=C grep -c -F -- 'Your run died, and magic-coordinator answered `resume`' "$rigTmp/brief.$rigCtxNew" 2> /dev/null | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "told" : "not-told" }' )" "1:0:1:told"
 rigAssert "and the record, the item, the state and the two notes are as they should be: the dead run's record closed as ended without close, the item in running under a new run, the death settled, the session running again, and one line that says it resumed from the context it kept, to the one who answered and to the session that requested the run" \
-	"$( rigHeader d-ctx status ):$( rigItemIn item-d-ctx ):$( [ -n "$rigCtxNew" ] && [ "$rigCtxNew" != "d-ctx" ] && echo new-run ):$( rigDeadLine d-ctx d-ctx | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=resume' ):$( rigState d-ctx ):$( rigLines 'from the context it kept. human-owner answered `resume`' d-ctx )" "spawn-ended-without-close:running:new-run:1:running:DRIG00001 thread human-owner;${rigReqThread%%:*} thread magic-coordinator;"
+	"$( rigHeader d-ctx status ):$( rigItemIn item-d-ctx ):$( [ -n "$rigCtxNew" ] && [ "$rigCtxNew" != "d-ctx" ] && echo new-run ):$( rigDeadLine d-ctx d-ctx | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -c -x -F -- 'how=resume' ):$( rigState d-ctx ):$( rigLines 'from the context it kept. magic-coordinator answered `resume`' d-ctx )" "spawn-ended-without-close:running:new-run:1:running:DRIG00001 thread magic-coordinator;${rigReqThread%%:*} thread magic-coordinator;"
 ## Its sibling: the kept context is another session's, so it cannot be resumed.
 mkdir -p "$rigSp/d-ctxb" ; rigContext d-ctxb another-run
 rigDeath d-ctxb d-ctxb keeper-rig human-owner "${rigHarnessRun}session-thread: CRIGSESS5:1700000005.000100

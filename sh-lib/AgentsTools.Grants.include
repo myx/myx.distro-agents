@@ -609,7 +609,7 @@ AgentsToolsGrantsSessionStores(){ ## workspace, session id
 				':---') storesFront=1 ;;
 				'1:---'|'1:# '*) break ;;
 				'1:session-id: '*) storesCow="${storesLine#session-id: }" ;;
-				'1:parent-session-id: '*) storesParent="${storesLine#parent-session-id: }" ;;
+				'1:parent-spawn-id: '*) storesParent="${storesLine#parent-spawn-id: }" ;;
 				':'*) break ;;
 			esac
 		done < "$storesRecord"

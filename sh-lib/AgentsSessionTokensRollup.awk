@@ -3,7 +3,7 @@
 # Token totals for board items, computed when shown and never stored: an item's own
 # `tokens:` header plus every item under it, by the links that already exist.
 #   - an item whose `tracks:` or `follows-up:` names it;
-#   - a spawn record (.local/agents/spawned/*/*.md) whose `parent-session-id:` is the
+#   - a spawn record (.local/agents/spawned/*/*.md) whose `parent-spawn-id:` is the
 #     item's `spawn-id:` (the children index lists the same records) -- the record's
 #     `spawns:` item is under it.
 # Each descendant counts once, however many links reach it.
@@ -46,7 +46,7 @@ function rlReadFile(filePath,   lineText, lineNumber, inFront, keyName, valueTex
 		valueText = lineText
 		if (!sub(/^[^:]*:[ \t]*/, "", valueText)) continue
 		if (isRecord) {
-			if (keyName == "parent-session-id") recordParent = valueText
+			if (keyName == "parent-spawn-id") recordParent = valueText
 			else if (keyName == "spawns") recordSpawns = valueText
 			continue
 		}

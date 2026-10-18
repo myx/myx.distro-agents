@@ -22,6 +22,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
+## The name of the address field, read where it is held, so a rename is one line there.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/AgentsTools.SpawnSandbox.include" )"
 
 ## Refusing to report is this function's whole job: a rig that could not reach its
 ## subject must never reach its PASS lines, which read exactly like a result.
@@ -116,7 +118,8 @@ rigOut="$( rigSpawn )"
 grep -q 'RIG-BRIEF-MARKER' "$rigTmp/brief" || rigRefuse "the fake console never received the brief, so nothing below would be measured: $( printf '%s\n' "$rigOut" | grep 'ERROR' | head -1 )"
 
 rigAssert "the spawn launched" "$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' )" 1
-rigAssert "a bare command line: a run that starts its own session, and no parent session is recorded" "$( rigNewest start-context ):$( rigNewest parent-session )" "spawned:"
+rigAssert "a bare command line: a run that starts its own session, and no parent session is recorded" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "spawned:"
+rigAssert "it reports to the person whose account started it at the console" "$( rigNewest "$rigReportsTo" )" "user-$( id -un )"
 rigAssert "the opening is posted once, under the bot token" \
 	"$( LC_ALL=C awk '$1 == "chat.postMessage" { print $2 }' "$rigTmp/calls" )" rig-bot-token-TEAM
 rigAssert "the opening is the session's own post, seeded by the tooling: no author line, no addressee, the session by its id where it has no name" \
@@ -145,7 +148,8 @@ rigAssert "it opens the session thread, naming who started the session and the s
 rigAssert "and says in it that it joined, with what it was brought in for" \
 	"$( rigReplies 'keeper-myx joined: change the loader code' )" 1
 rigAssert "its record names the member that made the spawn call, the calling session's own" "$( rigNewest parent-member )" magic-coordinator
-rigAssert "a member brought into its caller's own session is inline, and that session is its parent" "$( rigNewest start-context ):$( rigNewest parent-session )" "inline:rig-native-one"
+rigAssert "a member brought into its caller's own session is inline, and that session is its parent" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "inline:rig-native-one"
+rigAssert "it reports to that session, which needs no address written" "$( rigNewest "$rigReportsTo" ):$( rigNewest parent-spawn-id )" ":rig-native-one"
 rigAssert "the line is addressed to the member whose session brought it in, not to itself" \
 	"$( rigJoined keeper-myx "$( rigShown magic-coordinator )" 'change the loader code' ):$( rigJoined keeper-myx "$( rigShown keeper-myx )" 'change the loader code' )" "1:0"
 rigThreadOne="$( cat "$rigWs/.local/agents/sessions/rig-native-one/session.thread" 2> /dev/null )"
@@ -158,7 +162,7 @@ rigFirstSpawn="$( rigNewest spawn-id )"
 rigOut="$( rigSpawn magic-tester --description "check it against the samples" --session-name-or-comment "a second name" )"
 rigAssert "the second member the same caller brings in joins that session" \
 	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigRecordsOf rig-native-one )" "1:2"
-rigAssert "it is inline too, with the same parent" "$( rigNewest start-context ):$( rigNewest parent-session )" "inline:rig-native-one"
+rigAssert "it is inline too, with the same parent" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "inline:rig-native-one"
 rigSecondSpawn="$( rigNewest spawn-id )"
 rigAssert "it opens no thread: its entry is a reply in the one the first opened, with its own description" \
 	"$( rigOpeners '🧵 Session ' ):$( rigReplies 'magic-tester joined: check it against the samples' )" "0:1"
@@ -174,7 +178,7 @@ rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-two )
 rigOut="$( rigSpawn keeper-myx --description "look at the logs" )"
 rigAssert "a member another caller brings in gets that caller's session, with a thread of its own, the session by its id where it has no name and no known starter" \
 	"$( rigRecordsOf rig-native-two ):$( rigRecordsOf rig-native-one ):$( rigOpeners '"text":"🧵 Session *rig-native-two*"' ):$( rigReplies 'keeper-myx joined: look at the logs' )" "1:2:1:1"
-rigAssert "a caller that acts as no member, and none said: its record names none" "$( rigNewest parent-session-id ):$( rigNewest parent-member )" "rig-native-two:"
+rigAssert "a caller that acts as no member, and none said: its record names none" "$( rigNewest parent-spawn-id ):$( rigNewest parent-member )" "rig-native-two:"
 rigAssert "a caller that acts as no member: the line is addressed to nobody, and still posted" \
 	"$( rigJoined keeper-myx '@here' 'look at the logs' ):$( rigJoined keeper-myx "$( rigShown keeper-myx )" 'look at the logs' )" "1:0"
 ## From inside a team session: the session it was handed, as before.
@@ -182,7 +186,7 @@ rigCaller=( MDAT_SPAWN_SESSION_ID=rig-run-inside MDAT_SESSION_ID=rig-team-sessio
 rigOut="$( rigSpawn magic-tester --description "help with the samples" )"
 rigAssert "a spawn made from inside a team session still joins that session, in its thread" \
 	"$( rigRecordsOf rig-team-session ):$( rigNewest session-thread ):$( rigOpeners '🧵 Session ' ):$( rigReplies 'magic-tester joined: help with the samples' ):$( LC_ALL=C grep -c -F '"thread_ts":"9.000009"' "$rigTmp/bodies" )" "1:CRIG00001:9.000009:0:1:1"
-rigAssert "it is joined, and its parent is the session it was spawned from, not the run that spawned it" "$( rigNewest start-context ):$( rigNewest parent-session ):$( rigNewest parent-session-id )" "joined:rig-team-session:rig-run-inside"
+rigAssert "it is joined, and its parent is the session it was spawned from, not the run that spawned it" "$( rigNewest start-context ):$( rigNewest parent-session-id ):$( rigNewest parent-spawn-id )" "joined:rig-team-session:rig-run-inside"
 rigAssert "its line is addressed to the member of the session it was spawned from" \
 	"$( rigJoined magic-tester "$( rigShown keeper-myx )" 'help with the samples' )" 1
 rigOut="$( rigSpawn keeper-myx --description "a second run of its own" )"
@@ -197,20 +201,20 @@ rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-one MDAT_SPAWN_AGENT=magic-coordin
 rigOut="$( rigSpawn keeper-myx --session-new --session-name-or-comment "a separate matter" )"
 rigAssert "an explicit new session opens a thread of its own, the session's and no member's, under its own id" \
 	"$( rigOpeners '"text":"🧵 Session *a separate matter*, started by magic-coordinator"' ):$( [ "$( rigNewest session-id )" = "$( rigNewest spawn-id )" ] && printf own || printf joined ):$( rigRecordsOf rig-native-one )" "1:own:2"
-rigAssert "a session of its own is spawned, and the caller's session is its parent" "$( rigNewest start-context ):$( rigNewest parent-session )" "spawned:rig-native-one"
+rigAssert "a session of its own is spawned, and the caller's session is its parent" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "spawned:rig-native-one"
 rigSubSession="$( rigNewest session-id )"
 ## A subsession of that one, made from inside it, and one more under that.
 rigCaller=( MDAT_SPAWN_SESSION_ID="$rigSubSession" MDAT_SESSION_ID="$rigSubSession" MDAT_SPAWN_AGENT=keeper-myx )
 rigOut="$( rigSpawn magic-tester --session-new )"
-rigAssert "a subsession names the session it was made from as its parent" "$( rigNewest start-context ):$( rigNewest parent-session )" "spawned:$rigSubSession"
+rigAssert "a subsession names the session it was made from as its parent" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "spawned:$rigSubSession"
 rigSubSubSession="$( rigNewest session-id )"
 rigCaller=( MDAT_SPAWN_SESSION_ID="$rigSubSubSession" MDAT_SESSION_ID="$rigSubSubSession" MDAT_SPAWN_AGENT=magic-tester )
 rigOut="$( rigSpawn keeper-myx --session-new )"
-rigAssert "a subsession of a subsession carries its own parent the same way" "$( rigNewest start-context ):$( rigNewest parent-session )" "spawned:$rigSubSubSession"
+rigAssert "a subsession of a subsession carries its own parent the same way" "$( rigNewest start-context ):$( rigNewest parent-session-id )" "spawned:$rigSubSubSession"
 ## A caller whose environment names only its own run, which joined another session: its record names its session.
 rigCaller=( MDAT_SPAWN_SESSION_ID="$rigSecondSpawn" MDAT_SPAWN_AGENT=magic-tester )
 rigOut="$( rigSpawn keeper-myx --session-new )"
-rigAssert "a caller that names only its own run: the session on its record is the parent, not its run id" "$( rigNewest start-context ):$( rigNewest parent-session ):$( rigNewest parent-session-id )" "spawned:rig-native-one:$rigSecondSpawn"
+rigAssert "a caller that names only its own run: the session on its record is the parent, not its run id" "$( rigNewest start-context ):$( rigNewest parent-session-id ):$( rigNewest parent-spawn-id )" "spawned:rig-native-one:$rigSecondSpawn"
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-one MDAT_SPAWN_AGENT=magic-coordinator )
 rigOut="$( rigSpawn keeper-myx --session-new --session-id rig-native-one )"
 rigAssert "a new session and a session to join, asked together, are refused and nothing is spawned" \
@@ -221,12 +225,31 @@ echo "-- the spawn record says how the run was started, and which session starte
 rigCaller=( MDAT_SPAWN_SESSION_ID=rig-run-inside MDAT_SESSION_ID=rig-team-session MDAT_SESSION_THREAD=CRIG00001:9.000009 MDAT_SPAWN_AGENT=keeper-myx )
 rigOut="$( rigSpawn magic-tester --session-id rig-native-one --description "sent into another session" )"
 rigAssert "a member sent into another session by its id: joined, and the session that sent it is its parent" \
-	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest session-id ):$( rigNewest start-context ):$( rigNewest parent-session )" "1:rig-native-one:joined:rig-team-session"
+	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest session-id ):$( rigNewest start-context ):$( rigNewest parent-session-id )" "1:rig-native-one:joined:rig-team-session"
 ## A restart says both off the record of the run it replaces, and they stand as said.
 rigCaller=()
 rigOut="$( rigSpawn keeper-myx --session-id rig-native-one --start-context inline --parent-session rig-native-one )"
 rigAssert "a restart's start context and parent session are recorded as its caller says them" \
-	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest start-context ):$( rigNewest parent-session )" "1:inline:rig-native-one"
+	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest start-context ):$( rigNewest parent-session-id )" "1:inline:rig-native-one"
+## A member with no session of its own makes the call: it is the one the run reports to.
+rigCaller=( MDAT_SPAWN_AGENT=magic-tester )
+rigOut="$( rigSpawn keeper-myx )"
+rigAssert "a calling member with no session: no parent session, and the run reports to that member" "$( rigNewest parent-session-id ):$( rigNewest "$rigReportsTo" )" ":magic-tester"
+rigCaller=()
+rigOut="$( rigSpawn keeper-myx --session-id rig-native-one --start-context inline --parent-session rig-native-one --reports-to rig-native-one:magic-coordinator )"
+rigAssert "a restart's address is recorded as its caller says it" "$( rigNewest "$rigReportsTo" )" "rig-native-one:magic-coordinator"
+## A restart of a run that had no parent session and named no address: none, whoever restarts it.
+rigCaller=( MDAT_SPAWN_SESSION_ID=rig-run-inside MDAT_SESSION_ID=rig-team-session MDAT_SESSION_THREAD=CRIG00001:9.000009 MDAT_SPAWN_AGENT=keeper-myx )
+rigOut="$( rigSpawn magic-tester --parent-none )"
+rigAssert "a restart said to have no parent: no parent session and no address, though its caller has both" \
+	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest parent-session-id ):$( rigNewest "$rigReportsTo" )" "1::"
+rigOut="$( rigSpawn magic-tester --parent-none --parent-session rig-team-session )"
+rigAssert "no parent and a parent, said together, are refused, and nothing is spawned" \
+	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: use only one of --parent-session <session-id> | --parent-none' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
+rigCaller=()
+rigOut="$( rigSpawn keeper-myx --reports-to 'rig:one:two' )"
+rigAssert "an address that is none of its forms is refused, and nothing is spawned" \
+	"$( printf '%s\n' "$rigOut" | grep -c 'ERROR: --reports-to requires' ):$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=' )" "1:0"
 rigRecordsBefore="$( ls "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | LC_ALL=C awk 'END { print NR + 0 ; }' )"
 rigOut="$( rigSpawn keeper-myx --start-context sideways )"
 rigAssert "a start context that is none of the three is refused, and nothing is spawned" \
@@ -240,7 +263,7 @@ echo "-- the spawn record names the member that made the spawn call --"
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-four )
 rigOut="$( rigSpawn keeper-myx --calling-member magic-tester --description "said by its caller" )"
 rigAssert "a native session that names no member, the calling member said: the record names it, and the joined line is addressed to it" \
-	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest parent-session-id ):$( rigNewest parent-member ):$( rigJoined keeper-myx "$( rigShown magic-tester )" 'said by its caller' )" "1:rig-native-four:magic-tester:1"
+	"$( printf '%s\n' "$rigOut" | grep -c '^LAUNCHED=true$' ):$( rigNewest parent-spawn-id ):$( rigNewest parent-member ):$( rigJoined keeper-myx "$( rigShown magic-tester )" 'said by its caller' )" "1:rig-native-four:magic-tester:1"
 rigCaller=( CLAUDE_CODE_SESSION_ID=rig-native-four MDAT_SPAWN_AGENT=magic-coordinator )
 rigOut="$( rigSpawn keeper-myx --calling-member magic-tester --description "its own member stands" )"
 rigAssert "a calling session whose environment names its member: that one stands, whatever is said" \
@@ -274,7 +297,7 @@ rigAgentPid="$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^PID=\([0-9][0-9]*\
 rigWaited=0
 while ! grep -q 'RIG-AGENT-BRIEF' "$rigTmp/brief" 2> /dev/null && [ "$rigWaited" -lt 90 ] ; do sleep 1 ; rigWaited=$(( rigWaited + 1 )) ; done
 grep -q 'RIG-AGENT-BRIEF' "$rigTmp/brief" || rigRefuse "the Agent tool's spawn never reached the console, so nothing below would be measured: $( printf '%s\n' "$rigOut" | grep -m1 ERROR )"
-rigAgentRecord="$( LC_ALL=C grep -l -x -F 'parent-session-id: rig-native-six' "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | head -1 )"
+rigAgentRecord="$( LC_ALL=C grep -l -x -F 'parent-spawn-id: rig-native-six' "$rigWs/.local/agents/spawned"/*/*.md 2> /dev/null | head -1 )"
 [ -n "$rigAgentRecord" ] || rigRefuse "the spawn left no record that names the native session as its parent"
 rigAgentField(){ ## header
 	LC_ALL=C sed -n "s/^$1: //p" "$rigAgentRecord" | head -1

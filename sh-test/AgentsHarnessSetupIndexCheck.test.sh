@@ -232,9 +232,9 @@ echo "-- children and the sandbox: the same roots, listed or scanned, handed ove
 rigSpawned="$rigWs/.local/agents/spawned"
 mkdir -p "$rigSpawned/b-child/input" "$rigSpawned/b-child/output" "$rigSpawned/other/input" "$rigSpawned/other/output" "$rigTmp/elsewhere/input" "$rigTmp/elsewhere/output"
 ln -s "$rigTmp/elsewhere" "$rigSpawned/a-linked"
-printf -- '---\nsession-id: s1\nparent-session-id: rig-parent\n---\n' > "$rigSpawned/b-child/sp1.md"
-printf -- '---\nsession-id: s2\nparent-session-id: rig-parent\n---\n' > "$rigSpawned/a-linked/sp2.md"
-printf -- '---\nsession-id: s3\nparent-session-id: someone-else\n---\n' > "$rigSpawned/other/sp3.md"
+printf -- '---\nsession-id: s1\nparent-spawn-id: rig-parent\n---\n' > "$rigSpawned/b-child/sp1.md"
+printf -- '---\nsession-id: s2\nparent-spawn-id: rig-parent\n---\n' > "$rigSpawned/a-linked/sp2.md"
+printf -- '---\nsession-id: s3\nparent-spawn-id: someone-else\n---\n' > "$rigSpawned/other/sp3.md"
 rm -rf "$rigWs/.local/agents/children"
 CLAUDE_CODE_SESSION_ID=rig-parent rigHarnessRun children-scanned
 ## The install's own op writes every harness index and leaves the children lists alone.
@@ -245,7 +245,7 @@ rigAssert "and left the children lists alone"                    "$( [ -e "$rigW
 ## goes, an id that could name another file is skipped.
 mkdir -p "$rigWs/.local/agents/children" "$rigSpawned/bad"
 printf 'gone/sp9.md\n' > "$rigWs/.local/agents/children/stale-parent"
-printf -- '---\nparent-session-id: ../escape\n---\n' > "$rigSpawned/bad/sp4.md"
+printf -- '---\nparent-spawn-id: ../escape\n---\n' > "$rigSpawned/bad/sp4.md"
 ( set +u ; . "$rigHere/AgentsTools.ChildrenIndex.include" && AgentsToolsChildrenIndexRepair "$rigWs" ) 2> "$rigTmp/repair.err"
 rigAssert "the repair marked the children lists complete"        "$( [ -f "$rigWs/.local/agents/children/.indexed" ] && printf yes || printf no )" yes
 rigAssert "and listed rig-parent's two children"                "$( LC_ALL=C sort "$rigWs/.local/agents/children/rig-parent" 2>/dev/null | tr '\n' ' ' )" "a-linked/sp2.md b-child/sp1.md "

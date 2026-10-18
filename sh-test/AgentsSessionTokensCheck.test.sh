@@ -82,7 +82,7 @@ rigItem backlog task-20261008T1000Z-rig.md "type: task" "tokens: in=1 cache-read
 rigItem review dispatch-20261008T1001Z-rig-b.md "follows-up: task-20261008T1000Z-rig" "tokens: in=10 cache-read=20 cache-write=30 out=40"
 rigItem review dispatch-20261008T1002Z-rig-c.md "spawn-id: s-c" "tokens: in=1000 cache-read=0 cache-write=0 out=1000"
 mkdir -p "$rigWs/.local/agents/spawned/s-c"
-printf -- '---\nspawn-id: s-c\nparent-session-id: s-a\nspawns: dispatch-20261008T1002Z-rig-c\n---\n' > "$rigWs/.local/agents/spawned/s-c/s-c.md"
+printf -- '---\nspawn-id: s-c\nparent-spawn-id: s-a\nspawns: dispatch-20261008T1002Z-rig-c\n---\n' > "$rigWs/.local/agents/spawned/s-c/s-c.md"
 rigItem backlog task-20261008T1003Z-other.md "type: task"
 git -C "$rigStore" add -A && git -C "$rigStore" commit -q -m "rollup items"
 rigRows="$( AgentsSessionTokensRollupRows task-20261008T1000Z-rig.md dispatch-20261008T1000Z-rig-a task-20261008T1003Z-other.md )"

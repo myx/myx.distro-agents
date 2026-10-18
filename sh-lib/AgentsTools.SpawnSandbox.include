@@ -143,57 +143,150 @@ AgentsToolsSessionCurrentThreadFind(){
 	return 0
 }
 
-## The thread of the session that started this one, from this session's own spawn record:
-## prints "<channel>:<ts> <parent id>" and returns 0. Returns 1, nothing printed, when no
-## parent session is recorded, and 2, the parent id printed, when that parent has no
-## recorded thread. The sandbox folder is named by tracking name or session id, so records
-## are found by file name. The parent is the session the start recorded as the one that
-## started this one (`parent-session:`), where it did, else the run `parent-session-id:`
-## names, as on a record written before that field was; a parent session with no record of
-## its own, a native client's, has its thread in the one recorded for that session.
-AgentsToolsSessionParentThreadFind(){
-	local parentRecord parentId="" parentThread="" parentSession=""
-	for parentRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
-		[ ! -f "$parentRecord" ] || parentId="$( LC_ALL=C awk '/^parent-session-id: /{ sub( /^parent-session-id: /, "" ) ; print ; exit ; }' "$parentRecord" )"
-		## The thread the spawn settled for its parent, magic-coordinator's when the parent had none.
-		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^---$/ { if ( ++fm == 2 ) exit ; next ; } fm == 1 && /^parent-thread: / { sub( /^parent-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
-		[ ! -f "$parentRecord" ] || parentSession="$( AgentsToolsSpawnSandboxRecordHeader "$parentRecord" parent-session )"
-	done
-	case "$parentSession" in ''|*/*|.|..) parentSession="" ;; *) parentId="$parentSession" ;; esac
-	if [ -z "$parentId" ] || [ "$parentId" = "none" ] ; then
-		return 1
-	fi
-	[ -z "$parentThread" ] || { printf '%s %s\n' "$parentThread" "$parentId" ; return 0 ; }
-	for parentRecord in "$MMDAPP"/.local/agents/spawned/*/"$parentId.md" ; do
-		[ ! -f "$parentRecord" ] || parentThread="$( LC_ALL=C awk '/^session-thread: /{ sub( /^session-thread: /, "" ) ; print ; exit ; }' "$parentRecord" )"
-	done
-	[ -n "$parentThread" ] || [ -z "$parentSession" ] || [ ! -s "$MMDAPP/.local/agents/sessions/$parentSession/session.thread" ] \
-		|| IFS= read -r parentThread < "$MMDAPP/.local/agents/sessions/$parentSession/session.thread" || :
-	if [ -z "$parentThread" ] ; then
-		printf '%s\n' "$parentId" ; return 2
-	fi
-	printf '%s %s\n' "$parentThread" "$parentId"
+## WHERE A RUN REPORTS TO: the one address its handback goes to, its questions and
+## escalations that name no target are asked at, its end and its death are told at, and
+## that decides what follows its work. Kept on its spawn record under the one name below,
+## where the spawn wrote one: `<session>[:<member>]` (a session alone means its executor), a
+## member, `user-<account>` for a person who started it at a console, or `human-owner`. The
+## reviewers of its item are its item's `review-by`, another field for another thing: neither
+## ever stands in for the other. Beside it, `parent-session-id:` is the session that started the
+## run, where one did: what a run reports to where it names nothing itself. The run that made
+## the spawn call is `parent-spawn-id:`, the run tree's own: a native caller's client session id
+## stands there as its spawn id.
+agentsRunRouteField="reports-to"
+## Who of a parent session a run reports to where it names nobody itself: `parent-member`, the
+## member that made the spawn call there, before that session's executor; or `executor` first.
+agentsRunRouteMemberFirst="parent-member"
+
+## One bare name, as every caller of these may be: one path segment of letters, digits, '.',
+## '_' or '-', not '.' or '..', no leading '-'. Builtins only, so a served harness tool, which
+## has no AgentsToolsAssertBareName, asks it too; never a bracket range, which is collation-bound.
+AgentsToolsRunRouteName(){ ## value
+	case "$1" in
+		''|.|..|-*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) return 1 ;;
+	esac
+	return 0
 }
 
-## The member that made the spawn call this session was started by: as this session's own
-## spawn record names it (`parent-member:`, written at the spawn), else, for a record written
-## before that line was, the `owner:` of the spawn record of the session that started it.
-## Prints the name and returns 0. Returns 1, nothing printed, when neither names one: such a
-## record, and a parent that is a native client session, never spawned through the proxy.
-AgentsToolsSessionParentMember(){
-	local memberRecord memberParent="" memberOwner=""
-	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
-		[ -f "$memberRecord" ] || continue
-		memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-member )"
-		memberParent="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" parent-session-id )"
-	done
-	[ -z "$memberOwner" ] || { printf '%s\n' "$memberOwner" ; return 0 ; }
-	case "$memberParent" in ''|none|*/*|.|..) return 1 ;; esac
-	for memberRecord in "$MMDAPP"/.local/agents/spawned/*/"$memberParent.md" ; do
+## Whether a value is an address of that form: one bare name, or two joined by one `:`.
+AgentsToolsRunRouteValid(){ ## value
+	case "$1" in
+		''|*:*:*|:*|*:) return 1 ;;
+		*:*) AgentsToolsRunRouteName "${1%%:*}" && AgentsToolsRunRouteName "${1#*:}" ;;
+		*) AgentsToolsRunRouteName "$1" ;;
+	esac
+}
+
+## What an address is, by its form: `person` (human-owner, user-<account>, or none), `member`
+## (a member of this team), or `session` (`<session>:<member>`, or a bare id that is no member).
+AgentsToolsRunRouteKind(){ ## address
+	case "$1" in
+		''|human-owner|user-?*) printf 'person\n' ;;
+		*:*) printf 'session\n' ;;
+		magic-*|keeper-*|warden-*|partner-*|client-*|oncall-*|expert-*) printf 'member\n' ;;
+		*)
+			type AgentsToolsTeamMemberDirectory > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.TeamRegistry.include" 2> /dev/null || :
+			if AgentsToolsTeamMemberDirectory "$1" > /dev/null 2>&1 ; then printf 'member\n' ; else printf 'session\n' ; fi
+		;;
+	esac
+}
+
+## The member an address names: the member of `<session>:<member>`, a member itself, and for a
+## bare session the executor of that session, the owner of its founding record (the record
+## named by the session's own id). rc 1, nothing printed, for a person, and for a session
+## whose executor no record here names.
+AgentsToolsRunRouteMember(){ ## address
+	local memberRecord memberOwner=""
+	case "$( AgentsToolsRunRouteKind "$1" )" in
+		member) printf '%s\n' "$1" ; return 0 ;;
+		person) return 1 ;;
+	esac
+	case "$1" in *:*) printf '%s\n' "${1#*:}" ; return 0 ;; esac
+	for memberRecord in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"$1.md" ; do
 		[ ! -f "$memberRecord" ] || memberOwner="$( AgentsToolsSpawnSandboxRecordHeader "$memberRecord" owner )"
 	done
-	[ -n "$memberOwner" ] || return 1
+	AgentsToolsRunRouteName "$memberOwner" || return 1
 	printf '%s\n' "$memberOwner"
+}
+
+## The address the run of a spawn record reports to, printed, in this order:
+## 1. its `reports-to:`, where the spawn wrote one;
+## 2. else its `parent-session-id:`, the session that started it, as `<session>:<member>`: to the
+##    member that made the call there (`parent-member:`) and else to that session's executor
+##    (AgentsToolsRunRouteMember), or the other way round, as agentsRunRouteMemberFirst says;
+## 3. else magic-coordinator in the session of this run, where a run of it is alive there, as
+##    `<session>:magic-coordinator`: never this run itself, and never for a run that is
+##    magic-coordinator, which so is never handed its own matter back;
+## 4. else the human-owner.
+AgentsToolsRunRoute(){ ## spawn record path
+	local routeRecord="${1:-}" routeValue="" routeSession="" routeMember="" routeOwn routeCandidate routeRunId
+	[ -n "$routeRecord" ] && [ -f "$routeRecord" ] || { printf 'human-owner\n' ; return 0 ; }
+	routeValue="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" "$agentsRunRouteField" )"
+	AgentsToolsRunRouteValid "$routeValue" && { printf '%s\n' "$routeValue" ; return 0 ; }
+	routeSession="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" parent-session-id )"
+	if AgentsToolsRunRouteName "$routeSession" ; then
+		if [ "$agentsRunRouteMemberFirst" = executor ] ; then
+			routeMember="$( AgentsToolsRunRouteMember "$routeSession" )" || routeMember=""
+			AgentsToolsRunRouteName "$routeMember" || routeMember="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" parent-member )"
+		else
+			routeMember="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" parent-member )"
+			AgentsToolsRunRouteName "$routeMember" || routeMember="$( AgentsToolsRunRouteMember "$routeSession" )" || routeMember=""
+		fi
+		AgentsToolsRunRouteName "$routeMember" || routeMember=""
+		printf '%s%s\n' "$routeSession" "${routeMember:+:$routeMember}"
+		return 0
+	fi
+	routeOwn="${routeRecord##*/}" ; routeOwn="${routeOwn%.md}"
+	routeSession="$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" session-id )"
+	if [ "$( AgentsToolsSpawnSandboxRecordHeader "$routeRecord" owner )" != magic-coordinator ] && AgentsToolsRunRouteName "$routeSession" ; then
+		type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Registries.include" 2> /dev/null || :
+		for routeCandidate in $( LC_ALL=C grep -l -x -F "session-id: $routeSession" "$MMDAPP"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+			routeRunId="${routeCandidate##*/}" ; routeRunId="${routeRunId%.md}"
+			[ "$routeRunId" != "$routeOwn" ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$routeCandidate" owner )" = magic-coordinator ] || continue
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$routeCandidate" status )" = spawn-started ] || continue
+			type AgentsToolsRegistrySpawnRuns > /dev/null 2>&1 && AgentsToolsRegistrySpawnRuns "$routeRunId" "$routeCandidate" > /dev/null 2>&1 || continue
+			printf '%s:magic-coordinator\n' "$routeSession"
+			return 0
+		done
+	fi
+	printf 'human-owner\n'
+}
+
+## The thread of the session this run reports to (AgentsToolsRunRoute), from this run's own
+## spawn record, the one MDAT_SPAWN_SESSION_ID names: prints "<channel>:<ts> <session>" and
+## returns 0. Returns 1, nothing printed, when it reports to no session (a member, a person,
+## or no record), and 2, the session printed, when that session has no thread to find
+## (AgentsToolsSpawnParentThread, which finds magic-coordinator's where the session has none).
+## The sandbox folder is named by tracking name or session id, so records are found by file name.
+AgentsToolsSessionParentThreadFind(){
+	local parentRecord="" parentCandidate parentRoute parentSession parentThread=""
+	for parentCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+		[ ! -f "$parentCandidate" ] || { parentRecord="$parentCandidate" ; break ; }
+	done
+	[ -n "$parentRecord" ] || return 1
+	parentRoute="$( AgentsToolsRunRoute "$parentRecord" )"
+	[ "$( AgentsToolsRunRouteKind "$parentRoute" )" = session ] || return 1
+	parentSession="${parentRoute%%:*}"
+	type AgentsToolsSpawnParentThread > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.ReviewFlow.include" 2> /dev/null || :
+	parentThread="$( AgentsToolsSpawnParentThread "$parentSession" "$MDAT_SPAWN_SESSION_ID" 2> /dev/null )" || parentThread=""
+	if [ -z "$parentThread" ] ; then
+		printf '%s\n' "$parentSession" ; return 2
+	fi
+	printf '%s %s\n' "$parentThread" "$parentSession"
+}
+
+## The member this run reports to (AgentsToolsRunRoute, AgentsToolsRunRouteMember), from its own
+## spawn record, the one MDAT_SPAWN_SESSION_ID names: who its handback and the notes of its end
+## are addressed to. Prints the name and returns 0. Returns 1, nothing printed, where it reports
+## to a person, or to a session whose executor no record names, or has no record.
+AgentsToolsSessionParentMember(){
+	local memberRecord="" memberCandidate
+	for memberCandidate in "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/"${MDAT_SPAWN_SESSION_ID:-none}.md" ; do
+		[ ! -f "$memberCandidate" ] || { memberRecord="$memberCandidate" ; break ; }
+	done
+	[ -n "$memberRecord" ] || return 1
+	AgentsToolsRunRouteMember "$( AgentsToolsRunRoute "$memberRecord" )"
 }
 
 ## A conversation thread is `<channel>:<ts>`: an upper-case Slack id and a message ts.
@@ -658,11 +751,24 @@ AgentsToolsSpawnProxySessionNotice(){ ## thread or conversation, the member it i
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line could not be filled from sh-lib/templates/tooling-note.post.format.md, so $noticeThread was not told" >&2
 		return 0
 	fi
-	if printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > /dev/null 2>&1 ; then
+	local noticeOut="${MMDAPP:-/nonexistent}/.local/temp/mdat-session-notice.$$.out" noticeInbox
+	mkdir -p "${noticeOut%/*}" 2> /dev/null || noticeOut="/dev/null"
+	if printf '%s\n' "$noticeText" | DistroAgentsTools --intern-op-comms-slack-send-message "${noticeArgs[@]}" --from-stdin > "$noticeOut" 2>&1 ; then
 		agentsSpawnProxyNoticePosted="yes"
+	elif LC_ALL=C grep -q 'NO-SLACK-DM: ' "$noticeOut" 2> /dev/null && AgentsToolsTeamMemberDirectory "$noticeThread" > /dev/null 2>&1 ; then
+		## Told to a member with no Slack DM of its own: in its inbox, a hand-off it reads later, as
+		## a member's own send to it is (AgentsHarnessToolSendMessage).
+		noticeInbox="inquiry-$( date -u +%Y%m%dT%H%MZ )-note-$( printf '%s' "$noticeText" | cksum | cut -d' ' -f1 ).md"
+		if { printf -- '---\ntype: inquiry\nfrom: %s\ndate: %s\nowner: %s\n---\n\n%s\n' "$noticeMember" "$( date +'%Y-%m-%d %H:%M %z' )" "$noticeThread" "$noticeText" ; } \
+			| DistroAgentsTools --intern-op-member-inbox-upsert "$noticeThread" "$noticeInbox" --context --intern-op-agent-spawn-proxy > /dev/null 2>&1 ; then
+			agentsSpawnProxyNoticePosted="yes"
+		else
+			echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not left in the inbox of $noticeThread, which has no Slack DM, so it was not told that the run ${noticeRun:0:8} of $noticeMember ended" >&2
+		fi
 	else
 		echo "⚠️ WARNING: --intern-op-agent-spawn-proxy: the $noticeName line was not posted in $noticeThread, so it was not told there that the run ${noticeRun:0:8} of $noticeMember ended" >&2
 	fi
+	[ "$noticeOut" = /dev/null ] || rm -f "$noticeOut"
 	return 0
 }
 
@@ -706,17 +812,13 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## that the run has ended, and how. Its caller calls it once the record and the item of the
 ## run are closed, so a post that cannot be made holds neither open. An end is told once:
 ## by the shell while it lives, and else by the one pass that closes the record.
-## WHERE. In the thread of the session that requested the run, addressed to the member that
-## brought it in: the thread a handback to its parent goes to, kept on its record as
-## `parent-thread` (AgentsToolsSpawnParentThread, AgentsTools.ReviewFlow.include), which is
-## the run's own session thread where it joined the session of its parent, and another one
-## where it opened a session of its own. Its own session thread where its record keeps none.
-## A run that no session requested, and whose item names no reviewer, is told to the
+## WHERE. Where the run reports to (AgentsToolsRunRoute), as its handback does: a session in
+## its thread, addressed to its member (AgentsToolsRunRouteMember), its own session thread
+## where that session has none to find; a member in its own conversation; a person, the
 ## human-owner, in the bot's direct conversation, as a plain message: no question, and no
-## record of one. Three runs that no session requested stay where their note stood, in their
-## own session thread: a start its caller waits on, which that caller reads itself; a run
-## whose item names a reviewer; and any such run in a workspace that has no conversation
-## with the human-owner (SLACK_CHANNEL_HUMAN_OWNER).
+## record of one. Two runs reporting to a person stay where their note stood, in their own
+## session thread: a start its caller waits on, which that caller reads itself, and any such
+## run in a workspace that has no conversation with the human-owner (SLACK_CHANNEL_HUMAN_OWNER).
 ## HOW IT ENDED, each a line of its own under `# Session` of the note template:
 ##   run-killed        its record says that the console killed it, by whom and when
 ##                     (`killed-by`, `killed-at`, AgentsToolsManagerKillMark).
@@ -735,9 +837,10 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## stands where its end would be told gets no message: the handback said it. Nor does one
 ## whose handback was seen while nothing records where it went.
 ## Where a handback went is read from the run's transcript, the `to` of its HANDBACK events
-## (AgentsTranscriptToolDone): none, and `session-parent`, are the thread kept as
-## `parent-thread`; `session-current` is the run's own session thread; a `<channel>:<ts>` is
-## itself; `human-owner` is his conversation; any other target is another place.
+## (AgentsTranscriptToolDone): none, and `session-parent`, are where the run reports to;
+## `session-current` is the run's own session thread; a `<channel>:<ts>` is itself;
+## `human-owner` is his conversation, and a member's name its own; any other target is
+## another place.
 ## A DEATH is told by the control thread of the run's session, in a call of its own, with
 ## `died` as what its closer saw (AgentsTools.SessionControlDeath.include): the line is then
 ##   run-died          its process is gone, and nothing closed its record,
@@ -752,8 +855,8 @@ AgentsToolsSpawnProxyHandbacks(){ ## the run, by its own spawn id; its output fi
 ## stderr, which is the run's log for a run that is not waited for.
 AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a handback (`missing` or `seen`; read from the run's log where not given; `died` for a death, which the control thread of its session tells), the bound in seconds where the tooling's bound ended it (may be empty), `caller-waits` for a start its caller waits on (may be empty)
 	local endRecord="${1:-}" endSeen="${2:-}" endBound="${3:-}" endWaits="${4:-}"
-	local endRun endMember endParent endOwn endKept endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession=""
-	local endField endItem endState endReviewer="" endParts endPart endEvents="" endStop endWent endHeld="" endGave=""
+	local endRun endMember endOwn endRoute endRouted="" endTo="" endTell="" endLine="" endBy="" endAt="" endUnrequested="" endSession=""
+	local endParts endPart endEvents="" endStop endWent endHeld="" endGave=""
 	agentsSpawnProxyEndNoticeSaid="none"
 	[ -n "$endRecord" ] && [ -f "$endRecord" ] || return 0
 	[ "$endSeen" = "died" ] || [ -z "$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" death-told )" ] || return 0
@@ -762,34 +865,27 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 	[ -n "$endMember" ] || return 0
 	endOwn="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-thread )"
 	AgentsToolsSpawnConversationThreadValid "$endOwn" || endOwn=""
-	endKept="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" parent-thread )"
-	AgentsToolsSpawnConversationThreadValid "$endKept" || endKept=""
-	## Where it is told, and to whom.
-	endParent="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" parent-session-id )"
-	case "$endParent" in
-		''|none)
-			endTo="$endOwn"
-			if [ "$endWaits" != "caller-waits" ] ; then
-				for endField in spawns spawned-by ; do
-					endItem="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" "$endField" )"
-					endItem="${endItem%%,*}" ; endItem="${endItem%% *}" ; endItem="${endItem%.md}"
-					[ -n "$endItem" ] && [ -n "${MDAT_DATA_ROOT:-}" ] || continue
-					endState="$( AgentsToolsSpawnProxyBoardStateOf "$endItem.md" )"
-					[ -n "$endState" ] || continue
-					endReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$endState/$endItem.md" review-by )"
-					break
-				done
-				if [ -z "$endReviewer" ] && [ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" ] ; then
-					endTo="human-owner" ; endTell="human-owner"
-					endSession="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-comment )"
-					type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
-					endUnrequested="$( ASKP_BLOCK="Session/unrequested" ASKP_F_session="$endSession" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || endUnrequested=""
-				fi
-			fi
+	## Where it is told, and to whom: where it reports to, and where its handback went is held against that.
+	endRoute="$( AgentsToolsRunRoute "$endRecord" )"
+	case "$( AgentsToolsRunRouteKind "$endRoute" )" in
+		session)
+			endRouted="$( MDAT_SPAWN_SESSION_ID="$endRun" ; AgentsToolsSessionParentThreadFind 2> /dev/null )" || endRouted=""
+			endRouted="${endRouted%% *}"
+			AgentsToolsSpawnConversationThreadValid "$endRouted" || endRouted=""
+			endTo="${endRouted:-$endOwn}"
+			endTell="$( AgentsToolsRunRouteMember "$endRoute" 2> /dev/null )" || endTell=""
+		;;
+		member)
+			endRouted="$endRoute" ; endTo="$endRoute" ; endTell="$endRoute"
 		;;
 		*)
-			endTo="${endKept:-$endOwn}"
-			endTell="$( MDAT_SPAWN_SESSION_ID="$endRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || endTell=""
+			endRouted="human-owner" ; endTo="$endOwn"
+			if [ "$endWaits" != "caller-waits" ] && [ -n "$( DistroAgentsTools --agents-config-option magic-team --select SLACK_CHANNEL_HUMAN_OWNER 2> /dev/null )" ] ; then
+				endTo="human-owner" ; endTell="human-owner"
+				endSession="$( AgentsToolsSpawnSandboxRecordHeader "$endRecord" session-comment )"
+				type AgentsToolsAskPostFill > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.AskPost.include"
+				endUnrequested="$( ASKP_BLOCK="Session/unrequested" ASKP_F_session="$endSession" AgentsToolsAskPostFill block tooling-note.post.format.md "" 2> /dev/null )" || endUnrequested=""
+			fi
 		;;
 	esac
 	[ -n "$endTo" ] || return 0
@@ -825,14 +921,10 @@ AgentsToolsSpawnProxyEndNotice(){ ## the run's record, what its closer saw of a 
 		while IFS= read -r endWent ; do
 			case "$endWent" in to:*) endWent="${endWent#to:}" ;; *) continue ;; esac
 			case "$endWent" in
-				''|session-parent)
-					endWent="$endKept"
-					[ -n "$endWent" ] || endWent="$( MDAT_SPAWN_SESSION_ID="$endRun" ; AgentsToolsSessionParentThreadFind 2> /dev/null )" || endWent=""
-					endWent="${endWent%% *}"
-				;;
+				''|session-parent) endWent="$endRouted" ;;
 				session-current) endWent="$endOwn" ;;
 				human-owner) ;;
-				*) AgentsToolsSpawnConversationThreadValid "$endWent" || endWent="" ;;
+				*) [ "$endWent" = "$endRouted" ] || AgentsToolsSpawnConversationThreadValid "$endWent" || endWent="" ;;
 			esac
 			[ "$endWent" != "$endTo" ] || { endHeld="there" ; break ; }
 			endHeld="elsewhere"

@@ -305,7 +305,7 @@ AgentsToolsItemIsReviewer(){ ## item path, member
 
 ## Whether <member>, calling from this process, may ask for an item's review: its owner, or
 ## the session that spawned its child -- that session itself or its member -- by the
-## `parent-session-id:` of the spawn record its `spawn-id:` names. rc 0 may, rc 1 not.
+## `parent-spawn-id:` of the spawn record its `spawn-id:` names. rc 0 may, rc 1 not.
 AgentsToolsItemIsOwnerOrParent(){ ## item path, member
 	local opSpawn opParent
 	AgentsToolsMemberListHas "$( AgentsToolsDecisionsField "$1" owner )" "$2" && return 0
@@ -313,7 +313,7 @@ AgentsToolsItemIsOwnerOrParent(){ ## item path, member
 	case "$opSpawn" in ''|-|*/*|.|..) return 1 ;; esac
 	for opParent in "$MMDAPP/.local/agents/spawned"/*/"$opSpawn.md" ; do
 		[ -f "$opParent" ] || continue
-		opParent="$( AgentsToolsDecisionsField "$opParent" parent-session-id )"
+		opParent="$( AgentsToolsDecisionsField "$opParent" parent-spawn-id )"
 		case "$opParent" in ''|-|none) return 1 ;; esac
 		[ "$( AgentsToolsActingSession )" != "$opParent" ] || return 0
 		[ "$( AgentsToolsSessionMember "$opParent" )" != "$2" ] || return 0

@@ -102,7 +102,7 @@ rigItem(){ ## state, item stem, spawn-id
 }
 rigRecord(){ ## spawn-id, status, coworking session id, owner, item link line (may be empty), folder, parent session id (default none)
 	mkdir -p "$rigSpawned/$6"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: %s\nsession-thread: CSES00001:1700000000.000100\n%s---\n' \
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: %s\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: %s\nsession-thread: CSES00001:1700000000.000100\n%s---\n' \
 		"$3" "$1" "${7:-none}" "$6" "$rigHost" "$4" "$2" "${5:+$5
 }" > "$rigSpawned/$6/$1.md"
 }

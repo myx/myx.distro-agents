@@ -146,7 +146,7 @@ rigStart(){ ## scenario name
 	printf -- '---\ntype: dispatch\nowner: keeper-myx\nstatus: dispatch-started\nspawn-id: %s\ntracks: task-20261012T0000Z-%s\n---\n\n# rig dispatch\n' \
 		"$rigSpawn" "$rigName" > "$rigData/board/running/$rigItem.md"
 	mkdir -p "$rigWs/.local/agents/spawned/$rigSpawn" "$rigWs/.local/agents/sessions/$rigSpawn"
-	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
+	printf -- '---\nsession-id: 5e55104a-rig-%s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: spawn-started\nsession-thread: CSES00001:1700000000.000100\nspawns: %s\ndescription: rework the rig widget\n---\n' \
 		"$rigName" "$rigSpawn" "$rigSpawn" "$rigHost" "$rigItem" > "$rigWs/.local/agents/spawned/$rigSpawn/$rigSpawn.md"
 	bash -c 'sleep 600 ; :' "$rigSpawn" > /dev/null 2>&1 < /dev/null &
 	rigPid="$!"

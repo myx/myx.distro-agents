@@ -90,7 +90,7 @@ rigStart(){ ## pid -- when that process began, as one word, as a spawn record ke
 rigRecord(){ ## spawn-id, status, sandbox folder (default: the spawn-id), extra frontmatter lines (may be empty)
 	local recFolder="${3:-$1}"
 	mkdir -p "$rigSpawned/$recFolder/input" "$rigSpawned/$recFolder/output"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%s---\n' \
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%s---\n' \
 		"$recFolder" "$1" "$recFolder" "$rigHost" "$2" "${4:-}" > "$rigSpawned/$recFolder/$1.md"
 }
 rigItem(){ ## item stem, spawn-id -- the dispatch item TaskOutput reaches the run by

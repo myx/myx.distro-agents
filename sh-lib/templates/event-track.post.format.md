@@ -109,7 +109,7 @@ What a box's lines are regarding. Every post comes from the bot: a title names a
 [[{{task-text}}]]
 [[cli: {{cli}}]][[ · runs: {{runs}}]][[ · tier: {{tier}}]][[ · wait: {{wait}}]]
 [[routine: `{{routine}}`]][[ · dispatch: `{{dispatch}}`]][[ · resume: `{{resume}}`]]
-{{context}}[[parent: `{{parent-session-id}}`]][[ · tracking: `{{tracking-name}}`]]
+{{context}}[[parent: `{{parent-spawn-id}}`]][[ · tracking: `{{tracking-name}}`]]
 {{context}}[[where: {{host}}]][[ / {{workspace}}]][[ · started: {{started-at}}]]
 {{context}}[[member's workspace: {{member-workspace}}]][[ · paying workspace: {{paying-workspace}}]]
 ```

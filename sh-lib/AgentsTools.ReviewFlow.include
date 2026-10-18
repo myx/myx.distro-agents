@@ -323,7 +323,7 @@ AgentsReviewResumeEligible(){ ## record path (may be empty)
 ## (AgentsToolsSessionControlDeathAct, AgentsTools.SessionControlDeath.include).
 AgentsReviewRestart(){ ## item name, record path (may be empty), corrections text, who
 	local rsItem="${1%.md}.md" rsRecord="$2" rsText="${3:-}" rsWho="${4:-unknown}" rsMember="" rsTracking="" rsSession="" rsThread="" rsPath rsOut rsRc=0
-	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart=""
+	local rsFrom="" rsWhy="" rsPaying="" rsAsked="" rsParent="" rsStart="" rsReports=""
 	rsPath="$( AgentsToolsDecisionsItemPath "$rsItem" )" || return 1
 	## Taken here and taken out of the environment: the run that is started must not inherit it.
 	local rsFresh="${MDAT_REVIEW_RESTART_FRESH:-}"
@@ -355,8 +355,10 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 		rsThread="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" session-thread )"
 		rsPaying="$( AgentsReviewRecordPaying "$rsRecord" )"
 		rsAsked="$( AgentsReviewRecordCliAsked "$rsRecord" )"
-		rsParent="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" parent-session )"
+		rsParent="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" parent-session-id )"
 		rsStart="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" start-context )"
+		## Where it reported to, as its record names it: what it had, and no more.
+		rsReports="$( AgentsToolsSpawnSandboxRecordHeader "$rsRecord" "$agentsRunRouteField" )"
 	fi
 	[ -n "$rsMember" ] || rsMember="$( AgentsToolsDecisionsField "$rsPath" owner )"
 	[ -n "$rsMember" ] || { printf 'RETURN: not restarted: no member is recorded for %s\n' "${rsItem%.md}" ; return 1 ; }
@@ -367,7 +369,13 @@ AgentsReviewRestart(){ ## item name, record path (may be empty), corrections tex
 	[ -z "$rsPaying" ] || set -- "$@" --spawn-settings-workspace "$rsPaying"
 	[ -z "$rsAsked" ] || set -- "$@" --spawn-cli-service "$rsAsked"
 	## Started by the session that started the run it replaces, whoever restarts it: off its record.
-	[ -z "$rsParent" ] || set -- "$@" --parent-session "$rsParent"
+	## A run that had no parent session has none when it goes on, whoever restarts it.
+	if [ -n "$rsParent" ] ; then
+		set -- "$@" --parent-session "$rsParent"
+	elif [ -n "$rsRecord" ] && [ -f "$rsRecord" ] ; then
+		set -- "$@" --parent-none
+	fi
+	[ -z "$rsReports" ] || set -- "$@" --reports-to "$rsReports"
 	## Joined only where the session has a thread to join by; the proxy refuses a join it cannot make.
 	## A resumed session keeps the thread it remembers, so it resumes only when joined there.
 	## Joined, it goes on with the participation of the run it replaces, so it keeps its start-context too.

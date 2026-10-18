@@ -216,7 +216,7 @@ AgentsToolsPermissionRelatedStores(){ ## session id
 	for relRecord in "${MMDAPP:-}/.local/agents/spawned"/*/"$1.md" ; do
 		[ -f "$relRecord" ] || continue
 		relCow="$( AgentsToolsPermissionField "$relRecord" session-id )"
-		relParent="$( AgentsToolsPermissionField "$relRecord" parent-session-id )"
+		relParent="$( AgentsToolsPermissionField "$relRecord" parent-spawn-id )"
 		break
 	done
 	printf '%s\n' "$1" "$relCow" "$relParent" | LC_ALL=C awk 'NF && $0 !~ /\// && $0 != "." && $0 != ".." && !seenStore[$0]++ { print ; }'
@@ -575,7 +575,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 			for partRecord in "$MMDAPP/.local/agents/spawned"/*/"$partSession.md" ; do
 				[ -f "$partRecord" ] || continue
 				partCow="$( AgentsToolsPermissionField "$partRecord" session-id )"
-				partParent="$( AgentsToolsPermissionField "$partRecord" parent-session-id )"
+				partParent="$( AgentsToolsPermissionField "$partRecord" parent-spawn-id )"
 				break
 			done
 			LC_ALL=C awk -v ownSession="$partSession" -v cowSession="${partCow:-$partSession}" -v parentSession="$partParent" '
@@ -589,7 +589,7 @@ AgentsToolsPermissionParticipants(){ ## session id (may be empty), task item (ma
 				}
 				front == 1 && index( $0, "session-id: " ) == 1 { recSession = substr( $0, 13 ) ; }
 				front == 1 && index( $0, "spawn-id: " ) == 1 { recSpawn = substr( $0, 11 ) ; }
-				front == 1 && index( $0, "parent-session-id: " ) == 1 { recParent = substr( $0, 20 ) ; }
+				front == 1 && index( $0, "parent-spawn-id: " ) == 1 { recParent = substr( $0, 18 ) ; }
 				front == 1 && index( $0, "owner: " ) == 1 { recOwner = substr( $0, 8 ) ; }
 			' "$MMDAPP/.local/agents/spawned"/*/*.md 2>/dev/null || :
 		fi

@@ -281,7 +281,7 @@ echo "-- 4. a thread that cannot be started is one warning in the run's log, and
 ## where the folder of its thread would be made, so the log of the thread cannot be written.
 rigParent="rig-parent-$rigTag"
 mkdir -p "$rigSp/$rigParent" "$rigStores/$rigParent"
-printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: CRIGPARENT:1700000000.000100\n---\n\n# Spawn session: %s\n' \
+printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nworkspace: ws\nowner: rig-member-b\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nsession-thread: CRIGPARENT:1700000000.000100\n---\n\n# Spawn session: %s\n' \
 	"$rigParent" "$rigParent" "$rigParent" "$rigHost" "$rigParent" > "$rigSp/$rigParent/$rigParent.md"
 sleep 900 > /dev/null 2>&1 < /dev/null &
 rigProcNote "$!" ; rigKept="$rigKept $!"

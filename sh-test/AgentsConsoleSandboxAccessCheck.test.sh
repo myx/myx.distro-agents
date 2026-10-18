@@ -138,14 +138,14 @@ rm -f "$rigTmp/mktemp.argv"
 	> "$rigTmp/fallback.out" 2> "$rigTmp/fallback.err"
 rigAssert "mktemp falls back to TMPDIR with no sandbox root" "$( LC_ALL=C grep -c -F "$rigTmp/tmpdir/AgentsUniversalHarness" "$rigTmp/mktemp.argv" || : )" 1
 
-echo "-- the harness grants a parent its child's sandbox, by parent-session-id --"
+echo "-- the harness grants a parent its child's sandbox, by parent-spawn-id --"
 mkdir -p "$rigWs/.local/agents/spawned/rig-child/input" "$rigWs/.local/agents/spawned/rig-child/output"
 printf 'child output\n' > "$rigWs/.local/agents/spawned/rig-child/output/c.txt"
 printf 'child input\n' > "$rigWs/.local/agents/spawned/rig-child/input/c.txt"
-printf -- '---\nparent-session-id: rig-parent-key\n---\n' > "$rigWs/.local/agents/spawned/rig-child/rig-child.md"
+printf -- '---\nparent-spawn-id: rig-parent-key\n---\n' > "$rigWs/.local/agents/spawned/rig-child/rig-child.md"
 mkdir -p "$rigWs/.local/agents/spawned/rig-child2/output"
 printf 'child2 output\n' > "$rigWs/.local/agents/spawned/rig-child2/output/c.txt"
-printf -- '---\nparent-session-id: rig-parent-key-extra\n---\n' > "$rigWs/.local/agents/spawned/rig-child2/rig-child2.md"
+printf -- '---\nparent-spawn-id: rig-parent-key-extra\n---\n' > "$rigWs/.local/agents/spawned/rig-child2/rig-child2.md"
 rigParentTool(){ ## caller-session-key, tool, argument object
 	( cd "$rigWs" && printf '%s' "$3" | env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" \
 		MDAT_SKILLSET_ROOT="$rigTmp/skills" MDAT_SPAWN_AGENT=rig-member CLAUDE_CODE_SESSION_ID="$1" \
@@ -173,7 +173,7 @@ rigParentTool rig-nomatch Read "{\"path\":\"$rigWs/.local/agents/spawned/rig-chi
 rigAssert "control: no matching record, refused reading input"  "$( rigDenyCount )" 1
 
 rigParentTool rig-parent-key Read "{\"path\":\"$rigWs/.local/agents/spawned/rig-child2/output/c.txt\"}"
-rigAssert "control: a prefix-only parent-session-id match is refused" "$( rigDenyCount )" 1
+rigAssert "control: a prefix-only parent-spawn-id match is refused" "$( rigDenyCount )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CONSOLE SANDBOX ACCESS CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

@@ -336,12 +336,12 @@ AgentsToolsSessionControlDeathAsk(){ ## session id, record file, where it is ask
 ## function's rule, and so is that a run whose handback stands there gets none. No note is
 ## posted where the question stands in that very thread, and is the message too; nor where
 ## the question goes to a person while no member of the session that requested the run runs.
-## THE QUESTION, only where the item of the run names a reviewer. To the member that brought
-## the run in, in the thread of the session that requested it, where the reviewer is that
-## session and that member still runs there. To the human-owner, in the bot's direct
-## conversation, where the reviewer is a person, a member or a routine, or a session that has
-## ended or cannot be measured.
-## NO REVIEWER: the death is settled with the message, and the record of the run is closed as
+## THE QUESTION, only where the run works an item, and of where it reports to
+## (AgentsToolsRunRoute), which decides what follows a death. To its member, in the thread of
+## the session it reports to, where the run that brought it in still runs there. To the
+## human-owner, in the bot's direct conversation, where it reports to a person or a member, or
+## to a session that has ended or cannot be measured.
+## NO ITEM: the death is settled with the message, and the record of the run is closed as
 ## ended without close, so that no later closer finds an end to tell.
 ## Whoever closed the record before this was reached told its end: nothing is posted then.
 ## ONCE IT IS ASKED the same call does what is due next, one thing a call: while the record
@@ -388,27 +388,36 @@ AgentsToolsSessionControlDeathWork(){ ## session id, run id, the file its result
 		printf 'closed: elsewhere\n' >> "$workResult"
 		return 0
 	fi
-	## The item of the run, and who reviews it.
+	## The item of the run, and where the run reports to (AgentsToolsRunRoute), which decides what
+	## follows a death: the question is asked only where the run works an item.
 	for workField in spawns spawned-by ; do
 		workItem="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" "$workField" )"
 		workItem="${workItem%%,*}" ; workItem="${workItem%% *}" ; workItem="${workItem%.md}"
 		workState=""
 		[ -z "$workItem" ] || [ -z "${MDAT_DATA_ROOT:-}" ] || workState="$( AgentsToolsSpawnProxyBoardStateOf "$workItem.md" )"
 		[ -n "$workState" ] || { workItem="" ; continue ; }
-		workReviewer="$( AgentsToolsSpawnSandboxRecordHeader "$MDAT_DATA_ROOT/board/$workState/$workItem.md" review-by )"
 		break
 	done
+	local workRoute
+	workRoute="$( AgentsToolsRunRoute "$workRecord" )"
+	[ -z "$workItem" ] || workReviewer="$workRoute"
 	## Whether the member that brought the run in still runs in the session that requested it.
-	workParent="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-session-id )"
+	workParent="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-spawn-id )"
 	case "$workParent" in ''|none|*/*|.|..) workParent="" ;; esac
-	workThread="$( AgentsToolsSpawnSandboxRecordHeader "$workRecord" parent-thread )"
+	workThread=""
+	if [ "$( AgentsToolsRunRouteKind "$workRoute" )" = session ] ; then
+		workThread="$( MDAT_SPAWN_SESSION_ID="$workRun" ; AgentsToolsSessionParentThreadFind 2> /dev/null )" || workThread=""
+		workThread="${workThread%% *}"
+	fi
 	AgentsToolsSpawnConversationThreadValid "$workThread" || workThread=""
 	[ -z "$workParent" ] || ! AgentsToolsRegistrySpawnRuns "$workParent" "" || workLives="yes"
-	## Where the question goes, and to whom.
+	## Where the question goes, and to whom: in the thread of the session it reports to, to its
+	## member, where that member still runs there; else the human-owner, for a person, for a member
+	## (whose own conversation the bot cannot read an answer in), and for a session that has ended.
 	if [ -n "$workReviewer" ] ; then
 		workWhere="human-owner" ; workWhom="human-owner"
-		if [ -n "$workLives" ] && [ -n "$workThread" ] && [ "${workReviewer%%:*}" = "$workParent" ] ; then
-			workWhom="$( MDAT_SPAWN_SESSION_ID="$workRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || workWhom=""
+		if [ -n "$workLives" ] && [ -n "$workThread" ] ; then
+			workWhom="$( AgentsToolsRunRouteMember "$workRoute" 2> /dev/null )" || workWhom=""
 			if [ -n "$workWhom" ] ; then workWhere="$workThread" ; else workWhom="human-owner" ; fi
 		fi
 	fi
@@ -639,7 +648,9 @@ AgentsToolsSessionControlDeathAct(){ ## session id, record file, the line of the
 	actThread="$( AgentsToolsSpawnSandboxRecordHeader "$actPending" channel ):$( AgentsToolsSpawnSandboxRecordHeader "$actPending" thread-ts )"
 	AgentsToolsSpawnConversationThreadValid "$actThread" || actThread=""
 	[ -z "$actThread" ] || AgentsToolsSessionControlDeathSay "$actThread" "$actMember" "$actBy" "$actSaid" "$actRun" "$actBy" "$actAnswer" "$actReason" "$actShown"
-	actParent="$( AgentsToolsSpawnSandboxRecordHeader "$actRecord" parent-thread )"
+	## And in the thread of the session the run reports to (AgentsToolsRunRoute), to its member.
+	actParent="$( MDAT_SPAWN_SESSION_ID="$actRun" ; AgentsToolsSessionParentThreadFind 2> /dev/null )" || actParent=""
+	actParent="${actParent%% *}"
 	AgentsToolsSpawnConversationThreadValid "$actParent" || actParent=""
 	if [ -n "$actParent" ] && [ "${actParent#*:}" != "${actThread#*:}" ] ; then
 		actParentMember="$( MDAT_SPAWN_SESSION_ID="$actRun" ; AgentsToolsSessionParentMember 2> /dev/null )" || actParentMember=""

@@ -278,7 +278,7 @@ mkdir -p "$rigDir" "$rigSp/trk-rig-ret"
 rigOldShell="4000001 Mon_Jan_1_00:00:00_2001"
 rigOldRecord="$rigSp/trk-rig-ret/rig-old-run.md"
 rigItem="dispatch-20261013T0900Z-rigret"
-printf -- '---\nsession-id: rig-old-run\nspawn-id: rig-old-run\nparent-session-id: none\ntracking-name: trk-rig-ret\nhost: %s\nowner: rig-member-a\nstatus: spawn-succeeded\nsession-thread: CEND00001:1700000000.000500\nspawns: %s\nsupervisor-process: %s\n---\n\n# Spawn session: rig-old-run\n' \
+printf -- '---\nsession-id: rig-old-run\nspawn-id: rig-old-run\nparent-spawn-id: none\ntracking-name: trk-rig-ret\nhost: %s\nowner: rig-member-a\nstatus: spawn-succeeded\nsession-thread: CEND00001:1700000000.000500\nspawns: %s\nsupervisor-process: %s\n---\n\n# Spawn session: rig-old-run\n' \
 	"$rigHost" "$rigItem" "$rigOldShell" > "$rigOldRecord"
 printf -- '---\ntype: dispatch\nowner: rig-member-a\nstatus: dispatch-started\nspawn-id: rig-old-run\n---\n\n# rig dispatch\n' > "$rigData/board/review/$rigItem.md"
 ( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" --member-review-return magic-coordinator "$rigItem" --message "redo the rig step" > "$rigDir/return.out" 2>&1 )

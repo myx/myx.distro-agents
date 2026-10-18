@@ -88,7 +88,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "${3:+parent-session-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
+		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
 }
 ## A LIVE RUN of one spawn: a line of the rig's own process list that carries its spawn id, which
 ## is how the spawned-sessions render finds a spawn running. Ended by rigDead.
@@ -346,7 +346,7 @@ printf -- '---\nexecutors: magic-tester\nmaintainers: magic-tester, human-owner\
 printf -- '---\nexecutors: magic-tester\nmaintainers: magic-developer\nallows: participants:cred:rig-secret, participants:Write:DEV/n/**, participants:Write:ELSE/**\n---\n# rig routine without the human-owner\n' \
 	> "$rigSkills/magic-tester/magic-tester.rig-nohuman.routine.md"
 printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-rcow\nowner: magic-tester\nroutine: magic-tester.rig-review.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-rcow.md"
-printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-session-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"
+printf -- '---\nsession-id: rig-rcow\nspawn-id: rig-r2\nparent-spawn-id: rig-rcow\nowner: magic-developer\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-rcow/rig-r2.md"
 printf -- '---\nsession-id: rig-ncow\nspawn-id: rig-ncow\nowner: magic-tester\nroutine: magic-tester.rig-nohuman.routine.md\nstatus: spawn-started\n---\n' > "$rigWs/.local/agents/spawned/rig-ncow/rig-ncow.md"
 export MDAT_SKILLSET_ROOT="$rigSkills"
 rigAssert "a member's routine allow holds in that routine's session" "$( rigHolds magic-tester Edit "$rigWs/ROUT/a.txt" rig-rcow )" "HOLDS routine magic-tester.rig-review.routine"

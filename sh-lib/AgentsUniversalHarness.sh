@@ -645,7 +645,7 @@ if [ -n "${MDAT_SPAWN_SANDBOX_ROOT:-}" ] ; then
 	harnessRuntimeWriteRoots="${harnessRuntimeWriteRoots}$harnessSandboxOutReal"$'\n'
 fi
 
-## A parent session reads its children's output and writes their input, by parent-session-id.
+## A parent session reads its children's output and writes their input, by parent-spawn-id.
 harnessParentKey="${harnessSessionId:-${MDAT_SPAWN_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
 ## Where every spawn since the install has listed itself in its parent's own
 ## .local/agents/children/<id> -- the main loop re-lists them all from the records and
@@ -668,10 +668,10 @@ if [ -n "$harnessParentKey" ] && [ -n "${MMDAPP:-}" ] ; then
 					*$'\n'"${harnessChildRecord#"$MMDAPP/.local/agents/spawned/"}"$'\n'*) harnessChildFiles+=( "$harnessChildRecord" ) ;;
 				esac
 			done
-			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "${harnessChildFiles[@]}" 2>/dev/null )" || harnessChildRecords=""
+			[ "${#harnessChildFiles[@]}" -eq 0 ] || harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "${harnessChildFiles[@]}" 2>/dev/null )" || harnessChildRecords=""
 		fi
 	else
-		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-session-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )" || harnessChildRecords=""
+		harnessChildRecords="$( LC_ALL=C grep -l -x -F "parent-spawn-id: $harnessParentKey" "$MMDAPP"/.local/agents/spawned/*/*.md 2>/dev/null )" || harnessChildRecords=""
 	fi
 	## The spawned/ directory is resolved once; a child's own folder and its input/ and
 	## output/ that are real directories, not links, resolve under it to exactly what
@@ -3610,6 +3610,19 @@ AgentsHarnessToolSubagentHandback(){
 	if [ -z "$toolOutcome" ] ; then
 		printf 'ERROR: SubagentHandback: outcome is required and was empty. A handback carrying no outcome reports nothing, so nothing was sent.\n' ; return 0
 	fi
+	## A handback to the parent goes where this run reports to (AgentsToolsRunRoute): a session's
+	## thread, which session-parent resolves; a member's own conversation, addressed to it; for
+	## a person, the human-owner's conversation, addressed to him. A session with no spawn record
+	## of its own has no address, and session-parent stays as the one address resolver says it.
+	local toolRouteRecord="" toolRoute=""
+	if [ "$toolTo" = "$harnessParentName" ] && toolRouteRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$toolRouteRecord" ] ; then
+		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+		toolRoute="$( AgentsToolsRunRoute "$toolRouteRecord" 2> /dev/null )" || toolRoute=""
+		case "$( AgentsToolsRunRouteKind "$toolRoute" 2> /dev/null )" in
+			member) toolTo="$toolRoute" ; [ -n "$toolAddressTo" ] || toolAddressTo="$toolRoute" ;;
+			person) toolTo="human-owner" ; [ -n "$toolAddressTo" ] || toolAddressTo="human-owner" ;;
+		esac
+	fi
 	## A handback into a session thread that names nobody is for the caller. One into a
 	## conversation the call names keeps the addressee that conversation gives it.
 	if [ -z "$toolAddressTo" ] ; then
@@ -4447,6 +4460,22 @@ AgentsHarnessAsk(){
 			*) askSetNote="NOTE: addressed to human-owner, not ${toolAddressTo:-$toolTo}: a Permission set is his to answer." ;;
 		esac
 		toolTo="human-owner" ; toolAddressTo="human-owner"
+	fi
+	## No target and no party named: asked where this run reports to (AgentsToolsRunRoute), the
+	## one address its questions and escalations go to: a session in its thread, addressed to its
+	## member; a member as a member is asked (below); a person, the human-owner. A session with no
+	## spawn record of its own keeps the default below.
+	if [ -z "$toolTo" ] && [ -z "$toolAddressTo" ] ; then
+		local askRouteRecord="" askRouteTo=""
+		if askRouteRecord="$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" && [ -n "$askRouteRecord" ] ; then
+			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || :
+			askRouteTo="$( AgentsToolsRunRoute "$askRouteRecord" 2> /dev/null )" || askRouteTo=""
+			case "$( AgentsToolsRunRouteKind "$askRouteTo" 2> /dev/null )" in
+				session) toolTo="$harnessParentName" ; toolAddressTo="$( AgentsToolsRunRouteMember "$askRouteTo" 2> /dev/null )" || toolAddressTo="" ;;
+				member) toolTo="$askRouteTo" ; toolAddressTo="$askRouteTo" ;;
+				person) toolTo="human-owner" ; toolAddressTo="human-owner" ;;
+			esac
+		fi
 	fi
 	## No target named: default to this session's own coworking thread, where one
 	## exists -- same rule and same reason as SendMessage's own default. An ad-hoc/

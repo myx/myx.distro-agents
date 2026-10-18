@@ -26,6 +26,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
+## The name of the address field, read where it is held, so a rename is one line there.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/AgentsTools.SpawnSandbox.include" )"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -81,15 +83,18 @@ rigStart(){ ## scenario directory name
 	printf '{"ok":true,"messages":[{"ts":"%s","user":"URIGSELF1","text":"RIG-PARENT-OPENER"}],"has_more":false}\n' "${rigParent#*:}" > "$rigScenarioDir/replies.${rigParent#*:}.json"
 }
 ## The session's spawn records. The child's record sits in a folder named for neither id,
-## so only a lookup by record name can find it.
+## so only a lookup by record name can find it. The parent's id names its run and its session
+## alike, as a founding run's own id names the session it founded.
 rigRecords(){ ## parent id for the child record (none for no parent), the parent's thread (empty for none), a thread the spawn settled in the child's own record (optional)
 	local spawnDir="$rigScenarioDir/ws/.local/agents/spawned"
 	mkdir -p "$spawnDir/child-folder" "$spawnDir/parent-folder" "$spawnDir/prefix-folder"
-	printf -- '---\nspawn-id: rig-child-id\nparent-session-id: %s\n%s---\n' "$1" "${3:+parent-thread: $3
-}" > "$spawnDir/child-folder/rig-child-id.md"
-	printf -- '---\nspawn-id: rig-parent-id\nparent-session-id: none\n%s---\n' "${2:+session-thread: $2
+	local childLines=""
+	[ "$1" = none ] || childLines="parent-session-id: $1"$'\n'
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s%s---\n' "$1" "${3:+parent-thread: $3
+}" "$childLines" > "$spawnDir/child-folder/rig-child-id.md"
+	printf -- '---\nspawn-id: rig-parent-id\nparent-spawn-id: none\n%s---\n' "${2:+session-thread: $2
 }" > "$spawnDir/parent-folder/rig-parent-id.md"
-	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-session-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
+	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
 }
 ## One scenario with the usual records: a parent that has a thread.
 rigScene(){ ## scenario directory name
@@ -175,7 +180,7 @@ rigAssert "the parent's own thread, and the parent named"         "$( rigResolve
 rigAssert "the same with no session thread of the caller's own"   "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
 rigStart resolveSettled
 rigRecords rig-parent-id "$rigParent" CSETTLED:1700000003.000303
-rigAssert "the thread the spawn settled for its parent comes first" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CSETTLED|THREAD_TS=1700000003.000303|PARENT_SESSION_ID=rig-parent-id"
+rigAssert "a thread the spawn kept as parent-thread is read no more: the parent session's own" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
 rigStart resolveNoParent
 rigRecords none "$rigParent"
 rigAssert "no recorded parent: refused, why and what to pass"     "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParent"
@@ -185,10 +190,11 @@ rigAssert "a parent with no thread: refused, the parent named"    "$( rigResolve
 rigStart resolveNoRecord
 rigAssert "no record at all: refused"                             "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParent"
 
-echo "-- the resolver: the parent session the start recorded (parent-session) names the parent --"
+echo "-- the resolver: the parent session the start recorded (parent-session-id) names the parent --"
 rigScene resolveStartParent
-rigChild(){ ## parent-session-id, start-context, parent-session -- the child's record, as a start writes it now
-	printf -- '---\nspawn-id: rig-child-id\nparent-session-id: %s\nstart-context: %s\nparent-session: %s\n---\n' "$1" "$2" "$3" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
+rigChild(){ ## parent-spawn-id, start-context, parent-session-id, the address it reports to (may be empty) -- the child's record, as a start writes it now
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\nstart-context: %s\nparent-session-id: %s\n%s---\n' "$1" "$2" "$3" "${4:+$rigReportsTo: $4
+}" > "$rigScenarioDir/ws/.local/agents/spawned/child-folder/rig-child-id.md"
 }
 rigChild none joined rig-parent-id
 rigAssert "a start whose caller had no run id: the recorded parent session still names the parent" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
@@ -199,6 +205,13 @@ rigSessionRecord rig-native-id "$rigNativeThread"
 rigAssert "a parent that is a native session, with no record of its own: the thread recorded for that session" "$( rigResolve "" session-parent )" "rc=0 CHANNEL=CNATIVE1|THREAD_TS=1700000005.000505|PARENT_SESSION_ID=rig-native-id"
 rigChild none joined rig-silent-id
 rigAssert "a recorded parent session with no thread: refused, that session named" "$( rigResolve "$rigCurrent" session-parent )" "rc=3 the parent session rig-silent-id has no recorded thread, so session-parent names nowhere. $rigPass"
+echo "-- the resolver: an address the run reports to names the parent session it is in --"
+rigChild none joined rig-silent-id rig-parent-id:magic-tester
+rigAssert "reports-to a session: that session's thread, whatever the parent session says" "$( rigResolve "$rigCurrent" session-parent )" "rc=0 CHANNEL=CPARENT1|THREAD_TS=1700000001.000101|PARENT_SESSION_ID=rig-parent-id"
+rigChild none joined rig-parent-id magic-coordinator
+rigAssert "reports-to a member: no session to name" "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParent"
+rigChild none spawned "" user-rig
+rigAssert "reports-to a person: no session to name" "$( rigResolve "$rigCurrent" session-parent )" "rc=3 $rigNoParent"
 
 echo "-- the resolver: the other targets are as they were --"
 rigScene resolveOther

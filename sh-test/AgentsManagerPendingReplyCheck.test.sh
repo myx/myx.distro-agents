@@ -83,7 +83,7 @@ printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\n
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "${3:+parent-session-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
+		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
 rigSpawnRecord rig-tester magic-tester rig-coord

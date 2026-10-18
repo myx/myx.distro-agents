@@ -79,7 +79,7 @@ printf 'magic-developer:ws:workspace:Edit(/%s/DEV/**)\n' "$rigWs" > "$rigWs/.loc
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
-		"$1" "${3:+parent-session-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
+		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
 }
 rigSpawnRecord rig-coord magic-coordinator ""
 rigSpawnRecord rig-dev magic-developer rig-coord

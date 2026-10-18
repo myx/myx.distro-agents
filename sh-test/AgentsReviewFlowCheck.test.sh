@@ -119,7 +119,7 @@ rigItem(){ ## state, item stem, spawn-id or empty, extra frontmatter lines (may 
 rigRecord(){ ## spawn-id, status, session-thread or empty, item stem or empty, folder (default: spawn-id), extra lines
 	local recFolder="${5:-$1}"
 	mkdir -p "$rigSpawned/$recFolder"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-session-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%s%s%s---\n' \
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: keeper-myx\nstatus: %s\n%s%s%s---\n' \
 		"$1" "$1" "$recFolder" "$rigHost" "$2" "${3:+session-thread: $3
 }" "${4:+spawns: $4
 }" "${6:-}" > "$rigSpawned/$recFolder/$1.md"
@@ -154,10 +154,11 @@ rigWaitFor(){ ## seconds, test command...
 ## ---------------------------------------------------------------- into review
 echo "-- 1. a served SubagentHandback: running -> review, Decisions handback, transcript REVIEW --"
 rigRecord rig-par-1 spawn-started CPAR00001:1700000000.000100 "" rig-par-1
-rigRecord rig-child-1 spawn-started "" dispatch-20261008T1200Z-hb rig-child-1 'parent-session-id: rig-par-1
+rigRecord rig-child-1 spawn-started "" dispatch-20261008T1200Z-hb rig-child-1 'parent-spawn-id: rig-par-1
+parent-session-id: rig-par-1
 '
-## parent-session-id is set twice above; the first one wins for every reader, so rewrite it.
-LC_ALL=C sed -i.bak 's/^parent-session-id: none$/parent-session-id: rig-par-1/' "$rigSpawned/rig-child-1/rig-child-1.md" && rm -f "$rigSpawned/rig-child-1/rig-child-1.md.bak"
+## parent-spawn-id is set twice above; the first one wins for every reader, so rewrite it.
+LC_ALL=C sed -i.bak 's/^parent-spawn-id: none$/parent-spawn-id: rig-par-1/' "$rigSpawned/rig-child-1/rig-child-1.md" && rm -f "$rigSpawned/rig-child-1/rig-child-1.md.bak"
 rigItem running dispatch-20261008T1200Z-hb rig-child-1
 rigTranscript rig-child-1
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-1 )
@@ -210,7 +211,7 @@ rigAssert "the reason is review-requested"                 "$( LC_ALL=C grep -c 
 rigAssert "Decisions names who asked and why"              "$( rigDecisions "$rigData/board/review/dispatch-20261008T1200Z-rq.md" 'review: review-requested: by keeper-myx: looks finished' )" 1
 rigItem running dispatch-20261008T1200Z-rqp rig-child-rqp
 rigRecord rig-child-rqp spawn-succeeded "" dispatch-20261008T1200Z-rqp
-LC_ALL=C sed -i.bak 's/^parent-session-id: none$/parent-session-id: rig-par-rq/' "$rigSpawned/rig-child-rqp/rig-child-rqp.md" && rm -f "$rigSpawned/rig-child-rqp/rig-child-rqp.md.bak"
+LC_ALL=C sed -i.bak 's/^parent-spawn-id: none$/parent-spawn-id: rig-par-rq/' "$rigSpawned/rig-child-rqp/rig-child-rqp.md" && rm -f "$rigSpawned/rig-child-rqp/rig-child-rqp.md.bak"
 rigRecord rig-par-rq spawn-succeeded "" ""
 LC_ALL=C sed -i.bak 's/^owner: keeper-myx$/owner: magic-tester/' "$rigSpawned/rig-par-rq/rig-par-rq.md" && rm -f "$rigSpawned/rig-par-rq/rig-par-rq.md.bak"
 rigEnv=( MDAT_SPAWN_AGENT=magic-tester MDAT_SPAWN_SESSION_ID=rig-par-rq )
@@ -286,12 +287,16 @@ rigAssert "a child in a session of its own, its parent's session with no thread:
 ## The child's handback to session-parent now has somewhere to go.
 rigItem running dispatch-20261008T1200Z-fb rig-child-fb
 rigRecord rig-child-fb spawn-started "" dispatch-20261008T1200Z-fb rig-child-fb 'parent-thread: CCOORD001:1700000000.000200
+parent-session-id: rig-par-nothread
 '
-LC_ALL=C sed -i.bak 's/^parent-session-id: none$/parent-session-id: rig-par-nothread/' "$rigSpawned/rig-child-fb/rig-child-fb.md" && rm -f "$rigSpawned/rig-child-fb/rig-child-fb.md.bak"
+LC_ALL=C sed -i.bak 's/^parent-spawn-id: none$/parent-spawn-id: rig-par-nothread/' "$rigSpawned/rig-child-fb/rig-child-fb.md" && rm -f "$rigSpawned/rig-child-fb/rig-child-fb.md.bak"
 rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-child-fb )
 rigTool "$rigTmp/h5" SubagentHandback '{"outcome":"fallback done"}'
 rigEnv=()
-rigAssert "the handback posts, no thread error"            "$( LC_ALL=C grep -c 'has no recorded thread' "$rigTmp/h5" ):$( LC_ALL=C grep -c '"channel": *"CCOORD001"' "$rigTmp/bodies" )" 0:1
+## The parent session has a thread by now, opened by the first member it brought in (above): the
+## handback goes there, where it reports to, and the parent-thread its spawn kept is read no more.
+rigFbThread="$( cat "$rigWs/.local/agents/sessions/rig-par-nothread/session.thread" 2> /dev/null )"
+rigAssert "the handback posts, no thread error, in the thread its parent session has"            "$( LC_ALL=C grep -c 'has no recorded thread' "$rigTmp/h5" ):$( [ -n "$rigFbThread" ] && LC_ALL=C grep -c "\"channel\": *\"${rigFbThread%%:*}\"" "$rigTmp/bodies" )" 0:1
 rigAssert "and its item enters review"                     "$( rigLoc dispatch-20261008T1200Z-fb )" review
 
 ## ---------------------------------------------------------------- the review limit
@@ -349,7 +354,7 @@ rigAssert "its next handback goes to review again"         "$( rigLoc dispatch-2
 echo "-- 9. return to an ended session: the same session restarted, with corrections and Decisions --"
 ## The run it replaces was brought into its caller's own session, rig-par-rst, whose thread is recorded for it.
 rigRecord rig-ended-ret spawn-succeeded CEND00001:1700000000.000500 dispatch-20261008T1200Z-rst trk-rig-rst 'start-context: inline
-parent-session: rig-par-rst
+parent-session-id: rig-par-rst
 '
 mkdir -p "$rigWs/.local/agents/sessions/rig-par-rst" && printf '%s\n' CPRS00001:1700000000.000550 > "$rigWs/.local/agents/sessions/rig-par-rst/session.thread"
 rigItem review dispatch-20261008T1200Z-rst rig-ended-ret
@@ -359,7 +364,7 @@ rigAssert "it says it restarted the session"               "$( LC_ALL=C grep -c 
 rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-rst"/*.md ; do [ "${rigCandidate##*/}" = rig-ended-ret.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
 rigAssert "a new spawn joined the same sandbox"            "$( [ -n "$rigNewRecord" ] && LC_ALL=C grep -c -x 'spawned-by: dispatch-20261008T1200Z-rst' "$rigNewRecord" )" 1
 rigAssert "it carries the start context and the parent session of the run it replaces" \
-	"$( LC_ALL=C sed -n -e 's/^start-context: //p' -e 's/^parent-session: //p' "$rigNewRecord" | tr '\n' ' ' )" "inline rig-par-rst "
+	"$( LC_ALL=C sed -n -e 's/^start-context: //p' -e 's/^parent-session-id: //p' "$rigNewRecord" | tr '\n' ' ' )" "inline rig-par-rst "
 rigNewSpawn="${rigNewRecord##*/}" ; rigNewSpawn="${rigNewSpawn%.md}"
 rigWaitFor 20 test -s "$rigTmp/console-in.$rigNewSpawn"
 rigAssert "its brief carries the corrections"              "$( LC_ALL=C grep -c -x 'redo the rig step' "$rigTmp/console-in.$rigNewSpawn" )" 1
@@ -373,6 +378,41 @@ rigTool "$rigTmp/v3h" SubagentHandback '{"outcome":"redone","to":"session-parent
 rigEnv=()
 rigAssert "its handback to session-parent reaches the thread of the session that started the run it replaces" \
 	"$( LC_ALL=C grep -c 'no recorded parent session' "$rigTmp/v3h" ):$( LC_ALL=C grep -c '"channel": *"CPRS00001"' "$rigTmp/bodies" )" 0:1
+
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" )"
+echo "-- 9d. return to an ended run that had no parent session, made from inside another session: it has none again --"
+rigRecord rig-ended-np spawn-succeeded CENP00001:1700000000.000570 dispatch-20261008T1200Z-np trk-rig-np 'start-context: spawned
+'
+rigItem review dispatch-20261008T1200Z-np rig-ended-np
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-reviewer-np MDAT_SESSION_ID=rig-reviewer-np-session )
+rigOp "$rigTmp/v3np" --member-review-return magic-coordinator dispatch-20261008T1200Z-np --message "redo it once more"
+rigEnv=()
+rigNewRecord="$( for rigCandidate in "$rigSpawned/trk-rig-np"/*.md ; do [ "${rigCandidate##*/}" = rig-ended-np.md ] || printf '%s\n' "$rigCandidate" ; done | head -1 )"
+rigAssert "restarted with no parent session and no address, whoever returned it" \
+	"$( cat "$rigTmp/v3np.rc" ):$( [ -n "$rigNewRecord" ] && LC_ALL=C grep -c -e '^parent-session-id: ' -e "^$rigReportsTo: " "$rigNewRecord" )" "0:0"
+rigWaitFor 40 test -f "$rigData/board/review/dispatch-20261008T1200Z-np.md"
+rigWaitFor 20 sh -c '! LC_ALL=C grep -q "^status: spawn-started" "$0"' "$rigNewRecord"
+
+echo "-- 9c. a matter with no recorded address falls to a live magic-coordinator of the session, never back to that coordinator --"
+rigRunRecord(){ ## spawn-id, member, session-id
+	mkdir -p "$rigSpawned/$1"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nparent-spawn-id: none\ntracking-name: %s\nhost: %s\nowner: %s\nstatus: spawn-started\nsession-thread: CSES9C001:1700000000.000900\n---\n' "$3" "$1" "$1" "$rigHost" "$2" > "$rigSpawned/$1/$1.md"
+}
+rigLive rig-coord-9c-$$ ; rigRunRecord rig-coord-9c-$$ magic-coordinator rig-sess-9c-$$
+rigLive rig-help-9c-$$ ; rigRunRecord rig-help-9c-$$ keeper-myx rig-sess-9c-$$
+## The human-owner's identity record, which an ask of him is addressed by.
+mkdir -p "$rigWs/.local/agents/members/human-owner" && printf -- '---\nname: human-owner\nstatus: reference-only\n---\n' > "$rigWs/.local/agents/members/human-owner/SKILL.md"
+mkdir -p "$rigWs/.local/agents/sessions/rig-sess-9c-$$" && printf '%s\n' CSES9C001:1700000000.000900 > "$rigWs/.local/agents/sessions/rig-sess-9c-$$/session.thread"
+rigEnv=( MDAT_SPAWN_AGENT=keeper-myx MDAT_SPAWN_SESSION_ID=rig-help-9c-$$ MDAT_SESSION_ID=rig-sess-9c-$$ MDAT_SESSION_THREAD=CSES9C001:1700000000.000900 )
+rigTool "$rigTmp/q9c" AskQuestion '{"question":"Which way first?","wait":false}'
+rigEnv=()
+rigAssert "a member's question with no target goes to the session's live magic-coordinator, in the session thread" \
+	"$( LC_ALL=C grep -c '^ASK-RESULT: POSTED' "$rigTmp/q9c" ):$( LC_ALL=C grep -c '"channel": *"CSES9C001"' "$rigTmp/bodies" ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigTmp/bodies" )" "1:1:0"
+rigEnv=( MDAT_SPAWN_AGENT=magic-coordinator MDAT_SPAWN_SESSION_ID=rig-coord-9c-$$ MDAT_SESSION_ID=rig-sess-9c-$$ MDAT_SESSION_THREAD=CSES9C001:1700000000.000900 )
+rigTool "$rigTmp/q9c2" AskQuestion '{"question":"Which way first?","wait":false}'
+rigEnv=()
+rigAssert "the coordinator's own question with no recorded address: up to the human-owner, never back to itself" \
+	"$( LC_ALL=C grep -c '^ASK-RESULT: POSTED' "$rigTmp/q9c2" ):$( LC_ALL=C grep -c '"channel": *"URIGOWNER"' "$rigTmp/bodies" ):$( LC_ALL=C grep -c '"channel": *"CSES9C001"' "$rigTmp/bodies" )" "1:1:0"
 
 echo "-- 10. reject: -> pending, the child dismissed, corrections in Decisions for the fresh spawn --"
 rigLive rig-live-rej-$$

@@ -161,7 +161,7 @@ mkdir -p "$rigSp/s-empty/input" "$rigSp/s-other/sub.md" "$rigSp/s space name" "$
 printf 'note\n' > "$rigSp/s-other/notes.txt"
 printf -- '---\nsession-id: hid\n---\n' > "$rigSp/.hidden/r.md"
 ## Multi-record sandbox: a record's own tracking-name carries on to the later records.
-printf -- '---\ntracking-name: renamed-x\nsession-id: s1\nspawn-id: p1\nhost: h1\nowner: o1\nstatus: started\nexit-code: 0\nparent-session-id: -\nagent-log-thread: t1\nsession-thread: t2\nworkspace: ws1\n---\nbody\n' > "$rigSp/s-multi/a.md"
+printf -- '---\ntracking-name: renamed-x\nsession-id: s1\nspawn-id: p1\nhost: h1\nowner: o1\nstatus: started\nexit-code: 0\nparent-spawn-id: -\nagent-log-thread: t1\nsession-thread: t2\nworkspace: ws1\n---\nbody\n' > "$rigSp/s-multi/a.md"
 printf -- '---\nsession-id: s2\n---\n' > "$rigSp/s-multi/b.md"
 printf 'no frontmatter at all\nstatus: body\n' > "$rigSp/s-multi/c.md"
 printf -- '---\ntracking-name:   \nsession-id: s4\n---\n' > "$rigSp/s-multi/d.md"

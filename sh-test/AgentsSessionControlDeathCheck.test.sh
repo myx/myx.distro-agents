@@ -291,7 +291,8 @@ rigReqThread="CRIGSESS1:1700000001.000100"
 rigRec s-req s-req magic-coordinator spawn-started "session-thread: $rigReqThread
 "
 rigStand s-req
-rigAsked="parent-session-id: s-req
+rigAsked="parent-spawn-id: s-req
+parent-session-id: s-req
 parent-member: magic-coordinator
 parent-thread: $rigReqThread
 "
@@ -440,13 +441,14 @@ session-comment: daily of Monday
 rigReacts="$( LC_ALL=C grep -c -x -F -- 'reactions.add rig-bot-token-TEAM' "$rigSlack/calls" 2> /dev/null || : )"
 rigOne d-ho ; rigSettle d-ho
 rigReacts=$(( $( LC_ALL=C grep -c -x -F -- 'reactions.add rig-bot-token-TEAM' "$rigSlack/calls" 2> /dev/null || : ) - rigReacts ))
-rigAssert "the question about a run whose reviewer is a person goes to him, in the bot's direct conversation, and that death is also told to the session that requested the run: one note there, to the member that brought it in" \
-	"$( rigQuestions d-ho ):$( rigNotes d-ho ):$( rigAsks d-ho )" "URIGOWNER - human-owner;:${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;:human-owner;"
+rigAssert "the question about a run whose item a person reviews goes where the run reports to, whatever its reviewer: one post in the thread of that session, to its member, and no note beside it" \
+	"$( rigQuestions d-ho ):$( rigNotes d-ho ):$( rigAsks d-ho )" "${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;::magic-coordinator;"
 ## Its reviewer is a session that has ended.
 rigRec s-over s-over magic-coordinator spawn-succeeded "${rigClosed}session-thread: CRIGSESS2:1700000002.000100
 "
 rigItem item-ended d-ended s-over
-rigRec d-ended d-ended keeper-rig spawn-started "parent-session-id: s-over
+rigRec d-ended d-ended keeper-rig spawn-started "parent-spawn-id: s-over
+parent-session-id: s-over
 parent-member: magic-coordinator
 parent-thread: CRIGSESS2:1700000002.000100
 supervisor-process: $rigGoneShell
@@ -464,8 +466,8 @@ mkdir -p "$rigStores/d-hb"
 printf '%s\n' "$rigStores/d-hb/session-transcript.log" > "$rigStores/d-hb/transcript"
 printf '2026-10-13T06:00:00Z HANDBACK to=session-parent text="the rig step is done"\n' > "$rigStores/d-hb/session-transcript.log"
 rigOne d-hb ; rigSettle d-hb
-rigAssert "a run that died after its handback is a death, and gets the question and no note beside it" \
-	"$( rigDeadLines d-hb d-hb ):$( rigQuestions d-hb ):$( rigNotes d-hb ):$( rigAsks d-hb )" "1:URIGOWNER - human-owner;::human-owner;"
+rigAssert "a run that died after its handback is a death, and gets the question where it reports to, and no note beside it" \
+	"$( rigDeadLines d-hb d-hb ):$( rigQuestions d-hb ):$( rigNotes d-hb ):$( rigAsks d-hb )" "1:${rigReqThread%%:*} ${rigReqThread#*:} magic-coordinator;::magic-coordinator;"
 ## Two runs of one session die between two ticks: a session a client founded, with no record under its own id.
 rigItem item-two-a d-two-a human-owner
 rigItem item-two-b d-two-b human-owner

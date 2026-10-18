@@ -2,7 +2,7 @@
 # ^^^ for syntax checking in the editor only
 
 ## AgentsTools.ChildrenIndex.include -- the repair of each parent session's list of its
-## children, .local/agents/children/<parent-session-id>, and of the mark
+## children, .local/agents/children/<parent-spawn-id>, and of the mark
 ## children/.indexed that tells the harness the lists are complete.
 ##
 ## The spawn proxy appends every child to its parent's list as it spawns it; this
@@ -23,15 +23,15 @@ AgentsToolsChildrenIndexRepair(){ ## workspace
 		echo "⛔ ERROR: AgentsToolsChildrenIndexRepair: could not clear $childDir" >&2
 		return 1
 	}
-	## A line is `<record path>:parent-session-id: <id>`, split at the first such marker;
+	## A line is `<record path>:parent-spawn-id: <id>`, split at the first such marker;
 	## a record path is listed under spawned/, an id that could name another file is skipped.
-	{ LC_ALL=C grep -H '^parent-session-id: ' "$childSpawned"*/*.md 2>/dev/null || : ; } \
+	{ LC_ALL=C grep -H '^parent-spawn-id: ' "$childSpawned"*/*.md 2>/dev/null || : ; } \
 		| LC_ALL=C awk -v childDir="$childDir" -v childSpawned="$childSpawned" '
 			{
-				markAt = index( $0, ":parent-session-id: " )
+				markAt = index( $0, ":parent-spawn-id: " )
 				if ( !markAt ) next
 				childFile = substr( $0, 1, markAt - 1 )
-				childParent = substr( $0, markAt + 20 )
+				childParent = substr( $0, markAt + 18 )
 				if ( childParent == "" || childParent == "." || childParent == ".." || index( childParent, "/" ) ) next
 				if ( index( childFile, childSpawned ) == 1 ) childFile = substr( childFile, length( childSpawned ) + 1 )
 				childList = childDir "/" childParent

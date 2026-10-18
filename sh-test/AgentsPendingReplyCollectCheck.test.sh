@@ -17,6 +17,8 @@ rigHere="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-lib"
 rigTest="${rigHere%/sh-lib}/sh-test"
 rigTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 rigHarness="$rigHere/AgentsUniversalHarness.sh"
+## The name of the address field, read where it is held, so a rename is one line there.
+rigReportsTo="$( LC_ALL=C sed -n 's/^agentsRunRouteField="\(.*\)"$/\1/p' "$rigHere/AgentsTools.SpawnSandbox.include" )"
 rigMember="magic-tester"
 
 rigRefuse(){
@@ -220,15 +222,19 @@ rigAssert "control: the body names its channel as this check reads it" "$( rigHo
 
 ## The addressee of a handback, and of the tools that share its send path. The child's record
 ## sits in a folder named for neither id, so only a lookup by record name can find it.
-rigSpawnRecords(){ ## parent id for the child record, the parent's thread (empty for none)
+rigSpawnRecords(){ ## parent id for the child record, the parent's thread (empty for none), the address the child reports to (optional)
 	local spawnDir="$rigScenarioDir/ws/.local/agents/spawned"
 	mkdir -p "$spawnDir/child-folder" "$spawnDir/parent-folder" "$spawnDir/prefix-folder"
-	printf -- '---\nspawn-id: rig-child-id\nparent-session-id: %s\n---\n' "$1" > "$spawnDir/child-folder/rig-child-id.md"
+	## The parent's id names its run and the session it founded alike.
+	local childLines=""
+	[ "$1" = none ] || childLines="parent-session-id: $1"$'\n'
+	[ -z "${3:-}" ] || childLines="$childLines$rigReportsTo: $3"$'\n'
+	printf -- '---\nspawn-id: rig-child-id\nparent-spawn-id: %s\n%s---\n' "$1" "$childLines" > "$spawnDir/child-folder/rig-child-id.md"
 	printf '%s\n' 'CCHILD01:1700000002.000202' > "$spawnDir/child-folder/session.thread"
-	printf -- '---\nspawn-id: rig-parent-id\nparent-session-id: none\n%s---\n' "${2:+session-thread: $2
+	printf -- '---\nspawn-id: rig-parent-id\nparent-spawn-id: none\n%s---\n' "${2:+session-thread: $2
 }" > "$spawnDir/parent-folder/rig-parent-id.md"
 	printf '%s\n' 'CWRONG01:1.1' > "$spawnDir/parent-folder/session.thread"
-	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-session-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
+	printf -- '---\nspawn-id: rig-parent-id-extra\nparent-spawn-id: none\nsession-thread: CWRONG01:1.1\n---\n' > "$spawnDir/prefix-folder/rig-parent-id-extra.md"
 }
 rigCall(){ ## tool name, arguments JSON
 	printf '%s' "$2" | rigEnv env -u MDAT_SESSION_THREAD MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
@@ -268,12 +274,27 @@ rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101
 rigCall SubagentHandback '{"to":"","outcome":"x"}'
 rigAssert "empty: posted to the parent"                   "$( rigPostedTo CPARENT1 1700000001.000101 )" yes
 
-echo "-- no recorded parent: an error, nothing sent, no other thread --"
+echo "-- no parent session and no address: the human-owner, where no magic-coordinator runs in the session --"
 rigStart hbNoParent
 rigSpawnRecords none CPARENT1:1700000001.000101
 rigCall SubagentHandback '{"outcome":"x"}'
-rigAssert "no post"                                       "$( rigPosts )" 0
-rigAssert "it is an error"                                "$( rigFirstIs 'ERROR: this session has no recorded parent session' )" yes
+rigAssert "one post, in the human-owner's conversation, as a handback" "$( rigPosts ):$( rigPostedTo URIGOWNER '' ):$( rigHolds "$rigScenarioDir/post.1" 'Handback' )" "1:yes:yes"
+rigAssert "not into the thread of any session"            "$( rigHolds "$rigScenarioDir/post.1" '"thread_ts"' )" no
+
+echo "-- the address the run reports to decides where its handback goes --"
+rigStart hbReportsPerson
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101 user-rig
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "a person: the human-owner's conversation, never the parent session's thread" "$( rigPosts ):$( rigPostedTo URIGOWNER '' ):$( rigHolds "$rigScenarioDir/post.1" 'CPARENT1' )" "1:yes:no"
+rigStart hbReportsSession
+rigSpawnRecords none "" rig-parent-id:keeper-myx
+printf -- '---\nspawn-id: rig-parent-id\nparent-spawn-id: none\nsession-thread: CPARENT1:1700000001.000101\n---\n' > "$rigScenarioDir/ws/.local/agents/spawned/parent-folder/rig-parent-id.md"
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "a session: its thread, with no parent session recorded" "$( rigPosts ):$( rigPostedTo CPARENT1 1700000001.000101 )" "1:yes"
+rigStart hbReportsMember
+rigSpawnRecords rig-parent-id CPARENT1:1700000001.000101 keeper-myx
+rigCall SubagentHandback '{"outcome":"x"}'
+rigAssert "a member: its own conversation, here its inbox, never the parent session's thread" "$( rigFirstIs 'Sent to the inbox of keeper-myx' ):$( rigPosts )" "yes:0"
 
 echo "-- a parent with no thread: an error, nothing sent, never the child's own thread --"
 rigStart hbNoThread
@@ -401,7 +422,7 @@ rigLinked(){ ## id, question ts, tag, session
 }
 rigSpawnSession(){ ## session, status, spawn id
 	mkdir -p "$rigScenarioDir/ws/.local/agents/spawned/$1"
-	printf -- '---\nsession-id: %s\nparent-session-id: none\nhost: %s\nowner: %s\nstatus: %s\nspawn-id: %s\n---\n' "$1" "$( hostname -s )" "$rigMember" "$2" "$3" \
+	printf -- '---\nsession-id: %s\nparent-spawn-id: none\nhost: %s\nowner: %s\nstatus: %s\nspawn-id: %s\n---\n' "$1" "$( hostname -s )" "$rigMember" "$2" "$3" \
 		> "$rigScenarioDir/ws/.local/agents/spawned/$1/$3.md"
 }
 rigDecisionLines(){
