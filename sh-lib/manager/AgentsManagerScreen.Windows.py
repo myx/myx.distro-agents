@@ -40,7 +40,7 @@ WINDOWS = (
      "commands": ("wrap", "pan", "row")},
     {"name": "list", "title": "listTitle", "place": {"side": "right", "tenths": 3},
      "shows": {"body": "rows", "reads": ("list",)}, "bar": True,
-     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "setting", "run", "open", "up", "alphabetical", "filter", "page-left", "climb", "page-right")},
+     "commands": ("launch", "prompt", "answer", "reject", "dismiss", "link", "credential", "setting", "run", "open", "up", "alphabetical", "filter", "page-left", "climb", "page-right")},
 )
 ## The window the keys go to when the screen starts.
 WINDOW_FIRST = "list"
@@ -214,6 +214,8 @@ COMMANDS = (
      "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "dismiss"), "calls": ("dismiss",)},
     {"name": "link", "keys": ("o",), "menu": ("question", 2), "label": "Show the ~l~ink", "status": "Link",
      "views": ("pending",), "for": "a question", "on": ("pending:record",), "does": ("action", "link")},
+    {"name": "credential", "keys": ("ENTER",), "menu": ("view", 3), "label": "Open the cr~e~dential", "status": "Open",
+     "views": ("settings/*", "configuration/*"), "for": "a credential", "on": ("settings/*:record", "configuration/*:record"), "only": True, "tells": True, "enters": True, "does": ("action", "credential")},
     {"name": "setting", "keys": ("ENTER",), "menu": ("view", 3), "label": "~C~hange the setting", "status": "Change",
      "views": ("settings/*", "configuration/*"), "for": "a setting", "on": ("settings/*:record", "configuration/*:record"), "only": True, "enters": True, "says": "change", "does": ("action", "setting"), "calls": ("set",)},
     {"name": "check", "keys": ("r",), "menu": ("view", 1), "label": "Run the ~c~hecks", "status": "Run",

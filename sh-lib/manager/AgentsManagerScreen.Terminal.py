@@ -59,7 +59,7 @@ class CursesSurface:
         self.at = None
         self.keyNames = CURSES_KEYS
         self.charNames = {"\t": "TAB", "\n": "ENTER", "\r": "ENTER", "\x1b": "ESC", "\x7f": "BACKSPACE", "\b": "BACKSPACE",
-                          "\x18": "CTRL-x"}
+                          "\x18": "CTRL-x", "\x12": "CTRL-r"}
         ## Where the pointer was last, for a turn of the wheel that comes with no place.
         self.pointer = (-1, -1)
         self.mouse(True)

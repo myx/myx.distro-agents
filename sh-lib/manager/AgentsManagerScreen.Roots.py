@@ -96,6 +96,9 @@ MEMBER_FOLDERS = (("permissions", "Permissions", "grants"), ("files", "Skillset 
                   ("sessions", "Sessions", "member-sessions"), ("help", "Member Help", "member-help"))
 ROOT_TITLE = "/"
 ROW_UP = ".."
+## The scope a credential of a subject of the digest is read from, for the form of the credential: the scopes are their
+## own (None: the group of the line is the scope), and the credentials of the CLIs are settings of the team.
+CREDENTIAL_SCOPE = {"scopes": None, "cli": "magic-team"}
 ## The rows a level always holds, ahead of the rows its operation gives:
 ## id, what it shows as, kind, whether Enter dives into it.
 FIXED_ROWS = {
@@ -235,6 +238,9 @@ READS = {
     ## One of those keys whole: the line to paste, and where the deploy key is registered.
     ## Read when its box opens, by the name of the key, and never before (askKeyLine).
     "full:key": {"operation": ["--manager-keys-read", "{id}"], "rows": "key-read", "kind": "plan", "once": True},
+    ## One credential whole, read when its form is asked for it by its key and never before (revealCredential): by the
+    ## setting reader as every program reads a setting, from the scope {level} by the key {id}.
+    "full:credential": {"operation": ["--agents-config-option", "{level}", "--select", "{id}"], "rows": "credential-read", "kind": "plan", "demand": True},
     ## The same read for each key of the list whose public file can be read, by its name:
     ## once when the folder is opened and when it is asked for, never on the period. It
     ## gives the whole line of a key where its row of the list does not carry it, and
@@ -281,7 +287,7 @@ READS = {
     "acts:pending:record": {"operation": ["--manager-pending-reply-read", "--id", "{id}"],
                             "rows": "ask-acts", "needs": "ask"},
     ## One member, whole: its information, the sessions it is in, its grants and its settings.
-    "view:team:record": {"operation": ["--manager-team-member-read", "{id}"], "rows": "member-read", "needs": "member"},
+    "view:team:record": {"operation": ["--manager-team-member-read", "--full", "{id}"], "rows": "member-read", "needs": "member"},
     ## What the kill of a session, and of one agent, would do, and nothing is done: the rows
     ## of the kill itself, each with what would become of it (KILL_ROWS). Read when the
     ## confirmation of that kill opens, and once more when it is confirmed (submitKill), by
@@ -292,10 +298,10 @@ READS = {
     ## The folders of a member: its grants and its sessions from the read of the member, the
     ## files of its skillset folder and one of them whole, and its help as the tooling gives
     ## a member its help, read when it is opened and when it is asked for.
-    "list:team/*/permissions": {"operation": ["--manager-team-member-read", "{parent}"], "rows": "member-grants"},
+    "list:team/*/permissions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-grants"},
     "list:team/*/files": {"operation": ["--manager-team-member-files", "{parent}"], "rows": "member-files"},
     "view:team/*/files:file": {"operation": ["--manager-team-member-files", "{parent}", "{id}"], "needs": "text", "once": True},
-    "list:team/*/sessions": {"operation": ["--manager-team-member-read", "{parent}"], "rows": "member-sessions"},
+    "list:team/*/sessions": {"operation": ["--manager-team-member-read", "--full", "{parent}"], "rows": "member-sessions"},
     "view:team/*/sessions:record": {"operation": ["--manager-session-read", "--session-id", "{id}"],
                                     "rows": "session-read", "needs": "session"},
     "feed:team/*/sessions:record": {"operation": ["--manager-session-transcript-read", "--session-id", "{id}"],

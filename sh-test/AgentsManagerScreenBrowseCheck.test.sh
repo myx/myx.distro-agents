@@ -74,7 +74,7 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 		printf 'grant\tfloor\tread\t/rig/ws/source/**/README.md\tws:source/**/README.md\tfloor\tnone\n'
 		printf 'grant\tstanding\twrite\t/rig/ws/source/x/**\tws:source/x/**\tws:workspace\tnone\n'
 		printf 'grant\tfloor\twrite\t/rig/ws/.local/temp/**\tws:.local/temp/**\tfloor\tnone\n'
-	} > "rows.--manager-team-member-read keeper-rig"
+	} > "rows.--manager-team-member-read --full keeper-rig"
 	printf 'file\tSKILL.md\t1889\tyes\nfile\tresources/icon.png\t1473\tno\n' > "rows.--manager-team-member-files keeper-rig"
 	printf -- '---\nname: keeper-rig\n---\n# The rig keeper\n' > "rows.--manager-team-member-files keeper-rig SKILL.md"
 	printf '📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>\n📘 syntax: DistroAgentsTools.fn.sh --console-list [--override-workspace <path>]\n\n\t\t--member-help <team-member>\n\t\t\tRead-only. Prints its help.\n\n\t\t--member-board-item-read <team-member> <item-name>\n\t\t--member-board-item-read <team-member> <item-name> --board-state <state>\n\t\t\tReads one item.\n\t\t\tIts second line.\n\n' > "rows.--member-help keeper-rig"
@@ -277,7 +277,7 @@ RIGSCRIPT
 rigAssert "a member is a folder, with the mark of one; one whose workspace cannot be reached is none" "$( rigFolderHolds on '>keeper-rig ' ) $( rigFolderHolds on ' keeper-far ' ) $( rigHolds on ' keeper-far ' )" "1 0 1"
 rigAssert "its own summary shows its basic information alone: nothing of its settings or its grants, no table of them" "$( rigHolds on 'its settings' ) $( rigHolds on 'its grants' ) $( rigHolds on ' COVERS ' ) $( rigHolds on 'ws:source/**/README.md' ) $( rigHolds on '│for       A rig keeper' )" "0 0 0 0 1"
 rigAssert "inside it: Permissions, Skillset Files, Sessions and Member Help, each a folder" "$( rigVal in.path ) $( rigVal in.rows ) $( rigFolderHolds in ' Permissions ' ) $( rigFolderHolds in ' Skillset Files ' ) $( rigFolderHolds in ' Sessions ' ) $( rigFolderHolds in ' Member Help ' )" "team/keeper-rig 5 1 1 1 1"
-rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "0 1 1"
+rigAssert "Permissions selected: no count above its grants, how many rows in the frame, from the read of the member" "$( rigHolds perms '3 grants' ) $( rigHolds perms ' 3 rows ' ) $( rigWords '[--manager-team-member-read][--full][keeper-rig]' | LC_ALL=C awk '{ print ( $1 > 0 ) }' )" "0 1 1"
 rigAssert "its grants as the table of the member's own summary, the pane's first line its header, then a heading for each kind and a row for each grant; no hint stands before it" \
 	"[$( rigFirst perms )] $( rigUnder perms "$( rigGrantLine 22 COVERS ACCESS FROM ENDS )" 7 ) $( rigHolds perms 'Enter opens them' )" \
 	"[$( rigGrantLine 22 COVERS ACCESS FROM ENDS | LC_ALL=C sed 's/  *$//' )] [$( rigGrantLine 22 COVERS ACCESS FROM ENDS )][ floor (2)][$( rigGrantLine 22 'ws:source/**/README.md' read floor none )][][$( rigGrantLine 22 'ws:.local/temp/**' write floor none )][ standing (1)][$( rigGrantLine 22 'ws:source/x/**' write ws:workspace none )] 0"
@@ -356,7 +356,7 @@ rigCase owner
 	printf '%s\n' "$rigMember"
 	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b-cd80-4db6-82cf-1779e5fb10db_ends\n'
 	printf 'grant\tfloor\twrite\t/rig/ws/.local/temp/**\tws:.local/temp/**\tfloor\tnone\n'
-} > "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-rig"
+} > "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read --full keeper-rig"
 rigScript <<'RIGSCRIPT'
 size 201 40
 turn

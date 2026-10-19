@@ -89,7 +89,7 @@ for name, icon, first, family, alias, liked in team:
              "bullet\tOptions\t1️⃣provisioned 2️⃣not-provisioned 3️⃣other",
              "bullet\tAsked\t📋 the plan, ⚙ the settings"]
     read += ["bullet\tMore %02d\tplain words again, with no emoji at all in them" % number for number in range(40)]
-    open(rig + "/rows.--manager-team-member-read " + name, "w").write("\n".join(read) + "\n")
+    open(rig + "/rows.--manager-team-member-read --full " + name, "w").write("\n".join(read) + "\n")
 open(rig + "/rows.--manager-session-list", "w").write(
     "session\ts1\tlong-log\trunning\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n"
     "session\ts2\tshort\tended\t2026-10-14T01:00:00Z\t2026-10-14T01:00:00Z\t1\t-\n")

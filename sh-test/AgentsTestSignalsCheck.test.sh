@@ -325,7 +325,10 @@ rigList(){
 		'check-fixtures/AgentsHarnessHooks.legacy.sh|1|kill -TERM "$hookWatchPid"|@kept-copy' \
 		'check-fixtures/manager-screen.driver.py|1|process.kill()|@uncollected' \
 		'check-fixtures/manager-screen.vt.stub.py|1|process.send_signal(getattr(signal, words[0]))|@uncollected' \
-		'check-fixtures/manager-screen.vt.stub.py|2|process.kill()|@uncollected'
+		'check-fixtures/manager-screen.vt.stub.py|2|process.kill()|@uncollected' \
+		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -TERM "$waitPid"|@probed' \
+		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -KILL "$waitPid"|@probed' \
+		'member/AgentsWaitOwnPostRepliesCheck.test.sh|1|kill -TERM "$waitWatch"|@own-watch'
 }
 rigToolingList(){
 	printf '%s\n' \

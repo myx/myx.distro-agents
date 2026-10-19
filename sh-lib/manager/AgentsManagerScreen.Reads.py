@@ -163,7 +163,7 @@ def dialogReads(state):
     for name in DIALOGS[state.dialog["name"]].get("reads", ()):
         key = name.replace("{kind}", target.get("kind", ""))
         if READS.get(key):
-            reads.append((key, {"id": target.get("id", "")} if key != name else {}))
+            reads.append((key, {"id": target.get("id", ""), "level": target.get("level", "")} if key != name else {}))
     return reads
 
 
@@ -329,6 +329,12 @@ def applyResult(state, result):
         ## what was asked for on demand has answered: the status line no longer says it was asked
         state.notice = ""
         state.noticeOf = None
+    if readEntry(key).get("rows") == "credential-read":
+        ## a credential whole is its form's own: held while that form is open, and dropped where it is not
+        if state.dialog is not None and state.dialog["name"] == CREDENTIAL_DIALOG:
+            state.plans[key] = {"words": result["words"], "value": result["text"].rstrip("\n"),
+                                "error": result["error"] if result["status"] != 0 else ""}
+        return
     if readEntry(key).get("rows") == "key-read":
         ## a key whole is its box's and its view's own: they show what was read, or that it could not be
         state.plans[key] = {"words": result["words"], "rows": parseKeyRead(result["text"]),

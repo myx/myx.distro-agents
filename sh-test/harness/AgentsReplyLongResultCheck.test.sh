@@ -20,6 +20,9 @@
 ##   6. control: a result below the threshold is returned whole, and no file is made for it
 ##   7. a credential in a long result is treated in the file as in a reply: a short result holding it and the file
 ##      of a long one show it alike
+##   8. a Read given offset or limit comes back whole though it is over 8 KB, served and through MCP, within Read's own cap;
+##      the same file read with neither is kept to a file (1), and its hint names the original file and the next offset to
+##      read by range, not the kept copy. Every other tool keeps the 8 KB rule (4 holds for execute).
 ## Red before F2.4: every result is returned whole (1-5 and 7 fail).
 ## Offline: MMDAPP and HOME are this rig's own; the loop's model is a fake curl replaying one canned round.
 
@@ -106,7 +109,7 @@ rigPreviewEnds(){ ## reply name, result file -- `ends-right` where the reply hol
 	LC_ALL=C grep -q -F -- "$endsLast" "$rigTmp/$1.out" && ! LC_ALL=C grep -q -F -- "$endsNext" "$rigTmp/$1.out" && printf ends-right || printf "ends-wrong-at-$endsAt"
 }
 rigAssert "the preview: the first line, and the whole lines that fit in 2 KB or 20, whichever is more" "$( rigHasBody long 'RIG-FIRST-LINE of the long result' ) $( rigPreviewEnds long "${rigLongFile:-/nonexistent}" )" "1 ends-right"
-rigAssert "and one line that names the file and says to read the rest by line range" "$( [ -n "$rigLongFile" ] && LC_ALL=C grep -F -- "$rigLongFile" "$rigTmp/long.out" | LC_ALL=C grep -c -i -E 'range|offset|start-line' || printf 0 )" 1
+rigAssert "and one line that says to read the rest by line range, naming the original file and not the kept copy" "$( LC_ALL=C grep -F -- "$rigFix/long.txt" "$rigTmp/long.out" | LC_ALL=C grep -c -i -E 'range|offset|start-line' ) $( [ -n "$rigLongFile" ] && LC_ALL=C grep -F -- "$rigLongFile" "$rigTmp/long.out" | LC_ALL=C grep -c -i -E 'range|offset|start-line' )" "1 0"
 
 echo "-- 2. that file is in the session's folder, and holds the whole result --"
 rigWhere(){ ## path, session (default: the served one) -- session-folder where it is in that session's folder, else the path, or none
@@ -167,6 +170,40 @@ rigSecretFile="$( rigNamed lsecret 'rig line 0399 of the long result' )"
 rigAssert "the long result went to a file"                    "$( [ -n "$rigSecretFile" ] && printf named || printf none )" named
 rigAssert "the file shows the credential as the short reply does" \
 	"$( LC_ALL=C grep -c -F -- "$rigSecret" "${rigSecretFile:-/nonexistent}" 2> /dev/null || printf none )" "$( rigHasBody ssecret "$rigSecret" )"
+
+echo "-- 8. a Read given a range returns that range whole; with neither it is kept, and the hint names the original file --"
+rigServe rangedoff Read "{\"file_path\":\"$rigFix/long.txt\",\"offset\":1}"
+rigServe rangedlim Read "{\"file_path\":\"$rigFix/long.txt\",\"limit\":400}"
+rigServe rangedboth Read "{\"file_path\":\"$rigFix/long.txt\",\"offset\":2,\"limit\":399}"
+rigWhole(){ ## name, the last line the range holds -- `whole` where the reply is over 8 KB, holds that line and names no kept file
+	[ -s "$rigTmp/$1.out" ] || { printf 'no-reply' ; return 0 ; }
+	[ "$( rigBytes "$1" )" -gt 8192 ] && [ "$( rigHasBody "$1" "$2" )" = 1 ] && [ "$( rigHasBody "$1" 'KEPT:' )" = 0 ] && printf whole || printf "kept-or-cut:$( rigBytes "$1" ):$( rigHasBody "$1" 'KEPT:' )"
+}
+rigAssert "served, offset alone, over 8 KB: whole, no file"           "$( rigWhole rangedoff 'rig line 0400 of the long result' )" whole
+rigAssert "served, limit alone: whole, no file"                       "$( rigWhole rangedlim 'rig line 0400 of the long result' )" whole
+rigAssert "served, offset and limit: whole, no file"                  "$( rigWhole rangedboth 'rig line 0400 of the long result' )" whole
+rigMcp mranged Read "{\"file_path\":\"$rigFix/long.txt\",\"offset\":1,\"limit\":400}"
+[ -s "$rigTmp/mranged.out" ] || rigRefuse "the MCP server gave no reply to a ranged Read, so nothing below would be measured: $( head -3 "$rigTmp/mranged.err" | LC_ALL=C tr '\n' ' ' )"
+rigAssert "through MCP, with a range, over 8 KB: whole, no file"      "$( rigWhole mranged 'rig line 0400 of the long result' )" whole
+rigMcp mrangedoff Read "{\"file_path\":\"$rigFix/long.txt\",\"offset\":2}"
+rigAssert "through MCP, with an offset alone: whole, no file"         "$( rigWhole mrangedoff 'rig line 0400 of the long result' )" whole
+## A range over Read's own byte cap is cut at a whole line by Read, which names the offset to continue: it is still not kept.
+LC_ALL=C awk 'BEGIN { for ( n = 1 ; n <= 1500 ; n++ ) printf "rig line %04d of the big result, padded to length\n", n }' > "$rigFix/big.txt"
+rigMcp mbig Read "{\"file_path\":\"$rigFix/big.txt\",\"limit\":2000}"
+rigAssert "through MCP, a range over Read's own cap: cut by Read at a whole line, naming the offset to continue, and not kept" \
+	"$( rigHasBody mbig 'KEPT:' ) $( rigHasBody mbig 'continue with offset' ) $( [ "$( rigBytes mbig )" -gt 40000 ] && [ "$( rigBytes mbig )" -lt 60000 ] && printf within || printf "bytes:$( rigBytes mbig )" )" "0 1 within"
+## The same file read with neither: kept as before, and the hint to read the rest names the file read and the next offset.
+rigNext=$(( $( rigPreviewLines "${rigLongFile:-/nonexistent}" ) + 1 ))
+rigAssert "served, with neither: kept, and the hint names the original file and the next offset, not the kept copy" \
+	"$( LC_ALL=C grep -c -F -- "Read file_path=$rigFix/long.txt offset=$rigNext" "$rigTmp/long.out" || : ) $( LC_ALL=C grep -c -F -- "Read file_path=$rigLongFile" "$rigTmp/long.out" || : )" "1 0"
+rigMcp mkept Read "{\"file_path\":\"$rigFix/long.txt\"}"
+[ -s "$rigTmp/mkept.out" ] || rigRefuse "the MCP server gave no reply to a Read, so nothing below would be measured: $( head -3 "$rigTmp/mkept.err" | LC_ALL=C tr '\n' ' ' )"
+rigMcpKept="$( rigNamed mkept 'rig line 0399 of the long result' )"
+rigAssert "through MCP, with neither: kept in the client's folder"   "$( rigWhere "$rigMcpKept" "$rigClient" )" session-folder
+rigAssert "and its hint names the original file and the next offset" \
+	"$( LC_ALL=C grep -c -F -- "Read file_path=$rigFix/long.txt offset=$rigNext" "$rigTmp/mkept.out" || : ) $( LC_ALL=C grep -c -F -- "Read file_path=$rigMcpKept" "$rigTmp/mkept.out" || : )" "1 0"
+rigExec="$( rigNamed mlong 'rig line 0399 of the long result' )"
+rigAssert "control: another tool keeps the 8 KB rule and its hint reads the kept copy" "$( LC_ALL=C grep -c -F -- "Read file_path=$rigExec" "$rigTmp/mlong.out" || : )" 1
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ REPLY LONG RESULT CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

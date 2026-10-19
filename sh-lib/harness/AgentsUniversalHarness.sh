@@ -6725,7 +6725,8 @@ AgentsHarnessReply(){ ## tool name, result -- sets harnessReply and harnessReply
 	[ -z "${MDAT_CHANGE_APPLY:-}" ] && [ -z "${MDAT_CHANGE_HOLD_ONLY:-}" ] || return 0
 	case "$2" in NOT-HELD:*) return 0 ;; esac
 	type AgentsTranscriptReplyFinish > /dev/null 2>&1 || return 0
-	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" )" || harnessReply="$2"
+	## A Read given offset or limit is a range, and comes back whole (AgentsTranscriptReplyFinish).
+	harnessReply="$( AgentsTranscriptReplyFinish "$1" "$2" "$( [ "$1" != Read ] || printf '%s' "${harnessArgV_file_path:-${harnessArgV_path}}" )" "$( [ "$1" != Read ] || [ -z "${harnessArgV_offset:-}${harnessArgV_limit:-}" ] || printf ranged )" )" || harnessReply="$2"
 	[ -z "$2" ] || harnessReplyDate="$( AgentsTranscriptReplyDate )"
 }
 

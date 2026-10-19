@@ -76,7 +76,7 @@ STYLE_DIALOG = "setting-style"
 ## operation, each a row that is entered; and the level of a subject in a root holds its
 ## lines of that root, each by its label alone, or by its key where it has none. A line
 ## of another root than those, and one too short to say its root, is left out. Of a
-## secret nothing but its state is kept: the value its row might carry is never held. At
+## secret its state is kept, and the value its row carries, which is its masked form (F11.8), for the form of a credential. At
 ## the end of its row a subject shows how many of its lines are missing.
 def parseDigestLevels(readKey, text):
     levels = dict((sectionId, []) for sectionId, sectionLabel in SECTIONS
@@ -107,7 +107,7 @@ def parseDigestLevels(readKey, text):
                 levels[root + "/" + name] = []
             line = {"subject": name, "group": absent(setting["group"]), "key": absent(setting["key"]),
                     "state": setting["state"],
-                    "value": "" if setting["state"] in STATES_SECRET else absent(setting["value"]),
+                    "value": absent(setting["value"]),
                     "label": unspaced(setting["label"]), "description": unspaced(setting["description"]).strip(),
                     "change": setting["change"], "kind": absent(setting["kind"]), "scope": absent(setting["scope"]),
                     "source": absent(setting["source"]), "where": absent(setting["where"]), "choices": [], "range": None}
@@ -416,6 +416,100 @@ ACTION_FITS["setting"] = settingFits
 ACTION_REFUSALS["setting"] = settingRefusal
 for dialogName in set(kind["dialog"] for kind in list(SETTING_KINDS.values()) + [SETTING_KIND_OTHER]) | {STYLE_DIALOG}:
     DIALOG_HANDLERS[dialogName] = submitSetting
+
+
+## ---- a credential: its form ----
+
+## The form of a credential (F11.8): Enter on a line whose state is that of a secret opens it. It holds the value as the
+## digest prints it, in the form of a credential, in a field of a short text; its button Reveal, which Ctrl-R presses, reads the
+## value whole, by the setting reader (CREDENTIAL_READ), and puts it in that field for as long as the form is open. It saves as the dialogs
+## of the settings do (submitSetting), where its line is changed from here; else it only closes. The value whole is held
+## nowhere else, and the form that closes leaves nothing of it. The mask is no security boundary: a shell read shows it.
+CREDENTIAL_DIALOG = "setting-credential"
+CREDENTIAL_READ = "full:credential"
+CREDENTIAL_SAYS = {
+    "form": "Its value is shown in the form of a credential: its first quarter, then * for the rest. Reveal (Ctrl-R) shows it whole until this closes.",
+    "reading": "its value is being read",
+    "scope": "its scope is not known here, so its value cannot be read",
+    "failed": "its value could not be read: %s",
+}
+
+
+def credentialFits(state, row):
+    return bool(row and row.get("line")) and row["line"]["state"] in STATES_SECRET
+
+
+## The scope the setting reader is asked for the credential of that line, or None where the screen does not know it.
+def credentialScope(line):
+    if line["subject"] not in CREDENTIAL_SCOPE:
+        return None
+    return CREDENTIAL_SCOPE[line["subject"]] or line["group"]
+
+
+## Enter on a credential: its form, with its key, its scope, whether it is changed from here, and its value in the form of
+## a credential in the field. A line that is not changed from here has the buttons Close and Reveal.
+def askCredential(state, row):
+    line = row["line"]
+    scope = credentialScope(line)
+    refusal = changeRefusal(line)
+    state.answer = None
+    fill = {"about": {"lines": [("key", line["key"]), ("scope", scope or "unknown"), ("change", "no: " + refusal if refusal else "yes"),
+                                CREDENTIAL_SAYS["form"]]},
+            "words": {"value": line["value"]}}
+    about = {"line": line, "target": {"kind": "credential", "id": line["key"], "level": scope or ""},
+             "masked": line["value"], "whole": None, "asked": False, "viewKey": viewKeyOf(state)}
+    dialog = openDialog(state, CREDENTIAL_DIALOG, fill, about, line.get("label") or line["key"])
+    if refusal:
+        dialog["buttons"] = [("cancel", "Close"), ("reveal", "Reveal")]
+    return ""
+
+
+## The button Reveal, which Ctrl-R presses: the credential is read whole, once, and shown in the field by fillCredential.
+## It gives what the form says meanwhile, so that the form stays open.
+def revealCredential(state, dialog):
+    about = dialog["about"]
+    if not about["target"]["level"]:
+        return CREDENTIAL_SAYS["scope"]
+    state.plans.pop(CREDENTIAL_READ, None)
+    state.forced.add(CREDENTIAL_READ)
+    about["asked"] = True
+    return CREDENTIAL_SAYS["reading"]
+
+
+## The form as it stands now, at every turn while it is open: once the read it asked for has answered, the value whole
+## stands in its field, or the line says why it could not be read.
+def fillCredential(state, dialog):
+    about = dialog["about"]
+    target = about["target"]
+    plan = state.plans.get(CREDENTIAL_READ)
+    if not about["asked"] or plan is None or plan["words"] != readWords(READS[CREDENTIAL_READ], state, {"id": target["id"], "level": target["level"]}, False):
+        return
+    state.plans.pop(CREDENTIAL_READ, None)
+    about["asked"] = False
+    if plan["error"] or not plan["value"]:
+        dialog["says"] = CREDENTIAL_SAYS["failed"] % (plan["error"] or "it holds none")
+        return
+    about["whole"] = plan["value"]
+    dialogControl(dialog, "words")["value"] = plan["value"]
+    dialog["says"] = ""
+
+
+## OK in the form: the setting is saved as any is (submitSetting) where the line is changed from here and what stands in the
+## field is none of the two values the form showed; else nothing is saved, and the form closes.
+def submitCredential(state, dialog, button):
+    about = dialog["about"]
+    if button == "reveal":
+        return revealCredential(state, dialog)
+    if changeRefusal(about["line"]) or dialogValue(dialog, "words") in (about["masked"], about["whole"]):
+        return None
+    return submitSetting(state, dialog, button)
+
+
+ACTION_HANDLERS["credential"] = askCredential
+ACTION_FITS["credential"] = credentialFits
+DIALOG_HANDLERS[CREDENTIAL_DIALOG] = submitCredential
+DIALOG_FILLS[CREDENTIAL_DIALOG] = fillCredential
+DIALOG_KEYS[CREDENTIAL_DIALOG] = ("CTRL-r", "Reveal", lambda state, dialog: pressButton(state, "reveal"))
 
 
 ## What a root of the digest holds, for the left pane while its section or the row that

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Behavioural check on --manager-keys-list and --manager-keys-read <key>, the public keys a server shows to
 ## others, run rather than read, against a rig stand-in built here WITH MADE-UP KEYS: a home of the rig's account
-## (MDCI_HOME) with its deploy key and its generated default, a folder of host keys in place of /etc/ssh, and the
+## (its HOME, where the tools look for it) with its deploy key and its generated default, a folder of host keys in place of /etc/ssh, and the
 ## list of repositories the rig keeps. Every key pair is made here, and each PRIVATE file is then written over with
 ## a mark of its own: a private key that was opened would put its mark into what a call printed, or would be given
 ## to ssh-keygen, whose every call a stand-in on the rig's PATH writes down.
@@ -27,7 +27,7 @@ rigKeygen="$( PATH=/usr/bin:/bin command -v ssh-keygen )" || rigRefuse "this mac
 rigTmp="$( rigTempDir AgentsManagerKeysCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
-rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigMdci="$rigTmp/mdci" ; rigHost="$rigTmp/etc-ssh"
+rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigMdci="$rigHome" ; rigHost="$rigTmp/etc-ssh"
 mkdir -p "$rigTmp/bin" "$rigWs/.local/.agents" "$rigWs/.local/agents" "$rigHome" "$rigSkills" "$rigMdci/deploy-keys" "$rigMdci/.ssh" "$rigHost"
 : > "$rigWs/.local/.agents/keeper-rig.agent.env" ; chmod 770 "$rigWs/.local/.agents" ; chmod 660 "$rigWs/.local/.agents"/*.agent.env
 ## THE MADE-UP KEYS: the deploy key of the account (mdci where the machine names no other), the generated default,
@@ -42,7 +42,6 @@ rigMake "$rigTmp/named-key" ed25519 rig-named
 rigMake "$rigHost/ssh_host_ed25519_key" ed25519 rig-host
 rigMake "$rigHost/ssh_host_ecdsa_key" ecdsa rig-host
 mkdir -p "$rigHome/.ssh"
-rigMake "$rigHome/.ssh/id_ed25519" ed25519 rig-out-second
 rigMake "$rigHome/.ssh/id_ecdsa" ecdsa rig-out-first
 rigNumber=0
 for rigOne in "$rigMdci/deploy-keys/$rigAccount" "$rigMdci/.ssh/id_ed25519" "$rigTmp/named-key" "$rigHost/ssh_host_ed25519_key" "$rigHost/ssh_host_ecdsa_key" "$rigHome/.ssh/id_ed25519" "$rigHome/.ssh/id_ecdsa" ; do
@@ -64,7 +63,7 @@ rigAssert(){ ## what is asserted, got, want
 rigPre=()
 rigRun(){ ## tool arguments... -- one dispatcher call from the rig workspace; rc in rigRc, stdout in out, stderr in err, both kept in all
 	rigRc=0
-	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDCI_HOME="$rigMdci" MDAT_MANAGER_KEYS_HOST_DIR="$rigHost" ${rigPre[@]+"${rigPre[@]}"} \
+	( cd "$rigWs" && env -i HOME="$rigHome" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" MDAT_MANAGER_KEYS_HOST_DIR="$rigHost" ${rigPre[@]+"${rigPre[@]}"} \
 		bash "$rigTool" "$@" ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null || rigRc=$?
 	cat "$rigTmp/out" "$rigTmp/err" >> "$rigTmp/all"
 }
@@ -89,6 +88,17 @@ rigAssert "the deploy key of the account: its label, what it is for, its type, t
 rigAssert "the generated default beside it, since it is another key" "$( rigRow generated )" "$( rigWant generated Generated_Key_Not_Used_For_Git add-to-git "another_key_the_account_generated,_not_used_for_git_unless_a_repository_is_set_up_with_it" "$rigMdci/.ssh/id_ed25519.pub" )"
 rigAssert "a host key by the name of its file, to trust on connecting" "$( rigRow host-ed25519 ) / $( rigRow host-ecdsa )" "$( rigWant host-ed25519 Host_Key_ED25519_To_Trust_On_Connect trust-on-connect "$rigHostFor" "$rigHost/ssh_host_ed25519_key.pub" ) / $( rigWant host-ecdsa Host_Key_ECDSA_To_Trust_On_Connect trust-on-connect "$rigHostFor" "$rigHost/ssh_host_ecdsa_key.pub" )"
 rigAssert "the whole public key stands in its row, nothing of it held back: the last field is the line as one pastes it, the public key line for git and the line of a known hosts file for a host key" "$( LC_ALL=C awk -F'\t' '$2 == "deploy" || $2 == "host-ed25519" { printf "%s ", $NF }' "$rigTmp/out" )" "$( LC_ALL=C tr ' ' '_' < "$rigMdci/deploy-keys/$rigAccount.pub" ) $( hostname )_$( cut -d ' ' -f 1,2 "$rigHost/ssh_host_ed25519_key.pub" | LC_ALL=C tr ' ' '_' ) "
+
+echo "-- 1b. the home of the account is the HOME of the one who runs the tools: a HOME that holds a key and nothing else --"
+rigOnly="$rigTmp/home-only"
+mkdir -p "$rigOnly/.ssh"
+rigMake "$rigOnly/.ssh/id_ed25519" ed25519 rig-only
+printf 'RIGPRIVATE-ONLY-NEVER-TO-BE-READ\n' > "$rigOnly/.ssh/id_ed25519"
+rigKeptHome="$rigHome" ; rigHome="$rigOnly"
+rigRun "$rigList"
+rigHome="$rigKeptHome"
+rigAssert "a HOME with .ssh/id_ed25519.pub and no ssh command in the git configuration shows the key for git present, as the key of the account, its file under that HOME" "$( rigRow deploy )" "$( rigWant deploy Deploy_Key_To_Add_To_Git add-to-git "$rigDeployFor" "$rigOnly/.ssh/id_ed25519.pub" )"
+rigAssert "and its whole public line stands in its last field" "$( LC_ALL=C awk -F'\t' '$2 == "deploy" { print $NF }' "$rigTmp/out" )" "$( LC_ALL=C tr ' ' '_' < "$rigOnly/.ssh/id_ed25519.pub" )"
 
 echo "-- 2. the read of one key --"
 rigRun "$rigRead" deploy

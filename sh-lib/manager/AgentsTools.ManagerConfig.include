@@ -18,7 +18,8 @@
 ## A CREDENTIAL IS PRINTED IN ONE FORM, the first quarter of its value and a `*` for the rest
 ## (AgentsToolsCredentialShown, AgentsTools.CredentialDisplay.include): in a row, in a message and
 ## in a file. Its line says that it is set, with that form as its value, or that it is not.
-## A password inside a URL under any key is masked alone (AgentsToolsCredentialUrlShown).
+## A password inside a URL is masked alone (AgentsToolsCredentialUrlShown) in the settings views of the
+## console only, which read the digest in full; everywhere else the mask is per key.
 ##
 ## WHICH KEY IS A CREDENTIAL. This plugin enumerates them, in the one place
 ## AgentsToolsManagerConfigKeySecret: the keys the catalogue of the owner setup marks secret
@@ -260,8 +261,10 @@ AgentsToolsManagerConfigPathLine(){ ## subject, group, key, path
 }
 
 ## The line of one key of one scope of this workspace: a credential as set, with its value in
-## the one form of AgentsToolsCredentialShown, or not set; any other key with its value, a
-## password inside a URL masked alone, and missing where it has none.
+## the one form of AgentsToolsCredentialShown, or not set; any other key with its value, and
+## missing where it has none. A password inside a URL under such a key is masked alone in the
+## digest in full only (digestFull, the arm's): the settings views of the console read it so.
+
 AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
 	local keyValue keyShown
 	keyValue="$( AgentsToolsManagerConfigValue "$3" "$4" )" || keyValue=""
@@ -275,7 +278,7 @@ AgentsToolsManagerConfigKeyLine(){ ## subject, group, scope, key
 	fi
 	if [ -z "$keyValue" ] ; then
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" missing ""
-	elif keyShown="$( AgentsToolsCredentialUrlShown "$keyValue" )" ; then
+	elif [ -n "${digestFull:-}" ] && keyShown="$( AgentsToolsCredentialUrlShown "$keyValue" )" ; then
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" secret-set "$keyShown"
 	else
 		AgentsToolsManagerConfigLine "$1" "$2" "$4" set "$keyValue"

@@ -214,10 +214,11 @@ AgentsToolsManagerTeamMemberListRows(){ ## the operation as it was called
 ## keys of each system this workspace holds no setting of for it, which the tooling reads
 ## from the workspace it is set up in (the settings fallback,
 ## AgentsToolsConfigOptionElsewhere): by their names alone, from the names-only reader, as
-## `elsewhere`. What another workspace's scope holds is that workspace's to show.
+## `elsewhere`. The digest is asked in full where the read was (readFull, the arm's), as the
+## console reads it: only there a password inside a URL is masked alone.
 AgentsToolsManagerTeamMemberSettingRows(){ ## member, set-up
 	local settingsMember="$1" settingsLines settingsName settingsSystem settingsThere settingsKeys settingsKey
-	settingsLines="$( DistroAgentsTools --manager-config-digest scopes )" || return 1
+	settingsLines="$( DistroAgentsTools --manager-config-digest ${readFull:+--full} scopes )" || return 1
 	settingsName="${MMDAPP%/}" ; settingsName="${settingsName##*/}"
 	printf '%s\n' "$settingsLines" | LC_ALL=C awk -F'\t' -v OFS='\t' -v wantScope="$settingsMember" -v scopeWorkspace="${settingsName//[[:space:]]/_}" '
 		$1 == "line" && $2 == "scopes" && $3 == wantScope && NF >= 6 { print "setting", $4, $5, $6, scopeWorkspace ; }
@@ -452,9 +453,15 @@ case "$1" in
 
 	## One member: its row, its information, its sessions, its grants and its settings. The
 	## dispatcher brings no member for this family, so where the member is set up is asked here.
+	## `--full` ahead of the member is how the console reads: its settings come from the digest
+	## in full.
 	--manager-team-member-read)
-		local readOp="$1"
+		local readOp="$1" readFull=""
 		shift
+		if [ "${1:-}" = "--full" ] ; then
+			readFull="full"
+			shift
+		fi
 		if [ $# -eq 0 ] || [ -z "$1" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $readOp: syntax is <team-member>, got no team member" >&2
 			set +e ; return 1

@@ -12,7 +12,7 @@
 ## finds them, in its two kinds:
 ##   add-to-git         the key the account uses for git, which an owner lists on a git host
 ##       as a deploy or user key: the one its ssh command names (`git config --global
-##       core.sshCommand`, its `-i`), else the deploy key of the account under MDCI_HOME,
+##       core.sshCommand`, its `-i`), else the deploy key of the account under its home ($HOME),
 ##       else the generated default; and that default beside it where it is another key;
 ##   trust-on-connect   the ssh host keys of this server, which whoever connects to it
 ##       checks and accepts: /etc/ssh/ssh_host_*_key.pub.
@@ -33,9 +33,10 @@
 ## public file says so. Nothing is written, and nothing reaches another host.
 ##
 
-## The home of the rig's account, and the account, as mdci-public-keys takes them.
+## The home of the rig's account, and the account, as mdci-public-keys takes them. The home is the HOME of
+## the one who runs the tools: on mdci that is /usr/local/mdci, the home of its console account.
 AgentsToolsManagerKeysHome(){
-	printf '%s\n' "${MDCI_HOME:-/usr/local/mdci}"
+	printf '%s\n' "$HOME"
 }
 AgentsToolsManagerKeysAccount(){
 	sysrc -n mdcid_user 2> /dev/null || echo mdci

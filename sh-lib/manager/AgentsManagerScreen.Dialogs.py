@@ -142,6 +142,10 @@ def pressButton(state, buttonName):
 ## they mean nothing else. No key of a window, of a menu or of the screen works here.
 def dialogKey(state, key):
     dialog = state.dialog
+    extra = DIALOG_KEYS.get(dialog["name"])
+    if extra is not None and key == extra[0]:
+        extra[2](state, dialog)
+        return
     what, index, control = dialogFocus(dialog)
     stops = dialogStops(dialog)
     if key == "ESC":
@@ -194,6 +198,8 @@ def dialogKey(state, key):
 def dialogStatus(dialog):
     what, index, control = dialogFocus(dialog)
     items = [item for item in CONTROL_KINDS[what]["keys"] if what != "button" or len(dialog["buttons"]) > 1]
+    if dialog["name"] in DIALOG_KEYS:
+        items.append(DIALOG_KEYS[dialog["name"]][:2])
     digits = [option[0] for option in control["options"] if option[0].isdigit()] if control and control.get("digits") else []
     if digits:
         items.append((digits[0] + "-" + digits[-1] if len(digits) > 1 else digits[0], "Choose"))

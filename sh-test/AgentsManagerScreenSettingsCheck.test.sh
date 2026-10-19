@@ -321,7 +321,7 @@ rigAssert "what it takes, where it is saved, and that it is changed from here, w
 rigAssert "a setting of a kind the screen does not know shows as it is, with nothing it takes" "[$( rigPane t 3 )] $( rigPaneHolds t '  source    the default' ) $( rigScreenHolds t ' takes ' ) $( rigPaneHolds t '  change    yes' )" "[ Console Title = rig_title] 1 0 1"
 rigAssert "Backspace goes up, onto the subject that was entered"         "$( rigVal back.path ) $( rigVal back.selected )" "settings console"
 rigAssert "a secret of the configuration, titled with its group since the subject has several: only its state, its description, and why it is not changed, in the words of its row" "$( rigVal k.path ) [$( rigPane k 2 )][$( rigPane k 3 )][$( rigPane k 5 )] $( rigPaneHolds k '  change  no: set at deployment: a wizard will change it' ) $( rigScreenHolds k 'sk-must' )" "configuration/cli [ claude: Anthropic API Key [wrap]][ Anthropic API Key = configured][ The key the Claude CLI signs in with.] 1 0"
-rigAssert "such a line is no row that is entered, the left window names no key for it, and the status line no change" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>  Anthropic API Key] 0 [ BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
+rigAssert "such a line is a credential, so a row that is entered (F11.8): the left window names no key for it, and the status line names Enter as opening it" "[$( rigVal kRow | sed 's/  *$//' )] $( rigScreenHolds k 'keys:' ) [$( rigVal kStatus | sed 's/  *$//' )]" "[>  Anthropic API Key...] 0 [ ENTER Open  BSP Up  a Active  u Read  m Menu  ^X Exit  TAB Window  ? Help]"
 
 echo "-- Configuration: Enter on a line changes nothing, and says why --"
 rigCase viewing

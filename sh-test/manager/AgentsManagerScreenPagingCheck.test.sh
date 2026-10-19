@@ -128,7 +128,7 @@ rigCase(){ ## name members files -- a rig of its own: that many team members and
 		for rigN in $( seq 1 "$2" ) ; do rigRow member "member-$( printf '%02d' "$rigN" )" :ear_of_rice: Thea Vance farmhand keeper ws-far elsewhere active no-process ; done
 	} > "rows.--manager-team-member-list"
 	rigMember="$( rigRow member keeper-rig - Rig Keeper - keeper /rig/ws here active no-process - )"
-	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember" > "rows.--manager-team-member-read keeper-rig"
+	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember" > "rows.--manager-team-member-read --full keeper-rig"
 	{
 		rigRow file SKILL.md 900 yes
 		for rigN in $( seq 1 "$3" ) ; do rigRow file "file-$( printf '%02d' "$rigN" ).txt" 40 yes ; done

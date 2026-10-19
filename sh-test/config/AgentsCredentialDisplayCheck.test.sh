@@ -15,8 +15,10 @@
 ##   5b. a quarter that is no whole number rounds down: 18 characters show 4, 30 characters show 7
 ##   6. where a CLI's own line names the same credential, it shows the same form
 ##   7. a value of fewer than 4 characters is all `*`: 2 characters read `**`, 3 read `***`
-##   8. a password inside a URL, under a key that is no credential, has only its password part masked in the same form
-##      and the line reads secret-set; the rest of the URL, and a second URL beside it, stand as they are
+##   8. a password inside a URL, under a key that is no credential: in the digest in full, which the settings views of
+##      the console read, only its password part is masked in the same form and the line reads secret-set, the rest of
+##      the URL, and a second URL beside it, standing as they are; in the digest not in full the mask is per key, the key
+##      is none, and the value stands as it is
 ##   9. guard: no whole value, and nothing of a value past its shown head, appears on either stream
 ## Red before F11.8: every credential's value reads `-` (1 to 8 fail; 9 holds).
 ## The values start their filler letters at an offset of their own, so that the head one value shows is
@@ -81,8 +83,10 @@ rigUrlPassword="$( rigValue urlpwRIGh 40 5 )"
 } > "$rigWs/.local/.agents/magic-team.agent.env"
 ( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
 	MDAT_SKILLSET_ROOT="$rigTmp/skills" bash "$rigTool" --manager-config-digest ) > "$rigTmp/out" 2> "$rigTmp/err" < /dev/null
-rigShown(){ ## subject, group, key -- the value field of that line, `absent` where no such line
-	LC_ALL=C awk -F'\t' -v wantSubject="$1" -v wantGroup="$2" -v wantKey="$3" '$1 == "line" && $2 == wantSubject && $3 == wantGroup && $4 == wantKey { print $6 ; found = 1 ; exit } END { if ( !found ) print "absent" }' "$rigTmp/out"
+( cd "$rigWs" && env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin:/usr/sbin:/sbin" MMDAPP="$rigWs" MDLT_ORIGIN="$rigOrigin" MDLT_OPTION="--run-from-path $rigOrigin" \
+	MDAT_SKILLSET_ROOT="$rigTmp/skills" bash "$rigTool" --manager-config-digest --full ) > "$rigTmp/out.full" 2> "$rigTmp/err.full" < /dev/null
+rigShown(){ ## subject, group, key -- the value field of that line, `absent` where no such line; in the digest in full where rigFull is set
+	LC_ALL=C awk -F'\t' -v wantSubject="$1" -v wantGroup="$2" -v wantKey="$3" '$1 == "line" && $2 == wantSubject && $3 == wantGroup && $4 == wantKey { print $6 ; found = 1 ; exit } END { if ( !found ) print "absent" }' "$rigTmp/out${rigFull:+.full}"
 }
 
 echo "-- control: the digest lists each credential of the scope --"
@@ -104,19 +108,27 @@ rigAssert "claude's ANTHROPIC_API_KEY and grok's XAI_API_KEY"    "$( rigShown cl
 echo "-- 7. a value of fewer than 4 characters is all * --"
 rigAssert "2 characters read **, 3 read ***: in the scope, and on the CLI's own line" "$( rigShown scopes magic-team SCALEWAY_DEEPSEEK ) $( rigShown scopes magic-team SCALEWAY_GEMMA ) $( rigShown cli scaleway SCALEWAY_DEEPSEEK ) $( rigShown cli scaleway SCALEWAY_GEMMA )" "** *** ** ***"
 
-echo "-- 8. a password inside a URL: that part alone is masked --"
-rigAssert "under a key that is no credential, in the form of one; the URL stands, and so does a second beside it" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES )" "https://rigbot:$( rigMask "$rigUrlPassword" )@docs.rig.example/api/_https://plain.rig.example/"
-rigAssert "and the line reads secret-set, as a credential's does" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out" )" "secret-set"
+echo "-- 8. a password inside a URL: that part alone is masked, in the digest in full --"
+rigAssert "not in full, the mask is per key: a key that is no credential shows its value as it is, the password with it, and reads set" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES ) $( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out" )" "https://rigbot:$rigUrlPassword@docs.rig.example/api/_https://plain.rig.example/ set"
+rigFull=1
+rigAssert "in full, in the form of a credential; the URL stands, and so does a second beside it" "$( rigShown scopes magic-team WEB_ALLOW_PREFIXES )" "https://rigbot:$( rigMask "$rigUrlPassword" )@docs.rig.example/api/_https://plain.rig.example/"
+rigAssert "and the line reads secret-set, as a credential's does" "$( LC_ALL=C awk -F'\t' '$1 == "line" && $2 == "scopes" && $4 == "WEB_ALLOW_PREFIXES" { print $5 }' "$rigTmp/out.full" )" "secret-set"
+rigAssert "in full a credential of a key is shown the same as not in full" "$( rigShown scopes magic-team JIRA_API_TOKEN )" "$( rigMask "$rigJira" )"
+rigFull=""
 
 echo "-- 9. guard: nothing of a value past its shown head --"
 rigLeaks=""
-for rigSecret in "$rigSlack" "$rigJira" "$rigAnthropic" "$rigXai" "$rigOauth" "$rigCopilot" "$rigSlackApp" "$rigUrlPassword" ; do
+for rigSecret in "$rigSlack" "$rigJira" "$rigAnthropic" "$rigXai" "$rigOauth" "$rigCopilot" "$rigSlackApp" ; do
 	rigHead="$( rigMask "$rigSecret" | LC_ALL=C tr -d '*' )"
-	## the eight characters right after the shown head: none of a value's hidden part stands anywhere
+	## the eight characters right after the shown head: none of a value's hidden part stands anywhere, but on the line of the URL,
+	## whose password stands whole outside the digest in full and is held on its own below
 	rigTail="${rigSecret:${#rigHead}:8}"
-	cat "$rigTmp/out" "$rigTmp/err" | LC_ALL=C grep -q -F -- "$rigTail" && rigLeaks="$rigLeaks ${rigSecret:0:6}"
+	cat "$rigTmp/out" "$rigTmp/err" "$rigTmp/out.full" "$rigTmp/err.full" | LC_ALL=C grep -v -F -- WEB_ALLOW_PREFIXES | LC_ALL=C grep -q -F -- "$rigTail" && rigLeaks="$rigLeaks ${rigSecret:0:6}"
 done
-rigAssert "no hidden part of any of the eight on either stream"   "[${rigLeaks# }]" "[]"
+## the password of a URL is none of that outside the digest in full: there it stands whole, so only the full one is held
+rigHead="$( rigMask "$rigUrlPassword" | LC_ALL=C tr -d '*' )"
+cat "$rigTmp/out.full" "$rigTmp/err.full" | LC_ALL=C grep -q -F -- "${rigUrlPassword:${#rigHead}:8}" && rigLeaks="$rigLeaks ${rigUrlPassword:0:6}"
+rigAssert "no hidden part of any of the eight on either stream, the password of the URL in the digest in full"   "[${rigLeaks# }]" "[]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ CREDENTIAL DISPLAY CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1

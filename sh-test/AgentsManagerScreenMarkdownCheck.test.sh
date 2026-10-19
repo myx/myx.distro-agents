@@ -55,7 +55,7 @@ rigCase(){ ## name -- a rig of its own, every fixture of this check in it
 	printf -- '---\ntitle: A\n---\n# Task A\n\n- step one\n' > "rows.--manager-team-data-read board running task-a.md"
 	rigMember="member	keeper-rig	-	Rig	Keeper	-	keeper	/rig/ws	here	active	no-process	-"
 	printf '%s\n' "$rigMember" > "rows.--manager-team-member-list"
-	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember" > "rows.--manager-team-member-read keeper-rig"
+	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember" > "rows.--manager-team-member-read --full keeper-rig"
 	printf 'file\tSKILL.md\t900\tyes\nfile\tnotes.txt\t40\tyes\nfile\tbig.md\t2030\tyes\n' > "rows.--manager-team-member-files keeper-rig"
 	cat > "rows.--manager-team-member-files keeper-rig SKILL.md" <<'RIGMD'
 ---

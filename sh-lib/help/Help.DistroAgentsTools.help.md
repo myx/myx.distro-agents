@@ -189,7 +189,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-data-read <store> [<folder> [<item>]] [--include-processed]
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-list
 📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-files <team-member> [<file>]
-📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read <team-member>
+📘 syntax: DistroAgentsTools.fn.sh --manager-team-member-read [--full] <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-backlog <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-pending <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
 📘 syntax: DistroAgentsTools.fn.sh --magic-grooming-to-processed <team-member> <item-filename> --from-state:<state> --owner-header-value <value> [--header:<upsert|append|remove>:name[:value]]... [--recheck-in <minutes>[±<jitter-minutes>]] [--upsert-from-stdin|--edit-script-from-stdin:<py|awk>|--edit-patch-from-stdin]
@@ -2968,18 +2968,18 @@
 			file it is saved in. Each of the five reads `-` for a line
 			that cannot be changed.
 			<state> is `set`, `missing`, `secret-set` or `secret-missing`.
-			Nothing of the value of a secret is printed, in no row and in
-			no message: not a part of it, not its length. Its line reads
-			`secret-set` or `secret-missing`, with the value `-`.
-			A key is a secret unless it is known not to be. A key of the
-			owner setup's catalogue is what the catalogue marks it. Any
-			other key is a secret when its name holds the word TOKEN, KEY,
-			SECRET, PASSWORD or COOKIE, and is no secret only when the
-			last word of its name is a plain kind: ALIAS, CONVERSATIONS,
-			DIRECTORY, DOMAIN, EMAIL, HOST, ID, LIMIT, MODE, NAME, PORT, SECONDS,
-			SECURITY, SITE, TIER, USER, USERNAME or WORKSPACE. A key of no
-			known kind is a secret. A value that carries a password inside
-			a URL is a secret whatever its key.
+			A credential is printed in one form, in every row and every
+			message: the first quarter of its value, rounded down, not less
+			than 4 and not more than 20 characters, then a `*` for each
+			character after them, even for a long key; a value of fewer
+			than 4 characters is all `*`. Its line reads `secret-set` with
+			that form as its value, or `secret-missing` with the value `-`.
+			A credential is a key the owner setup's catalogue marks secret
+			or one a harness leg reads; every other key shows its value.
+			In full (`--full`), the form the settings views of the
+			console read, a value that carries a password inside a URL,
+			under any key, reads `secret-set` and has only that password
+			masked; otherwise a key that is no credential shows its value.
 			`workspace`: group `paths`, the root of the workspace, the
 			origin of the tooling, the root of the team data, the two
 			session stores and the folder of the scopes, each `set` where
@@ -4044,7 +4044,7 @@
 			set up where it can be reached, a path the list does not give,
 			and a file that is no text.
 
-		--manager-team-member-read <team-member>
+		--manager-team-member-read [--full] <team-member>
 			One of the console's own operations (see Notes). Prints one
 			member of the team: one set up here, or only in another
 			workspace on this machine, which the operation finds itself.
@@ -4068,10 +4068,11 @@
 			`grant` rows are those `--magic-permission-list` prints for
 			the member. A `setting` row is one key of the member's scope
 			in this workspace, with the <state> and the <value>
-			`--manager-config-digest` gives it: `set`, `missing`,
-			`secret-set` or `secret-missing`. Which key is a secret is
-			that operation's rule, and nothing of the value of a secret
-			is ever printed. For a member set up elsewhere the keys of
+			`--manager-config-digest` gives it, in full where `--full`
+			is given, as the console reads it: `set`, `missing`,
+			`secret-set` or `secret-missing`. Which key is a credential is
+			that operation's rule, and a credential is printed in the
+			one form that operation gives it. For a member set up elsewhere the keys of
 			each system this workspace holds no setting of for it
 			follow, which are read from the workspace it is set up in:
 			each by its name alone, its <state> `elsewhere` and its

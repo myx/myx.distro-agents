@@ -58,7 +58,7 @@ printf '%s\nmember\thuman-owner-with-a-very-long-name-that-runs-ENDMEMBER\t-\t-\
 {
 	printf '%s\ninfo\tdescription\tA_rig_keeper\n' "$rigMember"
 	printf 'grant\tfloor\tread\t/rig/ws/source/myx/myx.distro-agents/sh-lib/manager/AgentsManagerScreen.py\tws:source/myx/myx.distro-agents/sh-lib/AgentsManagerScreen-ENDCOVERS.py\tset-3ef0ea61-ff24-46e7-8299-bb3c5ee6b4fc_by_U75H0DK43\tuntil_session_5680fa0b_ends\n'
-} > "rows.--manager-team-member-read keeper-rig"
+} > "rows.--manager-team-member-read --full keeper-rig"
 printf 'file\tSKILL.md\t1889\tyes\n' > "rows.--manager-team-member-files keeper-rig"
 printf '📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member> [--a-long-option-of-its-own <value>] [--another-long-option-ENDHELP]\n\n\t\t--member-help <team-member>\n\t\t\tRead-only. Prints its help.\n\n' > "rows.--member-help keeper-rig"
 : > "$MANAGER_SCREEN_RIG/calls"

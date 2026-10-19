@@ -112,17 +112,17 @@ rigKeeper(){ rigRow member keeper-myx 📐 Sage Bourne cronjob keeper ws-rig her
 	rigRow setting EMAIL_USER set keeper_myx@rig.example ws-rig
 	rigRow setting TRELLO_BOARD missing - ws-rig
 	rigRow setting JIRA_HOST elsewhere - ws-far
-} > "$rigF/rows.--manager-team-member-read keeper-myx"
+} > "$rigF/rows.--manager-team-member-read --full keeper-myx"
 {
 	rigRow member keeper-far 🌾 Thea Vance farmhand keeper ws-far elsewhere active no-process
 	rigRow info description The_keeper_of_the_far_workspace.
 	rigRow info workspace /rig/ws-far
-} > "$rigF/rows.--manager-team-member-read keeper-far"
+} > "$rigF/rows.--manager-team-member-read --full keeper-far"
 {
 	rigRow member human-owner :myx: - - - human ws-rig here reference-only no-process
 	rigRow info description Reference-only_identity_record_of_the_owner.
 	rigRow info workspace /rig/ws-rig
-} > "$rigF/rows.--manager-team-member-read human-owner"
+} > "$rigF/rows.--manager-team-member-read --full human-owner"
 rigOld(){
 	rigRow session "$rigS1" daily_of_Monday running 2026-10-12_16:57_+0000 - 1 running=1
 	rigRow run "$rigS1" "$rigS1" keeper-myx spawn-started running running 2026-10-12_16:57_+0000 - rig-host ws-rig working
@@ -314,14 +314,14 @@ cells keysLineStatus 39 0 120
 RIGSCRIPT
 rigAssert "the selection comes onto a member: nothing of it is read yet" "$( rigVal moved.selected ) [$( rigVal moved.reading )] $( rigVal moved.restLeft ) [$( rigVal resting.reading )]" "keeper-myx [] 0.33 []"
 rigAssert "until then the pane shows what the list holds of it, and says that the rest is not read" "[$( rigPane early 3 )][$( rigPane early 5 )][$( rigPane early 11 )]" "[ 📐 Sage Bourne, alias cronjob][ kind      keeper][ Team-member information: not read yet]"
-rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read keeper-myx' ) $( rigOthers )" "view:team|record:keeper-myx 1 0"
+rigAssert "once it has rested it is read by its name, as a call of its own" "$( rigVal asked.reading ) $( rigCalled '--manager-team-member-read --full keeper-myx' ) $( rigOthers )" "view:team|record:keeper-myx 1 0"
 rigAssert "its status, whether a run of it is alive, its workspace, and that n starts it" "[$( rigPane m 6 )][$( rigPane m 7 )][$( rigPane m 8 )][$( rigPane m 9 )]" \
 	"[ status    active][ process   a run of it is alive][ workspace ws-rig, set up here][ start     n starts it with a prompt, in a session of its own]"
 rigAssert "what it is for, a long text broken to the pane"           "[$( rigPane m 10 )][$( rigPane m 11 )]" "[ for       Source-content steward for the common tools and the distro tools of the][           rig, their scripts and their help.]"
 rigAssert "its information, the bullets of its basic.md, under Team-member information" "[$( rigPane m 13 )][$( rigPane m 14 )][$( rigPane m 15 )]" "[ Team-member information:][   Description: source-content authority for the rig.][   Name: Sage Bourne.]"
 rigAssert "and nothing more: no sessions, no paths, no settings and no grants, though the read gave them all" \
 	"[$( rigPane m 16 )] $( rigScreenHolds m 'sessions it is in' ) $( rigScreenHolds m '/rig/home_of/ws-rig' ) $( rigScreenHolds m 'SLACK_USER_TOKEN' ) $( rigScreenHolds m 'its grants' ) $( rigScreenHolds m 'COVERS' ) $( rigPaneHolds m ' its information:' )" "[] 0 0 0 0 0 0"
-rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read keeper-myx" )" "0 0 1"
+rigAssert "nothing of the value of a secret is on the screen, though its row carried one" "$( rigScreenHolds m 'xoxb' ) $( rigScreenHolds m 'must-never-show' ) $( LC_ALL=C grep -c -F 'xoxb-must-never-show' "$MANAGER_SCREEN_RIG/rows.--manager-team-member-read --full keeper-myx" )" "0 0 1"
 rigAssert "the left pane names the key that starts it, and nothing spills" "[$( rigKeysNamed keysLine )] $( rigVal m.spills )" "[keys: n start] 0"
 
 echo "-- the pane of a member scrolls, and a member set up elsewhere says so --"
@@ -480,7 +480,7 @@ rigAssert "the identity record is selected: the pane says why it is not started,
 rigAssert "n on it starts nothing, and the status line says that this member is not started" "[$( rigVal refused.dialog )] [$( rigVal refused.notice )]" "[] [Start: human-owner is not started: its status is reference-only: nobody is started as this member]"
 rigAssert "a member whose workspace cannot be reached is not started either" "$( rigVal gone.selected ) $( rigPaneHolds g ' start     not started from here: its workspace cannot be reached from this machine' ) [$( rigVal goneKeys )] [$( rigVal unreachable.dialog )] [$( rigVal unreachable.notice )]" \
 	"keeper-gone 1 [] [] [Start: keeper-gone is not started: its workspace cannot be reached from this machine]"
-rigAssert "and it is not read, since its read would be refused: the pane says so" "[$( rigVal gone.reading )] $( rigCalled '--manager-team-member-read keeper-gone' ) $( rigPaneHolds g ' nothing more is read of it: its workspace cannot be reached from this machine' )" "[] 0 1"
+rigAssert "and it is not read, since its read would be refused: the pane says so" "[$( rigVal gone.reading )] $( rigCalled '--manager-team-member-read --full keeper-gone' ) $( rigPaneHolds g ' nothing more is read of it: its workspace cannot be reached from this machine' )" "[] 0 1"
 rigAssert "the operation that starts a member was never called"      "$( rigStarts ) $( rigVal end.calls )" "0 0"
 
 echo "-- an error of the start is shown --"

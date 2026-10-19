@@ -183,6 +183,12 @@ DIALOGS = {
                                   {"name": "words", "kind": "input", "label": "Its value",
                                    "required": "nothing is saved: nothing is typed"}),
                      "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## a credential: what it is, its value in the form of a credential in a field of a short text, and the
+    ## button that reads it whole, which Ctrl-R presses (DIALOG_KEYS), for as long as the dialog is open
+    "setting-credential": {"title": "Setting", "feeds": "setting", "first": "words", "reads": ("full:{kind}",),
+                           "controls": ({"name": "about", "kind": "text"},
+                                        {"name": "words", "kind": "input", "label": "Its value"}),
+                           "buttons": (("ok", "OK"), ("reveal", "Reveal"), ("cancel", "Cancel"))},
 }
 ## The handler of each dialog that does something: handler(state, dialog, button) is called
 ## when a button other than "cancel" is pressed. It gives nothing, and the dialog closes;
@@ -195,6 +201,9 @@ DIALOG_FILLS = {}
 ## What Esc does in a dialog where it does more than close it: escape(state, dialog) gives
 ## True where it did what Esc does there, and the dialog stays. Set where each is defined.
 DIALOG_ESCAPES = {}
+## The one key a dialog takes beside the keys of its controls: its name, the word the status line gives it and
+## what it does, handler(state, dialog). Set where each is defined.
+DIALOG_KEYS = {}
 ## The width a dialog takes at most, and how many lines of a list of options and of a
 ## field of several lines it shows, where the terminal has them.
 DIALOG_COLUMNS = 82

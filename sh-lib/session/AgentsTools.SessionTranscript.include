@@ -651,13 +651,15 @@ agentsReplyLongBytes=8192
 ## result does (WAIT-RESULT:, ERROR:, OK: ...), then the file, its size and how to read the rest.
 ## The preview is the whole lines that fit in 2 KB, or the first 20, whichever is more, and never
 ## over 7 KB, so the reply stays under the threshold. Writes nothing: a caller with a file of its
-## own, such as an input-scan cache, names it here as it is.
-AgentsTranscriptReplyRef(){ ## file
+## own, such as an input-scan cache, names it here as it is. For a Read's result, the file the Read read
+## is the second argument: the hint to read the rest names that file and the next line of it to read,
+## and not the kept copy.
+AgentsTranscriptReplyRef(){ ## file, the file a Read read (optional)
 	local refBytes refLines
 	[ -f "$1" ] || return 1
 	refBytes="$( LC_ALL=C wc -c < "$1" | tr -d ' ' )"
 	refLines="$( LC_ALL=C wc -l < "$1" | tr -d ' ' )"
-	LC_ALL=C awk -v refPath="$1" -v refBytes="$refBytes" -v refLines="$refLines" '
+	LC_ALL=C awk -v refPath="$1" -v refOrigin="${2:-}" -v refBytes="$refBytes" -v refLines="$refLines" '
 		{ total += length( $0 ) + 1 ; if ( NR > 20 && total > 7168 ) { exit } ; if ( total <= 2048 ) { fit = NR } ; if ( total <= 7168 ) { cap = NR } ; kept[ NR ] = $0 ; seen = NR ; }
 		END {
 			shown = ( fit > 20 ) ? fit : 20 ; if ( shown > seen ) { shown = seen } ; if ( shown > cap ) { shown = cap } ;
@@ -665,12 +667,15 @@ AgentsTranscriptReplyRef(){ ## file
 			if ( shown == 0 && seen > 0 ) {
 				print substr( kept[ 1 ], 1, 2048 )
 				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- its line 1 is too long to show, and its first 2048 bytes are shown above ...\n", refBytes, refLines, refPath
-				printf "... read it by line range: Read file_path=%s offset=1 limit=%d ...\n", refPath, refLines
+				if ( refOrigin != "" ) { printf "... read it by line range: Read file_path=%s offset=1 limit=1 ...\n", refOrigin ; }
+				else { printf "... read it by line range: Read file_path=%s offset=1 limit=%d ...\n", refPath, refLines ; }
 			} else if ( shown >= refLines ) {
 				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- all of it is shown above ...\n", refBytes, refLines, refPath
 			} else {
 				printf "... KEPT: the whole result, %d bytes in %d lines, is in %s -- lines 1 to %d are shown above ...\n", refBytes, refLines, refPath, shown
-				printf "... read the rest, lines %d to %d, by line range: Read file_path=%s offset=%d limit=%d ...\n", shown + 1, refLines, refPath, shown + 1, refLines - shown
+				nextAt = shown + 1 ; if ( match( kept[ shown ], /^ *[0-9]+\t/ ) ) { nextAt = substr( kept[ shown ], 1, RLENGTH - 1 ) + 1 ; }
+				if ( refOrigin != "" ) { printf "... read the rest from the file itself, by line range: Read file_path=%s offset=%d ...\n", refOrigin, nextAt ; }
+				else { printf "... read the rest, lines %d to %d, by line range: Read file_path=%s offset=%d limit=%d ...\n", shown + 1, refLines, refPath, shown + 1, refLines - shown ; }
 			}
 		}' "$1"
 }
@@ -684,7 +689,7 @@ agentsReplyClosing='^NEXT: |^[A-Za-z_]+ pending_id=[^ ]+$|^BATCH-RESULT: '
 ## closing lines close the reply too, or else its own last line where that is short: that is
 ## where a result says how it ended (a job's status, Read's footer). With no session to keep it
 ## in, or a file that cannot be written, the result is printed whole: no result is lost to its reply.
-AgentsTranscriptReplyLong(){ ## tool name, result text
+AgentsTranscriptReplyLong(){ ## tool name, result text, the file a Read read (optional)
 	local LC_ALL=C longDir longTool longFile=""
 	[ "${#2}" -gt "$agentsReplyLongBytes" ] || { printf '%s\n' "$2" ; return 0 ; }
 	if ! longDir="$( AgentsTranscriptSessionDir "$( AgentsTranscriptSessionKey )" )" || ! mkdir -p "$longDir/results" 2>/dev/null ; then
@@ -692,7 +697,7 @@ AgentsTranscriptReplyLong(){ ## tool name, result text
 	fi
 	longTool="$( AgentsTranscriptBaseTool "$1" | tr -c 'A-Za-z0-9_.-' '_' )"
 	longFile="$( mktemp "$longDir/results/$( date -u +%Y%m%dT%H%M%SZ )-${longTool:-tool}.XXXXXX" 2>/dev/null )" || longFile=""
-	if [ -z "$longFile" ] || ! printf '%s\n' "$2" > "$longFile" 2>/dev/null || ! AgentsTranscriptReplyRef "$longFile" ; then
+	if [ -z "$longFile" ] || ! printf '%s\n' "$2" > "$longFile" 2>/dev/null || ! AgentsTranscriptReplyRef "$longFile" "${3:-}" ; then
 		[ -z "$longFile" ] || rm -f "$longFile"
 		printf '%s\n' "$2" ; return 0
 	fi
@@ -719,13 +724,18 @@ AgentsTranscriptReplyDate(){
 ## The reply to one tool result: kept when long. Skill and ToolSearch are never
 ## kept: an armed file, and the schema of a tool to be called, must reach the model whole.
 ## Neither is a Read of a kept result, which would only be kept again, so Read names the path
-## it read. An empty result stays empty, for its caller to report as the broken contract it is.
-AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (optional)
+## it read. Nor is a Read given a range, `offset` or `limit` (the fourth argument, `ranged`): it
+## returns its lines whole, within Read's own byte cap, which cuts at a whole line and names the
+## offset to continue. A Read given neither is kept as any result is, and its hint reads the file
+## it read (AgentsTranscriptReplyRef). Every other tool keeps the rule. An empty result stays
+## empty, for its caller to report as the broken contract it is.
+AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (optional), `ranged` for a Read given offset or limit (optional)
 	local finishText="$2"
 	[ -n "$2" ] || return 0
-	case "$( AgentsTranscriptBaseTool "$1" ):${3:-}" in
+	case "$( AgentsTranscriptBaseTool "$1" ):${3:-}:${4:-}" in
 		Skill:*|ToolSearch:*|Read:*/.local/agents/sessions/*/results/*) ;;
-		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" )" ;;
+		Read:*:ranged) ;;
+		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" "${3:-}" )" ;;
 	esac
 	printf '%s\n' "$finishText"
 }
