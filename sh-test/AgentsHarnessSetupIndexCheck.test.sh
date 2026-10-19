@@ -32,7 +32,8 @@ for rigFile in "$rigHarness" "$rigHere/AgentsHarnessRootsIndex.include" "$rigHer
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
-rigTmp="$( mktemp -d -t AgentsHarnessSetupIndexCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessSetupIndexCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 

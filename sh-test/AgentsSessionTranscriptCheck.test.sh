@@ -26,7 +26,8 @@ rigRefuse(){
 [ -f "$rigHere/AgentsTools.SessionTranscript.include" ] || rigRefuse "the transcript include is missing"
 command -v git > /dev/null || rigRefuse "git is not installed"
 
-rigTmp="$( mktemp -d -t AgentsSessionTranscriptCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionTranscriptCheck )" || exit 1
 trap '[ -n "${RIG_KEEP:-}" ] || rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 export GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid
@@ -354,7 +355,7 @@ rigAssert "the loop: a call with one carries its description instead" "$( LC_ALL
 rigAssert "the loop: the call with one ran as without, its result back to the model" \
 	"$( rigReplyBare < "$rigLoop2/req.2" | LC_ALL=C grep -o '"tool_call_id":"c2","content":"[^"]*"' )" "\"tool_call_id\":\"c2\",\"content\":\"$rigLoop2/read.txt\""
 ## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
-rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 30
+rigAssert "the request declared the description to the model" "$( LC_ALL=C grep -o -F '"description":{"type":"string","description":"Optional. One short sentence: why this call is made' "$rigLoop2/req.1" | LC_ALL=C wc -l | tr -d ' ' )" 31
 
 echo "-- a native spawn: model text redacted, a provider or CLI error kept before the first tool --"
 rigErrSid="dddd4444-0000-4000-8000-000000000004"

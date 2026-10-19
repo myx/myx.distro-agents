@@ -21,7 +21,8 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 command -v git > /dev/null 2>&1 || rigRefuse "no git on this machine, so no rig repository can be built"
-rigTmp="$( mktemp -d -t AgentsMemberGitRepoHistoryCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMemberGitRepoHistoryCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwx "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 

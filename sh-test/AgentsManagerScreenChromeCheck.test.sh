@@ -37,7 +37,8 @@ rigRefuse(){
 [ -f "$rigDriver" ] || rigRefuse "the driver of the screen tests is missing: $rigDriver"
 rigPython="$( command -v python3 )" || rigRefuse "no python3 on PATH"
 "$rigPython" -I -c 'import curses' 2> /dev/null || rigRefuse "the python3 on PATH has no curses module, so the real screen cannot be started here: $rigPython"
-rigTmp="$( mktemp -d -t AgentsManagerScreenChromeCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerScreenChromeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"

@@ -35,7 +35,8 @@ rigRefuse(){
 
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
-rigTmp="$( mktemp -d -t AgentsHarnessSkillReadCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessSkillReadCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The shape of this machine: members live in their owning trees, are linked into

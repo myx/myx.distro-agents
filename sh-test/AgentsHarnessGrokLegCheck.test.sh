@@ -21,7 +21,8 @@ rigRefuse(){
 
 [ -f "$rigLeaf" ] || rigRefuse "the Grok leaf is not at the origin this workspace resolves: $rigLeaf"
 
-rigTmp="$( mktemp -d -t "AgentsHarnessGrokLegCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessGrokLegCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"

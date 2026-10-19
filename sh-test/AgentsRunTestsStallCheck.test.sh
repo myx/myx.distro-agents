@@ -31,7 +31,8 @@ rigRefuse(){
 rigRealDd="$( command -v dd )" || rigRefuse "no dd on PATH to hand the other calls to"
 ## A process this rig starts and signals later is noted with when it began, and is signalled only while its pid is still that process.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
-rigTmp="$( mktemp -d -t AgentsRunTestsStallCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsRunTestsStallCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Only what this shell started and knows to be running still is ever signalled, with what is under it, read at
 ## that moment: a pid kept from earlier may be another process's by now.
@@ -95,7 +96,7 @@ rigHold="" rigPath="$PATH"
 rigRun(){ ## session, runner args... -- that session's runner, started in the background from its own copy; its output in <session>.out, and its status in <session>.rc once it has ended. With rigHold set, a test of it ends only at rigLet <session>.<n>
 	rm -f "$rigTmp/$1.rc"
 	{
-		( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigPath" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="${MYXROOT:-}" RIG_SHARED="$rigTmp" RIG_SUITE="$1" RIG_HOLD="$rigHold" \
+		( cd "$rigWs" && exec env -i HOME="$rigHome" PATH="$rigPath" MMDAPP="$rigWs" MDLT_ORIGIN="$( rigRoot "$1" )" MYXROOT="${MYXROOT:-}" RIG_SHARED="$rigTmp" RIG_SUITE="$1" RIG_HOLD="$rigHold" \
 			bash "$( rigRoot "$1" )/myx/myx.distro-agents/sh-test/AgentsRunTests.sh" "${@:2}" ) > "$rigTmp/$1.out" 2>&1
 		printf '%s\n' "$?" > "$rigTmp/$1.rc"
 	} &

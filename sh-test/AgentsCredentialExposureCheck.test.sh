@@ -4,7 +4,7 @@
 ## once failing. Also checks the per-send Slack log (536): one line per send, holding
 ## neither the token nor the body.
 ## Offline and contained: a temp workspace with its own credential files holding a
-## sentinel token, a temp skillset root, a temp HOME, a private $TMPDIR inside the
+## sentinel token, a temp skillset root, a temp HOME, all inside the
 ## workspace, and a fake `curl` first on PATH.
 ## No real roster member, no real token, and no real store is read.
 set -u
@@ -18,7 +18,8 @@ rigRefuse(){
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 
-rigTmp="$( mktemp -d -t "AgentsCredentialExposureCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsCredentialExposureCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
 rigScenario="$rigTmp/scenario"
@@ -54,7 +55,7 @@ rigCall(){ ## mode, tool arguments...
 	rm -f "$rigScenario"/*.log
 	rigRc=0
 	( cd "$rigWs" && env -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
-		MDAT_SKILLSET_ROOT="$rigTmp/skills" TMPDIR="$rigWs/tmp" RIG_SCENARIO="$rigScenario" RIG_WS="$rigWs" RIG_MODE="$rigMode" \
+		MDAT_SKILLSET_ROOT="$rigTmp/skills" RIG_SCENARIO="$rigScenario" RIG_WS="$rigWs" RIG_MODE="$rigMode" \
 		RIG_SENTINEL="$rigSentinel" RIG_SENTINEL_B64="$rigSentinelB64" \
 		bash "$rigTool" "$@" ) > "$rigScenario/out" 2>&1 || rigRc=$?
 }
@@ -67,7 +68,7 @@ rigExposure(){ ## label, body-carrying: yes|no
 	if [ "$2" = "yes" ] ; then
 		rigAssert "$1: control, the in-flight scan saw the body's temp file" "$( [ -s "$rigScenario/inflight.log" ] && echo yes || echo no )" yes
 	fi
-	rigAssert "$1: control, the in-flight scan saw a probe written to \$TMPDIR" "$( rigHas "$rigScenario/probe.log" RIG-TMPDIR-PROBE )" yes
+	rigAssert "$1: control, the in-flight scan saw a probe written to the workspace's scratch folder" "$( rigHas "$rigScenario/probe.log" RIG-SCRATCH-PROBE )" yes
 	rigAssert "$1: no temp file held the credential while the call ran" "$( [ -s "$rigScenario/disk.log" ] && cat "$rigScenario/disk.log" || echo none )" none
 	rigAssert "$1: every mdat-* temp file is gone after it" "$( ls -1 "$rigWs/.local/temp" | grep -c '^mdat-' )" 0
 	rigAssert "$1: the credential is nowhere on disk outside the credential files" \
@@ -108,18 +109,18 @@ rigCall fail --client-comms-jira-comment-add client-rig RIG-1 --body-adf "$rigAd
 rigAssert "atlassian fail: rc is non-zero" "$( [ "$rigRc" -ne 0 ] && echo non-zero || echo 0 )" non-zero
 rigExposure "atlassian fail" yes
 
-echo "-- the harness scratch is created under the workspace's .local/agents/scratch, never \$TMPDIR --"
+echo "-- the harness scratch is created under the workspace's .local/agents/scratch --"
 ## Its scratch is where a harness call stages what it handles, so it has to be where
 ## the scans above look: the workspace's own scratch folder, never the system's temp
-## folder (the owner's rule: no /tmp). One text round through a fake model endpoint that
-## lists that folder and $TMPDIR while the harness is in flight.
+## folder, by the owner's rule. One text round through a fake model endpoint that lists
+## that folder while the harness is in flight.
 rigHarnessDir="$rigTmp/harness"
-mkdir -p "$rigHarnessDir/.local/temp" "$rigHarnessDir/tmp" "$rigTmp/hbin"
+mkdir -p "$rigHarnessDir/.local/temp" "$rigTmp/hbin"
 cp "$rigTest/check-fixtures/harness-scratch-check.curl.stub.sh" "$rigTmp/hbin/curl" \
 	|| rigRefuse "the fake curl fixture is missing: $rigTest/check-fixtures/harness-scratch-check.curl.stub.sh"
 chmod +x "$rigTmp/hbin/curl"
 ( PATH="$rigTmp/hbin:$PATH" ; cd "$rigHarnessDir" && env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
-	TMPDIR="$rigHarnessDir/tmp" RIG_SCENARIO="$rigHarnessDir" MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	RIG_SCENARIO="$rigHarnessDir" MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	HARNESS_PROVIDER_NAME="exposure rig" HARNESS_SELF_NAME="AgentsCredentialExposureCheck.test.sh" \
 	HARNESS_ENDPOINT="https://credential-exposure-check.invalid/v1/chat/completions" HARNESS_HOST="credential-exposure-check.invalid" \
 	HARNESS_WIRE="OpenAiChat" HARNESS_CREDENTIAL_NAMES="none -- this check never reads one" \
@@ -128,44 +129,22 @@ chmod +x "$rigTmp/hbin/curl"
 	bash "$rigHere/AgentsUniversalHarness.sh" --access-root "$rigHarnessDir" RIG-TASK-MARKER ) > "$rigHarnessDir/out" 2> "$rigHarnessDir/err" || :
 [ -s "$rigHarnessDir/rounds.log" ] || rigRefuse "the harness made no model call, so its scratch was never observed: $( grep -m1 -E 'ERROR' "$rigHarnessDir/err" )"
 rigAssert "the harness scratch was under the workspace's .local/agents/scratch while it ran" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/scratch.log" 2>/dev/null )" 1
-rigAssert "and none of it under \$TMPDIR" "$( LC_ALL=C grep -c '^AgentsUniversalHarness\.' "$rigHarnessDir/tmpdir.log" 2>/dev/null )" 0
 rigAssert "and it was removed after" "$( ls -1 "$rigHarnessDir/.local/agents/scratch" | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
 ## A served call, as the MCP server makes one: its scratch is in the same place, and is gone after it.
 ( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID HOME="$rigTmp/home" \
-	TMPDIR="$rigHarnessDir/tmp" MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	MMDAPP="$rigHarnessDir" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
 	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/served.out" 2> "$rigHarnessDir/served.err" || :
 rigAssert "a served call ran" "$( LC_ALL=C grep -c -F "$rigHarnessDir/out" "$rigHarnessDir/served.out" | LC_ALL=C awk '{ print ( $1 >= 1 ) ? "ran" : "not-run" }' )" ran
-rigAssert "and left no scratch, in the workspace's scratch folder or \$TMPDIR" \
-	"$( ls -1 "$rigHarnessDir/.local/agents/scratch" "$rigHarnessDir/tmp" 2>/dev/null | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
+rigAssert "and left no scratch in the workspace's scratch folder" \
+	"$( ls -1 "$rigHarnessDir/.local/agents/scratch" 2>/dev/null | LC_ALL=C grep -c '^AgentsUniversalHarness\.' )" 0
 ## With no workspace there is no scratch, and no call: never a fall back to the system's temp folder.
 ( cd "$rigHarnessDir" && printf '{"pattern":"*","path":"%s"}' "$rigHarnessDir" | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u MMDAPP HOME="$rigTmp/home" \
-	TMPDIR="$rigHarnessDir/tmp" MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
+	MDLT_ORIGIN="$MDLT_ORIGIN" bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool Glob \
 	--access-read-root "$rigHarnessDir" --access-write-root "$rigHarnessDir" ) > "$rigHarnessDir/bare.out" 2> "$rigHarnessDir/bare.err" || :
 rigAssert "with no workspace, a served call is refused, saying why" "$( LC_ALL=C grep -c '^ERROR: no workspace to keep the scratch of this call in' "$rigHarnessDir/bare.out" )" 1
-rigAssert "and makes nothing under \$TMPDIR" "$( ls -1 "$rigHarnessDir/tmp" | LC_ALL=C grep -c . )" 0
-
-## A mktemp with no path template ignores $TMPDIR on Darwin -- bare, and with -t alike --
-## and writes to the shared per-user temp dir no rig can scan. Keeping every call on an
-## explicit path template keeps the scans above complete by construction. Comment lines
-## are not code and are skipped. Two limits, by design: a call split across a `\` line
-## continuation is not seen, and *.test.sh rigs are not scanned -- they only need a
-## unique temp tree, and this rig's own scratch still uses -t.
-rigUntemplatedMktemp(){ ## directory holding sh-lib and sh-scripts -> file:line of each offending call
-	find "$1/sh-lib" "$1/sh-scripts" -type f \( -name '*.include' -o -name '*.sh' \) ! -name '*.test.sh' 2>/dev/null \
-	| while IFS= read -r rigScanFile ; do
-		LC_ALL=C grep -n -E 'mktemp([[:space:]]+-[dqu]+)*[[:space:]]*($|[);|&`])|mktemp([[:space:]]+-[dqu]+)*[[:space:]]+-[dqu]*t' "$rigScanFile" \
-			| LC_ALL=C grep -v -E '^[0-9]+:[[:space:]]*#' | sed "s|^|${rigScanFile##*/}:|"
-	done
-}
-echo "-- every mktemp in package code takes an explicit path template --"
-rigPackage="${rigHere%/sh-lib}"
-mkdir -p "$rigTmp/plant/sh-lib" "$rigTmp/plant/sh-scripts"
-printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp )"\n' > "$rigTmp/plant/sh-lib/AgentsRigPlantedBare.include"
-printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp -d -t rig-planted-XXXXXX )"\n' > "$rigTmp/plant/sh-scripts/RigPlantedDashT.sh"
-printf '#!/usr/bin/env bash\nrigPlanted="$( mktemp -d "$MMDAPP/.local/agents/scratch/rig.XXXXXX" )"\n' > "$rigTmp/plant/sh-lib/AgentsRigPlantedGood.include"
-rigAssert "control: a planted bare mktemp and a planted -t mktemp are both caught, a templated one is not" \
-	"$( rigUntemplatedMktemp "$rigTmp/plant" | cut -d: -f1 | LC_ALL=C sort | tr '\n' ' ' )" "AgentsRigPlantedBare.include RigPlantedDashT.sh "
-rigAssert "no untemplated mktemp in package code" "$( rigUntemplatedMktemp "$rigPackage" | head -n 3 | tr '\n' ' ' )" ""
+rigAssert "and runs nothing: its one line is that refusal" "$( LC_ALL=C grep -c . "$rigHarnessDir/bare.out" )" 1
+## That every mktemp of the package takes a template under the workspace, and no code names the system's temp
+## folder, is held for every file of the package by AgentsTempNamesCheck: the scans above are complete by it.
 
 if [ "$rigFails" -ne 0 ] ; then
 	echo "⛔ CREDENTIAL EXPOSURE CHECK FAILED: $rigFails of $(( rigPasses + rigFails )) assertion(s)" >&2 ; exit 1

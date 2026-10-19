@@ -27,7 +27,8 @@ for rigDoc in adr ivr ; do
 		|| rigRefuse "the $rigDoc fixture pair is missing under $rigFixtures"
 done
 
-rigTmp="$( mktemp -d -t "AgentsMarkdownHtmlDocumentCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMarkdownHtmlDocumentCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0

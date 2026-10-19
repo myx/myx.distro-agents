@@ -122,8 +122,9 @@ case "$1" in
 		AgentsToolsAssertBareName "$readMember" "<team-member>" pending-reply-read || { set +e ; return 1 ; }
 		if [ -n "$readId" ] ; then
 			AgentsToolsAssertBareName "$readId" "<pending-id>" pending-reply-read || { set +e ; return 1 ; }
-			readFile="$MMDAPP/.local/agents/pending/$readId.md"
-			[ -f "$readFile" ] || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
+			## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
+			type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+			readFile="$( AgentsToolsPendingRecordPath "$readId" )" || { echo "$MDSC_CMD: ⛔ ERROR: no pending-reply record $readId" >&2 ; set +e ; return 1 ; }
 			[ "$( AgentsToolsPendingReplyField "$readFile" status )" != "reply-pending" ] \
 				|| readAskers="$( AgentsToolsPendingReplyField "$readFile" session-id | AgentsToolsPendingReplyAskers )"
 			AgentsToolsPendingReplyWholeFind "$readFile" "$readId"
@@ -141,8 +142,12 @@ case "$1" in
 		else
 			echo "$MDSC_CMD: ⚠️ WARNING: the pending-replies registry could not be rebuilt at $readRegistry -- the list is read from the records themselves, and no asker of it was measured" >&2
 		fi
-		local readFiles=( "$MMDAPP/.local/agents/pending"/*.md )
-		if [ ! -f "${readFiles[0]}" ] ; then
+		## The asks, and the requests for the authority of the questions store, listed as one.
+		local readFiles=() readCandidate
+		for readCandidate in "$MMDAPP/.local/agents/pending"/*.md "$MMDAPP/.local/questions"/*.md ; do
+			[ ! -f "$readCandidate" ] || readFiles[${#readFiles[@]}]="$readCandidate"
+		done
+		if [ "${#readFiles[@]}" -eq 0 ] ; then
 			printf 'PENDING-REPLIES: 0\n'
 			return 0
 		fi

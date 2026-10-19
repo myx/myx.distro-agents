@@ -177,7 +177,7 @@ rigOp(){ ## acting member (none: no session), operation and its arguments
 	local opAgent="$1" ; shift
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
 		${opAgent:+MDAT_SPAWN_SESSION_ID="rig-sender-op" MDAT_SPAWN_AGENT="$opAgent"} \
-		TMPDIR="$rigTmp/tmp" MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" < /dev/null
+		MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" < /dev/null
 }
 rigRecordField(){ ## field of the scenario's one record
 	local recordFile

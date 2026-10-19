@@ -52,7 +52,8 @@ rigRefuse(){
 . "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set, so the rig has no workspace temp folder}"
-rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsSpawnControlThreadCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSpawnControlThreadCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigTag="${rigTmp##*.}" ; rigTag="$( printf '%s' "$rigTag" | LC_ALL=C tr -c -d 'A-Za-z0-9' )"
 [ -n "$rigTag" ] || rigRefuse "the rig has no name of its own to tell its sessions by"
@@ -73,7 +74,26 @@ rigLetAllGo(){
 	rigProcSignalKept KILL "$rigTmp"/*/*.began
 	rigProcSignal KILL $rigKept
 }
-trap 'rigLetAllGo ; chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
+## The rig's tree is removed whole, once its control threads are ended. A process of a thread that was ended a
+## moment before may still write its lock or a temp file into the tree, and so make its folders again: so the tree
+## is removed until it has stayed gone for three seconds, within twenty.
+rigRemoveTree(){
+	local removeLeft=20 removeGone=0
+	while [ "$removeLeft" -gt 0 ] ; do
+		removeLeft=$(( removeLeft - 1 ))
+		if [ -e "$rigTmp" ] ; then
+			removeGone=0
+			chmod -R u+rwX -- "$rigTmp" 2> /dev/null
+			rm -rf -- "$rigTmp" 2> /dev/null
+		else
+			removeGone=$(( removeGone + 1 ))
+			[ "$removeGone" -lt 3 ] || return 0
+		fi
+		sleep 1
+	done
+	[ ! -e "$rigTmp" ] || echo "⛔ ERROR: the rig's tree could not be removed: $rigTmp" >&2
+}
+trap 'rigLetAllGo ; rigControlThreadsEnd "$rigTmp" ; rigRemoveTree' EXIT
 
 ## THE RIG'S OWN PROCESS LIST, as AgentsSpawnEndNoticeCheck keeps it: the ps first on PATH answers the whole-host
 ## listing from the rig's own list, which holds the one stand-in of the session that requests runs; the listing of

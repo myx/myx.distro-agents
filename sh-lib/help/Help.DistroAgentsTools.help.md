@@ -291,7 +291,7 @@
 📘 syntax: DistroAgentsTools.fn.sh --owner-cleanup-purge
 📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>
 📘 syntax: DistroAgentsTools.fn.sh --help-setup-<domain>
-📘 syntax: DistroAgentsTools.fn.sh [--help-syntax]
+📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]
 📘 syntax: DistroAgentsTools.fn.sh [--help]
 
 **IMPORTANT -- for `mcp__myx_distro__execute` and team-harness `Bash` callers:** call every operation as the bare `DistroAgentsTools <op> [args...]` function form -- never `DistroAgentsTools.fn.sh <op> [args...]`. Those execution contexts already have `DistroAgentsTools` defined as a shell function before your command runs (except a harness `Bash` command run under a timeout); every other context (a console session, a plain shell) still needs the full `.fn.sh` invocation shown throughout the rest of this file.
@@ -2733,8 +2733,8 @@
 			only those, in that same order whatever the order given. A
 			name is the stem of the file it builds: `team-members`,
 			`team-members-names`, `spawned-sessions`, `pending-replies`,
-			`members`, `permissions`, `grants`, `mcp.servers`,
-			`harness.roots`, `harness.hooks`. A name that is none of
+			`members`, `permissions`, `grants`, `tool-index`,
+			`mcp.servers`, `harness.roots`, `harness.hooks`. A name that is none of
 			them refuses the call before anything is built, in one line
 			that lists them. Prints nothing on stdout, notes what it
 			writes on stderr under the name it was called by, and fails
@@ -2794,6 +2794,15 @@
 			task, its session or the one call allows it; no floor or
 			standing row comes ahead of the approval. A reader finding
 			it stale or missing rebuilds it.
+
+			Then `tool-index.md`, the tool index (--intern-op-tool-index):
+			one section per team member, every shell operation and every
+			harness and MCP call, those the member may use with their
+			one-line description, every other one by its family or its
+			name, with whom to ask. Who may use what is read from the
+			dispatcher's caller checks and from the grants index. A
+			member's Skill read of its own skill serves its section,
+			rebuilt first where it is missing or stale.
 
 			Last the universal harness's own indexes in
 			`$MMDAPP/.local/agents`, which it reads at every start
@@ -6019,10 +6028,14 @@
 			The complement of `--owner-setup-<domain>`, which reports what
 			this workspace is still missing.
 
-		--help-syntax
+		--help-syntax [<op>]
 			Prints every operation's syntax line and exits, without the
 			manual. A bare call prints the default syntax alone -- the
 			entry points a reader starts from.
+
+			With <op>, only the syntax lines of that operation; a word
+			ending in `-`, such as `--magic-`, prints those of every
+			operation it begins. A word that names none is refused, rc 1.
 
 		--help
 			Prints the default syntax + summary and exits.

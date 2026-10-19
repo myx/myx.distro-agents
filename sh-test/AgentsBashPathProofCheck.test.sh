@@ -48,7 +48,8 @@ done
 rigRealBash="$BASH"
 case "$rigRealBash" in /*) ;; *) rigRefuse "the bash this check runs in is not known by its path: '$rigRealBash'" ;; esac
 [ -x /usr/bin/env ] || rigRefuse "no /usr/bin/env on this host, which the first line of every bash script of the package names"
-rigTmp="$( mktemp -d -t AgentsBashPathProofCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsBashPathProofCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 

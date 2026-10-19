@@ -27,7 +27,8 @@ done
 rigRerouted="$( . "$rigPolicy" && AgentsToolsClientToolPolicyRerouteToolNames )" || rigRefuse "the client tool policy did not state its reroute set"
 [ -n "$rigRerouted" ] || rigRefuse "the client tool policy stated an empty reroute set"
 
-rigTmp="$( mktemp -d -t "AgentsHarnessNativeCallCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessNativeCallCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 

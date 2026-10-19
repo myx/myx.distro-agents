@@ -988,6 +988,10 @@ case "$1" in
 	--manager-session-kill)
 		local killOp="$1" killId="" killOwn="" killPlan="" killRows="" killRc=0 killEnded=0
 		shift
+		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
+		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+		AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
+		set -- "${agentsAuthorityRest[@]}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--session-id)
@@ -1022,6 +1026,21 @@ case "$1" in
 		if [ -n "${agentsSessionControlCarried:-}" ] || [ "${controlMode:-}" = "--death" ] ; then
 			AgentsToolsSessionControlRequestKill "$killOp" "$killId" "$killOwn" || { set +e ; return 1 ; }
 			return 0
+		fi
+		## THE AUTHORITY to end it (F6.10): over one run, whoever it reports to; over a whole session,
+		## whoever its founding run reports to; the owners role; or a grant of it. A plan ends nothing,
+		## and an id no record here carries is refused as it was, below.
+		if [ -z "$killPlan" ] && [ -n "$( LC_ALL=C grep -l -x -F -e "session-id: $killId" -e "spawn-id: $killId" "$MMDAPP"/.local/agents/spawned/*/*.md 2> /dev/null | head -1 )" ] ; then
+			local killRecord=""
+			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+			if [ -n "$killOwn" ] ; then
+				killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+			else
+				killRecord="$( AgentsToolsAuthoritySessionRecord "$killId" )" || killRecord="$( AgentsToolsSessionRunRecord "$killId" )" || killRecord=""
+			fi
+			AgentsToolsAuthorityGate "the end of $( [ -n "$killOwn" ] && printf 'run' || printf 'session' ) $killId" "$killId" "$killRecord" "" console \
+				"$killOp" --session-id "$killId" ${killOwn:+--run} || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
 		fi
 		## THEN THE SESSION IS FINISHED: its questions dismissed, its open records closed, and
 		## rows that say so after the rows of the kill (AgentsToolsManagerSessionFinish). With

@@ -16,7 +16,8 @@ rigRefuse(){
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
 [ -d "$rigBundle/magic-tester" ] || rigRefuse "the bundled skillset has no magic-tester folder: $rigBundle"
 command -v git > /dev/null || rigRefuse "git is not installed"
-rigTmp="$( mktemp -d -t AgentsSmallFixesBand5Check )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSmallFixesBand5Check )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local" "$rigTmp/home"

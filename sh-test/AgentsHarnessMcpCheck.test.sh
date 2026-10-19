@@ -22,7 +22,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 
-rigTmp="$( mktemp -d -t AgentsHarnessMcpCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessMcpCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"
@@ -317,7 +318,7 @@ rigToolResult(){ ## request file, tool call id -- that call's result content as 
 rigAssert "the run ends normally"                           "$rigRunStatus" 0
 rigAssert "two rounds were requested"                       "$rigRoundCount" 2
 ## Every built-in this rig session is offered: CheckList is not, the session has no team identity.
-rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 30
+rigAssert "every built-in declares the optional description" "$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { while ( ( at = index( body, want ) ) > 0 ) { seen++ ; body = substr( body, at + length( want ) ) } ; print seen + 0 }' )" 31
 rigAssert "the server's own tool is declared as it sent it, no description added" \
 	"$( rigToolsOf "$rigScenarioDir/req.1" | LC_ALL=C awk -v want="$rigIntentParam" '{ body = body $0 } END { at = index( body, "\"name\":\"mcp__rigmcp__ping\"" ) ; if ( !at ) { print "absent" ; exit } ; print ( index( substr( body, at ), want ) ? "added" : "as sent" ) }' )" "as sent"
 rigAssert "a built-in called with one answers exactly as without" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-intent )" "$( rigToolResult "$rigScenarioDir/req.2" rig-glob-bare )"

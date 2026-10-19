@@ -24,7 +24,8 @@ rigRefuse(){
 for rigFile in "$rigPanel/package.json" "$rigPanel/extension.js" "$rigPanel/panel.js" "$rigPanel/instructions.md" "$rigField" "$rigStandIn" ; do
 	[ -f "$rigFile" ] || rigRefuse "missing: $rigFile"
 done
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsVscodePanelCheck.XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsVscodePanelCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 

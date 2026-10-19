@@ -18,7 +18,7 @@ case "$1" in
 		while read -r makeKnown makeRebuild ; do
 			makeRegistryNames="$makeRegistryNames$makeKnown "
 		done <<< "$( AgentsToolsRegistryList )"
-		makeNames="${makeRegistryNames}members permissions grants mcp.servers harness.roots harness.hooks"
+		makeNames="${makeRegistryNames}members permissions grants tool-index mcp.servers harness.roots harness.hooks"
 		for makeName in "$@" ; do
 			makeFound="false"
 			for makeKnown in $makeNames ; do
@@ -63,6 +63,13 @@ case "$1" in
 				set +e ; return 1
 			}
 			echo "# $MDSC_CMD $makeOp: wrote $MMDAPP/.local/agents/grants.index" >&2
+		;; esac
+		## The tool index, after the grants it reads who holds a tool from
+		## (AgentsTools.InternOpToolIndex.include, the same writer --intern-op-tool-index runs).
+		case "$makeWanted" in *" tool-index "*)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpToolIndex.include"
+			AgentsToolsToolIndexWrite "$MMDAPP" || { set +e ; return 1 ; }
+			echo "# $MDSC_CMD $makeOp: wrote $MMDAPP/.local/agents/tool-index.md" >&2
 		;; esac
 		case "$makeWanted" in *" mcp.servers "*|*" harness.roots "*|*" harness.hooks "*) ;; *) return 0 ;; esac
 		## The harness's own first-class indexes, read at every harness start instead of

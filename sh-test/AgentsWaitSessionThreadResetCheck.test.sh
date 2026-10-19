@@ -54,7 +54,7 @@ rigSessionThread="CRIGSESSION:1700000001.000101"
 
 rigOp(){ ## operation and its arguments
 	( cd "$rigWs" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-		MDAT_SESSION_THREAD="$rigSessionThread" MDAT_WAIT_REMIND=off TMPDIR="$rigTmp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		MDAT_SESSION_THREAD="$rigSessionThread" MDAT_WAIT_REMIND=off MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		bash "$rigTools" "$@" ) > "$rigWs/out" 2> "$rigWs/err"
 }
 

@@ -37,8 +37,9 @@ rigRefuse(){
 
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
-rigTmp="$( mktemp -d -t AgentsHarnessWriteSplitCheck )" || exit 1
-trap 'rm -rf -- "$rigTmp" ; [ -z "${rigScratchProject:-}" ] || rm -rf -- "/tmp/claude-$UID/$rigScratchProject"' EXIT
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessWriteSplitCheck )" || exit 1
+trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## READABLE is granted for reading only; WRITABLE for both; OUTSIDE is granted on
 ## neither side. Write refuses an ungranted path and a read-only path with the SAME
@@ -158,13 +159,13 @@ rigAssert "with no session, no tool-results folder is readable" \
 	"$( HOME="$rigTmp/home" CLAUDE_CODE_SESSION_ID="" rigRead "$rigTmp/home/.claude/projects/rig-project/rig-session/tool-results/big.txt" "${rigNoWriteFlag[@]}" )" "refused-not-granted"
 
 echo "-- the CLI's own per-session scratchpad, with no root flag at all, as the MCP server calls the harness --"
-## MDAT_SPAWN_SESSION_ID unset is the MCP server's own call shape: no root flag either. The
-## fixture sits under the literal /tmp/claude-$UID path the harness globs, not under $rigTmp,
-## so this block creates it and the trap above removes it on exit, the one scratch location
-## this file is allowed to touch.
+## MDAT_SPAWN_SESSION_ID unset is the MCP server's own call shape: no root flag either. No read
+## root of the harness names a CLI's scratchpad, wherever its CLI keeps it, so the fixture is laid
+## out as one is (claude-<uid>/<project>/<session>/scratchpad) under this rig, never in the
+## system's temp folder, and the trap above removes it with the rig.
 rigScratchProject="rig-project-$$-$RANDOM"
 rigScratchSession="rig-session-$$-$RANDOM"
-rigScratchDir="/tmp/claude-$UID/$rigScratchProject/$rigScratchSession/scratchpad"
+rigScratchDir="$rigTmp/claude-$UID/$rigScratchProject/$rigScratchSession/scratchpad"
 mkdir -p "$rigScratchDir"
 printf 'rig-seed\n' > "$rigScratchDir/seed.txt"
 

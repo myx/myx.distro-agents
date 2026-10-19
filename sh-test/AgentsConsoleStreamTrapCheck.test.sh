@@ -30,7 +30,8 @@ rigRefuse(){
 [ -f "$rigTemplate" ] || rigRefuse "console template not found: $rigTemplate"
 [ -f "$rigHelper" ] || rigRefuse "the rig's process helper is not at the origin this workspace resolves: $rigHelper"
 . "$rigHelper" || rigRefuse "the rig's process helper could not be read: $rigHelper"
-rigTmp="$( mktemp -d -t AgentsConsoleStreamTrapCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsConsoleStreamTrapCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigStandIns=""
 trap 'rigProcSignalWithChildren KILL $rigStandIns ; rm -rf -- "$rigTmp"' EXIT

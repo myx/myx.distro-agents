@@ -157,8 +157,9 @@ AgentsToolsManagerPendingRecord(){ ## the operation as it was called, its syntax
 		return 1
 	fi
 	AgentsToolsAssertBareName "$managerPendingId" "<pending-id>" "${recordOp#--}" || return 1
-	managerPendingFile="$MMDAPP/.local/agents/pending/$managerPendingId.md"
-	[ -f "$managerPendingFile" ] || {
+	## In either store: the asks, and the requests for the authority (AgentsToolsPendingRecordPath).
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+	managerPendingFile="$( AgentsToolsPendingRecordPath "$managerPendingId" )" || {
 		echo "⛔ ERROR: $MDSC_CMD $recordOp: no pending question $managerPendingId -- nothing was done" >&2
 		return 1
 	}
@@ -219,7 +220,10 @@ case "$1" in
 		local answerTyped="" answerWords="" answerMode="" answerAs answerAccount answerOut="" answerRc=0 answerWord
 		shift
 		AgentsToolsManagerPendingRecord "$answerOp" "$answerSyntax" "$@" || { set +e ; return 1 ; }
-		set -- "${managerPendingRest[@]}"
+		## The escalation words (F6.10, AgentsTools.Authority.include), taken out wherever they stand.
+		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+		AgentsToolsAuthorityFlags "${managerPendingRest[@]}" || { set +e ; return 1 ; }
+		set -- "${agentsAuthorityRest[@]}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--answer|--text)
@@ -242,6 +246,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 		AgentsToolsManagerPendingOpen "$answerOp" || { set +e ; return 1 ; }
+		## A request for the authority is answered by whom it asks, its answer acting on what it asked for.
+		if [ -n "$( AgentsToolsEscalationField "$managerPendingFile" request-of )" ] ; then
+			AgentsToolsAuthorityRequestAnswer "$managerPendingFile" "${answerTyped:-deny}" || { set +e ; return 1 ; }
+			return 0
+		fi
 		if [ -n "$answerMode" ] ; then
 			answerTyped="$( AgentsToolsManagerPendingReject "$managerPendingFile" )"
 			if [ -z "$answerTyped" ] ; then
@@ -256,6 +265,18 @@ case "$1" in
 		if [ "$( AgentsToolsManagerPendingOutcome "$managerPendingFile" "$answerAs" "${answerWord%% -- *}" )" = "not-taken" ] ; then
 			echo "⛔ ERROR: $MDSC_CMD $answerOp: $managerPendingId is a $( AgentsToolsEscalationField "$managerPendingFile" kind ), whose verdict is the human-owner's own, and an answer from the console stands as $answerAs's -- nothing was done; it stays open for $( AgentsToolsEscalationField "$managerPendingFile" address-to )" >&2
 			set +e ; return 1
+		fi
+		## THE AUTHORITY over the run that asked it (F6.10): its reports-to, the owners role, or a grant
+		## of it -- asked only of an answer the question takes, so a wrong one is refused as one.
+		if AgentsToolsManagerPendingPlain "$managerPendingFile" || [ -n "${answerWord%% -- *}" ] ; then
+			local answerAsker="" answerAskerRecord=""
+			answerAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
+			type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
+			AgentsToolsAuthorityGate "the answer $( [ -n "$answerMode" ] && printf 'reject' || printf '%s' "$answerTyped" ) of question $managerPendingId" "$managerPendingId" "$answerAskerRecord" "$managerPendingFile" console \
+				"$answerOp" --id "$managerPendingId" $( [ -n "$answerMode" ] && printf -- '--reject' ) ${answerTyped:+--answer "$answerTyped"} ${answerWords:+--text "$answerWords"} || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			[ -z "$( AgentsToolsAuthorityChosen )" ] || { answerTyped="$( AgentsToolsAuthorityChosen )" ; answerMode="" ; }
 		fi
 		answerAccount="$( AgentsToolsManagerPendingAccount )"
 		answerOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberEscalation.include" \
@@ -284,7 +305,9 @@ case "$1" in
 		local dismissOp="$1" dismissSyntax="--id <pending-id> [--reason <text>]" dismissReason="" dismissAccount dismissOut="" dismissRc=0
 		shift
 		AgentsToolsManagerPendingRecord "$dismissOp" "$dismissSyntax" "$@" || { set +e ; return 1 ; }
-		set -- "${managerPendingRest[@]}"
+		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+		AgentsToolsAuthorityFlags "${managerPendingRest[@]}" || { set +e ; return 1 ; }
+		set -- "${agentsAuthorityRest[@]}"
 		while [ $# -gt 0 ] ; do
 			case "$1" in
 				--reason)
@@ -301,6 +324,17 @@ case "$1" in
 			esac
 		done
 		AgentsToolsManagerPendingOpen "$dismissOp" || { set +e ; return 1 ; }
+		## THE AUTHORITY over the run that asked it -- except a run already ended by a kill, which
+		## an authorised kill of it finishes by dismissing its questions (AgentsToolsManagerSessionFinish).
+		local dismissAsker="" dismissAskerRecord=""
+		dismissAsker="$( AgentsToolsEscalationField "$managerPendingFile" session-id )"
+		type AgentsToolsSessionRunRecord > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		dismissAskerRecord="$( AgentsToolsSessionRunRecord "$dismissAsker" )" || dismissAskerRecord=""
+		if [ -z "$dismissAskerRecord" ] || [ -z "$( AgentsToolsEscalationField "$dismissAskerRecord" killed-by )" ] ; then
+			AgentsToolsAuthorityGate "the dismissal of question $managerPendingId" "$managerPendingId" "$dismissAskerRecord" "" console \
+				"$dismissOp" --id "$managerPendingId" --reason "$dismissReason" || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+		fi
 		dismissAccount="$( AgentsToolsManagerPendingAccount )"
 		dismissOut="$( . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberPendingReply.include" \
 			--manager-pending-reply-dismiss "$dismissAccount" "$managerPendingId" --reason "$dismissReason" )" || dismissRc=$?

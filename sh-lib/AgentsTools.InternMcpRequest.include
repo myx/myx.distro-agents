@@ -57,6 +57,40 @@ AgentsMcpSendError(){
 	return 0
 }
 
+## A tool this server lists, for BatchTools: rc 0 it serves it.
+AgentsMcpBatchServes(){ ## tool name
+	case "$1" in ''|*'"'*|*'\'*) return 1 ;; esac
+	case "$mcpToolsListJson" in *"{\"name\":\"$1\","*) return 0 ;; esac
+	return 1
+}
+## One call of a batch: a request of its own, exactly as this server makes one, its sequence number its own
+## (a million to each request, then the call), its reply's own result text on stdout, rc 1 where the reply
+## marks an error.
+AgentsMcpBatchCall(){ ## tool name, arguments file, call number
+	local callWire="$2.wire" callCount callAt callText="" callField="$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk"
+	printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$3" "$1" "$( cat "$2" )" \
+		| "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-request "$mcpServerPid" "$(( AGENTS_MCP_REQ_SEQ * 1000000 + $3 ))" 3> "$callWire" > /dev/null 2>&1
+	callCount="$( LC_ALL=C awk -v path=result.content.__count -v optional=1 -f "$callField" "$callWire" 2> /dev/null )"
+	case "$callCount" in
+		''|*[!0123456789]*)
+			callText="$( LC_ALL=C awk -v path=error.message -v optional=1 -f "$callField" "$callWire" 2> /dev/null )"
+			printf 'ERROR: %s\n' "${callText:-the call gave no reply}" ; return 1
+		;;
+	esac
+	## The tool's own result: the last text part, since a path tool's head part goes first.
+	callAt=$(( callCount - 1 ))
+	while [ "$callAt" -ge 0 ] ; do
+		if [ "$( LC_ALL=C awk -v path="result.content.$callAt.type" -v optional=1 -f "$callField" "$callWire" 2> /dev/null )" = text ] ; then
+			callText="$( LC_ALL=C awk -v path="result.content.$callAt.text" -v optional=1 -f "$callField" "$callWire" 2> /dev/null )"
+			break
+		fi
+		callAt=$(( callAt - 1 ))
+	done
+	printf '%s\n' "$callText"
+	[ "$( LC_ALL=C awk -v path=result.isError -v optional=1 -f "$callField" "$callWire" 2> /dev/null )" != true ] || return 1
+	return 0
+}
+
 ## The text of this server's own tool result -- execute, Monitor, a job's poll or kill -- as a JSON
 ## string, finished first by the one reply layer (AgentsTranscriptReplyFinish, the session transcript
 ## include tools/call sources): a long result is kept in the session's folder before it is encoded, so
@@ -396,6 +430,21 @@ case "$1" in
 				## run commands instead of being refused with nothing to go on.
 				if [ "Bash" = "$mcpToolName" ] ; then
 					AgentsMcpSendError "$mcpId" -32602 "Bash is not served by this server. Use your own client's shell tool; where that is refused, use this server's own 'execute', which evaluates a shell script with the myx.distro workspace context already established."
+
+				## BatchTools, by the one engine (AgentsTools.BatchTools.include): each call a request of its own, as
+				## this server serves it alone, so a call is any tool this server lists. Its own line goes to the transcript.
+				elif [ "BatchTools" = "$mcpToolName" ] && [ -z "${MDAT_MCP_SERVED_MARKER:-}" ] ; then
+					mcpIsHarnessTool=''
+					mcpToolArgs="$( printf '%s\n' "$mcpLine" | LC_ALL=C awk -v path="params.arguments" -v mode=raw -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsHarnessJsonField.awk" 2>/dev/null )" || mcpToolArgs=''
+					[ -n "$mcpToolArgs" ] || mcpToolArgs='{}'
+					if . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.BatchTools.include" 2>/dev/null ; then
+						mcpOutput="$( AgentsToolsBatchRun AgentsMcpBatchCall AgentsMcpBatchServes "$mcpToolArgs" )"
+					else
+						mcpOutput='ERROR: BatchTools: its engine is missing from this package -- nothing was run.'
+					fi
+					mcpIsError='false'
+					case "$mcpOutput" in ERROR:*) mcpIsError='true' ;; esac
+					AgentsMcpSendResult "$mcpId" "$( printf '{"content":[{"type":"text","text":"%s"}],"isError":%s}' "$( AgentsMcpReplyText "$mcpToolName" "$mcpOutput" )" "$mcpIsError" )"
 
 				## Any other tool the floor rendered: run exactly that one tool in the
 				## harness and return its output. The harness may leave a background

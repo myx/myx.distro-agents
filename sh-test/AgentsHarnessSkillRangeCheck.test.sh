@@ -26,7 +26,8 @@ rigRefuse(){
 
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 
-rigTmp="$( mktemp -d -t AgentsHarnessSkillRangeCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessSkillRangeCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## A member linked in from its owning tree, as on this machine, carrying a

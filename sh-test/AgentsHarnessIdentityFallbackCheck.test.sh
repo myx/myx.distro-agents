@@ -14,7 +14,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
-rigTmp="$( mktemp -d -t AgentsHarnessIdentityFallbackCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessIdentityFallbackCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 mkdir -p "$rigTmp/ws/.local/agents/members/$rigMember" "$rigTmp/home/.claude/skills/$rigMember" "$rigTmp/bare/.local"

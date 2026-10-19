@@ -93,7 +93,7 @@ rigGrant(){
 }
 rigCall(){ ## arguments JSON
 	printf '%s' "$1" | ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SESSION_THREAD \
-		TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" RIG_FIXTURES="$rigTest/check-fixtures" \
+		RIG_SCENARIO="$rigScenarioDir" RIG_FIXTURES="$rigTest/check-fixtures" \
 		PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SPAWN_SESSION_ID=rig-child-id MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$rigHarness" --intern-tool Artifact ) > "$rigScenarioDir/tool.out" 2> "$rigScenarioDir/tool.err"
@@ -170,7 +170,7 @@ printf 'GOOGLE_CLIENT_ID=rig-client\nGOOGLE_CLIENT_SECRET=rig-secret\nGOOGLE_REF
 printf '[{"id":"root-1","name":"magic-team","parent":"x"}]\n' > "$rigScenarioDir/google/folders.json"
 rigPublishMember(){ ## member, title, output name -- the operation itself, in this scenario
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID \
-		TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" RIG_FIXTURES="$rigTest/check-fixtures" RIG_CURL_LOG="$rigScenarioDir/curl.log" PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 \
+		RIG_SCENARIO="$rigScenarioDir" RIG_FIXTURES="$rigTest/check-fixtures" RIG_CURL_LOG="$rigScenarioDir/curl.log" PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 \
 		MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SKILLSET_ROOT="$rigTmp/skillset" \
 		bash "$rigTool" --intern-artifact-publish "$1" --title "$2" --kind ADR --document "$rigWork/doc.md" --file "$rigWork/diagram.png" ) > "$rigScenarioDir/$3.out" 2> "$rigScenarioDir/$3.err"
 }
@@ -269,13 +269,13 @@ rm -f "$rigScenarioDir/google/fail-share"
 rigAssert "no permission was ever for anyone with the link, nor asked to notify" "$( LC_ALL=C grep -c -e '"anyone"' -e 'sendNotificationEmail' "$rigScenarioDir/google/permissions" )" 0
 ## permission-domain on a folder the tooling did not make, the way a one-off applies it.
 printf '%s' 'rigShare(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=root-1 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-share magic-tester && AgentsToolsGoogleCall permission-domain ; } ; rigShare' \
-	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" \
+	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigScenarioDir" \
 		PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$rigScenarioDir/share.out" 2> "$rigScenarioDir/share.err"
 rigAssert "permission-domain on an existing folder"         "$( LC_ALL=C tr '\n' ' ' < "$rigScenarioDir/share.out" )$( rigSharedTo root-1 )" "PERMISSION_ID=perm-root-1 PERMISSION_DOMAIN=second-org.example second-org.example"
 ## file-trash as tooling calls it in context, here the way the myx.distro MCP execute runs a script.
 printf '%s' 'rigTrash(){ local googleClientId="" googleClientSecret="" googleRefreshToken="" googleFileId=file-2 ; set -- ; . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberCommsGoogle.include" ; AgentsToolsGoogleResolveMember rig-trash magic-tester && AgentsToolsGoogleCall file-trash ; } ; rigTrash' \
-	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" \
+	| ( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID RIG_SCENARIO="$rigScenarioDir" \
 		PYTHONPATH="$rigScenarioDir/py" PYTHONDONTWRITEBYTECODE=1 MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigScenarioDir/data" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-mcp-execute ) > "$rigScenarioDir/trash.out" 2> "$rigScenarioDir/trash.err"
 rigAssert "file-trash moves a file to the trash by files.update" "$( LC_ALL=C tr '\n' ' ' < "$rigScenarioDir/trash.out" )$( cat "$rigScenarioDir/google/trashed" 2>/dev/null )" 'FILE_ID=file-2 FILE_TRASHED=true file-2 {"trashed": true}'
@@ -303,7 +303,7 @@ rigPublishAs(){ ## scenario name, title, output name -- the operation itself, as
 	local asDir="$rigTmp/$1"
 	( cd "$asDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_SESSION_ID \
 		GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_AUTHOR_NAME=rig GIT_AUTHOR_EMAIL=rig@example.invalid GIT_COMMITTER_NAME=rig GIT_COMMITTER_EMAIL=rig@example.invalid \
-		TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$asDir" RIG_FIXTURES="$rigTest/check-fixtures" RIG_CURL_LOG="$asDir/curl.log" PYTHONPATH="$asDir/py" PYTHONDONTWRITEBYTECODE=1 \
+		RIG_SCENARIO="$asDir" RIG_FIXTURES="$rigTest/check-fixtures" RIG_CURL_LOG="$asDir/curl.log" PYTHONPATH="$asDir/py" PYTHONDONTWRITEBYTECODE=1 \
 		MMDAPP="$asDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MYXROOT="$MYXROOT" MDAT_DATA_ROOT="$asDir/data" MDAT_SKILLSET_ROOT="$MDAT_SKILLSET_ROOT" \
 		bash "$rigTool" --intern-artifact-publish "$rigMember" --title "$2" --kind ADR --document "$asDir/ws/.local/temp/member/$rigMember/doc.md" \
 			--file "$asDir/ws/.local/temp/member/$rigMember/diagram.png" --session-id "rig-$1" ) > "$asDir/$3.out" 2> "$asDir/$3.err"

@@ -61,7 +61,8 @@ done
 . "$rigHelper" || rigRefuse "the rig's process helper could not be read: $rigHelper"
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"
 rigRealPs="$( command -v ps )" || rigRefuse "no ps on PATH to hand the other calls to"
-rigTmp="$( mktemp -d -t AgentsMcpCallWatchdogCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMcpCallWatchdogCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Every stand-in this check started itself is ended at its end, only while it is still itself. The stand-ins the
 ## servers of the rig start end by themselves, within the seconds their scenario gives them.

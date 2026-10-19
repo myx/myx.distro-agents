@@ -19,7 +19,8 @@ for rigLeafName in Grok Scaleway Copilot ; do
 	[ -f "$rigHere/Agents${rigLeafName}Harness.sh" ] || rigRefuse "the $rigLeafName leaf is not at the origin this workspace resolves"
 done
 
-rigTmp="$( mktemp -d -t "AgentsHarnessPromptCacheKeyCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessPromptCacheKeyCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 mkdir -p "$rigTmp/bin"

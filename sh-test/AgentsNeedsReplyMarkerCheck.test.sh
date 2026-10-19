@@ -133,7 +133,7 @@ rigOp(){ ## text, operation and its arguments
 	rigOpRc=0
 	( cd "$rigScenarioDir/ws" && printf '%s' "$opText" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SESSION_THREAD \
 		MDAT_SPAWN_SESSION_ID="rig-marker-$rigScenarioName" MDAT_SPAWN_AGENT="$rigMember" \
-		TMPDIR="$rigTmp/tmp" MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" || rigOpRc=$?
+		MDAT_DATA_ROOT="$rigScenarioDir/data" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/op.out" 2> "$rigScenarioDir/op.err" || rigOpRc=$?
 }
 ## What a held-back send of the operation must show: "<rc>:<posts>:<first word on stderr>:<marker lines>:<NEXT lines>".
 rigOpHeld(){

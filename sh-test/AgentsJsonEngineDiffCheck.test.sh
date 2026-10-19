@@ -31,7 +31,8 @@ for rigName in AgentsSlackJsonField AgentsAtlassianJsonField AgentsHarnessJsonSl
 	[ -f "$rigOld/$rigName.legacy.awk" ] || rigRefuse "the legacy reader fixture is missing: $rigOld/$rigName.legacy.awk"
 done
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsJsonEngineDiffCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsJsonEngineDiffCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0

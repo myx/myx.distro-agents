@@ -672,9 +672,9 @@ AgentsTranscriptReplyRef(){ ## file
 		}' "$1"
 }
 
-## The lines a result closes with, which name the call that comes next: its NEXT: lines, and the
-## exact call a tool that asks names last, `<tool> pending_id=<id>`. They stay a reply's last lines.
-agentsReplyClosing='^NEXT: |^[A-Za-z_]+ pending_id=[^ ]+$'
+## The lines a result closes with: its NEXT: lines, the exact call a tool that asks names last,
+## `<tool> pending_id=<id>`, and the summing line of a batch (BatchTools). They stay a reply's last lines.
+agentsReplyClosing='^NEXT: |^[A-Za-z_]+ pending_id=[^ ]+$|^BATCH-RESULT: '
 
 ## A result over agentsReplyLongBytes is kept whole in the session's results/ folder, and the
 ## reference to it is printed in its place. Any other result is printed as it is. The result's
@@ -711,6 +711,11 @@ AgentsTranscriptReplyLong(){ ## tool name, result text
 ## ASK-RESULT: TIMEOUT carries its NEXT: part inline: that line is split there, so the outcome
 ## stays first and NEXT: last. With no closing line, the date is the last line.
 AgentsTranscriptReplyDate(){ ## reply text
+	## A reply that is one JSON object stays one: the date is its first member.
+	case "$1" in
+		'{}') printf '{"current-date":"%s"}\n' "$( date '+%Y-%m-%d %H:%M %z' )" ; return 0 ;;
+		'{'*'}') printf '{"current-date":"%s",%s\n' "$( date '+%Y-%m-%d %H:%M %z' )" "${1#\{}" ; return 0 ;;
+	esac
 	printf '%s\n' "$1" | LC_ALL=C awk -v closing="$agentsReplyClosing" -v dateLine="current-date: $( date '+%Y-%m-%d %H:%M %z' )" '
 		{ line[ NR ] = $0 }
 		END {
@@ -738,5 +743,7 @@ AgentsTranscriptReplyFinish(){ ## tool name, result text, path a Read read (opti
 		Skill:*|ToolSearch:*|Read:*/.local/agents/sessions/*/results/*) ;;
 		*) finishText="$( AgentsTranscriptReplyLong "$1" "$2" )" ;;
 	esac
+	## A call of a batch is one entry of its reply, which carries the one date (AgentsTools.BatchTools.include).
+	if [ -n "${MDAT_REPLY_IN_BATCH:-}" ] ; then printf '%s\n' "$finishText" ; return 0 ; fi
 	AgentsTranscriptReplyDate "$finishText"
 }

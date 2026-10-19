@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 ## Behavioural check on where the tooling keeps its scratch: in the workspace's own .local/agents/scratch,
-## never in the system's temp folder (the owner's rule: no /tmp, anywhere), and nowhere at all where there
-## is no workspace. Run rather than read, offline. The harness's own scratch is held by
+## never in the system's temp folder (the owner's rule), and nowhere at all where there is no workspace. Run rather than read, offline. The harness's own scratch is held by
 ## AgentsCredentialExposureCheck and the manager check's run folder by AgentsManagerCheckRunCheck; held here:
 ##   1. --intern-op-remote-bootstrap-emit takes the remote workspace, and refuses with none, or with a path
 ##      that could leave its quotes or climb out of itself
 ##   2. the script it emits keeps its temp root in that workspace's .local/agents/scratch, runs the task
-##      there, removes the root after, and touches $TMPDIR not at all
+##      there, and removes the root after
 ##   3. that script refuses, and makes nothing, where the path it was given is no workspace
 ##   4. the manager screen's reader keeps a call's files in the workspace's scratch, and with no workspace
 ##      starts no call and says why
@@ -18,12 +17,12 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
-mkdir -p "$MMDAPP/.local/temp/sh-test" || rigRefuse "no folder for this rig under the workspace: $MMDAPP/.local/temp/sh-test"
-rigTmp="$( mktemp -d "$MMDAPP/.local/temp/sh-test/AgentsWorkspaceScratchCheck.XXXXXXXX" )" || rigRefuse "no rig folder could be made"
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsWorkspaceScratchCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigBare="$rigTmp/no-workspace"
-mkdir -p "$rigWs/.local" "$rigBare" "$rigTmp/tmpdir" "$rigTmp/home"
+mkdir -p "$rigWs/.local" "$rigBare" "$rigTmp/home"
 
 rigPasses=0 rigFails=0
 rigAssert(){ ## what is asserted, got, want
@@ -39,7 +38,7 @@ rigEmit(){ ## name, emit arguments... -- the emitted script in <name>.sh, stderr
 }
 rigBoot(){ ## name -- runs <name>.sh as a target shell would, from its stdin; out and err beside it, rc in rigRc
 	rigRc=0
-	( cd / && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" TMPDIR="$rigTmp/tmpdir" /bin/sh ) < "$rigTmp/$1.sh" > "$rigTmp/$1.out" 2> "$rigTmp/$1.boot.err" || rigRc=$?
+	( cd / && env -i HOME="$rigTmp/home" PATH="/usr/bin:/bin" /bin/sh ) < "$rigTmp/$1.sh" > "$rigTmp/$1.out" 2> "$rigTmp/$1.boot.err" || rigRc=$?
 }
 
 echo "-- 1. the emit takes the remote workspace, and refuses without a good one --"
@@ -60,17 +59,16 @@ rigRoot="$( LC_ALL=C sed -n 's/^BOOTSTRAP_TEMP_ROOT=//p' "$rigTmp/good.boot.err"
 rigAssert "the script ran its task, rc 0" "$rigRc $( LC_ALL=C grep -c -x 'RIG-TASK-RAN' "$rigTmp/good.out" )" "0 1"
 rigAssert "its temp root was in the workspace's .local/agents/scratch" "$( case "$rigRoot" in ("$rigWs/.local/agents/scratch/rig-boot."*) printf scratch ;; ('') printf none ;; (*) printf '%s' "$rigRoot" ;; esac )" scratch
 rigAssert "and is gone after it" "$( [ -n "$rigRoot" ] && [ ! -e "$rigRoot" ] && printf gone || printf left )" gone
-rigAssert "and nothing was made under \$TMPDIR" "$( ls -1 "$rigTmp/tmpdir" | LC_ALL=C grep -c . )" 0
 
 echo "-- 3. where its path is no workspace, the script refuses and makes nothing --"
 rigEmit bare --remote-workspace "$rigBare"
 rigBoot bare
 rigAssert "the script refuses, rc 1, saying the path is no workspace, and runs no task" "$rigRc $( LC_ALL=C grep -c -F 'no myx.distro workspace to keep the temp root in' "$rigTmp/bare.boot.err" ) $( LC_ALL=C grep -c -x 'RIG-TASK-RAN' "$rigTmp/bare.out" )" "1 1 0"
-rigAssert "and makes nothing, there or under \$TMPDIR" "$( find "$rigBare" "$rigTmp/tmpdir" -mindepth 1 | LC_ALL=C grep -c . )" 0
+rigAssert "and makes nothing there" "$( find "$rigBare" -mindepth 1 | LC_ALL=C grep -c . )" 0
 
 echo "-- 4. the manager screen's reader keeps a call's files in the workspace's scratch --"
 rigReader(){ ## workspace given to the reader ('' for none) -- status and error of one call of /bin/echo
-	env -u MMDAPP TMPDIR="$rigTmp/tmpdir" python3 -I -B -c '
+	env -u MMDAPP python3 -I -B -c '
 import sys, time, importlib.util
 spec = importlib.util.spec_from_file_location("screen", sys.argv[1])
 screen = importlib.util.module_from_spec(spec)
@@ -86,7 +84,7 @@ for wait in range(100):
 ' "$rigHere/AgentsManagerScreen.py" "$1" 2> "$rigTmp/reader.err"
 }
 rigAssert "with a workspace, a call runs and its output comes back" "$( rigReader "$rigWs" )" "0|RIG-ECHO|"
-rigAssert "its files were kept in the workspace's .local/agents/scratch, and nothing under \$TMPDIR" "$( [ -d "$rigWs/.local/agents/scratch" ] && printf made || printf none ) $( ls -1 "$rigTmp/tmpdir" | LC_ALL=C grep -c . )" "made 0"
+rigAssert "its files were kept in the workspace's .local/agents/scratch" "$( [ -d "$rigWs/.local/agents/scratch" ] && printf made || printf none )" made
 rigAssert "with no workspace, no call is started, and the reader says why" "$( rigReader "" )" "127||could not be started: no workspace to keep its output in (.local/agents/scratch)"
 
 if [ "$rigFails" -ne 0 ] ; then

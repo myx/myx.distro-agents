@@ -82,7 +82,7 @@ rigAsk(){ ## output name, guard seconds, argument object
 	rigKilled="no"
 	set -m
 	( cd "$rigScenarioDir/ws" && printf '%s' "$3" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT \
-		TMPDIR="$rigTmp/tmp" MDAT_SPAWN_SESSION_ID="${RIG_SESSION:-rig-session-a}" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
+		MDAT_SPAWN_SESSION_ID="${RIG_SESSION:-rig-session-a}" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigHarness" --intern-tool AskUserQuestion ) > "$rigScenarioDir/$1" 2> "$rigScenarioDir/$1.err" &
 	askPid=$!
 	set +m

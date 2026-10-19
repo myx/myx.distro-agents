@@ -57,6 +57,7 @@ case "$1" in
 		local pendingOwner="$1"
 		shift || true
 		local pendingTo="" pendingSession="" pendingBlockedOn=""
+		local pendingStore="" pendingRequestOf="" pendingRequester="" pendingRequesterRun="" pendingRequestMode="" pendingRequestWhat=""
 		local pendingKind="" pendingAddressTo="" pendingChannel="" pendingQuestionTs="" pendingThreadTs="" pendingAddressees="" pendingAsking="" pendingRefusal="" pendingOptions="" pendingTag="" pendingKey="" pendingIdentity="" pendingItem="" pendingTaskRef="" pendingReason="" pendingSelect="" pendingFields="" pendingRevisionTs=""
 		while [ $# -gt 0 ] ; do
 			case "$1" in
@@ -105,6 +106,20 @@ case "$1" in
 					pendingBlockedOn="${2:-}"
 					shift 2
 				;;
+				## A request for the authority (AgentsTools.Authority.include): kept in the questions
+				## store, outside .local/agents, in this same form, with what it asks for.
+				--store)
+					case "${2:-}" in
+						questions) pendingStore="questions" ;;
+						*) echo "$MDSC_CMD: ⛔ ERROR: --store must be questions: ${2:-}" >&2 ; set +e ; return 1 ;;
+					esac
+					shift 2
+				;;
+				--request-of) pendingRequestOf="${2:-}" ; shift 2 ;;
+				--requester) pendingRequester="${2:-}" ; shift 2 ;;
+				--requester-run) pendingRequesterRun="${2:-}" ; shift 2 ;;
+				--request-mode) pendingRequestMode="${2:-}" ; shift 2 ;;
+				--request-what) pendingRequestWhat="${2:-}" ; shift 2 ;;
 				--context)
 					shift 2
 				;;
@@ -126,6 +141,7 @@ case "$1" in
 			set +e ; return 1
 		fi
 		local pendingRoot="$MMDAPP/.local/agents/pending"
+		[ "$pendingStore" != questions ] || pendingRoot="$MMDAPP/.local/questions"
 		mkdir -p "$pendingRoot" || {
 			echo "$MDSC_CMD: ⛔ ERROR: can't create the pending-reply store: $pendingRoot" >&2
 			set +e ; return 1
@@ -169,6 +185,11 @@ case "$1" in
 			[ -z "$pendingItem" ] || printf 'item: %s\n' "$pendingItem"
 			[ -z "$pendingTaskRef" ] || printf 'task-ref: %s\n' "${pendingTaskRef//$'\n'/ }"
 			[ -z "$pendingReason" ] || printf 'reason: %s\n' "${pendingReason//$'\n'/ }"
+			[ -z "$pendingRequestOf" ] || printf 'request-of: %s\n' "${pendingRequestOf//$'\n'/ }"
+			[ -z "$pendingRequester" ] || printf 'requester: %s\n' "${pendingRequester//$'\n'/ }"
+			[ -z "$pendingRequesterRun" ] || printf 'requester-run: %s\n' "${pendingRequesterRun//$'\n'/ }"
+			[ -z "$pendingRequestMode" ] || printf 'request-mode: %s\n' "${pendingRequestMode//$'\n'/ }"
+			[ -z "$pendingRequestWhat" ] || printf 'request-what: %s\n' "${pendingRequestWhat//$'\n'/ }"
 			printf 'asked-at: %s\n' "$( date +"%Y-%m-%d %H:%M %z" )"
 			printf '%s\n' "---"
 			printf '\n# Question asked\n\n'
@@ -652,6 +673,14 @@ case "$1" in
 		[ -z "$collectId" ] || AgentsToolsAssertBareName "$collectId" "<pending-id>" pending-reply-collect || { set +e ; return 1 ; }
 		mkdir -p "$MMDAPP/.local/temp" || { set +e ; return 1 ; }
 		local collectStore="$MMDAPP/.local/agents/pending" collectFile collectFiles=() collectAnswered=0 collectUnmatched=0 collectOpen=0 collectUnreadable=0
+		## The requests for the authority in the questions store, in the main loop's pass: each
+		## whose answer stands in its thread is settled, and acted on (AgentsTools.Authority.include).
+		if [ -n "$collectEnded" ] ; then
+			type AgentsToolsEscalationThreadVerdict > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberEscalation.include" --definitions-only
+			type AgentsToolsAuthorityRequestsSweep > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+			type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+			AgentsToolsAuthorityRequestsSweep >&2 || :
+		fi
 		## Found by grep over whole header lines, so a pass costs one scan however the store grows.
 		if [ -n "$collectId" ] ; then
 			[ ! -f "$collectStore/$collectId.md" ] || collectFiles=( "$collectStore/$collectId.md" )

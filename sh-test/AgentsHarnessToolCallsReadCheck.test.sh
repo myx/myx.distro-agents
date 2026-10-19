@@ -21,7 +21,8 @@ for rigFile in "$rigHarness" "$rigHere/AgentsHarnessModelRound.include" "$rigHer
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
-rigTmp="$( mktemp -d -t AgentsHarnessToolCallsReadCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessToolCallsReadCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The functions under test, lifted out of the harness and its model-round include by their own names.

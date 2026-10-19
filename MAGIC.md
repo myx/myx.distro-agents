@@ -44,7 +44,8 @@ that the code and docs do not readily tell you.
   `DistroAgentsTools<OpName>` function per operation.
 - **A helper shared by one family lives in that family's include**, not at file scope.
   `AgentsToolsAssertBareName` (in `AgentsTools.BareName.include`) is the bar for "general";
-  it is not licence to add more file-scope helpers.
+  it is not licence to add more file-scope helpers. The harness's `AgentsHarnessBareName` asks the
+  same gate.
 - **One arm per group of operations.** A family arm sources one include, or several when one gets too
   big. Size is the only reason to split. A family arm works only because every stub of that family
   lives in the include it sources. A stub placed in another file is not routed, and nothing reports it.
@@ -82,10 +83,10 @@ that the code and docs do not readily tell you.
   `--intern-tool` is tools (the harness arm that runs one tool and exits). `--intern-mcp-*` and
   `--intern-main-loop` follow the same shape. A new kind needs the human-owner's approval.
   `--intern-artifact-*` is one, approved for the Artifact publish (`AgentsTools.InternArtifact.include`).
-  `--intern-manager` is another, approved for the console's manager screen: one option,
-  `--style <name>`, and runs `sh-lib/AgentsManagerScreen.py` with Python. `--intern-session-control`
-  is a third, approved for the
-  control thread of a session (`AgentsTools.InternSessionControl.include`).
+  `--intern-session-control` is another, approved for the control thread of a session
+  (`AgentsTools.InternSessionControl.include`). `--intern-merge-md-files` is a third, approved for the
+  markdown merge (section 4). The console's manager screen starts by `--manager`, which has help and
+  is no `--intern-` kind.
 - **Prefix rule for a new operation**: `--intern-*` when tooling uses it,
   even if member stubs call it too; `--intern-op-*` only when member stubs alone use it; `--member-*`
   for any member, the tooling checking access on its arguments; `--magic-*` for the coordinator only;
@@ -229,6 +230,20 @@ that the code and docs do not readily tell you.
 - **A parser already exists for every shape we read** (frontmatter, board headers, Slack JSON,
   markdown, RFC822). Extend one; do not write another. JSON field readers are copies of one engine
   (`AgentsSlackJsonField.awk` and its lineage, `AgentsHarnessJsonField.awk`).
+- **`--intern-merge-md-files [--do-index] [--section-prefix <N>] [--section-limit <N>] [--mixin
+  [--section-exclude <glob>]... [--section-include <glob>]... <file-name> "<result-section-name>"]...`
+  has no help; its contract is here.** Its name is the human-owner's own, approved as an `--intern-`
+  kind in the refactorings epic. It merges markdown files into one document on stdout, in one awk
+  process (`AgentsMergeMdFiles.awk`). `AgentsToolsMergeMdFiles` is the same merge for a caller in the
+  same process. Every file comes in by a `--mixin`, which names the section it becomes. A plain file
+  argument is refused. A mixin's section is at level `--section-prefix` (default 1, `#`), and
+  `--section-limit` levels (default 3) are kept from there. A file's own heading levels are reworked
+  to their place under its mixin. A section deeper than the limit is replaced by one line naming its
+  heading and its file. `--do-index` puts a `Contents` section first. A mixin's `--section-exclude`
+  leaves out each section whose caption matches the glob. Its `--section-include` keeps only the
+  matching sections, with the headings above them. A `#` inside a code fence is no heading, and a
+  leading front matter is left out. Anything refused is status 1 and one error line, with nothing
+  merged. `AgentsMergeMdFilesCheck` is its test.
 - **Tests and fixtures live in `sh-test/` and `sh-test/check-fixtures/`.** Anything production code
   calls stays in `sh-lib/`. A check is `sh-test/Agents<Subject>Check.test.sh`, in `sh-test/` or in a subfolder
   of it one level down, and its name is its own in the whole of `sh-test/`. Nothing but a check ends in
@@ -247,9 +262,11 @@ that the code and docs do not readily tell you.
   form: `mktemp <name>.XXXXXX` is the one correct idiom now. Never under `/tmp` (no atomic rename, symlink
   planting). Set a mode on the temp, never the target. Check the entry landed by re-running the
   idempotent writer and comparing.
-- **Scratch paths**: `mktemp -d -t "<prefix>-XXXXXXXX"`, or a scratch file made with
-  `mktemp "$MMDAPP/.local/temp/<name>.XXXXXX"` (after `mkdir -p` of its folder). `${TMPDIR:-/tmp}` is
-  only for code that runs where no workspace exists. A name spelled with the shell's own process id
+- **Scratch paths**: a scratch dir is `mktemp -d "$MMDAPP/.local/temp/<name>-XXXXXXXX"`, a scratch file
+  `mktemp "$MMDAPP/.local/temp/<name>.XXXXXX"`, each after `mkdir -p` of its folder. Never `/tmp` or
+  `TMPDIR`, so never `mktemp -d -t` or a `mktemp` with no template, which create there. The tooling
+  uses neither: with no workspace, a call fails with a clear error. The harness's scratch is the
+  spawn's sandbox `tmp/`, else `$MMDAPP/.local/agents/scratch/`. A name spelled with the shell's own process id
   (`<name>.$$`) is shared by every subshell of that one shell, so two writers of one call can collide
   on it; such a name stands only where `AgentsTempNamesCheck` already lists it, with its reason -- a
   new site that makes one fails that test.
@@ -666,9 +683,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   default until it is made again (`--make-console-command`).
 - **`--manager` starts the console's manager screen in place of a CLI**, whatever service is configured.
   It takes nothing after it, and is refused together with `--non-interactive`.
-- **`--intern-manager [--style <name>]` has no help; its contract is here.** The console's own inner
-  entry for the manager screen, a new approved `--intern-` kind. It runs `sh-lib/AgentsManagerScreen.py`
-  with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
+- **`DistroAgentsTools.fn.sh --manager [--style <name>]`** is what the console's `--manager` runs, and
+  has help. It is no `--manager-*` operation: its own arm of the caller check admits every caller. It
+  runs `sh-lib/AgentsManagerScreen.py` with Python. The style is, in this order: `--style`, the environment's `MDAT_MANAGER_STYLE`, the
   user's saved `MDAT_MANAGER_STYLE` (`<workspace>/.local/home/<user>/MDLT.settings.env`), the screen's
   default. It ends with status 1 and one plain line where Python, its `curses` module, or a terminal is
   missing; it ends with status 0 on Ctrl-X (or Alt-X). `AgentsManagerStartStyleCheck` is its test.
@@ -778,31 +795,51 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **The manager screen is declared at the top of `sh-lib/AgentsManagerScreen.py`**: its styles, windows,
   menus, commands, reads, summaries and dialogs; a new root, key or dialog is a declaration. Its roots
   are Dashboard (Monitor), Sessions (Activity), Pending Questions, Team Members, Team Data (where the
-  dashboard says it is there), Locations (Places), Consoles (Tools), Settings, Configuration and Manuals
+  dashboard says it is there), Locations (Places), Consoles, Settings, Configuration and Manuals
   (Help); the number keys follow the list as it stands. Every fact is a row of a `--manager-*` read or
   another operation, every action one.
+- **Spacers** part the groups of rows of a list: one blank line each, which the cursor, the number keys
+  and every count of rows pass by. At the root they part Dashboard to Team Data, Locations and
+  Consoles, Settings and Configuration, and Manuals (`SECTION_GROUPS`). Inside a folder one stands
+  between its commands and its listed rows, so a folder with only one of the two has none. None
+  stands above the first row shown. `MDLT_CONSOLE_SPACERS=disable` turns them all off, and they are on
+  by default. It is a console setting of `.local`, the user's own, beside `MDLT_CONSOLE_HISTORY`, and
+  no agents setting: `--manager` hands the saved one to the screen where the environment names none.
 - **Its reads**: a folder is read while its row is selected, after a rest of a third of a second; a read
   may be `once`, on `demand` alone (its command asks for it), read `also` beside another list, and take
   `{parent}`, the id of the level above. The dashboard is read only while its root is selected or
   opened.
 - **Its actions**, each an operation: `k` kills (`--manager-session-kill`, its plan read first with
   `--plan`, the word `yes` typed), `c` starts a control thread (`--manager-session-control-start`, no
-  confirmation), Launch / Spawn starts a routine or a free prompt (`--magic-spawn-session --routine
+  confirmation), Launch (Start) starts a routine or a free prompt (`--magic-spawn-session --routine
   <selector>` or `--routine-default`, the prompt on standard input), `n` starts a member
   (`--manager-spawn-member`, the prompt on standard input). An action the screen began is not ended with
   the screen. Pending Questions is read by `--member-pending-reply-read magic-coordinator --any-owner`.
+  No pane shows a `keys:` line: the status line shows the keys.
+- **A run in a `Wait` says for how long.** In the summary mode of the left window (`b`), its `waits on`
+  line reads `<what> for <age>`, counted from its last milestone, `wait going idle`, which every Wait
+  stores as it starts.
 - **One table drawer** draws every table of the left pane (`paneTable`): wrapped, a table spans the pane
-  and wraps its cells, rows banded; cut, it is as wide as its words. Every row shows, nothing above it,
+  and wraps its cells; cut, it is as wide as its words. Every row shows, nothing above it,
   and the count of rows stands once at the bottom right of the window's frame.
 - **Panels have no cut mode**: a view drawn by `blocksView` (the dashboard, a block of it or of Team
   Data) is always set out wrapped, at the pane's own width; there `w` is greyed and refused, and the
   title says `[wrap]`.
+- **The table colour rule.** Each colour set of a style names a ground for every other row of a table,
+  close to a row's own (`ROW_ALT`), or names none. Every other row differs only in that ground, never in
+  its text, colour or look: the text carries content meaning alone. Under a set that names none the
+  ground never changes. Wrapped, the last line of each row is then underlined across the table where
+  the terminal underlines. Cut, nothing marks the rows.
 - **Markdown and the help are drawn by `lib/catMarkdown --spans`** of myx.common, once for each text,
   width and mode, never on a tick: the help as `--help` prints it. Where no catMarkdown with `--spans` is
   found, the text shows as it is. The screen holds no renderer of its own.
 - **Magic keeps an empty line under the top of each window** (`STYLES` "bodyLower", where it draws its
   edges of blocks), the line its scroll bar already starts under ("barLower").
-- **Consoles (Tools) is the one thing the screen starts itself**: a row from `--manager-console-list`
+- **Every dialog keeps margins inside its frame**, a modal one, a popup and the big window of an
+  operation's output alike, where the terminal has room: three blank cells at each side, two empty
+  lines under its top, and one under the shadow of its buttons (`DIALOG_SIDE`, `DIALOG_LEAD`,
+  `DIALOG_TAIL`).
+- **Consoles is the one thing the screen starts itself**: a row from `--manager-console-list`
   starts with the whole terminal, no shell, the words as printed; the screen leaves its mode and takes it
   back however the child ended.
 - **Team Data** holds Operations (its cleanups and the sync, each run in a big output dialog) and the
@@ -879,7 +916,9 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
 - **Arm before acting.** In a spawned harness loop, Write, Edit, Bash, SendMessage, AskQuestion,
   ConfirmReadback, EscalateDecision, RequestPermission, ProposeApprove, Agent
   and any `mcp__*__execute` are redirected until the session has read its own `<member>.armed.md` to the
-  end through Skill (no truncation footer; a ranged read must reach the last line). Read-only tools,
+  end through Skill: by `name` and `file` (no truncation footer; ranged reads must together reach the
+  last line), or by a whole `skill=` read of its own skill with the armed file merged in. A partial
+  `skill=` read never arms it. Read-only tools,
   served `--intern-tool` calls and non-spawned sessions are never gated. The first redirect posts once to
   event-track. The close records `armed: yes|no|unknown` (`unknown` where no harness loop ran, i.e.
   native CLIs).
@@ -909,7 +948,8 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   workspaces of this run, always: which executes it, which pays for it, which is the member's),
   `owner`, `parent-member` (the member whose own call made this spawn), `status`, `started-at`,
   `execution-receipt`, `output-file`, `agent-log-thread`, `cli-asked`
-  (the service this one spawn was started on, where one was named for it), `session-thread`,
+  (the service this one spawn was started on, where one was named for it), `restarted-from` (a
+  restart's own: the spawn id of the run it replaces), `session-thread`,
   `spawns`/`spawned-by`, `run-process` (`<pid> <start>`, the process the launch started, replaced by
   each later launch), `supervisor-process` (`<pid> <start>`, the shell that supervises the run and
   closes this record: the process the proxy starts for a run that is not waited for, the process the
@@ -1019,6 +1059,21 @@ User view: [docs/use.md](docs/use.md#running-the-agents-console).
   `AgentsSlackThreadAnswers.awk` so the own-post skip never drops it. `TaskStop` is the last resort for
   a run that keeps responding; `--manager-session-kill` is the console's own hard ending, outside the
   routine and reasoning paths entirely (see "The agents console").
+- **A member holds one seat in a session** (`AgentsTools.SpawnSandbox.include`): the file
+  `sessions/<S>/seats/<member>`, naming the run that holds it. A run takes it at its first read of the
+  session or post to it, and a start by the spawn proxy takes it at once. The first run to take it
+  holds it. A second start of a member whose seat a live run holds is refused, naming the holder and
+  `<S>:<member>`. A restart takes the seat over from the run it replaces, by `restarted-from:` on its
+  record, and the replaced run is dismissed by the tooling. A holder that no longer runs holds
+  nothing, and a run's close gives its seat up. A run without the seat gets nothing of the session
+  from `Wait` but a `DISMISSED` addressed to it, and its `SendMessage` there is refused, naming the
+  holder.
+- **No dismissal comes early.** A session's executor, the run that founded it, is not dismissed while
+  another participant of its session runs, whatever dismisses it. No run is dismissed while a live run
+  names it in `reports-to` or in the `review-by` of its item. A dismissal held so is kept in
+  `sessions/<spawn-id>/dismiss-held` and given at the run's first `Wait` once those runs have ended.
+  The review-wait limit dismisses no run while another participant of its session runs. A run without
+  its seat is no running participant.
 - **`--magic-spawn-session`** resolves the routine once, spawns the executors (or explicit members) async
   with `--dispatch-doc:create`, the first starting the session and the rest joining by its `SESSION_ID=`.
   A wildcard or prose `executors` value is refused: the one function behind this,
@@ -1124,7 +1179,7 @@ contracts are here.
   `state` at each rebuild, and the list and the read of a session measure the thread itself by its
   `pid` and `lock` (`AgentsToolsManagerSessionControls`). Who starts it: the one function
   `AgentsToolsSessionControlStart`, detached -- the console by name, and the one check
-  (`AgentsToolsSessionControlCheck`) for `--all`, the advance scan and the main loop; which sessions
+  (`AgentsToolsSessionControlCheck`) for `--all`, the advance lock take and the main loop; which sessions
   need one is judged from the rows; a session is left alone for five minutes after the last write of
   `control/log`; a start writes one line there first. The spawner calls it too, in the shell that
   supervises a start that is not waited for, once the record of the run exists: with the first member
@@ -1420,12 +1475,23 @@ contracts are here.
   to send. Text goes on stdin; no credential in argv.
 - **`NEXT:` lines.** A result the model must act on ends with one `NEXT:` line naming the call, added after
   the existing lines, in the core only (`Wait` stateful TIMEOUT/RECEIVED/DISMISSED, `SendMessage`
-  posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`).
+  posted, `SubagentHandback` from a non-blocked spawn, `AskQuestion` left open with `WAIT-ID:`). The
+  `current-date:` line stands before the closing `NEXT:` line, which stays last. A `Wait` TIMEOUT is
+  three lines: the outcome, `current-date:`, then `NEXT:`.
+- **One reply layer serves every tool result** (`AgentsTranscriptReplyFinish`,
+  `AgentsTools.SessionTranscript.include`): a served call, the MCP server's own tools, and each result
+  the harness's model loop hands its model. Every reply carries one `current-date: YYYY-MM-DD HH:MM
+  +ZZZZ` line, the host's local time. A result over 8192 bytes is kept whole in
+  `.local/agents/sessions/<key>/results/`. The reply then opens with a preview, the whole lines that
+  fit in 2 KB or the first 20, never over 7 KB. It names the file, its size in bytes and lines, and a
+  by-range `Read` for the rest. The result's closing lines close the reply too. Skill, ToolSearch and a
+  Read of a kept file are never kept. With no session, or a file that cannot be written, the result
+  comes back whole. `AgentsReplyCurrentDateCheck` and `AgentsReplyLongResultCheck` are the tests.
 - **`Wait` tool** calls `--member-wait-for-input`, which takes `slack:session-current` and
   `slack:session-parent` itself, the same as the other four built-in aliases and their `:<ts>` form, and
   adds only: `mode` (`default`/`continue`/`close`),
   reaction id sets, and `DISMISSED` detection
-  (`AgentsHarnessWaitDismissed.awk`, matched by `AgentsDismissalMatch.awk`'s one shared rule: a body
+  (`AgentsHarnessWaitDismissed.awk`, its member through `ENVIRON["dismissalMember"]`, matched by `AgentsDismissalMatch.awk`'s one shared rule: a body
   that is exactly `DISMISSED`, addressed to this member by the team send header naming it, or typed
   plain as `DISMISSED <member>` with no header -- recognised by that tag, never by the Slack account,
   since several members post under one team bot; never a dismissal of its own author). Session id from
@@ -1451,7 +1517,10 @@ contracts are here.
 - **`Skill skill=`** loads a skill like the native tool: bare name, `anthropic-skills:<name>`
   (`~/.claude/skills/synced`), `<plugin>:<name>` (synced plugins), `<dir>:<name>`. Frontmatter removed,
   `Base directory for this skill:` prepended, `$ARGUMENTS` placeholders filled,
-  `disable-model-invocation: true` refused.
+  `disable-model-invocation: true` refused. A team member's skill is one read: its `SKILL.md`, then its
+  `.basic.md` and `.armed.md` merged under it, a section each by file name (`AgentsToolsMergeMdFiles`,
+  section limit 6), where both files exist. A `SKILL.md` with `status: reference-only` is not merged.
+  A merge that fails is one `ERROR: Skill:` line.
 - **`Edit`** replaces an exact literal that occurs exactly once, counted with the same `index()` that
   substitutes (never `grep -c`). One call carries one edit, or a list of them in `edits`, each read
   as the top level is and applied in order, each to the text the edit before it left; uniqueness is
@@ -1640,14 +1709,22 @@ contracts are here.
   `lib/parallel` runs in a nested subshell because it installs an `EXIT` trap. This is safe because
   `--intern-op-slack-call` waits out rate limits (`ratelimited`/429, `Retry-After`, up to 5 attempts,
   `AgentsToolsSlackRateLimitWait`).
-- **`--magic-advance-input-scan` closes dead spawns first**, as housekeeping that writes nothing to the
-  scan output (`AgentsToolsHousekeepingReport` posts to the caller's event-track thread). Dead on this
+- **`--magic-advance-lock-acquire` closes dead spawns** after a successful take, and only then, as
+  housekeeping the tooling does itself. Its lines go to the daemon line and the caller's event-track
+  thread (`AgentsToolsHousekeepingReport`), none to its output. Dead on this
   host: no live process, no open ask, nothing changed under its sandbox or `sessions/<id>/` for 15 min.
   Elsewhere: no open ask and nothing changed for 24 h. It then starts the control thread of each session
   that is not finished and has none alive, one housekeeping line when it started any, a failure said as
-  one warning. A dead spawn's created dispatch item moves running
-  → review. A review item whose `review-by` session has ended gets `review-by: magic-coordinator`. The
-  scan never accepts an item.
+  one warning on the daemon line. A dead spawn's created dispatch item moves running
+  → review. A review item whose `review-by` session has ended gets `review-by: magic-coordinator`.
+  `--magic-advance-input-scan` is a pure read: it changes nothing, posts nothing, and never accepts an
+  item.
+- **The input-scan cache** (`AgentsTools.InputScanCache.include`). In a team session,
+  `--magic-advance-input-scan` and `--magic-heartbeat-input-scan` write their report to
+  `.local/agents/sessions/<MDAT_SESSION_ID>/<op>.md` and reply with a reference to it, in the form of a
+  kept result. For 300 s by that file's mtime, a further call of the same scan in that session, from
+  any run, replies with the same file and reads no source. A change in a source does not refresh it.
+  With no team session, or a scan that fails, the whole report is printed and nothing is kept.
 
 ### `--intern-op-session-context-scan` (no help; essentials)
 
@@ -2104,7 +2181,8 @@ op's own option arm.
 - **Review** (`AgentsTools.ReviewFlow.include`): only a `running` item enters `review` (handback, child
   ended without handback, `--wait` pass ended, `--member-review-request`). The review limit
   (`REVIEW_WAIT_LIMIT`, default 3600 s) is enforced by `Wait` itself, returning `DISMISSED`, so it needs
-  no main loop. It does not run while a question about the death of a run stands open in the session of
+  no main loop. It dismisses no run while another participant of its session runs (section 11). It
+  does not run while a question about the death of a run stands open in the session of
   the waiting run (`AgentsReviewWaitLeft` asks `AgentsToolsSessionControlDeathQuestion`), and counts
   again from that question's close. Verdicts `--member-review-accept|return|reject|follow-up` (`--intern-op-review-*`); a
   return restarts the session through the proxy's join path. Endings (`archived`, `trashed`,
@@ -2351,11 +2429,11 @@ Each instrument states what it proves and its red recipe in its own header. What
   files and signals of a console channel; `AgentsConsoleStreamTrapCheck` of the console's trap. The
   tooling list of `AgentsTestSignalsCheck` names no place left by the number alone outside the spawn
   proxy.
-- **A check that calls the scan, the main loop or the console's control-thread start ends the control
-  threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.sh`
+- **A check that calls the advance lock take, the main loop or the console's control-thread start
+  ends the control threads of its own rig** through `sh-test/check-fixtures/rig-control-threads.include.sh`
   (`rigControlThreadNotes`, `rigControlThreadsEnd`, called in its `EXIT` trap); the guard for this is in
   `AgentsSessionControlStartCheck`, which fails a check of `sh-test` that names
-  `--magic-advance-input-scan`, `--intern-main-loop`, `--manager-session-control-start`,
+  `--magic-advance-lock-acquire`, `--intern-main-loop`, `--manager-session-control-start`,
   `--intern-op-agent-spawn-proxy`, `--magic-heartbeat-spawn-proxy`, `--magic-spawn-session`,
   `--manager-spawn-member`, `--member-review-return`, `--intern-op-review-return` or `--intern-tool
   Agent` outside a comment and does not do so (35 checks carry the fixture). A thread whose rig is

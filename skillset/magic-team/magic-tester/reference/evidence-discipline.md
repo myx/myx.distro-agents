@@ -294,6 +294,14 @@ against a new `kill`, `pkill` or `killall` outside it). Process ids come round q
 so a kept number can belong to a different process by the time it is signalled; the helper notes a
 process together with when it began, and signals it later only while its pid is still that same one.
 
+## A check compares a tool's own result, not its whole reply
+
+Every reply of a tool call carries the host's time as a `current-date:` line, and a result over 8 KB
+comes back as a reference to a kept file. A check that compares what a tool gives sources the one
+shared helper for this, `sh-test/check-fixtures/rig-reply.include.sh`, and passes the reply through
+`rigReplyBare`. It gives the tool's own result: the kept file read back where the reply names one,
+else the reply with its `current-date:` line dropped.
+
 ## Establish which way a check errs before deciding whether it needs a fallback
 
 A pre-check wrong in one direction only is adoptable on its own; one that can be

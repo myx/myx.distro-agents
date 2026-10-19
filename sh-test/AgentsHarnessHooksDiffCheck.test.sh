@@ -22,7 +22,8 @@ for rigFile in "$rigHarness" "$rigHere/AgentsHarnessHooks.sh" "$rigHere/AgentsHa
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsHarnessHooksDiffCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessHooksDiffCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The argument-table functions the refusal reads through, lifted out of the harness.

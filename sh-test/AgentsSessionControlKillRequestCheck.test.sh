@@ -42,7 +42,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsSessionControlKillRequestCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionControlKillRequestCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions"
@@ -101,10 +102,13 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
 }
+## The person at the console, `user-<account>`: the runs below report to it, so its kills hold the
+## authority to end them (F6.10, AgentsTools.Authority.include).
+rigConsoleUser="user-$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 rigRec(){ ## run id, which is its sandbox too; session id; member
 	mkdir -p "$rigSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\n---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$1" "$2" > "$rigSp/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\nreports-to: %s\n---\n\n# Spawn session: %s\n' \
+		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" > "$rigData/board/running/dispatch-$1.md"
 }
 ## What the supervising shell of a run does once the run has ended: its record is closed.
@@ -362,8 +366,11 @@ rigAssert "the session is started again and ends by itself: its state reads the 
 	"running:finished:no run of the session is alive and every record of it is closed:1"
 
 echo "-- 6. the kill of one run leaves the other runs and the thread, under the name its request gives --"
+## Ended from a console whose account is console-user: these runs report to that person (F6.10).
+rigReportsTo=user-console-user
 rigRec kf-run kf-run keeper-rig ; rigStand kf-run ; rigKf1="$rigStandPid"
 rigRec kf-two kf-run keeper-myx ; rigStand kf-two ; rigKf2="$rigStandPid"
+rigReportsTo=""
 rigThread kf-run ; rigThreadF="$rigThreadPid"
 rigWaitFor 10 rigStateIs kf-run running
 rigAsk kf "PATH=$rigTmp/bin2:$PATH" --session-id kf-two --run

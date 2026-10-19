@@ -23,7 +23,8 @@ rigList="--manager-keys-list" ; rigRead="--manager-keys-read"
 rigRefuse(){ echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1 ; }
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves"
 rigKeygen="$( PATH=/usr/bin:/bin command -v ssh-keygen )" || rigRefuse "this machine has no ssh-keygen to make the rig's keys with"
-rigTmp="$( mktemp -d -t AgentsManagerKeysCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerKeysCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigMdci="$rigTmp/mdci" ; rigHost="$rigTmp/etc-ssh"

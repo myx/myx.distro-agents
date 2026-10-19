@@ -29,7 +29,8 @@ done
 ## The one way a check signals a process it started: sourced before the rig puts anything on PATH.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 
-rigTmp="$( mktemp -d -t AgentsManagerPendingReplyCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerPendingReplyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin"
@@ -81,6 +82,9 @@ mkdir -p "$rigWs/.local/.agents" "$rigWs/.local/agents/spawned/rig-cow" "$rigWs/
 printf 'SLACK_CHANNEL_MAGIC_TEAM=CRIG00001\nSLACK_BOT_TOKEN=rig-bot-token-TEAM\nSLACK_CHANNEL_HUMAN_OWNER=URIGOWNER\nSLACK_WORKSPACE_DOMAIN=rig.slack.example\n' > "$rigWs/.local/.agents/magic-team.agent.env"
 : > "$rigWs/.local/agents/permissions.registry"
 rigHost="$( hostname -s 2>/dev/null || echo unknown )"
+rigAcct="$( id -un 2>/dev/null )" || rigAcct=""
+rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
+[ -n "$rigAcct" ] || rigAcct="unknown"
 rigSpawnRecord(){ ## spawn id, owner, parent session id
 	printf -- '---\nsession-id: rig-cow\nspawn-id: %s\n%shost: %s\nowner: %s\nstatus: spawn-started\n---\n\n# Spawn session\n' \
 		"$1" "${3:+parent-spawn-id: $3$'\n'}" "$rigHost" "$2" > "$rigWs/.local/agents/spawned/rig-cow/$1.md"
@@ -91,9 +95,6 @@ printf 'CRIG00001:1700000000.000900\n' > "$rigWs/.local/agents/sessions/rig-cow/
 RIG_CURL_LOG="$rigTmp/curl.log"
 export RIG_CURL_LOG
 : > "$RIG_CURL_LOG"
-rigAcct="$( id -un 2>/dev/null )" || rigAcct=""
-rigAcct="$( printf '%s' "$rigAcct" | LC_ALL=C tr -s ' \t\r\n' '_' )"
-[ -n "$rigAcct" ] || rigAcct="unknown"
 
 ## An operation as the console calls it: from no session and as no member, unless one is named.
 RIG_OP_AGENT=""
@@ -105,6 +106,12 @@ rigOp(){
 		${RIG_OP_SESSION:+MDAT_SPAWN_SESSION_ID="$RIG_OP_SESSION"} ${RIG_OP_AGENT:+MDAT_SPAWN_AGENT="$RIG_OP_AGENT"} \
 		MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" RIG_SCENARIO="$rigTmp" bash "$rigTools" "$@" ) > "$rigTmp/op.out" 2> "$rigTmp/op.err" || rigOpRc=$?
 }
+## The person at the console holds the authority over the runs of rig-cow by a grant of the owners
+## role, a recorded permission (F6.10, AgentsTools.Authority.include): a refusal of it, granted.
+rigOp --intern-op-permission-refusal-log "user-$rigAcct" --session-id rig-cow --tool authority --target magic-coordinator --reason "rig: the console answers the questions of rig-cow"
+rigGrantRefusal="$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigTmp/op.out" | head -1 )"
+rigOp --intern-op-permission-grant-open human-owner --session-id rig-cow --refusal-id "${rigGrantRefusal:-none}" --kind session
+LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/op.out" || rigRefuse "the grant of the authority over rig-cow to the console was not written: $( head -2 "$rigTmp/op.err" | LC_ALL=C tr '\n' ' ' )"
 rigField(){ ## file, field
 	LC_ALL=C awk -F': ' -v wantField="$2" '$1 == wantField { print substr( $0, length( wantField ) + 3 ) ; exit ; }' "$1" 2>/dev/null
 }

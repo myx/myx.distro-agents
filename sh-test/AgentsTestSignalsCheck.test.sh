@@ -43,7 +43,8 @@ rigRefuse(){
 }
 [ -f "$rigHelper" ] || rigRefuse "the rig's process helper is not at the origin this workspace resolves: $rigHelper"
 . "$rigHelper" || rigRefuse "the rig's process helper could not be read: $rigHelper"
-rigTmp="$( mktemp -d -t AgentsTestSignalsCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsTestSignalsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Every stand-in of this check, each with when it began, whatever a scenario does to the helper's own notes:
 ## at the end each is ended, with what it started, only while it is still itself.
@@ -221,7 +222,7 @@ rigReasons(){
 		'@own-watch|the watch of this very call: it lives until the call returns and a second at most beyond, and is signalled in the statement after the call returned' \
 		'@self|to the process itself, which sends it to see that it handles it' \
 		'@uncollected|its own child, which it has not collected yet: the number of such a child is never given again' \
-		'@own-path|a sweep by pattern that only the processes of this rig can match: the pattern is the path of a file in the temp folder this run made for itself (mktemp), which only the wait this rig started, and the reader of this very sweep, carry on their command lines; reached only when that wait did not come back' \
+		'@own-path|a sweep by pattern that only the processes of this rig can match: the pattern is the path of a file in the temp folder this run made for itself, by mktemp, which only the wait this rig started, and the reader of this very sweep, carry on their command lines; reached only when that wait did not come back' \
 		'@handed-on|no signal of the check: a stand-in for the `kill -0` of the tooling under test, which hands every other call of the tooling on as it came' \
 		'@text|no signal: the word is text, a row the kill operation of the manager prints, the form of such a row, or a pattern the check reads the code of the tooling with' \
 		'@kept-copy|NOT SAFE, AND LEFT AS IT IS ON PURPOSE: the kept copy of the previous hooks file, which its diff check holds as it was; its watchdog signals the pid of a hook sixty seconds later by the number alone, which the present sh-lib/AgentsHarnessHooks.sh no longer does (AgentsHarnessHookWatchdogCheck)'
@@ -355,6 +356,8 @@ rigToolingList(){
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|kill -TERM "$mcpBeatPid"|the heartbeat of the call that has just returned: it ends only as that call ends, or on the stop file written in the statement before' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|1|= "$mcpJobKept" ] && kill -TERM -- "-$mcpJobPid"|the kill action of a job: the group of the pid its file names, only while that pid is still the process that began when the file says, kept there with the pid by one rename as the job started (AgentsToolsRegistryProcessesBegan); the line of the list holds that comparison with the signal, and a file that holds no start is not signalled by the number alone' \
 		'sh-lib/AgentsTools.InternMcpRequest.include|2|kill "$mcpWatchPid"|@own-watch' \
+		'sh-lib/AgentsTools.BatchTools.include|1|kill -TERM $cancelTree|a call of a batch and what it started, read from the process list at that very moment from its leader down, the leader an uncollected child of this shell, and signalled at once' \
+		'sh-lib/AgentsTools.BatchTools.include|1|kill -KILL $cancelStill|two seconds on, only to those of that call that are still the processes they were when read, by the one reading a process is kept by (AgentsToolsRegistryProcessesBegan)' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -TERM "$warnRetryPid"|@still-itself' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|= "$warnRetryBegan" ] && kill -KILL "$warnRetryPid"|@still-itself' \
 		'sh-lib/AgentsTools.InternOpAgentSpawnProxy.include|1|kill "$warnWatchSleep"|@live-sleep' \

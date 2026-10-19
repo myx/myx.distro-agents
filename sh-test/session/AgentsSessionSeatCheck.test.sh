@@ -110,7 +110,7 @@ rigAlive(){ ## pid
 rigCall(){ ## run id, member, session, tool, arguments JSON -- output in $rigTmp/<run>.<tool>.out
 	local callOut="$rigTmp/$1.$4.out"
 	( cd "$rigWs" && printf '%s' "$5" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SPAWN_CALLER_WAITS \
-		PATH="$rigTmp/served:/usr/bin:/bin" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
+		PATH="$rigTmp/served:/usr/bin:/bin" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
 		MDAT_SESSION_ID="$3" MDAT_SESSION_THREAD="$( rigThreadOf "$3" )" MDAT_SPAWN_SESSION_ID="$1" MDAT_SPAWN_AGENT="$2" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigHarness" --intern-tool "$4" > "$callOut" 2> "$callOut.err" )
 }
@@ -219,7 +219,7 @@ rigProxy(){ ## output file, member, extra proxy arguments...
 	local proxyOut="$1" proxyMember="$2"
 	shift 2
 	( cd "$rigWs" && printf 'RIG-BRIEF\n' | env -u MDAT_DATA_ROOT -u MDAT_SPAWN_SESSION_ID -u CLAUDE_CODE_SESSION_ID -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_SPAWN_AGENT \
-		PATH="$rigTmp/served:/usr/bin:/bin" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
+		PATH="$rigTmp/served:/usr/bin:/bin" RIG_SCENARIO="$rigTmp" RIG_CURL_LOG="$rigTmp/curl.log" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigTmp/data" \
 		bash "${rigHere%/sh-lib}/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-agent-spawn-proxy "$proxyMember" --session-id "$rigS" "$@" --dispatch-doc:none --wait --context rig-seat ) > "$proxyOut" 2>&1
 	printf '%s' "$?" > "$proxyOut.rc"
 }

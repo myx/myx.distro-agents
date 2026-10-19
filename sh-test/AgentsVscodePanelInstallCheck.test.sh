@@ -18,7 +18,7 @@
 ##   a .code-workspace file is opened directly, without start.sh: dangling reclaimed,
 ##   already-correct kept, real content warned about and left alone, never removed.
 ## What this cannot show: VS Code offering the panel. Only a real open shows that.
-## Offline: the whole tree, TMPDIR included, under the workspace's own .local/temp, and a
+## Offline: the whole tree, the temp files included, under the workspace's own .local/temp, and a
 ## temp origin copy.
 set -u
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set}"
@@ -74,7 +74,7 @@ rigWs="$rigTmp/ws"
 mkdir -p "$rigWs/source/rigns" "$rigWs/.local"
 printf '#!/usr/bin/env bash\ncat > /dev/null\necho rigns\n' > "$rigWs/DistroSourceConsole.sh"
 chmod +x "$rigWs/DistroSourceConsole.sh"
-( MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" MDSC_CMD=rig TMPDIR="$rigTmp/tmp" ; rigGenerate(){ . "$rigGenerator" --quiet ; } ; rigGenerate ) > /dev/null 2> "$rigTmp/gen.err" || :
+( MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" MDSC_CMD=rig ; rigGenerate(){ . "$rigGenerator" --quiet ; } ; rigGenerate ) > /dev/null 2> "$rigTmp/gen.err" || :
 rigWsFile="$rigWs/${rigWs##*/}.code-workspace"
 [ -f "$rigWsFile" ] || rigRefuse "the generator wrote no workspace file: $( head -3 "$rigTmp/gen.err" )"
 rigFolders="$( LC_ALL=C awk -F '"' '$2 == "path" { sub( /\/$/, "", $4 ) ; print $4 ; }' "$rigWsFile" )"
@@ -87,7 +87,7 @@ rigLaunchCalls(){
 	LC_ALL=C grep -c -F -- "--extensions-dir $rigWs/.vscode/extensions --user-data-dir $rigWs/.vscode/user-data $rigWs/${rigWs##*/}.code-workspace" "$rigTmp/scenario/code.log"
 }
 : > "$rigTmp/scenario/code.log"
-( cd "$rigTmp" && TMPDIR="$rigTmp/tmp" bash "$rigWs/start.sh" ) > /dev/null 2>&1 || :
+( cd "$rigTmp" && bash "$rigWs/start.sh" ) > /dev/null 2>&1 || :
 rigAssert "start.sh, run from elsewhere, launches once with the workspace's own store, data and file" "$( rigLaunchCalls )" 1
 rigAssert "and makes no other code call"                  "$( LC_ALL=C awk 'END { print NR ; }' "$rigTmp/scenario/code.log" )" 1
 
@@ -95,7 +95,7 @@ rigHome="$rigWs/.local/agents/vscode-magic-team-panel"
 rigRun(){
 	rigRc=0
 	: > "$rigTmp/scenario/code.log"
-	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" \
+	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigWs" MDLT_ORIGIN="$rigTmp/origin" \
 		bash "$rigTool" --install-vscode-magic-team-panel "$rigWs" > "$rigTmp/out" 2> "$rigTmp/err" || rigRc=$?
 }
 ## How many listed folders hold a link that resolves to the authoritative copy.
@@ -181,7 +181,7 @@ rigWs2="$rigTmp/ws2"
 mkdir -p "$rigWs2/.local/myx/myx.distro-.local/sh-lib"
 : > "$rigWs2/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
 printf '{}\n' > "$rigTmp/home/.claude.json"
-env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWs2" MDLT_ORIGIN="$rigTmp/origin" \
+env -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigWs2" MDLT_ORIGIN="$rigTmp/origin" \
 	MYXROOT="$rigTmp/origin/myx/myx.common/os-myx.common/host/tarball/share/myx.common" \
 	bash "$rigTool" --install-vscode-integrations --workspace "$rigWs2" > /dev/null 2>&1 || :
 rigAssert "the integrations install wrote the authoritative copy" "$( [ -f "$rigWs2/.local/agents/vscode-magic-team-panel/package.json" ] && echo written || echo missing )" written
@@ -212,7 +212,7 @@ cp "$rigWsX/DistroSourceConsole.sh" "$rigWsM/DistroSourceConsole.sh"
 ## X's own authoritative root artefacts, which VS Code reads per folder.
 mkdir -p "$rigWsX/.agents/skills" "$rigWsX/.claude/skills"
 rigRunX(){
-	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWsM" MDLT_ORIGIN="$rigTmp/origin" \
+	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigWsM" MDLT_ORIGIN="$rigTmp/origin" \
 		MYXROOT="$rigTmp/origin/myx/myx.common/os-myx.common/host/tarball/share/myx.common" \
 		bash "$rigTool" --install-vscode-integrations --workspace "$rigWsX" > /dev/null 2> "$rigTmp/x.err" || :
 }
@@ -272,7 +272,7 @@ echo "-- --install-skillset-symlinks converges its own slots --"
 rigWsS="$rigTmp/wsS" rigBundle="$rigTmp/origin/myx/myx.distro-agents/skillset/magic-team"
 mkdir -p "$rigWsS/.local/myx/myx.distro-.local/sh-lib" ; : > "$rigWsS/.local/myx/myx.distro-.local/sh-lib/LocalContext.include"
 rigRunS(){ ## scope, target root, declared member sources, bundled member names
-	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MMDAPP="$rigWsS" MDLT_ORIGIN="$rigTmp/origin" \
+	env -u MDAT_DATA_ROOT HOME="$rigTmp/home" MMDAPP="$rigWsS" MDLT_ORIGIN="$rigTmp/origin" \
 		MDSC_SKILLSET_PRESCAN=1 MDSC_SKILLSET_MEMBERNAMES="${4:-magic-tester}" MDSC_SKILLSET_MEMBERSOURCES="$3" MDSC_SKILLSET_DISCOVERY_TRUSTED=true \
 		bash "$rigTool" --install-skillset-symlinks --scope "$1" --workspace "$rigWsS" --target-root "$2" > /dev/null 2> "$rigTmp/s.err" || :
 }

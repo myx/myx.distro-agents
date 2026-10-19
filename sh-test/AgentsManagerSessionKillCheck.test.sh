@@ -41,7 +41,8 @@ rigRefuse(){
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsManagerSessionKillCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerSessionKillCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigAgents="$rigWs/.local/agents"
@@ -121,10 +122,13 @@ rigWaitFor(){ ## seconds, test command...
 	"$@"
 }
 
+## The person at the console, `user-<account>`: the runs below report to it, so its kills hold the
+## authority to end them (F6.10, AgentsTools.Authority.include).
+rigConsoleUser="user-$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 rigRec(){ ## sandbox folder, spawn id, session id, host, owner, status, started-at minute, more header lines (may be empty)
 	mkdir -p "$rigSp/$1"
 	{
-		printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-13 09:%s +0300\n' "$3" "$2" "$1" "$4" "$5" "$6" "$7"
+		printf -- '---\nsession-id: %s\nspawn-id: %s\ntracking-name: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: %s\nstarted-at: 2026-10-13 09:%s +0300\nreports-to: %s\n' "$3" "$2" "$1" "$4" "$5" "$6" "$7" "$rigConsoleUser"
 		[ -z "${8:-}" ] || printf '%s\n' "$8"
 		printf -- '---\n\n# Spawn session: %s\n' "$3"
 	} > "$rigSp/$1/$2.md"
@@ -416,6 +420,12 @@ rigWaitFor 20 test -s "$rigTmp/left.tool" || rigRefuse "the stand-in run with a 
 cp "$rigTmp/left.tool" "$rigTmp/pids/left-tool" ; rigKeep "$( rigPid left-tool )"
 rigList "$( rigPid left-run )" "claude --verbose --session-id run-left --agent rig-member the brief"
 rigRec sess-left run-left sess-left "$rigHost" keeper-rig spawn-started 63 ""
+## The coordinator stops it, and the console kills it: the run reports to the console, and the owners
+## role granted the coordinator the authority in its session, by a recorded permission (F6.10).
+rigRun --intern-op-permission-refusal-log magic-coordinator --session-id sess-left --tool authority --target "$rigConsoleUser" --reason "rig: the coordinator stops this run"
+rigGrantRefusal="$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigTmp/out" | head -1 )"
+rigRun --intern-op-permission-grant-open human-owner --session-id sess-left --refusal-id "${rigGrantRefusal:-none}" --kind session
+LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/out" || rigRefuse "the grant of the authority over sess-left to the coordinator was not written: $( head -2 "$rigTmp/err" | LC_ALL=C tr '\n' ' ' )"
 printf '{"task_id":"run-left"}\n' > "$rigTmp/stop.args"
 ( cd "$rigWs" && env -i HOME="$rigHome" PATH="$PATH" MMDAPP="$rigWs" MDAT_DATA_ROOT="$rigData" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigSkills" \
 	RIG_TMP="$rigTmp" RIG_SCENARIO="$rigTmp" MDAT_SPAWN_AGENT=magic-coordinator bash "$rigHere/AgentsUniversalHarness.sh" --intern-tool TaskStop < "$rigTmp/stop.args" ) > "$rigTmp/stop.out" 2>&1

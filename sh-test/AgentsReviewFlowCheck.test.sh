@@ -31,7 +31,8 @@ rigRefuse(){
 ## A scan or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
 : "${MMDAPP:?⛔ ERROR: MMDAPP is not set, so the rig has no workspace temp folder}"
-rigTmp="$( mkdir -p "$MMDAPP/.local/temp" && mktemp -d "$MMDAPP/.local/temp/AgentsReviewFlowCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsReviewFlowCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigLivePids=""
 trap 'rigProcSignalWithChildren TERM $rigLivePids ; rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
@@ -620,6 +621,15 @@ rigAssert "a spawn whose id only stands on another process's command line is no 
 rigAssert "the item records shutdown"                      "$( rigDecisions "$rigData/board/running/dispatch-20261008T1200Z-sd1.md" 'dismissed: shutdown: sent keeper-myx' )" 1
 
 echo "-- 16. TaskStop: the process stopped as before, the ending recorded --"
+## The runs stopped below report to nobody this rig names: the owners role granted the coordinator,
+## which stops them, the authority in each of their sessions, by a recorded permission (F6.10).
+for rigStopSession in rig-live-ts-$$ rig-noword-ts-$$ rig-noword-reused-$$ rig-noitem-ts-$$ rig-noitem-noword-$$ rig-noitem-gone-$$ rig-norecord-ts-$$ \
+	rig-join-ts-$$ rig-presplit-ts-$$ rig-found-ts-$$ rig-lost-ts-$$ rig-kids-ts-$$ rig-hung-ts-$$ rig-hung-force-$$ ; do
+	rigOp "$rigTmp/grant-refusal" --intern-op-permission-refusal-log magic-coordinator --session-id "$rigStopSession" --tool authority --target human-owner --reason "rig: the coordinator stops this run"
+	rigOp "$rigTmp/grant-open" --intern-op-permission-grant-open human-owner --session-id "$rigStopSession" \
+		--refusal-id "$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigTmp/grant-refusal" | head -1 )" --kind session
+	LC_ALL=C grep -q '^GRANT: session ' "$rigTmp/grant-open" || rigRefuse "the grant of the authority over $rigStopSession to the coordinator was not written: $( LC_ALL=C grep -m1 ERROR "$rigTmp/grant-open" )"
+done
 rigProcSignalWithChildren TERM $rigLivePids
 rigLivePids=""
 : > "$rigTmp/ps.list"

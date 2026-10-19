@@ -42,7 +42,8 @@ for rigFile in "$rigFn" "$rigHarness" "$rigHere/AgentsTools.Grants.include" "$ri
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
 [ -n "$rigMyxCommon" ] || rigRefuse "myx.common is not on PATH, so no source project could be scanned for its declares"
-rigTmp="$( mktemp -d -t AgentsGrantsIndexCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsGrantsIndexCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigPass=0 rigFail=0

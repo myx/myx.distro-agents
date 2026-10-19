@@ -28,7 +28,8 @@ for rigFile in "$rigFn" "$rigHere/AgentsTools.Places.include" "$rigHere/AgentsTo
 done
 rigMyxCommon="$( command -v myx.common 2>/dev/null )"
 [ -n "$rigMyxCommon" ] || rigRefuse "myx.common is not on PATH, so no source project could be scanned for its declares"
-rigTmp="$( mktemp -d -t AgentsPlacesBuiltinCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsPlacesBuiltinCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPass=0 rigFail=0

@@ -17,7 +17,8 @@ rigRefuse(){
 [ -f "$rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk" ] || rigRefuse "the settings merge is missing: $rigHere/AgentsClaudeWorkspaceRestrictionsUpsert.awk"
 [ -f "$rigHere/AgentsClaudeSettingsVerify.awk" ] || rigRefuse "the settings verifier is missing: $rigHere/AgentsClaudeSettingsVerify.awk"
 
-rigTmp="$( mktemp -d -t AgentsClaudeSettingsHooksCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsClaudeSettingsHooksCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigFails=0 rigPasses=0

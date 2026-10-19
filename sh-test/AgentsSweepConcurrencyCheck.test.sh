@@ -14,7 +14,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigPackage/sh-test/check-fixtures/sweep-concurrency.curl.stub.sh" ] || rigRefuse "the sweep-concurrency fixture is missing from the package"
-rigTmp="$( mktemp -d -t AgentsSweepConcurrencyCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSweepConcurrencyCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -88,7 +89,7 @@ rigSweep(){ ## name, origin
 	done
 	local sweepStart sweepRc=0
 	sweepStart="$( date +%s )"
-	env -i HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" TMPDIR="$sweepDir/ws/.local/temp" \
+	env -i HOME="$sweepDir/home" PATH="$sweepDir/bin:/usr/bin:/bin" MMDAPP="$sweepDir/ws" MDAT_DATA_ROOT="$sweepDir/data" \
 		MDLT_ORIGIN="$2" MDLT_OPTION="--run-from-path $2" FIX_DIR="$sweepDir" FIX_LATENCY=0.3 FIX_DMS=30 FIX_TS="$rigNow" RIG_TMP="$rigTmp" \
 		bash -c '
 			case "$MMDAPP" in "$RIG_TMP"/*) ;; *) exit 99 ;; esac

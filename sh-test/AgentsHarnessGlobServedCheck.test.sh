@@ -21,7 +21,8 @@ for rigFile in "$rigHere/AgentsUniversalHarness.sh" "$rigField" "$rigTool" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
-rigTmp="$( mktemp -d -t "AgentsHarnessGlobServedCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessGlobServedCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## `source/` is inside the access roots the server computes for a workspace; the rig root itself is not.

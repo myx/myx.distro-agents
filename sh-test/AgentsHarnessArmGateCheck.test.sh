@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 ## Behavioural check on arm-before-acting (6127) in the harness's own model loop: in a
 ## spawned session a mutating call is redirected until the member's duty file has been
-## read to its end with Skill; read-only calls never are; only a read reaching the last
-## line arms; the redirect is posted to event-track once, into the tracking thread of the
+## read to its end with Skill, or its own skill read whole with the duty file merged in;
+## read-only calls never are; only a read reaching the last line arms; the redirect is posted to event-track once, into the tracking thread of the
 ## run's session, which it opens where the session has none yet; the spawn's close record
 ## says armed yes, no or unknown. A served call and a loop with no spawn id are never gated.
 ## Offline: a fake curl replays canned model rounds and answers Slack; every run goes
@@ -22,7 +22,8 @@ rigRefuse(){
 ## A spawn of this rig that is not waited for starts the control thread of its session, a detached process that
 ## outlives this check: the rig ends it, before its tree is removed (the guard is in AgentsSessionControlStartCheck).
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsHarnessArmGateCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessArmGateCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/home" "$rigTmp/skills/$rigMember"
@@ -174,6 +175,19 @@ rigAssert "the full read was cut, at the offset this rig expects" "$( LC_ALL=C g
 rigAssert "a cut read does not arm"                    "$( rigRedirected 2 )" yes
 rigAssert "a continuation that skips lines does not arm" "$( rigRedirected 4 )" yes
 rigAssert "filling the skipped lines arms"             "$( cat "$rigDir/ws/OUT/t.txt" 2>/dev/null )" rig
+
+echo "-- what counts as arming: the member's own skill read, with its armed file merged in --"
+rigScenario merged
+printf -- '---\nname: %s\ndescription: rig member\n---\n# %s\n\nrig skill\n' "$rigMember" "$rigMember" > "$rigTmp/skills/$rigMember/SKILL.md"
+rigCall Skill "{\"skill\":\"$rigMember\",\"limit\":3}"
+rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
+rigCall Skill "{\"skill\":\"$rigMember\"}"
+rigCall Write "{\"path\":\"$rigTmp/merged/ws/OUT/s.txt\",\"content\":\"rig\"}"
+rigEnd
+rigLoop rig-session-merged
+rm -f "$rigTmp/skills/$rigMember/SKILL.md"
+rigAssert "a part of that read does not arm"           "$( rigRedirected 2 )" yes
+rigAssert "the whole read arms"                        "$( cat "$rigDir/ws/OUT/s.txt" 2>/dev/null )" rig
 
 echo "-- controls: never gated --"
 rigScenario nospawn

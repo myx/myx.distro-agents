@@ -44,7 +44,8 @@ rigRefuse(){
 for rigFile in "$rigFn" "$rigHarness" "$rigHook" "$rigFixture" "$rigLib/AgentsTools.Grants.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
-rigTmp="$( mktemp -d -t AgentsLibrarianSkillsCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsLibrarianSkillsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPassCount=0

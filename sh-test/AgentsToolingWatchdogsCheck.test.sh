@@ -37,7 +37,8 @@ for rigFile in "$rigHarness" "$rigMcpClient" "$rigSpawnInclude" "$rigHere/Agents
 done
 rigRealSleep="$( command -v sleep )" || rigRefuse "no sleep on PATH to hand the other waits to"
 rigRealPs="$( command -v ps )" || rigRefuse "no ps on PATH to hand the other calls to"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsToolingWatchdogsCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsToolingWatchdogsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/bin" "$rigTmp/ws/.local/temp"

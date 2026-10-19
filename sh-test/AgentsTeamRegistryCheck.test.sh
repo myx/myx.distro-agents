@@ -33,7 +33,8 @@ rigRefuse(){
 for rigFile in "$rigFn" "$rigLocalContext" "$rigHere/AgentsTools.TeamRegistry.include" ; do
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
-rigTmp="$( mktemp -d -t AgentsTeamRegistryCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsTeamRegistryCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigPass=0 rigFail=0

@@ -25,8 +25,32 @@ case "$BASH" in
 	;;
 esac
 
+## The operations that implement a harness or an MCP tool (F7.8): the ones the harness's tools run, and the one behind
+## execute. --mdat-output-format json, before the operation word, prints one of them as one JSON object,
+## {"operation":<word>,"status":<rc>,"result":<its output>}; every other operation runs as without it.
+## sh-test/harness/AgentsBatchToolsCheck.test.sh holds the list to the words the harness runs.
+agentsToolOperations="--intern-mcp-execute --intern-op-agent-spawn-proxy --intern-op-escalation-permission-add --intern-op-escalation-read
+	--intern-op-pending-reply-clarify --intern-op-pending-reply-collect --intern-op-permission-folder --intern-op-permission-grant-consume
+	--intern-op-permission-place --intern-op-permission-route --intern-op-permission-set-ask --intern-op-permission-single-asks
+	--intern-op-review-end --intern-op-review-handback --intern-op-spawn-prepare-brief --intern-op-tool-index
+	--member-comms-slack-delete-message --member-comms-slack-send-message --member-upsert-member-inquiry --member-wait-for-input"
+
 DistroAgentsTools(){
 	local MDSC_CMD='DistroAgentsTools'
+	if [ "${1:-}" = "--mdat-output-format" ] ; then
+		case "${2:-}" in
+			json) shift 2 ;;
+			*) echo "⛔ ERROR: $MDSC_CMD: --mdat-output-format takes json, got: ${2:-<none>}" >&2 ; set +e ; return 1 ;;
+		esac
+		case " $( printf '%s' "$agentsToolOperations" | LC_ALL=C tr '\n\t' '  ' ) " in
+			*" ${1:-} "*)
+				local formatOut formatRc=0
+				formatOut="$( DistroAgentsTools "$@" )" || formatRc=$?
+				printf '{"operation":"%s","status":%s,"result":"%s"}\n' "$1" "$formatRc" "$( printf '%s' "$formatOut" | LC_ALL=C awk -f "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsMcpJsonEscape.awk" )"
+				return "$formatRc"
+			;;
+		esac
+	fi
 	type AgentsToolsMemberWorkspaceResolve > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.MemberWorkspace.include"
 	## WE RUN FROM HERE: an operation naming a team member uses the workspace it is run from, for everything, and is carried to no other. A member set up only in another workspace on this machine is invited: only its skillset is read from there (AgentsToolsMemberSkillsetBring), and those of its own settings this workspace holds none of (AgentsToolsConfigOptionElsewhere), and it is stopped only when its skillset cannot be brought. A client-* member is invited like any other: which organisation its operation reaches is said by the operation's prefix and its address, never by a workspace. The spawn operations make the same check themselves, before they start anything.
 	case "$1:${2:-}" in
@@ -461,6 +485,13 @@ DistroAgentsTools(){
 		## the Skill tool, which serves a member's basic and armed files as one read.
 		--intern-merge-md-files)
 			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternMergeMdFiles.include"
+			return $?
+		;;
+
+		## The tool index, .local/agents/tool-index.md: every tool, and who may use what. A
+		## member's Skill read of its own skill serves that member's section of it.
+		--intern-op-tool-index)
+			. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.InternOpToolIndex.include"
 			return $?
 		;;
 

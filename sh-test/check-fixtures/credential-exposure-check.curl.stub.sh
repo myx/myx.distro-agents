@@ -8,9 +8,10 @@
 ##   argv.log      its own argv
 ##   ps.log        `ps -o args=` for itself and for its parent
 ##   inflight.log  the mdat-* temp files present while it runs
-##   probe.log     the control: the probe planted in $TMPDIR, as the one scan found it
-##   disk.log      any file under the workspace's .local/temp, its .local/agents/scratch or
-##                 $TMPDIR holding the sentinel
+##   probe.log     the control: the probe planted in the workspace's .local/agents/scratch, as the one
+##                 scan found it
+##   disk.log      any file under the workspace's .local/temp or its .local/agents/scratch holding
+##                 the sentinel
 ##   bodies.log    the --data-binary body, so a body marker is shown to be visible
 set -u
 rigDir="$RIG_SCENARIO"
@@ -26,12 +27,13 @@ esac
 printf '%s\n' "$*" >> "$rigDir/argv.log"
 { ps -o args= -p "$$" ; ps -o args= -p "$PPID" ; } >> "$rigDir/ps.log" 2>/dev/null
 ls -1 "$RIG_WS/.local/temp" 2>/dev/null | grep '^mdat-' >> "$rigDir/inflight.log"
-## One scan over the three folders, for the credential and for a probe sentinel planted in
-## $TMPDIR: the probe found is the proof this very scan reaches $TMPDIR (the control).
-printf 'RIG-TMPDIR-PROBE\n' > "$TMPDIR/rig-probe.$$"
-grep -rl -F -e "$RIG_SENTINEL" -e "$RIG_SENTINEL_B64" -e RIG-TMPDIR-PROBE "$RIG_WS/.local/temp" "$RIG_WS/.local/agents/scratch" "$TMPDIR" > "$rigDir/scan.$$" 2>/dev/null
-rm -f "$TMPDIR/rig-probe.$$"
-grep -F "/rig-probe.$$" "$rigDir/scan.$$" | sed 's/$/ RIG-TMPDIR-PROBE/' >> "$rigDir/probe.log"
+## One scan over both folders, for the credential and for a probe sentinel planted in the
+## scratch folder: the probe found is the proof this very scan reaches it (the control).
+mkdir -p "$RIG_WS/.local/agents/scratch"
+printf 'RIG-SCRATCH-PROBE\n' > "$RIG_WS/.local/agents/scratch/rig-probe.$$"
+grep -rl -F -e "$RIG_SENTINEL" -e "$RIG_SENTINEL_B64" -e RIG-SCRATCH-PROBE "$RIG_WS/.local/temp" "$RIG_WS/.local/agents/scratch" > "$rigDir/scan.$$" 2>/dev/null
+rm -f "$RIG_WS/.local/agents/scratch/rig-probe.$$"
+grep -F "/rig-probe.$$" "$rigDir/scan.$$" | sed 's/$/ RIG-SCRATCH-PROBE/' >> "$rigDir/probe.log"
 grep -v -F "/rig-probe.$$" "$rigDir/scan.$$" >> "$rigDir/disk.log"
 rm -f "$rigDir/scan.$$"
 

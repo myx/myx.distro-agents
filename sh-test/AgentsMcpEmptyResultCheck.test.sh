@@ -8,7 +8,8 @@ set -u
 rigSource="${MDLT_ORIGIN:=$MMDAPP/.local}"
 [ -d "$rigSource/myx/myx.distro-agents/sh-lib" ] || { echo "⛔ ERROR: no myx.distro-agents at $rigSource -- refusing to report a result" >&2 ; exit 1 ; }
 
-rigTmp="$( mktemp -d -t AgentsMcpEmptyResultCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMcpEmptyResultCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 ## The target sits in the server's default write set, since a served call takes no root flags.

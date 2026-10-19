@@ -110,7 +110,7 @@ rigScene(){ ## scenario directory name
 }
 rigEnv(){ ## command... -- run under the scenario's workspace, with no model key
 	( cd "$rigScenarioDir/ws" && env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
-		TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
+		RIG_SCENARIO="$rigScenarioDir" MMDAPP="$rigScenarioDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDAT_DATA_ROOT="$rigScenarioDir/data" "$@" )
 }
 ## The calling session: spawn rig-child-id, with the session thread given or with none.

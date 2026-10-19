@@ -14,7 +14,8 @@ rigRefuse(){
 }
 [ -f "$rigInclude" ] || rigRefuse "include not found: $rigInclude"
 
-rigTmp="$( mktemp -d -t AgentsSessionThreadFindCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionThreadFindCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0

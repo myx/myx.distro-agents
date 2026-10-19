@@ -10,7 +10,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -f "$rigChecker" ] || rigRefuse "the checker is not at the origin this workspace resolves: $rigChecker"
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsHarnessAwkAxiomCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessAwkAxiomCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0

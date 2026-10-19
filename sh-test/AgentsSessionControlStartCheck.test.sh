@@ -53,7 +53,8 @@ rigRefuse(){
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 ## And the control threads the tooling starts in this rig are ended by it, each only while it is still the process that was started.
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsSessionControlStartCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionControlStartCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## The ids of this run's sessions carry the name mktemp gave it, so that a copy of this check that runs beside it never counts this one's threads.
 rigTag="${rigTmp##*.}" ; rigTag="$( printf '%s' "$rigTag" | LC_ALL=C tr -c -d 'A-Za-z0-9' )"
@@ -186,7 +187,14 @@ rigHeld(){ ## short name of a session -- a live thread holds it
 	[ -n "$( rigHolder "$1" )" ]
 }
 rigThreads(){ ## short name of a session -- how many processes of this host show as the thread of that session
-	"$rigTmp/bin/ps.real" -A -ww -o args= 2> /dev/null | LC_ALL=C grep -c -E -- "DistroAgentsTools\\.fn\\.sh --intern-session-control --run --session-id $( rigId "$1" )\$" || :
+	## A subshell of the thread shows the thread's own command line while it lives, and under load one often stands
+	## beside it: a thread is counted once, by the process of that command line whose parent has another one.
+	## The command line looked for is handed in the environment, so this reader's own never holds it.
+	"$rigTmp/bin/ps.real" -A -ww -o pid=,ppid=,args= 2> /dev/null | RIG_THREAD_ARGS="DistroAgentsTools.fn.sh --intern-session-control --run --session-id $( rigId "$1" )" LC_ALL=C awk '
+		BEGIN { want = ENVIRON["RIG_THREAD_ARGS"] }
+		{ line = $0 ; sub( /^[ \t]*[0-9]+[ \t]+[0-9]+[ \t]+/, "", line ) ; at = length( line ) - length( want ) + 1 }
+		at >= 1 && substr( line, at ) == want && ( at == 1 || substr( line, at - 1, 1 ) ~ /[ \/]/ ) { parent[$1] = $2 }
+		END { n = 0 ; for ( p in parent ) if ( !( parent[p] in parent ) ) n++ ; print n }'
 }
 rigArgs(){ ## pid -- its command line
 	"$rigTmp/bin/ps.real" -ww -o args= -p "$1" 2> /dev/null
@@ -518,13 +526,13 @@ rigAssert "control: the guard read the checks, and found those that name one: te
 ## and beside them one that does both, one that names the operation in a comment alone, and one that names none;
 ## and one in a subfolder, where the runner finds tests too, that takes the advance lock and ends nothing.
 mkdir -p "$rigTmp/probe/sub"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/Bare.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/Bare.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --intern-main-loop --one' > "$rigTmp/probe/Sourced.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || exit 1' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rigControlThreadsEnd \"\$rigTmp\" ; rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --manager-session-control-start --all' > "$rigTmp/probe/Ended.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' '## this check never calls --magic-advance-lock-acquire' 'echo nothing' > "$rigTmp/probe/Comment.test.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo nothing' > "$rigTmp/probe/None.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
-printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-spawn-session rig-member < /dev/null' > "$rigTmp/probe/Spawned.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'rigTmp="$( mktemp -d "$MMDAPP/.local/agents/scratch/sh-test/probe.XXXXXXXX" )"' "trap 'rm -rf -- \"\$rigTmp\"' EXIT" 'bash "$rigTool" --magic-advance-lock-acquire magic-coordinator rig-pass' > "$rigTmp/probe/sub/Nested.test.sh"
 rigAssert "the guard fails a check that names one of the operations and does not end the threads of its rig, one that only sources the fixture, one that starts a session through the spawner and ends nothing, and one in a subfolder that ends nothing; not one that ends them, nor one that names the operation in a comment alone" \
 	"$( rigGuard "$rigTmp/probe" | LC_ALL=C tr '\n' ' ' )" "NOT ENDED: Bare.test.sh NOT ENDED: Sourced.test.sh NOT ENDED: Spawned.test.sh NOT ENDED: Nested.test.sh named: 5 "
 

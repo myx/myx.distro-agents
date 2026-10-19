@@ -19,7 +19,8 @@ rigRefuse(){
 }
 [ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.curl.stub.sh" ] || rigRefuse "the fake Slack fixture is missing from the package"
 [ -f "$rigPackage/sh-test/check-fixtures/session-context-reads.imaplib.stub.py" ] || rigRefuse "the fake imaplib fixture is missing from the package"
-rigTmp="$( mktemp -d -t AgentsSessionContextReadsCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionContextReadsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
@@ -54,7 +55,7 @@ rigScan(){
 		> "$scanDir/ws/.local/.agents/client-fix1.agent.env"
 	: > "$scanDir/calls.log"
 	local scanRc=0
-	env -i HOME="$scanDir/home" PATH="$scanDir/bin:/usr/bin:/bin" MMDAPP="$scanDir/ws" MDAT_DATA_ROOT="$scanDir/data" TMPDIR="$scanDir/ws/.local/temp" \
+	env -i HOME="$scanDir/home" PATH="$scanDir/bin:/usr/bin:/bin" MMDAPP="$scanDir/ws" MDAT_DATA_ROOT="$scanDir/data" \
 		MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" PYTHONPATH="$scanDir/py" PYTHONDONTWRITEBYTECODE=1 \
 		FIX_DIR="$scanDir" FIX_LATENCY=0 FIX_DMS="$scanDms" FIX_TS="$rigNow" FIX_CHANNELS="${RIG_CHANNELS:-0}" FIX_NONMEMBER="${RIG_NONMEMBER:-0}" \
 		FIX_K6_AGE="${RIG_K6_AGE:-60}" RIG_TMP="$rigTmp" \

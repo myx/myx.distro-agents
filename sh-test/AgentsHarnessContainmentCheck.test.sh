@@ -60,7 +60,8 @@ for rigFn in AgentsHarnessResolveDir AgentsHarnessPathAllowed ; do
 	[ "$( type -t "$rigFn" 2>/dev/null )" = function ] || rigRefuse "$rigFn is not a function after evaluating the extracted source"
 done
 
-rigTmp="$( mktemp -d -t AgentsHarnessContainmentCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessContainmentCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/real" "$rigTmp/outside"
 echo MARKER > "$rigTmp/real/target.txt"

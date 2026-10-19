@@ -157,7 +157,8 @@ rigReplyRef(){ ## request id -- the loop as it was
 	done < "$harnessScratch/mcp.out"
 	printf '%s' "$replyFound"
 }
-harnessScratch="$( mktemp -d -t AgentsHarnessArgTableCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+harnessScratch="$( rigTempDir AgentsHarnessArgTableCheck )" || exit 1
 trap 'rm -rf -- "$harnessScratch"' EXIT
 rigReplyCase(){ ## what, mcp.out content
 	printf '%s' "$2" > "$harnessScratch/mcp.out"

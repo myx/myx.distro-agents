@@ -970,14 +970,16 @@ AgentsToolsEscalationSetEntry(){ ## refusal record file, session id
 	printf '%s:%s' "$entryTool" "$entryTarget"
 }
 
-## The record of one request, found by id. Prints its path.
+## The record of one request, found by id, in either store of pending questions: the asks of
+## .local/agents/pending, and the requests for the authority of .local/questions
+## (AgentsToolsPendingRecordPath, AgentsTools.Authority.include). Prints its path.
 AgentsToolsEscalationRecord(){ ## request id
 	AgentsToolsAssertBareName "$1" "<request-id>" escalation || return 1
-	[ -f "$MMDAPP/.local/agents/pending/$1.md" ] || {
+	type AgentsToolsPendingRecordPath > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+	AgentsToolsPendingRecordPath "$1" || {
 		echo "$MDSC_CMD: ⛔ ERROR: no escalation record $1" >&2
 		return 1
 	}
-	printf '%s' "$MMDAPP/.local/agents/pending/$1.md"
 }
 
 ## The verdict one line typed at a console gives for this record, by the one reader of a
@@ -1346,6 +1348,14 @@ case "$1" in
 		shift
 		MDSC_CMD="$MDSC_CMD $answerOp"
 		. "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsContext.UseAgentsTools.include"
+		## THE AUTHORITY (F6.10, AgentsTools.Authority.include): the escalation words are taken
+		## out of the arguments first, wherever they stand.
+		type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include"
+		type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include"
+		if [ "$answerOp" != "--manager-pending-reply-answer" ] ; then
+			AgentsToolsAuthorityFlags "$@" || { set +e ; return 1 ; }
+			set -- "${agentsAuthorityRest[@]}"
+		fi
 		local answerMember="$1" answerId="$2" answerVerdict="$3" answerText="${4:-}" answerFile answerKind answerOwner answerTo answerOptionLine answerFound=""
 		## From the console: the fifth word is the account at the console, the sixth `reject`
 		## where the answer is the kind's own negative one.
@@ -1365,6 +1375,11 @@ case "$1" in
 			set +e ; return 1
 		fi
 		answerFile="$( AgentsToolsEscalationRecord "$answerId" )" || { set +e ; return 1 ; }
+		## A request for the authority is answered by whom it asks, and its answer acts on what it asked for.
+		if [ -n "$( AgentsToolsEscalationField "$answerFile" request-of )" ] ; then
+			AgentsToolsAuthorityRequestAnswer "$answerFile" "$answerVerdict" || { set +e ; return 1 ; }
+			return 0
+		fi
 		answerKind="$( AgentsToolsEscalationField "$answerFile" kind )"
 		answerOwner="$( AgentsToolsEscalationField "$answerFile" owner )"
 		answerTo="$( AgentsToolsEscalationField "$answerFile" address-to )"
@@ -1451,6 +1466,18 @@ case "$1" in
 		if [ -z "$answerFound" ] ; then
 			echo "$MDSC_CMD: ⛔ ERROR: $answerVerdict is not a verdict of this ${answerKind:-question}, so nothing is applied" >&2
 			set +e ; return 1
+		fi
+		## Answered on another's behalf from a member's run (--magic-escalation-answer): only by one
+		## that holds the authority over the run that asked it -- else asked for, as the words say.
+		## The verdict is checked first, so a wrong one is refused as one; then the authority.
+		if [ "$answerOp" = "--magic-escalation-answer" ] ; then
+			local answerAsker="" answerAskerRecord=""
+			answerAsker="$( AgentsToolsEscalationField "$answerFile" session-id )"
+			answerAskerRecord="$( AgentsToolsSessionRunRecord "$answerAsker" )" || answerAskerRecord=""
+			AgentsToolsAuthorityGate "the answer of question $answerId" "$answerId" "$answerAskerRecord" "$answerFile" console \
+				"$answerOp" "$answerMember" "$answerId" "$answerVerdict" ${answerText:+"$answerText"} || :
+			AgentsToolsAuthorityExit || { set +e ; return "$agentsAuthorityExit" ; }
+			[ -z "$( AgentsToolsAuthorityChosen )" ] || answerVerdict="$( AgentsToolsAuthorityChosen )"
 		fi
 		## An answer that lost the claim to another one is not applied, and is not said in the thread.
 		## One answer, one reply: what became of this one is said in the question's thread by the

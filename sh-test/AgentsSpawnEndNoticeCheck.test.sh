@@ -61,7 +61,8 @@ rigRefuse(){
 ## still that process; a control thread the advance pass of this rig starts is ended the same way, at the end.
 . "$rigHelper" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsSpawnEndNoticeCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSpawnEndNoticeCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned"
@@ -398,8 +399,18 @@ rigConsole(){ ## result file, tool arguments...
 	local consoleOut="$1" ; shift
 	( cd "$rigWs" && rigEnv "$rigDir" bash "$rigTool" "$@" ) > "$consoleOut" 2> "$consoleOut.err" < /dev/null
 }
+## The run reports to rig-member-b, so the person at this console, user-rig, ends it by a grant
+## of that authority over the run's session, opened by the owners role (F6.10).
+rigConsoleGrant(){
+	rigConsole "$rigDir/grant-refusal.out" --intern-op-permission-refusal-log user-rig --session-id "$( rigHeader "$rigRecord" session-id )" \
+		--tool authority --target rig-member-b --reason "rig: the console ends this run"
+	rigConsole "$rigDir/grant-open.out" --intern-op-permission-grant-open human-owner --session-id "$( rigHeader "$rigRecord" session-id )" \
+		--refusal-id "$( LC_ALL=C grep -o -E 'refusal-[0-9a-f-]+' "$rigDir/grant-refusal.out" | head -1 )" --kind session
+	LC_ALL=C grep -q '^GRANT: session ' "$rigDir/grant-open.out" || rigRefuse "the console's grant over the run's session was not written"
+}
 rigKilledWords='was killed from the console by rig'
 rigStart killed "${rigAsParent[@]}" --session-new
+rigConsoleGrant
 rigConsole "$rigDir/kill.out" --manager-session-kill --session-id "$( rigRunId )" --run
 rigAssert "control: the console's user kills the run, and its record holds who and when" \
 	"$( LC_ALL=C awk -F'\t' '$1 == "kill" { print $5 }' "$rigDir/kill.out" ):$( rigHeader "$rigRecord" killed-by ):$( rigHeader "$rigRecord" killed-at | LC_ALL=C grep -c -x -E '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} [+-][0-9]{4}' )" "ended:rig:1"
@@ -416,6 +427,7 @@ printf '%s\n' '{"outcome":"the rig step is done"}' | ( cd "$rigWs" && rigEnv "$r
 printf '📦 SubagentHandback\n' >> "$rigLog"
 rigAssert "control: the run handed back in the thread of the session that requested it, and still runs" \
 	"$( rigNotes "$rigDir" 'the rig step is done' | LC_ALL=C awk '{ print $1, $2 }' ):$( rigIsStill "$( head -1 "$rigDir/first.began" )" && printf run-alive || printf run-gone )" "${rigParentThread%%:*} ${rigParentThread#*:}:run-alive"
+rigConsoleGrant
 rigConsole "$rigDir/kill.out" --manager-session-kill --session-id "$( rigRunId )" --run
 rigWaitFor 90 rigRecordClosed ; rigWaitFor 60 rigHasEnded "$rigShell"
 rigAssert "a killed run that had handed back is still told as killed, in that thread" "$( rigNotes "$rigDir" "$rigKilledWords" )" "${rigParentThread%%:*} ${rigParentThread#*:} $rigToB"

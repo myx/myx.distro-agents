@@ -26,7 +26,8 @@ rigRefuse(){
 
 ## A take of the advance lock or an iteration of the main loop starts the control thread of a session of its rig that is not finished: what was started is ended before the tree is removed.
 . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's fixture that ends control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t "AgentsAdvanceInputScanStatesCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsAdvanceInputScanStatesCheck )" || exit 1
 trap 'rigControlThreadsEnd "$rigTmp" ; rm -rf -- "$rigTmp"' EXIT
 ## THE RIG'S OWN PROCESS LIST. A spawn is found running by a process list read from the host
 ## (ps -A). A rig that read the real one would take whatever command line of this host holds
@@ -461,7 +462,7 @@ rigPostSetup(){ ## rig name, thread record yes|no -- one rig with a dead local d
 	[ "$2" != yes ] || { mkdir -p "$rigW/.local/agents/sessions/rig-advance" && printf 'CRIG00001:1.000001\n' > "$rigW/.local/agents/sessions/rig-advance/event-track.thread" ; }
 	## A thread file in the sandbox, as spawns shared it before, is read by nothing: never 9.000009.
 	printf 'CRIG00001:9.000009\n' > "$rigTmp/$1/sandbox/event-track.thread"
-	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" TMPDIR="$rigW/.local/temp" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
+	rigExtraEnv=( PATH="$rigTmp/bin:$PATH" RIG_SCENARIO="$rigTmp/$1/scenario" RIG_WS="$rigW" RIG_MODE=ok RIG_SENTINEL="rig-token-$$" RIG_SENTINEL_B64=none MDAT_SPAWN_SANDBOX_ROOT="$rigTmp/$1/sandbox" MDAT_SPAWN_SESSION_ID=rig-advance )
 	rigSandbox rig-d1 "$rigHost" spawn-started ; rigDispatch rig-d1 dispatch-started ; rigAgeMin "$rigW/.local/agents/spawned/rig-d1" 120
 	rigSandbox rig-r1 "$rigHost" spawn-succeeded "exit-code: 0" ; rigItem review task-rig-r1.md task none rig-r1 none
 }

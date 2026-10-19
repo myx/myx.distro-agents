@@ -50,9 +50,9 @@ maintainers: magic-coordinator, magic-librarian, magic-architect, human-owner
 
 Exact instructions. Execute in order, every step, literally as written — not less, not more. If a step cannot execute as written: escalate it, and never skip it silently.
 
-1. **advance-acquire-lock**: Acquire the lock (`--magic-advance-lock-acquire`) before anything else. Contention means another pass is live: this pass does not start.
+1. **advance-acquire-lock**: Acquire the lock (`--magic-advance-lock-acquire`) before anything else. Contention means another pass is live: this pass does not start. A successful take also does the pass's housekeeping itself: it closes dead spawns, moves their items to review, and starts missing control threads.
 2. **advance-process-inbox**: Run `magic-team.process-inbox.routine magic-coordinator`. This is the pass's one inbox processing.
-3. **advance-read-board-state**: Run `--magic-advance-input-scan`. Keep the pass's tracking note current as the pass proceeds (`--magic-advance-state-and-lock-upsert`), and refresh the lock during a long pass (`--magic-advance-lock-refresh`).
+3. **advance-read-board-state**: Run `--magic-advance-input-scan`. In a team session it replies with a file: read that file by line range, and do not scan again. Keep the pass's tracking note current as the pass proceeds (`--magic-advance-state-and-lock-upsert`), and refresh the lock during a long pass (`--magic-advance-lock-refresh`).
 4. **advance-reconcile-sessions**: Compare the scan's session registries with the board before any other work. Each handler states its outcome, steps:
    - **reconcile-read**: Read the spawned-sessions and pending-replies registries, and match each `board-running` item to its session by `session-id`. A pending-replies row's `session-id` is the id of the run that asked, never of the coworking session that run joined.
    - **reconcile-dead-session**: A `board-running` item other than a `dispatch-*` whose session is not live is a failed spawn. Record the registry reading in its `execution-receipt`. It carries `restart-session`: respawn that group at the item's recorded state, outcome `respawned`. Otherwise: move it to `board-blocked` with a `condition` naming the dead session, outcome `flagged-once`.

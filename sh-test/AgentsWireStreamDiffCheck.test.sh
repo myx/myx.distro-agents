@@ -28,7 +28,8 @@ for rigFile in "$rigHarness" "$rigHere/AgentsOpenAiChatWire.sh" "$rigHere/Agents
 	[ -f "$rigFile" ] || rigRefuse "not found at the origin this workspace resolves: $rigFile"
 done
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsWireStreamDiffCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsWireStreamDiffCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## The one core helper the thinking-line wrap calls, lifted out of the harness by name.

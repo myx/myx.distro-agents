@@ -496,7 +496,8 @@ rigVt="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.
 rigTools="$MDLT_ORIGIN/myx/myx.distro-agents/sh-test/check-fixtures/manager-screen.tools.stub.sh"
 [ -f "$rigVt" ] || rigRefuse "the terminal of the screen tests is missing: $rigVt"
 [ -f "$rigTools" ] || rigRefuse "the stand-in for the dispatcher is missing: $rigTools"
-rigTmp="$( mktemp -d -t AgentsManagerScreenDialogCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsManagerScreenDialogCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/rig" "$rigTmp/ws-rig"

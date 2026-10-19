@@ -21,7 +21,8 @@ instTool="$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$instTool" ] || { echo "⛔ ERROR: the tool is not at the origin this workspace resolves: $instTool" >&2 ; exit 1 ; }
 instLatency="${1:-0.3}" instDms="${2:-30}" instClients="${3:-2}"
 
-instTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsSweepTimingInstrument.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+instTmp="$( rigTempDir AgentsSweepTimingInstrument )" || exit 1
 trap 'rm -rf -- "$instTmp"' EXIT
 mkdir -p "$instTmp/bin" "$instTmp/ws/.local/.agents" "$instTmp/ws/.local/agents/members/magic-coordinator" \
 	"$instTmp/data/inboxes/magic-coordinator" "$instTmp/data/board/running" "$instTmp/data/audit"
@@ -46,7 +47,7 @@ done
 instStart="$( date +%s )"
 instRc=0
 ( cd "$instTmp/ws" && env -u MDAT_SKILLSET_ROOT PATH="$instTmp/bin:$PATH" HOME="$instTmp/home" MMDAPP="$instTmp/ws" \
-	MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$instTmp/data" TMPDIR="$instTmp/ws/.local/temp" \
+	MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$instTmp/data" \
 	FIX_DIR="$instTmp" FIX_LATENCY="$instLatency" FIX_DMS="$instDms" \
 	bash "$instTool" --magic-sweep-input-scan magic-coordinator ) > "$instTmp/out" 2> "$instTmp/err" || instRc=$?
 instEnd="$( date +%s )"

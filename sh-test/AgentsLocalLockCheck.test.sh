@@ -14,7 +14,8 @@ rigRefuse(){
 }
 [ -f "$rigInclude" ] || rigRefuse "the lock primitive is missing: $rigInclude"
 
-rigTmp="$( mktemp -d -t AgentsLocalLockCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsLocalLockCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws"

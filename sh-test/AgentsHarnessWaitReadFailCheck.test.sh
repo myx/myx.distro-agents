@@ -10,7 +10,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigTool" ] || rigRefuse "team tooling not found: $rigTool"
-rigTmp="$( mktemp -d -t AgentsHarnessWaitReadFailCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessWaitReadFailCheck )" || exit 1
 trap 'chmod -R u+rw "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 

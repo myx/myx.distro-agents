@@ -31,7 +31,8 @@ rigRefuse(){
 [ -f "$rigInclude" ] || rigRefuse "the wait operation is not at the origin this workspace resolves: $rigInclude"
 [ -x "$rigTool" ] || rigRefuse "the team tooling is not on the path the Wait tool itself resolves: $rigTool"
 
-rigTmp="$( mktemp -d -t AgentsHarnessWaitCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessWaitCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## Every request any part of this check could issue passes through here, and it

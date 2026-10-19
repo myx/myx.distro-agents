@@ -16,7 +16,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigManual" ] || rigRefuse "the manual is not at the origin this workspace resolves: $rigManual"
 
-rigTmp="$( mktemp -d -t "AgentsMemberHelpEntryTextCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMemberHelpEntryTextCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws" "$rigTmp/ws/.local/agents/members/keeper-rig" "$rigTmp/ws/.local/agents/members/magic-team"
 printf '# keeper-rig\n' > "$rigTmp/ws/.local/agents/members/keeper-rig/SKILL.md"

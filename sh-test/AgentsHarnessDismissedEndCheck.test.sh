@@ -93,7 +93,7 @@ rigCall(){ ## tool, arguments JSON, further environment words (NAME=value)... --
 	local callTool="$1" callArgs="$2" callStart ; shift 2
 	callStart="$( date +%s )"
 	( cd "$rigDir/ws" && printf '%s' "$callArgs" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SESSION_ID -u MDAT_SPAWN_CALLER_WAITS \
-		PATH="$rigTmp/served:$rigPathBase" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
+		PATH="$rigTmp/served:$rigPathBase" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
 		MDAT_SESSION_THREAD="$rigThread" MDAT_SPAWN_SESSION_ID="$rigSpawn" MDAT_SPAWN_AGENT="$rigMember" MDAT_SKILLSET_ROOT="$rigTmp/skills" "$@" \
 		bash "$rigHarness" --intern-tool "$callTool" > "$rigDir/tool.out" 2> "$rigDir/tool.err" )
 	rigSeconds=$(( $( date +%s ) - callStart ))
@@ -213,7 +213,7 @@ rigScene neverSpawned magic-coordinator
 rigNative(){ ## arguments JSON -- a served Wait of a session with no spawn id: the root's, served as magic-coordinator
 	local nativeStart ; nativeStart="$( date +%s )"
 	( cd "$rigDir/ws" && printf '%s' "$1" | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SESSION_ID -u MDAT_SESSION_THREAD -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SPAWN_CALLER_WAITS \
-		PATH="$rigTmp/served:$rigPathBase" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
+		PATH="$rigTmp/served:$rigPathBase" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
 		CLAUDE_CODE_SESSION_ID="rig-native-$$" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigHarness" --intern-tool Wait > "$rigDir/tool.out" 2> "$rigDir/tool.err" )
 	rigSeconds=$(( $( date +%s ) - nativeStart ))

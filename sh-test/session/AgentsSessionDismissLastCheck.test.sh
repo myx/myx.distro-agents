@@ -129,7 +129,7 @@ rigEnd(){ ## pid -- the run ends by itself
 rigWaits(){ ## run id, member, session
 	local waitOut="$rigDir/$1.wait.out"
 	( cd "$rigDir/ws" && printf '%s' '{"sources":"slack:session-current","since_utime":"1700000100","timeout":2}' | env -u MDAT_DATA_ROOT -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u MDAT_SPAWN_CALLER_WAITS \
-		PATH="$rigTmp/served:/usr/bin:/bin" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
+		PATH="$rigTmp/served:/usr/bin:/bin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" \
 		MDAT_SESSION_ID="$3" MDAT_SESSION_THREAD="$( rigThreadOf "$3" )" MDAT_SPAWN_SESSION_ID="$1" MDAT_SPAWN_AGENT="$2" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigHarness" --intern-tool Wait > "$waitOut" 2> "$waitOut.err" )
 	LC_ALL=C grep -q -x -F 'WAIT-RESULT: DISMISSED' "$waitOut" && printf dismissed || printf waits
@@ -137,7 +137,7 @@ rigWaits(){ ## run id, member, session
 ## The accept of a handback by magic-coordinator, the reviewer; prints how many of the sends it made say DISMISSED.
 rigAccepts(){ ## item
 	rm -f "$rigDir"/post.* "$rigDir/posts"
-	( cd "$rigDir/ws" && env -i HOME="$rigTmp" PATH="$rigTmp/served:/usr/bin:/bin:/usr/sbin:/sbin" TMPDIR="$rigTmp/tmp" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
+	( cd "$rigDir/ws" && env -i HOME="$rigTmp" PATH="$rigTmp/served:/usr/bin:/bin:/usr/sbin:/sbin" RIG_SCENARIO="$rigDir" RIG_CURL_LOG="$rigDir/curl.log" \
 		MMDAPP="$rigDir/ws" MDLT_ORIGIN="$MDLT_ORIGIN" MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_DATA_ROOT="$rigDir/data" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		bash "$rigFn" --member-review-accept magic-coordinator "$1" --summary "The work is good." ) > "$rigDir/accept.out" 2>&1
 	printf '%s' "$?" > "$rigDir/accept.rc"

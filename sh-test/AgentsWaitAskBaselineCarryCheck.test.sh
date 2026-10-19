@@ -72,7 +72,7 @@ RIGRECORD
 rigSession="rig-wait-baseline"
 rigOp(){ ## operation and its arguments
 	( cd "$rigScenarioDir/ws" && env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u MDAT_SPAWN_SESSION_ID -u MDAT_SPAWN_AGENT -u MDAT_SESSION_THREAD \
-		MDAT_WAIT_REMIND=off TMPDIR="$rigTmp" MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
+		MDAT_WAIT_REMIND=off MMDAPP="$rigScenarioDir/ws" bash "$rigTools" "$@" ) > "$rigScenarioDir/out" 2> "$rigScenarioDir/err"
 }
 
 echo "-- a question closed with no thread: the first poll sees it, a later one must not repeat it --"

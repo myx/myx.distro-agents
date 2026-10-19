@@ -20,7 +20,8 @@ set -u
 rigTool="${MDLT_ORIGIN:=$MMDAPP/.local}/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh"
 [ -f "$rigTool" ] || { echo "⛔ ERROR: not found at the origin this workspace resolves: $rigTool -- refusing to report a result" >&2 ; exit 1 ; }
 
-rigTmp="$( mktemp -d -t AgentsMcpWaitProgressCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMcpWaitProgressCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigTmp="$( cd "$rigTmp" && pwd -P )"
 mkdir -p "$rigTmp/ws/.local/temp" "$rigTmp/home" "$rigTmp/skills/magic-coordinator"

@@ -42,7 +42,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 [ -f "$rigInclude" ] || rigRefuse "the Slack include is not at: $rigInclude"
 [ -f "$rigRegInclude" ] || rigRefuse "the registries include is not at: $rigRegInclude"
-rigTmp="$( mktemp -d -t AgentsSlackClientPersonaCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSlackClientPersonaCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
@@ -558,7 +559,7 @@ printf 'seed-sessions\n' > "$rigAgentsDir/spawned-sessions.registry" ; printf 's
 rigSeedSum="$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" )"
 rigBuild
 rigAssert "the build exits 0 and prints nothing on stdout"                 "$rigBuildRc $( rigLines "$rigTmp/build.out" )" "0 0"
-rigAssert "the build makes exactly the four registries, the member index, the grants index and the harness's own three indexes, and keeps the other files: the folder holds those, the seeded log and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index harness.hooks.index harness.roots.index mcp.servers.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the build makes exactly the four registries, the member index, the grants index, the tool index and the harness's own three indexes, and keeps the other files: the folder holds those, the seeded log and the member registry it reads" "$( ls "$rigAgentsDir" | LC_ALL=C tr '\n' ' ' )" "comms-slack-send.2026-10.log grants.index harness.hooks.index harness.roots.index mcp.servers.index members members.index members.registry pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry tool-index.md "
 rigAssert "the seeded log is untouched, and the two session registries are rebuilt from their stores, which hold nothing here: no seeded row is left" "$( cksum < "$rigAgentsDir/comms-slack-send.2026-10.log" ) $( rigLines "$rigAgentsDir/spawned-sessions.registry" ) $( rigLines "$rigAgentsDir/pending-replies.registry" )" "$rigSeedSum 0 0"
 rigAssert "the file naming rule: both new registries are <name>.registry, the earlier presentation file name is not written" "$( [ -f "$rigAgentsDir/team-members.registry" ] && printf yes || printf no ) $( [ -f "$rigAgentsDir/team-members-names.registry" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index" ] && printf yes || printf no ) $( [ -e "$rigAgentsDir/member-presentation.index.registry" ] && printf yes || printf no )" "yes yes no no"
 rigAssert "a plain row: member, mark, first, family, alias from the bullets" "$( rigIndexRow keeper-w2 )" 'keeper-w2|🔧|Wren|Skinner|wren'
@@ -603,7 +604,7 @@ rigAssert "and both registries are as they were"                           "$( c
 rigLinkDrop keeper-w1 ; rigLinkDrop keeper-w3
 rigBuild
 rigAssert "a rebuild is whole: a member that lost its path has no row in either file, the others stay" "$( rigIndexRow keeper-w1 )$( LC_ALL=C grep -c 'keeper-w3' "$rigMembersFile" || : ) $( rigLines "$rigNamesFile" ) $( rigLines "$rigMembersFile" )" "0 19 19"
-rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 12"
+rigAssert "control: the same build prints no error and no leftover temporary file" "$rigBuildRc $( LC_ALL=C grep -c 'ERROR: DistroAgentsTools' "$rigTmp/build.err" || : ) $( ls "$rigAgentsDir" | LC_ALL=C awk 'END { print NR }' )" "0 0 13"
 cp "$rigLinkedFile" "$rigTmp/linked.keep"
 rm -rf "$rigAgentsDir" ; printf 'not a directory\n' > "$rigAgentsDir"
 rigBuild

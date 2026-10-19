@@ -20,7 +20,8 @@ rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
 }
 [ -x "$rigFn" ] || rigRefuse "dispatcher not found: $rigFn"
-rigTmp="$( mktemp -d -t AgentsSlackSendLogAppendCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSlackSendLogAppendCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws"
@@ -40,7 +41,7 @@ rigAssert(){ ## what is asserted, got, want
 	fi
 }
 rigSend(){ ## mode (ok|fail), result file, [spawn session id]
-	env -i ${3:+MDAT_SPAWN_SESSION_ID=$3} HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" TMPDIR="$rigWs/.local/temp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+	env -i ${3:+MDAT_SPAWN_SESSION_ID=$3} HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 		MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 		RIG_SCENARIO="$rigTmp/scenario" RIG_WS="$rigWs" RIG_MODE="$1" RIG_SENTINEL="$rigSentinel" RIG_SENTINEL_B64=none RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 		bash -c '
@@ -168,7 +169,7 @@ rigAssert "a token-shaped string in a reason is redacted" "$( rigSocketRows | LC
 rigAssert "no row holds the body"  "$( LC_ALL=C grep -c -F "$rigMarker" "$rigLog" )" 0
 rigAssert "no row holds the token" "$( LC_ALL=C grep -c -F -e "$rigAppToken" -e "ARIG-$$" "$rigLog" )" 0
 rigAssert "the send rows before them are untouched" "$( LC_ALL=C awk -F'\t' '$3 != "socket"' "$rigLog" | cksum )" "$rigSendRows"
-env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" TMPDIR="$rigWs/.local/temp" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
+env -i HOME="$rigTmp/home" PATH="$rigTmp/bin:/usr/bin:/bin" MMDAPP="$rigWs" MDLT_ORIGIN="$MDLT_ORIGIN" \
 	MDLT_OPTION="--run-from-path $MDLT_ORIGIN" MDAT_SKILLSET_ROOT="$rigTmp/skills" \
 	RIG_SCENARIO="$rigTmp/scenario" RIG_WS="$rigWs" RIG_MODE=ok RIG_SENTINEL="$rigSentinel" RIG_SENTINEL_B64=none RIG_TMP="$rigTmp" RIG_FN="$rigFn" \
 	bash -c '

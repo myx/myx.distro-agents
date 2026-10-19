@@ -281,6 +281,8 @@ harnessSessionId=""
 harnessAgent=""
 harnessAgentMissing=""
 harnessMcpServers=()
+## The root flags as given, in their order: each call of a batch is made with them (AgentsHarnessBatchCall).
+harnessRootFlags=()
 while [ $# -gt 0 ] ; do
 	case "$1" in
 		--tier)
@@ -299,6 +301,7 @@ while [ $# -gt 0 ] ; do
 				exit 1
 			fi
 			harnessAccessRoots+=( "$2" )
+			harnessRootFlags+=( "$1" "$2" )
 			shift 2
 		;;
 		--access-write-root|--access-root)
@@ -309,6 +312,7 @@ while [ $# -gt 0 ] ; do
 			fi
 			harnessWriteAccessRoots+=( "$2" )
 			harnessAccessRoots+=( "$2" )
+			harnessRootFlags+=( "$1" "$2" )
 			shift 2
 		;;
 		--mcp-server)
@@ -719,8 +723,8 @@ fi
 ## there. AgentsHarnessDeniedHint below names the real fix on that one refusal: reread the
 ## original tool with a narrower offset/limit.
 
-## The run's scratch is the workspace's own, never the system's temp folder (the owner's rule:
-## no /tmp): the spawn's sandbox tmp/ where it has one, else $MMDAPP/.local/agents/scratch, which
+## The run's scratch is the workspace's own, never the system's temp folder, by the owner's rule:
+## the spawn's sandbox tmp/ where it has one, else $MMDAPP/.local/agents/scratch, which
 ## no member's floor grants (AgentsTools.Grants.include). With no workspace there is no scratch,
 ## and no run: a served call says so on stdout, where its caller reads every refusal.
 harnessScratchBase=""
@@ -2128,6 +2132,8 @@ AgentsHarnessToolSendMessage(){ ## target, message, as bot, address to, broadcas
 	fi
 	## The served SendMessage posts in its session only with its seat there (F6.9, AgentsHarnessSendSeatRefused).
 	[ "$toolNext" != "reply" ] || ! AgentsHarnessSendSeatRefused "$toolTarget" || return 0
+	## And dismisses another run only with the authority over it (F6.10, AgentsHarnessSendDismissRefused).
+	[ "$toolNext" != "reply" ] || ! AgentsHarnessSendDismissRefused "$toolTarget" "$toolMessage" "$toolAddressTo" || return 0
 	## No target named: default to this session's own coworking thread, where one
 	## exists. An ad-hoc/solo spawn holding none keeps today's explicit-target
 	## requirement exactly -- the error just below fires precisely as it always has.
@@ -2499,6 +2505,58 @@ AgentsHarnessSendSeatRefused(){ ## target as given
 	return 0
 }
 
+## THE AUTHORITY of a served tool (F6.10, AgentsTools.Authority.include): the gate asked for an
+## action on another run, its escalation the call's own `escalate` ("enqueue" or "wait", and
+## `timeout` with a wait); what the gate said is this call's result. rc 0 the call goes on and
+## acts; rc 1 it ends here, what became of it said.
+AgentsHarnessAuthorityAsk(){ ## what (words), the run's spawn id, tool, the call's arguments JSON
+	local askRecord=""
+	type AgentsToolsAuthorityGate > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include" 2> /dev/null || return 0
+	type AgentsToolsRunRoute > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 0
+	askRecord="$( AgentsHarnessSpawnRecordPath "$2" )"
+	agentsAuthorityMode="" agentsAuthorityTimeout=""
+	case "${harnessArgV_escalate:-}" in
+		enqueue|wait) agentsAuthorityMode="$harnessArgV_escalate" ;;
+	esac
+	[ "$agentsAuthorityMode" != wait ] || ! AgentsHarnessWholeNumber "${harnessArgV_timeout:-}" || agentsAuthorityTimeout="$harnessArgV_timeout"
+	agentsAuthorityStream="out"
+	AgentsToolsAuthorityGate "$1" "$2" "$askRecord" "" tool "@harness" "$3" "$4" || :
+	agentsAuthorityStream=""
+	AgentsToolsAuthorityExit
+}
+
+## A DISMISSED sent with the served SendMessage, addressed to a member of this session: the
+## dismissal of that member's run there (its seat holder, else a live run of it), which takes the
+## authority over that run. rc 0 the send is refused or asked for, what became of it said; rc 1 it
+## may go.
+AgentsHarnessSendDismissRefused(){ ## target as given, message, address to
+	local dismissBody dismissMember="" dismissRun="" dismissCandidate dismissSession
+	type AgentsToolsAuthorityField > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.Authority.include" 2> /dev/null || return 1
+	dismissBody="$( printf '%s' "$2" | LC_ALL=C tr -d '\r' | LC_ALL=C sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' )"
+	case "$dismissBody" in
+		DISMISSED|DISMISSED.|DISMISSED!) dismissMember="$3" ;;
+		'DISMISSED '*) dismissMember="${dismissBody#DISMISSED }" ; dismissMember="${dismissMember%[.!]}" ;;
+		*) return 1 ;;
+	esac
+	AgentsHarnessBareName "$dismissMember" || return 1
+	type AgentsToolsSessionSeatHolder > /dev/null 2>&1 || . "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/AgentsTools.SpawnSandbox.include" 2> /dev/null || return 1
+	dismissSession="${MDAT_SESSION_ID:-}"
+	[ -n "$dismissSession" ] || dismissSession="$( AgentsToolsAuthorityField "$( AgentsHarnessSpawnRecordPath "${MDAT_SPAWN_SESSION_ID:-}" )" session-id 2> /dev/null )"
+	[ -n "$dismissSession" ] || return 1
+	dismissRun="$( AgentsToolsSessionSeatHolder "$dismissSession" "$dismissMember" )" || dismissRun=""
+	if [ -z "$dismissRun" ] ; then
+		for dismissCandidate in $( LC_ALL=C grep -l -x -F "session-id: $dismissSession" "${MMDAPP:-/nonexistent}"/.local/agents/spawned/*/*.md 2> /dev/null ) ; do
+			[ "$( AgentsToolsSpawnSandboxRecordHeader "$dismissCandidate" owner )" = "$dismissMember" ] || continue
+			AgentsToolsSessionRecordLive "$dismissCandidate" || continue
+			dismissRun="${dismissCandidate##*/}" ; dismissRun="${dismissRun%.md}"
+			break
+		done
+	fi
+	[ -n "$dismissRun" ] && [ "$dismissRun" != "${MDAT_SPAWN_SESSION_ID:-}" ] || return 1
+	! AgentsHarnessAuthorityAsk "the dismissal of the run $dismissRun of $dismissMember" "$dismissRun" SendMessage \
+		"$( printf '{"to":"%s","address_to":"%s","message":"%s"}' "$1" "$3" "$dismissBody" )"
+}
+
 ## The wait happens HERE, in this process, inside one tool call: the model spends
 ## nothing while nothing is happening and its context does not grow, which is the
 ## whole reason this is a tool and not a loop of reads. Through the team's own
@@ -2774,6 +2832,29 @@ AgentsHarnessToolSessionTranscriptAppend(){ ## note
 ## A participant writes its own list alone. Checked whole first, so a list with one bad item is
 ## refused and the list kept before stays as it was; written to a temp file mktemp names beside
 ## it and put in place by one rename, so no reader sees half a list.
+## BatchTools: several calls in one, by the one engine (AgentsTools.BatchTools.include). Each call is a served
+## call of its own, with this run's root flags, session and member, so it runs as it would alone: through the
+## hooks and the reply layer of a served call, and in the model loop through the arm gate first.
+AgentsHarnessToolBatchTools(){ ## raw arguments
+	. "$harnessHere/AgentsTools.BatchTools.include" || { printf 'ERROR: BatchTools: its engine is missing from this package -- nothing was run.\n' ; return 0 ; }
+	AgentsToolsBatchRun AgentsHarnessBatchCall AgentsHarnessBatchServes "$1"
+}
+## A tool this harness serves: one it declares, the second name of the tools that ask, or an MCP server's own.
+AgentsHarnessBatchServes(){ ## tool name
+	case "$1" in
+		AskUserQuestion|mcp__?*__?*) return 0 ;;
+	esac
+	LC_ALL=C grep -q -F -- "{\"type\":\"function\",\"function\":{\"name\":\"$1\"," "$harnessWireFile"
+}
+## One call of a batch, made as the call alone would be: the arm gate first, in the model loop, then a served call.
+AgentsHarnessBatchCall(){ ## tool name, arguments file, call number
+	local callGate
+	callGate="$( AgentsHarnessArmGate "$1" )"
+	[ -z "$callGate" ] || { printf '%s\n' "$callGate" ; return 1 ; }
+	MDAT_SPAWN_AGENT="${MDAT_SPAWN_AGENT:-$harnessAgent}" "$BASH" "$harnessHere/AgentsUniversalHarness.sh" --intern-tool "$1" \
+		${harnessSessionId:+--session-id "$harnessSessionId"} ${harnessRootFlags[@]+"${harnessRootFlags[@]}"} < "$2"
+}
+
 AgentsHarnessToolCheckList(){ ## raw arguments
 	local todoCount todoIndex=0 todoField todoWhere todoPending=0 todoActive=0 todoDone=0 todoFile todoText="" todoLine todoContent todoPathNo=0 todoTmp=""
 	AgentsHarnessArgParse "$1"
@@ -3482,6 +3563,10 @@ AgentsHarnessToolTaskStop(){ ## handle, force, task_id, shell_id
 			printf 'ERROR: dispatch item %s carries no session-id, so there is no handle on any process and NOTHING was signalled. Status recorded on the item: %s\n' "$itemName" "${itemStatus:-<none>}" ; return 0
 		fi
 		stopOf="Dispatch item $itemName, session $sessionId"
+	fi
+	## THE AUTHORITY to stop another run (F6.10): whoever it reports to, the owners role, or a grant of it.
+	if [ "$sessionId" != "${MDAT_SPAWN_SESSION_ID:-}" ] ; then
+		AgentsHarnessAuthorityAsk "the stop of run $sessionId" "$sessionId" TaskStop "$( printf '{"task_id":"%s","force":"%s"}' "$toolHandle" "${toolForce:-false}" )" || return 0
 	fi
 	stopPids="$( AgentsHarnessSessionPids "$sessionId" own-word )"
 	## What an ended run is said to be, by how it was found: a process that carried the session
@@ -6027,6 +6112,22 @@ AgentsHarnessToolSkill(){ ## name, file, list, offset, limit, skill, args, secti
 				printf 'ERROR: Skill: the basic and armed files of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
 			}
 		fi
+		## A member reading its own skill gets its own section of the tool index too, as one
+		## section `Tool index` (--intern-op-tool-index, AgentsTools.InternOpToolIndex.include),
+		## rebuilt first where it is missing or stale. Where no index can be had, the read goes
+		## on without it; why is kept in the scratch, skill.index.err.
+		local skillReader="${harnessAgent:-${MDAT_SPAWN_AGENT:-}}" skillIndex=""
+		if [ -n "$skillReader" ] && [ "$skillReader" = "$skillMember" ] && [ -f "$skillDir/$skillMember.basic.md" ] ; then
+			skillIndex="$( "$BASH" "$MDLT_ORIGIN/myx/myx.distro-agents/sh-scripts/DistroAgentsTools.fn.sh" --intern-op-tool-index --ensure 2> "$harnessScratch/skill.index.err" | head -1 )" || skillIndex=""
+			if [ -n "$skillIndex" ] && LC_ALL=C grep -q -x -F -- "# $skillMember" "$skillIndex" 2> /dev/null ; then
+				type AgentsToolsMergeMdFiles > /dev/null 2>&1 || . "$harnessHere/AgentsTools.InternMergeMdFiles.include"
+				printf '\n' >> "$harnessScratch/skill.out"
+				AgentsToolsMergeMdFiles --section-limit 6 --mixin --section-include "$skillMember" "$skillIndex" "Tool index" \
+					>> "$harnessScratch/skill.out" 2> "$harnessScratch/skill.merge.err" || {
+					printf 'ERROR: Skill: the tool index section of %s could not be merged into the read: %s\n' "$skillMember" "$( head -1 "$harnessScratch/skill.merge.err" )" ; return 0
+				}
+			fi
+		fi
 		if [ -n "$toolSection" ] ; then
 			AgentsHarnessSkillSection "$harnessScratch/skill.out" "$toolSection" > "$harnessScratch/skill.section" || :
 			mv -f "$harnessScratch/skill.section" "$harnessScratch/skill.out"
@@ -6458,6 +6559,12 @@ AgentsHarnessAnnounceTool(){
 				announceDetail="$harnessDim the checklist of ${harnessArgV_member:-this member}$harnessOff"
 			fi
 		;;
+		## The calls are a list, so their number and the mode are shown; each call announces itself as it runs.
+		BatchTools)
+			announceIcon="🧺"
+			AgentsHarnessArgFind calls.__count || harnessArgFound="?"
+			announceDetail="$harnessValue$harnessArgFound$harnessOff$harnessDim call(s), ${harnessArgV_mode:-no mode}$harnessOff"
+		;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		## A call carrying a command is announced like Bash/Grep/Glob above: the command
 		## on the announce line, an optional comment on its own labelled line below, no
@@ -6496,10 +6603,39 @@ AgentsHarnessArmGate(){ ## tool name -- prints the redirect when the call must w
 	esac
 	printf 'ERROR: read your duty file first: Skill name=%s file=%s.armed.md -- then retry this call. Nothing was done.\n' "$harnessAgent" "$harnessAgent"
 }
+## The Skill calls of a batch, each with its entry as the batch returned it (text or json), to the arming note.
+AgentsHarnessArmNoteBatch(){ ## batch arguments JSON, batch result
+	local noteAt=0 noteCount noteText
+	type AgentsToolsBatchArg > /dev/null 2>&1 || . "$harnessHere/AgentsTools.BatchTools.include" 2> /dev/null || return 0
+	noteCount="$( AgentsToolsBatchArg "$1" calls.__count )"
+	case "$noteCount" in ''|*[!0123456789]*) return 0 ;; esac
+	while [ "$noteAt" -lt "$noteCount" ] && [ -z "$harnessArmedAt" ] ; do
+		if [ "$( AgentsToolsBatchArg "$1" "calls.$noteAt.tool" )" = Skill ] ; then
+			case "$2" in
+				'{'*) noteText="" ; [ "$( AgentsToolsBatchArg "$2" "entries.$noteAt.status" )" != ok ] || noteText="$( AgentsToolsBatchArg "$2" "entries.$noteAt.result" )" ;;
+				*) noteText="$( printf '%s\n' "$2" | LC_ALL=C awk -v want="$(( noteAt + 1 ))" '/^BATCH-ENTRY: / { on = ( $2 == want && $4 == "ok" ) ; next } /^BATCH-RESULT: / { on = 0 } on' )" ;;
+			esac
+			[ -z "$noteText" ] || AgentsHarnessArmNote Skill "$( AgentsToolsBatchArg "$1" "calls.$noteAt.arguments" raw )" "$noteText"
+		fi
+		noteAt=$(( noteAt + 1 ))
+	done
+	return 0
+}
 AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the arming read
+	## A Skill read in a batch arms the session as it would alone: each one, in call order, with its entry.
+	if [ -z "$harnessArmedAt" ] && [ "$1" = "BatchTools" ] && [ -n "$harnessAgent" ] ; then
+		AgentsHarnessArmNoteBatch "$2" "$3"
+		return 0
+	fi
 	[ -z "$harnessArmedAt" ] && [ "$1" = "Skill" ] && [ -n "$harnessAgent" ] || return 0
 	AgentsHarnessArgParse "$2"
-	[ "${harnessArgV_name}" = "$harnessAgent" ] && [ "${harnessArgV_file}" = "$harnessAgent.armed.md" ] || return 0
+	## A whole read of the member's own skill that served its armed file merged in, under that
+	## file's own heading (--intern-merge-md-files, the Skill read), arms as reading it does.
+	local armMerged=""
+	if [ "${harnessArgV_skill}" = "$harnessAgent" ] && [ -z "${harnessArgV_offset}${harnessArgV_limit}${harnessArgV_section}" ] ; then
+		case "$3" in *$'\n'"# $harnessAgent.armed.md"$'\n'*) armMerged=1 ;; esac
+	fi
+	[ -n "$armMerged" ] || { [ "${harnessArgV_name}" = "$harnessAgent" ] && [ "${harnessArgV_file}" = "$harnessAgent.armed.md" ] ; } || return 0
 	case "$3" in ERROR:*|'') return 0 ;; esac
 	## "In full" means every line: each read's range is recorded, and arming waits until the
 	## union covers line 1 to the last. A read with no footer is the whole file.
@@ -6508,6 +6644,7 @@ AgentsHarnessArmNote(){ ## tool name, arguments JSON, result -- records the armi
 		/^\.\.\. read [0-9]+ line\(s\) from line [0-9]+; the file has [0-9]+ lines \.\.\.$/ { shown = $3 ; from = $7 ; sub( /;$/, "", from ) ; total = $11 ; footer = 1 ; }
 		END { if ( ! footer ) { print "whole" ; } else if ( shown > 0 ) { print from " " ( from + shown - 1 ) " " total ; } ; }
 	' )"
+	[ -z "$armMerged" ] || [ "$armRange" = "whole" ] || return 0
 	case "$armRange" in
 		'') return 0 ;;
 		whole) harnessArmRanges="whole" ;;
@@ -6565,6 +6702,7 @@ AgentsHarnessRunTool(){ ## tool name, arguments JSON -- sets harnessResult
 		ToolSearch) harnessResult="$( AgentsHarnessToolToolSearch "${harnessArgV_query}" "${harnessArgV_max_results}" )" ;;
 		SessionTranscriptAppend) harnessResult="$( AgentsHarnessToolSessionTranscriptAppend "${harnessArgV_note}" )" ;;
 		CheckList) harnessResult="$( AgentsHarnessToolCheckList "$harnessFuncArgsRaw" )" ;;
+		BatchTools) harnessResult="$( AgentsHarnessToolBatchTools "$harnessFuncArgsRaw" )" ;;
 		Monitor)   harnessResult="$( AgentsHarnessToolMonitor "${harnessArgV_command}" "${harnessArgV_cwd}" "${harnessArgV_handle}" "${harnessArgV_offset}" "${harnessArgV_limit}" )" ;;
 		## Last, after every static arm: an mcp__ prefix must never displace a built-in.
 		mcp__*)    harnessResult="$( AgentsHarnessMcpCall "$harnessFuncName" "$harnessFuncArgsRaw" )" ;;

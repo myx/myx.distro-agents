@@ -21,7 +21,8 @@ rigRefuse(){
 [ -f "$rigNew" ] || rigRefuse "the field reader is not at the origin this workspace resolves: $rigNew"
 [ -f "$rigOld" ] || rigRefuse "the legacy engine fixture is missing: $rigOld"
 
-rigTmp="$( mktemp -d "${TMPDIR:-/tmp}/AgentsHarnessJsonFieldDiffCheck.XXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessJsonFieldDiffCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 rigPassCount=0

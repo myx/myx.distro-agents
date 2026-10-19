@@ -32,7 +32,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "not found at the origin this workspace resolves: $rigTool"
 [ -f "$rigHere/AgentsUniversalHarness.sh" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHere/AgentsUniversalHarness.sh"
 
-rigTmp="$( mktemp -d -t "AgentsHarnessServedIdentityCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessServedIdentityCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 
 ## Two skillsets: one holding only magic-coordinator, one holding only keeper-myx.

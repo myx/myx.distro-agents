@@ -37,7 +37,8 @@ for rigFile in "$rigFn" "$rigInclude" "$rigHelper" ; do
 done
 . "$rigHelper" || rigRefuse "the rig's process helper could not be read: $rigHelper"
 rigRealPs="$( command -v ps )" || rigRefuse "no ps on PATH to hand the other calls to"
-rigTmp="$( mktemp -d -t AgentsConsoleSessionSignalsCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsConsoleSessionSignalsCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 ## Every console and holder the rig started, and what each had started, is ended at the end, only while it is
 ## still the process that was noted as it started.

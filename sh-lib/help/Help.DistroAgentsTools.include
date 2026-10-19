@@ -27,6 +27,27 @@ echo "" >&2
 	;;
 esac
 
+## --help-syntax <op> prints the syntax lines of that one operation, and a word ending in `-`
+## those of every operation it begins, a family such as --magic-: the manual's own syntax
+## lines, which this file's match one for one. A word that names none is refused.
+case "$1:${2:-}" in
+	--help-syntax:?*)
+		local helpSyntaxWant="$2" helpSyntaxLines
+		helpSyntaxLines="$( LC_ALL=C awk -v want="$helpSyntaxWant" '
+			/^##/ { exit }
+			index( $0, "📘 syntax: " ) == 1 {
+				split( substr( $0, length( "📘 syntax: " ) + 1 ), words, " " ) ; op = words[2] ; gsub( /[][]/, "", op )
+				if ( op == want || ( want ~ /-$/ && index( op, want ) == 1 ) ) print
+			}' "$MDLT_ORIGIN/myx/myx.distro-agents/sh-lib/help/Help.DistroAgentsTools.help.md" )"
+		if [ -z "$helpSyntaxLines" ] ; then
+echo "⛔ ERROR: $MDSC_CMD --help-syntax $helpSyntaxWant: no operation is named so, or begins so -- $MDSC_CMD --help-syntax lists them all" >&2
+			set +e ; return 1
+		fi
+		printf '%s\n' "$helpSyntaxLines" >&2
+		return 0
+	;;
+esac
+
 ## The default syntax: the entry points a reader starts from. Every other
 ## operation's syntax sits behind --help-syntax, and the manual behind --help.
 ## Every echo stays flush-left, inside a case arm too: --member-help cuts this
@@ -37,7 +58,7 @@ echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-integrations [--s
 echo "📘 syntax: DistroAgentsTools.fn.sh --install-workspace-restrictions [--workspace <path>]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --member-help <team-member>" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh --owner-setup-<domain> [<config-option>...] [--all-workspaces] [--set-as-default] [--check|--apply|--print-apply-command|--wizard]" >&2
-echo "📘 syntax: DistroAgentsTools.fn.sh [--help-syntax]" >&2
+echo "📘 syntax: DistroAgentsTools.fn.sh [--help-syntax [<op>]]" >&2
 echo "📘 syntax: DistroAgentsTools.fn.sh [--help]" >&2
 
 case "$1" in

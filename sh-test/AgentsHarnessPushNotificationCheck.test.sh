@@ -20,7 +20,8 @@ rigRefuse(){
 
 [ -f "$rigTool" ] || rigRefuse "not found at the origin this workspace resolves: $rigTool"
 
-rigTmp="$( mktemp -d -t "AgentsHarnessPushNotificationCheck-XXXXXXXX" )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessPushNotificationCheck )" || exit 1
 trap 'rm -rf -- "$rigTmp"' EXIT
 mkdir -p "$rigTmp/ws/.local/.agents" "$rigTmp/home" "$rigTmp/bin" "$rigTmp/skills/magic-coordinator"
 printf 'rig-coordinator\n' > "$rigTmp/skills/magic-coordinator/magic-coordinator.basic.md"

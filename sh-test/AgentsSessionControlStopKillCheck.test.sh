@@ -24,7 +24,8 @@ rigRefuse(){
 [ -f "$rigTool" ] || rigRefuse "the tool is not at the origin this workspace resolves: $rigTool"
 . "$rigPackage/sh-test/check-fixtures/rig-processes.include.sh" || rigRefuse "the rig's process helper is missing from the package: sh-test/check-fixtures/rig-processes.include.sh"
 . "$rigPackage/sh-test/check-fixtures/rig-control-threads.include.sh" || rigRefuse "the rig's helper for control threads is missing from the package: sh-test/check-fixtures/rig-control-threads.include.sh"
-rigTmp="$( mktemp -d -t AgentsSessionControlStopKillCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsSessionControlStopKillCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 rigWs="$rigTmp/ws" ; rigHome="$rigTmp/home" ; rigSkills="$rigTmp/skills" ; rigData="$rigTmp/data"
 rigSp="$rigWs/.local/agents/spawned" ; rigStores="$rigWs/.local/agents/sessions"
@@ -76,10 +77,13 @@ rigAssert(){ ## what is asserted, got, want
 		printf '  FAIL  %s\n        got:  %s\n        want: %s\n' "$1" "$2" "$3" ; rigFails=$(( rigFails + 1 ))
 	fi
 }
+## The person at the console, `user-<account>`: the runs below report to it, so its kills hold the
+## authority to end them (F6.10, AgentsTools.Authority.include).
+rigConsoleUser="user-$( printf '%s' "$( id -un 2>/dev/null )" | LC_ALL=C tr -s ' \t\r\n' '_' )"
 rigRec(){ ## run id, which is its sandbox too; session id; member
 	mkdir -p "$rigSp/$1"
-	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\n---\n\n# Spawn session: %s\n' \
-		"$2" "$1" "$rigHost" "$3" "$1" "$2" > "$rigSp/$1/$1.md"
+	printf -- '---\nsession-id: %s\nspawn-id: %s\nhost: %s\nworkspace: rigws\nowner: %s\nstatus: spawn-started\nstarted-at: 2026-10-13 09:00 +0300\nspawns: dispatch-%s\nreports-to: %s\n---\n\n# Spawn session: %s\n' \
+		"$2" "$1" "$rigHost" "$3" "$1" "${rigReportsTo:-$rigConsoleUser}" "$2" > "$rigSp/$1/$1.md"
 	printf -- '---\ntype: dispatch\nowner: %s\nstatus: dispatch-started\nspawn-id: %s\nsession-id: %s\n---\n\n# rig dispatch\n' "$3" "$1" "$2" > "$rigData/board/running/dispatch-$1.md"
 }
 ## A stand-in process that only waits, in the rig's process list as the run of that id, by its own --session-id word.
@@ -130,8 +134,11 @@ rigThreadIs(){ ## session id, pid -- alive, holding its session, and its log kno
 }
 
 echo "-- 1. a member's TaskStop of a run leaves the control thread of its session alive --"
+## Stopped by a member's TaskStop: these runs report to that member, magic-coordinator (F6.10).
+rigReportsTo=magic-coordinator
 rigRec fa-run fa-run keeper-rig ; rigStand fa-run ; rigFa="$rigStandPid"
 rigRec pa-run fa-run keeper-myx ; rigStand pa-run ; rigPa="$rigStandPid"
+rigReportsTo=""
 rigThread fa-run ; rigThreadA="$rigThreadPid"
 rigAssert "control: the command line of the thread stands in the rig's process list and carries the id of the founder's run as its --session-id word" \
 	"$( LC_ALL=C grep -c -E "^$rigThreadA .*--intern-session-control --run --session-id fa-run\$" "$rigTmp/ps.list" )" "1"

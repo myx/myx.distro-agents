@@ -122,7 +122,7 @@ rigAssert "a permission needs the same refusal"   "$( cat "$rigTmp/early4" )" ""
 
 echo "-- AskUserQuestion posts nothing for an answered question --"
 ( cd "$rigTmp/ws" && printf '%s' '{"to":"human-owner","address_to":"human-owner","question":"Should the rig keep the vendor contract clause?","wait":false}' \
-	| env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT HOME="$rigTmp/home" TMPDIR="$rigTmp/tmp" MDAT_SPAWN_SESSION_ID=rig-session-a MMDAPP="$rigTmp/ws" \
+	| env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT HOME="$rigTmp/home" MDAT_SPAWN_SESSION_ID=rig-session-a MMDAPP="$rigTmp/ws" \
 		MDAT_SKILLSET_ROOT="${MDAT_SKILLSET_ROOT:-$rigTmp/skills}" MDAT_DATA_ROOT="$rigTmp/data" MDAT_SPAWN_AGENT="$rigMember" MDAT_HARNESS_WAIT_TIMEOUT=1 \
 		bash "$rigHarness" --intern-tool AskUserQuestion ) > "$rigTmp/ask1" 2> "$rigTmp/ask1.err"
 rigAssert "it reads received"                     "$( head -1 "$rigTmp/ask1" )" "ASK-RESULT: RECEIVED"

@@ -19,7 +19,8 @@ rigRefuse(){
 [ -f "$rigHarness" ] || rigRefuse "harness not found at the origin this workspace resolves: $rigHarness"
 [ -r "${MDAT_SKILLSET_ROOT:-}/$rigMember/$rigMember.basic.md" ] || rigRefuse "MDAT_SKILLSET_ROOT does not hold $rigMember, so the tool would have no identity to record under"
 
-rigTmp="$( mktemp -d -t AgentsHarnessPermissionCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsHarnessPermissionCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+w "$rigTmp" 2>/dev/null ; rm -rf -- "$rigTmp"' EXIT
 
@@ -369,7 +370,9 @@ rigAskPermission rig-session "$rigIdP" "allow-once"
 rigAssert "the answer arrived"                             "$( rigFirstLine "$rigScenarioDir/out" )" "ASK-RESULT: RECEIVED"
 rigAssert "the verdict is allow-once"                      "$( rigLineOf 'VERDICT: ' )" "VERDICT: allow-once"
 rigAssert "the tooling wrote the grant"                    "$( rigLineOf 'GRANT: ' )" "GRANT: once $rigIdP"
-rigAssert "the post shows the refused call from the record" "$( rigHolds "$rigScenarioDir/post.1" "$rigTarget" )" yes
+## A post shows a target under the place that holds it, where one does (AgentsToolsPermissionShownTarget): this rig
+## lies in the workspace, a place, so the path is matched from the rig's own folder on, which both forms hold.
+rigAssert "the post shows the refused call from the record" "$( rigHolds "$rigScenarioDir/post.1" "${rigTarget#"${rigTmp%/*}/"}" )" yes
 rigAssert "the grant is signed by the addressee"           "$( rigHolds "$rigScenarioDir/ws/.local/agents/sessions/rig-session/grants" ':URIGOWNER:' )" yes
 rigAssert "the exact retry is admitted"                    "$( rigWriteCall rig-session "$rigTarget" )" "$( rigOkLine "$rigTarget" )"
 rigAssert "the next one is refused"                        "$( rigWriteCall rig-session "$rigTarget" )" "ERROR: path not in the allowed write-root set -- it may still be readable: $rigTarget"
@@ -635,6 +638,10 @@ rigAssert "control: the question stays with the member named, who holds the call
 RIG_OP_AGENT=magic-coordinator
 rigOp --member-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "the coordinator's member form is the addressee's only" "$( rigHolds "$rigScenarioDir/op.err" 'cannot answer it' )" yes
+## The asking run reports to the coordinator, which so holds the authority to answer its
+## questions on another's behalf (F6.10, AgentsTools.Authority.include).
+printf -- '---\nsession-id: rig-session\nspawn-id: rig-session\nhost: %s\nowner: %s\nreports-to: magic-coordinator\nstatus: spawn-started\n---\n\n# Spawn session\n' \
+	"$( hostname -s 2>/dev/null || echo unknown )" "$rigMember" > "$rigScenarioDir/ws/.local/agents/spawned/rig-session/rig-session.md"
 rigOp --magic-escalation-answer magic-coordinator "$rigPending" allow-once
 rigAssert "its own form answers on the addressee's behalf" "$( rigHolds "$rigScenarioDir/op.out" "ESCALATION: $rigPending answered" )" yes
 rigAssert "signed by the coordinator, with the grant"      "$( rigHolds "$rigScenarioDir/op.out" 'ANSWERED-BY: magic-coordinator' ):$( rigHolds "$rigScenarioDir/op.out" "GRANT: once $rigIdB" )" "yes:yes"

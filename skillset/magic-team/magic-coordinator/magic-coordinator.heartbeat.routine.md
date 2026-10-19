@@ -59,7 +59,7 @@ Exact instructions. Execute in order, every step, literally as written — not l
 
 1. **check-required-config**: Run `--magic-heartbeat-config-check`. On a FAIL, report the output (each FAIL line carries its fix) and go to **report-status-to-spawner**: nothing else runs this pass.
 2. **acquire-lock**: Run the `single-instance-lock` procedure's acquire. Contention means another pass is live: go to **report-status-to-spawner**, nothing else runs. An unexpected lock state is reported in the pass status.
-3. **read-state-and-branch**: Run `--magic-heartbeat-input-scan`. Its `branch:`, `today-stage:` and `grooming-today:` lines decide this pass, by the `day-rhythm-state` procedure. The steps below work from it.
+3. **read-state-and-branch**: Run `--magic-heartbeat-input-scan`. In a team session it replies with a file: read that file by line range, and do not scan again. Its `branch:`, `today-stage:` and `grooming-today:` lines decide this pass, by the `day-rhythm-state` procedure. The steps below work from it.
 4. **handle-external-owner-items**: Run `magic-coordinator.external-inbox-handle-loop.routine` inline.
 5. **handle-permission-asks**: Run `magic-coordinator.permission-escalation.routine` inline. Its input scan reading `(none)` ends it at once.
 6. **dispatch-due-routine**: Per the branch, steps:

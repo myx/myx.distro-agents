@@ -46,6 +46,9 @@ Not a member/routine contract — these are the fixed texts of the short lines t
   - console-answered
   - console-rejected
   - console-dismissed
+  - authority
+  - authority-text
+  - authority-confirm
 - Reasons
   - not-held
   - session-killed
@@ -273,6 +276,24 @@ A permission request asked by {{member}} is now yours to answer, {{address-to}}.
 ```
 🖥️ Dismissed from the console by {{by}}[[: {{reason}}]]
 This question no longer needs an answer.
+```
+
+## authority
+
+```
+🔐 {{requester}} asks for the authority of {{holder}} to {{what}}. Answer `allow-once` to let it do that, or `deny` to refuse it.
+```
+
+## authority-text
+
+```
+🔐 {{requester}} asks for the authority of {{holder}} to {{what}}. Reply with the text to give in its place, `allow-once` to let it give its own, or `deny` to refuse it.
+```
+
+## authority-confirm
+
+```
+🔐 Confirm: the console account {{requester}} asks to {{what}}, which takes the authority of the owners role. Answer `yes` to let it do that, or `no` to refuse it.
 ```
 
 # Reasons

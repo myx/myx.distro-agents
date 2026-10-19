@@ -880,7 +880,7 @@ PLACES = {
 ## pending question.
 PLACED = {
     "real": {"places": None, "consoles": None, "settings": ("workspace",), "configuration": ("workspace",)},
-    "dialogs": ("answer", "reply", "reject", "dismiss"),
+    "dialogs": ("answer", "reply", "reject", "dismiss", "confirm"),
 }
 
 ## ---- the declaration of the screen: its styles, its windows, its menus, its commands ----
@@ -1540,6 +1540,16 @@ DIALOGS = {
                 "controls": ({"name": "about", "kind": "text"},
                              {"name": "words", "kind": "input", "label": "Reason, or none"}),
                 "buttons": (("dismiss", "Dismiss"), ("cancel", "Cancel"))},
+    ## the confirmation of an approving answer (F6.10): an allow of a permission, the yes of a
+    ## confirmation; only its OK gives the answer
+    "confirm": {"title": "Confirm", "feeds": "answer",
+                "controls": ({"name": "about", "kind": "text"},),
+                "buttons": (("ok", "OK"), ("cancel", "Cancel"))},
+    ## an operation refused for the authority it needs (F6.10): the same operation again, asking
+    ## the one who holds it, and waiting for the answer, or returning at once with the request made
+    "escalate": {"title": "Authority", "feeds": ("answer", "reject", "dismiss", "kill"),
+                 "controls": ({"name": "about", "kind": "text"},),
+                 "buttons": (("wait", "Request and wait"), ("enqueue", "Enqueue"), ("cancel", "Cancel"))},
     ## a public key of this server whole, to copy: its line, read while the box is open
     "keyline": {"title": "Public key", "reads": ("full:{kind}",),
                 "controls": ({"name": "text", "kind": "text"},),
@@ -4637,7 +4647,7 @@ def callWords(callName, callId="", sessionName=""):
 ## answer, with the action: under "viewKey" the item it was asked on, which is the item
 ## selected now where `about` names none.
 def askCall(state, actionName, callId, words, inputText, about=None):
-    key = "action:%s:%s" % (actionName, callId)
+    key = "action:%s:%s" % (actionName, callId) if not (about or {}).get("escalation") else "action:%s:%s:%s" % (actionName, about["escalation"], callId)
     state.calls.append({"key": key, "words": words, "input": inputText})
     told = {"viewKey": viewKeyOf(state)}
     told.update(about or {})
@@ -5307,7 +5317,13 @@ def startAnswer(text, name, width):
 ## was started.
 def applyCall(state, result):
     about = state.asked.pop(result["key"], None) or {"action": "", "viewKey": None}
-    if about["action"] == "kill":
+    if escalateOffered(state, result, about):
+        return
+    if about.get("escalation"):
+        what = "the request"
+        lines = [line for line in result["text"].splitlines() if line.strip()]
+        summary = lines[0] if lines else ""
+    elif about["action"] == "kill":
         what = "the kill"
         lines, summary = killAnswer(result["text"])
         summary = "kill: " + (summary or "the operation named no run")
@@ -5336,6 +5352,48 @@ def applyCall(state, result):
     state.noticeOf = None
     state.answer = {"key": about["viewKey"], "lines": [title] + lines} if about["viewKey"] == viewKeyOf(state) else None
     readNow(state)
+
+
+## An answer, reject, dismissal or kill refused for the authority it needs (F6.10, the status
+## and the words of AgentsTools.Authority.include): the person may always ask for it, so the
+## refusal opens the dialog of the two ways to, with what the operation said. Not where the call
+## refused was such a request already.
+AUTHORITY_REFUSED = 3
+AUTHORITY_SAYS = "needs the authority of"
+AUTHORITY_ACTIONS = ("answer", "reject", "dismiss", "kill")
+
+
+def escalateOffered(state, result, about):
+    if result["status"] != AUTHORITY_REFUSED or about["action"] not in AUTHORITY_ACTIONS or about.get("escalation"):
+        return False
+    said = [line.strip() for line in result.get("said", "").splitlines() if line.strip()]
+    if not [line for line in said if AUTHORITY_SAYS in line]:
+        return False
+    openDialog(state, "escalate", {"about": {"lines": said + [" ",
+        "Request and wait: the same call asks for the authority, and waits for the answer, in the background.",
+        "Enqueue: the same call asks for it, and returns at once; it acts once the answer comes."]}},
+        {"id": result["key"].split(":", 2)[2], "action": about["action"], "words": list(result["words"]), "viewKey": about["viewKey"]},
+        "Without the authority")
+    state.notice = "refused: it needs the authority of another"
+    state.noticeOf = None
+    return True
+
+
+## The way picked in that dialog: the same call again, with --escalate-wait, which runs apart from
+## the other actions so that none waits behind it, or with --escalate-enqueue, as any action.
+def submitEscalate(state, dialog, button):
+    about = dialog["about"]
+    flag = "--escalate-wait" if button == "wait" else "--escalate-enqueue"
+    askCall(state, about["action"], about["id"], about["words"] + [flag], None,
+            {"viewKey": about["viewKey"], "escalation": button})
+    if button == "wait":
+        state.calls[-1]["kind"] = "escalation"
+    state.notice = "request asked of the tooling"
+    state.noticeOf = None
+    return None
+
+
+DIALOG_HANDLERS["escalate"] = submitEscalate
 
 
 ## What an action answered on the selected item, as the first lines of the left pane, with
@@ -5493,9 +5551,17 @@ def askAnswer(state, row):
     fill = {"about": {"lines": askSays(state, row, acts)}}
     if acts["answers"]:
         fill["answers"] = {"options": [answerOption(answer) for answer in acts["answers"]]}
-    openDialog(state, "answer" if acts["answers"] else "reply", fill, {"id": row["id"], "viewKey": viewKeyOf(state)},
+    openDialog(state, "answer" if acts["answers"] else "reply", fill,
+               {"id": row["id"], "viewKey": viewKeyOf(state), "kind": question["kind"], "asker": question["asker"],
+                "words": dict((answer["number"] or answer["word"], answer["word"]) for answer in acts["answers"])},
                "Answer the %s of %s" % (question["kind"], question["asker"]))
     return ""
+
+
+## The answers that approve, of the kinds whose approval is asked once more before it is given
+## (F6.10): an allow of a permission, and the yes of a confirmation (a readback).
+APPROVING_KINDS = ("permission", "permission-set", "readback")
+APPROVING_ANSWERS = ("allow", "allow-once", "allow-session", "allow-task", "allow-folder", "allow-project", "allow-set", "yes", "correct")
 
 
 ## Answer in the dialog of an answer: the operation is called once, with the answer picked,
@@ -5508,7 +5574,25 @@ def submitAnswer(state, dialog, button):
         call = callWords("answer", askId) + [words]
     else:
         call = callWords("answer", askId) + [dialogValue(dialog, "answers")] + ([CALL_WORDS["answer"], words] if words else [])
+        ## An approving answer is asked once more, in a confirmation, and only its OK gives it.
+        picked = dialog["about"].get("words", {}).get(dialogValue(dialog, "answers"), dialogValue(dialog, "answers"))
+        if dialog["about"].get("kind") in APPROVING_KINDS and picked in APPROVING_ANSWERS:
+            openDialog(state, "confirm", {"about": {"lines": [
+                "CONFIRM the answer `%s` to the %s of %s: it is given only once you press OK." % (picked, dialog["about"]["kind"], dialog["about"].get("asker", "")),
+                " ", "Cancel gives nothing, and the question stays open."]}},
+                {"id": askId, "viewKey": dialog["about"]["viewKey"], "call": call},
+                "Confirm the answer `%s`" % picked)
+            return None
     askCall(state, "answer", askId, call, None, {"viewKey": dialog["about"]["viewKey"]})
+    state.notice = "answer asked of the tooling"
+    state.noticeOf = None
+    return None
+
+
+## OK in the confirmation of an approving answer: the answer operation is called once, as the
+## answer dialog would have called it.
+def submitConfirm(state, dialog, button):
+    askCall(state, "answer", dialog["about"]["id"], dialog["about"]["call"], None, {"viewKey": dialog["about"]["viewKey"]})
     state.notice = "answer asked of the tooling"
     state.noticeOf = None
     return None
@@ -5597,6 +5681,7 @@ ACTION_REFUSALS["dismiss"] = lambda state, row: askRefusal(state, row, "this %(k
 ACTION_REFUSALS["link"] = lambda state, row: askRefusal(state, row, "the message of this %(kind)s has no link")
 DIALOG_HANDLERS["answer"] = submitAnswer
 DIALOG_HANDLERS["reply"] = submitAnswer
+DIALOG_HANDLERS["confirm"] = submitConfirm
 DIALOG_HANDLERS["reject"] = submitAskAct
 DIALOG_HANDLERS["dismiss"] = submitAskAct
 
@@ -8359,11 +8444,15 @@ def startDueReads(state, reader, now):
 
 
 ## Starts the action that waits for its start, where none runs: one at a time, in the
-## order they were asked for.
+## order they were asked for. A request that waits for the answer to it runs apart, as kind
+## "escalation", one at a time too, so no other action waits behind it.
 def startCalls(state, reader):
-    while state.calls and not reader.busy("action"):
-        call = state.calls.pop(0)
-        reader.start("action", call["key"], call["words"], call["input"])
+    for call in list(state.calls):
+        kind = call.get("kind", "action")
+        if reader.busy(kind):
+            continue
+        state.calls.remove(call)
+        reader.start(kind, call["key"], call["words"], call["input"])
     ## the operation of the big output dialog: started once, and asked to stop where it was
     follow = state.follow
     if follow is not None and not follow["started"]:

@@ -3,8 +3,8 @@
 ## run rather than read, against a rig workspace built here: its own member registry and skillset, its own spawn
 ## sandboxes, its own asks and its own board. Held: with no name it builds everything, in its own order -- the four
 ## registries (team-members, team-members-names, spawned-sessions, pending-replies), each whole, from its store, by
-## the one rebuild function every other rebuild of that registry calls; then members, permissions, grants, and the
-## harness's own mcp.servers, harness.roots, harness.hooks. With names it builds only those, in that same order
+## the one rebuild function every other rebuild of that registry calls; then members, permissions, grants, the tool
+## index, and the harness's own mcp.servers, harness.roots, harness.hooks. With names it builds only those, in that same order
 ## whatever the order given, and every file not named is left as it is, inode and bytes. A name that is none of
 ## them refuses the call in one line that lists the names, before anything is built; so does a name the machine's
 ## members index knows as a member of another workspace, which the dispatcher takes for no member in a --make-*
@@ -15,7 +15,7 @@
 ## where it means the build: --make-workspace-integrations and the source-prepare build each call the operation
 ## once, with no name. The integrations run is run whole in a rig: the install's part that writes the member
 ## registry, the member homes, the one build, then the install's part that reads the indices; a first install and
-## a later update each leave every one of the ten files current, and the install run by itself is still both of
+## a later update each leave every one of the eleven files current, and the install run by itself is still both of
 ## its parts. The other builder builds nothing and says where the build is. The registry writer's temp file is its own for every writer:
 ## two rebuilds from subshells of one shell leave a whole file and no false failure, and so do a build and a
 ## session's own rebuilds as processes; no writer of a registry or an index that holds no lock names its temp by the
@@ -32,9 +32,9 @@ rigBuilders="$rigPackage/builders/source-prepare"
 rigOne="--make-harness-indices"
 rigEarlier="--make-agents-indices"
 rigRegistries="team-members team-members-names spawned-sessions pending-replies"
-rigNames="$rigRegistries members permissions grants mcp.servers harness.roots harness.hooks"
+rigNames="$rigRegistries members permissions grants tool-index mcp.servers harness.roots harness.hooks"
 ## the names that leave a file in this rig: a workspace with no source folder declares no grant, so no permissions registry
-rigFiled="$rigRegistries members grants mcp.servers harness.roots harness.hooks"
+rigFiled="$rigRegistries members grants tool-index mcp.servers harness.roots harness.hooks"
 
 rigRefuse(){
 	echo "⛔ ERROR: $1 -- refusing to report a result" >&2 ; exit 1
@@ -43,7 +43,8 @@ rigRefuse(){
 [ -f "$rigRegInclude" ] || rigRefuse "the registries include is not at: $rigRegInclude"
 [ -f "$rigMakeInclude" ] || rigRefuse "the make include is not at: $rigMakeInclude"
 [ -d "$rigBuilders" ] || rigRefuse "the source-prepare builders are not at: $rigBuilders"
-rigTmp="$( mktemp -d -t AgentsMakeIndicesRegistriesCheck )" || exit 1
+. "${MDLT_ORIGIN:-$MMDAPP/.local}/myx/myx.distro-agents/sh-test/check-fixtures/rig-temp.include.sh" || exit 1
+rigTmp="$( rigTempDir AgentsMakeIndicesRegistriesCheck )" || exit 1
 rigTmp="$( cd "$rigTmp" && pwd -P )" || exit 1
 trap 'chmod -R u+rwX -- "$rigTmp" 2> /dev/null ; rm -rf -- "$rigTmp"' EXIT
 rigWs="$rigTmp/ws" ; rigSkills="$rigTmp/skills" ; rigHome="$rigTmp/home"
@@ -94,6 +95,7 @@ rigRound(){ ## round word -- one more record in every store
 rigFile(){ ## name -- the file that name builds
 	case "$1" in
 		members|grants|mcp.servers|harness.roots|harness.hooks) printf '%s\n' "$rigAgents/$1.index" ;;
+		tool-index) printf '%s\n' "$rigAgents/tool-index.md" ;;
 		*) printf '%s\n' "$rigAgents/$1.registry" ;;
 	esac
 }
@@ -147,7 +149,7 @@ rigMake(){ ## names... -- the one operation
 }
 rigNote(){ ## the operation as called, name -- the line that build step says on stderr here, for its file as it stands now; none for mcp.servers
 	case "$2" in
-		members|grants) printf '# DistroAgentsTools %s: wrote %s\n' "$1" "$( rigFile "$2" )" ;;
+		members|grants|tool-index) printf '# DistroAgentsTools %s: wrote %s\n' "$1" "$( rigFile "$2" )" ;;
 		permissions) printf '# DistroAgentsTools %s: workspace %s has no source folder, so none declares a grant -- nothing is removed\n' "$1" "$rigWs" ;;
 		mcp.servers) ;;
 		harness.roots) printf '🧭 harness roots index written: .local/agents/harness.roots.index\n' ;;
@@ -192,9 +194,9 @@ rigAssert "control: the workspace holds no member registry, no sandbox, no ask a
 rigMake
 rigAssert "the one operation, with no name, ends 0 and prints nothing on stdout" "$rigRc $( rigOutBytes )" "0 0"
 rigAssert "all four registries are written, each with no rows" "$( rigSizes )" "0 0 0 0"
-rigAssert "every step says its line, in the build's own order: the registries, members, permissions, grants, then the harness's own" "$( rigSaid )" "$( rigNotes "$rigOne" $rigNames )"
+rigAssert "every step says its line, in the build's own order: the registries, members, permissions, grants, the tool index, then the harness's own" "$( rigSaid )" "$( rigNotes "$rigOne" $rigNames )"
 rigAssert "with no error and no warning" "$( rigTroubles )" "0"
-rigAssert "the folder holds what the build makes here, and nothing else" "$( ls "$rigAgents" | LC_ALL=C tr '\n' ' ' )" "grants.index harness.hooks.index harness.roots.index mcp.servers.index members members.index pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry "
+rigAssert "the folder holds what the build makes here, and nothing else" "$( ls "$rigAgents" | LC_ALL=C tr '\n' ' ' )" "grants.index harness.hooks.index harness.roots.index mcp.servers.index members members.index pending-replies.registry spawned-sessions.registry team-members-names.registry team-members.registry tool-index.md "
 rigAssert "and it made no store of its own: no sandbox root, no ask folder, no team data root" "$( [ -e "$rigAgents/spawned" ] && echo spawned ) $( [ -e "$rigAgents/pending" ] && echo pending ) $( [ -e "$rigData" ] && echo data )" "  "
 
 echo "-- 2. the earlier name is the same operation --"
@@ -204,7 +206,7 @@ rigAssert "$rigEarlier, with no name, ends 0, nothing on stdout, no error and no
 rigAssert "it builds every file the one operation builds: each is a new file" "$( rigChanged "$rigBefore" )" "$rigFiled"
 rigAssert "of the same bytes" "$( rigBytes )" "$rigOneBytes"
 rigAssert "and says the same lines, but for the name it was called by" "$( rigSaid | LC_ALL=C sed "s/^# DistroAgentsTools $rigEarlier: /# DistroAgentsTools <as called>: /" )" "$rigOneSaid"
-rigAssert "control: its own lines do carry its own name" "$( rigErrN "# DistroAgentsTools $rigEarlier: " ) $( rigErrN "# DistroAgentsTools $rigOne: " )" "7 0"
+rigAssert "control: its own lines do carry its own name" "$( rigErrN "# DistroAgentsTools $rigEarlier: " ) $( rigErrN "# DistroAgentsTools $rigOne: " )" "8 0"
 
 echo "-- 3. stores that hold records the files do not: every registry is brought up to date --"
 rigRound one
@@ -234,9 +236,12 @@ rigEachBad=""
 for rigName in $rigFiled ; do
 	rigBefore="$( rigPrints )"
 	rigMake "$rigName"
-	[ "$rigRc $( rigChanged "$rigBefore" ) $( rigSaid )" = "0 $rigName $( rigNote "$rigOne" "$rigName" )" ] || rigEachBad="$rigEachBad [$rigName: rc $rigRc, changed $( rigChanged "$rigBefore" ), said $( rigSaid )]"
+	rigEachChanged="$( rigChanged "$rigBefore" )"
+	## tool-index alone builds only its own file; it may refresh a stale grants.index, the way every reader of the grants does
+	[ "$rigName" != tool-index ] || [ "$rigEachChanged" != "grants tool-index" ] || rigEachChanged=tool-index
+	[ "$rigRc $rigEachChanged $( rigSaid )" = "0 $rigName $( rigNote "$rigOne" "$rigName" )" ] || rigEachBad="$rigEachBad [$rigName: rc $rigRc, changed $( rigChanged "$rigBefore" ), said $( rigSaid )]"
 done
-rigAssert "each of the nine names that leave a file here, alone: it ends 0, builds its own file and no other, and says its own line and no other" "${rigEachBad:-each its own}" "each its own"
+rigAssert "each of the ten names that leave a file here, alone: it ends 0, builds its own file and no other, and says its own line and no other" "${rigEachBad:-each its own}" "each its own"
 rigBefore="$( rigPrints )"
 rigMake permissions
 rigAssert "permissions alone: the grants' own step runs and says its line; with no source folder here it writes no file, and no other is written" "$rigRc $( rigChanged "$rigBefore" ) $( rigSaid )" "0 none $( rigNote "$rigOne" permissions )"
@@ -329,7 +334,7 @@ rigInt(){ ## tool arguments... -- in that workspace; rc in rigRc, stderr in $rig
 }
 rigIntBytes(){ ## -- the bytes of every file of the build in that workspace, a line a file; `absent` for one that is not there
 	local bytesFile
-	for bytesFile in team-members.registry team-members-names.registry spawned-sessions.registry pending-replies.registry members.index permissions.registry grants.index mcp.servers.index harness.roots.index harness.hooks.index ; do
+	for bytesFile in team-members.registry team-members-names.registry spawned-sessions.registry pending-replies.registry members.index permissions.registry grants.index tool-index.md mcp.servers.index harness.roots.index harness.hooks.index ; do
 		if [ -f "$rigIntAgents/$bytesFile" ] ; then printf '%s %s\n' "$bytesFile" "$( cksum < "$rigIntAgents/$bytesFile" | LC_ALL=C tr -s ' \t' '-' )" ; else printf '%s absent\n' "$bytesFile" ; fi
 	done
 }
@@ -342,7 +347,7 @@ rigIntCount(){ ## fixed text -- how many lines of the run's stderr hold it
 rigIntMembers(){ ## -- the members this workspace's member registry holds, rules rows left out
 	LC_ALL=C awk -F'\t' -v ws="$rigIntWs" '$2 == ws && $3 != "rules-symlink" && !( $1 in seen ) { seen[$1] = 1 ; n++ } END { print n + 0 }' "$rigIntAgents/members.registry" 2> /dev/null
 }
-rigIntCurrent(){ ## -- whether a build run right now changes a byte of any of the ten files: current where it changes none
+rigIntCurrent(){ ## -- whether a build run right now changes a byte of any of the eleven files: current where it changes none
 	local currentBefore
 	currentBefore="$( rigIntBytes )"
 	rigInt "$rigOne"
@@ -369,8 +374,8 @@ rigAssert "the copilot access step made the team's own root, which did not exist
 rigIntInstalled="$( rigIntMembers )"
 rigAssert "control: the install linked members, and wrote the member registry the member registries are made from" "$( [ "$rigIntInstalled" -gt 0 ] && echo members || echo "none: $rigIntInstalled" )" "members"
 rigAssert "at the end of the first install the two member registries hold every member just installed, and the two session registries are there with no rows" "$( rigLines "$rigIntAgents/team-members.registry" ) $( rigLines "$rigIntAgents/team-members-names.registry" ) $( rigLines "$rigIntAgents/spawned-sessions.registry" ) $( rigLines "$rigIntAgents/pending-replies.registry" )" "$rigIntInstalled $rigIntInstalled 0 0"
-rigAssert "every one of the ten files is current at the end of the first install: a build run right after changes no byte of any" "$( rigIntCurrent )" "current"
-rigAssert "control: the files compared are the files of the build, nine of them there (no project of this workspace declares a grant, so no permissions registry)" "$( rigIntBytes | LC_ALL=C grep -c -v ' absent$' || : ) $( rigIntBytes | LC_ALL=C grep ' absent$' )" "9 permissions.registry absent"
+rigAssert "every one of the eleven files is current at the end of the first install: a build run right after changes no byte of any" "$( rigIntCurrent )" "current"
+rigAssert "control: the files compared are the files of the build, ten of them there (no project of this workspace declares a grant, so no permissions registry)" "$( rigIntBytes | LC_ALL=C grep -c -v ' absent$' || : ) $( rigIntBytes | LC_ALL=C grep ' absent$' )" "10 permissions.registry absent"
 ## Between the install and the update a session ran and asked: the stores hold records the files do not.
 mkdir -p "$rigIntAgents/spawned/s-int" "$rigIntAgents/pending"
 printf -- '---\nsession-id: spawn-int\nspawn-id: spawn-int\nhost: righost\nowner: magic-coordinator\nstatus: spawn-started\n---\nbody\n' > "$rigIntAgents/spawned/s-int/spawn-int.md"
@@ -378,7 +383,7 @@ printf -- '---\nstatus: reply-pending\nsession-id: spawn-int\nowner: magic-coord
 rigInt --make-workspace-integrations --quiet
 rigAssert "a later update ends 0, with no error, makes the indices in one step, in the same order, and with no root to make writes the roots index once" "$rigRc $( rigIntCount '⛔ ERROR' ) $( rigIntCount "# DistroAgentsTools $rigOne: wrote $rigIntAgents/team-members.registry (" ) $( rigIntCount '✅ workspace integrations installed' ) $( rigIntOrder ) $( rigIntCount 'harness roots index written: .local/agents/harness.roots.index' )" "0 0 1 1 ordered 1"
 rigAssert "at its end the member registries hold the members and the session registries the records of their stores" "$( rigLines "$rigIntAgents/team-members.registry" ) $( rigLines "$rigIntAgents/team-members-names.registry" ) $( rigLines "$rigIntAgents/spawned-sessions.registry" ) $( rigLines "$rigIntAgents/pending-replies.registry" )" "$rigIntInstalled $rigIntInstalled 1 1"
-rigAssert "every one of the ten files is current at the end of the update" "$( rigIntCurrent )" "current"
+rigAssert "every one of the eleven files is current at the end of the update" "$( rigIntCurrent )" "current"
 rigIntBefore="$( rigIntBytes )"
 rigInt --install-workspace-integrations
 rigAssert "the install run by itself is still both of its parts, in its own order, and builds no index" "$rigRc $( rigIntCount '⛔ ERROR' ) $( rigIntCount '✅ vscode integrations installed' ) $( rigIntCount 'member index written' | LC_ALL=C sed 's/^[1-9][0-9]*$/links/' ) $( rigIntCount 'claude permissions ' ) $( rigIntCount '✅ copilot access ' ) $( rigIntCount '✅ workspace integrations installed' ) $( rigIntCount "DistroAgentsTools $rigOne" ) $( [ "$( rigIntLine '✅ vscode integrations installed' )" -lt "$( rigIntLine 'claude permissions ' )" ] && echo ordered )" "0 0 1 links 1 1 1 0 ordered"
@@ -480,7 +485,7 @@ for rigName in "$rigOne" "$rigEarlier" ; do
 done
 rigAssert "each of the two names has its syntax echo, its syntax line and its entry, once each, with the names it takes, and in no other form" "${rigHelpBad:-both}" "both"
 rigAssert "the earlier name's entry is one line: the earlier name of the same operation" "$( rigEntry "$rigEarlier" | LC_ALL=C grep -c . || : ) $( rigEntry "$rigEarlier" | LC_ALL=C sed -e 's/^[[:space:]]*//' | LC_ALL=C grep . )" "1 The earlier name of $rigOne: the same operation."
-rigAssert "the one operation's entry names every name it takes, and each of the four registry files" "$( for rigName in $rigNames ; do rigEntry "$rigOne" | LC_ALL=C grep -c -F -- "\`$rigName\`" || : ; done | LC_ALL=C tr '\n' ' ' )$( for rigName in $rigRegistries ; do rigEntry "$rigOne" | LC_ALL=C grep -c -F -- "\`$rigName.registry\`" || : ; done | LC_ALL=C tr '\n' ' ' )" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 "
+rigAssert "the one operation's entry names every name it takes, and each of the four registry files" "$( for rigName in $rigNames ; do rigEntry "$rigOne" | LC_ALL=C grep -c -F -- "\`$rigName\`" || : ; done | LC_ALL=C tr '\n' ' ' )$( for rigName in $rigRegistries ; do rigEntry "$rigOne" | LC_ALL=C grep -c -F -- "\`$rigName.registry\`" || : ; done | LC_ALL=C tr '\n' ' ' )" "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 "
 rigAssert "control: the entry was cut up to the next operation's heading" "$( rigEntry "$rigOne" | LC_ALL=C grep -c -F -- 'grants.index' || : ) $( rigEntry "$rigOne" | LC_ALL=C grep -c -F -- 'DistroAgentsConsole.sh' || : )" "1 0"
 rigRun --help-syntax
 rigAssert "--help-syntax prints both lines, once each" "$rigRc $( rigErrN "📘 syntax: DistroAgentsTools.fn.sh $rigOne [<name>...]" ) $( rigErrN "📘 syntax: DistroAgentsTools.fn.sh $rigEarlier [<name>...]" )" "0 1 1"
