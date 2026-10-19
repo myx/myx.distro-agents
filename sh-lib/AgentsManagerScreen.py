@@ -169,8 +169,9 @@ LOOKS = LOOKS + tuple(look if look[3] != LOOKS[PLAIN][3] else look[:3] + (LOOKS[
 ## from a row only in that ground, never in their text, its colour, its brightness or its
 ## look with no colours: the text carries what the content means, and nothing else. Where the
 ## colours name none (rowsApart), the ground never changes; with the lines of the pane wrapped
-## each row is underlined across the table instead (ROW_LINE), where the terminal underlines,
-## and with them not wrapped, a row a line, nothing marks the rows. A terminal of eight colours
+## each row whose content wraps is underlined instead, on its bottom line, the header too (ROW_LINE),
+## where the terminal underlines, and a row of one line is not; with them not wrapped, a row a
+## line, nothing marks the rows. A terminal of eight colours
 ## has not the shades the two are told apart by: there the colours of every style name none.
 ## The looks a surface underlines, where its terminal has underline.
 LINED_LOOKS = (ROW_LINE,) + tuple(range(LOOK_LINE, LOOK_LINE + LOOK_ALT))
@@ -2621,14 +2622,14 @@ class Looked(str):
     looks = ()
 
 
-def looked(text, look):
+def looked(text, look, start=0):
     line = Looked(text)
-    line.looks = [(0, textWidth(text), look)]
+    line.looks = [(start, textWidth(text) - start, look)]
     return line
 
 
 ## The looks of a table of the left pane: its header, the heading of a group of its rows,
-## a row, every other row, and the last line of a row where the rows are underlined.
+## a row, every other row, and the last line of a row that wraps where the rows are underlined.
 TABLE_LOOKS = {"head": ROW_HEAD, "heading": BOLD, "row": ROW, "alt": ROW_ALT, "line": ROW_LINE}
 
 
@@ -2785,7 +2786,8 @@ def reassessWidths(widths, words, kinds, natural, least):
 ## given). A row is a list of words, or a text alone for the heading of a group; `icons`, one
 ## for each row, stand in a place of their own ahead of it, never wrapped; `numbered` puts
 ## ahead of them a column `#`, each row's number from 1; `indent` stands ahead of every line. Rows take turns in the looks of a row (TABLE_LOOKS),
-## by THE TABLE COLOUR RULE: where the colours set no row apart and the lines are wrapped, the last line of each row is underlined;
+## by THE TABLE COLOUR RULE: where the colours set no row apart and the lines are wrapped, the last line of each row that wraps is underlined,
+## and the header's with them; the ground and the underline stand on the table alone, from its first column to its last;
 ## `looks`, one for each row, gives a look of its own to each cell that has one (None: the
 ## row's), a state in its colour (stateLook), on the ground of the row (LOOK_ALT, LOOK_LINE). Each line of a
 ## row carries its header (`stick`), which stays over the rows when it has gone up out of
@@ -2847,14 +2849,17 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     if wrapped:
         reassessWidths(widths, words, kinds, natural, least)
 
-    lead = textWidth(indent) + (numberWidth + gap if numbered else 0) + (iconWidth + gap if iconWidth else 0)
+    margin = textWidth(indent)
+    lead = margin + (numberWidth + gap if numbered else 0) + (iconWidth + gap if iconWidth else 0)
 
     def rowLines(cells, icon, look, count="", colours=None, shift=0, last=None):
         parts = [(textwrap.wrap(cells[index], widths[index]) if wrapped and kinds[index] != "enum" else [cells[index]]) or [""] for index in range(shown)]
         lines = [looked(indent + ((count if not number else "").rjust(numberWidth) + " " * gap if numbered else "")
                         + (cutToCells(icon if not number else "", iconWidth) + " " * gap if iconWidth else "") + (" " * gap).join(
-            cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look)
+            cutToCells(part[number] if number < len(part) else "", widths[index]) for index, part in enumerate(parts)), look, margin)
             for number in range(max(len(part) for part in parts))]
+        ## only a row whose content wraps is underlined
+        last = last if len(lines) > 1 else None
         ## a cell of its own look over the look of its row, as far as its words go, on the ground
         ## of that row (`shift`), and underlined on the last line of a row that is (`last`)
         for index in range(shown if colours else 0):
@@ -2866,7 +2871,7 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
                 if cells:
                     line.looks.append((start, cells, colours[index] + (LOOK_LINE if last is not None and number == len(lines) - 1 else shift)))
         if last is not None:
-            lines[-1].looks[0] = (0, lines[-1].looks[0][1], last)
+            lines[-1].looks[0] = (margin, lines[-1].looks[0][1], last)
         return lines
 
     head = rowLines(list(heads), "", TABLE_LOOKS["head"], "#")
@@ -2874,26 +2879,41 @@ def paneTable(heads, rows, width, icons=None, wrap=True, kinds=None, indent=" ",
     isRow = []
     alternate = False
     counted = 0
-    lined = wrap and not rowsApart()
+    apart = rowsApart()
+    lined = wrapped and not apart
+    grounds = []
     for index, row in enumerate(rows):
         isRow.append(not isinstance(row, str))
         if isinstance(row, str):
             blocks.append([looked(indent + row, TABLE_LOOKS["heading"])])
+            grounds.append(None)
             alternate = False
         else:
             counted += 1
+            grounds.append(TABLE_LOOKS["alt" if alternate else "row"])
             blocks.append(rowLines(row, icons[index] if icons else "", TABLE_LOOKS["alt" if alternate else "row"], str(counted),
                                    looks[index] if looks else None, LOOK_ALT if alternate else 0, TABLE_LOOKS["line"] if lined else None))
-            alternate = not alternate
+            alternate = apart and not alternate
         for line in blocks[-1]:
             line.stick = head[0]
-    ## one empty line between every two rows, in the full view, where the table fits both ways with it
+    ## the header carries the underline too, where a row of the table does
+    if lined and any(len(block) > 1 for block in blocks):
+        head[-1].looks[0] = (margin, head[-1].looks[0][1], TABLE_LOOKS["head"] + LOOK_LINE)
+
+    def padding(ground):
+        line = looked(" " * textWidth(head[0]), ground, margin)
+        line.stick = head[0]
+        return line
+    ## one empty line under the header and between every two rows, in the full view, where the table fits both ways with it: a line
+    ## of the row above it, on the ground of that row and as wide as the table, never underlined
     between = [number for number in range(len(blocks) - 1) if isRow[number] and isRow[number + 1]]
-    if pane is not None and between and shown == len(heads) and len(head) + sum(len(block) for block in blocks) + len(between) <= pane[1] and (
+    under = 1 if isRow and isRow[0] else 0
+    if pane is not None and (between or under) and shown == len(heads) and len(head) + sum(len(block) for block in blocks) + len(between) + under <= pane[1] and (
             wrap or max(textWidth(line) for line in head + [line for block in blocks for line in block]) <= pane[0]):
         for number in between:
-            blocks[number].append(Looked(""))
-            blocks[number][-1].stick = head[0]
+            blocks[number].append(padding(grounds[number]))
+        if under:
+            head.append(padding(TABLE_LOOKS["head"]))
     return head, blocks
 
 

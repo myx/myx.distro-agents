@@ -165,7 +165,7 @@ rigAssert "Team Data holds Operations, then Board, Audit and Vault as folders, t
 rigAssert "Board selected is its folders as a table with how many items each holds, nothing above it, from its read; how many rows, in the frame" "$( rigVal board.selectedLabel ) $( rigHolds board 'Board: 3 items' ) [$( rigFirst board )] $( rigHolds board '│ running  2' ) $( rigHolds board '│ review   1' ) $( rigHolds board ' 2 rows ' ) $( rigWords '[--manager-team-data-read][board]' )" "Board 0 [ FOLDER   ITEMS] 1 1 1 1"
 rigAssert "a folder of the Board selected is its items as a table and nothing above it, from the one read of the folder: the name, then what the front matter gives but its type, its date, its owner and its status; no size, which the list shows; one with no front matter has none" \
 	"[$( rigFirst running )] $( rigUnder running "$( rigBoardLine NAME DATE OWNER STATUS )" 4 ) $( rigHolds running 'running: 2 items' ) $( rigHolds running ' TYPE ' ) $( rigHolds running ' SIZE' ) $( rigWords '[--manager-team-data-read][board][running]' )" \
-	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][][$( rigBoardLine task-b.md - - - )] 0 0 0 1"
+	"[$( rigBoardLine NAME DATE OWNER STATUS )] [$( rigBoardLine NAME DATE OWNER STATUS )][][$( rigBoardLine task-20261001T0900Z-a.md '2026-10-01 09:00' keeper-rig running )][] 0 0 0 1"
 rigAssert "a folder of no more items than it shows has no key for every row: e is named nowhere" "$( rigHolds running 'All rows' ) $( rigHolds running 'and 0 more' )" "0 0"
 rigAssert "an item selected shows its text, read by its store, its folder and its name" "$( rigVal item.path ) $( rigHolds item '│The body of task a.' ) $( rigWords '[--manager-team-data-read][board][running][task-20261001T0900Z-a.md]' )" "teamdata/board/running 1 1"
 rigAssert "an item in the store itself is read by - for its folder" "$( rigHolds audit '│A declaration.' ) $( rigWords '[--manager-team-data-read][audit][-][declaration-20260928T0000Z-x.md]' )" "1 1"
@@ -379,10 +379,11 @@ rigAssert "the path it covers stands whole on the first line of its row; where i
 	"201 1 1 1 1 0"
 ## F11.0, THE TABLE COLOUR RULE: Turbo Vision in the terminal's own colours, the style here, names no ground of its own
 ## for every other row, so no row takes another look than the one before it, and with the lines wrapped the last line
-## of each row is underlined across the table instead (l, ROW_LINE), the lines above it in the look of a row.
-rigAssert "the header stands out, and with colours that set no row apart each row ends in its underlined line, the lines above it in the look of a row" \
-	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C sed -n "$(( rigWideLine - 2 ))p;$(( rigWideLine ))p;$(( rigWideLine + 1 ))p" | LC_ALL=C cut -c3 | LC_ALL=C tr -d '\n' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.j' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.l' )" \
-	"ucl 0 2"
+## of each row that wraps is underlined across the table instead (l, ROW_LINE), the lines above it in the look of a row,
+## from the first column of the table, never in the indent ahead of it.
+rigAssert "the header stands out, and with colours that set no row apart each row that wraps ends in its underlined line, the lines above it in the look of a row, from the first column and not before it" \
+	"$( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C sed -n "$(( rigWideLine - 2 ))p;$(( rigWideLine ))p;$(( rigWideLine + 1 ))p" | LC_ALL=C cut -c3 | LC_ALL=C tr -d '\n' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.j' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^..l' ) $( printf '%s\n' "$rigOut" | LC_ALL=C sed -n 's/^lw|//p' | LC_ALL=C grep -c '^.l' )" \
+	"ucl 0 1 0"
 
 echo "-- 3. Member Help --"
 rigCase help

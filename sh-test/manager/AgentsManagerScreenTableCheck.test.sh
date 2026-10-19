@@ -11,22 +11,29 @@
 ##   2. in wrap mode, when a value must wrap, the wrapping of the other columns is reassessed: the row takes the
 ##      fewest lines that any split of the same width gives, never one narrow column wrapped to three or four lines
 ##      beside a wide one wrapped to two
-##   3. one empty line between rows in the full view (a left window that is a table and nothing else), where the table
-##      still fits both ways with it: no column left out, in the pane that does not wrap no wider than the pane, and
-##      the header, the rows and the empty lines no taller than the pane; a table inside a summary stays tight
+##   3. one empty line between rows in the full view (a left window that is a table and nothing else), and one under
+##      the header, where the table still fits both ways with it: no column left out, in the pane that does not wrap
+##      no wider than the pane, and the header, the rows and the empty lines no taller than the pane; a table inside
+##      a summary stays tight
 ##   3b. the tables of the list on the right (Locations, Permissions) are drawn by the same renderer: the same gaps, the same
 ##      rows in the look of a row and of every other row, or each underlined where the lines wrap and the colours name no ground
 ##   4. the real screen: the table of the members, which is the whole left window, has them
 ## The colour rule, as it is drawn:
 ##   5. a cell with a look of its own (a state) on an other row is drawn on the ground of that row, and keeps its
 ##      colour and its brightness: the other rows differ from a row only in their ground
-##   6. where the colours of a style name no ground for the other rows, each row of a table whose lines wrap is
-##      underlined across the table width, under its cells with a look of their own too; with the lines not wrapped
-##      nothing marks the rows
+##   6. where the colours of a style name no ground for the other rows, a row whose content wraps is underlined on its
+##      bottom line across the table width, under its cells with a look of their own too, a row of one line is not;
+##      with the lines not wrapped nothing marks the rows
 ##   7. a terminal of eight colours has not the exact shades the other rows are told apart by: there the colours of
 ##      every style name no ground for them
+##   8. the separation of the rows, one technique chosen by the style and never stacked: a close background covers the
+##      whole row, its padding line included; else an underline on the bottom line of a row that wraps, the header
+##      carrying it too; either from the first column of the table to its last, and the header padded from the body
+##      like the rows, the padding never underlined; and which styles have a close background
 ## Red before F11.0: the list on the right with a renderer of its own, the one space between columns, the wrapping that is not reassessed, no empty line between rows,
 ## a cell that breaks the ground of its row, an underline with holes under the cells, and the shades on eight colours.
+## Red before the table separation: the ground that stops short of the padding line, the underline and the padding together
+## on rows that do not wrap, the underline and the ground that start in the indent, the header neither padded nor underlined.
 ## Offline: the only thing the screen calls here is the stand-in for the dispatcher.
 set -u
 : "${MDLT_ORIGIN:?⛔ ERROR: MDLT_ORIGIN is not set}"
@@ -129,13 +136,13 @@ def full(columns, height, wrap=True, rows=BIG, heads=("NAME", "KIND")):
     return "".join("[%s]" % line.rstrip() for line in screen.tableSummaryLines(pane(columns, height, wrap), heads, rows))
 
 
-say("between.fits", full(40, 6))
-say("between.tall", full(40, 5))
-say("between.nowrapFits", full(40, 6, wrap=False))
-say("between.nowrapWide", full(8, 6, wrap=False))
-say("between.dropped", full(9, 6, heads=("NAME", "KIND", "REMARK"), rows=[["alpha", "one", "a long remark"], ["beta", "two", "another"], ["gamma", "six", "a third"]]))
+say("between.fits", full(40, 7))
+say("between.tall", full(40, 6))
+say("between.nowrapFits", full(40, 7, wrap=False))
+say("between.nowrapWide", full(8, 7, wrap=False))
+say("between.dropped", full(9, 7, heads=("NAME", "KIND", "REMARK"), rows=[["alpha", "one", "a long remark"], ["beta", "two", "another"], ["gamma", "six", "a third"]]))
 say("between.members", "".join("[%s]" % line.rstrip() for line in screen.memberTableLines(
-    pane(60, 6), [{"name": name, "icon": "", "live": "-", "status": "active", "kind": "keeper", "folder": ""} for name in ("alpha", "beta", "gamma")], 59, True)).count("[]"))
+    pane(60, 7), [{"name": name, "icon": "", "live": "-", "status": "active", "kind": "keeper", "folder": ""} for name in ("alpha", "beta", "gamma")], 59, True)).count("[]"))
 say("between.inside", "".join("[%s]" % line.rstrip() for line in screen.summaryTable(("NAME", "KIND"), BIG, 40)).count("[]"))
 ## a heading of a group stands against its rows: the empty line is between two rows only
 say("between.headings", "".join("[%s]" % line.rstrip() for line in screen.tableSummaryLines(pane(40, 20), ("NAME", "KIND"), ["group one", ["a", "1"], ["b", "2"], "group two", ["c", "3"], ["d", "4"]])))
@@ -183,7 +190,8 @@ for style, entry in screen.STYLES:
             if screen.rowsApart():
                 want = [screen.ROW, screen.ROW_ALT, screen.ROW, screen.ROW_ALT]
             else:
-                want = [screen.ROW_LINE] * 4 if wrap else [screen.ROW] * 4
+                ## the rows of the list are cut to a line, never wrapped: no underline marks them
+                want = [screen.ROW] * 4
             ## the look of a row as the screen resolves it, so that the two names of one colour are one
             got = [repr(seen(look)) for look in ground]
             if got != [repr(seen(look)) for look in want]:
@@ -193,6 +201,8 @@ say("list.looks", " ".join(rowLooks))
 ## 5, 6, 7. the colour rule as it is drawn, in every style and each of its colour schemes
 STATES = [["a", "running"], ["b", "running"], ["c", "running"], ["d", "failed"]]
 LOOKED = [[None, screen.LEVEL_OK]] * 3 + [[None, screen.LEVEL_BAD]]
+## the same, the first and the third with a state that wraps onto two lines
+WRAPPED_STATES = [["a", "running well on all of the lines"], ["b", "running"], ["c", "running well on all of the lines"], ["d", "failed"]]
 patched, holes, marked, apart = [], [], [], []
 for style, entry in screen.STYLES:
     for scheme, changes in entry["schemes"]:
@@ -211,8 +221,12 @@ for style, entry in screen.STYLES:
                 if number % 2 and screen.lookGround(cell) != want:
                     patched.append("%s:ground:%d" % (name, number))
         else:
+            ## the underline of a row that wraps is on its bottom line, in every cell of it; a row of one line has none
+            head, blocks = screen.paneTable(("NAME", "STATE"), WRAPPED_STATES, 24, looks=LOOKED)
             for number, block in enumerate(blocks):
-                if [look for start, count, look in block[-1].looks if look not in screen.LINED_LOOKS]:
+                if len(block) != (2 if number % 2 == 0 else 1):
+                    holes.append("%s:%d:shape" % (name, number))
+                elif [look for start, count, look in block[-1].looks if (look in screen.LINED_LOOKS) != (len(block) > 1)]:
                     holes.append("%s:%d" % (name, number))
             head, blocks = screen.paneTable(("NAME", "STATE"), STATES, 40, looks=LOOKED, wrap=False)
             if [look for block in blocks for start, count, look in block[-1].looks[:1] if look in screen.LINED_LOOKS] or len(set(repr(seen(block[-1].looks[0][2])) for block in blocks)) != 1:
@@ -221,6 +235,90 @@ say("patched", " ".join(patched))
 say("holes", " ".join(holes))
 say("marked", " ".join(marked))
 say("apart", len(apart) > 0)
+
+## 8. the separation of the rows: one technique, chosen by the style; the padding; the width of the table
+HEADS = ("NAME", "KIND")
+WRAPPING = [["a", "one"], ["b", "two words that wrap on and on over the lines"], ["c", "three"],
+            ["d", "four more words that wrap on and on over the lines"], ["e", "five"]]
+SINGLE = [["a", "one"], ["b", "two"], ["c", "three"], ["d", "four"]]
+
+
+def groundOf(line):
+    return screen.lookGround(line.looks[0][2]) if getattr(line, "looks", None) else None
+
+
+def lined(line):
+    return any(look in screen.LINED_LOOKS for start, count, look in getattr(line, "looks", ()))
+
+
+def everyLine(table):
+    head, blocks = table
+    return head + [line for block in blocks for line in block]
+
+
+closed, bgLined, lineApart, wholeRow, wholeHead, edges, lineWrapped, lineHead, lineNone, padHead, padLine = ([] for index in range(11))
+for style, entry in screen.STYLES:
+    for scheme, changes in entry["schemes"]:
+        name = "%s-%s" % (style, scheme)
+        screen.setStyle(name)
+        near = screen.rowsApart()
+        if near:
+            closed.append(name)
+        for wrap in (True, False):
+            for indent in (" ", "  "):
+                tag = "%s%s%d" % (name, "" if wrap else "-nowrap", len(indent))
+                head, blocks = screen.paneTable(HEADS, WRAPPING, 30, wrap=wrap, indent=indent, pane=(1000, 1000))
+                every = everyLine((head, blocks))
+                width = screen.textWidth(head[0])
+                ## the table's own width: a ground or an underline from its first column to its last, on every line of it
+                if any(not getattr(line, "looks", None) or line.looks[0][0] != len(indent) or line.looks[0][0] + line.looks[0][1] != width
+                       or screen.textWidth(line) != width for line in every):
+                    edges.append(tag)
+                ## the header is padded from the body as the rows are from each other, and the padding carries no underline
+                pads = [line for line in every if not line.strip()]
+                if len(head) != 2 or head[1].strip():
+                    padHead.append(tag)
+                if len(pads) != len(WRAPPING) or any(lined(line) for line in pads):
+                    padLine.append(tag)
+                if near:
+                    ## a close background is the whole technique: nothing is underlined, and every line of a row has its ground, its padding line too
+                    if any(lined(line) for line in every):
+                        bgLined.append(tag)
+                    for number, block in enumerate(blocks):
+                        if any(groundOf(line) != screen.lookGround(screen.ROW_ALT if number % 2 else screen.ROW) for line in block):
+                            wholeRow.append("%s:%d" % (tag, number))
+                    if any(groundOf(line) != screen.lookGround(screen.ROW_HEAD) for line in head):
+                        wholeHead.append(tag)
+                else:
+                    ## no close background: the ground never changes
+                    if any(groundOf(line) != screen.lookGround(screen.ROW) for block in blocks for line in block if line.strip()):
+                        lineApart.append(tag)
+                    if wrap:
+                        ## the underline is on the bottom line of a row that wraps, and the header carries it too
+                        for number, block in enumerate(blocks):
+                            texts = len([line for line in block if line.strip()])
+                            if [lined(line) for line in block] != [texts > 1 and at == texts - 1 for at in range(len(block))]:
+                                lineWrapped.append("%s:%d" % (tag, number))
+                        if not lined(head[0]):
+                            lineHead.append(tag)
+                    elif any(lined(line) for line in every):
+                        lineNone.append(tag)
+        ## a table whose rows do not wrap carries no underline, the header included
+        if not near:
+            for indent in (" ", "  "):
+                if any(lined(line) for line in everyLine(screen.paneTable(HEADS, SINGLE, 30, indent=indent, pane=(1000, 1000)))):
+                    lineNone.append("%s%d" % (name, len(indent)))
+say("sepClosed", " ".join(closed))
+say("sepBgLined", " ".join(bgLined))
+say("sepWholeRow", " ".join(wholeRow))
+say("sepWholeHead", " ".join(wholeHead))
+say("sepLineApart", " ".join(lineApart))
+say("sepLineWrapped", " ".join(lineWrapped))
+say("sepLineHead", " ".join(lineHead))
+say("sepLineNone", " ".join(lineNone))
+say("sepEdges", " ".join(edges))
+say("sepPadHead", " ".join(padHead))
+say("sepPadLine", " ".join(padLine))
 eight = []
 screen.curses = type("Eight", (), {"COLORS": 8})
 for style, entry in screen.STYLES:
@@ -252,12 +350,12 @@ for rigN in 1 2 3 4 ; do
 done
 
 echo "-- 3. one empty line between the rows of the full view, where the table fits both ways with it --"
-rigAssert "the header and the rows fit with the empty lines: one between every two rows" "$( rigGot between.fits )" "[ NAME   KIND][ alpha  one][][ beta   two][][ gamma  six]"
+rigAssert "the header and the rows fit with the empty lines: one under the header and one between every two rows" "$( rigGot between.fits )" "[ NAME   KIND][][ alpha  one][][ beta   two][][ gamma  six]"
 rigAssert "one line too few for them: none" "$( rigGot between.tall )" "[ NAME   KIND][ alpha  one][ beta   two][ gamma  six]"
-rigAssert "the lines not wrapped, the table no wider than the pane: they stand there too" "$( rigGot between.nowrapFits )" "[ NAME   KIND][ alpha  one][][ beta   two][][ gamma  six]"
+rigAssert "the lines not wrapped, the table no wider than the pane: they stand there too" "$( rigGot between.nowrapFits )" "[ NAME   KIND][][ alpha  one][][ beta   two][][ gamma  six]"
 rigAssert "the lines not wrapped and the table wider than the pane: none" "$( rigGot between.nowrapWide )" "[ NAME   KIND][ alpha  one][ beta   two][ gamma  six]"
 rigAssert "a column left out for the width of the pane: none" "$( rigGot between.dropped | LC_ALL=C grep -c -F '[]' )" "0"
-rigAssert "the table of the members, which is the whole left window, has them" "$( rigGot between.members )" "2"
+rigAssert "the table of the members, which is the whole left window, has them" "$( rigGot between.members )" "3"
 rigAssert "a table inside a summary stays tight" "$( rigGot between.inside )" "0"
 rigAssert "a heading of a group stands against its rows: the empty line is between two rows, never next to a heading" "$( rigGot between.headings )" "[ NAME  KIND][ group one][ a     1][][ b     2][ group two][ c     3][][ d     4]"
 
@@ -265,7 +363,7 @@ echo "-- 3b. the tables of the list on the right: drawn by the same renderer, th
 rigAssert "two spaces between the columns where the pane has the room, the mark of the location ahead of the first column too" "$( rigGot list.200 )" "[   PLACE   KIND       CEILING     STATE    SESSIONS][•  ws-rig  workspace  read-write  present  1][   ws-far  workspace  read-write  present  0]"
 rigAssert "one where it has not" "$( rigGot list.47 )" "[  PLACE  KIND      CEILING    STATE   SESSIONS][• ws-rig workspace read-write present 1][  ws-far workspace read-write present 0]"
 rigAssert "a column that does not fit is left out whole, the last first" "$( rigGot list.17 )" "[   PLACE][•  ws-rig][   ws-far]"
-rigAssert "in every style and colour scheme the rows take turns in the look of a row and of every other row, or each is underlined where the lines wrap and the colours name no ground, none marked where they do not" "[$( rigGot list.looks )]" "[]"
+rigAssert "in every style and colour scheme the rows take turns in the look of a row and of every other row where the colours name a ground, else all are the look of a row: a row of the list is cut to a line, never wrapped, so none is underlined" "[$( rigGot list.looks )]" "[]"
 
 echo "-- 4. the real screen: the table of the members has them --"
 rigRow(){ ## the fields of one row, joined by TAB
@@ -328,9 +426,9 @@ turn
 show tall
 RIGSCRIPT
 rigAssert "control: the table of the members is drawn, a header over the four members" "$( rigPane tall | LC_ALL=C grep -c -E '^ # +MEMBER +RUN +STATUS +KIND +WHERE$' ):$( rigPane tall | LC_ALL=C grep -c -E '^ [1-4] +(human-owner|magic-coordinator|keeper-myx|keeper-far) ' )" "1:4"
-rigAssert "the columns are two spaces apart, and an empty line stands between every two members" \
-	"$( rigPaneUnder tall "$rigHead" 8 )" \
-	"[$rigHead][$rigRow1][][$rigRow2][][$rigRow3][][$rigRow4]"
+rigAssert "the columns are two spaces apart, an empty line stands under the header and between every two members" \
+	"$( rigPaneUnder tall "$rigHead" 9 )" \
+	"[$rigHead][][$rigRow1][][$rigRow2][][$rigRow3][][$rigRow4]"
 rigSize="120 9"
 rigCase short
 rigScript <<'RIGSCRIPT'
@@ -347,6 +445,46 @@ RIGSCRIPT
 rigAssert "the window too short for the empty lines: the members stand one under the other" \
 	"$( rigPaneUnder short "$rigHead" 5 )" \
 	"[$rigHead][$rigRow1][$rigRow2][$rigRow3][$rigRow4]"
+
+rigRowRoles(){ ## shown tag, roles tag -- from the header of the table of the members on, nine lines: the look letter of the first cell of each, the look letter of the cell ahead of it, and how many different widths those lines are drawn to
+	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
+import os, sys
+show, roles = sys.argv[1:3]
+out = os.environ["RIG_OUT"].split("\n")
+shown = [line[len(show) + 1:] for line in out if line.startswith(show + "|")]
+drawn = [line[len(roles) + 1:] for line in out if line.startswith(roles + "|")]
+first = [number for number, line in enumerate(shown) if " MEMBER " in line][0]
+lines = drawn[first:first + 9]
+widths = set()
+for line in lines:
+    run = 0
+    while line[2 + run] == line[2]:
+        run += 1
+    widths.add(run)
+print("".join(line[2] for line in lines), "".join(line[1] for line in lines), len(widths))
+' "$1" "$2"
+}
+rigCase looked
+rigSize="120 40"
+rigScript <<'RIGSCRIPT'
+style nu-blue
+turn
+wait sessions 30
+root team
+turn 2
+turn
+keys ENTER
+wait list 30
+turn
+show blue
+roles blueRoles
+style nu-system
+turn
+show sys
+roles sysRoles
+RIGSCRIPT
+rigAssert "where the colours name a close ground, the header is on its own, and a row with its padding line under it is on its ground, the rows taking turns: from the first cell of the table, none in the cell ahead of it, every line the same width" "$( rigRowRoles blue blueRoles )" "uuccjjccj ......... 1"
+rigAssert "where they name none, no row is marked: the rows are not wrapped, so none is underlined, and the padding lines are of the rows" "$( rigRowRoles sys sysRoles )" "uuccccccc ......... 1"
 
 rigLetterAt(){ ## shown tag, roles tag, text -- the letter of the first cell of that text in the list, on the first line that holds it from column 140 on
 	RIG_OUT="$rigOut" "$rigPython" -I -B -c '
@@ -384,19 +522,32 @@ show sys
 roles sysRoles
 RIGSCRIPT
 rigAssert "the list of the locations on the real screen: where the colours name a ground for every other row its rows take turns (the one the console runs in standing out), each in the look of its ground" "$( rigLetters blue blueRoles )" "Bjcj"
-rigAssert "where they name none, and the lines wrap, each row is underlined, the one that stands out too" "$( rigLetters sys sysRoles )" "Blll"
+rigAssert "where they name none, no row is marked, for a row of the list is cut to a line and never wraps: the one that stands out stands out, the others are rows" "$( rigLetters sys sysRoles )" "Bccc"
 rigAssert "its header is drawn in the look of the header of a table" "$( rigLetterAt blue blueRoles PLACE )" "u"
 
 echo "-- 5. a cell with a look of its own is drawn on the ground of its row --"
 rigAssert "in every style and colour scheme that gives the other rows a ground, a state cell of such a row has that ground and its own colour and brightness" "[$( rigGot patched )]" "[]"
 rigAssert "control: there are styles and schemes that give the other rows a ground" "$( rigGot apart )" "True"
 
-echo "-- 6. the underline of the rows runs across the table, under the cells with a look of their own --"
-rigAssert "where no ground is named for the other rows, the last line of every row is underlined across the table, in every cell too" "[$( rigGot holes )]" "[]"
+echo "-- 6. the underline of a row that wraps runs across the table, under the cells with a look of their own --"
+rigAssert "where no ground is named for the other rows, the last line of a row that wraps is underlined across the table, in every cell too, and a row of one line is not" "[$( rigGot holes )]" "[]"
 rigAssert "with the lines not wrapped nothing marks the rows" "[$( rigGot marked )]" "[]"
 
 echo "-- 7. a terminal of eight colours names no ground for the other rows --"
 rigAssert "with eight colours no style and scheme gives the other rows a ground" "[$( rigGot eight )]" "[]"
+
+echo "-- 8. the separation of the rows: one technique, chosen by the style, never stacked --"
+rigAssert "the assessment of the palettes: the styles with a background close to their normal one for the other rows, and no other" "$( rigGot sepClosed )" "nu-blue nu-gray tv-blue tv-gray"
+rigAssert "where there is a close background it is the whole technique: nothing is underlined, the header and the padding lines too" "[$( rigGot sepBgLined )]" "[]"
+rigAssert "the background belongs to the whole row: every line of it and its padding line are on its ground" "[$( rigGot sepWholeRow )]" "[]"
+rigAssert "the header and its padding line are on the ground of the header" "[$( rigGot sepWholeHead )]" "[]"
+rigAssert "where there is none the ground never changes" "[$( rigGot sepLineApart )]" "[]"
+rigAssert "the underline is on the bottom line of a row whose content wraps, never in its middle, and a row of one line has none" "[$( rigGot sepLineWrapped )]" "[]"
+rigAssert "the header carries the underline too, where rows of its table wrap" "[$( rigGot sepLineHead )]" "[]"
+rigAssert "a table whose rows do not wrap carries no underline, the header included, and with the lines not wrapped nothing marks the rows" "[$( rigGot sepLineNone )]" "[]"
+rigAssert "a ground or an underline starts at the first column of the table and ends at its last, on every line, never in the indent ahead of it" "[$( rigGot sepEdges )]" "[]"
+rigAssert "the header is padded from the body, as the rows are from each other" "[$( rigGot sepPadHead )]" "[]"
+rigAssert "a padding line carries no underline, and there is one under the header and between every two rows" "[$( rigGot sepPadLine )]" "[]"
 
 if [ "$rigFailCount" -ne 0 ] ; then
 	echo "⛔ MANAGER SCREEN TABLE CHECK FAILED: $rigFailCount of $(( rigPassCount + rigFailCount )) assertion(s)" >&2 ; exit 1
